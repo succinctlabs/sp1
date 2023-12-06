@@ -1,15 +1,14 @@
+use crate::program::ISA;
+
 pub mod air;
 pub mod witness;
 
-/// The `Word` type of our architecture.
-pub struct Word(u32);
-pub struct Pointer(u32);
-pub struct Opcode(u8);
+/// The `Opcode` type of our architecture.
 
-pub struct CPU {
-    pub pc: Pointer,
-    pub fp: Pointer,
-    pub opcode: Opcode,
-    pub operands: [Word; 3],
-    pub immediate: Word,
+pub struct Cpu<IS: ISA> {
+    pub pc: IS::Word,
+    pub fp: IS::Word,
+    pub opcode: IS::Opcode,
+    pub operands: [IS::Word; 3],
+    pub immediate: IS::ImmValue,
 }
