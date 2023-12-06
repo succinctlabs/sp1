@@ -1,22 +1,15 @@
-pub mod basic;
+pub mod base;
 
-/// An instruction set architecture.
+/// An instruction set architecture with 32-bit addresses.
 ///
 /// This trait defines the basic types needed to encode an instruction.
 pub trait ISA {
-    /// The opcode type of our architecture.
-    ///
-    /// Opcodes are used to encode instructions.
-    type Opcode;
-
-    /// The word type of our architecture.
-    ///
-    /// Words are used to encode addresses and data in memory.
-    type Word: Copy + Default;
-
+    /// The instruction type of our architecture.
     type Instruction;
-    /// The immediate value type of our architecture.
+
+    /// Decode an instruction to its opcode and arguments.
     ///
-    /// Immediate values are used to encode constants in instructions.
-    type ImmValue;
+    /// The instruction is deconded as `(opcode, op_a, op_b, op_c, imm)`. This enforces a standard
+    /// format for instructions that can be used by the runtime.
+    fn decode(instruction: &Self::Instruction) -> (u8, u32, u32, u32, u32);
 }

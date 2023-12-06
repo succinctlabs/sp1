@@ -1,6 +1,7 @@
-use crate::program::ISA;
+use serde::{Deserialize, Serialize};
 
-pub enum ALUOperation {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum AluOperation {
     Add,
     Sub,
     Mul,
@@ -15,8 +16,11 @@ pub enum ALUOperation {
     Leq,
 }
 
-pub struct ALU<IS: ISA> {
-    op: ALUOperation,
-    operands: [IS::Word; 3],
-    values: [IS::Word; 3],
+/// The state of the Alu at a particular point in the program execution.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Alu {
+    pub op: AluOperation,
+    pub v_a: u32,
+    pub v_b: u32,
+    pub v_c: u32,
 }

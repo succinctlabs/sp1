@@ -3,6 +3,6 @@ pub mod alu;
 pub mod cpu;
 pub mod program;
 pub mod runtime;
-pub mod segment;
 
-pub struct Word<F>([F; 4]);
+pub const WORD_SIZE: usize = 4;
+pub struct Word<F>([F; WORD_SIZE]);
