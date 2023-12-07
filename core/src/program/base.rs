@@ -8,51 +8,51 @@ pub struct BaseISA;
 pub enum BaseInstruction {
     /// StoreWord(a, b).
     ///
-    /// Loads the word at address fp-b into address fp-a.
+    /// Loads the word at address fp+b into address fp+a.
     SW(u32, u32),
     /// ConstantWord(a, b).
     ///
-    /// Stores the constant word into address fp-a.
+    /// Stores the constant word into address fp+a.
     CW(u32, u32),
     /// Add(a, b, c)
     ///
-    /// Adds the values at address fp-b and fp-c and stores the result in fp-a.
+    /// Adds the values at address fp+b and fp+c and stores the result in fp+a.
     ADD(u32, u32, u32),
     /// SUB(a, b, c)
     ///
-    /// Subtracts the values at address fp-b and fp-c and stores the result in fp-a.
+    /// Subtracts the values at address fp+b and fp+c and stores the result in fp+a.
     SUB(u32, u32, u32),
     /// AND(a, b, c)
     ///
-    /// Bitwise ANDs the values at address fp-b and fp-c and stores the result in fp-a.
+    /// Bitwise ANDs the values at address fp+b and fp+c and stores the result in fp+a.
     AND(u32, u32, u32),
     /// OR(a, b, c)
     ///
-    /// Bitwise ORs the values at address fp-b and fp-c and stores the result in fp-a.
+    /// Bitwise ORs the values at address fp+b and fp+c and stores the result in fp+a.
     OR(u32, u32, u32),
     /// XOR(a, b, c)
     ///
-    /// Bitwise XORs the values at address fp-b and fp-c and stores the result in fp-a.
+    /// Bitwise XORs the values at address fp+b and fp+c and stores the result in fp+a.
     XOR(u32, u32, u32),
     /// ADDI(a, b, d)
     ///
-    /// Adds the value at address fp-b and the constant d and stores the result in fp-a.
+    /// Adds the value at address fp+b and the constant d and stores the result in fp+a.
     ADDI(u32, u32, u32),
     /// SUBI(a, b, d)
     ///
-    /// Subtracts the value at address fp-b and the constant d and stores the result in fp-a.
+    /// Subtracts the value at address fp+b and the constant d and stores the result in fp+a.
     SUBI(u32, u32, u32),
     /// ANDI(a, b, d)
     ///
-    /// Bitwise ANDs the value at address fp-b and the constant d and stores the result in fp-a.
+    /// Bitwise ANDs the value at address fp+b and the constant d and stores the result in fp+a.
     ANDI(u32, u32, u32),
     /// ORI(a, b, d)
     ///
-    /// Bitwise ORs the value at address fp-b and the constant d and stores the result in fp-a.
+    /// Bitwise ORs the value at address fp+b and the constant d and stores the result in fp+a.
     ORI(u32, u32, u32),
     /// XORI(a, b, d)
     ///
-    /// Bitwise XORs the value at address fp-b and the constant d and stores the result in fp-a.
+    /// Bitwise XORs the value at address fp+b and the constant d and stores the result in fp+a.
     XORI(u32, u32, u32),
     /// ECALL(a, b, c, d)
     ///
