@@ -1,8 +1,8 @@
-pub mod air;
 pub mod alu;
 pub mod cpu;
+pub mod precompiles;
 pub mod program;
-pub mod runtime;
+mod runtime;
+mod segment;
 
-pub const WORD_SIZE: usize = 4;
-pub struct Word<F>([F; WORD_SIZE]);
+pub use runtime::Runtime;

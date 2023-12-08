@@ -1,15 +1,34 @@
-pub mod base;
+use std::fmt::{Display, Formatter};
 
-/// An instruction set architecture with 32-bit addresses.
-///
-/// This trait defines the basic types needed to encode an instruction.
-pub trait ISA {
-    /// The instruction type of our architecture.
-    type Instruction;
+use self::opcodes::Opcode;
 
-    /// Decode an instruction to its opcode and arguments.
-    ///
-    /// The instruction is deconded as `(opcode, op_a, op_b, op_c, imm)`. This enforces a standard
-    /// format for instructions that can be used by the runtime.
-    fn decode(instruction: &Self::Instruction) -> (u8, u32, u32, u32, u32);
+pub const OPERAND_ELEMENTS: usize = 5;
+pub mod opcodes;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Instruction<W> {
+    pub opcode: Opcode,
+    pub operands: Operands<W>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProgramROM<W>(pub Vec<Instruction<W>>);
+
+impl<W: Copy> ProgramROM<W> {
+    pub fn get_instruction(&self, pc: u32) -> Instruction<W> {
+        self.0[pc as usize]
+    }
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub struct Operands<F>(pub [F; OPERAND_ELEMENTS]);
+
+impl<W: Display> Display for Instruction<W> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ", self.opcode)?;
+        for operand in self.operands.0.iter() {
+            write!(f, "{} ", operand)?;
+        }
+        Ok(())
+    }
 }

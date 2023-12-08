@@ -1,0 +1,27 @@
+@test:                                  
+| %bb.0:
+	and 4(fp) -12(fp) -8(fp)
+	and 8(fp) -12(fp) -4(fp)
+	add 12(fp) 8(fp) 4(fp)
+	and 16(fp) -8(fp) -4(fp)
+	add 20(fp) 12(fp) 16(fp)
+	lw 24(fp) 5
+	shl 28(fp) 20(fp) 24(fp)
+	add 32(fp) -8(fp) -4(fp)
+	and 36(fp) 32(fp) -12(fp)
+	add 40(fp) 32(fp) -12(fp)
+	add 44(fp) 40(fp) 36(fp)
+	add 48(fp) -12(fp) -8(fp)
+	and 52(fp) 48(fp) -4(fp)
+	add 56(fp) -12(fp) -4(fp)
+	and 60(fp) 56(fp) -8(fp)
+	add 64(fp) 44(fp) 60(fp)
+	add 68(fp) 64(fp) 52(fp)
+	lw 72(fp) 5
+	shl 76(fp) 68(fp) 72(fp)
+	add 80(fp) 28(fp) 76(fp)
+	and 84(fp) 16(fp) -12(fp)
+	add 88(fp) 44(fp) 84(fp)
+	add 92(fp) 88(fp) 52(fp)
+	add 96(fp) 92(fp) 60(fp)
+	add 100(fp) 96(fp) 80(fp)
