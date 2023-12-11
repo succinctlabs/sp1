@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "assembler", "valida", "curta"]
+members = ["core", "assembler", "valida", "curta", "risc-v"]
 resolver = "2"
 
 [profile.release]

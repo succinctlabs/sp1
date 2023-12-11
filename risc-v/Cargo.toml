@@ -1,0 +1,25 @@
+[package]
+name = "risc-v"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embedded-alloc = "0.5.1"
+cortex-m-rt = "0.7"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+tendermint = { version = "0.34.0", default-features = false }
+tendermint-light-client-verifier = { version = "0.34.0", default-features = false, features = [
+    "rust-crypto",
+] }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[build]
+target = "riscv32imac-unknown-none-elf"
