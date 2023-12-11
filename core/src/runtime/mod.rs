@@ -162,7 +162,7 @@ pub const T4: Register = X29;
 pub const T5: Register = X30;
 pub const T6: Register = X31;
 
-/// An operand that can either a register or an immediate value.
+/// An operand that can either be a register or an immediate value.
 pub enum RegisterOrImmediate {
     Register(Register),
     Immediate(u32),
