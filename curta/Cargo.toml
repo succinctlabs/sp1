@@ -1,0 +1,13 @@
+[package]
+name = "curta"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.75"
+byteorder = "1.5.0"
+clap = { version = "4.4.11", features = ["derive"] }
+curta-assembler = { workspace = true }
+curta-core = { workspace = true }
