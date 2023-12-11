@@ -217,8 +217,8 @@ pub enum RegisterOrImmediate {
 pub struct Instruction {
     opcode: Opcode,
     a: Register,
-    b: Register,
-    c: RegisterOrImmediate,
+    b: RegisterOrImmediate,
+    c: Option<RegisterOrImmediate>,
 }
 
 pub struct Runtime {
