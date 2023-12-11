@@ -1,166 +1,211 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fmt::{Display, Formatter},
+};
 
 /// An opcode specifies which operation to execute.
-pub type Opcode = u8;
+#[derive(Debug, Clone, Copy)]
+pub enum Opcode {
+    /// Register instructions.
+    ADD = 0,
+    SUB = 1,
+    XOR = 2,
+    OR = 3,
+    AND = 4,
+    SLL = 5,
+    SRL = 6,
+    SRA = 7,
+    SLT = 8,
+    SLTU = 9,
 
-/// Register instructions.
-pub const ADD: Opcode = 0;
-pub const SUB: Opcode = 1;
-pub const XOR: Opcode = 2;
-pub const OR: Opcode = 3;
-pub const AND: Opcode = 4;
-pub const SLL: Opcode = 5;
-pub const SRL: Opcode = 6;
-pub const SRA: Opcode = 7;
-pub const SLT: Opcode = 8;
-pub const SLTU: Opcode = 9;
+    /// Immediate instructions.
+    ADDI = 10,
+    XORI = 11,
+    ORI = 12,
+    ANDI = 13,
+    SLLI = 14,
+    SRLI = 15,
+    SRAI = 16,
+    SLTI = 17,
+    SLTIU = 18,
 
-/// Immediate instructions.
-pub const ADDI: Opcode = 10;
-pub const XORI: Opcode = 11;
-pub const ORI: Opcode = 12;
-pub const ANDI: Opcode = 13;
-pub const SLLI: Opcode = 14;
-pub const SRLI: Opcode = 15;
-pub const SRAI: Opcode = 16;
-pub const SLTI: Opcode = 17;
-pub const SLTIU: Opcode = 18;
+    /// Load instructions.
+    LB = 19,
+    LH = 20,
+    LW = 21,
+    LBU = 22,
+    LHU = 23,
 
-/// Load instructions.
-pub const LB: Opcode = 19;
-pub const LH: Opcode = 20;
-pub const LW: Opcode = 21;
-pub const LBU: Opcode = 22;
-pub const LHU: Opcode = 23;
+    /// Store instructions.
+    SB = 24,
+    SH = 25,
+    SW = 26,
 
-/// Store instructions.
-pub const SB: Opcode = 24;
-pub const SH: Opcode = 25;
-pub const SW: Opcode = 26;
+    /// Branch instructions.
+    BEQ = 27,
+    BNE = 28,
+    BLT = 29,
+    BGE = 30,
+    BLTU = 31,
+    BGEU = 32,
 
-/// Branch instructions.
-pub const BEQ: Opcode = 27;
-pub const BNE: Opcode = 28;
-pub const BLT: Opcode = 29;
-pub const BGE: Opcode = 30;
-pub const BLTU: Opcode = 31;
-pub const BGEU: Opcode = 32;
+    /// Jump instructions.
+    JAL = 33,
+    JALR = 34,
+    LUI = 35,
+    AUIPC = 36,
 
-/// Jump instructions.
-pub const JAL: Opcode = 33;
-pub const JALR: Opcode = 34;
-pub const LUI: Opcode = 35;
-pub const AUIPC: Opcode = 36;
+    /// System instructions.
+    ECALL = 37,
+    EBREAK = 38,
 
-/// System instructions.
-pub const ECALL: Opcode = 37;
-pub const EBREAK: Opcode = 38;
+    /// Multiply instructions.
+    MUL = 39,
+    MULH = 40,
+    MULSU = 41,
+    MULU = 42,
+    DIV = 43,
+    DIVU = 44,
+    REM = 45,
+    REMU = 46,
+}
 
-/// Multiply instructions.
-pub const MUL: Opcode = 39;
-pub const MULH: Opcode = 40;
-pub const MULSU: Opcode = 41;
-pub const MULU: Opcode = 42;
-pub const DIV: Opcode = 43;
-pub const DIVU: Opcode = 44;
-pub const REM: Opcode = 45;
-pub const REMU: Opcode = 46;
+impl Display for Opcode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Opcode::ADD => write!(f, "add"),
+            Opcode::SUB => write!(f, "sub"),
+            Opcode::XOR => write!(f, "xor"),
+            Opcode::OR => write!(f, "or"),
+            Opcode::AND => write!(f, "and"),
+            Opcode::SLL => write!(f, "sll"),
+            Opcode::SRL => write!(f, "srl"),
+            Opcode::SRA => write!(f, "sra"),
+            Opcode::SLT => write!(f, "slt"),
+            Opcode::SLTU => write!(f, "sltu"),
+
+            Opcode::ADDI => write!(f, "addi"),
+            Opcode::XORI => write!(f, "xori"),
+            Opcode::ORI => write!(f, "ori"),
+            Opcode::ANDI => write!(f, "andi"),
+            Opcode::SLLI => write!(f, "slli"),
+            Opcode::SRLI => write!(f, "srli"),
+            Opcode::SRAI => write!(f, "srai"),
+            Opcode::SLTI => write!(f, "slti"),
+            Opcode::SLTIU => write!(f, "sltiu"),
+
+            Opcode::LB => write!(f, "lb"),
+            Opcode::LH => write!(f, "lh"),
+            Opcode::LW => write!(f, "lw"),
+            Opcode::LBU => write!(f, "lbu"),
+            Opcode::LHU => write!(f, "lhu"),
+
+            Opcode::SB => write!(f, "sb"),
+            Opcode::SH => write!(f, "sh"),
+            Opcode::SW => write!(f, "sw"),
+
+            Opcode::BEQ => write!(f, "beq"),
+            Opcode::BNE => write!(f, "bne"),
+            Opcode::BLT => write!(f, "blt"),
+            Opcode::BGE => write!(f, "bge"),
+            Opcode::BLTU => write!(f, "bltu"),
+            Opcode::BGEU => write!(f, "bgeu"),
+
+            Opcode::JAL => write!(f, "jal"),
+            Opcode::JALR => write!(f, "jalr"),
+            Opcode::LUI => write!(f, "lui"),
+            Opcode::AUIPC => write!(f, "auipc"),
+
+            Opcode::ECALL => write!(f, "ecall"),
+            Opcode::EBREAK => write!(f, "ebreak"),
+
+            Opcode::MUL => write!(f, "mul"),
+            Opcode::MULH => write!(f, "mulh"),
+            Opcode::MULSU => write!(f, "mulsu"),
+            Opcode::MULU => write!(f, "mulu"),
+            Opcode::DIV => write!(f, "div"),
+            Opcode::DIVU => write!(f, "divu"),
+            Opcode::REM => write!(f, "rem"),
+            Opcode::REMU => write!(f, "remu"),
+        }
+    }
+}
 
 /// A register stores a 32-bit value used by operations.
-pub type Register = u8;
+#[derive(Debug, Clone, Copy)]
+pub enum Register {
+    X0 = 0,
+    X1 = 1,
+    X2 = 2,
+    X3 = 3,
+    X4 = 4,
+    X5 = 5,
+    X6 = 6,
+    X7 = 7,
+    X8 = 8,
+    X9 = 9,
+    X10 = 10,
+    X11 = 11,
+    X12 = 12,
+    X13 = 13,
+    X14 = 14,
+    X15 = 15,
+    X16 = 16,
+    X17 = 17,
+    X18 = 18,
+    X19 = 19,
+    X20 = 20,
+    X21 = 21,
+    X22 = 22,
+    X23 = 23,
+    X24 = 24,
+    X25 = 25,
+    X26 = 26,
+    X27 = 27,
+    X28 = 28,
+    X29 = 29,
+    X30 = 30,
+    X31 = 31,
+}
 
-/// General-purpose registers.
-pub const X0: Register = 0;
-pub const X1: Register = 1;
-pub const X2: Register = 2;
-pub const X3: Register = 3;
-pub const X4: Register = 4;
-pub const X5: Register = 5;
-pub const X6: Register = 6;
-pub const X7: Register = 7;
-pub const X8: Register = 8;
-pub const X9: Register = 9;
-pub const X10: Register = 10;
-pub const X11: Register = 11;
-pub const X12: Register = 12;
-pub const X13: Register = 13;
-pub const X14: Register = 14;
-pub const X15: Register = 15;
-pub const X16: Register = 16;
-pub const X17: Register = 17;
-pub const X18: Register = 18;
-pub const X19: Register = 19;
-pub const X20: Register = 20;
-pub const X21: Register = 21;
-pub const X22: Register = 22;
-pub const X23: Register = 23;
-pub const X24: Register = 24;
-pub const X25: Register = 25;
-pub const X26: Register = 26;
-pub const X27: Register = 27;
-pub const X28: Register = 28;
-pub const X29: Register = 29;
-pub const X30: Register = 30;
-pub const X31: Register = 31;
-
-/// Zero constant.
-pub const ZERO: Register = X0;
-
-/// Return address.
-pub const RA: Register = X1;
-
-/// Stack pointer.
-pub const SP: Register = X2;
-
-/// Global pointer.
-pub const GP: Register = X3;
-
-/// Thread pointer.
-pub const TP: Register = X4;
-
-/// Temporaries.
-pub const T0: Register = X5;
-pub const T1: Register = X6;
-pub const T2: Register = X7;
-
-/// Saved pointer.
-pub const S0: Register = X8;
-
-/// Frame pointer.
-pub const FP: Register = X8;
-
-///  Saved register.
-pub const S1: Register = X9;
-
-/// Function arguments/return values.
-pub const A0: Register = X10;
-pub const A1: Register = X11;
-
-/// Function arguments.
-pub const A2: Register = X12;
-pub const A3: Register = X13;
-pub const A4: Register = X14;
-pub const A5: Register = X15;
-pub const A6: Register = X16;
-pub const A7: Register = X17;
-
-/// Saved registers.
-pub const S2: Register = X18;
-pub const S3: Register = X19;
-pub const S4: Register = X20;
-pub const S5: Register = X21;
-pub const S6: Register = X22;
-pub const S7: Register = X23;
-pub const S8: Register = X24;
-pub const S9: Register = X25;
-pub const S10: Register = X26;
-pub const S11: Register = X27;
-
-/// Temporaries.
-pub const T3: Register = X28;
-pub const T4: Register = X29;
-pub const T5: Register = X30;
-pub const T6: Register = X31;
+impl Display for Register {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Register::X0 => write!(f, "x0"),
+            Register::X1 => write!(f, "x1"),
+            Register::X2 => write!(f, "x2"),
+            Register::X3 => write!(f, "x3"),
+            Register::X4 => write!(f, "x4"),
+            Register::X5 => write!(f, "x5"),
+            Register::X6 => write!(f, "x6"),
+            Register::X7 => write!(f, "x7"),
+            Register::X8 => write!(f, "x8"),
+            Register::X9 => write!(f, "x9"),
+            Register::X10 => write!(f, "x10"),
+            Register::X11 => write!(f, "x11"),
+            Register::X12 => write!(f, "x12"),
+            Register::X13 => write!(f, "x13"),
+            Register::X14 => write!(f, "x14"),
+            Register::X15 => write!(f, "x15"),
+            Register::X16 => write!(f, "x16"),
+            Register::X17 => write!(f, "x17"),
+            Register::X18 => write!(f, "x18"),
+            Register::X19 => write!(f, "x19"),
+            Register::X20 => write!(f, "x20"),
+            Register::X21 => write!(f, "x21"),
+            Register::X22 => write!(f, "x22"),
+            Register::X23 => write!(f, "x23"),
+            Register::X24 => write!(f, "x24"),
+            Register::X25 => write!(f, "x25"),
+            Register::X26 => write!(f, "x26"),
+            Register::X27 => write!(f, "x27"),
+            Register::X28 => write!(f, "x28"),
+            Register::X29 => write!(f, "x29"),
+            Register::X30 => write!(f, "x30"),
+            Register::X31 => write!(f, "x31"),
+        }
+    }
+}
 
 /// An operand that can either be a register or an immediate value.
 pub enum RegisterOrImmediate {
