@@ -1,0 +1,21 @@
+[package]
+name = "curta-assembler"
+version = "0.1.0"
+edition = "2021"
+
+
+[[bin]]
+name = "assembler"
+path = "src/bin/assembler.rs"
+
+[dependencies]
+byteorder = "1.4.3"
+clap = { version = "4.4.5", features = ["cargo"] }
+pest = "2.7.3"
+pest_derive = "2.7.3"
+curta-core = { workspace = true }
+anyhow = "1.0.75"
+
+[build-dependencies]
+pest_generator = "2.7.3"
+pest_meta = "2.7.3"

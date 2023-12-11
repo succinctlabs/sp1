@@ -1,0 +1,19 @@
+[workspace]
+members = ["core", "assembler", "valida", "curta"]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+
+[profile.bench]
+opt-level = 3
+
+
+[workspace.dependencies]
+p3-air = { git = "https://github.com/Plonky3/Plonky3" }
+p3-commit = { git = "https://github.com/Plonky3/Plonky3" }
+valida-opcodes = { git = "https://github.com/valida-xyz/valida.git" }
+
+curta-core = { path = "core" }
+valida-isa = { path = "valida" }
+curta-assembler = { path = "assembler" }
