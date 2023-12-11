@@ -6,11 +6,3 @@ pub struct CpuEvent {
     pub pc: u32,
     pub instruction: Instruction<i32>,
 }
-
-struct CpuTrace {}
-
-impl CpuTrace {
-    fn generate_trace(events: Vec<CpuEvent>) {
-        todo!();
-    }
-}

@@ -1,33 +1,13 @@
 use anyhow::Result;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use curta_core::program::{opcodes::*, Instruction, Operands, ProgramROM, OPERAND_ELEMENTS};
+use byteorder::{LittleEndian, WriteBytesExt};
+use curta_core::program::opcodes::*;
 use pest::Parser;
 use pest_derive::*;
-use std::{collections::HashMap, fs::File, io::BufReader};
+use std::collections::HashMap;
 
 #[derive(Parser)]
 #[grammar = "grammar/assembly.pest"]
 pub struct AssemblyParser;
-
-pub fn load_program_rom(filename: &str) -> Result<ProgramROM<i32>> {
-    let file = File::open(filename)?;
-    let mut reader = BufReader::new(file);
-    let mut instructions = Vec::new();
-
-    while let Ok(opcode) = reader.read_u32::<LittleEndian>() {
-        let mut operands_arr = [0i32; OPERAND_ELEMENTS];
-        for i in 0..OPERAND_ELEMENTS {
-            operands_arr[i] = reader.read_i32::<LittleEndian>()?;
-        }
-        let operands = Operands(operands_arr);
-        instructions.push(Instruction {
-            opcode: Opcode::from_u32(opcode),
-            operands,
-        });
-    }
-
-    Ok(ProgramROM(instructions))
-}
 
 pub fn assemble(input: &str) -> Result<Vec<u8>, String> {
     let parsed = AssemblyParser::parse(Rule::assembly, input).unwrap();
@@ -79,12 +59,11 @@ pub fn assemble(input: &str) -> Result<Vec<u8>, String> {
                 // Convert mnemonic to opcode
                 let opcode = match mnemonic {
                     // Core CPU
-                    "lw" => Opcode::IMM,
+                    "lw" => Opcode::ADDI,
                     "jal" => Opcode::JAL,
                     "jali" => Opcode::JALI,
                     // "beq" | "beqi" => BEQ,
                     // "bne" | "bnei" => BNE,
-                    "imm" => Opcode::IMM,
                     // "stop" => STOP,
 
                     // U32 ALU
@@ -103,17 +82,8 @@ pub fn assemble(input: &str) -> Result<Vec<u8>, String> {
                 // Insert zero operands if necessary
                 match mnemonic {
                     "lw" => {
-                        // (a, 0, c, 0, 0)
-                        operands.insert(1, 0);
-                        operands.extend(vec![0; 2]);
-                    }
-                    "sw" => {
-                        // (0, b, c, 0, 0)
-                        operands.insert(0, 0);
-                        operands.extend(vec![0; 2]);
-                    }
-                    "imm" => {
-                        // (a, b, c, d, e)
+                        // (a, c, 0, 0, 0)
+                        operands.extend(vec![0; 3]);
                     }
                     "stop" => {
                         // (0, 0, 0, 0, 0)

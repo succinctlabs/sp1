@@ -13,6 +13,7 @@ pub const SLL: u32 = Opcode::SLL as u32;
 pub const SRL: u32 = Opcode::SRL as u32;
 pub const SRA: u32 = Opcode::SRA as u32;
 pub const IMM: u32 = Opcode::IMM as u32;
+pub const ADDI: u32 = Opcode::ADDI as u32;
 
 // Let's turn these constants into an enum, so we can use them in a match statement. And when we
 // do that, let's import all the comments we have in the constants above.
@@ -25,6 +26,8 @@ pub enum Opcode {
     JALI = 0x11,
     /// Set dest(fp) to a1(fp) + a2(d).
     ADD = 0x00,
+    /// Set dest(fp) to a1(fp) + imm1.
+    ADDI = 0x12,
     /// Set dest(fp) to a1(fp) - a2(fp).
     SUB = 0x01,
     /// Set dest(fp) to a1(fp) ^ a2(fp).
@@ -49,6 +52,7 @@ impl Opcode {
             JAL => Opcode::JAL,
             JALI => Opcode::JALI,
             ADD => Opcode::ADD,
+            ADDI => Opcode::ADDI,
             SUB => Opcode::SUB,
             XOR => Opcode::XOR,
             OR => Opcode::OR,
@@ -68,6 +72,7 @@ impl Display for Opcode {
             Opcode::JAL => write!(f, "JAL"),
             Opcode::JALI => write!(f, "JALI"),
             Opcode::ADD => write!(f, "ADD"),
+            Opcode::ADDI => write!(f, "ADDI"),
             Opcode::SUB => write!(f, "SUB"),
             Opcode::XOR => write!(f, "XOR"),
             Opcode::OR => write!(f, "OR"),

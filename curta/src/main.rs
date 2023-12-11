@@ -41,7 +41,6 @@ fn main() {
     let path = Path::new(&args.src_dir)
         .join(&args.program)
         .with_extension("s");
-    println!("Reading from {}", path.display());
     std::fs::File::open(path)
         .expect("Failed to open input file")
         .read_to_string(&mut assembly_code)
@@ -57,6 +56,9 @@ fn main() {
         .write_all(&machine_code)
         .expect("Failed to write to output file");
     let rom = load_program_rom(&path).expect("Failed to load program ROM");
+
+    // Print the program
+    println!("Machine code:");
     for instruction in rom.0.iter() {
         println!("{}", instruction);
     }
