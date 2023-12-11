@@ -1,11 +1,11 @@
 #![no_std]
-// #![no_main]
+#![no_main]
 
 extern crate alloc;
 
 use cortex_m_rt::entry;
 use embedded_alloc::Heap;
-use my_riscv::my_bench;
+use risc_v::my_bench;
 
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
