@@ -14,3 +14,8 @@ pub trait AirVariable<AB: AirBuilder> {
     /// The validity constraints for this type.
     fn eval_is_valid(&self, builder: &mut AB);
 }
+
+/// A trait for representing constraints on an AIR table.
+pub trait AirConstraint<AB: AirBuilder> {
+    fn eval(&self, builder: &mut AB);
+}
