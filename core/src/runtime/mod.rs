@@ -273,6 +273,10 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    pub fn new(opcode: Opcode, a: u32, b: u32, c: u32) -> Instruction {
+        Instruction { opcode, a, b, c }
+    }
+
     pub fn r_type(&self) -> (Register, Register, Register) {
         (
             Register::from_u32(self.a),
@@ -314,6 +318,7 @@ impl Instruction {
     }
 }
 
+#[derive(Debug)]
 pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
     clk: u32,
@@ -323,9 +328,6 @@ pub struct Runtime {
 
     /// The code used during execution.
     code: Vec<Instruction>,
-
-    /// The registers which instructions operate over.
-    registers: [u32; 32],
 
     /// The memory which instructions operate over.
     memory: BTreeMap<u32, u32>,
@@ -343,7 +345,6 @@ impl Runtime {
         Self {
             clk: 0,
             pc: 0,
-            registers: [0; 32],
             memory: BTreeMap::new(),
             code,
             memory_events: Vec::new(),
@@ -366,12 +367,6 @@ impl Runtime {
         return value;
     }
 
-    /// Read from register.
-    fn rr(&mut self, register: Register) -> u32 {
-        let addr = 1024 * 1024 * 8 + (register as u32);
-        self.rm(addr)
-    }
-
     /// Write to memory.
     fn wm(&mut self, addr: u32, value: u32) {
         self.memory_events.push(MemoryEvent {
@@ -383,10 +378,34 @@ impl Runtime {
         self.memory.insert(addr, value);
     }
 
+    /// Convert a register to a memory address.
+    fn r2m(&self, register: Register) -> u32 {
+        1024 * 1024 * 8 + (register as u32)
+    }
+
+    /// Read from register.
+    fn rr(&mut self, register: Register) -> u32 {
+        let addr = self.r2m(register);
+        self.rm(addr)
+    }
+
     /// Write to register.
     fn wr(&mut self, register: Register, value: u32) {
         let addr = 1024 * 1024 * 8 + (register as u32);
         self.wm(addr, value);
+    }
+
+    /// Get the current values of the registers.
+    pub fn registers(&self) -> [u32; 32] {
+        let mut registers = [0; 32];
+        for i in 0..32 {
+            let addr = self.r2m(Register::from_u32(i as u32));
+            registers[i] = match self.memory.get(&addr) {
+                Some(value) => *value,
+                None => 0,
+            };
+        }
+        return registers;
     }
 
     /// Fetch the instruction at the current program counter.
@@ -727,10 +746,7 @@ impl Runtime {
     /// Executes the code.
     pub fn run(&mut self) {
         // Set %x2 to the size of memory when the CPU is initialized.
-        self.registers[Register::X2 as usize] = 1024 * 1024 * 8;
-
-        // In each cycle, %x0 should be hardwired to 0.
-        self.registers[Register::X0 as usize] = 0;
+        self.wr(Register::X2, 1024 * 1024 * 8);
 
         while self.pc < (self.code.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
@@ -749,41 +765,285 @@ impl Runtime {
 }
 
 #[cfg(test)]
+#[allow(non_snake_case)]
 mod tests {
-    use crate::Runtime;
+    use crate::{runtime::Register, Runtime};
 
     use super::{Instruction, Opcode};
 
     #[test]
-    fn add() {
+    fn ADD() {
         // main:
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
         let code = vec![
-            Instruction {
-                opcode: Opcode::ADDI,
-                a: 29,
-                b: 0,
-                c: 5,
-            },
-            Instruction {
-                opcode: Opcode::ADDI,
-                a: 30,
-                b: 0,
-                c: 37,
-            },
-            Instruction {
-                opcode: Opcode::ADD,
-                a: 31,
-                b: 30,
-                c: 29,
-            },
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
-        println!("{:?}", runtime.registers);
-        println!("{:?}", runtime.memory_events);
-        println!("{:?}", runtime.alu_events);
+        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
+    }
+
+    #[test]
+    fn SUB() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     sub x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::SUB, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 32);
+    }
+
+    #[test]
+    fn XOR() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     xor x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::XOR, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 32);
+    }
+
+    #[test]
+    fn OR() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     or x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::OR, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 37);
+    }
+
+    #[test]
+    fn AND() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     and x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::AND, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 5);
+    }
+
+    #[test]
+    fn SLL() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     sll x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::SLL, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 1184);
+    }
+
+    #[test]
+    fn SRL() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     srl x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::SRL, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 1);
+    }
+
+    #[test]
+    fn SRA() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     sra x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::SRA, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 1);
+    }
+
+    #[test]
+    fn SLT() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     slt x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::SLT, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn SLTU() {
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     sltu x31, x30, x29
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::SLTU, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn ADDI() {
+        //     addi x29, x0, 5
+        //     addi x30, x29, 37
+        //     addi x31, x30, 42
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 29, 37),
+            Instruction::new(Opcode::ADDI, 31, 30, 42),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 84);
+    }
+
+    #[test]
+    fn XORI() {
+        //     addi x29, x0, 5
+        //     xori x30, x29, 37
+        //     xori x31, x30, 42
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::XORI, 30, 29, 37),
+            Instruction::new(Opcode::XORI, 31, 30, 42),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 10);
+    }
+
+    #[test]
+    fn ORI() {
+        //     addi x29, x0, 5
+        //     ori x30, x29, 37
+        //     ori x31, x30, 42
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ORI, 30, 29, 37),
+            Instruction::new(Opcode::ORI, 31, 30, 42),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 47);
+    }
+
+    #[test]
+    fn ANDI() {
+        //     addi x29, x0, 5
+        //     andi x30, x29, 37
+        //     andi x31, x30, 42
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ANDI, 30, 29, 37),
+            Instruction::new(Opcode::ANDI, 31, 30, 42),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn SLLI() {
+        //     addi x29, x0, 5
+        //     slli x31, x29, 37
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::SLLI, 31, 29, 4),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 80);
+    }
+
+    #[test]
+    fn SRLI() {
+        //    addi x29, x0, 5
+        //    srli x31, x29, 37
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 42),
+            Instruction::new(Opcode::SRLI, 31, 29, 4),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 2);
+    }
+
+    #[test]
+    fn SRAI() {
+        //   addi x29, x0, 5
+        //   srai x31, x29, 37
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 42),
+            Instruction::new(Opcode::SRAI, 31, 29, 4),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 2);
+    }
+
+    #[test]
+    fn SLTI() {
+        //   addi x29, x0, 5
+        //   slti x31, x29, 37
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 42),
+            Instruction::new(Opcode::SLTI, 31, 29, 37),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn SLTIU() {
+        //   addi x29, x0, 5
+        //   sltiu x31, x29, 37
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 42),
+            Instruction::new(Opcode::SLTIU, 31, 29, 37),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
 }
