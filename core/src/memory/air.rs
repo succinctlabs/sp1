@@ -12,7 +12,7 @@ pub struct MemoryCols<T> {
     /// The clock cycle value for this memory access.
     pub clk: T,
     /// The address of the memory access.
-    pub addr: T,
+    pub addr: Word<T>,
     /// The value being read from or written to memory.
     pub value: Word<T>,
     /// Whether the memory is being read from or written to.
@@ -23,6 +23,8 @@ pub struct MemoryCols<T> {
     pub diff_low: T,
     /// High 16-bits of the difference between two consecutive addresses or clock cycles.
     pub diff_high: T,
+    /// The carry bit of the difference between two consecutive addresses or clock cycles.
+    pub diff_carry: T,
     /// An auxiliary value used to hold 1 / (addr - prev_addr) when the address changes and set to
     /// zero when the address does not change.
     pub temp: T,
