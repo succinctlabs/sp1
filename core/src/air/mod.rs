@@ -1,8 +1,10 @@
+mod address;
 mod bool;
 mod word;
 
 use p3_air::AirBuilder;
 
+pub use address::Address;
 pub use bool::Bool;
 pub use word::Word;
 
