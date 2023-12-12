@@ -1,3 +1,11 @@
+//! An implementation of a runtime for the Curta VM.
+//!
+//! The runtime is responsible for executing a user program and tracing important events which occur
+//! during execution (i.e., memory reads, alu operations, etc).
+//!
+//! For more information on the RV32IM instruction set, see the following:
+//! https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
+
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
@@ -273,10 +281,12 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    /// Create a new instruction.
     pub fn new(opcode: Opcode, a: u32, b: u32, c: u32) -> Instruction {
         Instruction { opcode, a, b, c }
     }
 
+    /// Decode the instruction in the R-type format.
     pub fn r_type(&self) -> (Register, Register, Register) {
         (
             Register::from_u32(self.a),
@@ -285,6 +295,7 @@ impl Instruction {
         )
     }
 
+    /// Decode the instruction in the I-type format.
     pub fn i_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.a),
@@ -293,6 +304,7 @@ impl Instruction {
         )
     }
 
+    /// Decode the instruction in the S-type format.
     pub fn s_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.a),
@@ -301,6 +313,7 @@ impl Instruction {
         )
     }
 
+    /// Decode the instruction in the B-type format.
     pub fn b_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.a),
@@ -309,10 +322,12 @@ impl Instruction {
         )
     }
 
+    /// Decode the instruction in the J-type format.
     pub fn j_type(&self) -> (Register, u32) {
         (Register::from_u32(self.a), self.b)
     }
 
+    /// Decode the instruction in the U-type format.
     pub fn u_type(&self) -> (Register, u32) {
         (Register::from_u32(self.a), self.b)
     }
