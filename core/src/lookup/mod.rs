@@ -13,15 +13,15 @@ pub struct Interaction<F: Field> {
 /// The type of interaction for a lookup argument.
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
-    Memory,
+    Memory = 1,
     /// Interaction with the program table, loading an instruction at a given pc address.
-    Program,
+    Program = 2,
     /// Interaction with the ALU table for u32 operations.
-    ALU,
+    ALU = 3,
     /// Interaction with the byte lookup table for byte operations.
-    Byte,
+    Byte = 4,
     /// Requesting a range check for a given value and range.
-    Range,
+    Range = 5,
 }
 
 impl<F: Field> Interaction<F> {
