@@ -222,6 +222,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "p3-air",
+ "p3-field",
  "serde",
  "valida-isa",
 ]
