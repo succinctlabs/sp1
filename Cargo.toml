@@ -11,6 +11,7 @@ opt-level = 3
 
 [workspace.dependencies]
 p3-air = { git = "https://github.com/Plonky3/Plonky3" }
+p3-field = { git = "https://github.com/Plonky3/Plonky3" }
 p3-commit = { git = "https://github.com/Plonky3/Plonky3" }
 valida-opcodes = { git = "https://github.com/valida-xyz/valida.git" }
 
