@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
+    ops::{Index, IndexMut},
 };
 
 /// An opcode specifies which operation to execute.
@@ -207,117 +208,239 @@ impl Display for Register {
     }
 }
 
+impl Index<Register> for [u32; 32] {
+    type Output = u32;
+
+    fn index(&self, index: Register) -> &Self::Output {
+        &self[index as usize]
+    }
+}
+
+impl IndexMut<Register> for [u32; 32] {
+    fn index_mut(&mut self, index: Register) -> &mut Self::Output {
+        &mut self[index as usize]
+    }
+}
+
 /// An operand that can either be a register or an immediate value.
+#[derive(Debug, Clone, Copy)]
 pub enum RegisterOrImmediate {
     Register(Register),
     Immediate(i32),
 }
 
 /// An instruction specifies an operation to execute and the operands.
+#[derive(Debug, Clone, Copy)]
 pub struct Instruction {
     opcode: Opcode,
-    a: Register,
-    b: RegisterOrImmediate,
-    c: Option<RegisterOrImmediate>,
+    a: u32,
+    b: u32,
+    c: u32,
+}
+
+impl Instruction {
+    pub fn r_type(&self) -> (usize, usize, usize) {
+        (self.a as usize, self.b as usize, self.c as usize)
+    }
+
+    pub fn i_type(&self) -> (usize, usize, u32) {
+        (self.a as usize, self.b as usize, self.c)
+    }
 }
 
 pub struct Runtime {
     clk: u32,
+    pc: u32,
     registers: [u32; 32],
     memory: BTreeMap<u32, u32>,
+    code: Vec<Instruction>,
 }
 
 impl Runtime {
-    pub fn new() -> Self {
+    pub fn new(code: Vec<Instruction>) -> Self {
         Self {
             clk: 0,
+            pc: 0,
             registers: [0; 32],
             memory: BTreeMap::new(),
+            code,
         }
     }
 
-    // Option 1: ELF -> SuccinctELF -> Runtime
+    pub fn fetch(&self) -> Instruction {
+        let idx = (self.pc / 4) as usize;
+        return self.code[idx];
+    }
 
-    // fn cpu_event(&mut self, instruction: &Instruction<i32>) {
-    //     self.segment.cpu_events.push(CpuEvent {
-    //         clk: self.clk,
-    //         fp: self.fp,
-    //         pc: self.pc,
-    //         instruction: *instruction,
-    //     });
-    // }
+    pub fn execute(&mut self, instruction: Instruction) {
+        match instruction.opcode {
+            Opcode::ADD => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1].wrapping_add(self.registers[rs2]);
+            }
+            Opcode::SUB => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1].wrapping_sub(self.registers[rs2]);
+            }
+            Opcode::XOR => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1] ^ self.registers[rs2];
+            }
+            Opcode::OR => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1] | self.registers[rs2];
+            }
+            Opcode::AND => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1] & self.registers[rs2];
+            }
+            Opcode::SLL => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1] << self.registers[rs2];
+            }
+            Opcode::SRL => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1] >> self.registers[rs2];
+            }
+            Opcode::SRA => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = (self.registers[rs1] as i32 >> self.registers[rs2]) as u32;
+            }
+            Opcode::SLT => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = if (self.registers[rs1] as i32) < (self.registers[rs2] as i32)
+                {
+                    1
+                } else {
+                    0
+                };
+            }
+            Opcode::SLTU => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = if self.registers[rs1] < self.registers[rs2] {
+                    1
+                } else {
+                    0
+                };
+            }
+            Opcode::ADDI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.registers[rs1].wrapping_add(imm);
+            }
+            Opcode::XORI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.registers[rs1] ^ imm;
+            }
+            Opcode::ORI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.registers[rs1] | imm;
+            }
+            Opcode::ANDI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.registers[rs1] & imm;
+            }
+            Opcode::SLLI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.registers[rs1] << imm;
+            }
+            Opcode::SRLI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.registers[rs1] >> imm;
+            }
+            Opcode::SRAI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = (self.registers[rs1] as i32 >> imm) as u32;
+            }
+            Opcode::SLTI => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = if (self.registers[rs1] as i32) < (imm as i32) {
+                    1
+                } else {
+                    0
+                };
+            }
+            Opcode::SLTIU => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = if self.registers[rs1] < imm { 1 } else { 0 };
+            }
+            Opcode::LB => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.registers[rd] = (self.memory[&addr] as i8) as u32;
+            }
+            Opcode::LH => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.registers[rd] = (self.memory[&addr] as i16) as u32;
+            }
+            Opcode::LW => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.registers[rd] = self.memory[&addr];
+            }
+            Opcode::LBU => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.registers[rd] = (self.memory[&addr] as u8) as u32;
+            }
+            Opcode::LHU => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.registers[rd] = (self.memory[&addr] as u16) as u32;
+            }
+            _ => panic!("Invalid opcode {}", instruction.opcode),
+        }
+    }
 
-    // fn read_word(&mut self, addr: usize) -> i32 {
-    //     i32::from_le_bytes(
-    //         self.memory[addr as usize..addr as usize + 4]
-    //             .try_into()
-    //             .unwrap(),
-    //     )
-    // }
+    pub fn run(&mut self) {
+        // Set %x2 to the size of memory when the CPU is initialized.
+        self.registers[Register::X2] = 1024 * 1024 * 8;
 
-    // fn write_word(&mut self, addr: usize, value: i32) {
-    //     // TODO: can you write to uninitialized memory?
-    //     self.memory[addr as usize..addr as usize + 4].copy_from_slice(&value.to_le_bytes());
-    // }
+        // In each cycle, %x0 should be hardwired to 0.
+        self.registers[Register::X0] = 0;
 
-    // fn alu_op(&mut self, op: Opcode, addr_d: usize, addr_1: usize, addr_2: usize) -> i32 {
-    //     let v1 = self.read_word(addr_1);
-    //     let v2 = self.read_word(addr_2);
-    //     let result = match op {
-    //         Opcode::ADD => v1 + v2,
-    //         Opcode::AND => v1 | v2,
-    //         Opcode::SLL => v1 << v2,
-    //         _ => panic!("Invalid ALU opcode {}", op),
-    //     };
-    //     self.write_word(addr_d, result);
-    //     self.segment.alu_events.push(AluEvent {
-    //         clk: self.clk,
-    //         opcode: op as u32,
-    //         addr_d,
-    //         addr_1,
-    //         addr_2,
-    //         v_d: result,
-    //         v_1: v1,
-    //         v_2: v2,
-    //     });
-    //     result
-    // }
+        while self.pc < (self.code.len() * 4) as u32 {
+            let instruction = self.fetch();
+            self.pc = self.pc + 4;
+            self.execute(instruction);
+        }
+    }
+}
 
-    // fn imm(&mut self, addr: usize, imm: i32) {
-    //     self.write_word(addr, imm);
-    // }
+#[cfg(test)]
+mod tests {
+    use crate::Runtime;
 
-    // pub fn run(&mut self) -> Result<()> {
-    //     // Iterate through the program, executing each instruction.
-    //     let current_instruction = self.program.get_instruction(self.pc);
-    //     let operands = current_instruction.operands.0;
-    //     self.cpu_event(&current_instruction);
+    use super::{Instruction, Opcode};
 
-    //     match current_instruction.opcode {
-    //         Opcode::ADD | Opcode::SUB | Opcode::XOR | Opcode::AND => {
-    //             // Calculate address of each operand.
-    //             let addr_d = self.fp + operands[0];
-    //             let addr_1 = self.fp + operands[1];
-    //             let addr_2 = self.fp + operands[2];
-
-    //             self.alu_op(
-    //                 current_instruction.opcode,
-    //                 addr_d as usize,
-    //                 addr_1 as usize,
-    //                 addr_2 as usize,
-    //             );
-    //             self.pc += 1;
-    //         }
-    //         Opcode::IMM => {
-    //             // Calculate address.
-    //             let addr = (self.fp + operands[0]) as u32;
-    //             let imm = operands[1];
-    //             self.imm(addr as usize, imm);
-    //         }
-    //         _ => panic!("Invalid opcode {}", current_instruction.opcode),
-    //     }
-
-    //     self.clk += 1;
-    //     Ok(())
-    // }
+    #[test]
+    fn add() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        let code = vec![
+            Instruction {
+                opcode: Opcode::ADDI,
+                a: 29,
+                b: 0,
+                c: 5,
+            },
+            Instruction {
+                opcode: Opcode::ADDI,
+                a: 30,
+                b: 0,
+                c: 37,
+            },
+            Instruction {
+                opcode: Opcode::ADD,
+                a: 31,
+                b: 30,
+                c: 29,
+            },
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        println!("{:?}", runtime.registers);
+    }
 }
