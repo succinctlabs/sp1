@@ -667,43 +667,59 @@ impl Runtime {
             // Multiply instructions.
             Opcode::MUL => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = self.rr(rs1).wrapping_mul(self.rr(rs2));
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = b.wrapping_mul(c);
+                self.wr(rd, a);
+                self.emit_alu(Opcode::MUL, a, b, c);
             }
             Opcode::MULH => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = ((self.rr(rs1) as i64).wrapping_mul(self.rr(rs2) as i64) >> 32) as u32;
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                self.wr(rd, a);
+                self.emit_alu(Opcode::MULH, a, b, c);
             }
             Opcode::MULSU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = ((self.rr(rs1) as i64).wrapping_mul(self.rr(rs2) as i64) >> 32) as u32;
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                self.wr(rd, a);
+                self.emit_alu(Opcode::MULSU, a, b, c);
             }
             Opcode::MULU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = ((self.rr(rs1) as u64).wrapping_mul(self.rr(rs2) as u64) >> 32) as u32;
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                self.wr(rd, a);
+                self.emit_alu(Opcode::MULU, a, b, c);
             }
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = (self.rr(rs1) as i32).wrapping_div(self.rr(rs2) as i32) as u32;
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = (b as i32).wrapping_div(c as i32) as u32;
+                self.wr(rd, a);
+                self.emit_alu(Opcode::DIV, a, b, c);
             }
             Opcode::DIVU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = self.rr(rs1).wrapping_div(self.rr(rs2));
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = b.wrapping_div(c);
+                self.wr(rd, a);
+                self.emit_alu(Opcode::DIVU, a, b, c);
             }
             Opcode::REM => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = (self.rr(rs1) as i32).wrapping_rem(self.rr(rs2) as i32) as u32;
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1) as i32, self.rr(rs2) as i32);
+                let a = (b as i32).wrapping_rem(c as i32) as u32;
+                self.wr(rd, a);
+                self.emit_alu(Opcode::REM, a, b as u32, c as u32);
             }
             Opcode::REMU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let value = self.rr(rs1).wrapping_rem(self.rr(rs2));
-                self.wr(rd, value);
+                let (b, c) = (self.rr(rs1), self.rr(rs2));
+                let a = b.wrapping_rem(c);
+                self.wr(rd, a);
+                self.emit_alu(Opcode::REMU, a, b, c);
             }
         }
     }
