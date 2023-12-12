@@ -9,7 +9,7 @@ pub struct MemoryTable<T>(pub RowMajorMatrix<T>);
 impl<F: PrimeField> MemoryTable<F> {
     pub fn generate(events: &mut [MemoryEvent]) -> Self {
         // Sort the events by address and then by clock cycle.
-        events.sort_by_key(|event| (event.addr, event.clk));
+        events.sort_by_key(|event| (event.addr, event.clk, event.op));
         todo!()
     }
 }

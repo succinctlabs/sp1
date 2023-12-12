@@ -36,5 +36,7 @@ impl<AB: AirBuilder> AirConstraint<AB> for MemoryCols<AB::Var> {
         // REMARK: This might get automated.
         self.is_read.eval_is_valid(builder);
         self.is_init.eval_is_valid(builder);
+
+        // Assert that the value is zero when the memory is not initialized.
     }
 }
