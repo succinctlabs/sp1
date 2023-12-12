@@ -1,7 +1,7 @@
 pub mod air;
 pub mod alu;
 pub mod cpu;
-mod memory;
+pub mod memory;
 pub mod precompiles;
 pub mod program;
 
