@@ -528,10 +528,10 @@ impl Runtime {
 
     pub fn run(&mut self) {
         // Set %x2 to the size of memory when the CPU is initialized.
-        self.registers[Register::X2] = 1024 * 1024 * 8;
+        self.registers[Register::X2 as usize] = 1024 * 1024 * 8;
 
         // In each cycle, %x0 should be hardwired to 0.
-        self.registers[Register::X0] = 0;
+        self.registers[Register::X0 as usize] = 0;
 
         while self.pc < (self.code.len() * 4) as u32 {
             let instruction = self.fetch();
