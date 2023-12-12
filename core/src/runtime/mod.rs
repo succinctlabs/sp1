@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
-    ops::{Index, IndexMut},
 };
 
 /// An opcode specifies which operation to execute.
@@ -216,27 +215,6 @@ impl Display for Register {
             Register::X31 => write!(f, "%x31"),
         }
     }
-}
-
-impl Index<Register> for [u32; 32] {
-    type Output = u32;
-
-    fn index(&self, index: Register) -> &Self::Output {
-        &self[index as usize]
-    }
-}
-
-impl IndexMut<Register> for [u32; 32] {
-    fn index_mut(&mut self, index: Register) -> &mut Self::Output {
-        &mut self[index as usize]
-    }
-}
-
-/// An operand that can either be a register or an immediate value.
-#[derive(Debug, Clone, Copy)]
-pub enum RegisterOrImmediate {
-    Register(Register),
-    Immediate(i32),
 }
 
 /// An instruction specifies an operation to execute and the operands.
