@@ -37,4 +37,17 @@ impl<F: Field> Interaction<F> {
             kind: InteractionKind::Memory,
         }
     }
+
+    pub fn write(clk: PairCol, addr: PairCol, value: PairCol, multiplicity: PairCol) -> Self {
+        Self {
+            values: vec![
+                VirtualPairCol::single(clk),
+                VirtualPairCol::single(addr),
+                VirtualPairCol::constant(F::from_canonical_u8(MemOp::Write as u8)),
+                VirtualPairCol::single(value),
+            ],
+            multiplicity: VirtualPairCol::new(vec![(multiplicity, F::one())], F::zero()),
+            kind: InteractionKind::Memory,
+        }
+    }
 }
