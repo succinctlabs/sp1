@@ -318,6 +318,7 @@ impl Instruction {
     }
 }
 
+/// A runtime executes a program.
 #[derive(Debug)]
 pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
@@ -326,8 +327,8 @@ pub struct Runtime {
     /// The program counter keeps track of the next instruction.
     pc: u32,
 
-    /// The code used during execution.
-    code: Vec<Instruction>,
+    /// The prgram used during execution.
+    program: Vec<Instruction>,
 
     /// The memory which instructions operate over.
     memory: BTreeMap<u32, u32>,
@@ -341,12 +342,12 @@ pub struct Runtime {
 
 impl Runtime {
     /// Create a new runtime.
-    pub fn new(code: Vec<Instruction>) -> Self {
+    pub fn new(program: Vec<Instruction>) -> Self {
         Self {
             clk: 0,
             pc: 0,
             memory: BTreeMap::new(),
-            code,
+            program,
             memory_events: Vec::new(),
             alu_events: Vec::new(),
         }
@@ -411,7 +412,7 @@ impl Runtime {
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
         let idx = (self.pc / 4) as usize;
-        return self.code[idx];
+        return self.program[idx];
     }
 
     /// Emit an ALU event.
@@ -748,7 +749,7 @@ impl Runtime {
         // Set %x2 to the size of memory when the CPU is initialized.
         self.rw(Register::X2, 1024 * 1024 * 8);
 
-        while self.pc < (self.code.len() * 4) as u32 {
+        while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
