@@ -1,3 +1,4 @@
+use crate::memory::Memory;
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
@@ -223,16 +224,16 @@ pub struct Instruction {
 
 pub struct Runtime {
     clk: u32,
-    registers: [u32; 32],
-    memory: BTreeMap<u32, u32>,
+    memory: Memory,
 }
 
 impl Runtime {
     pub fn new() -> Self {
+        // TODO: change this MAX_MEMORY to be passed in
+        let MAX_MEMORY = 1 << 16;
         Self {
             clk: 0,
-            registers: [0; 32],
-            memory: BTreeMap::new(),
+            memory: Memory::new(MAX_MEMORY),
         }
     }
 
