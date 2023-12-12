@@ -74,6 +74,7 @@ pub enum Opcode {
 impl Display for Opcode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            // R-type instructions.
             Opcode::ADD => write!(f, "add"),
             Opcode::SUB => write!(f, "sub"),
             Opcode::XOR => write!(f, "xor"),
@@ -85,6 +86,7 @@ impl Display for Opcode {
             Opcode::SLT => write!(f, "slt"),
             Opcode::SLTU => write!(f, "sltu"),
 
+            // I-type instructions.
             Opcode::ADDI => write!(f, "addi"),
             Opcode::XORI => write!(f, "xori"),
             Opcode::ORI => write!(f, "ori"),
@@ -95,16 +97,19 @@ impl Display for Opcode {
             Opcode::SLTI => write!(f, "slti"),
             Opcode::SLTIU => write!(f, "sltiu"),
 
+            // Load instructions.
             Opcode::LB => write!(f, "lb"),
             Opcode::LH => write!(f, "lh"),
             Opcode::LW => write!(f, "lw"),
             Opcode::LBU => write!(f, "lbu"),
             Opcode::LHU => write!(f, "lhu"),
 
+            // Store instructions.
             Opcode::SB => write!(f, "sb"),
             Opcode::SH => write!(f, "sh"),
             Opcode::SW => write!(f, "sw"),
 
+            // Branch instructions.
             Opcode::BEQ => write!(f, "beq"),
             Opcode::BNE => write!(f, "bne"),
             Opcode::BLT => write!(f, "blt"),
@@ -112,14 +117,19 @@ impl Display for Opcode {
             Opcode::BLTU => write!(f, "bltu"),
             Opcode::BGEU => write!(f, "bgeu"),
 
+            // Jump instructions.
             Opcode::JAL => write!(f, "jal"),
             Opcode::JALR => write!(f, "jalr"),
+
+            // Upper immediate instructions.
             Opcode::LUI => write!(f, "lui"),
             Opcode::AUIPC => write!(f, "auipc"),
 
+            // System instructions.
             Opcode::ECALL => write!(f, "ecall"),
             Opcode::EBREAK => write!(f, "ebreak"),
 
+            // Multiply instructions.
             Opcode::MUL => write!(f, "mul"),
             Opcode::MULH => write!(f, "mulh"),
             Opcode::MULSU => write!(f, "mulsu"),
@@ -246,6 +256,22 @@ impl Instruction {
     pub fn i_type(&self) -> (usize, usize, u32) {
         (self.a as usize, self.b as usize, self.c)
     }
+
+    pub fn s_type(&self) -> (usize, usize, u32) {
+        (self.a as usize, self.b as usize, self.c)
+    }
+
+    pub fn b_type(&self) -> (usize, usize, u32) {
+        (self.a as usize, self.b as usize, self.c)
+    }
+
+    pub fn j_type(&self) -> (usize, u32) {
+        (self.a as usize, self.b)
+    }
+
+    pub fn u_type(&self) -> (usize, u32) {
+        (self.a as usize, self.b)
+    }
 }
 
 pub struct Runtime {
@@ -274,6 +300,7 @@ impl Runtime {
 
     pub fn execute(&mut self, instruction: Instruction) {
         match instruction.opcode {
+            // R-type instructions.
             Opcode::ADD => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 self.registers[rd] = self.registers[rs1].wrapping_add(self.registers[rs2]);
@@ -323,6 +350,8 @@ impl Runtime {
                     0
                 };
             }
+
+            // I-type instructions.
             Opcode::ADDI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 self.registers[rd] = self.registers[rs1].wrapping_add(imm);
@@ -388,7 +417,134 @@ impl Runtime {
                 let addr = self.registers[rs1].wrapping_add(imm);
                 self.registers[rd] = (self.memory[&addr] as u16) as u32;
             }
-            _ => panic!("Invalid opcode {}", instruction.opcode),
+
+            // S-type instructions.
+            Opcode::SB => {
+                let (rs1, rs2, imm) = instruction.s_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.memory.insert(addr, (self.registers[rs2] as u8) as u32);
+            }
+            Opcode::SH => {
+                let (rs1, rs2, imm) = instruction.s_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.memory
+                    .insert(addr, (self.registers[rs2] as u16) as u32);
+            }
+            Opcode::SW => {
+                let (rs1, rs2, imm) = instruction.s_type();
+                let addr = self.registers[rs1].wrapping_add(imm);
+                self.memory.insert(addr, self.registers[rs2]);
+            }
+
+            // B-type instructions.
+            Opcode::BEQ => {
+                let (rs1, rs2, imm) = instruction.b_type();
+                if self.registers[rs1] == self.registers[rs2] {
+                    self.pc = self.pc.wrapping_add(imm);
+                }
+            }
+            Opcode::BNE => {
+                let (rs1, rs2, imm) = instruction.b_type();
+                if self.registers[rs1] != self.registers[rs2] {
+                    self.pc = self.pc.wrapping_add(imm);
+                }
+            }
+            Opcode::BLT => {
+                let (rs1, rs2, imm) = instruction.b_type();
+                if (self.registers[rs1] as i32) < (self.registers[rs2] as i32) {
+                    self.pc = self.pc.wrapping_add(imm);
+                }
+            }
+            Opcode::BGE => {
+                let (rs1, rs2, imm) = instruction.b_type();
+                if (self.registers[rs1] as i32) >= (self.registers[rs2] as i32) {
+                    self.pc = self.pc.wrapping_add(imm);
+                }
+            }
+            Opcode::BLTU => {
+                let (rs1, rs2, imm) = instruction.b_type();
+                if self.registers[rs1] < self.registers[rs2] {
+                    self.pc = self.pc.wrapping_add(imm);
+                }
+            }
+            Opcode::BGEU => {
+                let (rs1, rs2, imm) = instruction.b_type();
+                if self.registers[rs1] >= self.registers[rs2] {
+                    self.pc = self.pc.wrapping_add(imm);
+                }
+            }
+
+            // Jump instructions.
+            Opcode::JAL => {
+                let (rd, imm) = instruction.j_type();
+                self.registers[rd] = self.pc + 4;
+                self.pc = self.pc.wrapping_add(imm);
+            }
+            Opcode::JALR => {
+                let (rd, rs1, imm) = instruction.i_type();
+                self.registers[rd] = self.pc + 4;
+                self.pc = self.registers[rs1].wrapping_add(imm);
+            }
+
+            // Upper immediate instructions.
+            Opcode::LUI => {
+                let (rd, imm) = instruction.u_type();
+                self.registers[rd] = imm << 12;
+            }
+            Opcode::AUIPC => {
+                let (rd, imm) = instruction.u_type();
+                self.registers[rd] = self.pc.wrapping_add(imm << 12);
+            }
+
+            // System instructions.
+            Opcode::ECALL => {
+                todo!()
+            }
+            Opcode::EBREAK => {
+                todo!()
+            }
+
+            // Multiply instructions.
+            Opcode::MUL => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1].wrapping_mul(self.registers[rs2]);
+            }
+            Opcode::MULH => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = ((self.registers[rs1] as i64)
+                    .wrapping_mul(self.registers[rs2] as i64)
+                    >> 32) as u32;
+            }
+            Opcode::MULSU => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = ((self.registers[rs1] as i64)
+                    .wrapping_mul(self.registers[rs2] as i64)
+                    >> 32) as u32;
+            }
+            Opcode::MULU => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = ((self.registers[rs1] as u64)
+                    .wrapping_mul(self.registers[rs2] as u64)
+                    >> 32) as u32;
+            }
+            Opcode::DIV => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] =
+                    (self.registers[rs1] as i32).wrapping_div(self.registers[rs2] as i32) as u32;
+            }
+            Opcode::DIVU => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1].wrapping_div(self.registers[rs2]);
+            }
+            Opcode::REM => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] =
+                    (self.registers[rs1] as i32).wrapping_rem(self.registers[rs2] as i32) as u32;
+            }
+            Opcode::REMU => {
+                let (rd, rs1, rs2) = instruction.r_type();
+                self.registers[rd] = self.registers[rs1].wrapping_rem(self.registers[rs2]);
+            }
         }
     }
 
