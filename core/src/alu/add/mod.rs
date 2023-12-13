@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir, VirtualPairCol};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
@@ -9,7 +9,7 @@ use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::lookup::Interaction;
+use crate::lookup::{Interaction, InteractionKind};
 use crate::Runtime;
 
 use super::{pad_to_power_of_two, u32_to_u8_limbs, AluEvent, Chip};
@@ -81,7 +81,11 @@ impl<F: PrimeField> Chip<F> for AddChip {
         trace
     }
 
-    fn interactions(&self) -> Vec<Interaction<F>> {
+    fn sends(&self) -> Vec<Interaction<F>> {
+        vec![]
+    }
+
+    fn receives(&self) -> Vec<Interaction<F>> {
         vec![]
     }
 }
@@ -129,5 +133,35 @@ where
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_baby_bear::BabyBear;
+    use p3_matrix::dense::RowMajorMatrix;
+
+    use crate::{
+        alu::{AluEvent, Chip},
+        runtime::Opcode,
+        Runtime,
+    };
+
+    use super::AddChip;
+
+    #[test]
+    fn generate_trace() {
+        let program = vec![];
+        let mut runtime = Runtime::new(program);
+        let events = vec![AluEvent {
+            clk: 0,
+            opcode: Opcode::ADD,
+            a: 14,
+            b: 8,
+            c: 6,
+        }];
+        let chip = AddChip { events };
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        println!("{:?}", trace.values)
     }
 }

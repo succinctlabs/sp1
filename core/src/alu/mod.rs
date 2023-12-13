@@ -10,7 +10,9 @@ mod sub;
 pub trait Chip<F: PrimeField> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
-    fn interactions(&self) -> Vec<Interaction<F>>;
+    fn sends(&self) -> Vec<Interaction<F>>;
+
+    fn receives(&self) -> Vec<Interaction<F>>;
 }
 
 #[derive(Debug, Clone, Copy)]

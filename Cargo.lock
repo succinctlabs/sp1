@@ -222,6 +222,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "p3-air",
+ "p3-baby-bear",
  "p3-field",
  "p3-matrix",
  "rayon",
@@ -316,6 +317,15 @@ source = "git+https://github.com/Plonky3/Plonky3#b21d54f13fd7949a2661c9478b91c01
 dependencies = [
  "p3-field",
  "p3-matrix",
+]
+
+[[package]]
+name = "p3-baby-bear"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3#b21d54f13fd7949a2661c9478b91c01bc3abccbe"
+dependencies = [
+ "p3-field",
+ "rand",
 ]
 
 [[package]]

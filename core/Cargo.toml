@@ -11,6 +11,7 @@ p3-field = { workspace = true }
 p3-air = { workspace = true }
 p3-matrix = { workspace = true }
 valida-derive = { workspace = true }
+p3-baby-bear = { workspace = true }
 rayon = "1.8.0"
 
 [dev-dependencies]
