@@ -1,6 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
@@ -95,10 +96,9 @@ impl<F> BaseAir<F> for SubChip {
     }
 }
 
-impl<F, AB> Air<AB> for SubChip
+impl<AB> Air<AB> for SubChip
 where
-    F: PrimeField,
-    AB: AirBuilder<F = F>,
+    AB: AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -109,10 +109,10 @@ where
 
         // For each limb, assert that difference between the carried result and the non-carried
         // result is either zero or the base.
-        let overflow_0 = local.b[0] - local.c[0] + local.a[0];
-        let overflow_1 = local.b[1] - local.c[1] + local.a[1] + local.carry[0];
-        let overflow_2 = local.b[2] - local.c[2] + local.a[2] + local.carry[1];
-        let overflow_3 = local.b[3] - local.c[3] + local.a[3] + local.carry[2];
+        let overflow_0 = local.b[0] - local.c[0] - local.a[0];
+        let overflow_1 = local.b[1] - local.c[1] + local.a[1] - local.carry[0];
+        let overflow_2 = local.b[2] - local.c[2] + local.a[2] - local.carry[1];
+        let overflow_3 = local.b[3] - local.c[3] + local.a[3] - local.carry[2];
         builder.assert_zero(overflow_0.clone() * (overflow_0.clone() - base));
         builder.assert_zero(overflow_1.clone() * (overflow_1.clone() - base));
         builder.assert_zero(overflow_2.clone() * (overflow_2.clone() - base));
@@ -132,5 +132,114 @@ where
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
+
+        builder.assert_zero(
+            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_challenger::DuplexChallenger;
+    use p3_dft::Radix2DitParallel;
+    use p3_field::Field;
+
+    use p3_baby_bear::BabyBear;
+    use p3_field::extension::BinomialExtensionField;
+    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+    use p3_keccak::Keccak256Hash;
+    use p3_ldt::QuotientMmcs;
+    use p3_matrix::dense::RowMajorMatrix;
+    use p3_mds::coset_mds::CosetMds;
+    use p3_merkle_tree::FieldMerkleTreeMmcs;
+    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_uni_stark::{prove, verify, StarkConfigImpl};
+    use rand::thread_rng;
+
+    use crate::{
+        alu::{AluEvent, Chip},
+        runtime::Opcode,
+        Runtime,
+    };
+    use p3_commit::ExtensionMmcs;
+
+    use super::SubChip;
+
+    #[test]
+    fn generate_trace() {
+        let program = vec![];
+        let mut runtime = Runtime::new(program);
+        let events = vec![AluEvent {
+            clk: 0,
+            opcode: Opcode::ADD,
+            a: 2,
+            b: 8,
+            c: 6,
+        }];
+        let chip = SubChip { events };
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        println!("{:?}", trace.values)
+    }
+
+    #[test]
+    fn prove_babybear() {
+        type Val = BabyBear;
+        type Domain = Val;
+        type Challenge = BinomialExtensionField<Val, 4>;
+        type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+
+        type MyMds = CosetMds<Val, 16>;
+        let mds = MyMds::default();
+
+        type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+
+        type MyHash = SerializingHasher32<Keccak256Hash>;
+        let hash = MyHash::new(Keccak256Hash {});
+
+        type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+        let compress = MyCompress::new(hash);
+
+        type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+        let val_mmcs = ValMmcs::new(hash, compress);
+
+        type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+        let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+
+        type Dft = Radix2DitParallel;
+        let dft = Dft {};
+
+        type Challenger = DuplexChallenger<Val, Perm, 16>;
+
+        type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+        type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let ldt = FriLdt { config: fri_config };
+
+        type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+        type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
+
+        let pcs = Pcs::new(dft, val_mmcs, ldt);
+        let config = StarkConfigImpl::new(pcs);
+        let mut challenger = Challenger::new(perm.clone());
+
+        let program = vec![];
+        let mut runtime = Runtime::new(program);
+        let events = vec![AluEvent {
+            clk: 0,
+            opcode: Opcode::SUB,
+            a: 2,
+            b: 8,
+            c: 6,
+        }]
+        .repeat(1000);
+        let chip = SubChip { events };
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
+
+        let mut challenger = Challenger::new(perm);
+        verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }
