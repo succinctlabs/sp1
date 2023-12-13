@@ -655,7 +655,7 @@ impl Runtime {
     pub fn new(program: Vec<Instruction>) -> Self {
         Self {
             clk: 0,
-            pc: 0,
+            pc: 16,
             memory: BTreeMap::new(),
             program,
             cpu_events: Vec::new(),
