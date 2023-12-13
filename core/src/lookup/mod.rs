@@ -47,11 +47,11 @@ impl<F: Field> Interaction<F> {
         Self {
             values: vec![
                 VirtualPairCol::single_main(clk),
-                // Our convention is that registers are stored at {register, 1<<8, 1<<8, 1<<8} address in memory.
+                // Our convention is that registers are stored at {register, 0xFF, 0xFF, 0xFF} address in memory.
                 VirtualPairCol::single_main(register),
-                VirtualPairCol::constant(F::from_canonical_u8(1u8)),
-                VirtualPairCol::constant(F::from_canonical_u8(1u8)),
-                VirtualPairCol::constant(F::from_canonical_u8(1u8)),
+                VirtualPairCol::constant(F::from_canonical_u8(0xFF)),
+                VirtualPairCol::constant(F::from_canonical_u8(0xFF)),
+                VirtualPairCol::constant(F::from_canonical_u8(0xFF)),
                 // Fields for the value being read
                 VirtualPairCol::single_main(value.0[0]),
                 VirtualPairCol::single_main(value.0[1]),
