@@ -254,13 +254,29 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![AluEvent {
-            clk: 0,
-            opcode: Opcode::AND,
-            a: 2,
-            b: 10,
-            c: 19,
-        }]
+        let events = vec![
+            AluEvent {
+                clk: 0,
+                opcode: Opcode::XOR,
+                a: 25,
+                b: 10,
+                c: 19,
+            },
+            AluEvent {
+                clk: 0,
+                opcode: Opcode::OR,
+                a: 27,
+                b: 10,
+                c: 19,
+            },
+            AluEvent {
+                clk: 0,
+                opcode: Opcode::AND,
+                a: 2,
+                b: 10,
+                c: 19,
+            },
+        ]
         .repeat(1000);
         let chip = BitwiseChip { events };
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
