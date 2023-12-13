@@ -290,7 +290,7 @@ pub enum RegisterOrImmediate {
 }
 
 /// An instruction specifies an operation to execute and the operands.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Instruction {
     pub opcode: Opcode,
     pub op_a: u32,
@@ -1162,7 +1162,7 @@ impl Runtime {
 pub mod tests {
     use p3_baby_bear::BabyBear;
 
-    use crate::{runtime::Register, Runtime};
+    use crate::{runtime::{Register, create_instruction}, Runtime};
 
     use super::{Instruction, Opcode};
 
@@ -1508,5 +1508,13 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn create_instruction_test() {
+        // https://github.com/riscv/riscv-tests
+        assert_eq!(create_instruction(0x00c58633), Instruction::new(Opcode::ADD, 12, 11, 12)); // add x12,x11,x12
+        assert_eq!(create_instruction(0x00d506b3), Instruction::new(Opcode::ADD, 13, 10, 13)); // add x13,x10,x13
+        assert_eq!(create_instruction(0x00a70533), Instruction::new(Opcode::ADD, 10, 14, 10)); // add x10,x14,x10
     }
 }
