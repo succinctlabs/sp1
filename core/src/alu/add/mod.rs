@@ -11,9 +11,10 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 use crate::lookup::Interaction;
+use crate::utils::{pad_to_power_of_two, Chip};
 use crate::Runtime;
 
-use super::{pad_to_power_of_two, u32_to_u8_limbs, AluEvent, Chip};
+use super::AluEvent;
 
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
 
@@ -47,9 +48,9 @@ impl<F: PrimeField> Chip<F> for AddChip {
             .map(|event| {
                 let mut row = [F::zero(); NUM_ADD_COLS];
                 let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
-                let a = u32_to_u8_limbs(event.a);
-                let b = u32_to_u8_limbs(event.b);
-                let c = u32_to_u8_limbs(event.c);
+                let a = event.a.to_le_bytes();
+                let b = event.b.to_le_bytes();
+                let c = event.c.to_le_bytes();
 
                 let mut carry = [0u8, 0u8, 0u8];
                 if (b[0] as u32) + (c[0] as u32) > 255 {
@@ -155,11 +156,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{
-        alu::{AluEvent, Chip},
-        runtime::Opcode,
-        Runtime,
-    };
+    use crate::{alu::AluEvent, runtime::Opcode, utils::Chip, Runtime};
     use p3_commit::ExtensionMmcs;
 
     use super::AddChip;

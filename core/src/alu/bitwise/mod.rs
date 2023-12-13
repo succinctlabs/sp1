@@ -12,8 +12,9 @@ use valida_derive::AlignedBorrow;
 use crate::air::Word;
 use crate::lookup::Interaction;
 use crate::runtime::Opcode;
+use crate::utils::{pad_to_power_of_two, Chip};
 
-use super::{pad_to_power_of_two, u32_to_u8_limbs, AluEvent, Chip};
+use super::AluEvent;
 
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
@@ -53,9 +54,9 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
                 let cols: &mut BitwiseCols<F> = unsafe { transmute(&mut row) };
-                let a = u32_to_u8_limbs(event.a);
-                let b = u32_to_u8_limbs(event.b);
-                let c = u32_to_u8_limbs(event.c);
+                let a = event.a.to_le_bytes();
+                let b = event.b.to_le_bytes();
+                let c = event.c.to_le_bytes();
 
                 for i in 0..4 {
                     for j in 0..8 {
@@ -185,11 +186,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{
-        alu::{AluEvent, Chip},
-        runtime::Opcode,
-        Runtime,
-    };
+    use crate::{alu::AluEvent, runtime::Opcode, utils::Chip, Runtime};
     use p3_commit::ExtensionMmcs;
 
     use super::BitwiseChip;
