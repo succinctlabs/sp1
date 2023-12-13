@@ -1,4 +1,4 @@
-use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
+use super::air::{CpuCols, InstructionCols, OpcodeSelectors, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
 use crate::utils::Chip;
@@ -6,8 +6,8 @@ use core::mem::transmute;
 use p3_air::VirtualPairCol;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::runtime::{Opcode, Runtime};
-
+use crate::air::Word;
+use crate::runtime::{Instruction, Opcode, Runtime};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -39,13 +39,15 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     fn sends(&self) -> Vec<Interaction<F>> {
         let mut interactions = Vec::new();
 
-        // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
+        // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
+        // We always write to the first register, unless we are doing a branch operation in which case we read from it.
         interactions.push(Interaction::lookup_register(
             CPU_COL_MAP.clk,
             CPU_COL_MAP.instruction.op_a,
             CPU_COL_MAP.op_a_val,
-            IsRead::Expr(VirtualPairCol::single_main(
-                CPU_COL_MAP.selectors.reg_a_read,
+            IsRead::Expr(VirtualPairCol::new_main(
+                vec![(CPU_COL_MAP.selectors.branch_op, F::neg_one())],
+                F::one(),
             )),
             VirtualPairCol::constant(F::one()),
         ));
@@ -65,76 +67,35 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             IsRead::Bool(true),
             VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
         ));
+
+        // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
         interactions.push(Interaction::add(
             CPU_COL_MAP.op_a_val,
             CPU_COL_MAP.op_b_val,
             CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.register_instruction),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
         ));
 
-        //// For both load and store instructions, we must constraint mem_val to be a lookup of [addr]
-        //// For load instructions
-        // To constraint addr, we add op_b_val + op_c_val
+        //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
         // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
         interactions.push(Interaction::add(
             CPU_COL_MAP.addr,
             CPU_COL_MAP.op_b_val,
             CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
         ));
         // To constraint mem_val, we lookup [addr] in the memory table
-        // lookup (clk, addr, mem_val, is_read=true) in the memory table with multiplicity load_instruction
+        // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
         interactions.push(Interaction::lookup_memory(
             CPU_COL_MAP.clk,
             CPU_COL_MAP.addr,
             CPU_COL_MAP.mem_val,
-            IsRead::Bool(true),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+            IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
         ));
         // Now we must constraint mem_val and op_a_val
         // We bus this to a "match_word" table with a combination of s/u and h/b/w
-        // TODO: lookup (clk, mem_val, op_a_val, byte, half, word, unsigned) in the "match_word" table with multiplicity load_instruction
-
-        //// For store instructions
-        // To constraint addr, we add op_a_val + op_c_val
-        // lookup (clk, op_a_val, op_c_val, addr) in the "add" table with multiplicity store_instruction
-        interactions.push(Interaction::add(
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.op_a_val,
-            CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        ));
-        // To constraint mem_val, we lookup [addr] in the memory table
-        // lookup (clk, addr, mem_val, is_read=false) in the memory table with multiplicity store_instruction
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Bool(false),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        ));
-        // Now we must constraint mem_val and op_b_val
-        // TODO: lookup (clk, mem_val, op_b_val, byte, half, word, unsigned) in the "match_word" table with multiplicity store_instruction
-
-        // Constraining the memory
-        // TODO: there is likely some optimization to be done here making the is_read column a VirtualPair.
-        // Constraint the memory in the case of a load instruction.
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Bool(true),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
-        ));
-
-        // Constraint the memory in the case of a store instruction.
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Bool(false),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        ));
+        // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
         interactions
     }
 
@@ -160,6 +121,7 @@ impl CpuChip {
 
         self.populate_memory(cols, event);
         self.populate_branch(cols, event);
+
         row
     }
 
@@ -175,7 +137,10 @@ impl CpuChip {
             | Opcode::SW => {
                 let memory_value = event.a;
                 let memory_addr = event.b.wrapping_add(event.c);
-                cols.mem_val = memory_value.into();
+                cols.mem_val = event
+                    .memory_value
+                    .expect("Memory value should be present")
+                    .into();
                 cols.addr = memory_addr.into();
             }
             _ => {}
@@ -200,9 +165,9 @@ impl CpuChip {
 
 #[cfg(test)]
 mod tests {
-    use p3_baby_bear::BabyBear;
-
+    use crate::runtime::tests::get_simple_program;
     use crate::runtime::Instruction;
+    use p3_baby_bear::BabyBear;
 
     use super::*;
     #[test]
@@ -221,7 +186,18 @@ mod tests {
             a: 1,
             b: 2,
             c: 3,
+            memory_value: None,
         }];
+        let chip = CpuChip::new();
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        println!("{:?}", trace.values)
+    }
+
+    #[test]
+    fn generate_trace_simple_program() {
+        let program = get_simple_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)

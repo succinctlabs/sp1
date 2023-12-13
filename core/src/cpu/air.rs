@@ -17,33 +17,27 @@ pub struct OpcodeSelectors<T> {
     pub imm_b: T,
     // Whether op_c is an immediate value.
     pub imm_c: T,
-    // Whether this is a register instruction.
-    pub register_instruction: T,
-    // Whether this is an immediate instruction.
-    pub immediate_instruction: T,
-    // Whether this is a load instruction.
-    pub load_instruction: T,
-    // Whether this is a store instruction.
-    pub store_instruction: T,
-    // Whether this is a branch instruction.
-    pub branch_instruction: T,
-    // Whether this is a jump instruction.
-    pub jump_instruction: T,
-    // Whether this is a system instruction.
-    pub system_instruction: T,
-    // Whether this is a multiply instruction.
-    pub multiply_instruction: T,
-    // // Selectors for load/store instructions and their types.
-    pub byte: T,
-    pub half: T,
-    pub word: T,
-    pub unsigned: T,
-    // // TODO: we might need a selector for "MULSU" since no other instruction has "SU"
-    pub JALR: T,
-    pub JAL: T,
-    pub AUIPC: T,
-    // // Whether this instruction is reading from register A.
-    pub reg_a_read: T,
+
+    // Table selectors for opcodes.
+    pub add_op: T,
+    pub sub_op: T,
+    pub mul_op: T,
+    pub div_op: T,
+    pub shift_op: T,
+    pub bitwise_op: T,
+    pub lt_op: T,
+
+    // Memory operation
+    pub mem_op: T,
+    pub mem_read: T,
+
+    // Specific instruction selectors.
+    pub jalr: T,
+    pub jal: T,
+    pub auipc: T,
+
+    // Whether this is a branch op.
+    pub branch_op: T,
 }
 
 impl<F: PrimeField> OpcodeSelectors<F> {
@@ -61,7 +55,29 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             | Opcode::SLT
             | Opcode::SLTU => {
                 // For register instructions, neither imm_b or imm_c should be turned on.
-                self.register_instruction = F::one();
+                match instruction.opcode {
+                    Opcode::ADD => {
+                        self.add_op = F::one();
+                    }
+                    Opcode::SUB => {
+                        self.sub_op = F::one();
+                    }
+                    Opcode::XOR | Opcode::OR | Opcode::AND => {
+                        self.bitwise_op = F::one();
+                    }
+                    Opcode::SLL | Opcode::SRL => {
+                        self.shift_op = F::one();
+                    }
+                    Opcode::SLT | Opcode::SLTU => {
+                        self.lt_op = F::one();
+                    }
+                    Opcode::SRA => {
+                        panic!("SRA not implemented");
+                    }
+                    _ => {
+                        panic!("unexpected opcode in register instruction table processing.")
+                    }
+                }
             }
             // Immediate instructions
             Opcode::ADDI
@@ -75,62 +91,54 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             | Opcode::SLTIU => {
                 // For immediate instructions, imm_c should be turned on.
                 self.imm_c = F::one();
-                self.immediate_instruction = F::one();
+                match instruction.opcode {
+                    Opcode::ADDI => {
+                        self.add_op = F::one();
+                    }
+                    Opcode::XORI | Opcode::ORI | Opcode::ANDI => {
+                        self.bitwise_op = F::one();
+                    }
+                    Opcode::SLLI | Opcode::SRLI => {
+                        self.shift_op = F::one();
+                    }
+                    Opcode::SLTI | Opcode::SLTIU => {
+                        self.lt_op = F::one();
+                    }
+                    Opcode::SRAI => {
+                        panic!("SRAI not implemented");
+                    }
+                    _ => {
+                        panic!("unexpected opcode in immediate instruction table processing.")
+                    }
+                }
             }
             // Load instructions
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 // For load instructions, imm_c should be turned on.
                 self.imm_c = F::one();
-                self.load_instruction = F::one();
-                match instruction.opcode {
-                    Opcode::LB | Opcode::LBU => {
-                        self.byte = F::one();
-                    }
-                    Opcode::LH | Opcode::LHU => {
-                        self.half = F::one();
-                    }
-                    Opcode::LW => {
-                        self.word = F::one();
-                    }
-                    _ => {}
-                }
+                self.mem_op = F::one();
+                self.mem_read = F::one();
             }
             // Store instructions
             Opcode::SB | Opcode::SH | Opcode::SW => {
-                // For store instructions, imm_c should be turned on.
+                // For store instructions, imm_c should be turned on, but mem_read stays off.
                 self.imm_c = F::one();
-                self.store_instruction = F::one();
-                self.reg_a_read = F::one();
-                match instruction.opcode {
-                    Opcode::SB => {
-                        self.byte = F::one();
-                    }
-                    Opcode::SH => {
-                        self.half = F::one();
-                    }
-                    Opcode::SW => {
-                        self.word = F::one();
-                    }
-                    _ => {}
-                }
+                self.mem_op = F::one();
             }
             // Branch instructions
             Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
                 self.imm_c = F::one();
-                self.branch_instruction = F::one();
-                self.reg_a_read = F::one();
+                self.branch_op = F::one();
             }
             // Jump instructions
             Opcode::JAL => {
-                self.JAL = F::one();
+                self.jal = F::one();
                 self.imm_b = F::one();
                 self.imm_c = F::one();
-                self.jump_instruction = F::one();
             }
             Opcode::JALR => {
-                self.JALR = F::one();
+                self.jalr = F::one();
                 self.imm_c = F::one();
-                self.jump_instruction = F::one();
             }
             // Upper immediate instructions
             Opcode::LUI => {
@@ -138,14 +146,14 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 // And the value of imm_c is 12.
                 self.imm_b = F::one();
                 self.imm_c = F::one();
-                // In order to process lookups for the SLL opcode table, we'll also turn on the "immediate_instruction".
-                self.immediate_instruction = F::one();
+                // In order to process lookups for the SLL opcode table, we'll also turn on the "shift_op".
+                self.shift_op = F::one();
             }
             Opcode::AUIPC => {
                 // Note that for an AUIPC opcode, we turn on both imm_b and imm_c.
                 self.imm_b = F::one();
                 self.imm_c = F::one();
-                self.AUIPC = F::one();
+                self.auipc = F::one();
                 // We constraint that imm_c = imm_b << 12 by looking up SLL(op_c_val, op_b_val, 12) with multiplicity AUIPC.
                 // Then we constraint op_a_val = op_c_val + pc by looking up ADD(op_a_val, op_c_val, pc) with multiplicity AUIPC.
             }
@@ -158,11 +166,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             | Opcode::DIVU
             | Opcode::REM
             | Opcode::REMU => {
-                self.multiply_instruction = F::one();
-                match instruction.opcode {
-                    // TODO: set byte/half/word/unsigned based on which variant of multiply.
-                    _ => {}
-                }
+                self.mul_op = F::one();
             }
             _ => panic!("Invalid opcode"),
         }
@@ -262,18 +266,13 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
             .when(local.selectors.imm_c)
             .assert_eq(reduce::<AB>(local.op_c_val), local.instruction.op_c);
 
-        // We only read from the first register if there is a store or branch instruction. In all other cases we write.
-        let reg_a_read = local.selectors.store_instruction
-            + local.selectors.branch_instruction
-            + local.selectors.multiply_instruction;
-
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
         // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
         // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
-        builder.when(local.selectors.branch_instruction).assert_eq(
+        builder.when(local.selectors.branch_op).assert_eq(
             local.pc
                 + AB::F::from_canonical_u8(4)
                 + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
@@ -281,24 +280,24 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
         );
 
         //// For jump instructions
-        builder.when(local.selectors.jump_instruction).assert_eq(
-            reduce::<AB>(local.op_a_val),
-            local.pc + AB::F::from_canonical_u8(4),
-        );
-        builder.when(local.selectors.JAL).assert_eq(
+        builder
+            .when(local.selectors.jalr + local.selectors.jal)
+            .assert_eq(
+                reduce::<AB>(local.op_a_val),
+                local.pc + AB::F::from_canonical_u8(4),
+            );
+        builder.when(local.selectors.jal).assert_eq(
             local.pc + AB::F::from_canonical_u8(4) + reduce::<AB>(local.op_b_val),
             next.pc,
         );
-        builder.when(local.selectors.JALR).assert_eq(
+        builder.when(local.selectors.jalr).assert_eq(
             reduce::<AB>(local.op_b_val) + local.instruction.op_c,
             next.pc,
         );
 
-        //// For system instructions
-
         //// Upper immediate instructions
         // lookup(clk, op_c_val, imm, 12) in SLT table with multiplicity AUIPC
-        builder.when(local.selectors.AUIPC).assert_eq(
+        builder.when(local.selectors.auipc).assert_eq(
             reduce::<AB>(local.op_a_val),
             reduce::<AB>(local.op_c_val) + local.pc,
         );
