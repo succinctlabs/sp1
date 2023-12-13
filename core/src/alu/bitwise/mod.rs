@@ -116,7 +116,7 @@ where
 
         let two = AB::F::from_canonical_u32(2);
 
-        // // Check that the bits of the operands are correct.
+        // Check that the bits of the operands are correct.
         for i in 0..4 {
             let mut b_sum = AB::Expr::zero();
             let mut c_sum = AB::Expr::zero();
