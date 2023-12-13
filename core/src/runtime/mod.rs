@@ -9,7 +9,6 @@
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
-    mem,
 };
 
 use p3_field::PrimeField;
@@ -446,8 +445,8 @@ impl Runtime {
     /// Emit a CPU event.
     fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
         self.cpu_events.push(CpuEvent {
-            clk: self.clk,
-            pc: self.pc,
+            clk: clk,
+            pc: pc,
             opcode: instruction.opcode,
             op_a: instruction.op_a,
             op_b: instruction.op_b,
@@ -495,7 +494,6 @@ impl Runtime {
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
         let (mut a, mut b, mut c): (u32, u32, u32) = (u32::MAX, u32::MAX, u32::MAX);
-        let (mut memory_addr, memory_value): (Option<u32>, Option<u32>) = (None, None);
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
