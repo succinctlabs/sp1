@@ -1,3 +1,7 @@
+mod opcode;
+mod runtime;
+mod instruction;
+
 //! An implementation of a runtime for the Curta VM.
 //!
 //! The runtime is responsible for executing a user program and tracing important events which occur
