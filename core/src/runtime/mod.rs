@@ -444,10 +444,10 @@ pub fn create_instruction(input: u32) -> Instruction {
         0b1100111 => {
             // JALR
             Instruction {
-                opcode: Opcode::AUIPC,
+                opcode: Opcode::JALR,
                 a: rd,
-                b: imm_11_0,
-                c: 0,
+                b: (input >> 15) & 0b11111,
+                c: imm_11_0,
             }
         }
         0b1100011 => {
@@ -1613,5 +1613,6 @@ pub mod tests {
 
         create_instruction_unit_test(0xc2958593, Opcode::ADDI, 11, 11, u32::MAX - 983 + 1); // addi a1, a1, -983
         create_instruction_unit_test(0xfb010113, Opcode::ADDI, 2, 2, u32::MAX - 80 + 1); // addi sp, sp, -80
+        create_instruction_unit_test(0x00008067, Opcode::JALR, 0, 1, 0); // JALR x0 0(x1)
     }
 }
