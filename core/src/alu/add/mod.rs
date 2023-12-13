@@ -12,6 +12,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 use crate::alu::indices_arr;
+use crate::lookup::Interaction;
 use crate::Runtime;
 
 use super::{AluEvent, Chip};
@@ -43,10 +44,64 @@ pub struct AddChip {
     events: Vec<AluEvent>,
 }
 
+// impl<F: PrimeField> From<u32> for Word<F> {
+//     fn from(value: u32) -> Self {
+//         let mut word = [F::zero(); 4];
+//         word[0] = F::from_canonical_u32(value & 0xFF);
+//         word[1] = F::from_canonical_u32(value & 0xFF00);
+//         word[2] = F::from_canonical_u32(value & 0xFF0000);
+//         word[3] = F::from_canonical_u32(value & 0xFF000000);
+//         Word(word)
+//     }
+// }
+
+fn u32_to_u8_limbs(value: u32) -> [u8; 4] {
+    let mut limbs = [0u8; 4];
+    limbs[0] = (value & 0xFF) as u8;
+    limbs[1] = ((value >> 8) & 0xFF) as u8;
+    limbs[2] = ((value >> 16) & 0xFF) as u8;
+    limbs[3] = ((value >> 24) & 0xFF) as u8;
+    limbs
+}
+
 impl<F: PrimeField> Chip<F> for AddChip {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        let mut row = [F::zero(); NUM_ADD_COLS];
-        self.events.par_iter().map(|event| {});
+    fn generate_trace(&self, _: &mut Runtime) -> RowMajorMatrix<F> {
+        let rows = self
+            .events
+            .par_iter()
+            .map(|event| {
+                let mut row = [F::zero(); NUM_ADD_COLS];
+                let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
+                let a = u32_to_u8_limbs(event.a);
+                let b = u32_to_u8_limbs(event.b);
+                let c = u32_to_u8_limbs(event.c);
+
+                let mut carry = [0u8, 0u8, 0u8];
+                if (a[0] as u32) + (b[0] as u32) > 255 {
+                    carry[0] = 1;
+                    cols.carry[0] = F::one();
+                }
+                if (a[1] as u32) + (b[1] as u32) + (carry[0] as u32) > 255 {
+                    carry[1] = 1;
+                    cols.carry[1] = F::one();
+                }
+                if (a[2] as u32) + (b[2] as u32) + (carry[1] as u32) > 255 {
+                    carry[2] = 1;
+                    cols.carry[2] = F::one();
+                }
+
+                cols.a = Word(a.map(F::from_canonical_u8));
+                cols.b = Word(b.map(F::from_canonical_u8));
+                cols.c = Word(c.map(F::from_canonical_u8));
+                row
+            })
+            .collect::<Vec<_>>();
+        let trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_COLS);
+        trace
+    }
+
+    fn interactions(&self) -> Vec<Interaction<F>> {
         todo!()
     }
 }
