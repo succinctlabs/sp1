@@ -364,12 +364,11 @@ fn bit_op(a: u32, from: usize, to: usize) -> u32{
     ((a >> from) & 1) << to
 }
 
+/// Treat the length-th bit as the sign bit and extend it all the way.
 fn extend_sign(bits: u32, length : usize) -> u32 {
     if (bits >> (length - 1)) == 0 {
-        println!("returning {} as is", bits);
         bits
     } else {
-        println!("returning {} instead of {}", (0xffffffff << length) | bits, bits);
         (0xffffffff << length) | bits
     }
 }
