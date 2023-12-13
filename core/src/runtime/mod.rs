@@ -445,7 +445,16 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
-    fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
+    fn emit_cpu(
+        &mut self,
+        clk: u32,
+        pc: u32,
+        instruction: Instruction,
+        a: u32,
+        b: u32,
+        c: u32,
+        memory_value: Option<u32>,
+    ) {
         self.cpu_events.push(CpuEvent {
             clk: clk,
             pc: pc,
@@ -453,6 +462,7 @@ impl Runtime {
             a,
             b,
             c,
+            memory_value,
         });
     }
 
@@ -492,7 +502,8 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let (mut a, mut b, mut c): (u32, u32, u32) = (u32::MAX, u32::MAX, u32::MAX);
+        let (mut a, mut b, mut c, mut memory_value): (u32, u32, u32, Option<u32>) =
+            (u32::MAX, u32::MAX, u32::MAX, None);
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
@@ -636,35 +647,40 @@ impl Runtime {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = (self.mr(addr) as i8) as u32;
+                memory_value = Some(self.mr(addr));
+                a = (memory_value.unwrap() as i8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = (self.mr(addr) as i16) as u32;
+                memory_value = Some(self.mr(addr));
+                a = (memory_value.unwrap() as i16) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = self.mr(addr);
+                memory_value = Some(self.mr(addr));
+                a = memory_value.unwrap();
                 self.rw(rd, a);
             }
             Opcode::LBU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                let a = (self.mr(addr) as u8) as u32;
+                memory_value = Some(self.mr(addr));
+                let a = (memory_value.unwrap() as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                let a = (self.mr(addr) as u16) as u32;
+                memory_value = Some(self.mr(addr));
+                let a = (memory_value.unwrap() as u16) as u32;
                 self.rw(rd, a);
             }
 
@@ -674,6 +690,7 @@ impl Runtime {
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
                 let value = (a as u8) as u32;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
@@ -681,6 +698,7 @@ impl Runtime {
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
                 let value = (a as u16) as u32;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
@@ -688,6 +706,7 @@ impl Runtime {
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
                 let value = a;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
 
@@ -825,7 +844,7 @@ impl Runtime {
         }
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(self.clk, pc, instruction, a, b, c);
+        self.emit_cpu(self.clk, pc, instruction, a, b, c, memory_value);
     }
 
     /// Execute the program.

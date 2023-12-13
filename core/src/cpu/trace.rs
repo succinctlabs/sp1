@@ -137,7 +137,10 @@ impl CpuChip {
             | Opcode::SW => {
                 let memory_value = event.a;
                 let memory_addr = event.b.wrapping_add(event.c);
-                cols.mem_val = memory_value.into();
+                cols.mem_val = event
+                    .memory_value
+                    .expect("Memory value should be present")
+                    .into();
                 cols.addr = memory_addr.into();
             }
             _ => {}
@@ -154,6 +157,9 @@ impl CpuChip {
             Opcode::BGEU => Some(event.a >= event.b),
             _ => None,
         };
+        if let Some(branch_condition) = branch_condition {
+            cols.branch_cond_val = (branch_condition as u32).into();
+        }
     }
 }
 
@@ -162,8 +168,6 @@ mod tests {
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Instruction;
     use p3_baby_bear::BabyBear;
-
-    use crate::runtime::Instruction;
 
     use super::*;
     #[test]
@@ -182,6 +186,7 @@ mod tests {
             a: 1,
             b: 2,
             c: 3,
+            memory_value: None,
         }];
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

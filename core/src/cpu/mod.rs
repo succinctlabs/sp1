@@ -10,4 +10,5 @@ pub struct CpuEvent {
     pub a: u32,
     pub b: u32,
     pub c: u32,
+    pub memory_value: Option<u32>,
 }
