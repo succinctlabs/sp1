@@ -1,10 +1,8 @@
-use crate::air::{reduce, AirConstraint, AirVariable, Bool, Word};
-use crate::lookup::{Interaction, IsRead};
+use crate::air::{reduce, AirConstraint, Bool, Word};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{AirBuilder, BaseAir, VirtualPairCol};
+use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use p3_field::{Field, PrimeField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 

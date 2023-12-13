@@ -1,20 +1,24 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
-use core::mem::{size_of, transmute};
-use p3_air::{AirBuilder, BaseAir, VirtualPairCol};
+use crate::utils::Chip;
+use core::mem::transmute;
+use p3_air::VirtualPairCol;
 
 use crate::air::Word;
-use crate::runtime::chip::Chip;
 use crate::runtime::{Opcode, Runtime};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-pub struct CpuChip<F: PrimeField> {
-    pub _phantom: core::marker::PhantomData<F>,
+pub struct CpuChip;
+
+impl CpuChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
-impl<F: PrimeField> Chip<F> for CpuChip<F> {
+impl<F: PrimeField> Chip<F> for CpuChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         let mut rows = runtime
             .cpu_events
@@ -138,19 +142,19 @@ impl<F: PrimeField> Chip<F> for CpuChip<F> {
     }
 }
 
-impl<F: PrimeField> CpuChip<F> {
-    fn event_to_row(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
+impl CpuChip {
+    fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
         println!("rows: {:?}", row);
-        cols.opcode = F::from_canonical_u32(event.instruction.opcode as u32);
-        cols.op_a = F::from_canonical_u32(event.instruction.a as u32);
-        cols.op_b = F::from_canonical_u32(event.instruction.b as u32);
-        cols.op_c = F::from_canonical_u32(event.instruction.c as u32);
+        cols.opcode = F::from_canonical_u32(event.opcode as u32);
+        cols.op_a = F::from_canonical_u32(event.a);
+        cols.op_b = F::from_canonical_u32(event.b);
+        cols.op_c = F::from_canonical_u32(event.c);
         // TODO: based on the instruction, populate the relevant flags.
-        match event.instruction.opcode {
+        match event.opcode {
             Opcode::ADD | Opcode::SUB | Opcode::AND => {}
             Opcode::ADDI | Opcode::ANDI => {
                 cols.imm_c = F::one();
@@ -172,7 +176,8 @@ impl<F: PrimeField> CpuChip<F> {
         }
         // TODO: make Into for Iter<F> to Word and use that here.
         cols.op_a_val = Word(
-            event.operands[0]
+            event
+                .a
                 .to_le_bytes()
                 .iter()
                 .map(|v| F::from_canonical_u8(*v))
@@ -181,7 +186,8 @@ impl<F: PrimeField> CpuChip<F> {
                 .unwrap(),
         );
         cols.op_b_val = Word(
-            event.operands[1]
+            event
+                .b
                 .to_le_bytes()
                 .iter()
                 .map(|v| F::from_canonical_u8(*v))
@@ -190,7 +196,8 @@ impl<F: PrimeField> CpuChip<F> {
                 .unwrap(),
         );
         cols.op_c_val = Word(
-            event.operands[2]
+            event
+                .c
                 .to_le_bytes()
                 .iter()
                 .map(|v| F::from_canonical_u8(*v))
@@ -204,7 +211,6 @@ impl<F: PrimeField> CpuChip<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::runtime::Instruction;
     use p3_baby_bear::BabyBear;
 
     use super::*;
@@ -212,21 +218,18 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![CpuEvent {
+        runtime.cpu_events = vec![CpuEvent {
             clk: 6,
             pc: 1,
-            instruction: Instruction {
-                opcode: Opcode::ADD,
-                a: 0,
-                b: 1,
-                c: 2,
-            },
-            operands: [1, 2, 3],
+            opcode: Opcode::ADD,
+            op_a: 0,
+            op_b: 1,
+            op_c: 2,
+            a: 1,
+            b: 2,
+            c: 3,
         }];
-        let chip = CpuChip::<BabyBear> {
-            _phantom: Default::default(),
-        };
-        runtime.cpu_events = events;
+        let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }

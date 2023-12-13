@@ -11,16 +11,19 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+use p3_field::PrimeField;
+use p3_matrix::dense::RowMajorMatrix;
+
 use crate::{
-    alu::AluEvent,
-    cpu::CpuEvent,
+    alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
+    cpu::{trace::CpuChip, CpuEvent},
     memory::{MemOp, MemoryEvent},
+    utils::Chip,
 };
-pub mod chip;
 
 /// An opcode specifies which operation to execute.
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Opcode {
     /// Register instructions.
     ADD = 0,
@@ -277,61 +280,66 @@ impl Display for Register {
 #[derive(Debug, Clone, Copy)]
 pub struct Instruction {
     pub opcode: Opcode,
-    pub a: u32,
-    pub b: u32,
-    pub c: u32,
+    pub op_a: u32,
+    pub op_b: u32,
+    pub op_c: u32,
 }
 
 impl Instruction {
     /// Create a new instruction.
-    pub fn new(opcode: Opcode, a: u32, b: u32, c: u32) -> Instruction {
-        Instruction { opcode, a, b, c }
+    pub fn new(opcode: Opcode, op_a: u32, op_b: u32, op_c: u32) -> Instruction {
+        Instruction {
+            opcode,
+            op_a,
+            op_b,
+            op_c,
+        }
     }
 
     /// Decode the instruction in the R-type format.
     pub fn r_type(&self) -> (Register, Register, Register) {
         (
-            Register::from_u32(self.a),
-            Register::from_u32(self.b),
-            Register::from_u32(self.c),
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            Register::from_u32(self.op_c),
         )
     }
 
     /// Decode the instruction in the I-type format.
     pub fn i_type(&self) -> (Register, Register, u32) {
         (
-            Register::from_u32(self.a),
-            Register::from_u32(self.b),
-            self.c,
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            self.op_c,
         )
     }
 
     /// Decode the instruction in the S-type format.
     pub fn s_type(&self) -> (Register, Register, u32) {
         (
-            Register::from_u32(self.a),
-            Register::from_u32(self.b),
-            self.c,
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            self.op_c,
         )
     }
 
     /// Decode the instruction in the B-type format.
     pub fn b_type(&self) -> (Register, Register, u32) {
         (
-            Register::from_u32(self.a),
-            Register::from_u32(self.b),
-            self.c,
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            self.op_c,
         )
     }
 
     /// Decode the instruction in the J-type format.
     pub fn j_type(&self) -> (Register, u32) {
-        (Register::from_u32(self.a), self.b)
+        (Register::from_u32(self.op_a), self.op_b)
     }
 
     /// Decode the instruction in the U-type format.
     pub fn u_type(&self) -> (Register, u32) {
-        (Register::from_u32(self.a), self.b)
+        (Register::from_u32(self.op_a), self.op_b)
     }
 }
 
@@ -339,25 +347,31 @@ impl Instruction {
 #[derive(Debug)]
 pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
-    clk: u32,
+    pub clk: u32,
 
     /// The program counter keeps track of the next instruction.
-    pc: u32,
+    pub pc: u32,
 
     /// The prgram used during execution.
-    program: Vec<Instruction>,
+    pub program: Vec<Instruction>,
 
     /// The memory which instructions operate over.
-    memory: BTreeMap<u32, u32>,
+    pub memory: BTreeMap<u32, u32>,
 
-    /// Cpu Event
+    /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
 
     /// A trace of the memory events which get emitted during execution.
-    memory_events: Vec<MemoryEvent>,
+    pub memory_events: Vec<MemoryEvent>,
 
-    /// A trace of the ALU events which get emitted during execution.
-    alu_events: Vec<AluEvent>,
+    /// A trace of the ADD, and ADDI events.
+    pub add_events: Vec<AluEvent>,
+
+    /// A trace of the SUB events.
+    pub sub_events: Vec<AluEvent>,
+
+    /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
+    pub bitwise_events: Vec<AluEvent>,
 }
 
 impl Runtime {
@@ -370,7 +384,9 @@ impl Runtime {
             program,
             cpu_events: Vec::new(),
             memory_events: Vec::new(),
-            alu_events: Vec::new(),
+            add_events: Vec::new(),
+            sub_events: Vec::new(),
+            bitwise_events: Vec::new(),
         }
     }
 
@@ -380,24 +396,14 @@ impl Runtime {
             Some(value) => *value,
             None => 0,
         };
-        self.memory_events.push(MemoryEvent {
-            clk: self.clk,
-            addr,
-            op: MemOp::Read,
-            value,
-        });
+        self.emit_memory(self.clk, addr, MemOp::Read, value);
         return value;
     }
 
     /// Write to memory.
     fn mw(&mut self, addr: u32, value: u32) {
-        self.memory_events.push(MemoryEvent {
-            clk: self.clk,
-            addr,
-            op: MemOp::Write,
-            value,
-        });
         self.memory.insert(addr, value);
+        self.emit_memory(self.clk, addr, MemOp::Write, value);
     }
 
     /// Convert a register to a memory address.
@@ -436,32 +442,58 @@ impl Runtime {
         return self.program[idx];
     }
 
-    /// Emit an ALU event.
-    fn emit_alu(&mut self, opcode: Opcode, a: u32, b: u32, c: u32) {
-        self.alu_events.push(AluEvent {
-            clk: self.clk,
-            opcode,
+    /// Emit a CPU event.
+    fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
+        self.cpu_events.push(CpuEvent {
+            clk,
+            pc,
+            opcode: instruction.opcode,
+            op_a: instruction.op_a,
+            op_b: instruction.op_b,
+            op_c: instruction.op_c,
             a,
             b,
             c,
         });
     }
 
-    fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
-        self.cpu_events.push(CpuEvent {
-            clk: self.clk,
-            pc: self.pc,
-            instruction,
-            operands: [a, b, c],
+    /// Emit a memory event.
+    fn emit_memory(&mut self, clk: u32, addr: u32, op: MemOp, value: u32) {
+        self.memory_events.push(MemoryEvent {
+            clk,
+            addr,
+            op,
+            value,
         });
     }
 
+    /// Emit an ALU event.
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
+        let event = AluEvent {
+            clk,
+            opcode,
+            a,
+            b,
+            c,
+        };
+        match opcode {
+            Opcode::ADD | Opcode::ADDI => {
+                self.add_events.push(event);
+            }
+            Opcode::SUB => {
+                self.sub_events.push(event);
+            }
+            Opcode::XOR | Opcode::XORI | Opcode::OR | Opcode::ORI | Opcode::AND | Opcode::ANDI => {
+                self.bitwise_events.push(event);
+            }
+            _ => panic!("unsupported alu opcode"),
+        }
+    }
+
     /// Execute the given instruction over the current state of the runtime.
-    fn execute(&mut self, instruction: Instruction) -> (u32, u32, u32) {
-        // Initialize these to dummy values
-        let mut a: u32 = u32::MAX;
-        let mut b: u32 = u32::MAX;
-        let mut c: u32 = u32::MAX;
+    fn execute(&mut self, instruction: Instruction) {
+        let pc = self.pc;
+        let (mut a, mut b, mut c): (u32, u32, u32) = (u32::MAX, u32::MAX, u32::MAX);
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
@@ -469,70 +501,70 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b.wrapping_add(c);
                 self.rw(rd, a);
-                self.emit_alu(Opcode::ADD, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SUB => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b.wrapping_sub(c);
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SUB, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::XOR => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b ^ c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::XOR, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::OR => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b | c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::OR, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::AND => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b & c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::AND, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLL => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b << c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SLL, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SRL => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b >> c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SRL, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SRA => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = (b as i32 >> c) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SRA, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLT => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SLT, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLTU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = if b < c { 1 } else { 0 };
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SLTU, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
 
             // I-type instructions.
@@ -541,63 +573,63 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 a = b.wrapping_add(c);
                 self.rw(rd, a);
-                self.emit_alu(Opcode::ADDI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::XORI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = b ^ c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::XORI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::ORI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = b | c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::ORI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::ANDI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = b & c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::ANDI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLLI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = b << c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SLLI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SRLI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = b >> c;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SRLI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SRAI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = (b as i32 >> c) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SRAI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLTI => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SLTI, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLTIU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = if b < c { 1 } else { 0 };
                 self.rw(rd, a);
-                self.emit_alu(Opcode::SLTIU, a, b, c);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
 
             // Load instructions
@@ -748,65 +780,56 @@ impl Runtime {
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = b.wrapping_mul(c);
                 self.rw(rd, a);
-                self.emit_alu(Opcode::MUL, a, b, c);
             }
             Opcode::MULH => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::MULH, a, b, c);
             }
             Opcode::MULSU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::MULSU, a, b, c);
             }
             Opcode::MULU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::MULU, a, b, c);
             }
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = (b as i32).wrapping_div(c as i32) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::DIV, a, b, c);
             }
             Opcode::DIVU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = b.wrapping_div(c);
                 self.rw(rd, a);
-                self.emit_alu(Opcode::DIVU, a, b, c);
             }
             Opcode::REM => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1) as i32, self.rr(rs2) as i32);
                 let a = (b as i32).wrapping_rem(c as i32) as u32;
                 self.rw(rd, a);
-                self.emit_alu(Opcode::REM, a, b as u32, c as u32);
             }
             Opcode::REMU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = b.wrapping_rem(c);
                 self.rw(rd, a);
-                self.emit_alu(Opcode::REMU, a, b, c);
             }
         }
-        if a == u32::MAX || b == u32::MAX || c == u32::MAX {
-            panic!("Invalid computation of a = {}, b = {}, c = {}", a, b, c);
-        }
-        (a, b, c)
+
+        // Emit the CPU event for this cycle.
+        self.emit_cpu(self.clk, pc, instruction, a, b, c);
     }
 
-    /// Executes the code.
+    /// Execute the program.
     pub fn run(&mut self) {
         // Set %x2 to the size of memory when the CPU is initialized.
         self.rw(Register::X2, 1024 * 1024 * 8);
@@ -815,13 +838,8 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            let start_pc = self.pc;
-
             // Execute the instruction.
-            let (a, b, c) = self.execute(instruction);
-
-            // Emit a CPU event.
-            self.emit_cpu(self.clk, start_pc, instruction, a, b, c);
+            self.execute(instruction);
 
             // Increment the program counter by 4.
             self.pc = self.pc + 4;
@@ -829,6 +847,31 @@ impl Runtime {
             // Increment the clock.
             self.clk += 1;
         }
+    }
+
+    /// Prove the program.
+    #[allow(unused)]
+    pub fn prove<F: PrimeField>(&mut self) {
+        // Initialize chips.
+        let cpu = CpuChip::new();
+        let add = AddChip::new();
+        let sub = SubChip::new();
+        let bitwise = BitwiseChip::new();
+
+        // Generate the trace for the CPU chip and also emit auxiliary events.
+        let cpu_trace: RowMajorMatrix<F> = cpu.generate_trace(self);
+
+        // Generate the trace of the add chip.
+        let add_trace: RowMajorMatrix<F> = add.generate_trace(self);
+
+        // Generate the trace of the sub chip.
+        let sub_trace: RowMajorMatrix<F> = sub.generate_trace(self);
+
+        // Generate the trace of the bitwise chip.
+        let bitwise_trace: RowMajorMatrix<F> = bitwise.generate_trace(self);
+
+        // Generate the proof.
+        // multiprove(vec![program, cpu, memory, alu];
     }
 }
 
