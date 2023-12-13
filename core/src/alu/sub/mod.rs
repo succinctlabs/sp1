@@ -6,14 +6,15 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
 use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 use crate::lookup::Interaction;
-use crate::utils::{pad_to_power_of_two, Chip};
 
-use super::AluEvent;
+use crate::utils::{pad_to_power_of_two, Chip};
+use crate::Runtime;
 
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
 
@@ -34,15 +35,19 @@ pub struct SubCols<T> {
 }
 
 /// A chip that implements subtraction for the opcode SUB.
-pub struct SubChip {
-    events: Vec<AluEvent>,
+pub struct SubChip;
+
+impl SubChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
 impl<F: PrimeField> Chip<F> for SubChip {
-    fn generate_trace(&self, _: &mut crate::Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = self
-            .events
+        let rows = runtime
+            .sub_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_SUB_COLS];
@@ -169,14 +174,8 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![AluEvent {
-            clk: 0,
-            opcode: Opcode::ADD,
-            a: 2,
-            b: 8,
-            c: 6,
-        }];
-        let chip = SubChip { events };
+        runtime.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
+        let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }
@@ -225,15 +224,8 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![AluEvent {
-            clk: 0,
-            opcode: Opcode::SUB,
-            a: 2,
-            b: 8,
-            c: 6,
-        }]
-        .repeat(1000);
-        let chip = SubChip { events };
+        runtime.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)].repeat(1000);
+        let chip = SubChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
