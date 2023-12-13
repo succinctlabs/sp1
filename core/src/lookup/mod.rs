@@ -5,9 +5,9 @@ use crate::memory::MemOp;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
-    values: Vec<VirtualPairCol<F>>,
-    multiplicity: VirtualPairCol<F>,
-    kind: InteractionKind,
+    pub values: Vec<VirtualPairCol<F>>,
+    pub multiplicity: VirtualPairCol<F>,
+    pub kind: InteractionKind,
 }
 
 /// The type of interaction for a lookup argument.
