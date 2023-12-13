@@ -1,38 +1,12 @@
-use anyhow::Result;
-use byteorder::{LittleEndian, ReadBytesExt};
 use clap::Parser;
 use curta::Args;
 use curta_assembler::parse_elf;
 
-use curta_core::{
-    program::{opcodes::Opcode, Instruction, Operands, ProgramROM, OPERAND_ELEMENTS},
-    Runtime,
-};
+use curta_core::Runtime;
 use std::{
-    fs::File,
-    io::{BufReader, Read},
+    io::Read,
     path::Path,
 };
-
-pub fn load_program_rom(path: &Path) -> Result<ProgramROM<i32>> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut instructions = Vec::new();
-
-    while let Ok(opcode) = reader.read_u32::<LittleEndian>() {
-        let mut operands_arr = [0i32; OPERAND_ELEMENTS];
-        for i in 0..OPERAND_ELEMENTS {
-            operands_arr[i] = reader.read_i32::<LittleEndian>()?;
-        }
-        let operands = Operands(operands_arr);
-        instructions.push(Instruction {
-            opcode: Opcode::from_u32(opcode),
-            operands,
-        });
-    }
-
-    Ok(ProgramROM(instructions))
-}
 
 fn main() {
     let args = Args::parse();
