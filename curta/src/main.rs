@@ -53,7 +53,7 @@ fn main() {
         println!("{:?}", instruction);
     }
     let mut runtime = Runtime::new_with_pc(instructions.0, instructions.1);
-    println!("{:?}", instructions.1);
+    println!("initial pc: {:?}", instructions.1);
     runtime.run();
 
     println!("{:?}", runtime.registers());
