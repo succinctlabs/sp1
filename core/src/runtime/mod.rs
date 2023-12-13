@@ -1568,5 +1568,9 @@ pub mod tests {
         create_instruction_unit_test(0x0020bf33, Opcode::SLTU, 30,1,2);
         create_instruction_unit_test(0x0020bf33, Opcode::SLTU, 30,1,2);
         create_instruction_unit_test(0x000030b3, Opcode::SLTU, 1,0,0);
+
+        create_instruction_unit_test(0x0006c783, Opcode::LBU, 15,13, 0);
+        create_instruction_unit_test(0x0006c703, Opcode::LBU, 14,13, 0);
+        create_instruction_unit_test(0x0007c683, Opcode::LBU, 13,15, 0);
     }
 }
