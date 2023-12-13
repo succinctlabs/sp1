@@ -276,10 +276,10 @@ impl Display for Register {
 /// An instruction specifies an operation to execute and the operands.
 #[derive(Debug, Clone, Copy)]
 pub struct Instruction {
-    opcode: Opcode,
-    a: u32,
-    b: u32,
-    c: u32,
+    pub opcode: Opcode,
+    pub a: u32,
+    pub b: u32,
+    pub c: u32,
 }
 
 impl Instruction {
