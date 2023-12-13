@@ -1611,5 +1611,6 @@ pub mod tests {
         create_instruction_unit_test(0x2f22f36f, Opcode::JAL, 6, 0x2f2f2, 0); // jal x1 604
 
         create_instruction_unit_test(0xc2958593, Opcode::ADDI, 11, 11, u32::MAX - 983 + 1); // addi a1, a1, -983
+        create_instruction_unit_test(0xfb010113, Opcode::ADDI, 2, 2, u32::MAX - 80 + 1); // addi sp, sp, -80
     }
 }
