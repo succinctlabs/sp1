@@ -61,6 +61,9 @@ pub struct CpuCols<T> {
     pub op_b_val: Word<T>,
     pub op_c_val: Word<T>,
 
+    // Whether this instruction is reading from register A.
+    pub reg_a_read: T,
+
     // An addr that we are reading from or writing to.
     pub addr: Word<T>,
     // The associated memory value for `addr`.
@@ -126,31 +129,12 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
         // We only read from the first register if there is a store or branch instruction. In all other cases we write.
         let reg_a_read =
             local.store_instruction + local.branch_instruction + local.multiply_instruction;
-        // TODO: lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
 
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
         // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
 
-        //// For both load and store instructions, we must constraint mem_val to be a lookup of [addr]
-        //// For load instructions
-        // To constraint addr, we add op_b_val + op_c_val
-        // TODO: lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
-        // To constraint mem_val, we lookup [addr] in the memory table
-        // TODO: lookup (clk, addr, mem_val, is_read=true) in the memory table with multiplicity load_instruction
-        // Now we must constraint mem_val and op_a_val
-        // We bus this to a "match_word" table with a combination of s/u and h/b/w
-        // TODO: lookup (clk, mem_val, op_a_val, byte, half, word, unsigned) in the "match_word" table with multiplicity load_instruction
-
-        //// For store instructions
-        // To constraint addr, we add op_a_val + op_c_val
-        // TODO: lookup (clk, op_a_val, op_c_val, addr) in the "add" table with multiplicity store_instruction
-        // To constraint mem_val, we lookup [addr] in the memory table
-        // TODO: lookup (clk, addr, mem_val, is_read=false) in the memory table with multiplicity store_instruction
-        // Now we must constraint mem_val and op_b_val
-        // TODO: lookup (clk, mem_val, op_b_val, byte, half, word, unsigned) in the "match_word" table with multiplicity store_instruction
-
         //// For branch instructions
-        /// TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
+        // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
         // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
         builder.when(local.branch_instruction).assert_eq(
             local.pc
@@ -186,6 +170,14 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
 fn interaction<F: Field>() -> Vec<Interaction<F>> {
     let mut interactions = Vec::new();
 
+    // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
+    interactions.push(Interaction::lookup_register(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.op_a,
+        CPU_COL_MAP.op_a_val,
+        IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.reg_a_read)),
+        VirtualPairCol::constant(F::one()),
+    ));
     // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
     // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
     interactions.push(Interaction::lookup_register(
@@ -208,6 +200,50 @@ fn interaction<F: Field>() -> Vec<Interaction<F>> {
         CPU_COL_MAP.op_c_val,
         VirtualPairCol::single_main(CPU_COL_MAP.register_instruction),
     ));
+
+    //// For both load and store instructions, we must constraint mem_val to be a lookup of [addr]
+    //// For load instructions
+    // To constraint addr, we add op_b_val + op_c_val
+    // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
+    interactions.push(Interaction::add(
+        CPU_COL_MAP.addr,
+        CPU_COL_MAP.op_b_val,
+        CPU_COL_MAP.op_c_val,
+        VirtualPairCol::single_main(CPU_COL_MAP.load_instruction),
+    ));
+    // To constraint mem_val, we lookup [addr] in the memory table
+    // lookup (clk, addr, mem_val, is_read=true) in the memory table with multiplicity load_instruction
+    interactions.push(Interaction::lookup_memory(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.addr,
+        CPU_COL_MAP.mem_val,
+        IsRead::Bool(true),
+        VirtualPairCol::single_main(CPU_COL_MAP.load_instruction),
+    ));
+    // Now we must constraint mem_val and op_a_val
+    // We bus this to a "match_word" table with a combination of s/u and h/b/w
+    // TODO: lookup (clk, mem_val, op_a_val, byte, half, word, unsigned) in the "match_word" table with multiplicity load_instruction
+
+    //// For store instructions
+    // To constraint addr, we add op_a_val + op_c_val
+    // lookup (clk, op_a_val, op_c_val, addr) in the "add" table with multiplicity store_instruction
+    interactions.push(Interaction::add(
+        CPU_COL_MAP.addr,
+        CPU_COL_MAP.op_a_val,
+        CPU_COL_MAP.op_c_val,
+        VirtualPairCol::single_main(CPU_COL_MAP.store_instruction),
+    ));
+    // To constraint mem_val, we lookup [addr] in the memory table
+    // lookup (clk, addr, mem_val, is_read=false) in the memory table with multiplicity store_instruction
+    interactions.push(Interaction::lookup_memory(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.addr,
+        CPU_COL_MAP.mem_val,
+        IsRead::Bool(false),
+        VirtualPairCol::single_main(CPU_COL_MAP.store_instruction),
+    ));
+    // Now we must constraint mem_val and op_b_val
+    // TODO: lookup (clk, mem_val, op_b_val, byte, half, word, unsigned) in the "match_word" table with multiplicity store_instruction
 
     // Constraining the memory
     // TODO: there is likely some optimization to be done here making the is_read column a VirtualPair.
