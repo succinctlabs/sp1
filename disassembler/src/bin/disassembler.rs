@@ -1,5 +1,5 @@
 use clap::{arg, command};
-use curta_assembler::parse_elf;
+use curta_disassembler::parse_elf;
 use std::io::Read;
 
 
@@ -19,7 +19,7 @@ fn main() {
             .expect("Failed to read from input file");
     }
 
-    let instructions = parse_elf(&elf_code).expect("Failed to assemble code");
+    let instructions = parse_elf(&elf_code).expect("Failed to disassemble code");
     for instruction in instructions.0.iter() {
         println!("{:?}", instruction);
     }
