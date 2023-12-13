@@ -16,8 +16,8 @@ pub enum InteractionKind {
     Memory = 1,
     /// Interaction with the program table, loading an instruction at a given pc address.
     Program = 2,
-    /// Interaction with the ALU table for u32 operations.
-    ALU = 3,
+    /// Interaction with instruction oracle.
+    Instruction = 3,
     /// Interaction with the byte lookup table for byte operations.
     Byte = 4,
     /// Requesting a range check for a given value and range.
