@@ -1422,6 +1422,21 @@ pub mod tests {
     }
 
     #[test]
+    fn ADDI_NEGATIVE() {
+        //     addi x29, x0, 5
+        //     addi x30, x29, -1
+        //     addi x31, x30, 4
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 29, 0xffffffff),
+            Instruction::new(Opcode::ADDI, 31, 30, 4),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 5 - 1 + 4);
+    }
+
+    #[test]
     fn XORI() {
         //     addi x29, x0, 5
         //     xori x30, x29, 37
