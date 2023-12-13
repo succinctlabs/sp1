@@ -1,29 +1,33 @@
 use super::air::{CpuCols, InstructionCols, OpcodeSelectors, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
-use core::mem::{size_of, transmute};
-use p3_air::{AirBuilder, BaseAir, VirtualPairCol};
+use crate::utils::Chip;
+use core::mem::transmute;
+use p3_air::VirtualPairCol;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::air::Word;
-use crate::runtime::chip::Chip;
 use crate::runtime::{Instruction, Opcode, Runtime};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-pub struct CpuChip<F: PrimeField> {
-    pub _phantom: core::marker::PhantomData<F>,
+pub struct CpuChip;
+
+impl CpuChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
-impl<F: PrimeField> Chip<F> for CpuChip<F> {
+impl<F: PrimeField> Chip<F> for CpuChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        let mut rows = runtime
+        let rows = runtime
             .cpu_events
-            .iter() // TODO make this a par_iter
-            .enumerate()
-            .map(|(n, op)| self.event_to_row(*op))
+            .par_iter()
+            .map(|op| self.event_to_row(*op))
             .collect::<Vec<_>>();
 
-        let mut trace =
+        let trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
 
         // TODO: pad to a power of 2.
@@ -101,188 +105,55 @@ impl<F: PrimeField> Chip<F> for CpuChip<F> {
     }
 }
 
-impl<F: PrimeField> CpuChip<F> {
-    fn event_to_row(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
+impl CpuChip {
+    fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
 
-        self.populate_instruction(&mut cols.instruction, event.instruction);
-        self.populate_selectors(&mut cols.selectors, event.instruction.opcode);
+        cols.instruction.populate(event.instruction);
+        cols.selectors.populate(event.instruction);
 
-        cols.op_a_val = event.operands[0].into();
-        cols.op_b_val = event.operands[1].into();
-        cols.op_c_val = event.operands[2].into();
+        cols.op_a_val = event.a.into();
+        cols.op_b_val = event.b.into();
+        cols.op_c_val = event.c.into();
 
         self.populate_memory(cols, event);
         self.populate_branch(cols, event);
+
         row
     }
 
-    fn populate_instruction(&self, cols: &mut InstructionCols<F>, instruction: Instruction) {
-        cols.opcode = F::from_canonical_u32(instruction.opcode as u32);
-        match instruction.opcode {
-            Opcode::LUI => {
-                // For LUI, we convert it to a SLL instruction with imm_b and imm_c turned on.
-                cols.opcode = F::from_canonical_u32(Opcode::SLL as u32);
-                assert_eq!(instruction.c as u32, 12);
-            }
-            Opcode::AUIPC => {
-                // For AUIPC, we set the 3rd operand to imm_b << 12.
-                assert_eq!(instruction.c as u32, instruction.b << 12);
+    fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
+        match event.instruction.opcode {
+            Opcode::LB
+            | Opcode::LH
+            | Opcode::LW
+            | Opcode::LBU
+            | Opcode::LHU
+            | Opcode::SB
+            | Opcode::SH
+            | Opcode::SW => {
+                let memory_value = event.a;
+                let memory_addr = event.b.wrapping_add(event.c);
+                cols.mem_val = memory_value.into();
+                cols.addr = memory_addr.into();
             }
             _ => {}
         }
-        cols.op_a = F::from_canonical_u32(instruction.a as u32);
-        cols.op_b = F::from_canonical_u32(instruction.b as u32);
-        cols.op_c = F::from_canonical_u32(instruction.c as u32);
     }
 
-    fn populate_selectors(&self, cols: &mut OpcodeSelectors<F>, opcode: Opcode) {
-        match opcode {
-            // Register instructions
-            Opcode::ADD
-            | Opcode::SUB
-            | Opcode::XOR
-            | Opcode::OR
-            | Opcode::AND
-            | Opcode::SLL
-            | Opcode::SRL
-            | Opcode::SRA
-            | Opcode::SLT
-            | Opcode::SLTU => {
-                // For register instructions, neither imm_b or imm_c should be turned on.
-                match opcode {
-                    Opcode::ADD => {
-                        cols.add_op = F::one();
-                    }
-                    Opcode::SUB => {
-                        cols.sub_op = F::one();
-                    }
-                    Opcode::XOR | Opcode::OR | Opcode::AND => {
-                        cols.bitwise_op = F::one();
-                    }
-                    Opcode::SLL | Opcode::SRL => {
-                        cols.shift_op = F::one();
-                    }
-                    Opcode::SLT | Opcode::SLTU => {
-                        cols.lt_op = F::one();
-                    }
-                    Opcode::SRA => {
-                        panic!("SRA not implemented");
-                    }
-                    _ => {
-                        panic!("unexpected opcode in register instruction table processing.")
-                    }
-                }
-            }
-            // Immediate instructions
-            Opcode::ADDI
-            | Opcode::XORI
-            | Opcode::ORI
-            | Opcode::ANDI
-            | Opcode::SLLI
-            | Opcode::SRLI
-            | Opcode::SRAI
-            | Opcode::SLTI
-            | Opcode::SLTIU => {
-                // For immediate instructions, imm_c should be turned on.
-                cols.imm_c = F::one();
-                match opcode {
-                    Opcode::ADDI => {
-                        cols.add_op = F::one();
-                    }
-                    Opcode::XORI | Opcode::ORI | Opcode::ANDI => {
-                        cols.bitwise_op = F::one();
-                    }
-                    Opcode::SLLI | Opcode::SRLI => {
-                        cols.shift_op = F::one();
-                    }
-                    Opcode::SLTI | Opcode::SLTIU => {
-                        cols.lt_op = F::one();
-                    }
-                    Opcode::SRAI => {
-                        panic!("SRAI not implemented");
-                    }
-                    _ => {
-                        panic!("unexpected opcode in immediate instruction table processing.")
-                    }
-                }
-            }
-            // Load instructions
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                // For load instructions, imm_c should be turned on.
-                cols.imm_c = F::one();
-                cols.mem_op = F::one();
-                cols.mem_read = F::one();
-            }
-            // Store instructions
-            Opcode::SB | Opcode::SH | Opcode::SW => {
-                // For store instructions, imm_c should be turned on, but mem_read stays off.
-                cols.imm_c = F::one();
-                cols.mem_op = F::one();
-            }
-            // Branch instructions
-            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
-                cols.imm_c = F::one();
-                cols.branch_op = F::one();
-            }
-            // Jump instructions
-            Opcode::JAL => {
-                cols.jal = F::one();
-                cols.imm_b = F::one();
-                cols.imm_c = F::one();
-            }
-            Opcode::JALR => {
-                cols.jalr = F::one();
-                cols.imm_c = F::one();
-            }
-            // Upper immediate instructions
-            Opcode::LUI => {
-                // Note that we convert a LUI opcode to a SLL opcode with both imm_b and imm_c turned on.
-                // And the value of imm_c is 12.
-                cols.imm_b = F::one();
-                cols.imm_c = F::one();
-                // In order to process lookups for the SLL opcode table, we'll also turn on the "shift_op".
-                cols.shift_op = F::one();
-            }
-            Opcode::AUIPC => {
-                // Note that for an AUIPC opcode, we turn on both imm_b and imm_c.
-                cols.imm_b = F::one();
-                cols.imm_c = F::one();
-                cols.auipc = F::one();
-                // We constraint that imm_c = imm_b << 12 by looking up SLL(op_c_val, op_b_val, 12) with multiplicity AUIPC.
-                // Then we constraint op_a_val = op_c_val + pc by looking up ADD(op_a_val, op_c_val, pc) with multiplicity AUIPC.
-            }
-            // Multiply instructions
-            Opcode::MUL
-            | Opcode::MULH
-            | Opcode::MULSU
-            | Opcode::MULU
-            | Opcode::DIV
-            | Opcode::DIVU
-            | Opcode::REM
-            | Opcode::REMU => {
-                cols.mul_op = F::one();
-            }
-            _ => panic!("Invalid opcode"),
-        }
-    }
-
-    fn populate_memory(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
-        if let Some(memory_value) = event.memory_value {
-            cols.mem_val = memory_value.into();
-        }
-        if let Some(addr) = event.addr {
-            cols.addr = addr.into();
-        }
-    }
-
-    fn populate_branch(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
-        if let Some(branch_condition) = event.branch_condition {
-            cols.branch_cond_val = (branch_condition as u32).into();
-        }
+    fn populate_branch<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
+        let branch_condition = match event.instruction.opcode {
+            Opcode::BEQ => Some(event.a == event.b),
+            Opcode::BNE => Some(event.a != event.b),
+            Opcode::BLT => Some((event.a as i32) < (event.b as i32)),
+            Opcode::BGE => Some((event.a as i32) >= (event.b as i32)),
+            Opcode::BLTU => Some(event.a < event.b),
+            Opcode::BGEU => Some(event.a >= event.b),
+            _ => None,
+        };
     }
 }
 
@@ -292,29 +163,27 @@ mod tests {
     use crate::runtime::Instruction;
     use p3_baby_bear::BabyBear;
 
+    use crate::runtime::Instruction;
+
     use super::*;
     #[test]
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![CpuEvent {
+        runtime.cpu_events = vec![CpuEvent {
             clk: 6,
             pc: 1,
             instruction: Instruction {
                 opcode: Opcode::ADD,
-                a: 0,
-                b: 1,
-                c: 2,
+                op_a: 0,
+                op_b: 1,
+                op_c: 2,
             },
-            operands: [1, 2, 3],
-            addr: None,
-            memory_value: None,
-            branch_condition: None,
+            a: 1,
+            b: 2,
+            c: 3,
         }];
-        let chip = CpuChip::<BabyBear> {
-            _phantom: Default::default(),
-        };
-        runtime.cpu_events = events;
+        let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }
@@ -324,9 +193,7 @@ mod tests {
         let program = get_simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let chip = CpuChip::<BabyBear> {
-            _phantom: Default::default(),
-        };
+        let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }

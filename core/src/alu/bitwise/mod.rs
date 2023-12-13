@@ -7,14 +7,14 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 use crate::lookup::Interaction;
 use crate::runtime::Opcode;
 use crate::utils::{pad_to_power_of_two, Chip};
-
-use super::AluEvent;
+use crate::Runtime;
 
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
@@ -41,15 +41,19 @@ pub struct BitwiseCols<T> {
 }
 
 /// A chip that implements bitwise operations for the opcodes XOR, XORI, OR, ORI, AND, and ANDI.
-pub struct BitwiseChip {
-    events: Vec<AluEvent>,
+pub struct BitwiseChip;
+
+impl BitwiseChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
 impl<F: PrimeField> Chip<F> for BitwiseChip {
-    fn generate_trace(&self, _: &mut crate::Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = self
-            .events
+        let rows = runtime
+            .bitwise_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
@@ -195,14 +199,8 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![AluEvent {
-            clk: 0,
-            opcode: Opcode::ADD,
-            a: 14,
-            b: 8,
-            c: 6,
-        }];
-        let chip = BitwiseChip { events };
+        runtime.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        let chip = BitwiseChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }
@@ -251,31 +249,13 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::XOR,
-                a: 25,
-                b: 10,
-                c: 19,
-            },
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::OR,
-                a: 27,
-                b: 10,
-                c: 19,
-            },
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::AND,
-                a: 2,
-                b: 10,
-                c: 19,
-            },
+        runtime.bitwise_events = vec![
+            AluEvent::new(0, Opcode::XOR, 25, 10, 19),
+            AluEvent::new(0, Opcode::OR, 27, 10, 19),
+            AluEvent::new(0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
-        let chip = BitwiseChip { events };
+        let chip = BitwiseChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
