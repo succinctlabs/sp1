@@ -282,13 +282,6 @@ impl Display for Register {
     }
 }
 
-/// An operand that can either be a register or an immediate value.
-#[derive(Debug)]
-pub enum RegisterOrImmediate {
-    Register(Register),
-    Immediate(i32),
-}
-
 /// An instruction specifies an operation to execute and the operands.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Instruction {
