@@ -224,6 +224,7 @@ dependencies = [
  "p3-air",
  "p3-field",
  "p3-matrix",
+ "rayon",
  "serde",
  "valida-derive",
  "valida-isa",

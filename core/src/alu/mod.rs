@@ -1,8 +1,17 @@
-use crate::runtime::Opcode;
+use p3_field::PrimeField;
+use p3_matrix::dense::RowMajorMatrix;
+
+use crate::{runtime::Opcode, Runtime};
 mod add;
 mod bitwise;
 mod shift;
 mod sub;
+
+pub trait Chip<F: PrimeField> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
+
+    fn interactions(&self) -> Vec<Interaction<F>>;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct AluEvent {

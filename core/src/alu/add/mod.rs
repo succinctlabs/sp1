@@ -4,11 +4,17 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
+use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 use crate::alu::indices_arr;
+use crate::Runtime;
+
+use super::{AluEvent, Chip};
 
 #[derive(AlignedBorrow, Default)]
 pub struct AddCols<T> {
@@ -33,7 +39,17 @@ const fn make_col_map() -> AddCols<usize> {
     unsafe { transmute::<[usize; NUM_ADD_COLS], AddCols<usize>>(indices_arr) }
 }
 
-pub struct AddChip;
+pub struct AddChip {
+    events: Vec<AluEvent>,
+}
+
+impl<F: PrimeField> Chip<F> for AddChip {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+        let mut row = [F::zero(); NUM_ADD_COLS];
+        self.events.par_iter().map(|event| {});
+        todo!()
+    }
+}
 
 impl<F> BaseAir<F> for AddChip {
     fn width(&self) -> usize {
