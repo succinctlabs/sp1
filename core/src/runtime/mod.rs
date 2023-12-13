@@ -1524,5 +1524,8 @@ pub mod tests {
         create_instruction_unit_test(0xffffe517, Opcode::AUIPC, 10,0xffffe, 0);
         create_instruction_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
         create_instruction_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
+        create_instruction_unit_test(0x00200793, Opcode::ADDI, 15,0,2);
+        create_instruction_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
+        create_instruction_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
     }
 }
