@@ -33,10 +33,10 @@ pub struct OpcodeSelectors<T> {
     // Whether this is a multiply instruction.
     pub multiply_instruction: T,
     // // Selectors for load/store instructions and their types.
-    pub byte: Bool<T>,
-    pub half: Bool<T>,
-    pub word: Bool<T>,
-    pub unsigned: Bool<T>,
+    pub byte: T,
+    pub half: T,
+    pub word: T,
+    pub unsigned: T,
     // // TODO: we might need a selector for "MULSU" since no other instruction has "SU"
     pub JALR: T,
     pub JAL: T,
@@ -44,14 +44,10 @@ pub struct OpcodeSelectors<T> {
     // // Whether this instruction is reading from register A.
     pub reg_a_read: T,
 }
-/// An AIR table for memory accesses.
+
 #[derive(AlignedBorrow, Default)]
 #[repr(C)]
-pub struct CpuCols<T> {
-    /// The clock cycle value.
-    pub clk: T,
-    // /// The program counter value.
-    pub pc: T,
+pub struct InstructionCols<T> {
     // /// The opcode for this cycle.
     pub opcode: T,
     // /// The first operand for this instruction.
@@ -60,7 +56,19 @@ pub struct CpuCols<T> {
     pub op_b: T,
     // /// The third operand for this instruction.
     pub op_c: T,
+}
 
+/// An AIR table for memory accesses.
+#[derive(AlignedBorrow, Default)]
+#[repr(C)]
+pub struct CpuCols<T> {
+    /// The clock cycle value.
+    pub clk: T,
+    // /// The program counter value.
+    pub pc: T,
+
+    // Columns related to the instruction.
+    pub instruction: InstructionCols<T>,
     // Selectors for the opcode.
     pub selectors: OpcodeSelectors<T>,
 
@@ -68,9 +76,6 @@ pub struct CpuCols<T> {
     pub op_a_val: Word<T>,
     pub op_b_val: Word<T>,
     pub op_c_val: Word<T>,
-
-    // Whether this instruction is reading from register A.
-    pub reg_a_read: T,
 
     // An addr that we are reading from or writing to.
     pub addr: Word<T>,
@@ -107,10 +112,10 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
         builder
             .when(local.selectors.imm_b)
-            .assert_eq(reduce::<AB>(local.op_b_val), local.op_b);
+            .assert_eq(reduce::<AB>(local.op_b_val), local.instruction.op_b);
         builder
             .when(local.selectors.imm_c)
-            .assert_eq(reduce::<AB>(local.op_c_val), local.op_c);
+            .assert_eq(reduce::<AB>(local.op_c_val), local.instruction.op_c);
 
         // We only read from the first register if there is a store or branch instruction. In all other cases we write.
         let reg_a_read = local.selectors.store_instruction
@@ -139,9 +144,10 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
             local.pc + AB::F::from_canonical_u8(4) + reduce::<AB>(local.op_b_val),
             next.pc,
         );
-        builder
-            .when(local.selectors.JALR)
-            .assert_eq(reduce::<AB>(local.op_b_val) + local.op_c, next.pc);
+        builder.when(local.selectors.JALR).assert_eq(
+            reduce::<AB>(local.op_b_val) + local.instruction.op_c,
+            next.pc,
+        );
 
         //// For system instructions
 
