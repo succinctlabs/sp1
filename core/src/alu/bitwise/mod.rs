@@ -1,7 +1,5 @@
-//! A chip that implements bitwise operations for XOR, XORI, OR, ORI, AND, and ANDI.
-
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -9,8 +7,10 @@ use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::alu::indices_arr;
 
+pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
+
+/// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
 pub struct BitwiseCols<T> {
     /// The output operand.
@@ -32,14 +32,7 @@ pub struct BitwiseCols<T> {
     pub is_and: T,
 }
 
-pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
-pub const BITWISE_COL_MAP: BitwiseCols<usize> = make_col_map();
-
-const fn make_col_map() -> BitwiseCols<usize> {
-    let indices_arr = indices_arr::<NUM_BITWISE_COLS>();
-    unsafe { transmute::<[usize; NUM_BITWISE_COLS], BitwiseCols<usize>>(indices_arr) }
-}
-
+/// A chip that implements bitwise operations for the opcodes XOR, XORI, OR, ORI, AND, and ANDI.
 pub struct BitwiseChip;
 
 impl<F> BaseAir<F> for BitwiseChip {

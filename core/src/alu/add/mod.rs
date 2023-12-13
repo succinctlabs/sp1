@@ -1,5 +1,3 @@
-//! A chip that implements addition for ADD and ADDI.
-
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -11,12 +9,14 @@ use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::alu::indices_arr;
 use crate::lookup::Interaction;
 use crate::Runtime;
 
-use super::{AluEvent, Chip};
+use super::{pad_to_power_of_two, u32_to_u8_limbs, AluEvent, Chip};
 
+pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
+
+/// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
 pub struct AddCols<T> {
     /// The output operand.
@@ -32,31 +32,9 @@ pub struct AddCols<T> {
     pub carry: [T; 3],
 }
 
-pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
-pub const ADD_COL_MAP: AddCols<usize> = make_col_map();
-
-const fn make_col_map() -> AddCols<usize> {
-    let indices_arr = indices_arr::<NUM_ADD_COLS>();
-    unsafe { transmute::<[usize; NUM_ADD_COLS], AddCols<usize>>(indices_arr) }
-}
-
+/// A chip that implements addition for the opcodes ADD and ADDI.
 pub struct AddChip {
     events: Vec<AluEvent>,
-}
-
-fn u32_to_u8_limbs(value: u32) -> [u8; 4] {
-    let mut limbs = [0u8; 4];
-    limbs[0] = (value & 0xFF) as u8;
-    limbs[1] = ((value >> 8) & 0xFF) as u8;
-    limbs[2] = ((value >> 16) & 0xFF) as u8;
-    limbs[3] = ((value >> 24) & 0xFF) as u8;
-    limbs
-}
-
-pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
-    debug_assert!(values.len() % N == 0);
-    let n_real_rows = values.len() / N;
-    values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
 impl<F: PrimeField> Chip<F> for AddChip {
@@ -73,15 +51,15 @@ impl<F: PrimeField> Chip<F> for AddChip {
                 let c = u32_to_u8_limbs(event.c);
 
                 let mut carry = [0u8, 0u8, 0u8];
-                if (a[0] as u32) + (b[0] as u32) > 255 {
+                if (b[0] as u32) + (c[0] as u32) > 255 {
                     carry[0] = 1;
                     cols.carry[0] = F::one();
                 }
-                if (a[1] as u32) + (b[1] as u32) + (carry[0] as u32) > 255 {
+                if (b[1] as u32) + (c[1] as u32) + (carry[0] as u32) > 255 {
                     carry[1] = 1;
                     cols.carry[1] = F::one();
                 }
-                if (a[2] as u32) + (b[2] as u32) + (carry[1] as u32) > 255 {
+                if (b[2] as u32) + (c[2] as u32) + (carry[1] as u32) > 255 {
                     carry[2] = 1;
                     cols.carry[2] = F::one();
                 }
@@ -151,7 +129,5 @@ where
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
-
-        todo!()
     }
 }
