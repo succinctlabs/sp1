@@ -1,115 +1,94 @@
+use anyhow::Context;
 use anyhow::Result;
-use byteorder::{LittleEndian, WriteBytesExt};
-use curta_core::program::opcodes::*;
-use pest::Parser;
-use pest_derive::*;
-use std::collections::HashMap;
+use anyhow::anyhow;
+use anyhow::bail;
 
-#[derive(Parser)]
-#[grammar = "grammar/assembly.pest"]
-pub struct AssemblyParser;
 
-pub fn assemble(input: &str) -> Result<Vec<u8>, String> {
-    let parsed = AssemblyParser::parse(Rule::assembly, input).unwrap();
+use curta_core::runtime::{Instruction, create_instruction};
+use elf::ElfBytes;
 
-    // First pass: Record label locations
-    let mut label_locations = HashMap::new();
-    let mut pc = 0;
-    for pair in parsed.clone() {
-        match pair.as_rule() {
-            Rule::label => {
-                let label_name = pair.as_str().trim().trim_end_matches(':');
-                label_locations.insert(label_name, pc);
-            }
-            Rule::instruction => {
-                pc += 1;
-            }
-            _ => {}
-        }
+use elf::endian::LittleEndian;
+use elf::file::Class;
+
+pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
+    let elf = ElfBytes::<LittleEndian>::minimal_parse(input)
+        .map_err(|err| anyhow!("Elf parse error: {err}"))?;
+    if elf.ehdr.class != Class::ELF32 {
+        bail!("Not a 32-bit ELF");
     }
+    if elf.ehdr.e_machine != elf::abi::EM_RISCV {
+        bail!("Invalid machine type, must be RISC-V");
+    }
+    if elf.ehdr.e_type != elf::abi::ET_EXEC {
+        bail!("Invalid ELF type, must be executable");
+    }
+    let entry: u32 = elf
+        .ehdr
+        .e_entry
+        .try_into()
+        .map_err(|err| anyhow!("e_entry was larger than 32 bits. {err}"))?;
 
-    // Second pass: Generate machine code and replace labels with PC locations
-    let mut vec: Vec<u8> = Vec::new();
-    let mut pc = 0;
-    for pair in parsed {
-        match pair.as_rule() {
-            Rule::instruction => {
-                let mut inner_pairs = pair.into_inner();
-                let mnemonic = inner_pairs.next().unwrap().as_str();
-                let mut operands: Vec<i32> = inner_pairs
-                    .filter_map(|p| {
-                        if p.as_rule() == Rule::WHITESPACE {
-                            return None;
-                        }
-                        let op_str = p.as_str();
-                        let ret = if op_str.ends_with("(fp)") {
-                            // Extract the numeric value from the string and convert to i32
-                            op_str.trim_end_matches("(fp)").parse::<i32>().unwrap()
-                        } else if label_locations.contains_key(op_str) {
-                            // If operand is a label reference, replace with the `pc` offset
-                            *label_locations.get(op_str).unwrap() - pc
-                        } else {
-                            // Otherwise, use the operand as-is
-                            op_str.parse::<i32>().unwrap()
-                        };
-                        Some(ret)
-                    })
-                    .collect();
+    let max_mem = 1000000; // TODO: figure out what this is.
+    let word_size = 4;
 
-                // Convert mnemonic to opcode
-                let opcode = match mnemonic {
-                    // Core CPU
-                    "lw" => Opcode::ADDI,
-                    "jal" => Opcode::JAL,
-                    "jali" => Opcode::JALI,
-                    // "beq" | "beqi" => BEQ,
-                    // "bne" | "bnei" => BNE,
-                    // "stop" => STOP,
+    if entry >= max_mem || entry % word_size as u32 != 0 {
+        bail!("Invalid entrypoint");
+    }
+    let segments = elf.segments().ok_or(anyhow!("Missing segment table"))?;
+    if segments.len() > 256 {
+        bail!("Too many program headers");
+    }
+    let mut instructions : Vec<Instruction> = Vec::new();
 
-                    // U32 ALU
-                    "add" => Opcode::ADD,
-                    "sub" => Opcode::SUB,
-                    "xor" => Opcode::XOR,
-                    "and" => Opcode::AND,
-                    "shl" => Opcode::SLL,
-
-                    // // Native field
-                    // "feadd" => ADD,
-                    // "fesub" => SUB,
-                    _ => panic!("Unknown mnemonic: {}", mnemonic),
-                };
-
-                // Insert zero operands if necessary
-                match mnemonic {
-                    "lw" => {
-                        // (a, c, 0, 0, 0)
-                        operands.extend(vec![0; 3]);
-                    }
-                    "stop" => {
-                        // (0, 0, 0, 0, 0)
-                        operands.extend(vec![0; 5]);
-                    }
-                    "addi" | "subi" | "muli" | "divi" | "lti" | "shli" | "shri" | "beqi"
-                    | "bnei" | "andi" | "ori" | "xori" => {
-                        // (a, b, c, 0, 1)
-                        operands.extend(vec![0, 1]);
-                    }
-                    _ => {
-                        // (a, b, c, 0, 0)
-                        operands.extend(vec![0; 2]);
-                    }
-                };
-
-                // Write opcode and operands
-                vec.write_u32::<LittleEndian>(opcode as u32).unwrap();
-                for operand in operands {
-                    vec.write_i32::<LittleEndian>(operand).unwrap();
+    // Only read segments that are executable instructions that are also PT_LOAD.
+    for segment in segments.iter().filter(|x| x.p_type == elf::abi::PT_LOAD && ((x.p_flags & elf::abi::PF_X) != 0)) {
+        let file_size: u32 = segment
+            .p_filesz
+            .try_into()
+            .map_err(|err| anyhow!("filesize was larger than 32 bits. {err}"))?;
+        if file_size >= max_mem {
+            bail!("Invalid segment file_size");
+        }
+        let mem_size: u32 = segment
+            .p_memsz
+            .try_into()
+            .map_err(|err| anyhow!("mem_size was larger than 32 bits {err}"))?;
+        if mem_size >= max_mem {
+            bail!("Invalid segment mem_size");
+        }
+        let vaddr: u32 = segment
+            .p_vaddr
+            .try_into()
+            .map_err(|err| anyhow!("vaddr is larger than 32 bits. {err}"))?;
+        if vaddr % word_size as u32 != 0 {
+            bail!("vaddr {vaddr:08x} is unaligned");
+        }
+        let offset: u32 = segment
+            .p_offset
+            .try_into()
+            .map_err(|err| anyhow!("offset is larger than 32 bits. {err}"))?;
+        for i in (0..mem_size).step_by(word_size) {
+            let addr = vaddr.checked_add(i).context("Invalid segment vaddr")?;
+            if addr >= max_mem {
+                bail!("Address [0x{addr:08x}] exceeds maximum address for guest programs [0x{max_mem:08x}]");
+            }
+            if i >= file_size {
+                // Past the file size, all zeros.
+                // TODO: I think this is no-op, but double check that.
+                // image.insert(addr, 0);
+            } else {
+                let mut word = 0;
+                // Don't read past the end of the file.
+                let len = core::cmp::min(file_size - i, word_size as u32);
+                for j in 0..len {
+                    let offset = (offset + i + j) as usize;
+                    let byte = input.get(offset).context("Invalid segment offset")?;
+                    word |= (*byte as u32) << (j * 8);
                 }
-                pc += 1;
+                println!("address => [0x{addr:08x}], word => {}", word);
+                instructions.push(create_instruction(word));
             }
-            _ => {}
         }
     }
-
-    Ok(vec)
+    Ok(instructions)
 }

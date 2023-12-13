@@ -89,6 +89,8 @@ pub enum Opcode {
     DIVU = 44,
     REM = 45,
     REMU = 46,
+
+    UNIMP = 47,
 }
 
 impl Display for Opcode {
@@ -158,6 +160,8 @@ impl Display for Opcode {
             Opcode::DIVU => write!(f, "divu"),
             Opcode::REM => write!(f, "rem"),
             Opcode::REMU => write!(f, "remu"),
+
+            Opcode::UNIMP => write!(f, "unimp"),
         }
     }
 }
@@ -278,6 +282,13 @@ impl Display for Register {
     }
 }
 
+/// An operand that can either be a register or an immediate value.
+#[derive(Debug)]
+pub enum RegisterOrImmediate {
+    Register(Register),
+    Immediate(i32),
+}
+
 /// An instruction specifies an operation to execute and the operands.
 #[derive(Debug, Clone, Copy)]
 pub struct Instruction {
@@ -287,6 +298,7 @@ pub struct Instruction {
     pub op_c: u32,
 }
 
+/// A runtime executes a program.
 impl Instruction {
     /// Create a new instruction.
     pub fn new(opcode: Opcode, op_a: u32, op_b: u32, op_c: u32) -> Instruction {
@@ -345,8 +357,244 @@ impl Instruction {
     }
 }
 
-/// A runtime executes a program.
-#[derive(Debug)]
+// Refer to P.104 of The RISC-V Instruction Set Manual
+pub fn create_instruction(input: u32) -> Instruction {
+    println!("Instruction::from({:?})", input);
+
+    if input == 0xc0001073 {
+        return Instruction {
+            opcode: Opcode::UNIMP,
+            a: Register::from_u32(0).unwrap(),
+            b: RegisterOrImmediate::Register(Register::from_u32(0).unwrap()),
+            c: None,
+        };
+    }
+    
+    let op_code = input & 0b1111111;
+    let rd = (input >> 7) & 0b11111;
+    let funct3 = (input >> 12) & 0b111;
+    let rs1 = (input >> 15) & 0b11111;
+    let rs2 = (input >> 20) & 0b11111;
+    let funct7 = (input >> 25) & 0b1111111;
+    let imm_11_0 = (input >> 20) & 0b111111111111;
+    let imm_11_5 = (input >> 25) & 0b1111111;
+    let imm_4_0 = (input >> 7) & 0b11111;
+    let imm_31_12 = (input >> 12) & 0xfffff; // 20-bit mask
+
+    match op_code {
+        0b0110111 => {
+            // LUI
+            Instruction {
+                opcode: Opcode::LUI,
+                a: Register::from_u32(rd).unwrap(),
+                b: RegisterOrImmediate::Immediate(imm_31_12 as i32),
+                c: None,
+            }
+        }
+        0b0010111 => {
+            // AUIPC
+            Instruction {
+                opcode: Opcode::AUIPC,
+                a: Register::from_u32(rd).unwrap(),
+                b: RegisterOrImmediate::Immediate(imm_31_12 as i32),
+                c: None,
+            }
+        }
+        0b1101111 => {
+            // JAL
+            let encoded_imm = (input >> 11) & 0xfffff; // 20-bit mask
+
+            // Extract bits according to the UJ-type encoding
+            let imm_20 = (encoded_imm >> 19) & 1;    // Bit 20
+            let imm_10_1 = (encoded_imm >> 0) & 0x3ff; // Bits 1-10
+            let imm_11 = (encoded_imm >> 10) & 1;    // Bit 11
+            let imm_19_12 = (encoded_imm >> 11) & 0xff; // Bits 12-19
+        
+            // Reassemble the immediate value
+            let mut imm = (imm_20 << 20) | (imm_19_12 << 12) | (imm_11 << 11) | (imm_10_1 << 1);
+        
+            // Sign-extend the 21-bit immediate to 32 bits
+            if imm_20 != 0 {
+                imm |= 0xfff00000; // Set the upper 11 bits to 1's if imm[20] is 1
+            }
+        
+            Instruction {
+                opcode: Opcode::AUIPC,
+                a: Register::from_u32(rd).unwrap(),
+                b: RegisterOrImmediate::Immediate(imm as i32),
+                c: None,
+            }
+        }
+        0b1100111 => {
+            // JALR
+            Instruction {
+                opcode: Opcode::AUIPC,
+                a: Register::from_u32(rd).unwrap(),
+                b: RegisterOrImmediate::Immediate(imm_11_0 as i32),
+                c: None,
+            }
+        }
+        0b1100011 => {
+            // BEQ, BNE, BLT, BGE, BLTU, BGEU
+            let opcode = match funct3 {
+                0b000 => Opcode::BEQ,
+                0b001 => Opcode::BNE,
+                0b100 => Opcode::BLT,
+                0b101 => Opcode::BGE,
+                0b110 => Opcode::BLTU,
+                0b111 => Opcode::BGEU,
+                _ => panic!("Invalid funct3 {}", funct3),
+            };
+            let imm_4_1 = (input >> 1) & 0b1111; // Extract bits 1 to 4
+            let imm_11 = (input >> 11) & 0b1;    // Extract bit 11
+        
+            // Concatenate to form the immediate value
+            let imm = (imm_11 << 4) | imm_4_1;
+            Instruction {
+                opcode,
+                a: Register::from_u32(rs1).unwrap(),
+                b: RegisterOrImmediate::Register(Register::from_u32(rs2).unwrap()),
+                c: Some(RegisterOrImmediate::Immediate(imm as i32)),
+            }
+        }
+        0b0000011 => {
+            // LB, LH, LW, LBU, LHU
+            let opcode = match funct3 {
+                0b000 => Opcode::LB,
+                0b001 => Opcode::LH,
+                0b010 => Opcode::LW,
+                0b100 => Opcode::LBU,
+                0b101 => Opcode::LHU,
+                _ => panic!("Invalid funct3 {}", funct3),
+            };
+            Instruction {
+                opcode,
+                a: Register::from_u32(rd).unwrap(),
+                b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
+                c: Some(RegisterOrImmediate::Immediate(imm_11_0 as i32)),
+            }
+        }
+        0b0100011 => {
+            // SB, SH, SW
+            let opcode = match funct3 {
+                0b000 => Opcode::SB,
+                0b001 => Opcode::SH,
+                0b010 => Opcode::SW,
+                _ => panic!("Invalid funct3 {}", funct3),
+            };
+            let imm = (imm_11_5 << 5) | imm_4_0;
+            Instruction {
+                opcode,
+                a: Register::from_u32(rs1).unwrap(),
+                b: RegisterOrImmediate::Register(Register::from_u32(rs2).unwrap()),
+                c: Some(RegisterOrImmediate::Immediate(imm as i32)),
+            }
+        }
+        0b0010011 => {
+            // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
+            let opcode = match funct3 {
+                0b000 => Opcode::ADDI,
+                0b010 => Opcode::SLTI,
+                0b011 => Opcode::SLTIU,
+                0b100 => Opcode::XORI,
+                0b110 => Opcode::ORI,
+                0b111 => Opcode::ANDI,
+                0b001 => Opcode::SLLI,
+                0b101 => {
+                    if funct7 == 0 {
+                        Opcode::SRLI
+                    } else if funct7 == 0b0100000 {
+                        Opcode::SRAI
+                    } else {
+                        panic!("Invalid funct7 {}", funct7);
+                    }
+                }
+                _ => panic!("Invalid funct3 {}", funct3),
+            };
+            if funct3 == 0b001 || funct3 == 0b101 {
+                Instruction {
+                    opcode,
+                    a: Register::from_u32(rd).unwrap(),
+                    b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
+                    c: Some(RegisterOrImmediate::Immediate(((input >> 20) & 0b1111) as i32)),
+                }
+            } else {
+                Instruction {
+                    opcode,
+                    a: Register::from_u32(rd).unwrap(),
+                    b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
+                    c: Some(RegisterOrImmediate::Immediate(imm_11_0 as i32)),
+                }
+            }
+        }
+        0b0110011 => {
+            // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
+            let opcode = match funct3 {
+                0b000 => {
+                    if funct7 == 0 {
+                        Opcode::ADD
+                    } else if funct7 == 0b0100000 {
+                        Opcode::SUB
+                    } else {
+                        panic!("Invalid funct7 {}", funct7);
+                    }
+                }
+                0b001 => Opcode::SLL,
+                0b010 => Opcode::SLT,
+                0b011 => Opcode::SLTU,
+                0b100 => Opcode::XOR,
+                0b101 => {
+                    if funct7 == 0 {
+                        Opcode::SRL
+                    } else if funct7 == 0b0100000 {
+                        Opcode::SRA
+                    } else {
+                        panic!("Invalid funct7 {}", funct7);
+                    }
+                }
+                0b110 => Opcode::OR,
+                0b111 => Opcode::AND,
+                _ => panic!("Invalid funct3 {}", funct3),
+            };
+            Instruction {
+                opcode,
+                a: Register::from_u32(rd).unwrap(),
+                b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
+                c: Some(RegisterOrImmediate::Register(Register::from_u32(rs2).unwrap())),
+            }
+        }
+        0b0001111 => {
+            // FENCE, FENCE.I, ECALL, EBREAK
+            let opcode = match funct3 {
+                0b000 => panic!("FENCE not implemented"),
+                0b001 => panic!("FENCE.I not implemented"),
+                0b111 => {
+                    if funct7 == 0 {
+                        Opcode::ECALL
+                    } else if funct7 == 0b0000001 {
+                        Opcode::EBREAK
+                    } else {
+                        panic!("Invalid funct7 {}", funct7);
+                    }
+                }
+                _ => panic!("Invalid funct3 {}", funct3),
+            };
+            Instruction {
+                opcode,
+                a: Register::from_u32(0).unwrap(),
+                b: RegisterOrImmediate::Register(Register::from_u32(0).unwrap()),
+                c: None,
+            }
+        }
+        0b1110011 => {
+            panic!("CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented {}", input);
+        }
+        opcode => {
+            todo!("opcode {} is invalid", opcode);
+        }
+    }
+}
+
 pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
     pub clk: u32,

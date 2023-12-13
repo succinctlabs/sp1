@@ -310,6 +310,7 @@ dependencies = [
  "byteorder",
  "clap",
  "curta-core",
+ "elf",
  "pest",
  "pest_derive",
  "pest_generator",
@@ -371,6 +372,12 @@ dependencies = [
  "libc",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "elf"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4445909572dbd556c457c849c4ca58623d84b27c8fff1e74b0b4227d8b90d17b"
 
 [[package]]
 name = "generic-array"

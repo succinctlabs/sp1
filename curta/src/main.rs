@@ -2,7 +2,8 @@ use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
 use clap::Parser;
 use curta::Args;
-use curta_assembler::assemble;
+use curta_assembler::{parse_elf};
+
 use curta_core::{
     program::{opcodes::Opcode, Instruction, Operands, ProgramROM, OPERAND_ELEMENTS},
     Runtime,
@@ -36,35 +37,40 @@ pub fn load_program_rom(path: &Path) -> Result<ProgramROM<i32>> {
 fn main() {
     let args = Args::parse();
 
-    // Read assembly code from input file, or from stdin if no file is specified
-    let mut assembly_code = String::new();
+    // Read elf code from input file, or from stdin if no file is specified
+    let mut elf_code = Vec::new();
     let path = Path::new(&args.src_dir)
         .join(&args.program)
         .with_extension("s");
     std::fs::File::open(path)
         .expect("Failed to open input file")
-        .read_to_string(&mut assembly_code)
+        .read_to_end(&mut elf_code)
         .expect("Failed to read from input file");
 
-    // Write machine code to file
-    let machine_code = assemble(&assembly_code).expect("Failed to assemble code");
-    let path = Path::new(&args.build_dir)
-        .join(&args.program)
-        .with_extension("bin");
-    File::create(&path)
-        .expect("Failed to open output file")
-        .write_all(&machine_code)
-        .expect("Failed to write to output file");
-    let rom = load_program_rom(&path).expect("Failed to load program ROM");
+    // Parse ELF code.
+    // I'm not sure if this output makes sense anymore since ELF is already machine code.
+    let instructions = parse_elf(&elf_code).expect("Failed to assemble code");
 
-    // Print the program
-    println!("Machine code:");
-    for instruction in rom.0.iter() {
-        println!("{}", instruction);
+    for instruction in instructions.iter() {
+        println!("{:?}", instruction);
     }
+    // let path = Path::new(&args.build_dir)
+    //     .join(&args.program)
+    //     .with_extension("bin");
+    // File::create(&path)
+    //     .expect("Failed to open output file")
+    //     .write_all(&machine_code)
+    //     .expect("Failed to write to output file");
+    // let rom = load_program_rom(&path).expect("Failed to load program ROM");
 
-    // Run the program
-    let mut rt = Runtime::new(rom, 1 << 30, 1 << 24);
+    // // Print the program
+    // println!("Machine code:");
+    // for instruction in rom.0.iter() {
+    //     println!("{}", instruction);
+    // }
 
-    rt.run().unwrap();
+    // // Run the program
+    // let mut rt = Runtime::new(rom, 1 << 30, 1 << 24);
+
+    // rt.run().unwrap();
 }

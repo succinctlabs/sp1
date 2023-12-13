@@ -1,6 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use clap::{arg, command};
-use curta_assembler::assemble;
+use curta_assembler::parse_elf;
 use curta_core::program::opcodes::Opcode;
 use curta_core::program::{Instruction, Operands, ProgramROM};
 use std::fs::File;
@@ -31,42 +31,40 @@ fn load_program_rom(filename: &str) -> Result<ProgramROM<i32>> {
 }
 
 fn main() {
+    // TODO: Do I need an output file?
     let matches = command!()
         .arg(arg!(
-            -i --input <FILE> "The input assembly file to parse"
+            -i --input <FILE> "The input ELF file to parse"
         ))
         .arg(arg!(
             -o --output <FILE> "The machine code output file"
         ))
         .get_matches();
 
-    // Read assembly code from input file, or from stdin if no file is specified
-    let mut assembly_code = String::new();
+    // Read elf code from input file.
+    let mut elf_code = Vec::new();
     if let Some(filepath) = matches.get_one::<String>("input") {
         std::fs::File::open(filepath)
             .expect("Failed to open input file")
-            .read_to_string(&mut assembly_code)
+            .read_to_end(&mut elf_code)
             .expect("Failed to read from input file");
-    } else {
-        io::stdin()
-            .read_to_string(&mut assembly_code)
-            .expect("Failed to read from stdin");
     }
 
     // Write machine code to file, or stdout if no file is specified
-    let machine_code = assemble(&assembly_code).expect("Failed to assemble code");
-    if let Some(filepath) = matches.get_one::<String>("output") {
-        File::create(filepath)
-            .expect("Failed to open output file")
-            .write_all(&machine_code)
-            .expect("Failed to write to output file");
-        let rom = load_program_rom(filepath).expect("Failed to load program ROM");
-        for instruction in rom.0.iter() {
-            println!("{}", instruction);
-        }
-    } else {
-        io::stdout()
-            .write_all(&machine_code)
-            .expect("Failed to write to stdout");
-    }
+    // Although I'm not sure whether this makes sense anymore, ELF code is machine code.
+    let _instructions = parse_elf(&elf_code).expect("Failed to parse elf code");
+//    if let Some(filepath) = matches.get_one::<String>("output") {
+//        File::create(filepath)
+//            .expect("Failed to open output file")
+//            .write_all(&machine_code)
+//            .expect("Failed to write to output file");
+//        let rom = load_program_rom(filepath).expect("Failed to load program ROM");
+//        for instruction in rom.0.iter() {
+//            println!("{}", instruction);
+//        }
+//    } else {
+//        io::stdout()
+//            .write_all(&machine_code)
+//            .expect("Failed to write to stdout");
+//    }
 }
