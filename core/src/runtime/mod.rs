@@ -487,8 +487,8 @@ pub fn create_instruction(input: u32) -> Instruction {
             let imm = (imm_11_5 << 5) | imm_4_0;
             Instruction {
                 opcode,
-                a: rs1,
-                b: rs2,
+                a: rs2,
+                b: rs1,
                 c: imm,
             }
         }
@@ -1527,5 +1527,8 @@ pub mod tests {
         create_instruction_unit_test(0x00200793, Opcode::ADDI, 15,0,2);
         create_instruction_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
         create_instruction_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
+        create_instruction_unit_test(0x05612c23, Opcode::SW, 22,2, 88); // sw x22,88(x2)
+        create_instruction_unit_test(0x01b12e23, Opcode::SW, 27,2, 28); // sw x27,28(x2)
+        create_instruction_unit_test(0x01052223, Opcode::SW, 16, 10, 4); // sw x16,4(x10)
     }
 }
