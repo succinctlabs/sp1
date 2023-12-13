@@ -48,29 +48,8 @@ fn main() {
         .expect("Failed to read from input file");
 
     // Parse ELF code.
-    // I'm not sure if this output makes sense anymore since ELF is already machine code.
     let instructions = parse_elf(&elf_code).expect("Failed to assemble code");
-
     for instruction in instructions.iter() {
         println!("{:?}", instruction);
     }
-    // let path = Path::new(&args.build_dir)
-    //     .join(&args.program)
-    //     .with_extension("bin");
-    // File::create(&path)
-    //     .expect("Failed to open output file")
-    //     .write_all(&machine_code)
-    //     .expect("Failed to write to output file");
-    // let rom = load_program_rom(&path).expect("Failed to load program ROM");
-
-    // // Print the program
-    // println!("Machine code:");
-    // for instruction in rom.0.iter() {
-    //     println!("{}", instruction);
-    // }
-
-    // // Run the program
-    // let mut rt = Runtime::new(rom, 1 << 30, 1 << 24);
-
-    // rt.run().unwrap();
 }

@@ -74,8 +74,6 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
             }
             if i >= file_size {
                 // Past the file size, all zeros.
-                // TODO: I think this is no-op, but double check that.
-                // image.insert(addr, 0);
             } else {
                 let mut word = 0;
                 // Don't read past the end of the file.
@@ -85,7 +83,6 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
                     let byte = input.get(offset).context("Invalid segment offset")?;
                     word |= (*byte as u32) << (j * 8);
                 }
-                println!("address => [0x{addr:08x}], word => {}", word);
                 instructions.push(create_instruction(word));
             }
         }

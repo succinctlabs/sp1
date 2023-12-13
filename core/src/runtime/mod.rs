@@ -357,11 +357,13 @@ impl Instruction {
     }
 }
 
-// Refer to P.104 of The RISC-V Instruction Set Manual
+/// Decode a binary representation of a RISC-V instruction and decode it.
+/// 
+/// Refer to P.104 of The RISC-V Instruction Set Manual for the exact
+/// specification.
 pub fn create_instruction(input: u32) -> Instruction {
-    println!("Instruction::from({:?})", input);
-
     if input == 0xc0001073 {
+        // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
         return Instruction {
             opcode: Opcode::UNIMP,
             a: 0,
