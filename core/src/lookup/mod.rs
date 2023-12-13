@@ -18,10 +18,12 @@ pub enum InteractionKind {
     Program = 2,
     /// Interaction with instruction oracle.
     Instruction = 3,
+    /// Interaction with the ALU operations
+    Alu = 4,
     /// Interaction with the byte lookup table for byte operations.
-    Byte = 4,
+    Byte = 5,
     /// Requesting a range check for a given value and range.
-    Range = 5,
+    Range = 6,
 }
 
 impl<F: Field> Interaction<F> {
