@@ -382,9 +382,9 @@ pub fn create_instruction(input: u32) -> Instruction {
         // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
         return Instruction {
             opcode: Opcode::UNIMP,
-            a: 0,
-            b: 0,
-            c: 0,
+            op_a: 0,
+            op_b: 0,
+            op_c: 0,
         };
     }
     
@@ -404,18 +404,18 @@ pub fn create_instruction(input: u32) -> Instruction {
             // LUI
             Instruction {
                 opcode: Opcode::LUI,
-                a: rd,
-                b: imm_31_12,
-                c: 0,
+                op_a: rd,
+                op_b: imm_31_12,
+                op_c: 0,
             }
         }
         0b0010111 => {
             // AUIPC
             Instruction {
                 opcode: Opcode::AUIPC,
-                a: rd,
-                b: imm_31_12,
-                c: 0,
+                op_a: rd,
+                op_b: imm_31_12,
+                op_c: 0,
             }
         }
         0b1101111 => {
@@ -436,18 +436,18 @@ pub fn create_instruction(input: u32) -> Instruction {
 
             Instruction {
                 opcode: Opcode::JAL,
-                a: rd,
-                b: imm,
-                c: 0,
+                op_a: rd,
+                op_b: imm,
+                op_c: 0,
             }
         }
         0b1100111 => {
             // JALR
             Instruction {
                 opcode: Opcode::JALR,
-                a: rd,
-                b: (input >> 15) & 0b11111,
-                c: imm_11_0,
+                op_a: rd,
+                op_b: (input >> 15) & 0b11111,
+                op_c: imm_11_0,
             }
         }
         0b1100011 => {
@@ -478,9 +478,9 @@ pub fn create_instruction(input: u32) -> Instruction {
 
             Instruction {
                 opcode,
-                a: rs1,
-                b: rs2,
-                c: imm,
+                op_a: rs1,
+                op_b: rs2,
+                op_c: imm,
             }
         }
         0b0000011 => {
@@ -495,9 +495,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             };
             Instruction {
                 opcode,
-                a: rd,
-                b: rs1,
-                c: imm_11_0,
+                op_a: rd,
+                op_b: rs1,
+                op_c: imm_11_0,
             }
         }
         0b0100011 => {
@@ -511,9 +511,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             let imm = (imm_11_5 << 5) | imm_4_0;
             Instruction {
                 opcode,
-                a: rs2,
-                b: rs1,
-                c: imm,
+                op_a: rs2,
+                op_b: rs1,
+                op_c: imm,
             }
         }
         0b0010011 => {
@@ -540,16 +540,16 @@ pub fn create_instruction(input: u32) -> Instruction {
             if funct3 == 0b001 || funct3 == 0b101 {
                 Instruction {
                     opcode,
-                    a: rd,
-                    b: rs1,
-                    c: (input >> 20) & 0b1111,
+                    op_a: rd,
+                    op_b: rs1,
+                    op_c: (input >> 20) & 0b1111,
                 }
             } else {
                 Instruction {
                     opcode,
-                    a: rd,
-                    b: rs1,
-                    c: extend_sign(imm_11_0, 12),
+                    op_a: rd,
+                    op_b: rs1,
+                    op_c: extend_sign(imm_11_0, 12),
                 }
             }
         }
@@ -584,9 +584,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             };
             Instruction {
                 opcode,
-                a: rd,
-                b: rs1,
-                c: rs2,
+                op_a: rd,
+                op_b: rs1,
+                op_c: rs2,
             }
         }
         0b0001111 => {
@@ -607,9 +607,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             };
             Instruction {
                 opcode,
-                a: 0,
-                b: 0,
-                c: 0,
+                op_a: 0,
+                op_b: 0,
+                op_c: 0,
             }
         }
         0b1110011 => {
@@ -672,9 +672,11 @@ impl Runtime {
             pc: init_pc,
             memory: BTreeMap::new(),
             program,
-            memory_events: Vec::new(),
             cpu_events: Vec::new(),
-            alu_events: Vec::new(),
+            memory_events: Vec::new(),
+            add_events: Vec::new(),
+            sub_events: Vec::new(),
+            bitwise_events: Vec::new(),
         }
     }
 
