@@ -1,7 +1,4 @@
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-
-use crate::{lookup::Interaction, runtime::Opcode, Runtime};
+use crate::runtime::Opcode;
 pub mod add;
 pub mod bitwise;
 pub mod shift;

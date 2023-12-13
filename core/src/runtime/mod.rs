@@ -18,6 +18,7 @@ use crate::{
     alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
     cpu::{trace::CpuChip, CpuEvent},
     memory::{MemOp, MemoryEvent},
+    program::ProgramChip,
     utils::Chip,
 };
 
@@ -447,10 +448,7 @@ impl Runtime {
         self.cpu_events.push(CpuEvent {
             clk: clk,
             pc: pc,
-            opcode: instruction.opcode,
-            op_a: instruction.op_a,
-            op_b: instruction.op_b,
-            op_c: instruction.op_c,
+            instruction,
             a,
             b,
             c,
@@ -853,10 +851,14 @@ impl Runtime {
     #[allow(unused)]
     pub fn prove<F: PrimeField>(&mut self) {
         // Initialize chips.
+        let program = ProgramChip::new();
         let cpu = CpuChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
+
+        // Generate the trace for the program chip.
+        let program_trace: RowMajorMatrix<F> = program.generate_trace(self);
 
         // Generate the trace for the CPU chip and also emit auxiliary events.
         let cpu_trace: RowMajorMatrix<F> = cpu.generate_trace(self);
@@ -890,12 +892,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
@@ -906,12 +908,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sub x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SUB, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
@@ -922,12 +924,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     xor x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::XOR, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
@@ -938,12 +940,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     or x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::OR, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 37);
@@ -954,12 +956,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     and x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::AND, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5);
@@ -970,12 +972,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sll x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLL, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1184);
     }
@@ -985,12 +987,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     srl x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SRL, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1);
     }
@@ -1000,12 +1002,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sra x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SRA, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1);
     }
@@ -1015,12 +1017,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     slt x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLT, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1030,12 +1032,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sltu x31, x30, x29
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLTU, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1045,12 +1047,12 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x29, 37
         //     addi x31, x30, 42
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 29, 37),
             Instruction::new(Opcode::ADDI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 84);
     }
@@ -1060,12 +1062,12 @@ mod tests {
         //     addi x29, x0, 5
         //     xori x30, x29, 37
         //     xori x31, x30, 42
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::XORI, 30, 29, 37),
             Instruction::new(Opcode::XORI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 10);
@@ -1076,12 +1078,12 @@ mod tests {
         //     addi x29, x0, 5
         //     ori x30, x29, 37
         //     ori x31, x30, 42
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ORI, 30, 29, 37),
             Instruction::new(Opcode::ORI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 47);
@@ -1092,12 +1094,12 @@ mod tests {
         //     addi x29, x0, 5
         //     andi x30, x29, 37
         //     andi x31, x30, 42
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ANDI, 30, 29, 37),
             Instruction::new(Opcode::ANDI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
@@ -1107,11 +1109,11 @@ mod tests {
     fn SLLI() {
         //     addi x29, x0, 5
         //     slli x31, x29, 37
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::SLLI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 80);
     }
@@ -1120,11 +1122,11 @@ mod tests {
     fn SRLI() {
         //    addi x29, x0, 5
         //    srli x31, x29, 37
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SRLI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 2);
     }
@@ -1133,11 +1135,11 @@ mod tests {
     fn SRAI() {
         //   addi x29, x0, 5
         //   srai x31, x29, 37
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SRAI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 2);
     }
@@ -1146,11 +1148,11 @@ mod tests {
     fn SLTI() {
         //   addi x29, x0, 5
         //   slti x31, x29, 37
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SLTI, 31, 29, 37),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1159,11 +1161,11 @@ mod tests {
     fn SLTIU() {
         //   addi x29, x0, 5
         //   sltiu x31, x29, 37
-        let code = vec![
+        let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SLTIU, 31, 29, 37),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }

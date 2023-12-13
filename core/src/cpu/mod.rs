@@ -1,4 +1,4 @@
-use crate::runtime::Opcode;
+use crate::runtime::Instruction;
 pub mod air;
 pub mod trace;
 
@@ -6,10 +6,7 @@ pub mod trace;
 pub struct CpuEvent {
     pub clk: u32,
     pub pc: u32,
-    pub opcode: Opcode,
-    pub op_a: u32,
-    pub op_b: u32,
-    pub op_c: u32,
+    pub instruction: Instruction,
     pub a: u32,
     pub b: u32,
     pub c: u32,
