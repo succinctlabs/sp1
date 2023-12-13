@@ -1,7 +1,6 @@
-use p3_air::{AirBuilder, BaseAir};
-use p3_field::PrimeField;
+use p3_air::AirBuilder;
 
-use crate::air::{Address, AirConstraint, AirVariable, Bool, Word};
+use crate::air::{AirConstraint, AirVariable, Bool, Word};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryAir;
@@ -12,7 +11,7 @@ pub struct MemoryCols<T> {
     /// The clock cycle value for this memory access.
     pub clk: T,
     /// The address of the memory access.
-    pub addr: Address<T>,
+    pub addr: Word<T>,
     /// The value being read from or written to memory.
     pub value: Word<T>,
     /// Whether the memory is being read from or written to.
