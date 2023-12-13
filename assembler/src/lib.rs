@@ -10,6 +10,9 @@ use elf::ElfBytes;
 use elf::endian::LittleEndian;
 use elf::file::Class;
 
+pub const MAX_MEM: u32 = 1_000_000_000;
+pub const WORD_SIZE: usize = 4;
+
 pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
     let elf = ElfBytes::<LittleEndian>::minimal_parse(input)
         .map_err(|err| anyhow!("Elf parse error: {err}"))?;
@@ -28,10 +31,7 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
         .try_into()
         .map_err(|err| anyhow!("e_entry was larger than 32 bits. {err}"))?;
 
-    let max_mem = 1000000; // TODO: figure out what this is.
-    let word_size = 4;
-
-    if entry >= max_mem || entry % word_size as u32 != 0 {
+    if entry >= MAX_MEM || entry % WORD_SIZE as u32 != 0 {
         bail!("Invalid entrypoint");
     }
     let segments = elf.segments().ok_or(anyhow!("Missing segment table"))?;
@@ -46,38 +46,38 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
             .p_filesz
             .try_into()
             .map_err(|err| anyhow!("filesize was larger than 32 bits. {err}"))?;
-        if file_size >= max_mem {
+        if file_size >= MAX_MEM {
             bail!("Invalid segment file_size");
         }
         let mem_size: u32 = segment
             .p_memsz
             .try_into()
             .map_err(|err| anyhow!("mem_size was larger than 32 bits {err}"))?;
-        if mem_size >= max_mem {
+        if mem_size >= MAX_MEM {
             bail!("Invalid segment mem_size");
         }
         let vaddr: u32 = segment
             .p_vaddr
             .try_into()
             .map_err(|err| anyhow!("vaddr is larger than 32 bits. {err}"))?;
-        if vaddr % word_size as u32 != 0 {
+        if vaddr % WORD_SIZE as u32 != 0 {
             bail!("vaddr {vaddr:08x} is unaligned");
         }
         let offset: u32 = segment
             .p_offset
             .try_into()
             .map_err(|err| anyhow!("offset is larger than 32 bits. {err}"))?;
-        for i in (0..mem_size).step_by(word_size) {
+        for i in (0..mem_size).step_by(WORD_SIZE) {
             let addr = vaddr.checked_add(i).context("Invalid segment vaddr")?;
-            if addr >= max_mem {
-                bail!("Address [0x{addr:08x}] exceeds maximum address for guest programs [0x{max_mem:08x}]");
+            if addr >= MAX_MEM {
+                bail!("Address [0x{addr:08x}] exceeds maximum address for guest programs [0x{MAX_MEM:08x}]");
             }
             if i >= file_size {
                 // Past the file size, all zeros.
             } else {
                 let mut word = 0;
                 // Don't read past the end of the file.
-                let len = core::cmp::min(file_size - i, word_size as u32);
+                let len = core::cmp::min(file_size - i, WORD_SIZE as u32);
                 for j in 0..len {
                     let offset = (offset + i + j) as usize;
                     let byte = input.get(offset).context("Invalid segment offset")?;
