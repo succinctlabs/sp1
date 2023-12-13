@@ -1536,5 +1536,9 @@ pub mod tests {
         create_instruction_unit_test(0x00001a37, Opcode::LUI,20,0x1, 0); // lui x20,0x1
         create_instruction_unit_test(0x800002b7, Opcode::LUI,5,0x80000, 0); // lui x5,0x80000
         create_instruction_unit_test(0x212120b7, Opcode::LUI,1,0x21212, 0); // lui x1,0x21212
+        create_instruction_unit_test(0x00e78023, Opcode::SB, 14, 15,0); // SB x14,0(x15)
+        create_instruction_unit_test(0x001101a3, Opcode::SB, 1,2, 3); // SB x1,3(x2)
+        // TODO: do we want to support a negative offset?
+        // create_instruction_unit_test(0xfee78fa3, Opcode::SB, 14, 15, -1); // SB x14,-1(x15)
     }
 }
