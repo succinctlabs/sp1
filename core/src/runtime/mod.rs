@@ -1572,5 +1572,10 @@ pub mod tests {
         create_instruction_unit_test(0x0006c783, Opcode::LBU, 15,13, 0);
         create_instruction_unit_test(0x0006c703, Opcode::LBU, 14,13, 0);
         create_instruction_unit_test(0x0007c683, Opcode::LBU, 13,15, 0);
+
+        // TODO: Do we want to support a negative offset?
+        // create_instruction_unit_test(0xff867693,  Opcode::ANDI, 13,12,-8);
+        create_instruction_unit_test(0x08077693,  Opcode::ANDI, 13,14,128);
+        create_instruction_unit_test(0x04077693,  Opcode::ANDI, 13,14,64);
     }
 }
