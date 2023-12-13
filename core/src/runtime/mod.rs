@@ -357,6 +357,12 @@ impl Instruction {
     }
 }
 
+/// Take the from-th bit of a and return a number whose to-th bit is set. The
+/// least significant bit is the 0th bit.
+fn bit_op(a: u32, from: usize, to: usize) -> u32{
+    ((a >> from) & 1) << to
+}
+
 /// Decode a binary representation of a RISC-V instruction and decode it.
 /// 
 /// Refer to P.104 of The RISC-V Instruction Set Manual for the exact
@@ -447,11 +453,21 @@ pub fn create_instruction(input: u32) -> Instruction {
                 0b111 => Opcode::BGEU,
                 _ => panic!("Invalid funct3 {}", funct3),
             };
-            let imm_4_1 = (input >> 1) & 0b1111; // Extract bits 1 to 4
-            let imm_11 = (input >> 11) & 0b1;    // Extract bit 11
-        
             // Concatenate to form the immediate value
-            let imm = (imm_11 << 4) | imm_4_1;
+            let mut imm = bit_op(input, 31, 12);
+            
+            imm |= bit_op(input, 30, 10);
+            imm |= bit_op(input, 29, 9);
+            imm |= bit_op(input, 28, 8);
+            imm |= bit_op(input, 27, 7);
+            imm |= bit_op(input, 26, 6);
+            imm |= bit_op(input, 25, 5);
+            imm |= bit_op(input, 11, 4);
+            imm |= bit_op(input, 10, 3);
+            imm |= bit_op(input, 9, 2);
+            imm |= bit_op(input, 8, 1);
+            imm |= bit_op(input, 7, 11);
+
             Instruction {
                 opcode,
                 a: rs1,
@@ -1540,5 +1556,9 @@ pub mod tests {
         create_instruction_unit_test(0x001101a3, Opcode::SB, 1,2, 3); // SB x1,3(x2)
         // TODO: do we want to support a negative offset?
         // create_instruction_unit_test(0xfee78fa3, Opcode::SB, 14, 15, -1); // SB x14,-1(x15)
+
+        create_instruction_unit_test(0x7e7218e3, Opcode::BNE, 4,7, 0xff0);
+        create_instruction_unit_test(0x5a231763, Opcode::BNE, 6,2,0x5ae);
+        create_instruction_unit_test(0x0eb51fe3, Opcode::BNE, 10,11,0x8fe);
     }
 }
