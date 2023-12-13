@@ -1,5 +1,6 @@
 use crate::program::Instruction;
-
+pub mod air;
+pub mod trace;
 pub struct CpuEvent {
     pub clk: u32,
     pub fp: i32,
