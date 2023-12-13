@@ -337,7 +337,6 @@ pub fn create_instruction(input: u32) -> Instruction {
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {
-    use p3_baby_bear::BabyBear;
 
     use crate::runtime::instruction::Instruction;
     use crate::runtime::instruction::create_instruction;

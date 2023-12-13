@@ -755,7 +755,7 @@ pub mod tests {
         let A0 = Register::X10 as u32;
         let A5 = Register::X15 as u32;
         let A4 = Register::X14 as u32;
-        let RA = Register::X1 as u32;
+        let _RA = Register::X1 as u32;
         let code = vec![
             Instruction::new(Opcode::ADDI, SP, SP, (-32i32) as u32),
             Instruction::new(Opcode::SW, S0, SP, 28),
