@@ -15,11 +15,6 @@ pub trait AirVariable<AB: AirBuilder> {
     fn eval_is_valid(&self, builder: &mut AB);
 }
 
-/// A trait for representing constraints on an AIR table.
-pub trait AirConstraint<AB: AirBuilder> {
-    fn eval(&self, builder: &mut AB);
-}
-
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
     let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);
 

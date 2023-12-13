@@ -3,6 +3,8 @@ use p3_field::Field;
 
 use crate::memory::MemOp;
 
+pub mod log_derivative;
+
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
     values: Vec<VirtualPairCol<F>>,
@@ -27,6 +29,18 @@ pub enum InteractionKind {
 }
 
 impl<F: Field> Interaction<F> {
+    pub fn new(
+        values: Vec<VirtualPairCol<F>>,
+        multiplicity: VirtualPairCol<F>,
+        kind: InteractionKind,
+    ) -> Self {
+        Self {
+            values,
+            multiplicity,
+            kind,
+        }
+    }
+
     pub fn read(clk: PairCol, addr: PairCol, value: PairCol, multiplicity: PairCol) -> Self {
         Self {
             values: vec![

@@ -1,9 +1,9 @@
-use crate::air::{reduce, AirConstraint, AirVariable, Bool, Word};
+use crate::air::{reduce, AirVariable, Bool, Word};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{AirBuilder, BaseAir};
-use p3_field::AbstractField;
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
+use p3_field::{AbstractField, Field};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 
@@ -99,7 +99,13 @@ impl<T> BorrowMut<CpuCols<T>> for [T] {
     }
 }
 
-impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
+impl<F: Field> BaseAir<F> for CpuAir {
+    fn width(&self) -> usize {
+        NUM_CPU_COLS
+    }
+}
+
+impl<AB: AirBuilder> Air<AB> for CpuAir {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();

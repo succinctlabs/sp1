@@ -2,13 +2,16 @@ use std::collections::BTreeMap;
 
 use crate::runtime::Register;
 
-mod air;
+pub mod air;
+mod interaction;
 pub mod trace;
+
+pub use interaction::MemoryInteraction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MemOp {
-    Read = 0,
-    Write = 1,
+    Read = 1,
+    Write = 0,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

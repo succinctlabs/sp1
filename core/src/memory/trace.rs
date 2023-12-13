@@ -1,13 +1,10 @@
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use super::MemoryEvent;
+use super::{air::MemoryAir, MemoryEvent};
 
-#[derive(Debug, Clone)]
-pub struct MemoryTable<T>(pub RowMajorMatrix<T>);
-
-impl<F: PrimeField> MemoryTable<F> {
-    pub fn generate(events: &mut [MemoryEvent]) -> Self {
+impl MemoryAir {
+    pub fn generate_trace<F: PrimeField>(events: &mut [MemoryEvent]) -> RowMajorMatrix<F> {
         // Sort the events by address and then by clock cycle.
         events.sort_by_key(|event| (event.addr, event.clk, event.op));
         todo!()
