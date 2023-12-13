@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use p3_air::AirBuilder;
 
 use super::AirVariable;
@@ -6,7 +8,7 @@ use super::AirVariable;
 pub const WORD_LEN: usize = 4;
 
 /// An AIR representation of a word in the instruction set.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Word<T>(pub [T; WORD_LEN]);
 
 impl<AB: AirBuilder> AirVariable<AB> for Word<AB::Var> {
@@ -34,5 +36,19 @@ impl<T> IntoIterator for Word<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<T> Index<usize> for Word<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<T> IndexMut<usize> for Word<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
