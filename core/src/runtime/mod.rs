@@ -357,10 +357,21 @@ impl Instruction {
     }
 }
 
+
 /// Take the from-th bit of a and return a number whose to-th bit is set. The
 /// least significant bit is the 0th bit.
 fn bit_op(a: u32, from: usize, to: usize) -> u32{
     ((a >> from) & 1) << to
+}
+
+fn extend_sign(bits: u32, length : usize) -> u32 {
+    if (bits >> (length - 1)) == 0 {
+        println!("returning {} as is", bits);
+        bits
+    } else {
+        println!("returning {} instead of {}", (0xffffffff << length) | bits, bits);
+        (0xffffffff << length) | bits
+    }
 }
 
 /// Decode a binary representation of a RISC-V instruction and decode it.
@@ -539,7 +550,7 @@ pub fn create_instruction(input: u32) -> Instruction {
                     opcode,
                     a: rd,
                     b: rs1,
-                    c: imm_11_0,
+                    c: extend_sign(imm_11_0, 12),
                 }
             }
         }
@@ -1584,5 +1595,7 @@ pub mod tests {
         create_instruction_unit_test(0x25c000ef, Opcode::JAL, 1, 604, 0); // jal x1 604
         create_instruction_unit_test(0x72ff24ef, Opcode::JAL, 9, 0xf2f2e, 0); // jal x1 604
         create_instruction_unit_test(0x2f22f36f, Opcode::JAL, 6, 0x2f2f2, 0); // jal x1 604
+
+        create_instruction_unit_test(0xc2958593, Opcode::ADDI, 11, 11, u32::MAX - 983 + 1); // addi a1, a1, -983
     }
 }
