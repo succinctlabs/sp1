@@ -6,7 +6,7 @@ use curta_assembler::{parse_elf};
 
 use curta_core::{
     program::{opcodes::Opcode, Instruction, Operands, ProgramROM, OPERAND_ELEMENTS},
-    Runtime,
+    Runtime, runtime::Register,
 };
 use std::{
     fs::File,
@@ -52,4 +52,7 @@ fn main() {
     for instruction in instructions.iter() {
         println!("{:?}", instruction);
     }
+    let mut runtime = Runtime::new(instructions);
+    runtime.run();
+    println!("{:?}", runtime.registers());
 }

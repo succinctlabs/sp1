@@ -1092,7 +1092,7 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::UNIMP => {
-                todo!()
+                println!("UNIMP encountered, ignoring");
             }
         }
 
