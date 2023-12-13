@@ -288,6 +288,7 @@ impl<F: PrimeField> CpuChip<F> {
 
 #[cfg(test)]
 mod tests {
+    use crate::runtime::tests::get_simple_program;
     use crate::runtime::Instruction;
     use p3_baby_bear::BabyBear;
 
@@ -314,6 +315,18 @@ mod tests {
             _phantom: Default::default(),
         };
         runtime.cpu_events = events;
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        println!("{:?}", trace.values)
+    }
+
+    #[test]
+    fn generate_trace_simple_program() {
+        let program = get_simple_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        let chip = CpuChip::<BabyBear> {
+            _phantom: Default::default(),
+        };
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }

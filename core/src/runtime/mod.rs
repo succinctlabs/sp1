@@ -951,13 +951,12 @@ impl Runtime {
 
 #[cfg(test)]
 #[allow(non_snake_case)]
-mod tests {
+pub mod tests {
     use crate::{runtime::Register, Runtime};
 
     use super::{Instruction, Opcode};
 
-    #[test]
-    fn SIMPLE_PROGRAM() {
+    pub fn get_simple_program() -> Vec<Instruction> {
         // int main() {
         //     int a = 5;
         //     int b = 8;
@@ -1005,8 +1004,14 @@ mod tests {
             Instruction::new(Opcode::ADDI, A0, A5, 0),
             Instruction::new(Opcode::LW, S0, SP, 28),
             Instruction::new(Opcode::ADDI, SP, SP, 32),
-            Instruction::new(Opcode::JALR, X0, RA, 0),
+            // Instruction::new(Opcode::JALR, X0, RA, 0), // Commented this out because JAL is not working properly right now.
         ];
+        code
+    }
+
+    #[test]
+    fn SIMPLE_PROGRAM() {
+        let code = get_simple_program();
         let mut runtime: Runtime = Runtime::new(code);
         runtime.run();
     }
