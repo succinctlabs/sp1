@@ -1577,5 +1577,10 @@ pub mod tests {
         // create_instruction_unit_test(0xff867693,  Opcode::ANDI, 13,12,-8);
         create_instruction_unit_test(0x08077693,  Opcode::ANDI, 13,14,128);
         create_instruction_unit_test(0x04077693,  Opcode::ANDI, 13,14,64);
+
+        // TODO: negative offset?
+        // create_instruction_unit_test(0xfe209d23, Opcode::SH, 2, 1, -6); // sh x2,-6(x1)
+        create_instruction_unit_test(0x00111223, Opcode::SH, 1, 2, 4); // sh x1,4(x2)
+        create_instruction_unit_test(0x00111523, Opcode::SH, 1, 2, 10); // sh x1,10(x2)
     }
 }
