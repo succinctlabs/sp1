@@ -298,23 +298,8 @@ dependencies = [
  "anyhow",
  "byteorder",
  "clap",
- "curta-assembler",
  "curta-core",
-]
-
-[[package]]
-name = "curta-assembler"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "byteorder",
- "clap",
- "curta-core",
- "elf",
- "pest",
- "pest_derive",
- "pest_generator",
- "pest_meta",
+ "curta-disassembler",
 ]
 
 [[package]]
@@ -344,6 +329,21 @@ dependencies = [
  "rayon",
  "serde",
  "valida-derive",
+]
+
+[[package]]
+name = "curta-disassembler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "clap",
+ "curta-core",
+ "elf",
+ "pest",
+ "pest_derive",
+ "pest_generator",
+ "pest_meta",
 ]
 
 [[package]]

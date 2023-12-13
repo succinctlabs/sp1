@@ -1,6 +1,6 @@
 use clap::Parser;
 use curta::Args;
-use curta_assembler::parse_elf;
+use curta_disassembler::parse_elf;
 
 use curta_core::Runtime;
 use std::{

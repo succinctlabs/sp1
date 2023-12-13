@@ -1,12 +1,12 @@
 [package]
-name = "curta-assembler"
+name = "curta-disassembler"
 version = "0.1.0"
 edition = "2021"
 
 
 [[bin]]
-name = "assembler"
-path = "src/bin/assembler.rs"
+name = "disassembler"
+path = "src/bin/disassembler.rs"
 
 [dependencies]
 byteorder = "1.4.3"
