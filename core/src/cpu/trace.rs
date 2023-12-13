@@ -148,7 +148,6 @@ impl CpuChip {
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
-        println!("rows: {:?}", row);
         cols.opcode = F::from_canonical_u32(event.opcode as u32);
         cols.op_a = F::from_canonical_u32(event.a);
         cols.op_b = F::from_canonical_u32(event.b);

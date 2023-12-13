@@ -486,7 +486,7 @@ impl Runtime {
             Opcode::XOR | Opcode::XORI | Opcode::OR | Opcode::ORI | Opcode::AND | Opcode::ANDI => {
                 self.bitwise_events.push(event);
             }
-            _ => panic!("unsupported alu opcode"),
+            _ => {}
         }
     }
 
@@ -878,6 +878,8 @@ impl Runtime {
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
+    use p3_baby_bear::BabyBear;
+
     use crate::{runtime::Register, Runtime};
 
     use super::{Instruction, Opcode};
@@ -895,6 +897,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }
 
@@ -910,6 +913,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
 
@@ -925,6 +929,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
 
@@ -940,6 +945,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 37);
     }
 
@@ -955,6 +961,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5);
     }
 
@@ -1060,6 +1067,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 10);
     }
 
@@ -1075,6 +1083,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 47);
     }
 
@@ -1090,6 +1099,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(code);
         runtime.run();
+        runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
 
