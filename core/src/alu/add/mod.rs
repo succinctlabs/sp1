@@ -44,17 +44,6 @@ pub struct AddChip {
     events: Vec<AluEvent>,
 }
 
-// impl<F: PrimeField> From<u32> for Word<F> {
-//     fn from(value: u32) -> Self {
-//         let mut word = [F::zero(); 4];
-//         word[0] = F::from_canonical_u32(value & 0xFF);
-//         word[1] = F::from_canonical_u32(value & 0xFF00);
-//         word[2] = F::from_canonical_u32(value & 0xFF0000);
-//         word[3] = F::from_canonical_u32(value & 0xFF000000);
-//         Word(word)
-//     }
-// }
-
 fn u32_to_u8_limbs(value: u32) -> [u8; 4] {
     let mut limbs = [0u8; 4];
     limbs[0] = (value & 0xFF) as u8;
@@ -64,8 +53,15 @@ fn u32_to_u8_limbs(value: u32) -> [u8; 4] {
     limbs
 }
 
+pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
+    debug_assert!(values.len() % N == 0);
+    let n_real_rows = values.len() / N;
+    values.resize(n_real_rows.next_power_of_two() * N, T::default());
+}
+
 impl<F: PrimeField> Chip<F> for AddChip {
     fn generate_trace(&self, _: &mut Runtime) -> RowMajorMatrix<F> {
+        // Generate the trace rows for each event.
         let rows = self
             .events
             .par_iter()
@@ -96,13 +92,19 @@ impl<F: PrimeField> Chip<F> for AddChip {
                 row
             })
             .collect::<Vec<_>>();
-        let trace =
+
+        // Convert the trace to a row major matrix.
+        let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_COLS);
+
+        // Pad the trace to a power of two.
+        pad_to_power_of_two::<NUM_ADD_COLS, F>(&mut trace.values);
+
         trace
     }
 
     fn interactions(&self) -> Vec<Interaction<F>> {
-        todo!()
+        vec![]
     }
 }
 
