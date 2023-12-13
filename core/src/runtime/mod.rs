@@ -9,6 +9,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
+    mem,
 };
 
 use crate::{
@@ -448,11 +449,36 @@ impl Runtime {
     }
 
     fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
+        let (addr, memory_value) = match instruction.opcode {
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
+                let addr = b.wrapping_add(c);
+                let memory_value = self.mr(addr);
+                (Some(addr), Some(memory_value))
+            }
+            Opcode::SB | Opcode::SH | Opcode::SW => {
+                let addr = b.wrapping_add(c);
+                let memory_value = self.mr(addr);
+                (Some(addr), Some(memory_value))
+            }
+            _ => (None, None),
+        };
+        let branch_condition = match instruction.opcode {
+            Opcode::BEQ => Some(a == b),
+            Opcode::BNE => Some(a != b),
+            Opcode::BLT => Some((a as i32) < (b as i32)),
+            Opcode::BGE => Some((a as i32) >= (b as i32)),
+            Opcode::BLTU => Some(a < b),
+            Opcode::BGEU => Some(a >= b),
+            _ => None,
+        };
         self.cpu_events.push(CpuEvent {
             clk: self.clk,
             pc: self.pc,
             instruction,
             operands: [a, b, c],
+            addr: addr,
+            memory_value,
+            branch_condition,
         });
     }
 
@@ -462,6 +488,7 @@ impl Runtime {
         let mut a: u32 = u32::MAX;
         let mut b: u32 = u32::MAX;
         let mut c: u32 = u32::MAX;
+
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
@@ -723,13 +750,13 @@ impl Runtime {
             // Upper immediate instructions.
             Opcode::LUI => {
                 let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, 0); // Note that we'll special-case this in the CPU table
+                (b, c) = (imm, 12); // Note that we'll special-case this in the CPU table
                 a = b << 12;
                 self.rw(rd, a);
             }
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, 0); // Note that we'll special-case this in the CPU table
+                (b, c) = (imm, imm << 12); // Note that we'll special-case this in the CPU table
                 a = self.pc.wrapping_add(b << 12);
                 self.rw(rd, a);
             }
