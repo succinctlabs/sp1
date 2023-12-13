@@ -10,12 +10,6 @@ pub mod utils;
 
 extern crate alloc;
 
-pub mod program;
 pub mod runtime;
-
-extern crate alloc;
-
-#[allow(dead_code)]
-mod segment;
 
 pub use runtime::Runtime;

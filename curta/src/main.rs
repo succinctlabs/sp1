@@ -2,15 +2,15 @@ use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
 use clap::Parser;
 use curta::Args;
-use curta_assembler::{parse_elf};
+use curta_assembler::parse_elf;
 
 use curta_core::{
     program::{opcodes::Opcode, Instruction, Operands, ProgramROM, OPERAND_ELEMENTS},
-    Runtime, runtime::Register,
+    Runtime,
 };
 use std::{
     fs::File,
-    io::{BufReader, Read, Write},
+    io::{BufReader, Read},
     path::Path,
 };
 
