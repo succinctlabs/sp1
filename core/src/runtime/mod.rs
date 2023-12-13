@@ -410,24 +410,22 @@ pub fn create_instruction(input: u32) -> Instruction {
         }
         0b1101111 => {
             // JAL
-            let encoded_imm = (input >> 11) & 0xfffff; // 20-bit mask
-
-            // Extract bits according to the UJ-type encoding
-            let imm_20 = (encoded_imm >> 19) & 1;    // Bit 20
-            let imm_10_1 = (encoded_imm >> 0) & 0x3ff; // Bits 1-10
-            let imm_11 = (encoded_imm >> 10) & 1;    // Bit 11
-            let imm_19_12 = (encoded_imm >> 11) & 0xff; // Bits 12-19
-        
-            // Reassemble the immediate value
-            let mut imm = (imm_20 << 20) | (imm_19_12 << 12) | (imm_11 << 11) | (imm_10_1 << 1);
-        
-            // Sign-extend the 21-bit immediate to 32 bits
-            if imm_20 != 0 {
-                imm |= 0xfff00000; // Set the upper 11 bits to 1's if imm[20] is 1
+            let mut perm = Vec::<(usize, usize)>::new();
+            perm.push((31, 20));
+            for i in 1..11 {
+                perm.push((20 + i, i));
             }
-        
+            perm.push((20, 11));
+            for i in 12..20 {
+                perm.push((i, i));
+            }
+            let mut imm = 0;
+            for p in perm.iter() {
+                imm |= bit_op(input, p.0, p.1);
+            }
+
             Instruction {
-                opcode: Opcode::AUIPC,
+                opcode: Opcode::JAL,
                 a: rd,
                 b: imm,
                 c: 0,
@@ -1582,5 +1580,9 @@ pub mod tests {
         // create_instruction_unit_test(0xfe209d23, Opcode::SH, 2, 1, -6); // sh x2,-6(x1)
         create_instruction_unit_test(0x00111223, Opcode::SH, 1, 2, 4); // sh x1,4(x2)
         create_instruction_unit_test(0x00111523, Opcode::SH, 1, 2, 10); // sh x1,10(x2)
+
+        create_instruction_unit_test(0x25c000ef, Opcode::JAL, 1, 604, 0); // jal x1 604
+        create_instruction_unit_test(0x72ff24ef, Opcode::JAL, 9, 0xf2f2e, 0); // jal x1 604
+        create_instruction_unit_test(0x2f22f36f, Opcode::JAL, 6, 0x2f2f2, 0); // jal x1 604
     }
 }
