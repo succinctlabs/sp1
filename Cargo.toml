@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "assembler", "valida", "curta"]
+members = ["core", "assembler", "curta"]
 resolver = "2"
 
 [profile.release]
@@ -32,5 +32,4 @@ p3-symmetric = { git = "https://github.com/Plonky3/Plonky3" }
 p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3" }
 
 curta-core = { path = "core" }
-valida-isa = { path = "valida" }
 curta-assembler = { path = "assembler" }

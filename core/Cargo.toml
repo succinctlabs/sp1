@@ -28,6 +28,3 @@ p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 rand = "0.8.5"
 p3-util = { workspace = true }
-
-[dev-dependencies]
-valida-isa = { workspace = true }

@@ -4,7 +4,8 @@ use anyhow::anyhow;
 use anyhow::bail;
 
 
-use curta_core::runtime::{Instruction, create_instruction};
+use curta_core::runtime::instruction::Instruction;
+use curta_core::runtime::instruction::create_instruction;
 use elf::ElfBytes;
 
 use elf::endian::LittleEndian;

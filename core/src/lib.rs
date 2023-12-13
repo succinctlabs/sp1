@@ -12,4 +12,4 @@ extern crate alloc;
 
 pub mod runtime;
 
-pub use runtime::Runtime;
+pub use crate::runtime::runtime::Runtime;

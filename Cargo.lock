@@ -344,7 +344,6 @@ dependencies = [
  "rayon",
  "serde",
  "valida-derive",
- "valida-isa",
 ]
 
 [[package]]
@@ -1126,13 +1125,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "valida-isa"
-version = "0.1.0"
-dependencies = [
- "curta-core",
 ]
 
 [[package]]
