@@ -18,7 +18,7 @@ use crate::{
 
 /// An opcode specifies which operation to execute.
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Opcode {
     /// Register instructions.
     ADD = 0,
