@@ -113,8 +113,6 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
             .assert_eq(reduce::<AB>(local.op_c_val), local.op_c);
 
         // We only read from the first register if there is a store or branch instruction. In all other cases we write.
-        // TODO: lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
-
         let reg_a_read = local.selectors.store_instruction
             + local.selectors.branch_instruction
             + local.selectors.multiply_instruction;
