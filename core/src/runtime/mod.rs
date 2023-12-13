@@ -1510,11 +1510,19 @@ pub mod tests {
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
 
+    fn create_instruction_unit_test(input: u32, opcode: Opcode, rd: u32, rs1: u32, rs2: u32) {
+        let exp = Instruction::new(opcode, rd, rs1, rs2);
+        let got = create_instruction(input);
+        assert_eq!(exp, got);
+    }
     #[test]
     fn create_instruction_test() {
         // https://github.com/riscv/riscv-tests
-        assert_eq!(create_instruction(0x00c58633), Instruction::new(Opcode::ADD, 12, 11, 12)); // add x12,x11,x12
-        assert_eq!(create_instruction(0x00d506b3), Instruction::new(Opcode::ADD, 13, 10, 13)); // add x13,x10,x13
-        assert_eq!(create_instruction(0x00a70533), Instruction::new(Opcode::ADD, 10, 14, 10)); // add x10,x14,x10
+        create_instruction_unit_test(0x00c58633, Opcode::ADD, 12, 11, 12);
+        create_instruction_unit_test(0x00d506b3, Opcode::ADD, 13, 10, 13);
+        create_instruction_unit_test(0x00a70533, Opcode::ADD, 10, 14, 10);
+        create_instruction_unit_test(0xffffe517, Opcode::AUIPC, 10,0xffffe, 0);
+        create_instruction_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
+        create_instruction_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
     }
 }
