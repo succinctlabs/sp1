@@ -1,6 +1,9 @@
+use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
+use super::CpuEvent;
+use crate::lookup::{Interaction, IsRead};
+use core::mem::{size_of, transmute};
+use p3_air::{AirBuilder, BaseAir, VirtualPairCol};
 
-<<<<<<< Updated upstream
-=======
 use crate::air::Word;
 use crate::runtime::chip::Chip;
 use crate::runtime::{Opcode, Runtime};
@@ -217,4 +220,3 @@ mod tests {
         println!("{:?}", trace.values)
     }
 }
->>>>>>> Stashed changes
