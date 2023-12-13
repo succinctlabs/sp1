@@ -16,33 +16,27 @@ pub struct OpcodeSelectors<T> {
     pub imm_b: T,
     // Whether op_c is an immediate value.
     pub imm_c: T,
-    // Whether this is a register instruction.
-    pub register_instruction: T,
-    // Whether this is an immediate instruction.
-    pub immediate_instruction: T,
-    // Whether this is a load instruction.
-    pub load_instruction: T,
-    // Whether this is a store instruction.
-    pub store_instruction: T,
-    // Whether this is a branch instruction.
-    pub branch_instruction: T,
-    // Whether this is a jump instruction.
-    pub jump_instruction: T,
-    // Whether this is a system instruction.
-    pub system_instruction: T,
-    // Whether this is a multiply instruction.
-    pub multiply_instruction: T,
-    // // Selectors for load/store instructions and their types.
-    pub byte: T,
-    pub half: T,
-    pub word: T,
-    pub unsigned: T,
-    // // TODO: we might need a selector for "MULSU" since no other instruction has "SU"
-    pub JALR: T,
-    pub JAL: T,
-    pub AUIPC: T,
-    // // Whether this instruction is reading from register A.
-    pub reg_a_read: T,
+
+    // Table selectors for opcodes.
+    pub add_op: T,
+    pub sub_op: T,
+    pub mul_op: T,
+    pub div_op: T,
+    pub shift_op: T,
+    pub bitwise_op: T,
+    pub lt_op: T,
+
+    // Memory operation
+    pub mem_op: T,
+    pub mem_read: T,
+
+    // Specific instruction selectors.
+    pub jalr: T,
+    pub jal: T,
+    pub auipc: T,
+
+    // Whether this is a branch op.
+    pub branch_op: T,
 }
 
 #[derive(AlignedBorrow, Default)]
@@ -117,18 +111,13 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
             .when(local.selectors.imm_c)
             .assert_eq(reduce::<AB>(local.op_c_val), local.instruction.op_c);
 
-        // We only read from the first register if there is a store or branch instruction. In all other cases we write.
-        let reg_a_read = local.selectors.store_instruction
-            + local.selectors.branch_instruction
-            + local.selectors.multiply_instruction;
-
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
         // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
         // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
-        builder.when(local.selectors.branch_instruction).assert_eq(
+        builder.when(local.selectors.branch_op).assert_eq(
             local.pc
                 + AB::F::from_canonical_u8(4)
                 + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
@@ -136,24 +125,24 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
         );
 
         //// For jump instructions
-        builder.when(local.selectors.jump_instruction).assert_eq(
-            reduce::<AB>(local.op_a_val),
-            local.pc + AB::F::from_canonical_u8(4),
-        );
-        builder.when(local.selectors.JAL).assert_eq(
+        builder
+            .when(local.selectors.jalr + local.selectors.jal)
+            .assert_eq(
+                reduce::<AB>(local.op_a_val),
+                local.pc + AB::F::from_canonical_u8(4),
+            );
+        builder.when(local.selectors.jal).assert_eq(
             local.pc + AB::F::from_canonical_u8(4) + reduce::<AB>(local.op_b_val),
             next.pc,
         );
-        builder.when(local.selectors.JALR).assert_eq(
+        builder.when(local.selectors.jalr).assert_eq(
             reduce::<AB>(local.op_b_val) + local.instruction.op_c,
             next.pc,
         );
 
-        //// For system instructions
-
         //// Upper immediate instructions
         // lookup(clk, op_c_val, imm, 12) in SLT table with multiplicity AUIPC
-        builder.when(local.selectors.AUIPC).assert_eq(
+        builder.when(local.selectors.auipc).assert_eq(
             reduce::<AB>(local.op_a_val),
             reduce::<AB>(local.op_c_val) + local.pc,
         );

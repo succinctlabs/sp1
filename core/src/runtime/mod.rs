@@ -283,6 +283,89 @@ pub struct Instruction {
     pub c: u32,
 }
 
+impl Display for Instruction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self.opcode {
+            // R-type instructions.
+            Opcode::ADD => write!(
+                f,
+                "add {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::SUB => write!(
+                f,
+                "sub {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::XOR => write!(
+                f,
+                "xor {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::OR => write!(
+                f,
+                "or {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::AND => write!(
+                f,
+                "and {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::SLL => write!(
+                f,
+                "sll {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::SRL => write!(
+                f,
+                "srl {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::SRA => write!(
+                f,
+                "sra {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::SLT => write!(
+                f,
+                "slt {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+            Opcode::SLTU => write!(
+                f,
+                "sltu {}, {}, {}",
+                Register::from_u32(self.a),
+                Register::from_u32(self.b),
+                Register::from_u32(self.c)
+            ),
+
+            // I-type instructions.
+            // Opcode::ADDI => write!(f, "addi {}, {}, {}", Register::from_u32(self.a), Register::from_u32(self.b), self.c),
+            // Opcode::XORI => write!(f, "xori {}, {}, {}", Register::from_u32(self.a), Register::from_u32(self.b), self.c),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
 impl Instruction {
     /// Create a new instruction.
     pub fn new(opcode: Opcode, a: u32, b: u32, c: u32) -> Instruction {
@@ -668,22 +751,22 @@ impl Runtime {
             Opcode::SB => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = (b as u8) as u32;
+                let addr = b.wrapping_add(c);
+                let value = (a as u8) as u32;
                 self.mw(addr, value);
             }
             Opcode::SH => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = (b as u16) as u32;
+                let addr = b.wrapping_add(c);
+                let value = (a as u16) as u32;
                 self.mw(addr, value);
             }
             Opcode::SW => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = b;
+                let addr = b.wrapping_add(c);
+                let value = a;
                 self.mw(addr, value);
             }
 
@@ -841,6 +924,7 @@ impl Runtime {
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
+            println!("pc = {}, instruction = {}", self.pc, instruction);
 
             let start_pc = self.pc;
 
@@ -850,11 +934,17 @@ impl Runtime {
             // Emit a CPU event.
             self.emit_cpu(self.clk, start_pc, instruction, a, b, c);
 
+            println!("{:?}", self.cpu_events.last().unwrap());
+
             // Increment the program counter by 4.
             self.pc = self.pc + 4;
 
             // Increment the clock.
             self.clk += 1;
+
+            if self.clk > 20 {
+                break;
+            }
         }
     }
 }
@@ -867,6 +957,61 @@ mod tests {
     use super::{Instruction, Opcode};
 
     #[test]
+    fn SIMPLE_PROGRAM() {
+        // int main() {
+        //     int a = 5;
+        //     int b = 8;
+        //     int result = a + b;
+        //     return 0;
+        //   }
+        // main:
+        // addi    sp,sp,-32
+        // sw      s0,28(sp)
+        // addi    s0,sp,32
+        // li      a5,5
+        // sw      a5,-20(s0)
+        // li      a5,8
+        // sw      a5,-24(s0)
+        // lw      a4,-20(s0)
+        // lw      a5,-24(s0)
+        // add     a5,a4,a5
+        // sw      a5,-28(s0)
+        // lw      a5,-28(s0)
+        // mv      a0,a5
+        // lw      s0,28(sp)
+        // addi    sp,sp,32
+        // jr      ra
+        // Mapping taken from here: https://en.wikichip.org/wiki/risc-v/registers
+        let SP = Register::X2 as u32;
+        let X0 = Register::X0 as u32;
+        let S0 = Register::X8 as u32;
+        let A0 = Register::X10 as u32;
+        let A5 = Register::X15 as u32;
+        let A4 = Register::X14 as u32;
+        let RA = Register::X1 as u32;
+        let code = vec![
+            Instruction::new(Opcode::ADDI, SP, SP, (-32i32) as u32),
+            Instruction::new(Opcode::SW, S0, SP, 28),
+            Instruction::new(Opcode::ADDI, S0, SP, 32),
+            Instruction::new(Opcode::ADDI, A5, X0, 5),
+            Instruction::new(Opcode::SW, A5, S0, (-20i32) as u32),
+            Instruction::new(Opcode::ADDI, A5, X0, 8),
+            Instruction::new(Opcode::SW, A5, S0, (-24i32) as u32),
+            Instruction::new(Opcode::LW, A4, S0, (-20i32) as u32),
+            Instruction::new(Opcode::LW, A5, S0, (-24i32) as u32),
+            Instruction::new(Opcode::ADD, A5, A4, A5),
+            Instruction::new(Opcode::SW, A5, S0, (-28i32) as u32),
+            Instruction::new(Opcode::LW, A5, S0, (-28i32) as u32),
+            Instruction::new(Opcode::ADDI, A0, A5, 0),
+            Instruction::new(Opcode::LW, S0, SP, 28),
+            Instruction::new(Opcode::ADDI, SP, SP, 32),
+            Instruction::new(Opcode::JALR, X0, RA, 0),
+        ];
+        let mut runtime: Runtime = Runtime::new(code);
+        runtime.run();
+    }
+
+    #[test]
     fn ADD() {
         // main:
         //     addi x29, x0, 5
@@ -877,7 +1022,7 @@ mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime: Runtime = Runtime::new(code);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }

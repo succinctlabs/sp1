@@ -35,13 +35,15 @@ impl<F: PrimeField> Chip<F> for CpuChip<F> {
     fn sends(&self) -> Vec<Interaction<F>> {
         let mut interactions = Vec::new();
 
-        // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
+        // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
+        // We always write to the first register, unless we are doing a branch operation in which case we read from it.
         interactions.push(Interaction::lookup_register(
             CPU_COL_MAP.clk,
             CPU_COL_MAP.instruction.op_a,
             CPU_COL_MAP.op_a_val,
-            IsRead::Expr(VirtualPairCol::single_main(
-                CPU_COL_MAP.selectors.reg_a_read,
+            IsRead::Expr(VirtualPairCol::new_main(
+                vec![(CPU_COL_MAP.selectors.branch_op, F::neg_one())],
+                F::one(),
             )),
             VirtualPairCol::constant(F::one()),
         ));
@@ -61,76 +63,35 @@ impl<F: PrimeField> Chip<F> for CpuChip<F> {
             IsRead::Bool(true),
             VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
         ));
+
+        // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
         interactions.push(Interaction::add(
             CPU_COL_MAP.op_a_val,
             CPU_COL_MAP.op_b_val,
             CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.register_instruction),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
         ));
 
-        //// For both load and store instructions, we must constraint mem_val to be a lookup of [addr]
-        //// For load instructions
-        // To constraint addr, we add op_b_val + op_c_val
+        //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
         // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
         interactions.push(Interaction::add(
             CPU_COL_MAP.addr,
             CPU_COL_MAP.op_b_val,
             CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
         ));
         // To constraint mem_val, we lookup [addr] in the memory table
-        // lookup (clk, addr, mem_val, is_read=true) in the memory table with multiplicity load_instruction
+        // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
         interactions.push(Interaction::lookup_memory(
             CPU_COL_MAP.clk,
             CPU_COL_MAP.addr,
             CPU_COL_MAP.mem_val,
-            IsRead::Bool(true),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+            IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
         ));
         // Now we must constraint mem_val and op_a_val
         // We bus this to a "match_word" table with a combination of s/u and h/b/w
-        // TODO: lookup (clk, mem_val, op_a_val, byte, half, word, unsigned) in the "match_word" table with multiplicity load_instruction
-
-        //// For store instructions
-        // To constraint addr, we add op_a_val + op_c_val
-        // lookup (clk, op_a_val, op_c_val, addr) in the "add" table with multiplicity store_instruction
-        interactions.push(Interaction::add(
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.op_a_val,
-            CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        ));
-        // To constraint mem_val, we lookup [addr] in the memory table
-        // lookup (clk, addr, mem_val, is_read=false) in the memory table with multiplicity store_instruction
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Bool(false),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        ));
-        // Now we must constraint mem_val and op_b_val
-        // TODO: lookup (clk, mem_val, op_b_val, byte, half, word, unsigned) in the "match_word" table with multiplicity store_instruction
-
-        // Constraining the memory
-        // TODO: there is likely some optimization to be done here making the is_read column a VirtualPair.
-        // Constraint the memory in the case of a load instruction.
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Bool(true),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
-        ));
-
-        // Constraint the memory in the case of a store instruction.
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Bool(false),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        ));
+        // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
         interactions
     }
 
@@ -192,7 +153,29 @@ impl<F: PrimeField> CpuChip<F> {
             | Opcode::SLT
             | Opcode::SLTU => {
                 // For register instructions, neither imm_b or imm_c should be turned on.
-                cols.register_instruction = F::one();
+                match opcode {
+                    Opcode::ADD => {
+                        cols.add_op = F::one();
+                    }
+                    Opcode::SUB => {
+                        cols.sub_op = F::one();
+                    }
+                    Opcode::XOR | Opcode::OR | Opcode::AND => {
+                        cols.bitwise_op = F::one();
+                    }
+                    Opcode::SLL | Opcode::SRL => {
+                        cols.shift_op = F::one();
+                    }
+                    Opcode::SLT | Opcode::SLTU => {
+                        cols.lt_op = F::one();
+                    }
+                    Opcode::SRA => {
+                        panic!("SRA not implemented");
+                    }
+                    _ => {
+                        panic!("unexpected opcode in register instruction table processing.")
+                    }
+                }
             }
             // Immediate instructions
             Opcode::ADDI
@@ -206,62 +189,54 @@ impl<F: PrimeField> CpuChip<F> {
             | Opcode::SLTIU => {
                 // For immediate instructions, imm_c should be turned on.
                 cols.imm_c = F::one();
-                cols.immediate_instruction = F::one();
+                match opcode {
+                    Opcode::ADDI => {
+                        cols.add_op = F::one();
+                    }
+                    Opcode::XORI | Opcode::ORI | Opcode::ANDI => {
+                        cols.bitwise_op = F::one();
+                    }
+                    Opcode::SLLI | Opcode::SRLI => {
+                        cols.shift_op = F::one();
+                    }
+                    Opcode::SLTI | Opcode::SLTIU => {
+                        cols.lt_op = F::one();
+                    }
+                    Opcode::SRAI => {
+                        panic!("SRAI not implemented");
+                    }
+                    _ => {
+                        panic!("unexpected opcode in immediate instruction table processing.")
+                    }
+                }
             }
             // Load instructions
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 // For load instructions, imm_c should be turned on.
                 cols.imm_c = F::one();
-                cols.load_instruction = F::one();
-                match opcode {
-                    Opcode::LB | Opcode::LBU => {
-                        cols.byte = F::one();
-                    }
-                    Opcode::LH | Opcode::LHU => {
-                        cols.half = F::one();
-                    }
-                    Opcode::LW => {
-                        cols.word = F::one();
-                    }
-                    _ => {}
-                }
+                cols.mem_op = F::one();
+                cols.mem_read = F::one();
             }
             // Store instructions
             Opcode::SB | Opcode::SH | Opcode::SW => {
-                // For store instructions, imm_c should be turned on.
+                // For store instructions, imm_c should be turned on, but mem_read stays off.
                 cols.imm_c = F::one();
-                cols.store_instruction = F::one();
-                cols.reg_a_read = F::one();
-                match opcode {
-                    Opcode::SB => {
-                        cols.byte = F::one();
-                    }
-                    Opcode::SH => {
-                        cols.half = F::one();
-                    }
-                    Opcode::SW => {
-                        cols.word = F::one();
-                    }
-                    _ => {}
-                }
+                cols.mem_op = F::one();
             }
             // Branch instructions
             Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
                 cols.imm_c = F::one();
-                cols.branch_instruction = F::one();
-                cols.reg_a_read = F::one();
+                cols.branch_op = F::one();
             }
             // Jump instructions
             Opcode::JAL => {
-                cols.JAL = F::one();
+                cols.jal = F::one();
                 cols.imm_b = F::one();
                 cols.imm_c = F::one();
-                cols.jump_instruction = F::one();
             }
             Opcode::JALR => {
-                cols.JALR = F::one();
+                cols.jalr = F::one();
                 cols.imm_c = F::one();
-                cols.jump_instruction = F::one();
             }
             // Upper immediate instructions
             Opcode::LUI => {
@@ -269,14 +244,14 @@ impl<F: PrimeField> CpuChip<F> {
                 // And the value of imm_c is 12.
                 cols.imm_b = F::one();
                 cols.imm_c = F::one();
-                // In order to process lookups for the SLL opcode table, we'll also turn on the "immediate_instruction".
-                cols.immediate_instruction = F::one();
+                // In order to process lookups for the SLL opcode table, we'll also turn on the "shift_op".
+                cols.shift_op = F::one();
             }
             Opcode::AUIPC => {
                 // Note that for an AUIPC opcode, we turn on both imm_b and imm_c.
                 cols.imm_b = F::one();
                 cols.imm_c = F::one();
-                cols.AUIPC = F::one();
+                cols.auipc = F::one();
                 // We constraint that imm_c = imm_b << 12 by looking up SLL(op_c_val, op_b_val, 12) with multiplicity AUIPC.
                 // Then we constraint op_a_val = op_c_val + pc by looking up ADD(op_a_val, op_c_val, pc) with multiplicity AUIPC.
             }
@@ -289,11 +264,7 @@ impl<F: PrimeField> CpuChip<F> {
             | Opcode::DIVU
             | Opcode::REM
             | Opcode::REMU => {
-                cols.multiply_instruction = F::one();
-                match opcode {
-                    // TODO: set byte/half/word/unsigned based on which variant of multiply.
-                    _ => {}
-                }
+                cols.mul_op = F::one();
             }
             _ => panic!("Invalid opcode"),
         }
