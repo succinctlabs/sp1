@@ -1569,6 +1569,7 @@ pub mod tests {
         create_instruction_unit_test(0x05612c23, Opcode::SW, 22,2, 88); // sw x22,88(x2)
         create_instruction_unit_test(0x01b12e23, Opcode::SW, 27,2, 28); // sw x27,28(x2)
         create_instruction_unit_test(0x01052223, Opcode::SW, 16, 10, 4); // sw x16,4(x10)
+        create_instruction_unit_test(0x00a12423, Opcode::SW, 10, 2, 8); // sw	a0,8(sp)
         create_instruction_unit_test(0x02052403, Opcode::LW, 8, 10, 32); // lw x8,32(x10)
         create_instruction_unit_test(0x03452683, Opcode::LW, 13, 10, 52); // lw x13,52(x10)
         create_instruction_unit_test(0x0006a703, Opcode::LW, 14,13, 0); // lw x14,0(x13)
