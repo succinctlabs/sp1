@@ -5,7 +5,6 @@ use anyhow::bail;
 
 
 use curta_core::runtime::instruction::Instruction;
-use curta_core::runtime::instruction::create_instruction;
 use elf::ElfBytes;
 
 use elf::endian::LittleEndian;
@@ -91,7 +90,7 @@ pub fn parse_elf(input: &[u8]) -> Result<(Vec<Instruction>, u32)> {
                     let byte = input.get(offset).context("Invalid segment offset")?;
                     word |= (*byte as u32) << (j * 8);
                 }
-                instructions.push(create_instruction(word));
+                instructions.push(Instruction::decode(word));
             }
         }
     }
