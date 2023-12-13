@@ -10,8 +10,24 @@ serde = { version = "1.0", features = ["derive"] }
 p3-field = { workspace = true }
 p3-air = { workspace = true }
 p3-matrix = { workspace = true }
-p3-util = { workspace = true }
+valida-derive = { workspace = true }
 p3-baby-bear = { workspace = true }
+rayon = "1.8.0"
+
+p3-commit = { workspace = true }
+p3-challenger = { workspace = true }
+p3-dft = { workspace = true }
+p3-fri = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-keccak = { workspace = true }
+p3-ldt = { workspace = true }
+p3-mds = { workspace = true }
+p3-merkle-tree ={ workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-uni-stark = { workspace = true }
+rand = "0.8.5"
+p3-util = { workspace = true }
 
 [dev-dependencies]
 valida-isa = { workspace = true }
