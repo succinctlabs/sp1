@@ -1,13 +1,14 @@
 use p3_air::{PairCol, VirtualPairCol};
 use p3_field::Field;
 
+use crate::air::{reduce, AirConstraint, AirVariable, Bool, Word};
 use crate::memory::MemOp;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
-    values: Vec<VirtualPairCol<F>>,
-    multiplicity: VirtualPairCol<F>,
-    kind: InteractionKind,
+    pub values: Vec<VirtualPairCol<F>>,
+    pub multiplicity: VirtualPairCol<F>,
+    pub kind: InteractionKind,
 }
 
 /// The type of interaction for a lookup argument.
@@ -26,30 +27,99 @@ pub enum InteractionKind {
     Range = 6,
 }
 
+pub enum IsRead<F: Field> {
+    Bool(bool),
+    Expr(VirtualPairCol<F>),
+}
+
 impl<F: Field> Interaction<F> {
-    pub fn read(clk: PairCol, addr: PairCol, value: PairCol, multiplicity: PairCol) -> Self {
+    pub fn lookup_register(
+        clk: usize,
+        register: usize,
+        value: Word<usize>,
+        is_read: IsRead<F>,
+        multiplicity: VirtualPairCol<F>,
+    ) -> Self {
+        let is_read_column = match is_read {
+            IsRead::Bool(b) => VirtualPairCol::constant(F::from_bool(b)),
+            IsRead::Expr(e) => e,
+        };
         Self {
             values: vec![
-                VirtualPairCol::single(clk),
-                VirtualPairCol::single(addr),
-                VirtualPairCol::constant(F::from_canonical_u8(MemOp::Read as u8)),
-                VirtualPairCol::single(value),
+                VirtualPairCol::single_main(clk),
+                // Our convention is that registers are stored at {register, 1<<8, 1<<8, 1<<8} address in memory.
+                VirtualPairCol::single_main(register),
+                VirtualPairCol::constant(F::from_canonical_u8(1u8)),
+                VirtualPairCol::constant(F::from_canonical_u8(1u8)),
+                VirtualPairCol::constant(F::from_canonical_u8(1u8)),
+                // Fields for the value being read
+                VirtualPairCol::single_main(value.0[0]),
+                VirtualPairCol::single_main(value.0[1]),
+                VirtualPairCol::single_main(value.0[2]),
+                VirtualPairCol::single_main(value.0[3]),
+                // Read operation
+                is_read_column,
             ],
-            multiplicity: VirtualPairCol::new(vec![(multiplicity, F::one())], F::zero()),
+            multiplicity,
             kind: InteractionKind::Memory,
         }
     }
 
-    pub fn write(clk: PairCol, addr: PairCol, value: PairCol, multiplicity: PairCol) -> Self {
+    pub fn lookup_memory(
+        clk: usize,
+        addr: Word<usize>,
+        value: Word<usize>,
+        is_read: IsRead<F>,
+        multiplicity: VirtualPairCol<F>,
+    ) -> Self {
+        let is_read_column = match is_read {
+            IsRead::Bool(b) => VirtualPairCol::constant(F::from_bool(b)),
+            IsRead::Expr(e) => e,
+        };
         Self {
             values: vec![
-                VirtualPairCol::single(clk),
-                VirtualPairCol::single(addr),
-                VirtualPairCol::constant(F::from_canonical_u8(MemOp::Write as u8)),
-                VirtualPairCol::single(value),
+                VirtualPairCol::single_main(clk),
+                // Address
+                VirtualPairCol::single_main(addr.0[0]),
+                VirtualPairCol::single_main(addr.0[1]),
+                VirtualPairCol::single_main(addr.0[2]),
+                VirtualPairCol::single_main(addr.0[3]),
+                // Fields for the value being read
+                VirtualPairCol::single_main(value.0[0]),
+                VirtualPairCol::single_main(value.0[1]),
+                VirtualPairCol::single_main(value.0[2]),
+                VirtualPairCol::single_main(value.0[3]),
+                // Read operation
+                is_read_column,
             ],
-            multiplicity: VirtualPairCol::new(vec![(multiplicity, F::one())], F::zero()),
+            multiplicity,
             kind: InteractionKind::Memory,
+        }
+    }
+
+    pub fn add(
+        res: Word<usize>,
+        a: Word<usize>,
+        b: Word<usize>,
+        multiplicity: VirtualPairCol<F>,
+    ) -> Self {
+        Self {
+            values: vec![
+                VirtualPairCol::single_main(res.0[0]),
+                VirtualPairCol::single_main(res.0[1]),
+                VirtualPairCol::single_main(res.0[2]),
+                VirtualPairCol::single_main(res.0[3]),
+                VirtualPairCol::single_main(a.0[0]),
+                VirtualPairCol::single_main(a.0[1]),
+                VirtualPairCol::single_main(a.0[2]),
+                VirtualPairCol::single_main(a.0[3]),
+                VirtualPairCol::single_main(b.0[0]),
+                VirtualPairCol::single_main(b.0[1]),
+                VirtualPairCol::single_main(b.0[2]),
+                VirtualPairCol::single_main(b.0[3]),
+            ],
+            multiplicity,
+            kind: InteractionKind::Alu,
         }
     }
 }

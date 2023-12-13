@@ -1,9 +1,10 @@
 use crate::air::{reduce, AirConstraint, AirVariable, Bool, Word};
+use crate::lookup::{Interaction, IsRead};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{AirBuilder, BaseAir};
+use p3_air::{AirBuilder, BaseAir, VirtualPairCol};
 use p3_field::AbstractField;
-use p3_field::PrimeField;
+use p3_field::{Field, PrimeField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 
@@ -114,10 +115,7 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
         // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
 
         //// Constraint op_a_val, op_b_val, op_c_val
-        // TODO: lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
-        // TODO: lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
-        // TODO: modify these to be bit-decomposition constraints
         builder
             .when(local.imm_b)
             .assert_eq(reduce::<AB>(local.op_b_val), local.op_b);
@@ -183,4 +181,52 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
             reduce::<AB>(local.op_c_val) + local.pc,
         );
     }
+}
+
+fn interaction<F: Field>() -> Vec<Interaction<F>> {
+    let mut interactions = Vec::new();
+
+    // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
+    // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
+    interactions.push(Interaction::lookup_register(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.op_c,
+        CPU_COL_MAP.op_c_val,
+        IsRead::Bool(true),
+        VirtualPairCol::new_main(vec![(CPU_COL_MAP.imm_c, F::neg_one())], F::one()), // 1-imm_c
+    ));
+    interactions.push(Interaction::lookup_register(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.op_b,
+        CPU_COL_MAP.op_b_val,
+        IsRead::Bool(true),
+        VirtualPairCol::new_main(vec![(CPU_COL_MAP.imm_b, F::neg_one())], F::one()), // 1-imm_b
+    ));
+    interactions.push(Interaction::add(
+        CPU_COL_MAP.op_a_val,
+        CPU_COL_MAP.op_b_val,
+        CPU_COL_MAP.op_c_val,
+        VirtualPairCol::single_main(CPU_COL_MAP.register_instruction),
+    ));
+
+    // Constraining the memory
+    // TODO: there is likely some optimization to be done here making the is_read column a VirtualPair.
+    // Constraint the memory in the case of a load instruction.
+    interactions.push(Interaction::lookup_memory(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.addr,
+        CPU_COL_MAP.mem_val,
+        IsRead::Bool(true),
+        VirtualPairCol::single_main(CPU_COL_MAP.load_instruction),
+    ));
+
+    // Constraint the memory in the case of a store instruction.
+    interactions.push(Interaction::lookup_memory(
+        CPU_COL_MAP.clk,
+        CPU_COL_MAP.addr,
+        CPU_COL_MAP.mem_val,
+        IsRead::Bool(false),
+        VirtualPairCol::single_main(CPU_COL_MAP.store_instruction),
+    ));
+    interactions
 }

@@ -13,8 +13,10 @@ use std::{
 
 use crate::{
     alu::AluEvent,
+    cpu::CpuEvent,
     memory::{MemOp, MemoryEvent},
 };
+pub mod chip;
 
 /// An opcode specifies which operation to execute.
 #[allow(dead_code)]
@@ -348,6 +350,9 @@ pub struct Runtime {
     /// The memory which instructions operate over.
     memory: BTreeMap<u32, u32>,
 
+    /// Cpu Event
+    pub cpu_events: Vec<CpuEvent>,
+
     /// A trace of the memory events which get emitted during execution.
     memory_events: Vec<MemoryEvent>,
 
@@ -363,6 +368,7 @@ impl Runtime {
             pc: 0,
             memory: BTreeMap::new(),
             program,
+            cpu_events: Vec::new(),
             memory_events: Vec::new(),
             alu_events: Vec::new(),
         }
@@ -438,6 +444,17 @@ impl Runtime {
             a,
             b,
             c,
+        });
+    }
+
+    fn emit_cpu(&mut self, instruction: Instruction) {
+        self.cpu_events.push(CpuEvent {
+            clk: self.clk,
+            pc: self.pc,
+            instruction,
+
+            opcode: instruction.opcode,
+            operands: (instruction.a, instruction.b, instruction.c),
         });
     }
 
@@ -768,11 +785,16 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            // Increment the program counter by 4.
-            self.pc = self.pc + 4;
+            let start_pc = self.pc;
 
             // Execute the instruction.
             self.execute(instruction);
+
+            // Emit a CPU event.
+            self.emit_cpu(self.clk, start_pc, instruction);
+
+            // Increment the program counter by 4.
+            self.pc = self.pc + 4;
 
             // Increment the clock.
             self.clk += 1;
