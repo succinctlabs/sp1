@@ -13,7 +13,7 @@ use elf::file::Class;
 pub const MAX_MEM: u32 = u32::MAX;
 pub const WORD_SIZE: usize = 4;
 
-pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
+pub fn parse_elf(input: &[u8]) -> Result<(Vec<Instruction>, u32)> {
     let elf = ElfBytes::<LittleEndian>::minimal_parse(input)
         .map_err(|err| anyhow!("Elf parse error: {err}"))?;
     if elf.ehdr.class != Class::ELF32 {
@@ -40,6 +40,8 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
     }
     let mut instructions : Vec<Instruction> = Vec::new();
 
+    let mut first_memory_address_in_segment = None;
+
     // Only read segments that are executable instructions that are also PT_LOAD.
     for segment in segments.iter().filter(|x| x.p_type == elf::abi::PT_LOAD && ((x.p_flags & elf::abi::PF_X) != 0)) {
         let file_size: u32 = segment
@@ -62,6 +64,11 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
             .map_err(|err| anyhow!("vaddr is larger than 32 bits. {err}"))?;
         if vaddr % WORD_SIZE as u32 != 0 {
             bail!("vaddr {vaddr:08x} is unaligned");
+        }
+        if first_memory_address_in_segment.is_none() {
+            first_memory_address_in_segment = Some(vaddr);
+        } else if first_memory_address_in_segment.unwrap() > vaddr {
+            first_memory_address_in_segment = Some(vaddr);
         }
         let offset: u32 = segment
             .p_offset
@@ -87,5 +94,12 @@ pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
             }
         }
     }
-    Ok(instructions)
+    match first_memory_address_in_segment {
+        Some(addr) => {
+            Ok((instructions, entry - addr))
+        }
+        None => {
+            bail!("No executable segments found");
+        }
+    }
 }

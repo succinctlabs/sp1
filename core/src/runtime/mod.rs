@@ -562,7 +562,7 @@ pub fn create_instruction(input: u32) -> Instruction {
                     } else if funct7 == 0b0100000 {
                         Opcode::SUB
                     } else {
-                        panic!("Invalid funct7 {}", funct7);
+                        panic!("Invalid funct7 {} for {:b}", funct7, input);
                     }
                 }
                 0b001 => Opcode::SLL,
@@ -665,6 +665,18 @@ impl Runtime {
             bitwise_events: Vec::new(),
         }
     }
+
+    pub fn new_with_pc(program: Vec<Instruction>, init_pc : u32) -> Self {
+        Self {
+            clk: 0,
+            pc: init_pc,
+            memory: BTreeMap::new(),
+            program,
+            memory_events: Vec::new(),
+            alu_events: Vec::new(),
+        }
+    }
+
 
     /// Read from memory.
     fn mr(&mut self, addr: u32) -> u32 {
@@ -1128,6 +1140,9 @@ impl Runtime {
     pub fn run(&mut self) {
         // Set %x2 to the size of memory when the CPU is initialized.
         self.rw(Register::X2, 1024 * 1024 * 8);
+
+        // Set the return address to the end of the program.
+        self.rw(Register::X1, (self.program.len() * 4) as u32);
 
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.

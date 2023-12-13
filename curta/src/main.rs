@@ -49,10 +49,12 @@ fn main() {
 
     // Parse ELF code.
     let instructions = parse_elf(&elf_code).expect("Failed to assemble code");
-    for instruction in instructions.iter() {
+    for instruction in instructions.0.iter() {
         println!("{:?}", instruction);
     }
-    let mut runtime = Runtime::new(instructions);
+    let mut runtime = Runtime::new_with_pc(instructions.0, instructions.1);
+    println!("{:?}", instructions.1);
     runtime.run();
+
     println!("{:?}", runtime.registers());
 }

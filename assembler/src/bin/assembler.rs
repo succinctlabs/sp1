@@ -20,7 +20,7 @@ fn main() {
     }
 
     let instructions = parse_elf(&elf_code).expect("Failed to assemble code");
-    for instruction in instructions.iter() {
+    for instruction in instructions.0.iter() {
         println!("{:?}", instruction);
     }
 }
