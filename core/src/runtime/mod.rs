@@ -9,6 +9,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
+    mem,
 };
 
 use p3_field::PrimeField;
@@ -444,7 +445,16 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
-    fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
+    fn emit_cpu(
+        &mut self,
+        clk: u32,
+        pc: u32,
+        instruction: Instruction,
+        a: u32,
+        b: u32,
+        c: u32,
+        memory_value: Option<u32>,
+    ) {
         self.cpu_events.push(CpuEvent {
             clk: clk,
             pc: pc,
@@ -452,6 +462,7 @@ impl Runtime {
             a,
             b,
             c,
+            memory_value,
         });
     }
 
@@ -491,7 +502,8 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let (mut a, mut b, mut c): (u32, u32, u32) = (u32::MAX, u32::MAX, u32::MAX);
+        let (mut a, mut b, mut c, mut memory_value): (u32, u32, u32, Option<u32>) =
+            (u32::MAX, u32::MAX, u32::MAX, None);
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
@@ -635,35 +647,40 @@ impl Runtime {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = (self.mr(addr) as i8) as u32;
+                memory_value = Some(self.mr(addr));
+                a = (memory_value.unwrap() as i8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = (self.mr(addr) as i16) as u32;
+                memory_value = Some(self.mr(addr));
+                a = (memory_value.unwrap() as i16) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = self.mr(addr);
+                memory_value = Some(self.mr(addr));
+                a = memory_value.unwrap();
                 self.rw(rd, a);
             }
             Opcode::LBU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                let a = (self.mr(addr) as u8) as u32;
+                memory_value = Some(self.mr(addr));
+                let a = (memory_value.unwrap() as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                let a = (self.mr(addr) as u16) as u32;
+                memory_value = Some(self.mr(addr));
+                let a = (memory_value.unwrap() as u16) as u32;
                 self.rw(rd, a);
             }
 
@@ -671,22 +688,25 @@ impl Runtime {
             Opcode::SB => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = (b as u8) as u32;
+                let addr = b.wrapping_add(c);
+                let value = (a as u8) as u32;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = (b as u16) as u32;
+                let addr = b.wrapping_add(c);
+                let value = (a as u16) as u32;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = b;
+                let addr = b.wrapping_add(c);
+                let value = a;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
 
@@ -824,7 +844,7 @@ impl Runtime {
         }
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(self.clk, pc, instruction, a, b, c);
+        self.emit_cpu(self.clk, pc, instruction, a, b, c, memory_value);
     }
 
     /// Execute the program.
@@ -835,15 +855,22 @@ impl Runtime {
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
+            println!("pc = {}, instruction = {:?}", self.pc, instruction);
 
             // Execute the instruction.
             self.execute(instruction);
+
+            println!("{:?}", self.cpu_events.last().unwrap());
 
             // Increment the program counter by 4.
             self.pc = self.pc + 4;
 
             // Increment the clock.
             self.clk += 1;
+
+            if self.clk > 20 {
+                break;
+            }
         }
     }
 
@@ -879,12 +906,72 @@ impl Runtime {
 
 #[cfg(test)]
 #[allow(non_snake_case)]
-mod tests {
+pub mod tests {
     use p3_baby_bear::BabyBear;
 
     use crate::{runtime::Register, Runtime};
 
     use super::{Instruction, Opcode};
+
+    pub fn get_simple_program() -> Vec<Instruction> {
+        // int main() {
+        //     int a = 5;
+        //     int b = 8;
+        //     int result = a + b;
+        //     return 0;
+        //   }
+        // main:
+        // addi    sp,sp,-32
+        // sw      s0,28(sp)
+        // addi    s0,sp,32
+        // li      a5,5
+        // sw      a5,-20(s0)
+        // li      a5,8
+        // sw      a5,-24(s0)
+        // lw      a4,-20(s0)
+        // lw      a5,-24(s0)
+        // add     a5,a4,a5
+        // sw      a5,-28(s0)
+        // lw      a5,-28(s0)
+        // mv      a0,a5
+        // lw      s0,28(sp)
+        // addi    sp,sp,32
+        // jr      ra
+        // Mapping taken from here: https://en.wikichip.org/wiki/risc-v/registers
+        let SP = Register::X2 as u32;
+        let X0 = Register::X0 as u32;
+        let S0 = Register::X8 as u32;
+        let A0 = Register::X10 as u32;
+        let A5 = Register::X15 as u32;
+        let A4 = Register::X14 as u32;
+        let RA = Register::X1 as u32;
+        let code = vec![
+            Instruction::new(Opcode::ADDI, SP, SP, (-32i32) as u32),
+            Instruction::new(Opcode::SW, S0, SP, 28),
+            Instruction::new(Opcode::ADDI, S0, SP, 32),
+            Instruction::new(Opcode::ADDI, A5, X0, 5),
+            Instruction::new(Opcode::SW, A5, S0, (-20i32) as u32),
+            Instruction::new(Opcode::ADDI, A5, X0, 8),
+            Instruction::new(Opcode::SW, A5, S0, (-24i32) as u32),
+            Instruction::new(Opcode::LW, A4, S0, (-20i32) as u32),
+            Instruction::new(Opcode::LW, A5, S0, (-24i32) as u32),
+            Instruction::new(Opcode::ADD, A5, A4, A5),
+            Instruction::new(Opcode::SW, A5, S0, (-28i32) as u32),
+            Instruction::new(Opcode::LW, A5, S0, (-28i32) as u32),
+            Instruction::new(Opcode::ADDI, A0, A5, 0),
+            Instruction::new(Opcode::LW, S0, SP, 28),
+            Instruction::new(Opcode::ADDI, SP, SP, 32),
+            // Instruction::new(Opcode::JALR, X0, RA, 0), // Commented this out because JAL is not working properly right now.
+        ];
+        code
+    }
+
+    #[test]
+    fn SIMPLE_PROGRAM() {
+        let code = get_simple_program();
+        let mut runtime: Runtime = Runtime::new(code);
+        runtime.run();
+    }
 
     #[test]
     fn ADD() {
