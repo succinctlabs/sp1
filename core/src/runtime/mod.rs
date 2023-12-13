@@ -364,9 +364,9 @@ pub fn create_instruction(input: u32) -> Instruction {
     if input == 0xc0001073 {
         return Instruction {
             opcode: Opcode::UNIMP,
-            a: Register::from_u32(0).unwrap(),
-            b: RegisterOrImmediate::Register(Register::from_u32(0).unwrap()),
-            c: None,
+            a: 0,
+            b: 0,
+            c: 0,
         };
     }
     
@@ -386,18 +386,18 @@ pub fn create_instruction(input: u32) -> Instruction {
             // LUI
             Instruction {
                 opcode: Opcode::LUI,
-                a: Register::from_u32(rd).unwrap(),
-                b: RegisterOrImmediate::Immediate(imm_31_12 as i32),
-                c: None,
+                a: rd,
+                b: imm_31_12,
+                c: 0,
             }
         }
         0b0010111 => {
             // AUIPC
             Instruction {
                 opcode: Opcode::AUIPC,
-                a: Register::from_u32(rd).unwrap(),
-                b: RegisterOrImmediate::Immediate(imm_31_12 as i32),
-                c: None,
+                a: rd,
+                b: imm_31_12,
+                c: 0,
             }
         }
         0b1101111 => {
@@ -420,18 +420,18 @@ pub fn create_instruction(input: u32) -> Instruction {
         
             Instruction {
                 opcode: Opcode::AUIPC,
-                a: Register::from_u32(rd).unwrap(),
-                b: RegisterOrImmediate::Immediate(imm as i32),
-                c: None,
+                a: rd,
+                b: imm,
+                c: 0,
             }
         }
         0b1100111 => {
             // JALR
             Instruction {
                 opcode: Opcode::AUIPC,
-                a: Register::from_u32(rd).unwrap(),
-                b: RegisterOrImmediate::Immediate(imm_11_0 as i32),
-                c: None,
+                a: rd,
+                b: imm_11_0,
+                c: 0,
             }
         }
         0b1100011 => {
@@ -452,9 +452,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             let imm = (imm_11 << 4) | imm_4_1;
             Instruction {
                 opcode,
-                a: Register::from_u32(rs1).unwrap(),
-                b: RegisterOrImmediate::Register(Register::from_u32(rs2).unwrap()),
-                c: Some(RegisterOrImmediate::Immediate(imm as i32)),
+                a: rs1,
+                b: rs2,
+                c: imm,
             }
         }
         0b0000011 => {
@@ -469,9 +469,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             };
             Instruction {
                 opcode,
-                a: Register::from_u32(rd).unwrap(),
-                b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
-                c: Some(RegisterOrImmediate::Immediate(imm_11_0 as i32)),
+                a: rd,
+                b: rs1,
+                c: imm_11_0,
             }
         }
         0b0100011 => {
@@ -485,9 +485,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             let imm = (imm_11_5 << 5) | imm_4_0;
             Instruction {
                 opcode,
-                a: Register::from_u32(rs1).unwrap(),
-                b: RegisterOrImmediate::Register(Register::from_u32(rs2).unwrap()),
-                c: Some(RegisterOrImmediate::Immediate(imm as i32)),
+                a: rs1,
+                b: rs2,
+                c: imm,
             }
         }
         0b0010011 => {
@@ -514,16 +514,16 @@ pub fn create_instruction(input: u32) -> Instruction {
             if funct3 == 0b001 || funct3 == 0b101 {
                 Instruction {
                     opcode,
-                    a: Register::from_u32(rd).unwrap(),
-                    b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
-                    c: Some(RegisterOrImmediate::Immediate(((input >> 20) & 0b1111) as i32)),
+                    a: rd,
+                    b: rs1,
+                    c: (input >> 20) & 0b1111,
                 }
             } else {
                 Instruction {
                     opcode,
-                    a: Register::from_u32(rd).unwrap(),
-                    b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
-                    c: Some(RegisterOrImmediate::Immediate(imm_11_0 as i32)),
+                    a: rd,
+                    b: rs1,
+                    c: imm_11_0,
                 }
             }
         }
@@ -558,9 +558,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             };
             Instruction {
                 opcode,
-                a: Register::from_u32(rd).unwrap(),
-                b: RegisterOrImmediate::Register(Register::from_u32(rs1).unwrap()),
-                c: Some(RegisterOrImmediate::Register(Register::from_u32(rs2).unwrap())),
+                a: rd,
+                b: rs1,
+                c: rs2,
             }
         }
         0b0001111 => {
@@ -581,9 +581,9 @@ pub fn create_instruction(input: u32) -> Instruction {
             };
             Instruction {
                 opcode,
-                a: Register::from_u32(0).unwrap(),
-                b: RegisterOrImmediate::Register(Register::from_u32(0).unwrap()),
-                c: None,
+                a: 0,
+                b: 0,
+                c: 0,
             }
         }
         0b1110011 => {
@@ -1088,6 +1088,9 @@ impl Runtime {
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = b.wrapping_rem(c);
                 self.rw(rd, a);
+            }
+            Opcode::UNIMP => {
+                todo!()
             }
         }
 
