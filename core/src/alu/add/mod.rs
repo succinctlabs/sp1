@@ -1,4 +1,4 @@
-//! A chip that implements addition for the opcodes ADD and ADDI.
+//! A chip that implements addition for ADD and ADDI.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};

@@ -1,6 +1,7 @@
 use crate::runtime::Opcode;
 mod add;
 mod bitwise;
+mod shift;
 mod sub;
 
 #[derive(Debug, Clone, Copy)]

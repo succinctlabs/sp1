@@ -1,4 +1,4 @@
-//! A chip that implements bitwise operations for XOR, XORI, OR, ORI, AND, and ANDI.
+//! A chip that implements shift operations for SLL, SLLI, SRL, SRLI, SRA, and SRAI.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -12,50 +12,43 @@ use crate::air::Word;
 use crate::alu::indices_arr;
 
 #[derive(AlignedBorrow, Default)]
-pub struct BitwiseCols<T> {
-    /// The output operand.
+pub struct ShiftCols<T> {
     pub a: Word<T>,
-
-    /// The first input operand.
     pub b: Word<T>,
-
-    /// The second input operand.
     pub c: Word<T>,
 
-    /// Trace.
     pub b_bits: [[T; 8]; 4],
     pub c_bits: [[T; 8]; 4],
 
-    /// Selector flags for the operation to perform.
     pub is_xor: T,
     pub is_or: T,
     pub is_and: T,
 }
 
-pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
-pub const BITWISE_COL_MAP: BitwiseCols<usize> = make_col_map();
+pub const NUM_SHIFT_COLS: usize = size_of::<ShiftCols<u8>>();
+pub const SHIFT_COL_MAP: ShiftCols<usize> = make_col_map();
 
-const fn make_col_map() -> BitwiseCols<usize> {
-    let indices_arr = indices_arr::<NUM_BITWISE_COLS>();
-    unsafe { transmute::<[usize; NUM_BITWISE_COLS], BitwiseCols<usize>>(indices_arr) }
+const fn make_col_map() -> ShiftCols<usize> {
+    let indices_arr = indices_arr::<NUM_SHIFT_COLS>();
+    unsafe { transmute::<[usize; NUM_SHIFT_COLS], ShiftCols<usize>>(indices_arr) }
 }
 
-pub struct BitwiseChip;
+pub struct ShiftChip;
 
-impl<F> BaseAir<F> for BitwiseChip {
+impl<F> BaseAir<F> for ShiftChip {
     fn width(&self) -> usize {
-        NUM_BITWISE_COLS
+        NUM_SHIFT_COLS
     }
 }
 
-impl<F, AB> Air<AB> for BitwiseChip
+impl<F, AB> Air<AB> for ShiftChip
 where
     F: PrimeField,
     AB: AirBuilder<F = F>,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &ShiftCols<AB::Var> = main.row_slice(0).borrow();
 
         let two = AB::F::from_canonical_u32(2);
 
