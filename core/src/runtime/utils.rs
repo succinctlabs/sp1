@@ -9,12 +9,12 @@ use crate::utils::Chip;
 
 /// Generate the permutation trace for a chip with the provided machine.
 /// This is called only after `generate_trace` has been called on all chips.
-pub fn generate_permutation_trace<F: Field, EF: ExtensionField<F>>(
+pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     chip: &dyn Chip<F>,
     main: &RowMajorMatrix<F>,
     random_elements: Vec<EF>,
 ) -> RowMajorMatrix<EF> {
-    let all_interactions = chip.sends();
+    let all_interactions = chip.all_interactions();
     let (alphas_local, alphas_global) = generate_rlc_elements(chip, &random_elements);
     let betas = random_elements[2].powers();
 
@@ -34,25 +34,25 @@ pub fn generate_permutation_trace<F: Field, EF: ExtensionField<F>>(
 
     for (n, main_row) in main.rows().enumerate() {
         let mut row = vec![EF::zero(); perm_width];
-        for (m, (interaction, _)) in all_interactions.iter().enumerate() {
-            let alpha_m = if interaction.is_local() {
-                alphas_local[interaction.argument_index()]
-            } else {
-                alphas_global[interaction.argument_index()]
-            };
-            let preprocessed_row = if preprocessed.is_some() {
-                preprocessed.as_ref().unwrap().row_slice(n)
-            } else {
-                &[]
-            };
-            row[m] = reduce_row(
-                main_row,
-                preprocessed_row,
-                &interaction.fields,
-                alpha_m,
-                betas.clone(),
-            );
-        }
+        // for (m, (interaction, _)) in all_interactions.iter().enumerate() {
+        //     let alpha_m = if interaction.is_local() {
+        //         alphas_local[interaction.argument_index()]
+        //     } else {
+        //         alphas_global[interaction.argument_index()]
+        //     };
+        //     let preprocessed_row = if preprocessed.is_some() {
+        //         preprocessed.as_ref().unwrap().row_slice(n)
+        //     } else {
+        //         &[]
+        //     };
+        //     row[m] = reduce_row(
+        //         main_row,
+        //         preprocessed_row,
+        //         &interaction.fields,
+        //         alpha_m,
+        //         betas.clone(),
+        //     );
+        // }
         perm_values.extend(row);
     }
     let perm_values = batch_multiplicative_inverse(&perm_values);
@@ -123,39 +123,39 @@ where
     let lhs = phi_next - phi_local.clone();
     let mut rhs = AB::ExprEF::from_base(AB::Expr::zero());
     let mut phi_0 = AB::ExprEF::from_base(AB::Expr::zero());
-    for (m, (interaction, interaction_type)) in all_interactions.iter().enumerate() {
-        // Reciprocal constraints
-        let mut rlc = AB::ExprEF::from_base(AB::Expr::zero());
-        for (field, beta) in interaction.fields.iter().zip(betas.clone()) {
-            let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
-            rlc += AB::ExprEF::from(beta) * elem;
-        }
-        if interaction.is_local() {
-            rlc = rlc + alphas_local[interaction.argument_index()];
-        } else {
-            rlc = rlc + alphas_global[interaction.argument_index()];
-        }
-        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m]);
+    // for (m, (interaction, interaction_type)) in all_interactions.iter().enumerate() {
+    //     // Reciprocal constraints
+    //     let mut rlc = AB::ExprEF::from_base(AB::Expr::zero());
+    //     for (field, beta) in interaction.fields.iter().zip(betas.clone()) {
+    //         let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
+    //         rlc += AB::ExprEF::from(beta) * elem;
+    //     }
+    //     if interaction.is_local() {
+    //         rlc = rlc + alphas_local[interaction.argument_index()];
+    //     } else {
+    //         rlc = rlc + alphas_global[interaction.argument_index()];
+    //     }
+    //     builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m]);
 
-        let mult_local = interaction
-            .count
-            .apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
-        let mult_next = interaction
-            .count
-            .apply::<AB::Expr, AB::Var>(preprocessed_next, main_next);
+    //     let mult_local = interaction
+    //         .count
+    //         .apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
+    //     let mult_next = interaction
+    //         .count
+    //         .apply::<AB::Expr, AB::Var>(preprocessed_next, main_next);
 
-        // // Build the RHS of the permutation constraint
-        // match interaction_type {
-        //     InteractionType::LocalSend | InteractionType::GlobalSend => {
-        //         phi_0 += AB::ExprEF::from_base(mult_local) * perm_local[m];
-        //         rhs += AB::ExprEF::from_base(mult_next) * perm_next[m];
-        //     }
-        //     InteractionType::LocalReceive | InteractionType::GlobalReceive => {
-        //         phi_0 -= AB::ExprEF::from_base(mult_local) * perm_local[m];
-        //         rhs -= AB::ExprEF::from_base(mult_next) * perm_next[m];
-        //     }
-        // }
-    }
+    //     // // Build the RHS of the permutation constraint
+    //     // match interaction_type {
+    //     //     InteractionType::LocalSend | InteractionType::GlobalSend => {
+    //     //         phi_0 += AB::ExprEF::from_base(mult_local) * perm_local[m];
+    //     //         rhs += AB::ExprEF::from_base(mult_next) * perm_next[m];
+    //     //     }
+    //     //     InteractionType::LocalReceive | InteractionType::GlobalReceive => {
+    //     //         phi_0 -= AB::ExprEF::from_base(mult_local) * perm_local[m];
+    //     //         rhs -= AB::ExprEF::from_base(mult_next) * perm_next[m];
+    //     //     }
+    //     // }
+    // }
 
     // Running sum constraints
     builder
@@ -170,7 +170,7 @@ where
     );
 }
 
-fn generate_rlc_elements<F: AbstractField, EF: AbstractExtensionField<F>>(
+fn generate_rlc_elements<F: PrimeField, EF: AbstractExtensionField<F>>(
     chip: &dyn Chip<F>,
     random_elements: &[EF],
 ) -> (Vec<EF>, Vec<EF>) {

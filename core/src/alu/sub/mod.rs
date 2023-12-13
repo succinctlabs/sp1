@@ -86,14 +86,6 @@ impl<F: PrimeField> Chip<F> for SubChip {
 
         trace
     }
-
-    fn sends(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
 }
 
 impl<F> BaseAir<F> for SubChip {

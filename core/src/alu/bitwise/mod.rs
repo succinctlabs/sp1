@@ -95,14 +95,6 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
 
         trace
     }
-
-    fn sends(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
 }
 
 impl<F> BaseAir<F> for BitwiseChip {

@@ -13,7 +13,7 @@ use std::{
 
 mod utils;
 
-use p3_challenger::{CanObserve, FieldChallenger};
+use p3_challenger::CanObserve;
 use p3_commit::Pcs;
 use p3_field::{PrimeField, TwoAdicField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -901,12 +901,12 @@ impl Runtime {
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
         challenger.observe(main_commit);
 
-        let mut perm_challenges = Vec::new();
-        for _ in 0..3 {
-            perm_challenges.push(challenger.sample_ext_element());
-        }
+        // let mut perm_challenges = Vec::new();
+        // for _ in 0..3 {
+        //     perm_challenges.push(challenger.sample_ext_element());
+        // }
 
-        let perm_traces = [];
+        // let perm_traces = [];
 
         // Generate the proof.
         // multiprove(vec![program, cpu, memory, alu];

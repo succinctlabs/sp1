@@ -1,14 +1,35 @@
+use p3_air::BaseAir;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{lookup::Interaction, Runtime};
 
-pub trait Chip<F: PrimeField> {
+pub trait Chip<F: PrimeField>: BaseAir<F> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
-    fn sends(&self) -> Vec<Interaction<F>>;
+    fn local_sends(&self) -> Vec<Interaction<F>> {
+        vec![]
+    }
 
-    fn receives(&self) -> Vec<Interaction<F>>;
+    fn global_sends(&self) -> Vec<Interaction<F>> {
+        vec![]
+    }
+
+    fn local_receives(&self) -> Vec<Interaction<F>> {
+        vec![]
+    }
+
+    fn global_receives(&self) -> Vec<Interaction<F>> {
+        vec![]
+    }
+
+    fn all_interactions(&self) -> Vec<Interaction<F>> {
+        let mut interactions = self.local_sends();
+        interactions.extend(self.global_sends());
+        interactions.extend(self.local_receives());
+        interactions.extend(self.global_receives());
+        interactions
+    }
 }
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {

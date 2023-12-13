@@ -3,7 +3,7 @@ use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
 use crate::utils::Chip;
 use core::mem::transmute;
-use p3_air::VirtualPairCol;
+use p3_air::{BaseAir, VirtualPairCol};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::runtime::{Opcode, Runtime};
@@ -36,7 +36,7 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         trace
     }
 
-    fn sends(&self) -> Vec<Interaction<F>> {
+    fn global_sends(&self) -> Vec<Interaction<F>> {
         let mut interactions = Vec::new();
 
         // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
@@ -137,10 +137,11 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         ));
         interactions
     }
+}
 
-    fn receives(&self) -> Vec<Interaction<F>> {
-        // The CPU table does not receive from anybody.
-        vec![]
+impl<F> BaseAir<F> for CpuChip {
+    fn width(&self) -> usize {
+        NUM_CPU_COLS
     }
 }
 

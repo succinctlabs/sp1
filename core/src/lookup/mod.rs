@@ -33,6 +33,10 @@ pub enum IsRead<F: Field> {
 }
 
 impl<F: Field> Interaction<F> {
+    pub fn argument_index(&self) -> usize {
+        todo!()
+    }
+
     pub fn lookup_register(
         clk: usize,
         register: usize,
