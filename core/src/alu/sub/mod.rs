@@ -133,6 +133,7 @@ where
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
 
+        // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
