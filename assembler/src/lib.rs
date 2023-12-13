@@ -10,7 +10,7 @@ use elf::ElfBytes;
 use elf::endian::LittleEndian;
 use elf::file::Class;
 
-pub const MAX_MEM: u32 = 1_000_000_000;
+pub const MAX_MEM: u32 = u32::MAX;
 pub const WORD_SIZE: usize = 4;
 
 pub fn parse_elf(input: &[u8]) -> Result<Vec<Instruction>> {
