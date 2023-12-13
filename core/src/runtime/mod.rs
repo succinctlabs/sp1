@@ -1574,16 +1574,17 @@ pub mod tests {
     }
     #[test]
     fn create_instruction_test() {
-        // https://github.com/riscv/riscv-tests
         create_instruction_unit_test(0x00c58633, Opcode::ADD, 12, 11, 12);
         create_instruction_unit_test(0x00d506b3, Opcode::ADD, 13, 10, 13);
         create_instruction_unit_test(0x00a70533, Opcode::ADD, 10, 14, 10);
         create_instruction_unit_test(0xffffe517, Opcode::AUIPC, 10,0xffffe, 0);
         create_instruction_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
-        create_instruction_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
+
         create_instruction_unit_test(0x00200793, Opcode::ADDI, 15,0,2);
         create_instruction_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
-        create_instruction_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
+        create_instruction_unit_test(0xfb010113, Opcode::ADDI, 2, 2, u32::MAX - 80 + 1); // addi sp, sp, -80
+        create_instruction_unit_test(0xc2958593, Opcode::ADDI, 11, 11, u32::MAX - 983 + 1); // addi a1, a1, -983
+
         create_instruction_unit_test(0x05612c23, Opcode::SW, 22,2, 88); // sw x22,88(x2)
         create_instruction_unit_test(0x01b12e23, Opcode::SW, 27,2, 28); // sw x27,28(x2)
         create_instruction_unit_test(0x01052223, Opcode::SW, 16, 10, 4); // sw x16,4(x10)
@@ -1596,8 +1597,8 @@ pub mod tests {
         create_instruction_unit_test(0x212120b7, Opcode::LUI,1,0x21212, 0); // lui x1,0x21212
         create_instruction_unit_test(0x00e78023, Opcode::SB, 14, 15,0); // SB x14,0(x15)
         create_instruction_unit_test(0x001101a3, Opcode::SB, 1,2, 3); // SB x1,3(x2)
+
         // TODO: do we want to support a negative offset?
-        // create_instruction_unit_test(0xfee78fa3, Opcode::SB, 14, 15, -1); // SB x14,-1(x15)
 
         create_instruction_unit_test(0x7e7218e3, Opcode::BNE, 4,7, 0xff0);
         create_instruction_unit_test(0x5a231763, Opcode::BNE, 6,2,0x5ae);
@@ -1616,12 +1617,10 @@ pub mod tests {
         create_instruction_unit_test(0x0007c683, Opcode::LBU, 13,15, 0);
 
         // TODO: Do we want to support a negative offset?
-        // create_instruction_unit_test(0xff867693,  Opcode::ANDI, 13,12,-8);
         create_instruction_unit_test(0x08077693,  Opcode::ANDI, 13,14,128);
         create_instruction_unit_test(0x04077693,  Opcode::ANDI, 13,14,64);
 
         // TODO: negative offset?
-        // create_instruction_unit_test(0xfe209d23, Opcode::SH, 2, 1, -6); // sh x2,-6(x1)
         create_instruction_unit_test(0x00111223, Opcode::SH, 1, 2, 4); // sh x1,4(x2)
         create_instruction_unit_test(0x00111523, Opcode::SH, 1, 2, 10); // sh x1,10(x2)
 
@@ -1629,8 +1628,6 @@ pub mod tests {
         create_instruction_unit_test(0x72ff24ef, Opcode::JAL, 9, 0xf2f2e, 0); // jal x1 604
         create_instruction_unit_test(0x2f22f36f, Opcode::JAL, 6, 0x2f2f2, 0); // jal x1 604
 
-        create_instruction_unit_test(0xc2958593, Opcode::ADDI, 11, 11, u32::MAX - 983 + 1); // addi a1, a1, -983
-        create_instruction_unit_test(0xfb010113, Opcode::ADDI, 2, 2, u32::MAX - 80 + 1); // addi sp, sp, -80
         create_instruction_unit_test(0x00008067, Opcode::JALR, 0, 1, 0); // JALR x0 0(x1)
     }
 }
