@@ -7,7 +7,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
-use crate::cpu::air::{InstructionCols, OpcodeSelectors};
+use crate::cpu::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
 use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
 
