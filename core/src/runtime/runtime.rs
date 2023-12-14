@@ -1,13 +1,20 @@
-use std::{fmt::{Display, Formatter}, collections::BTreeMap};
+use std::{
+    collections::BTreeMap,
+    fmt::{Display, Formatter},
+};
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{cpu::{CpuEvent, trace::CpuChip}, memory::{MemoryEvent, MemOp}, alu::{AluEvent, bitwise::BitwiseChip, add::AddChip, sub::SubChip}, program::ProgramChip, utils::Chip};
+use crate::{
+    alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
+    cpu::{trace::CpuChip, CpuEvent},
+    memory::{MemOp, MemoryEvent},
+    program::ProgramChip,
+    utils::Chip,
+};
 
 use super::{instruction::Instruction, opcode::Opcode};
-
-
 
 /// A register stores a 32-bit value used by operations.
 #[derive(Debug, Clone, Copy)]
@@ -125,8 +132,6 @@ impl Display for Register {
     }
 }
 
-
-
 // An implementation of a runtime for the Curta VM.
 //
 // The runtime is responsible for executing a user program and tracing important events which occur
@@ -179,7 +184,7 @@ impl Runtime {
         }
     }
 
-    pub fn new_with_pc(program: Vec<Instruction>, init_pc : u32) -> Self {
+    pub fn new_with_pc(program: Vec<Instruction>, init_pc: u32) -> Self {
         Self {
             clk: 0,
             pc: init_pc,
@@ -192,7 +197,6 @@ impl Runtime {
             bitwise_events: Vec::new(),
         }
     }
-
 
     /// Read from memory.
     fn mr(&mut self, addr: u32) -> u32 {
@@ -663,22 +667,15 @@ impl Runtime {
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
-            println!("pc = {}, instruction = {:?}", self.pc, instruction);
 
             // Execute the instruction.
             self.execute(instruction);
-
-            println!("{:?}", self.cpu_events.last().unwrap());
 
             // Increment the program counter by 4.
             self.pc = self.pc + 4;
 
             // Increment the clock.
             self.clk += 1;
-
-            if self.clk > 20 {
-                break;
-            }
         }
     }
 
@@ -711,7 +708,6 @@ impl Runtime {
         // multiprove(vec![program, cpu, memory, alu];
     }
 }
-
 
 #[cfg(test)]
 #[allow(non_snake_case)]
@@ -1082,6 +1078,4 @@ pub mod tests {
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
-
-
 }
