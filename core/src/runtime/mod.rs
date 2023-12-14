@@ -120,6 +120,11 @@ impl Runtime {
 
     /// Write to register.
     fn rw(&mut self, register: Register, value: u32) {
+        if register == Register::X0 {
+            // We don't write to %x0. See 2.6 Load and Store Instruction on
+            // P.18 of the RISC-V spec.
+            return;
+        }
         let addr = self.r2m(register);
         self.mw(addr, value);
     }
@@ -466,7 +471,8 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
+                let addr = b.wrapping_add(c);
+                self.pc = self.mr(addr).wrapping_sub(4); // We always add 4 later, so we need to subtract 4 here.
             }
 
             // Upper immediate instructions.
@@ -1117,5 +1123,23 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn JALR() {
+        //   addi x11, x11, 100
+        //   sw x11, 8(x10)
+        //   jalr x5, x10, 8
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 11, 11, 100),
+            Instruction::new(Opcode::SW, 11, 10, 8),
+            Instruction::new(Opcode::JALR, 5, 10, 8),
+        ];
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X10 as usize], 0);
+        assert_eq!(runtime.registers()[Register::X5 as usize], 12);
+        assert_eq!(runtime.registers()[Register::X11 as usize], 100);
+        assert_eq!(runtime.pc, 100);
     }
 }
