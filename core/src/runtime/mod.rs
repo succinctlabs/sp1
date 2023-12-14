@@ -7,6 +7,7 @@ pub use opcode::*;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
+use p3_util::log2_ceil_usize;
 pub use register::*;
 
 use std::collections::BTreeMap;
@@ -602,7 +603,8 @@ impl Runtime {
             .try_into()
             .unwrap();
         let log_degrees = degrees.map(|d| log2_strict_usize(d));
-        let log_quotient_degrees = log_degrees.map(|d| d - 1);
+        let max_constraint_degree = 3;
+        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
         let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
 
         // Commit to the batch of traces.
@@ -641,7 +643,7 @@ impl Runtime {
             config,
             &program,
             log_degrees[0],
-            log_quotient_degrees[0],
+            log_quotient_degree,
             main_ldes[0],
             alpha,
         );
@@ -649,7 +651,7 @@ impl Runtime {
             config,
             &cpu,
             log_degrees[1],
-            log_quotient_degrees[1],
+            log_quotient_degree,
             main_ldes[1],
             alpha,
         );
@@ -657,7 +659,7 @@ impl Runtime {
             config,
             &add,
             log_degrees[2],
-            log_quotient_degrees[2],
+            log_quotient_degree,
             main_ldes[2],
             alpha,
         );
@@ -665,7 +667,7 @@ impl Runtime {
             config,
             &sub,
             log_degrees[3],
-            log_quotient_degrees[3],
+            log_quotient_degree,
             main_ldes[3],
             alpha,
         );
@@ -673,7 +675,7 @@ impl Runtime {
             config,
             &bitwise,
             log_degrees[4],
-            log_quotient_degrees[4],
+            log_quotient_degree,
             main_ldes[4],
             alpha,
         );
@@ -682,57 +684,58 @@ impl Runtime {
         let program_quotient_chunks = decompose_and_flatten::<SC>(
             program_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degrees[0],
+            log_quotient_degree,
         );
         let cpu_quotient_chunks = decompose_and_flatten::<SC>(
             cpu_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degrees[1],
+            log_quotient_degree,
         );
         let add_quotient_chunks = decompose_and_flatten::<SC>(
             add_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degrees[2],
+            log_quotient_degree,
         );
         let sub_quotient_chunks = decompose_and_flatten::<SC>(
             sub_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degrees[3],
+            log_quotient_degree,
         );
         let bitwise_quotient_chunks = decompose_and_flatten::<SC>(
             bitwise_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degrees[4],
+            log_quotient_degree,
         );
 
+        // Commit to the quotient chunks.
         let (program_quotient_commit, program_quotient_commit_data) =
             config.pcs().commit_shifted_batch(
                 program_quotient_chunks,
                 config
                     .pcs()
                     .coset_shift()
-                    .exp_power_of_2(log_quotient_degrees[0]),
+                    .exp_power_of_2(log_quotient_degree),
             );
         let (cpu_quotient_commit, cpu_quotient_commit_data) = config.pcs().commit_shifted_batch(
             cpu_quotient_chunks,
             config
                 .pcs()
                 .coset_shift()
-                .exp_power_of_2(log_quotient_degrees[0]),
+                .exp_power_of_2(log_quotient_degree),
         );
         let (add_quotient_commit, add_quotient_commit_data) = config.pcs().commit_shifted_batch(
             add_quotient_chunks,
             config
                 .pcs()
                 .coset_shift()
-                .exp_power_of_2(log_quotient_degrees[0]),
+                .exp_power_of_2(log_quotient_degree),
         );
         let (sub_quotient_commit, sub_quotient_commit_data) = config.pcs().commit_shifted_batch(
             sub_quotient_chunks,
             config
                 .pcs()
                 .coset_shift()
-                .exp_power_of_2(log_quotient_degrees[0]),
+                .exp_power_of_2(log_quotient_degree),
         );
         let (bitwise_quotient_commit, bitwise_quotient_commit_data) =
             config.pcs().commit_shifted_batch(
@@ -740,15 +743,17 @@ impl Runtime {
                 config
                     .pcs()
                     .coset_shift()
-                    .exp_power_of_2(log_quotient_degrees[0]),
+                    .exp_power_of_2(log_quotient_degree),
             );
 
+        // Observe the quotient commitments.
         challenger.observe(program_quotient_commit);
         challenger.observe(cpu_quotient_commit);
         challenger.observe(add_quotient_commit);
         challenger.observe(sub_quotient_commit);
         challenger.observe(bitwise_quotient_commit);
 
+        // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
@@ -940,7 +945,8 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
-        ];
+        ]
+        .repeat(2);
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);

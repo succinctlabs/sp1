@@ -36,9 +36,9 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     debug_assert!(values.len() % N == 0);
     let mut n_real_rows = values.len() / N;
     if n_real_rows == 0 {
-        n_real_rows = 4;
+        n_real_rows = 8;
     } else if n_real_rows == 1 {
-        n_real_rows = 4;
+        n_real_rows = 8;
     }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }

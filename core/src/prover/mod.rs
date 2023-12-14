@@ -367,9 +367,9 @@ where
     let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
 
     (0..quotient_size)
-        .into_par_iter()
+        .into_iter()
         .step_by(SC::PackedVal::WIDTH)
-        .flat_map_iter(|i_local_start| {
+        .flat_map(|i_local_start| {
             let wrap = |i| i % quotient_size;
             let i_next_start = wrap(i_local_start + next_step);
             let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
