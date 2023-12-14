@@ -14,9 +14,22 @@ const WORD_LEN: usize = 4;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, AlignedBorrow)]
 pub struct Word<T>(pub [T; WORD_LEN]);
 
+impl<T> Word<T> {
+    pub fn map<F, S>(self, mut f: F) -> Word<S>
+    where
+        F: FnMut(T) -> S,
+    {
+        Word(self.0.map(f))
+    }
+}
+
 impl<AB: AirBuilder> AirVariable<AB> for Word<AB::Var> {
     fn size_of() -> usize {
         WORD_LEN
+    }
+
+    fn variables(&self) -> &[<AB as AirBuilder>::Var] {
+        &self.0
     }
 
     fn eval_is_valid(&self, _builder: &mut AB) {
@@ -48,5 +61,14 @@ impl<F: Field> From<u32> for Word<F> {
             .try_into()
             .unwrap();
         Word(inner)
+    }
+}
+
+impl<T> IntoIterator for Word<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, WORD_LEN>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }

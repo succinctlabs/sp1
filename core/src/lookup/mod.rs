@@ -33,6 +33,18 @@ pub enum IsRead<F: Field> {
 }
 
 impl<F: Field> Interaction<F> {
+    pub fn new(
+        values: Vec<VirtualPairCol<F>>,
+        multiplicity: VirtualPairCol<F>,
+        kind: InteractionKind,
+    ) -> Self {
+        Self {
+            values,
+            multiplicity,
+            kind,
+        }
+    }
+
     pub fn lookup_register(
         clk: usize,
         register: usize,

@@ -11,6 +11,8 @@ pub trait AirVariable<AB: AirBuilder> {
     /// The number of elements in this type.
     fn size_of() -> usize;
 
+    fn variables(&self) -> &[AB::Var];
+
     /// The validity constraints for this type.
     fn eval_is_valid(&self, builder: &mut AB);
 }
