@@ -1,7 +1,7 @@
 use core::fmt::{Display, Formatter};
 
 /// A register stores a 32-bit value used by operations.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Register {
     X0 = 0,
     X1 = 1,
