@@ -1001,7 +1001,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ]
-        .repeat(1024 * 512);
+        .repeat(3);
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);

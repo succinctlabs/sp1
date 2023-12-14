@@ -78,8 +78,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
     }
 
     fn receives(&self) -> Vec<Interaction<F>> {
-        let interactions = vec![];
-        let interaction = Interaction::new(
+        vec![Interaction::new(
             vec![
                 VirtualPairCol::new_main(
                     vec![
@@ -106,8 +105,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
             ],
             VirtualPairCol::constant(F::one()),
             InteractionKind::Alu,
-        );
-        interactions
+        )]
     }
 }
 
