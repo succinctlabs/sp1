@@ -195,6 +195,8 @@ impl CpuChip {
             .for_each(|(n, padded_row)| {
                 padded_row[CPU_COL_MAP.pc] = pc;
                 padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32(n as u32 + 1);
+                padded_row[CPU_COL_MAP.selectors.noop] = F::one();
+                // The operands will default by 0, so this will be a no-op anyways.
             });
     }
 }

@@ -40,6 +40,9 @@ pub struct OpcodeSelectors<T> {
 
     // Whether this is a branch op.
     pub branch_op: T,
+
+    // Whether this is a no-op.
+    pub noop: T,
 }
 
 impl<F: PrimeField> OpcodeSelectors<F> {
