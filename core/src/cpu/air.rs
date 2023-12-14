@@ -1,5 +1,6 @@
 use crate::air::{reduce, AirConstraint, Word};
-use crate::runtime::{Instruction, Opcode};
+use crate::runtime::instruction::Instruction;
+use crate::runtime::opcode::Opcode;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::AirBuilder;

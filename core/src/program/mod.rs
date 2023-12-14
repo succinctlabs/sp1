@@ -92,7 +92,8 @@ mod tests {
 
     use crate::{
         program::ProgramChip,
-        runtime::{Instruction, Opcode},
+        runtime::instruction::Instruction,
+        runtime::opcode::Opcode,
         utils::Chip,
         Runtime,
     };
