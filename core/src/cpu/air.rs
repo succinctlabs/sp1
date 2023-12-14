@@ -1,4 +1,4 @@
-use crate::air::{reduce, AirConstraint, Word};
+use crate::air::{reduce, Word};
 use crate::runtime::instruction::Instruction;
 use crate::runtime::opcode::Opcode;
 use core::borrow::{Borrow, BorrowMut};
