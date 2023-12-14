@@ -161,7 +161,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             Opcode::MUL
             | Opcode::MULH
             | Opcode::MULHSU
-            | Opcode::MULU
+            | Opcode::MULHU
             | Opcode::DIV
             | Opcode::DIVU
             | Opcode::REM

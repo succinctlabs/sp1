@@ -608,19 +608,18 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::MULHSU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.rw(rd, a);
+                todo!("not implemented yet, the enum was incorrectly named");
+                // let (rd, rs1, rs2) = instruction.r_type();
+                // let (b, c) = (self.rr(rs1), self.rr(rs2));
+                // let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                // self.rw(rd, a);
             }
             Opcode::MULHU => {
-                todo!("not implemented yet");
-            }
-            Opcode::MULU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
-                self.rw(rd, a);
+                todo!("not implemented yet, the enum was incorrectly named");
+                // let (rd, rs1, rs2) = instruction.r_type();
+                // let (b, c) = (self.rr(rs1), self.rr(rs2));
+                // let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                // self.rw(rd, a);
             }
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
