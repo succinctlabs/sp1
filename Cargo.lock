@@ -343,7 +343,6 @@ dependencies = [
  "rayon",
  "serde",
  "valida-derive",
- "valida-isa",
 ]
 
 [[package]]

@@ -855,26 +855,19 @@ impl Runtime {
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
-            println!("pc = {}, instruction = {:?}", self.pc, instruction);
 
             // Execute the instruction.
             self.execute(instruction);
-
-            println!("{:?}", self.cpu_events.last().unwrap());
 
             // Increment the program counter by 4.
             self.pc = self.pc + 4;
 
             // Increment the clock.
             self.clk += 1;
-
-            if self.clk > 20 {
-                break;
-            }
         }
     }
 
-    /// Prove the program.
+    /// Prove the program. This should only be called after the program has been run.
     #[allow(unused)]
     pub fn prove<F: PrimeField>(&mut self) {
         // Initialize chips.
@@ -898,6 +891,8 @@ impl Runtime {
 
         // Generate the trace of the bitwise chip.
         let bitwise_trace: RowMajorMatrix<F> = bitwise.generate_trace(self);
+
+        // TODO: generate the trace of the memory chip.
 
         // Generate the proof.
         // multiprove(vec![program, cpu, memory, alu];

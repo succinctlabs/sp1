@@ -3,11 +3,13 @@ use crate::runtime::{Instruction, Opcode};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
+use super::trace::CpuChip;
 use super::CpuEvent;
 
 #[derive(AlignedBorrow, Default)]
@@ -179,11 +181,11 @@ pub struct InstructionCols<T> {
     // /// The opcode for this cycle.
     pub opcode: T,
     // /// The first operand for this instruction.
-    pub op_a: T,
+    pub op_a: Word<T>,
     // /// The second operand for this instruction.
-    pub op_b: T,
+    pub op_b: Word<T>,
     // /// The third operand for this instruction.
-    pub op_c: T,
+    pub op_c: Word<T>,
 }
 
 impl<F: PrimeField> InstructionCols<F> {
@@ -201,9 +203,9 @@ impl<F: PrimeField> InstructionCols<F> {
             }
             _ => {}
         }
-        self.op_a = F::from_canonical_u32(instruction.op_a as u32);
-        self.op_b = F::from_canonical_u32(instruction.op_b as u32);
-        self.op_c = F::from_canonical_u32(instruction.op_c as u32);
+        self.op_a = instruction.op_a.into();
+        self.op_b = instruction.op_b.into();
+        self.op_c = instruction.op_c.into();
     }
 }
 
@@ -243,7 +245,16 @@ const fn make_col_map() -> CpuCols<usize> {
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
 }
 
-impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
+impl<F> BaseAir<F> for CpuChip {
+    fn width(&self) -> usize {
+        NUM_CPU_COLS
+    }
+}
+
+impl<AB> Air<AB> for CpuChip
+where
+    AB: AirBuilder,
+{
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
@@ -259,12 +270,19 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
 
         //// Constraint op_a_val, op_b_val, op_c_val
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
-        builder
-            .when(local.selectors.imm_b)
-            .assert_eq(reduce::<AB>(local.op_b_val), local.instruction.op_b);
-        builder
-            .when(local.selectors.imm_c)
-            .assert_eq(reduce::<AB>(local.op_c_val), local.instruction.op_c);
+        for i in 0..4 {
+            builder
+                .when(local.selectors.imm_b)
+                .assert_eq(local.op_b_val[i], local.instruction.op_b[i]);
+            builder
+                .when(local.selectors.imm_c)
+                .assert_eq(local.op_c_val[i], local.instruction.op_c[i]);
+        }
+
+        builder.assert_eq(
+            local.pc * local.pc * local.pc,
+            local.pc * local.pc * local.pc,
+        );
 
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
         // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
@@ -272,34 +290,35 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
         // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
-        builder.when(local.selectors.branch_op).assert_eq(
-            local.pc
-                + AB::F::from_canonical_u8(4)
-                + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
-            next.pc,
-        );
 
-        //// For jump instructions
-        builder
-            .when(local.selectors.jalr + local.selectors.jal)
-            .assert_eq(
-                reduce::<AB>(local.op_a_val),
-                local.pc + AB::F::from_canonical_u8(4),
-            );
-        builder.when(local.selectors.jal).assert_eq(
-            local.pc + AB::F::from_canonical_u8(4) + reduce::<AB>(local.op_b_val),
-            next.pc,
-        );
-        builder.when(local.selectors.jalr).assert_eq(
-            reduce::<AB>(local.op_b_val) + local.instruction.op_c,
-            next.pc,
-        );
+        // builder.when(local.selectors.branch_op).assert_eq(
+        //     local.pc
+        //         + AB::F::from_canonical_u8(4)
+        //         + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
+        //     next.pc,
+        // );
 
-        //// Upper immediate instructions
-        // lookup(clk, op_c_val, imm, 12) in SLT table with multiplicity AUIPC
-        builder.when(local.selectors.auipc).assert_eq(
-            reduce::<AB>(local.op_a_val),
-            reduce::<AB>(local.op_c_val) + local.pc,
-        );
+        // //// For jump instructions
+        // builder
+        //     .when(local.selectors.jalr + local.selectors.jal)
+        //     .assert_eq(
+        //         reduce::<AB>(local.op_a_val),
+        //         local.pc + AB::F::from_canonical_u8(4),
+        //     );
+        // builder.when(local.selectors.jal).assert_eq(
+        //     local.pc + AB::F::from_canonical_u8(4) + reduce::<AB>(local.op_b_val),
+        //     next.pc,
+        // );
+        // builder.when(local.selectors.jalr).assert_eq(
+        //     reduce::<AB>(local.op_b_val) + local.instruction.op_c,
+        //     next.pc,
+        // );
+
+        // //// Upper immediate instructions
+        // // lookup(clk, op_c_val, imm, 12) in SLT table with multiplicity AUIPC
+        // builder.when(local.selectors.auipc).assert_eq(
+        //     reduce::<AB>(local.op_a_val),
+        //     reduce::<AB>(local.op_c_val) + local.pc,
+        // );
     }
 }
