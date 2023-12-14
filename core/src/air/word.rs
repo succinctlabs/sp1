@@ -15,7 +15,7 @@ const WORD_LEN: usize = 4;
 pub struct Word<T>(pub [T; WORD_LEN]);
 
 impl<T> Word<T> {
-    pub fn map<F, S>(self, mut f: F) -> Word<S>
+    pub fn map<F, S>(self, f: F) -> Word<S>
     where
         F: FnMut(T) -> S,
     {

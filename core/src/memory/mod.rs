@@ -109,6 +109,8 @@ mod tests {
     use rand::thread_rng;
 
     use crate::memory::MemOp;
+    use crate::runtime::runtime::tests::get_simple_program;
+    use crate::Runtime;
     use p3_commit::ExtensionMmcs;
 
     use super::air::MemoryAir;
@@ -176,40 +178,11 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        // let events = vec![
-        //     MemoryEvent {
-        //         clk: 1,
-        //         addr: 0,
-        //         op: MemOp::Write,
-        //         value: 1,
-        //     },
-        //     MemoryEvent {
-        //         clk: 2,
-        //         addr: 0,
-        //         op: MemOp::Read,
-        //         value: 1,
-        //     },
-        //     MemoryEvent {
-        //         clk: 3,
-        //         addr: 1,
-        //         op: MemOp::Write,
-        //         value: 0,
-        //     },
-        //     MemoryEvent {
-        //         clk: 4,
-        //         addr: 1,
-        //         op: MemOp::Read,
-        //         value: 0,
-        //     },
-        // ];
-        let events = (0..1024)
-            .map(|i| MemoryEvent {
-                clk: i + 1,
-                addr: i + 1,
-                op: MemOp::Write,
-                value: i,
-            })
-            .collect::<Vec<_>>();
+        let code = get_simple_program();
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        let events = runtime.memory_events;
+
         let trace: RowMajorMatrix<BabyBear> = MemoryAir::generate_trace(&events);
         let air = MemoryAir {};
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);

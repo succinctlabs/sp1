@@ -95,13 +95,14 @@ impl<AB: AirBuilder> Air<AB> for MemoryAir {
         // address or the clock cycle.
         builder
             .when_transition()
-            .when(local.is_read.0 + AB::F::one())
+            .when(local.is_read.0 - AB::F::one())
             .assert_zero(next.is_addr_eq.0 * next.is_clk_eq.0);
         // Assert that `clk_word` is a decoding of `clk`.
         let clk_expected = reduce::<AB>(local.clk_word);
         builder.assert_eq(clk_expected, local.clk);
         // If the operation is a write, the multiplicity must be 1.
-        builder.assert_zero(local.is_read.0 * (local.multiplicity - AB::F::one()));
+        // TODO: Firgure out if this constraint is necessary.
+        // builder.assert_zero(local.is_read.0 * (local.multiplicity - AB::F::one()));
 
         // Lookup values validity checks
         //

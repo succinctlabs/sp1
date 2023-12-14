@@ -16,13 +16,21 @@ use crate::memory::MemOp;
 
 use super::{air::MemoryAir, MemoryEvent};
 
-const fn dummy_event(clk: u32) -> MemoryEvent {
-    MemoryEvent {
-        clk,
-        addr: u32::MAX,
-        value: 0,
-        op: MemOp::Read,
-    }
+const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
+    (
+        MemoryEvent {
+            clk,
+            addr: u32::MAX,
+            value: 0,
+            op: MemOp::Write,
+        },
+        MemoryEvent {
+            clk: clk + 1,
+            addr: u32::MAX,
+            value: 0,
+            op: MemOp::Read,
+        },
+    )
 }
 
 impl MemoryAir {
@@ -52,10 +60,14 @@ impl MemoryAir {
 
         // // Pad to a power of two.
         let pad_len = unique_events.len().next_power_of_two();
-        let dummy_event = dummy_event(unique_events.last().unwrap().clk + 1);
-        unique_events.resize(pad_len, dummy_event);
-        next_events.resize(pad_len, dummy_event);
-        multiplicities.resize(pad_len, 0);
+        if pad_len > unique_events.len() {
+            let (write_dummy, read_dummy) = dummy_events(unique_events.last().unwrap().clk + 1);
+            unique_events.push(write_dummy);
+            next_events.push(write_dummy);
+            unique_events.resize(pad_len, read_dummy);
+            next_events.resize(pad_len, read_dummy);
+            multiplicities.resize(pad_len, 0);
+        }
 
         let first_event = MemoryEvent {
             clk: 0,
