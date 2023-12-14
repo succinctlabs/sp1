@@ -13,8 +13,6 @@ use crate::air::Word;
 use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
 
-use super::AluEvent;
-
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 
 /// The column layout for the chip.
@@ -36,15 +34,19 @@ pub struct LtCols<T> {
 }
 
 /// A chip that implements bitwise operations for the opcodes SLT, SLTI, SLTU, and SLTIU.
-pub struct LtChip {
-    events: Vec<AluEvent>,
+pub struct LtChip;
+
+impl LtChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
 impl<F: PrimeField> Chip<F> for LtChip {
-    fn generate_trace(&self, _: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = self
-            .events
+        let rows = runtime
+            .lt_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_LT_COLS];
@@ -86,7 +88,9 @@ where
 
         let two = AB::F::from_canonical_u32(2);
 
-        todo!();
+        builder.assert_zero(
+            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
     }
 }
 
@@ -122,14 +126,8 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![AluEvent {
-            clk: 0,
-            opcode: Opcode::ADD,
-            a: 14,
-            b: 8,
-            c: 6,
-        }];
-        let chip = LtChip { events };
+        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }
@@ -178,31 +176,8 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::XOR,
-                a: 25,
-                b: 10,
-                c: 19,
-            },
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::OR,
-                a: 27,
-                b: 10,
-                c: 19,
-            },
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::AND,
-                a: 2,
-                b: 10,
-                c: 19,
-            },
-        ]
-        .repeat(1000);
-        let chip = LtChip { events };
+        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
+        let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 

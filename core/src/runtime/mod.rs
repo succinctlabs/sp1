@@ -64,6 +64,12 @@ pub struct Runtime {
 
     /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
     pub bitwise_events: Vec<AluEvent>,
+
+    /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
+    pub shift_events: Vec<AluEvent>,
+
+    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
+    pub lt_events: Vec<AluEvent>,
 }
 
 impl Runtime {
@@ -79,6 +85,8 @@ impl Runtime {
             add_events: Vec::new(),
             sub_events: Vec::new(),
             bitwise_events: Vec::new(),
+            shift_events: Vec::new(),
+            lt_events: Vec::new(),
         }
     }
 
@@ -93,6 +101,8 @@ impl Runtime {
             add_events: Vec::new(),
             sub_events: Vec::new(),
             bitwise_events: Vec::new(),
+            shift_events: Vec::new(),
+            lt_events: Vec::new(),
         }
     }
 

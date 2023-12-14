@@ -13,8 +13,6 @@ use crate::air::Word;
 use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
 
-use super::AluEvent;
-
 pub const NUM_SHIFT_COLS: usize = size_of::<ShiftCols<u8>>();
 
 /// The column layout for the chip.
@@ -36,15 +34,19 @@ pub struct ShiftCols<T> {
 }
 
 /// A chip that implements bitwise operations for the opcodes SLL, SLLI, SRL, SRLI, SRA, and SRAI.
-pub struct ShiftChip {
-    events: Vec<AluEvent>,
+pub struct ShiftChip;
+
+impl ShiftChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
 impl<F: PrimeField> Chip<F> for ShiftChip {
-    fn generate_trace(&self, _: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = self
-            .events
+        let rows = runtime
+            .shift_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_SHIFT_COLS];
@@ -88,7 +90,9 @@ where
 
         let two = AB::F::from_canonical_u32(2);
 
-        todo!();
+        builder.assert_zero(
+            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
     }
 }
 
@@ -124,14 +128,8 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![AluEvent {
-            clk: 0,
-            opcode: Opcode::ADD,
-            a: 14,
-            b: 8,
-            c: 6,
-        }];
-        let chip = ShiftChip { events };
+        runtime.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)];
+        let chip = ShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }
@@ -180,31 +178,8 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program);
-        let events = vec![
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::XOR,
-                a: 25,
-                b: 10,
-                c: 19,
-            },
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::OR,
-                a: 27,
-                b: 10,
-                c: 19,
-            },
-            AluEvent {
-                clk: 0,
-                opcode: Opcode::AND,
-                a: 2,
-                b: 10,
-                c: 19,
-            },
-        ]
-        .repeat(1000);
-        let chip = ShiftChip { events };
+        runtime.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)].repeat(1000);
+        let chip = ShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
