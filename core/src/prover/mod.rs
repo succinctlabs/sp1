@@ -348,7 +348,7 @@ pub fn quotient_values<SC, A, Mat>(
     air: &A,
     degree_bits: usize,
     quotient_degree_bits: usize,
-    trace_lde: Mat,
+    trace_lde: &Mat,
     alpha: SC::Challenge,
 ) -> Vec<SC::Challenge>
 where

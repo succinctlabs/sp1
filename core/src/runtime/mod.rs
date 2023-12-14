@@ -708,7 +708,7 @@ impl Runtime {
             &program,
             log_degrees[0],
             log_quotient_degree,
-            main_ldes[0],
+            &main_ldes[0],
             alpha,
         );
         let cpu_quotient_values = quotient_values(
@@ -716,7 +716,7 @@ impl Runtime {
             &cpu,
             log_degrees[1],
             log_quotient_degree,
-            main_ldes[1],
+            &main_ldes[1],
             alpha,
         );
         let add_quotient_values = quotient_values(
@@ -724,7 +724,7 @@ impl Runtime {
             &add,
             log_degrees[2],
             log_quotient_degree,
-            main_ldes[2],
+            &main_ldes[2],
             alpha,
         );
         let sub_quotient_values = quotient_values(
@@ -732,7 +732,7 @@ impl Runtime {
             &sub,
             log_degrees[3],
             log_quotient_degree,
-            main_ldes[3],
+            &main_ldes[3],
             alpha,
         );
         let bitwise_quotient_values = quotient_values(
@@ -740,7 +740,7 @@ impl Runtime {
             &bitwise,
             log_degrees[4],
             log_quotient_degree,
-            main_ldes[4],
+            &main_ldes[4],
             alpha,
         );
 
@@ -1055,8 +1055,8 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
         let mut pc = 0;
-        let program = get_simple_program();
-        let (program, pc) = get_fibonacci_program();
+        // let program = get_simple_program();
+        // let (program, pc) = get_fibonacci_program();
 
         let mut runtime = Runtime::new(program, pc);
         runtime.run();
