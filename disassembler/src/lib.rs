@@ -1,10 +1,9 @@
-use anyhow::Context;
-use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
+use anyhow::Context;
+use anyhow::Result;
 
-
-use curta_core::runtime::instruction::Instruction;
+use curta_core::runtime::Instruction;
 use elf::ElfBytes;
 
 use elf::endian::LittleEndian;
@@ -38,12 +37,15 @@ pub fn parse_elf(input: &[u8]) -> Result<(Vec<Instruction>, u32)> {
     if segments.len() > 256 {
         bail!("Too many program headers");
     }
-    let mut instructions : Vec<Instruction> = Vec::new();
+    let mut instructions: Vec<Instruction> = Vec::new();
 
     let mut first_memory_address_in_segment = None;
 
     // Only read segments that are executable instructions that are also PT_LOAD.
-    for segment in segments.iter().filter(|x| x.p_type == elf::abi::PT_LOAD && ((x.p_flags & elf::abi::PF_X) != 0)) {
+    for segment in segments
+        .iter()
+        .filter(|x| x.p_type == elf::abi::PT_LOAD && ((x.p_flags & elf::abi::PF_X) != 0))
+    {
         let file_size: u32 = segment
             .p_filesz
             .try_into()
@@ -95,9 +97,7 @@ pub fn parse_elf(input: &[u8]) -> Result<(Vec<Instruction>, u32)> {
         }
     }
     match first_memory_address_in_segment {
-        Some(addr) => {
-            Ok((instructions, entry - addr))
-        }
+        Some(addr) => Ok((instructions, entry - addr)),
         None => {
             bail!("No executable segments found");
         }

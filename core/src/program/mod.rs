@@ -3,14 +3,13 @@ use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::{IndexedParallelIterator, ParallelIterator};
+
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::cpu::air::{InstructionCols, OpcodeSelectors};
-use crate::lookup::Interaction;
+use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
-use crate::Runtime;
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 
@@ -60,14 +59,6 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
 
         trace
     }
-
-    fn sends(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
 }
 
 impl<F> BaseAir<F> for ProgramChip {
@@ -92,10 +83,8 @@ mod tests {
 
     use crate::{
         program::ProgramChip,
-        runtime::instruction::Instruction,
-        runtime::opcode::Opcode,
+        runtime::{Instruction, Opcode, Runtime},
         utils::Chip,
-        Runtime,
     };
 
     #[test]

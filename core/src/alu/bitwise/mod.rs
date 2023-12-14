@@ -11,10 +11,8 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::lookup::Interaction;
-use crate::runtime::opcode::Opcode;
+use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
-use crate::Runtime;
 
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
@@ -94,14 +92,6 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
         trace
-    }
-
-    fn sends(&self) -> Vec<Interaction<F>> {
-        vec![]
-    }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
     }
 }
 
@@ -190,7 +180,8 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{alu::AluEvent, utils::Chip, Runtime, runtime::opcode::Opcode};
+    use crate::runtime::{Opcode, Runtime};
+    use crate::{alu::AluEvent, utils::Chip};
     use p3_commit::ExtensionMmcs;
 
     use super::BitwiseChip;

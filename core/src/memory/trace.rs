@@ -17,8 +17,8 @@ use crate::memory::air::MEM_COL;
 use crate::memory::air::NUM_MEMORY_COLS;
 use crate::memory::MemOp;
 use crate::memory::MemoryInteraction;
+use crate::runtime::Runtime;
 use crate::utils::Chip;
-use crate::Runtime;
 
 use super::{air::MemoryAir, MemoryEvent};
 
@@ -41,7 +41,7 @@ const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
 
 impl<F: PrimeField> Chip<F> for MemoryAir {
     // TODO: missing STLU events.
-    fn generate_trace(&self, runtime: &mut crate::Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         let Runtime { memory_events, .. } = runtime;
         Self::generate_trace(memory_events)
     }

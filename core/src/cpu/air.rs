@@ -1,17 +1,16 @@
-use crate::air::{reduce, Word};
-use crate::runtime::instruction::Instruction;
-use crate::runtime::opcode::Opcode;
+use crate::air::Word;
+use crate::runtime::{Instruction, Opcode};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
+use p3_air::Air;
 use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
+use p3_air::BaseAir;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use super::trace::CpuChip;
-use super::CpuEvent;
 
 #[derive(AlignedBorrow, Default)]
 #[repr(C)]
