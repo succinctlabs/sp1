@@ -1,4 +1,5 @@
 use core::mem::transmute;
+use std::ops::Mul;
 
 use p3_air::VirtualPairCol;
 use p3_field::PrimeField;
@@ -52,8 +53,8 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
             VirtualPairCol::single_main(MEM_COL.clk),
             MEM_COL.addr.map(VirtualPairCol::single_main),
             MEM_COL.value.map(VirtualPairCol::single_main),
-            VirtualPairCol::single_main(MEM_COL.multiplicity),
             VirtualPairCol::single_main(MEM_COL.is_read.0),
+            VirtualPairCol::single_main(MEM_COL.multiplicity),
         )
         .into()]
     }
@@ -66,6 +67,7 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
 impl MemoryChip {
     pub fn generate_trace<F: PrimeField>(events: &[MemoryEvent]) -> RowMajorMatrix<F> {
         let mut events = events.to_vec();
+        println!("memory events {:?}", events);
         // Sort the events by address and then by clock cycle.
         events.sort_by_key(|event| (event.addr, event.clk, event.op));
 
@@ -122,6 +124,12 @@ impl MemoryChip {
                 cols.value = Word::from(curr.value);
                 cols.is_read = Bool::from(curr.op == MemOp::Read);
                 cols.multiplicity = F::from_canonical_u32(*mult as u32);
+                // TODO(Uma): Figure out if this is right
+                // NOTE(Uma): I set it to this so that the CPU <> Memory lookups are correct as
+                // the CPU table has no clk=0.
+                if curr.clk == 0 {
+                    cols.multiplicity = F::from_canonical_u32(0);
+                }
 
                 cols.prev_addr = Word::from(prev.addr);
                 cols.prev_clk_word = Word::from(prev.clk);

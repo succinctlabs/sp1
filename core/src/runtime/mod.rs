@@ -2,17 +2,18 @@ mod instruction;
 mod opcode;
 mod register;
 
+use crate::cpu::air::CpuCols;
+use crate::memory::air::MemoryCols;
 pub use instruction::*;
 pub use opcode::*;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs};
 pub use register::*;
-
 use std::collections::BTreeMap;
 
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
-use p3_field::{ExtensionField, PrimeField, TwoAdicField};
+use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_strict_usize;
@@ -110,7 +111,7 @@ impl Runtime {
 
     /// Convert a register to a memory address.
     fn r2m(&self, register: Register) -> u32 {
-        1024 * 1024 * 8 + (register as u32)
+        u32::from_be_bytes([0xFF, 0xFF, 0xFF, register as u8])
     }
 
     /// Read from register.
@@ -584,7 +585,7 @@ impl Runtime {
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
     where
-        F: PrimeField + TwoAdicField,
+        F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
@@ -599,7 +600,9 @@ impl Runtime {
         let chips: [&dyn Chip<F>; NUM_CHIPS] = [&program, &cpu, &memory, &add, &sub, &bitwise];
 
         // For each chip, generate the trace.
-        let traces = chips.map(|chip| chip.generate_trace(self));
+        let mut traces = chips.map(|chip| chip.generate_trace(self));
+
+        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://pastebin.com/ynPyVVY6
 
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
@@ -689,7 +692,7 @@ impl Runtime {
         );
 
         // Check the permutation argument between all tables.
-        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 

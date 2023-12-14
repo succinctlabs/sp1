@@ -5,7 +5,7 @@ use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
@@ -15,7 +15,7 @@ use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
 
 /// An AIR table for memory accesses.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct CpuCols<T> {
     /// The clock cycle value.
@@ -48,6 +48,18 @@ pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+impl CpuCols<u32> {
+    pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
+        let sized: [u32; NUM_CPU_COLS] = row
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<u32>>()
+            .try_into()
+            .unwrap();
+        unsafe { transmute::<[u32; NUM_CPU_COLS], CpuCols<u32>>(sized) }
+    }
 }
 
 impl<F> BaseAir<F> for CpuChip {

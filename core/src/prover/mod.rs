@@ -70,8 +70,10 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     main: &RowMajorMatrix<F>,
     random_elements: Vec<EF>,
 ) -> RowMajorMatrix<EF> {
+    println!("generating permutation trace for chip {}", chip.name());
     // Get all the interactions related to this chip.
     let all_interactions = chip.all_interactions();
+    println!("all_interactions: {:?}", all_interactions);
 
     // Generate the RLC elements to uniquely identify each interaction.
     let alphas = generate_interaction_rlc_elements(chip, random_elements[0]);
@@ -245,7 +247,7 @@ where
 {
     let mut rlc = EF::zero();
     for (columns, beta) in fields.iter().zip(betas) {
-        rlc += beta * columns.apply::<F, F>(preprocessed_row, main_row)
+        rlc += beta * columns.apply::<F, F>(preprocessed_row, main_row);
     }
     rlc += alpha;
     rlc

@@ -31,6 +31,10 @@ impl ProgramChip {
 }
 
 impl<F: PrimeField> Chip<F> for ProgramChip {
+    fn name(&self) -> String {
+        "program".to_string()
+    }
+
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = runtime

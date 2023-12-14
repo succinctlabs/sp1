@@ -5,6 +5,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use crate::{lookup::Interaction, runtime::Runtime};
 
 pub trait Chip<F: PrimeField>: BaseAir<F> {
+    fn name(&self) -> String {
+        "".to_string()
+    }
+
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
     fn receives(&self) -> Vec<Interaction<F>> {

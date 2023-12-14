@@ -3,7 +3,7 @@ use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
 use valida_derive::AlignedBorrow;
 
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectors<T> {
     // // Whether op_b is an immediate value.

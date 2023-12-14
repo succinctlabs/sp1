@@ -1,6 +1,7 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
-use crate::lookup::{Interaction, IsRead};
+use crate::lookup::Interaction;
+use crate::memory::{IsRead, MemoryInteraction};
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
@@ -19,6 +20,10 @@ impl CpuChip {
 }
 
 impl<F: PrimeField> Chip<F> for CpuChip {
+    fn name(&self) -> String {
+        "CPU".to_string()
+    }
+
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         let rows = runtime
             .cpu_events
@@ -34,68 +39,87 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         trace
     }
 
-    // fn sends(&self) -> Vec<Interaction<F>> {
-    //     let mut interactions = Vec::new();
+    fn sends(&self) -> Vec<Interaction<F>> {
+        let mut interactions = Vec::new();
 
-    //     // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
-    //     // We always write to the first register, unless we are doing a branch operation in which case we read from it.
-    //     interactions.push(Interaction::lookup_register(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.instruction.op_a[0],
-    //         CPU_COL_MAP.op_a_val,
-    //         IsRead::Expr(VirtualPairCol::new_main(
-    //             vec![(CPU_COL_MAP.selectors.branch_op, F::neg_one())],
-    //             F::one(),
-    //         )),
-    //         VirtualPairCol::constant(F::one()),
-    //     ));
-    //     // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
-    //     // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
-    //     interactions.push(Interaction::lookup_register(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.instruction.op_c[0],
-    //         CPU_COL_MAP.op_c_val,
-    //         IsRead::Bool(true),
-    //         VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())], F::one()), // 1-imm_c
-    //     ));
-    //     interactions.push(Interaction::lookup_register(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.instruction.op_b[0],
-    //         CPU_COL_MAP.op_b_val,
-    //         IsRead::Bool(true),
-    //         VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
-    //     ));
+        // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
+        // We always write to the first register, unless we are doing a branch operation in which case we read from it.
+        // We always connect op_a unless it is a noop.
+        interactions.push(
+            MemoryInteraction::lookup_register(
+                CPU_COL_MAP.clk,
+                CPU_COL_MAP.instruction.op_a[0],
+                CPU_COL_MAP.op_a_val,
+                IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.branch_op)),
+                VirtualPairCol::new_main(
+                    vec![(CPU_COL_MAP.selectors.noop, F::neg_one())],
+                    F::one(),
+                ), // 1-imm_c
+            )
+            .into(),
+        );
+        // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
+        // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
+        interactions.push(
+            MemoryInteraction::lookup_register(
+                CPU_COL_MAP.clk,
+                CPU_COL_MAP.instruction.op_c[0],
+                CPU_COL_MAP.op_c_val,
+                IsRead::Bool(true),
+                VirtualPairCol::new_main(
+                    vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())],
+                    F::one(),
+                ), // 1-imm_c
+            )
+            .into(),
+        );
+        interactions.push(
+            MemoryInteraction::lookup_register(
+                CPU_COL_MAP.clk,
+                CPU_COL_MAP.instruction.op_b[0],
+                CPU_COL_MAP.op_b_val,
+                IsRead::Bool(true),
+                VirtualPairCol::new_main(
+                    vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())],
+                    F::one(),
+                ), // 1-imm_b
+            )
+            .into(),
+        );
 
-    //     // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
-    //     interactions.push(Interaction::add(
-    //         CPU_COL_MAP.op_a_val,
-    //         CPU_COL_MAP.op_b_val,
-    //         CPU_COL_MAP.op_c_val,
-    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
-    //     ));
+        //     // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
+        //     interactions.push(Interaction::add(
+        //         CPU_COL_MAP.op_a_val,
+        //         CPU_COL_MAP.op_b_val,
+        //         CPU_COL_MAP.op_c_val,
+        //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
+        //     ));
 
-    //     //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
-    //     // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
-    //     interactions.push(Interaction::add(
-    //         CPU_COL_MAP.addr,
-    //         CPU_COL_MAP.op_b_val,
-    //         CPU_COL_MAP.op_c_val,
-    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
-    //     ));
-    //     // To constraint mem_val, we lookup [addr] in the memory table
-    //     // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
-    //     interactions.push(Interaction::lookup_memory(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.addr,
-    //         CPU_COL_MAP.mem_val,
-    //         IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
-    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
-    //     ));
-    //     // Now we must constraint mem_val and op_a_val
-    //     // We bus this to a "match_word" table with a combination of s/u and h/b/w
-    //     // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
-    //     interactions
-    // }
+        //     //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
+        //     // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
+        //     interactions.push(Interaction::add(
+        //         CPU_COL_MAP.addr,
+        //         CPU_COL_MAP.op_b_val,
+        //         CPU_COL_MAP.op_c_val,
+        //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
+        //     ));
+        //     // To constraint mem_val, we lookup [addr] in the memory table
+        //     // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
+        interactions.push(
+            MemoryInteraction::lookup_memory(
+                CPU_COL_MAP.clk,
+                CPU_COL_MAP.addr,
+                CPU_COL_MAP.mem_val,
+                IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
+                VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
+            )
+            .into(),
+        );
+        // Now we must constraint mem_val and op_a_val
+        //     // We bus this to a "match_word" table with a combination of s/u and h/b/w
+        //     // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
+        interactions
+    }
 }
 
 impl CpuChip {
@@ -179,6 +203,8 @@ impl CpuChip {
                 padded_row[CPU_COL_MAP.pc] = pc;
                 padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32(n as u32 + 1);
                 padded_row[CPU_COL_MAP.selectors.noop] = F::one();
+                padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
+                padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
                 // The operands will default by 0, so this will be a no-op anyways.
             });
     }

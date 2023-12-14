@@ -5,7 +5,7 @@ use core::mem::transmute;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{Field, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 
@@ -56,6 +56,18 @@ pub struct MemoryCols<T> {
 const fn make_col_map() -> MemoryCols<usize> {
     let indices_arr = indices_arr::<NUM_MEMORY_COLS>();
     unsafe { transmute::<[usize; NUM_MEMORY_COLS], MemoryCols<usize>>(indices_arr) }
+}
+
+impl MemoryCols<u32> {
+    pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
+        let sized: [u32; NUM_MEMORY_COLS] = row
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<u32>>()
+            .try_into()
+            .unwrap();
+        unsafe { transmute::<[u32; NUM_MEMORY_COLS], MemoryCols<u32>>(sized) }
+    }
 }
 
 impl<F: Field> BaseAir<F> for MemoryChip {
