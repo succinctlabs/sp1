@@ -209,6 +209,10 @@ impl Runtime {
         let pc = self.pc;
         let (mut a, mut b, mut c, mut memory_value): (u32, u32, u32, Option<u32>) =
             (u32::MAX, u32::MAX, u32::MAX, None);
+
+        // By default, we add 4 to the next PC. However, some instructions (e.g., JAL) will modify
+        // this value.
+        let mut next_pc = self.pc.wrapping_add(4);
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
@@ -420,42 +424,42 @@ impl Runtime {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 if a == b {
-                    self.pc = self.pc.wrapping_add(c);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BNE => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 if self.rr(rs1) != self.rr(rs2) {
-                    self.pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BLT => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 if (self.rr(rs1) as i32) < (self.rr(rs2) as i32) {
-                    self.pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BGE => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 if (self.rr(rs1) as i32) >= (self.rr(rs2) as i32) {
-                    self.pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BLTU => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 if self.rr(rs1) < self.rr(rs2) {
-                    self.pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BGEU => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 if self.rr(rs1) >= self.rr(rs2) {
-                    self.pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(imm);
                 }
             }
 
@@ -465,15 +469,14 @@ impl Runtime {
                 (b, c) = (imm, 0);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
+                next_pc = self.pc.wrapping_add(imm);
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                let addr = b.wrapping_add(c);
-                self.pc = self.mr(addr).wrapping_sub(4); // We always add 4 later, so we need to subtract 4 here.
+                next_pc = b.wrapping_add(c);
             }
 
             // Upper immediate instructions.
@@ -551,6 +554,7 @@ impl Runtime {
                 println!("UNIMP encountered, ignoring");
             }
         }
+        self.pc = next_pc;
 
         // Emit the CPU event for this cycle.
         self.emit_cpu(self.clk, pc, instruction, a, b, c, memory_value);
@@ -571,9 +575,6 @@ impl Runtime {
 
             // Execute the instruction.
             self.execute(instruction);
-
-            // Increment the program counter by 4.
-            self.pc = self.pc.wrapping_add(4);
 
             // Increment the clock.
             self.clk += 1;
@@ -1137,18 +1138,20 @@ pub mod tests {
     #[test]
     fn JALR() {
         //   addi x11, x11, 100
-        //   sw x11, 8(x10)
-        //   jalr x5, x10, 8
+        //   jalr x5, x11, 8
+        //
+        // `JALR rd offset(rs)` reads the value at rs, adds offset to it and uses it as the
+        // destination address. It then stores the address of the next instruction in rd in case
+        // we'd want to come back here.
+
         let program = vec![
             Instruction::new(Opcode::ADDI, 11, 11, 100),
-            Instruction::new(Opcode::SW, 11, 10, 8),
-            Instruction::new(Opcode::JALR, 5, 10, 8),
+            Instruction::new(Opcode::JALR, 5, 11, 8),
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X10 as usize], 0);
-        assert_eq!(runtime.registers()[Register::X5 as usize], 12);
+        assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
-        assert_eq!(runtime.pc, 100);
+        assert_eq!(runtime.pc, 108);
     }
 }

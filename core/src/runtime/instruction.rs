@@ -157,7 +157,7 @@ impl Instruction {
                 Instruction {
                     opcode: Opcode::JAL,
                     op_a: rd,
-                    op_b: imm,
+                    op_b: extend_sign(imm, 21),
                     op_c: 0,
                 }
             }
@@ -408,6 +408,8 @@ pub mod tests {
         decode_unit_test(0x25c000ef, Opcode::JAL, 1, 604, 0); // jal x1 604
         decode_unit_test(0x72ff24ef, Opcode::JAL, 9, 0xf2f2e, 0); // jal x1 604
         decode_unit_test(0x2f22f36f, Opcode::JAL, 6, 0x2f2f2, 0); // jal x1 604
+        decode_unit_test(0xf99ff06f, Opcode::JAL, 0, u32::MAX - 104 + 1, 0); // jal x0 -104
+        decode_unit_test(0xfffff06f, Opcode::JAL, 0, u32::MAX - 2 + 1, 0); // jal x0, -2
 
         decode_unit_test(0x00008067, Opcode::JALR, 0, 1, 0); // JALR x0 0(x1)
 
