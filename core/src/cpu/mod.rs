@@ -1,6 +1,8 @@
 use crate::runtime::Instruction;
 
 pub mod air;
+pub mod instruction_cols;
+pub mod opcode_cols;
 pub mod trace;
 
 #[derive(Debug, Copy, Clone)]
