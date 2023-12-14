@@ -160,7 +160,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             // Multiply instructions
             Opcode::MUL
             | Opcode::MULH
-            | Opcode::MULSU
+            | Opcode::MULHSU
             | Opcode::MULU
             | Opcode::DIV
             | Opcode::DIVU

@@ -249,32 +249,28 @@ impl Instruction {
             }
             0b0110011 => {
                 // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
-                let opcode = match funct3 {
-                    0b000 => {
-                        if funct7 == 0 {
-                            Opcode::ADD
-                        } else if funct7 == 0b0100000 {
-                            Opcode::SUB
-                        } else {
-                            panic!("Invalid funct7 {} for {:b}", funct7, input);
-                        }
-                    }
-                    0b001 => Opcode::SLL,
-                    0b010 => Opcode::SLT,
-                    0b011 => Opcode::SLTU,
-                    0b100 => Opcode::XOR,
-                    0b101 => {
-                        if funct7 == 0 {
-                            Opcode::SRL
-                        } else if funct7 == 0b0100000 {
-                            Opcode::SRA
-                        } else {
-                            panic!("Invalid funct7 {}", funct7);
-                        }
-                    }
-                    0b110 => Opcode::OR,
-                    0b111 => Opcode::AND,
-                    _ => panic!("Invalid funct3 {}", funct3),
+                // M extension: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU
+                let opcode = match (funct3, funct7) {
+
+                    (0, 0) => Opcode::ADD,
+                    (0, 0b0100000) => Opcode::SUB,
+                    (0b001, 0) => Opcode::SLL,
+                    (0b010, 0) => Opcode::SLT,
+                    (0b011, 0) => Opcode::SLTU,
+                    (0b100, 0) => Opcode::XOR,
+                    (0b101, 0) => Opcode::SRL,
+                    (0b101, 0b0100000) => Opcode::SRA,
+                    (0b110, 0) => Opcode::OR,
+                    (0b111, 0) => Opcode::AND,
+                    (0, 1) => Opcode::MUL,
+                    (0b001, 1) => Opcode::MULH,
+                    (0b010, 1) => Opcode::MULHSU,
+                    (0b011, 1) => Opcode::MULHU,
+                    (0b100, 1) => Opcode::DIV,
+                    (0b101, 1) => Opcode::DIVU,
+                    (0b110, 1) => Opcode::REM,
+                    (0b111, 1) => Opcode::REMU,
+                    _ => panic!("Invalid input {:032b}", input),
                 };
                 Instruction {
                     opcode,
