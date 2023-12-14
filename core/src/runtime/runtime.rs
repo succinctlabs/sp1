@@ -566,14 +566,14 @@ impl Runtime {
                 (b, c) = (imm, 0);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = self.pc.wrapping_add(imm);
+                self.pc = self.pc.wrapping_add(imm - 4); // We always add 4 later, so we need to subtract 4 here.
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = b.wrapping_add(c);
+                self.pc = b.wrapping_add(c - 4);
             }
 
             // Upper immediate instructions.
@@ -672,7 +672,7 @@ impl Runtime {
             self.execute(instruction);
 
             // Increment the program counter by 4.
-            self.pc = self.pc + 4;
+            self.pc = self.pc.wrapping_add(4);
 
             // Increment the clock.
             self.clk += 1;
