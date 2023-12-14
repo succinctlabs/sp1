@@ -72,14 +72,38 @@ impl Instruction {
     /// Refer to P.104 of The RISC-V Instruction Set Manual for the exact
     /// specification.
     pub fn decode(input: u32) -> Self {
-        if input == 0xc0001073 {
-            // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
-            return Instruction {
-                opcode: Opcode::UNIMP,
-                op_a: 0,
-                op_b: 0,
-                op_c: 0,
-            };
+        // Check the constant instructions first.
+        match input { 
+            0xc0001073 => {
+                // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
+                return Instruction {
+                    opcode: Opcode::UNIMP,
+                    op_a: 0,
+                    op_b: 0,
+                    op_c: 0,
+                };
+            }
+            0x73 => {
+                // ECALL
+                return Instruction {
+                    opcode: Opcode::ECALL,
+                    op_a: 0,
+                    op_b: 0,
+                    op_c: 0,
+                };
+            },
+            0x00100073 => {
+                // EBREAK
+                return Instruction {
+                    opcode: Opcode::EBREAK,
+                    op_a: 0,
+                    op_b: 0,
+                    op_c: 0,
+                };
+            }
+            _ => {
+                // Remaining cases
+            }
         }
         
         let op_code = input & 0b1111111;
@@ -249,32 +273,28 @@ impl Instruction {
             }
             0b0110011 => {
                 // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
-                let opcode = match funct3 {
-                    0b000 => {
-                        if funct7 == 0 {
-                            Opcode::ADD
-                        } else if funct7 == 0b0100000 {
-                            Opcode::SUB
-                        } else {
-                            panic!("Invalid funct7 {} for {:b}", funct7, input);
-                        }
-                    }
-                    0b001 => Opcode::SLL,
-                    0b010 => Opcode::SLT,
-                    0b011 => Opcode::SLTU,
-                    0b100 => Opcode::XOR,
-                    0b101 => {
-                        if funct7 == 0 {
-                            Opcode::SRL
-                        } else if funct7 == 0b0100000 {
-                            Opcode::SRA
-                        } else {
-                            panic!("Invalid funct7 {}", funct7);
-                        }
-                    }
-                    0b110 => Opcode::OR,
-                    0b111 => Opcode::AND,
-                    _ => panic!("Invalid funct3 {}", funct3),
+                // M extension: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU
+                let opcode = match (funct3, funct7) {
+
+                    (0, 0) => Opcode::ADD,
+                    (0, 0b0100000) => Opcode::SUB,
+                    (0b001, 0) => Opcode::SLL,
+                    (0b010, 0) => Opcode::SLT,
+                    (0b011, 0) => Opcode::SLTU,
+                    (0b100, 0) => Opcode::XOR,
+                    (0b101, 0) => Opcode::SRL,
+                    (0b101, 0b0100000) => Opcode::SRA,
+                    (0b110, 0) => Opcode::OR,
+                    (0b111, 0) => Opcode::AND,
+                    (0, 1) => Opcode::MUL,
+                    (0b001, 1) => Opcode::MULH,
+                    (0b010, 1) => Opcode::MULHSU,
+                    (0b011, 1) => Opcode::MULHU,
+                    (0b100, 1) => Opcode::DIV,
+                    (0b101, 1) => Opcode::DIVU,
+                    (0b110, 1) => Opcode::REM,
+                    (0b111, 1) => Opcode::REMU,
+                    _ => panic!("Invalid input {:032b}", input),
                 };
                 Instruction {
                     opcode,
@@ -284,30 +304,15 @@ impl Instruction {
                 }
             }
             0b0001111 => {
-                // FENCE, FENCE.I, ECALL, EBREAK
-                let opcode = match funct3 {
+                // FENCE, FENCE.I
+                let _opcode = match funct3 {
                     0b000 => panic!("FENCE not implemented"),
                     0b001 => panic!("FENCE.I not implemented"),
-                    0b111 => {
-                        if funct7 == 0 {
-                            Opcode::ECALL
-                        } else if funct7 == 0b0000001 {
-                            Opcode::EBREAK
-                        } else {
-                            panic!("Invalid funct7 {}", funct7);
-                        }
-                    }
-                    _ => panic!("Invalid funct3 {}", funct3),
+                    _ => panic!("Invalid instruction {}", input),
                 };
-                Instruction {
-                    opcode,
-                    op_a: 0,
-                    op_b: 0,
-                    op_c: 0,
-                }
             }
             0b1110011 => {
-                panic!("CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented {}", input);
+                panic!("CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented 0x{:x}", input);
             }
             opcode => {
                 todo!("opcode {} is invalid", opcode);

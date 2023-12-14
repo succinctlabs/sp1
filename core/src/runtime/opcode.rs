@@ -61,8 +61,8 @@ pub enum Opcode {
     /// Multiply instructions.
     MUL = 39,
     MULH = 40,
-    MULSU = 41,
-    MULU = 42,
+    MULHSU = 41,
+    MULHU = 42,
     DIV = 43,
     DIVU = 44,
     REM = 45,
@@ -132,8 +132,8 @@ impl Display for Opcode {
             // Multiply instructions.
             Opcode::MUL => write!(f, "mul"),
             Opcode::MULH => write!(f, "mulh"),
-            Opcode::MULSU => write!(f, "mulsu"),
-            Opcode::MULU => write!(f, "mulu"),
+            Opcode::MULHSU => write!(f, "mulhsu"),
+            Opcode::MULHU => write!(f, "mulhu"),
             Opcode::DIV => write!(f, "div"),
             Opcode::DIVU => write!(f, "divu"),
             Opcode::REM => write!(f, "rem"),
