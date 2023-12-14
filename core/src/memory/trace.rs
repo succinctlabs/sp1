@@ -1,5 +1,6 @@
 use core::mem::transmute;
 
+use p3_air::VirtualPairCol;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -10,9 +11,14 @@ use rayon::slice::ParallelSlice;
 
 use crate::air::Bool;
 use crate::air::Word;
+use crate::lookup::Interaction;
 use crate::memory::air::MemoryCols;
+use crate::memory::air::MEM_COL;
 use crate::memory::air::NUM_MEMORY_COLS;
 use crate::memory::MemOp;
+use crate::memory::MemoryInteraction;
+use crate::utils::Chip;
+use crate::Runtime;
 
 use super::{air::MemoryAir, MemoryEvent};
 
@@ -31,6 +37,30 @@ const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
             op: MemOp::Read,
         },
     )
+}
+
+impl<F: PrimeField> Chip<F> for MemoryAir {
+    // TODO: missing STLU events.
+    fn generate_trace(&self, runtime: &mut crate::Runtime) -> RowMajorMatrix<F> {
+        let Runtime { memory_events, .. } = runtime;
+        Self::generate_trace(memory_events)
+    }
+
+    fn receives(&self) -> Vec<Interaction<F>> {
+        // Memory chip accepts all the memory requests
+        vec![MemoryInteraction::new(
+            VirtualPairCol::single_main(MEM_COL.clk),
+            MEM_COL.addr.map(VirtualPairCol::single_main),
+            MEM_COL.value.map(VirtualPairCol::single_main),
+            VirtualPairCol::single_main(MEM_COL.multiplicity),
+            VirtualPairCol::single_main(MEM_COL.is_read.0),
+        )
+        .into()]
+    }
+
+    fn sends(&self) -> Vec<Interaction<F>> {
+        todo!()
+    }
 }
 
 impl MemoryAir {

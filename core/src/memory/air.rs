@@ -3,7 +3,6 @@ use core::borrow::BorrowMut;
 use core::mem::size_of;
 use core::mem::transmute;
 
-use p3_air::VirtualPairCol;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -15,8 +14,6 @@ use valida_derive::AlignedBorrow;
 use crate::air::reduce;
 use crate::air::CurtaAirBuilder;
 use crate::air::{Bool, Word};
-use crate::lookup::Interaction;
-use crate::memory::interaction::MemoryInteraction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryAir;
@@ -161,24 +158,5 @@ impl<AB: AirBuilder> Air<AB> for MemoryAir {
             .when_transition()
             .when(next.is_clk_eq.0)
             .assert_eq(next.clk, local.clk);
-    }
-}
-
-impl MemoryAir {
-    pub fn sends<F: Field>(&self) -> Vec<Interaction<F>> {
-        // Memory chip needs a lookup for less than equal operations.
-        todo!()
-    }
-
-    pub fn recieves<F: Field>(&self) -> Vec<Interaction<F>> {
-        // Memory chip accepts all the memory requests
-        vec![MemoryInteraction::new(
-            VirtualPairCol::single_main(MEM_COL.clk),
-            MEM_COL.addr.map(VirtualPairCol::single_main),
-            MEM_COL.value.map(VirtualPairCol::single_main),
-            VirtualPairCol::single_main(MEM_COL.multiplicity),
-            VirtualPairCol::single_main(MEM_COL.is_read.0),
-        )
-        .into()]
     }
 }
