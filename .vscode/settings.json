@@ -1,0 +1,10 @@
+{
+    "editor.inlineSuggest.enabled": true,
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true,
+    },
+    "editor.rulers": [
+        100
+    ], 
+}
