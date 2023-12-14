@@ -13,7 +13,8 @@ use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::reduce;
-use crate::air::{AirVariable, Bool, Word};
+use crate::air::CurtaAirBuilder;
+use crate::air::{Bool, Word};
 use crate::lookup::Interaction;
 use crate::memory::interaction::MemoryInteraction;
 
@@ -101,20 +102,20 @@ impl<AB: AirBuilder> Air<AB> for MemoryAir {
         let clk_expected = reduce::<AB>(local.clk_word);
         builder.assert_eq(clk_expected, local.clk);
         // If the operation is a write, the multiplicity must be 1.
-        // TODO: Firgure out if this constraint is necessary.
+        // TODO: Figure out if this constraint is necessary.
         // builder.assert_zero(local.is_read.0 * (local.multiplicity - AB::F::one()));
 
         // Lookup values validity checks
         //
         // Assert that the next address is equal to the next row address.
-        for (byte, byte_next) in local.addr.into_iter().zip(next.prev_addr) {
-            builder.when_transition().assert_eq(byte, byte_next);
-        }
+        builder
+            .when_transition()
+            .assert_is_equal(local.addr, next.prev_addr);
 
         // Assert the the prev clock cycle word is equal to the row clock cycle word of the last row.
-        for (byte, byte_next) in local.clk_word.into_iter().zip(next.prev_clk_word) {
-            builder.when_transition().assert_eq(byte, byte_next);
-        }
+        builder
+            .when_transition()
+            .assert_is_equal(local.clk_word, next.prev_clk_word);
 
         // Validity checks on the boolean flags.
         //
@@ -124,9 +125,9 @@ impl<AB: AirBuilder> Air<AB> for MemoryAir {
         // these assumptions when constraining the equality flags below.
 
         // Constrain untrusted booleans to be either 0 or 1.
-        builder.assert_bool(local.is_read.0);
-        builder.assert_bool(local.is_addr_eq.0);
-        local.is_clk_eq.eval_is_valid(builder);
+        builder.assert_is_valid(local.is_read);
+        builder.assert_is_valid(local.is_addr_eq);
+        builder.assert_is_valid(local.is_clk_eq);
 
         // Constrain address to be non-decreasing and the validity of `is_addr_eq`.
         //
@@ -141,12 +142,10 @@ impl<AB: AirBuilder> Air<AB> for MemoryAir {
             .when_transition()
             .assert_one(next.is_addr_eq.0 + next.is_addr_lt.0);
         builder.assert_bool(local.is_addr_eq.0);
-        for (byte, byte_next) in local.addr.into_iter().zip(next.addr) {
-            builder
-                .when_transition()
-                .when(next.is_addr_eq.0)
-                .assert_eq(byte, byte_next);
-        }
+        builder
+            .when_transition()
+            .when(next.is_addr_eq.0)
+            .assert_is_equal(local.addr, next.addr);
 
         // Assert that when the address remains the same, the value of the clock cycle is
         // non-decreasing, and the validity of `is_clk_eq`. We will use checks analogous to the ones

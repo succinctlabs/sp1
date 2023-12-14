@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use p3_air::AirBuilder;
-use p3_field::{AbstractField, Field};
+use p3_field::Field;
 
 use super::AirVariable;
 use valida_derive::AlignedBorrow;
@@ -9,17 +9,19 @@ use valida_derive::AlignedBorrow;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, AlignedBorrow)]
 pub struct Bool<T>(pub T);
 
-impl<AB: AirBuilder> AirVariable<AB> for Bool<AB::Var> {
-    fn size_of() -> usize {
-        1
+impl<T> AirVariable<T> for Bool<T> {
+    fn eval_is_valid<AB: AirBuilder>(self, builder: &mut AB)
+    where
+        T: Into<AB::Expr>,
+    {
+        builder.assert_bool(self.0);
     }
 
-    fn variables(&self) -> &[<AB as AirBuilder>::Var] {
-        core::slice::from_ref(&self.0)
-    }
-
-    fn eval_is_valid(&self, builder: &mut AB) {
-        builder.assert_zero(self.0 * (self.0 - AB::F::one()));
+    fn eval_is_equal<AB: AirBuilder>(self, other: Self, builder: &mut AB)
+    where
+        T: Into<AB::Expr>,
+    {
+        builder.assert_eq(self.0, other.0);
     }
 }
 

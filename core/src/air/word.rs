@@ -23,17 +23,20 @@ impl<T> Word<T> {
     }
 }
 
-impl<AB: AirBuilder> AirVariable<AB> for Word<AB::Var> {
-    fn size_of() -> usize {
-        WORD_LEN
+impl<T> AirVariable<T> for Word<T> {
+    fn eval_is_valid<AB: AirBuilder>(self, builder: &mut AB)
+    where
+        T: Into<AB::Expr>,
+    {
     }
 
-    fn variables(&self) -> &[<AB as AirBuilder>::Var] {
-        &self.0
-    }
-
-    fn eval_is_valid(&self, _builder: &mut AB) {
-        todo!()
+    fn eval_is_equal<AB: AirBuilder>(self, other: Self, builder: &mut AB)
+    where
+        T: Into<AB::Expr>,
+    {
+        for (left, right) in self.0.into_iter().zip(other.0) {
+            builder.assert_eq(left, right);
+        }
     }
 }
 
