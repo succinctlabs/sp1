@@ -657,12 +657,12 @@ impl Runtime {
             &permutation_traces[0],
             &permutation_challenges,
         );
-        // debug_constraints(
-        //     &cpu,
-        //     &traces[1],
-        //     &permutation_traces[1],
-        //     &permutation_challenges,
-        // );
+        debug_constraints(
+            &cpu,
+            &traces[1],
+            &permutation_traces[1],
+            &permutation_challenges,
+        );
         debug_constraints(
             &memory,
             &traces[2],
