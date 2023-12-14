@@ -472,7 +472,7 @@ impl Runtime {
                 a = self.pc + 4;
                 self.rw(rd, a);
                 let addr = b.wrapping_add(c);
-                self.pc = self.mr(addr).wrapping_sub(4); // We always add 4 later, so we need to subtract 4 here.
+                self.pc = addr.wrapping_sub(4); // We always add 4 later, so we need to subtract 4 here.
             }
 
             // Upper immediate instructions.
@@ -1128,18 +1128,20 @@ pub mod tests {
     #[test]
     fn JALR() {
         //   addi x11, x11, 100
-        //   sw x11, 8(x10)
-        //   jalr x5, x10, 8
+        //   jalr x5, x11, 8
+        //
+        // `JALR rd offset(rs)` reads the value at rs, adds offset to it and uses it as the
+        // destination address. It then stores the address of the next instruction in rd in case
+        // we'd want to come back here.
+
         let program = vec![
             Instruction::new(Opcode::ADDI, 11, 11, 100),
-            Instruction::new(Opcode::SW, 11, 10, 8),
-            Instruction::new(Opcode::JALR, 5, 10, 8),
+            Instruction::new(Opcode::JALR, 5, 11, 8),
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X10 as usize], 0);
-        assert_eq!(runtime.registers()[Register::X5 as usize], 12);
+        assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
-        assert_eq!(runtime.pc, 100);
+        assert_eq!(runtime.pc, 108);
     }
 }
