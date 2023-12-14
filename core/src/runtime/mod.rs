@@ -927,6 +927,30 @@ impl Runtime {
             &permutation_traces[0],
             &permutation_challenges,
         );
+        debug_constraints(
+            &cpu,
+            &traces[1],
+            &permutation_traces[1],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &add,
+            &traces[2],
+            &permutation_traces[2],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &sub,
+            &traces[3],
+            &permutation_traces[3],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &bitwise,
+            &traces[4],
+            &permutation_traces[4],
+            &permutation_challenges,
+        );
 
         // Check the permutation argument between all tables.
         debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
