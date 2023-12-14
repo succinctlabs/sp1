@@ -1,13 +1,14 @@
 use super::air::{CpuCols, InstructionCols, OpcodeSelectors, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
+use crate::Runtime;
 use crate::lookup::{Interaction, IsRead};
+use crate::runtime::opcode::Opcode;
 use crate::utils::Chip;
 use core::mem::transmute;
 use p3_air::VirtualPairCol;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::air::Word;
-use crate::runtime::{Instruction, Opcode, Runtime};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -165,8 +166,8 @@ impl CpuChip {
 
 #[cfg(test)]
 mod tests {
-    use crate::runtime::tests::get_simple_program;
-    use crate::runtime::Instruction;
+    use crate::runtime::runtime::tests::get_simple_program;
+    use crate::runtime::instruction::Instruction;
     use p3_baby_bear::BabyBear;
 
     use super::*;

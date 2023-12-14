@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::runtime::Register;
+use crate::runtime::runtime::Register;
 
 mod air;
 pub mod trace;

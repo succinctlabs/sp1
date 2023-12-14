@@ -1,4 +1,4 @@
-use crate::runtime::Opcode;
+use crate::runtime::opcode::Opcode;
 pub mod add;
 pub mod bitwise;
 pub mod shift;
