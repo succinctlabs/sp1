@@ -1,5 +1,6 @@
 use crate::air::{reduce, AirConstraint, Word};
-use crate::runtime::{Instruction, Opcode};
+use crate::runtime::instruction::Instruction;
+use crate::runtime::opcode::Opcode;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::AirBuilder;
@@ -8,7 +9,6 @@ use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
-use super::CpuEvent;
 
 #[derive(AlignedBorrow, Default)]
 #[repr(C)]

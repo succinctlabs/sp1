@@ -10,6 +10,6 @@ pub mod utils;
 
 extern crate alloc;
 
-mod runtime;
+pub mod runtime;
 
-pub use runtime::Runtime;
+pub use crate::runtime::runtime::Runtime;

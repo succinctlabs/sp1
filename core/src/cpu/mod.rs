@@ -1,4 +1,4 @@
-use crate::runtime::Instruction;
+use crate::runtime::instruction::Instruction;
 pub mod air;
 pub mod trace;
 
