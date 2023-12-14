@@ -47,16 +47,15 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
     }
 
     fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
         // Memory chip accepts all the memory requests
-        // vec![MemoryInteraction::new(
-        //     VirtualPairCol::single_main(MEM_COL.clk),
-        //     MEM_COL.addr.map(VirtualPairCol::single_main),
-        //     MEM_COL.value.map(VirtualPairCol::single_main),
-        //     VirtualPairCol::single_main(MEM_COL.multiplicity),
-        //     VirtualPairCol::single_main(MEM_COL.is_read.0),
-        // )
-        // .into()]
+        vec![MemoryInteraction::new(
+            VirtualPairCol::single_main(MEM_COL.clk),
+            MEM_COL.addr.map(VirtualPairCol::single_main),
+            MEM_COL.value.map(VirtualPairCol::single_main),
+            VirtualPairCol::single_main(MEM_COL.multiplicity),
+            VirtualPairCol::single_main(MEM_COL.is_read.0),
+        )
+        .into()]
     }
 
     fn sends(&self) -> Vec<Interaction<F>> {
