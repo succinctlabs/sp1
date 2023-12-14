@@ -1,7 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir, VirtualPairCol};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -10,10 +10,17 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::runtime::Runtime;
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::lookup::{Interaction, InteractionKind};
+use crate::runtime::{Opcode, Runtime};
+use crate::utils::{indices_arr, pad_to_power_of_two, Chip};
 
 pub const NUM_SHIFT_COLS: usize = size_of::<ShiftCols<u8>>();
+const SHIFT_COL_MAP: ShiftCols<usize> = make_col_map();
+
+const fn make_col_map() -> ShiftCols<usize> {
+    let indices_arr = indices_arr::<NUM_SHIFT_COLS>();
+    unsafe { transmute::<[usize; NUM_SHIFT_COLS], ShiftCols<usize>>(indices_arr) }
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -71,6 +78,46 @@ impl<F: PrimeField> Chip<F> for ShiftChip {
         pad_to_power_of_two::<NUM_SHIFT_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn receives(&self) -> Vec<Interaction<F>> {
+        let interactions = vec![];
+        let interaction = Interaction::new(
+            vec![
+                VirtualPairCol::new_main(
+                    vec![
+                        (
+                            SHIFT_COL_MAP.is_sll,
+                            F::from_canonical_u32(Opcode::SLL as u32),
+                        ),
+                        (
+                            SHIFT_COL_MAP.is_srl,
+                            F::from_canonical_u32(Opcode::SRL as u32),
+                        ),
+                        (
+                            SHIFT_COL_MAP.is_sra,
+                            F::from_canonical_u32(Opcode::SRA as u32),
+                        ),
+                    ],
+                    F::zero(),
+                ),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.a[0]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.a[1]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.a[2]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.a[3]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.b[0]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.b[1]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.b[2]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.b[3]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.c[0]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.c[1]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.c[2]),
+                VirtualPairCol::single_main(SHIFT_COL_MAP.c[3]),
+            ],
+            VirtualPairCol::constant(F::one()),
+            InteractionKind::Alu,
+        );
+        interactions
     }
 }
 
