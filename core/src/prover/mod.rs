@@ -126,6 +126,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     // Weight each row of the permutation trace by the respective multiplicities.
     let mut phi = vec![EF::zero(); permutation_trace.height()];
+    let nb_send_iteractions = chip.sends().len();
     for (i, (main_row, permutation_row)) in main.rows().zip(permutation_trace.rows()).enumerate() {
         if i > 0 {
             phi[i] = phi[i - 1];
@@ -139,7 +140,11 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
             let mult = interaction
                 .multiplicity
                 .apply::<F, F>(preprocessed_row, main_row);
-            phi[i] += EF::from_base(mult) * permutation_row[j];
+            if j < nb_send_iteractions {
+                phi[i] += EF::from_base(mult) * permutation_row[j];
+            } else {
+                phi[i] -= EF::from_base(mult) * permutation_row[j];
+            }
         }
     }
 
@@ -163,7 +168,8 @@ where
     C: Chip<F> + Air<AB>,
     AB: PermutationAirBuilder<F = F> + PairBuilder,
 {
-    let random_elements = builder.permutation_randomness().to_vec();
+    let random_elements = builder.permutation_randomness();
+    let (alpha, beta) = (random_elements[0], random_elements[1]);
 
     let main = builder.main();
     let main_local: &[AB::Var] = main.row_slice(0);
@@ -183,8 +189,8 @@ where
 
     let all_interactions = chip.all_interactions();
 
-    let alphas = generate_interaction_rlc_elements(chip, random_elements[0]);
-    let betas = random_elements[1].powers();
+    let alphas = generate_interaction_rlc_elements(chip, alpha);
+    let betas = beta.powers();
 
     let lhs = phi_next - phi_local.clone();
     let mut rhs = AB::ExprEF::from_base(AB::Expr::zero());

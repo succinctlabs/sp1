@@ -15,8 +15,7 @@ use crate::air::reduce;
 use crate::air::CurtaAirBuilder;
 use crate::air::{Bool, Word};
 
-#[derive(Debug, Clone, Copy)]
-pub struct MemoryAir;
+use super::MemoryChip;
 
 pub const NUM_MEMORY_COLS: usize = size_of::<MemoryCols<u8>>();
 pub const MEM_COL: MemoryCols<usize> = make_col_map();
@@ -59,13 +58,13 @@ const fn make_col_map() -> MemoryCols<usize> {
     unsafe { transmute::<[usize; NUM_MEMORY_COLS], MemoryCols<usize>>(indices_arr) }
 }
 
-impl<F: Field> BaseAir<F> for MemoryAir {
+impl<F: Field> BaseAir<F> for MemoryChip {
     fn width(&self) -> usize {
         NUM_MEMORY_COLS
     }
 }
 
-impl<AB: AirBuilder> Air<AB> for MemoryAir {
+impl<AB: AirBuilder> Air<AB> for MemoryChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &MemoryCols<AB::Var> = main.row_slice(0).borrow();

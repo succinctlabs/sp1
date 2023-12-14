@@ -20,7 +20,7 @@ use crate::memory::MemoryInteraction;
 use crate::runtime::Runtime;
 use crate::utils::Chip;
 
-use super::{air::MemoryAir, MemoryEvent};
+use super::{MemoryChip, MemoryEvent};
 
 const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
     (
@@ -39,7 +39,7 @@ const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
     )
 }
 
-impl<F: PrimeField> Chip<F> for MemoryAir {
+impl<F: PrimeField> Chip<F> for MemoryChip {
     // TODO: missing STLU events.
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         let Runtime { memory_events, .. } = runtime;
@@ -59,11 +59,11 @@ impl<F: PrimeField> Chip<F> for MemoryAir {
     }
 
     fn sends(&self) -> Vec<Interaction<F>> {
-        todo!()
+        vec![]
     }
 }
 
-impl MemoryAir {
+impl MemoryChip {
     pub fn generate_trace<F: PrimeField>(events: &[MemoryEvent]) -> RowMajorMatrix<F> {
         let mut events = events.to_vec();
         // Sort the events by address and then by clock cycle.

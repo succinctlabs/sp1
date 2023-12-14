@@ -2,7 +2,6 @@ use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
 use crate::runtime::{Opcode, Runtime};
-use crate::utils::pad_to_power_of_two;
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -21,7 +20,6 @@ impl CpuChip {
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        // println!("cpu_events: {:?}", runtime.cpu_events);
         let rows = runtime
             .cpu_events
             .iter() // TODO: change this back to par_iter
@@ -31,99 +29,91 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
 
-        pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
+        Self::pad_to_power_of_two::<F>(&mut trace.values);
 
         trace
     }
 
-    fn sends(&self) -> Vec<Interaction<F>> {
-        let mut interactions = Vec::new();
+    // fn sends(&self) -> Vec<Interaction<F>> {
+    //     let mut interactions = Vec::new();
 
-        // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
-        // We always write to the first register, unless we are doing a branch operation in which case we read from it.
-        interactions.push(Interaction::lookup_register(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.instruction.op_a[0],
-            CPU_COL_MAP.op_a_val,
-            IsRead::Expr(VirtualPairCol::new_main(
-                vec![(CPU_COL_MAP.selectors.branch_op, F::neg_one())],
-                F::one(),
-            )),
-            VirtualPairCol::constant(F::one()),
-        ));
-        // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
-        // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
-        interactions.push(Interaction::lookup_register(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.instruction.op_c[0],
-            CPU_COL_MAP.op_c_val,
-            IsRead::Bool(true),
-            VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())], F::one()), // 1-imm_c
-        ));
-        interactions.push(Interaction::lookup_register(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.instruction.op_b[0],
-            CPU_COL_MAP.op_b_val,
-            IsRead::Bool(true),
-            VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
-        ));
+    //     // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
+    //     // We always write to the first register, unless we are doing a branch operation in which case we read from it.
+    //     interactions.push(Interaction::lookup_register(
+    //         CPU_COL_MAP.clk,
+    //         CPU_COL_MAP.instruction.op_a[0],
+    //         CPU_COL_MAP.op_a_val,
+    //         IsRead::Expr(VirtualPairCol::new_main(
+    //             vec![(CPU_COL_MAP.selectors.branch_op, F::neg_one())],
+    //             F::one(),
+    //         )),
+    //         VirtualPairCol::constant(F::one()),
+    //     ));
+    //     // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
+    //     // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
+    //     interactions.push(Interaction::lookup_register(
+    //         CPU_COL_MAP.clk,
+    //         CPU_COL_MAP.instruction.op_c[0],
+    //         CPU_COL_MAP.op_c_val,
+    //         IsRead::Bool(true),
+    //         VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())], F::one()), // 1-imm_c
+    //     ));
+    //     interactions.push(Interaction::lookup_register(
+    //         CPU_COL_MAP.clk,
+    //         CPU_COL_MAP.instruction.op_b[0],
+    //         CPU_COL_MAP.op_b_val,
+    //         IsRead::Bool(true),
+    //         VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
+    //     ));
 
-        // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
-        interactions.push(Interaction::add(
-            CPU_COL_MAP.op_a_val,
-            CPU_COL_MAP.op_b_val,
-            CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
-        ));
+    //     // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
+    //     interactions.push(Interaction::add(
+    //         CPU_COL_MAP.op_a_val,
+    //         CPU_COL_MAP.op_b_val,
+    //         CPU_COL_MAP.op_c_val,
+    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
+    //     ));
 
-        //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
-        // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
-        interactions.push(Interaction::add(
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.op_b_val,
-            CPU_COL_MAP.op_c_val,
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
-        ));
-        // To constraint mem_val, we lookup [addr] in the memory table
-        // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
-        interactions.push(Interaction::lookup_memory(
-            CPU_COL_MAP.clk,
-            CPU_COL_MAP.addr,
-            CPU_COL_MAP.mem_val,
-            IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
-            VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
-        ));
-        // Now we must constraint mem_val and op_a_val
-        // We bus this to a "match_word" table with a combination of s/u and h/b/w
-        // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
-        interactions
-    }
+    //     //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
+    //     // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
+    //     interactions.push(Interaction::add(
+    //         CPU_COL_MAP.addr,
+    //         CPU_COL_MAP.op_b_val,
+    //         CPU_COL_MAP.op_c_val,
+    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
+    //     ));
+    //     // To constraint mem_val, we lookup [addr] in the memory table
+    //     // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
+    //     interactions.push(Interaction::lookup_memory(
+    //         CPU_COL_MAP.clk,
+    //         CPU_COL_MAP.addr,
+    //         CPU_COL_MAP.mem_val,
+    //         IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
+    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
+    //     ));
+    //     // Now we must constraint mem_val and op_a_val
+    //     // We bus this to a "match_word" table with a combination of s/u and h/b/w
+    //     // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
+    //     interactions
+    // }
 }
 
 impl CpuChip {
     fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
-        // println!("processing: {:?}", event);
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
-        // println!("clk and pc");
 
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
-
-        // println!("populated instruction and selectors");
 
         cols.op_a_val = event.a.into();
         cols.op_b_val = event.b.into();
         cols.op_c_val = event.c.into();
 
-        // println!("populated op vals");
-
         self.populate_memory(cols, event);
-        // println!("populated memory");
         self.populate_branch(cols, event);
-        // println!("populated branch");
 
         row
     }
@@ -306,7 +296,7 @@ mod tests {
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        println!("{:?}", trace.values);
+        trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 

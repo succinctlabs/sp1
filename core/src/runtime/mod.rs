@@ -13,6 +13,7 @@ pub use register::*;
 
 use std::collections::BTreeMap;
 
+use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use crate::prover::quotient_values;
 use p3_field::{ExtensionField, PrimeField, TwoAdicField};
@@ -124,6 +125,11 @@ impl Runtime {
 
     /// Write to register.
     fn rw(&mut self, register: Register, value: u32) {
+        if register == Register::X0 {
+            // We don't write to %x0. See 2.6 Load and Store Instruction on
+            // P.18 of the RISC-V spec.
+            return;
+        }
         let addr = self.r2m(register);
         self.mw(addr, value);
     }
@@ -470,7 +476,8 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
+                let addr = b.wrapping_add(c);
+                self.pc = self.mr(addr).wrapping_sub(4); // We always add 4 later, so we need to subtract 4 here.
             }
 
             // Upper immediate instructions.
@@ -585,13 +592,15 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
+        const NUM_CHIPS: usize = 6;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
+        let memory = MemoryChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
-        let chips: [&dyn Chip<F>; 5] = [&program, &cpu, &add, &sub, &bitwise];
+        let chips: [&dyn Chip<F>; NUM_CHIPS] = [&program, &cpu, &memory, &add, &sub, &bitwise];
 
         // Compute some statistics.
         let mut main_cols = 0usize;
@@ -607,7 +616,7 @@ impl Runtime {
         let traces = chips.map(|chip| chip.generate_trace(self));
 
         // For each trace, compute the degree.
-        let degrees: [usize; 5] = traces
+        let degrees: [usize; NUM_CHIPS] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -806,28 +815,34 @@ impl Runtime {
             &permutation_traces[0],
             &permutation_challenges,
         );
-        // debug_constraints(
-        //     &cpu,
-        //     &traces[1],
-        //     &permutation_traces[1],
-        //     &permutation_challenges,
-        // );
         debug_constraints(
-            &add,
+            &cpu,
+            &traces[1],
+            &permutation_traces[1],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &memory,
             &traces[2],
             &permutation_traces[2],
             &permutation_challenges,
         );
         debug_constraints(
-            &sub,
+            &add,
             &traces[3],
             &permutation_traces[3],
             &permutation_challenges,
         );
         debug_constraints(
-            &bitwise,
+            &sub,
             &traces[4],
             &permutation_traces[4],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &bitwise,
+            &traces[5],
+            &permutation_traces[5],
             &permutation_challenges,
         );
 
@@ -1275,5 +1290,23 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+    }
+
+    #[test]
+    fn JALR() {
+        //   addi x11, x11, 100
+        //   sw x11, 8(x10)
+        //   jalr x5, x10, 8
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 11, 11, 100),
+            Instruction::new(Opcode::SW, 11, 10, 8),
+            Instruction::new(Opcode::JALR, 5, 10, 8),
+        ];
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X10 as usize], 0);
+        assert_eq!(runtime.registers()[Register::X5 as usize], 12);
+        assert_eq!(runtime.registers()[Register::X11 as usize], 100);
+        assert_eq!(runtime.pc, 100);
     }
 }
