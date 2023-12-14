@@ -1,11 +1,8 @@
 use std::ops::{Index, IndexMut};
 
 use core::borrow::{Borrow, BorrowMut};
-use p3_air::AirBuilder;
 use p3_field::Field;
 use valida_derive::AlignedBorrow;
-
-use super::AirVariable;
 
 /// Using a 32-bit word size, we use four field elements to represent a 32-bit word.
 const WORD_LEN: usize = 4;
@@ -20,23 +17,6 @@ impl<T> Word<T> {
         F: FnMut(T) -> S,
     {
         Word(self.0.map(f))
-    }
-}
-
-impl<T> AirVariable<T> for Word<T> {
-    fn eval_is_valid<AB: AirBuilder>(self, builder: &mut AB)
-    where
-        T: Into<AB::Expr>,
-    {
-    }
-
-    fn eval_is_equal<AB: AirBuilder>(self, other: Self, builder: &mut AB)
-    where
-        T: Into<AB::Expr>,
-    {
-        for (left, right) in self.0.into_iter().zip(other.0) {
-            builder.assert_eq(left, right);
-        }
     }
 }
 
