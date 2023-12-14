@@ -72,14 +72,38 @@ impl Instruction {
     /// Refer to P.104 of The RISC-V Instruction Set Manual for the exact
     /// specification.
     pub fn decode(input: u32) -> Self {
-        if input == 0xc0001073 {
-            // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
-            return Instruction {
-                opcode: Opcode::UNIMP,
-                op_a: 0,
-                op_b: 0,
-                op_c: 0,
-            };
+        // Check the constant instructions first.
+        match input { 
+            0xc0001073 => {
+                // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
+                return Instruction {
+                    opcode: Opcode::UNIMP,
+                    op_a: 0,
+                    op_b: 0,
+                    op_c: 0,
+                };
+            }
+            0x73 => {
+                // ECALL
+                return Instruction {
+                    opcode: Opcode::ECALL,
+                    op_a: 0,
+                    op_b: 0,
+                    op_c: 0,
+                };
+            },
+            0x00100073 => {
+                // EBREAK
+                return Instruction {
+                    opcode: Opcode::EBREAK,
+                    op_a: 0,
+                    op_b: 0,
+                    op_c: 0,
+                };
+            }
+            _ => {
+                // Remaining cases
+            }
         }
         
         let op_code = input & 0b1111111;
@@ -280,30 +304,15 @@ impl Instruction {
                 }
             }
             0b0001111 => {
-                // FENCE, FENCE.I, ECALL, EBREAK
-                let opcode = match funct3 {
+                // FENCE, FENCE.I
+                let _opcode = match funct3 {
                     0b000 => panic!("FENCE not implemented"),
                     0b001 => panic!("FENCE.I not implemented"),
-                    0b111 => {
-                        if funct7 == 0 {
-                            Opcode::ECALL
-                        } else if funct7 == 0b0000001 {
-                            Opcode::EBREAK
-                        } else {
-                            panic!("Invalid funct7 {}", funct7);
-                        }
-                    }
-                    _ => panic!("Invalid funct3 {}", funct3),
+                    _ => panic!("Invalid instruction {}", input),
                 };
-                Instruction {
-                    opcode,
-                    op_a: 0,
-                    op_b: 0,
-                    op_c: 0,
-                }
             }
             0b1110011 => {
-                panic!("CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented {}", input);
+                panic!("CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented 0x{:x}", input);
             }
             opcode => {
                 todo!("opcode {} is invalid", opcode);
