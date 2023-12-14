@@ -298,22 +298,8 @@ dependencies = [
  "anyhow",
  "byteorder",
  "clap",
- "curta-assembler",
  "curta-core",
-]
-
-[[package]]
-name = "curta-assembler"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "byteorder",
- "clap",
- "curta-core",
- "pest",
- "pest_derive",
- "pest_generator",
- "pest_meta",
+ "curta-disassembler",
 ]
 
 [[package]]
@@ -343,7 +329,21 @@ dependencies = [
  "rayon",
  "serde",
  "valida-derive",
- "valida-isa",
+]
+
+[[package]]
+name = "curta-disassembler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "clap",
+ "curta-core",
+ "elf",
+ "pest",
+ "pest_derive",
+ "pest_generator",
+ "pest_meta",
 ]
 
 [[package]]
@@ -361,6 +361,12 @@ name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
+
+[[package]]
+name = "elf"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4445909572dbd556c457c849c4ca58623d84b27c8fff1e74b0b4227d8b90d17b"
 
 [[package]]
 name = "errno"
@@ -1119,13 +1125,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "valida-isa"
-version = "0.1.0"
-dependencies = [
- "curta-core",
 ]
 
 [[package]]
