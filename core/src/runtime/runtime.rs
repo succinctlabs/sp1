@@ -566,14 +566,14 @@ impl Runtime {
                 (b, c) = (imm, 0);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = self.pc.wrapping_add(imm - 4); // We always add 4 later, so we need to subtract 4 here.
+                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = b.wrapping_add(c - 4);
+                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
             }
 
             // Upper immediate instructions.
