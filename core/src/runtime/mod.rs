@@ -754,17 +754,36 @@ impl Runtime {
         challenger.observe(bitwise_quotient_commit);
 
         // Compute the quotient argument.
+        //
+        // Note: It seems like open_multi_batches does not currently yet support traces of different
+        // lengths. As a result, I had to not used the batched opening scheme. We'll need to fix
+        // this in the future?.
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
             (&main_data, zeta_and_next.as_slice()),
             (&permutation_data, zeta_and_next.as_slice()),
-            (&program_quotient_commit_data, zeta_and_next.as_slice()),
-            (&cpu_quotient_commit_data, zeta_and_next.as_slice()),
-            (&add_quotient_commit_data, zeta_and_next.as_slice()),
-            (&sub_quotient_commit_data, zeta_and_next.as_slice()),
-            (&bitwise_quotient_commit_data, zeta_and_next.as_slice()),
         ];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&program_quotient_commit_data, zeta_and_next.as_slice())];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&cpu_quotient_commit_data, zeta_and_next.as_slice())];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&add_quotient_commit_data, zeta_and_next.as_slice())];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&sub_quotient_commit_data, zeta_and_next.as_slice())];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&bitwise_quotient_commit_data, zeta_and_next.as_slice())];
         let (openings, opening_proof) = config
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
@@ -946,7 +965,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ]
-        .repeat(2);
+        .repeat(1024);
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
