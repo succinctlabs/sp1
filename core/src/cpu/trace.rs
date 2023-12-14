@@ -21,7 +21,7 @@ impl CpuChip {
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        println!("cpu_events: {:?}", runtime.cpu_events);
+        // println!("cpu_events: {:?}", runtime.cpu_events);
         let rows = runtime
             .cpu_events
             .iter() // TODO: change this back to par_iter
@@ -102,28 +102,28 @@ impl<F: PrimeField> Chip<F> for CpuChip {
 
 impl CpuChip {
     fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
-        println!("processing: {:?}", event);
+        // println!("processing: {:?}", event);
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
-        println!("clk and pc");
+        // println!("clk and pc");
 
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        println!("populated instruction and selectors");
+        // println!("populated instruction and selectors");
 
         cols.op_a_val = event.a.into();
         cols.op_b_val = event.b.into();
         cols.op_c_val = event.c.into();
 
-        println!("populated op vals");
+        // println!("populated op vals");
 
         self.populate_memory(cols, event);
-        println!("populated memory");
+        // println!("populated memory");
         self.populate_branch(cols, event);
-        println!("populated branch");
+        // println!("populated branch");
 
         row
     }
