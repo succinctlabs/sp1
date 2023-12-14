@@ -1,12 +1,9 @@
 use clap::Parser;
 use curta::Args;
+use curta_core::runtime::Runtime;
 use curta_disassembler::parse_elf;
 
-use curta_core::Runtime;
-use std::{
-    io::Read,
-    path::Path,
-};
+use std::{io::Read, path::Path};
 
 fn main() {
     let args = Args::parse();

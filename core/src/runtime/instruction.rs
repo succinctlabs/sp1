@@ -1,5 +1,7 @@
 use crate::runtime::opcode::Opcode;
-use crate::runtime::runtime::Register;
+
+use super::register::Register;
+
 // An instruction specifies an operation to execute and the operands.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Instruction {
@@ -68,12 +70,12 @@ impl Instruction {
     }
 
     /// Decode a binary representation of a RISC-V instruction and decode it.
-    /// 
+    ///
     /// Refer to P.104 of The RISC-V Instruction Set Manual for the exact
     /// specification.
     pub fn decode(input: u32) -> Self {
         // Check the constant instructions first.
-        match input { 
+        match input {
             0xc0001073 => {
                 // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
                 return Instruction {
@@ -91,7 +93,7 @@ impl Instruction {
                     op_b: 0,
                     op_c: 0,
                 };
-            },
+            }
             0x00100073 => {
                 // EBREAK
                 return Instruction {
@@ -105,7 +107,7 @@ impl Instruction {
                 // Remaining cases
             }
         }
-        
+
         let op_code = input & 0b1111111;
         let rd = (input >> 7) & 0b11111;
         let funct3 = (input >> 12) & 0b111;
@@ -181,7 +183,7 @@ impl Instruction {
                 };
                 // Concatenate to form the immediate value
                 let mut imm = bit_op(input, 31, 12);
-                
+
                 imm |= bit_op(input, 30, 10);
                 imm |= bit_op(input, 29, 9);
                 imm |= bit_op(input, 28, 8);
@@ -275,7 +277,6 @@ impl Instruction {
                 // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
                 // M extension: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU
                 let opcode = match (funct3, funct7) {
-
                     (0, 0) => Opcode::ADD,
                     (0, 0b0100000) => Opcode::SUB,
                     (0b001, 0) => Opcode::SLL,
@@ -312,7 +313,10 @@ impl Instruction {
                 };
             }
             0b1110011 => {
-                panic!("CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented 0x{:x}", input);
+                panic!(
+                    "CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI not implemented 0x{:x}",
+                    input
+                );
             }
             opcode => {
                 todo!("opcode {} is invalid", opcode);
@@ -321,22 +325,20 @@ impl Instruction {
     }
 }
 
-
 /// Take the from-th bit of a and return a number whose to-th bit is set. The
 /// least significant bit is the 0th bit.
-fn bit_op(a: u32, from: usize, to: usize) -> u32{
+fn bit_op(a: u32, from: usize, to: usize) -> u32 {
     ((a >> from) & 1) << to
 }
 
 /// Treat the length-th bit as the sign bit and extend it all the way.
-fn extend_sign(bits: u32, length : usize) -> u32 {
+fn extend_sign(bits: u32, length: usize) -> u32 {
     if (bits >> (length - 1)) == 0 {
         bits
     } else {
         (0xffffffff << length) | bits
     }
 }
-
 
 #[cfg(test)]
 #[allow(non_snake_case)]
@@ -356,48 +358,48 @@ pub mod tests {
         decode_unit_test(0x00c58633, Opcode::ADD, 12, 11, 12);
         decode_unit_test(0x00d506b3, Opcode::ADD, 13, 10, 13);
         decode_unit_test(0x00a70533, Opcode::ADD, 10, 14, 10);
-        decode_unit_test(0xffffe517, Opcode::AUIPC, 10,0xffffe, 0);
-        decode_unit_test(0xfffff797, Opcode::AUIPC, 15,0xfffff, 0);
+        decode_unit_test(0xffffe517, Opcode::AUIPC, 10, 0xffffe, 0);
+        decode_unit_test(0xfffff797, Opcode::AUIPC, 15, 0xfffff, 0);
 
-        decode_unit_test(0x00200793, Opcode::ADDI, 15,0,2);
-        decode_unit_test(0x00000013, Opcode::ADDI, 0,0,0);
+        decode_unit_test(0x00200793, Opcode::ADDI, 15, 0, 2);
+        decode_unit_test(0x00000013, Opcode::ADDI, 0, 0, 0);
         decode_unit_test(0xfb010113, Opcode::ADDI, 2, 2, u32::MAX - 80 + 1); // addi sp, sp, -80
         decode_unit_test(0xc2958593, Opcode::ADDI, 11, 11, u32::MAX - 983 + 1); // addi a1, a1, -983
 
-        decode_unit_test(0x05612c23, Opcode::SW, 22,2, 88); // sw x22,88(x2)
-        decode_unit_test(0x01b12e23, Opcode::SW, 27,2, 28); // sw x27,28(x2)
+        decode_unit_test(0x05612c23, Opcode::SW, 22, 2, 88); // sw x22,88(x2)
+        decode_unit_test(0x01b12e23, Opcode::SW, 27, 2, 28); // sw x27,28(x2)
         decode_unit_test(0x01052223, Opcode::SW, 16, 10, 4); // sw x16,4(x10)
         decode_unit_test(0x00a12423, Opcode::SW, 10, 2, 8); // sw	a0,8(sp)
         decode_unit_test(0x02052403, Opcode::LW, 8, 10, 32); // lw x8,32(x10)
         decode_unit_test(0x03452683, Opcode::LW, 13, 10, 52); // lw x13,52(x10)
-        decode_unit_test(0x0006a703, Opcode::LW, 14,13, 0); // lw x14,0(x13)
-        decode_unit_test(0x00001a37, Opcode::LUI,20,0x1, 0); // lui x20,0x1
-        decode_unit_test(0x800002b7, Opcode::LUI,5,0x80000, 0); // lui x5,0x80000
-        decode_unit_test(0x212120b7, Opcode::LUI,1,0x21212, 0); // lui x1,0x21212
-        decode_unit_test(0x00e78023, Opcode::SB, 14, 15,0); // SB x14,0(x15)
-        decode_unit_test(0x001101a3, Opcode::SB, 1,2, 3); // SB x1,3(x2)
+        decode_unit_test(0x0006a703, Opcode::LW, 14, 13, 0); // lw x14,0(x13)
+        decode_unit_test(0x00001a37, Opcode::LUI, 20, 0x1, 0); // lui x20,0x1
+        decode_unit_test(0x800002b7, Opcode::LUI, 5, 0x80000, 0); // lui x5,0x80000
+        decode_unit_test(0x212120b7, Opcode::LUI, 1, 0x21212, 0); // lui x1,0x21212
+        decode_unit_test(0x00e78023, Opcode::SB, 14, 15, 0); // SB x14,0(x15)
+        decode_unit_test(0x001101a3, Opcode::SB, 1, 2, 3); // SB x1,3(x2)
 
         // TODO: do we want to support a negative offset?
 
-        decode_unit_test(0x7e7218e3, Opcode::BNE, 4,7, 0xff0);
-        decode_unit_test(0x5a231763, Opcode::BNE, 6,2,0x5ae);
-        decode_unit_test(0x0eb51fe3, Opcode::BNE, 10,11,0x8fe);
+        decode_unit_test(0x7e7218e3, Opcode::BNE, 4, 7, 0xff0);
+        decode_unit_test(0x5a231763, Opcode::BNE, 6, 2, 0x5ae);
+        decode_unit_test(0x0eb51fe3, Opcode::BNE, 10, 11, 0x8fe);
 
-        decode_unit_test(0x7e7268e3, Opcode::BLTU, 4,7, 0xff0);
-        decode_unit_test(0x5a236763, Opcode::BLTU, 6,2,0x5ae);
-        decode_unit_test(0x0eb56fe3, Opcode::BLTU, 10,11,0x8fe);
+        decode_unit_test(0x7e7268e3, Opcode::BLTU, 4, 7, 0xff0);
+        decode_unit_test(0x5a236763, Opcode::BLTU, 6, 2, 0x5ae);
+        decode_unit_test(0x0eb56fe3, Opcode::BLTU, 10, 11, 0x8fe);
 
-        decode_unit_test(0x0020bf33, Opcode::SLTU, 30,1,2);
-        decode_unit_test(0x0020bf33, Opcode::SLTU, 30,1,2);
-        decode_unit_test(0x000030b3, Opcode::SLTU, 1,0,0);
+        decode_unit_test(0x0020bf33, Opcode::SLTU, 30, 1, 2);
+        decode_unit_test(0x0020bf33, Opcode::SLTU, 30, 1, 2);
+        decode_unit_test(0x000030b3, Opcode::SLTU, 1, 0, 0);
 
-        decode_unit_test(0x0006c783, Opcode::LBU, 15,13, 0);
-        decode_unit_test(0x0006c703, Opcode::LBU, 14,13, 0);
-        decode_unit_test(0x0007c683, Opcode::LBU, 13,15, 0);
+        decode_unit_test(0x0006c783, Opcode::LBU, 15, 13, 0);
+        decode_unit_test(0x0006c703, Opcode::LBU, 14, 13, 0);
+        decode_unit_test(0x0007c683, Opcode::LBU, 13, 15, 0);
 
         // TODO: Do we want to support a negative offset?
-        decode_unit_test(0x08077693,  Opcode::ANDI, 13,14,128);
-        decode_unit_test(0x04077693,  Opcode::ANDI, 13,14,64);
+        decode_unit_test(0x08077693, Opcode::ANDI, 13, 14, 128);
+        decode_unit_test(0x04077693, Opcode::ANDI, 13, 14, 64);
 
         // TODO: negative offset?
         decode_unit_test(0x00111223, Opcode::SH, 1, 2, 4); // sh x1,4(x2)

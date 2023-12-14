@@ -1,14 +1,13 @@
-use super::air::{CpuCols, InstructionCols, OpcodeSelectors, CPU_COL_MAP, NUM_CPU_COLS};
+use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
-use crate::runtime::opcode::Opcode;
+use crate::runtime::{Opcode, Runtime};
+use crate::utils::pad_to_power_of_two;
 use crate::utils::Chip;
-use crate::Runtime;
+
 use core::mem::transmute;
 use p3_air::VirtualPairCol;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::air::Word;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -29,12 +28,10 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             .map(|op| self.event_to_row(*op))
             .collect::<Vec<_>>();
 
-        println!("rows: {:?}", rows);
-
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
 
-        Self::pad_to_power_of_two(&mut trace.values);
+        pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
 
         trace
     }
@@ -100,11 +97,6 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         // We bus this to a "match_word" table with a combination of s/u and h/b/w
         // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
         interactions
-    }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        // The CPU table does not receive from anybody.
-        vec![]
     }
 }
 
@@ -204,8 +196,8 @@ impl CpuChip {
 
 #[cfg(test)]
 mod tests {
-    use crate::runtime::instruction::Instruction;
-    use crate::runtime::runtime::tests::get_simple_program;
+    use crate::runtime::{tests::get_simple_program, Instruction};
+
     use p3_baby_bear::BabyBear;
 
     use p3_challenger::DuplexChallenger;
@@ -224,7 +216,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{alu::AluEvent, runtime::opcode::Opcode, utils::Chip, Runtime};
+    use crate::utils::Chip;
     use p3_commit::ExtensionMmcs;
 
     use super::*;

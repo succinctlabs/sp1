@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use crate::runtime::runtime::Register;
-
 pub mod air;
 mod interaction;
 pub mod trace;
 
 pub use interaction::MemoryInteraction;
+
+use crate::runtime::Register;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MemOp {
@@ -109,8 +109,9 @@ mod tests {
     use rand::thread_rng;
 
     use crate::memory::MemOp;
-    use crate::runtime::runtime::tests::get_simple_program;
-    use crate::Runtime;
+    use crate::runtime::tests::get_simple_program;
+    use crate::runtime::Runtime;
+
     use p3_commit::ExtensionMmcs;
 
     use super::air::MemoryAir;
