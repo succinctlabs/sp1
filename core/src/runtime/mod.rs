@@ -5,18 +5,20 @@ mod register;
 pub use instruction::*;
 pub use opcode::*;
 use p3_challenger::{CanObserve, FieldChallenger};
-use p3_commit::{Pcs, UnivariatePcs};
+use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_uni_stark::decompose_and_flatten;
 pub use register::*;
 
 use std::collections::BTreeMap;
 
 use crate::prover::debug_constraints;
+use crate::prover::quotient_values;
 use p3_field::{ExtensionField, PrimeField, TwoAdicField};
 use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_strict_usize;
 
-use crate::prover::{debug_cumulative_sums, generate_permutation_trace};
+use crate::prover::generate_permutation_trace;
 use crate::{
     alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
     cpu::{trace::CpuChip, CpuEvent},
@@ -600,6 +602,7 @@ impl Runtime {
             .try_into()
             .unwrap();
         let log_degrees = degrees.map(|d| log2_strict_usize(d));
+        let log_quotient_degrees = log_degrees.map(|d| d - 1);
         let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
 
         // Commit to the batch of traces.
@@ -630,12 +633,132 @@ impl Runtime {
             config.pcs().commit_batches(flattened_permutation_traces);
         challenger.observe(permutation_commit);
 
-        // TODO: ADD QUOTIENT COMMITMENTS
+        // For each chip, compute the quotient polynomial.
+        let main_ldes = config.pcs().get_ldes(&main_data);
+        let permutation_ldes = config.pcs().get_ldes(&permutation_data);
+        let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
+        let program_quotient_values = quotient_values(
+            config,
+            &program,
+            log_degrees[0],
+            log_quotient_degrees[0],
+            main_ldes[0],
+            alpha,
+        );
+        let cpu_quotient_values = quotient_values(
+            config,
+            &cpu,
+            log_degrees[1],
+            log_quotient_degrees[1],
+            main_ldes[1],
+            alpha,
+        );
+        let add_quotient_values = quotient_values(
+            config,
+            &add,
+            log_degrees[2],
+            log_quotient_degrees[2],
+            main_ldes[2],
+            alpha,
+        );
+        let sub_quotient_values = quotient_values(
+            config,
+            &sub,
+            log_degrees[3],
+            log_quotient_degrees[3],
+            main_ldes[3],
+            alpha,
+        );
+        let bitwise_quotient_values = quotient_values(
+            config,
+            &bitwise,
+            log_degrees[4],
+            log_quotient_degrees[4],
+            main_ldes[4],
+            alpha,
+        );
+
+        // Decompose the quotient values into chunks.
+        let program_quotient_chunks = decompose_and_flatten::<SC>(
+            program_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degrees[0],
+        );
+        let cpu_quotient_chunks = decompose_and_flatten::<SC>(
+            cpu_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degrees[1],
+        );
+        let add_quotient_chunks = decompose_and_flatten::<SC>(
+            add_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degrees[2],
+        );
+        let sub_quotient_chunks = decompose_and_flatten::<SC>(
+            sub_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degrees[3],
+        );
+        let bitwise_quotient_chunks = decompose_and_flatten::<SC>(
+            bitwise_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degrees[4],
+        );
+
+        let (program_quotient_commit, program_quotient_commit_data) =
+            config.pcs().commit_shifted_batch(
+                program_quotient_chunks,
+                config
+                    .pcs()
+                    .coset_shift()
+                    .exp_power_of_2(log_quotient_degrees[0]),
+            );
+        let (cpu_quotient_commit, cpu_quotient_commit_data) = config.pcs().commit_shifted_batch(
+            cpu_quotient_chunks,
+            config
+                .pcs()
+                .coset_shift()
+                .exp_power_of_2(log_quotient_degrees[0]),
+        );
+        let (add_quotient_commit, add_quotient_commit_data) = config.pcs().commit_shifted_batch(
+            add_quotient_chunks,
+            config
+                .pcs()
+                .coset_shift()
+                .exp_power_of_2(log_quotient_degrees[0]),
+        );
+        let (sub_quotient_commit, sub_quotient_commit_data) = config.pcs().commit_shifted_batch(
+            sub_quotient_chunks,
+            config
+                .pcs()
+                .coset_shift()
+                .exp_power_of_2(log_quotient_degrees[0]),
+        );
+        let (bitwise_quotient_commit, bitwise_quotient_commit_data) =
+            config.pcs().commit_shifted_batch(
+                bitwise_quotient_chunks,
+                config
+                    .pcs()
+                    .coset_shift()
+                    .exp_power_of_2(log_quotient_degrees[0]),
+            );
+
+        challenger.observe(program_quotient_commit);
+        challenger.observe(cpu_quotient_commit);
+        challenger.observe(add_quotient_commit);
+        challenger.observe(sub_quotient_commit);
+        challenger.observe(bitwise_quotient_commit);
+
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
             (&main_data, zeta_and_next.as_slice()),
             (&permutation_data, zeta_and_next.as_slice()),
+            (&program_quotient_commit_data, zeta_and_next.as_slice()),
+            (&cpu_quotient_commit_data, zeta_and_next.as_slice()),
+            (&add_quotient_commit_data, zeta_and_next.as_slice()),
+            (&sub_quotient_commit_data, zeta_and_next.as_slice()),
+            (&bitwise_quotient_commit_data, zeta_and_next.as_slice()),
         ];
         let (openings, opening_proof) = config
             .pcs()

@@ -34,6 +34,11 @@ pub const fn indices_arr<const N: usize>() -> [usize; N] {
 
 pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
     debug_assert!(values.len() % N == 0);
-    let n_real_rows = values.len() / N;
+    let mut n_real_rows = values.len() / N;
+    if n_real_rows == 0 {
+        n_real_rows = 4;
+    } else if n_real_rows == 1 {
+        n_real_rows = 4;
+    }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
