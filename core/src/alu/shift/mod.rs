@@ -122,7 +122,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{alu::AluEvent, utils::Chip, Runtime, runtime::opcode::Opcode};
+    use crate::{alu::AluEvent, runtime::opcode::Opcode, utils::Chip, Runtime};
     use p3_commit::ExtensionMmcs;
 
     use super::ShiftChip;

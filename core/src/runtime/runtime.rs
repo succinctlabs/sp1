@@ -664,6 +664,7 @@ impl Runtime {
         // Set the return address to the end of the program.
         self.rw(Register::X1, (self.program.len() * 4) as u32);
 
+        self.clk += 1;
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();

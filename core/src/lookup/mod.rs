@@ -1,8 +1,7 @@
-use p3_air::{PairCol, VirtualPairCol};
+use p3_air::VirtualPairCol;
 use p3_field::Field;
 
-use crate::air::{reduce, AirConstraint, AirVariable, Bool, Word};
-use crate::memory::MemOp;
+use crate::air::Word;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
@@ -33,6 +32,18 @@ pub enum IsRead<F: Field> {
 }
 
 impl<F: Field> Interaction<F> {
+    pub fn new(
+        values: Vec<VirtualPairCol<F>>,
+        multiplicity: VirtualPairCol<F>,
+        kind: InteractionKind,
+    ) -> Self {
+        Self {
+            values,
+            multiplicity,
+            kind,
+        }
+    }
+
     pub fn lookup_register(
         clk: usize,
         register: usize,
