@@ -2,13 +2,13 @@ use crate::air::{reduce, AirConstraint, Word};
 use crate::runtime::{Instruction, Opcode};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::AirBuilder;
+use p3_air::{Air, AirBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
-use super::CpuEvent;
+use super::trace::CpuChip;
 
 #[derive(AlignedBorrow, Default)]
 #[repr(C)]
@@ -303,4 +303,11 @@ impl<AB: AirBuilder> AirConstraint<AB> for CpuCols<AB::Var> {
             reduce::<AB>(local.op_c_val) + local.pc,
         );
     }
+}
+
+impl<AB> Air<AB> for CpuChip
+where
+    AB: AirBuilder,
+{
+    fn eval(&self, builder: &mut AB) {}
 }

@@ -11,12 +11,11 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-mod utils;
-
-use p3_challenger::CanObserve;
-use p3_commit::Pcs;
-use p3_field::{PrimeField, TwoAdicField};
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use crate::prover::{debug_constraints, debug_cumulative_sums, generate_permutation_trace};
+use p3_challenger::{CanObserve, FieldChallenger};
+use p3_commit::{Pcs, UnivariatePcs};
+use p3_field::{ExtensionField, PrimeField, TwoAdicField};
+use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_strict_usize;
 
@@ -858,6 +857,7 @@ impl Runtime {
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
     where
         F: PrimeField + TwoAdicField,
+        EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
         // Initialize chips.
@@ -866,29 +866,12 @@ impl Runtime {
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
+        let chips: [&dyn Chip<F>; 5] = [&program, &cpu, &add, &sub, &bitwise];
 
-        // Generate the trace for the program chip.
-        let program_trace: RowMajorMatrix<F> = program.generate_trace(self);
+        // For each chip, generate the trace.
+        let traces = chips.map(|chip| chip.generate_trace(self));
 
-        // Generate the trace for the CPU chip and also emit auxiliary events.
-        let cpu_trace: RowMajorMatrix<F> = cpu.generate_trace(self);
-
-        // Generate the trace of the add chip.
-        let add_trace: RowMajorMatrix<F> = add.generate_trace(self);
-
-        // Generate the trace of the sub chip.
-        let sub_trace: RowMajorMatrix<F> = sub.generate_trace(self);
-
-        // Generate the trace of the bitwise chip.
-        let bitwise_trace: RowMajorMatrix<F> = bitwise.generate_trace(self);
-
-        let traces: [RowMajorMatrix<F>; 5] = [
-            program_trace,
-            cpu_trace,
-            add_trace,
-            sub_trace,
-            bitwise_trace,
-        ];
+        // For each trace, compute the degree.
         let degrees: [usize; 5] = traces
             .iter()
             .map(|trace| trace.height())
@@ -898,29 +881,138 @@ impl Runtime {
         let log_degrees = degrees.map(|d| log2_strict_usize(d));
         let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
 
+        // Commit to the batch of traces.
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
         challenger.observe(main_commit);
 
-        // let mut perm_challenges = Vec::new();
-        // for _ in 0..3 {
-        //     perm_challenges.push(challenger.sample_ext_element());
-        // }
+        // Obtain the challenges used for the permutation argument.
+        let mut permutation_challenges: Vec<EF> = Vec::new();
+        for _ in 0..2 {
+            permutation_challenges.push(challenger.sample_ext_element());
+        }
 
-        // let perm_traces = [];
+        // Generate the permutation traces.
+        let permutation_traces = chips
+            .into_iter()
+            .enumerate()
+            .map(|(i, chip)| {
+                generate_permutation_trace(chip, &traces[i], permutation_challenges.clone())
+            })
+            .collect::<Vec<_>>();
 
-        // Generate the proof.
-        // multiprove(vec![program, cpu, memory, alu];
+        // Commit to the permutation traces.
+        let flattened_permutation_traces = permutation_traces
+            .iter()
+            .map(|trace| trace.flatten_to_base())
+            .collect::<Vec<_>>();
+        let (permutation_commit, permutation_data) =
+            config.pcs().commit_batches(flattened_permutation_traces);
+        challenger.observe(permutation_commit);
+
+        // TODO: ADD QUOTIENT COMMITMENTS
+        let zeta: SC::Challenge = challenger.sample_ext_element();
+        let zeta_and_next = [zeta, zeta * g_subgroups[0]];
+        let prover_data_and_points = [
+            (&main_data, zeta_and_next.as_slice()),
+            (&permutation_data, zeta_and_next.as_slice()),
+        ];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+
+        // Check that the table-specific constraints are correct for each chip.
+        debug_constraints(
+            &program,
+            &traces[0],
+            &permutation_traces[0],
+            &permutation_challenges,
+        );
+
+        // Check the permutation argument between all tables.
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
+    use p3_challenger::DuplexChallenger;
+    use p3_commit::ExtensionMmcs;
+    use p3_dft::Radix2DitParallel;
+    use p3_field::Field;
+
     use p3_baby_bear::BabyBear;
+    use p3_field::extension::BinomialExtensionField;
+    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+    use p3_keccak::Keccak256Hash;
+    use p3_ldt::QuotientMmcs;
+    use p3_mds::coset_mds::CosetMds;
+    use p3_merkle_tree::FieldMerkleTreeMmcs;
+    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_uni_stark::StarkConfigImpl;
+    use rand::thread_rng;
 
     use crate::{runtime::Register, Runtime};
 
     use super::{Instruction, Opcode};
+
+    #[test]
+    fn PROVE() {
+        type Val = BabyBear;
+        type Domain = Val;
+        type Challenge = BinomialExtensionField<Val, 4>;
+        type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+
+        type MyMds = CosetMds<Val, 16>;
+        let mds = MyMds::default();
+
+        type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+
+        type MyHash = SerializingHasher32<Keccak256Hash>;
+        let hash = MyHash::new(Keccak256Hash {});
+
+        type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+        let compress = MyCompress::new(hash);
+
+        type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+        let val_mmcs = ValMmcs::new(hash, compress);
+
+        type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+        let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+
+        type Dft = Radix2DitParallel;
+        let dft = Dft {};
+
+        type Challenger = DuplexChallenger<Val, Perm, 16>;
+
+        type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+        type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let ldt = FriLdt { config: fri_config };
+
+        type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+        type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
+
+        let pcs = Pcs::new(dft, val_mmcs, ldt);
+        let config = StarkConfigImpl::new(pcs);
+        let mut challenger = Challenger::new(perm.clone());
+
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 0, 37),
+            Instruction::new(Opcode::ADD, 31, 30, 29),
+        ];
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
+    }
 
     #[test]
     fn ADD() {

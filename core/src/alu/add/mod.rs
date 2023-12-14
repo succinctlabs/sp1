@@ -10,7 +10,6 @@ use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::lookup::Interaction;
 use crate::utils::{pad_to_power_of_two, Chip};
 use crate::Runtime;
 

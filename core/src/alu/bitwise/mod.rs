@@ -11,7 +11,6 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::lookup::Interaction;
 use crate::runtime::Opcode;
 use crate::utils::{pad_to_power_of_two, Chip};
 use crate::Runtime;

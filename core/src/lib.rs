@@ -6,6 +6,7 @@ pub mod lookup;
 pub mod memory;
 pub mod precompiles;
 pub mod program;
+pub mod prover;
 pub mod utils;
 
 extern crate alloc;

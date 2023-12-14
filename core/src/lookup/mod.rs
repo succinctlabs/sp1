@@ -1,8 +1,7 @@
-use p3_air::{PairCol, VirtualPairCol};
+use p3_air::VirtualPairCol;
 use p3_field::Field;
 
-use crate::air::{reduce, AirConstraint, AirVariable, Bool, Word};
-use crate::memory::MemOp;
+use crate::air::Word;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
@@ -12,6 +11,7 @@ pub struct Interaction<F: Field> {
 }
 
 /// The type of interaction for a lookup argument.
+#[derive(Debug, Clone, Copy)]
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
     Memory = 1,
@@ -34,7 +34,7 @@ pub enum IsRead<F: Field> {
 
 impl<F: Field> Interaction<F> {
     pub fn argument_index(&self) -> usize {
-        todo!()
+        self.kind as usize
     }
 
     pub fn lookup_register(

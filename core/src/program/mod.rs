@@ -8,7 +8,6 @@ use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::cpu::air::{InstructionCols, OpcodeSelectors};
-use crate::lookup::Interaction;
 use crate::utils::{pad_to_power_of_two, Chip};
 use crate::Runtime;
 

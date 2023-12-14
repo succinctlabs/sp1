@@ -1,7 +1,7 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 use crate::lookup::{Interaction, IsRead};
-use crate::utils::Chip;
+use crate::utils::{pad_to_power_of_two, Chip};
 use core::mem::transmute;
 use p3_air::{BaseAir, VirtualPairCol};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -27,16 +27,15 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             .map(|op| self.event_to_row(*op))
             .collect::<Vec<_>>();
 
-        let trace =
+        let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
 
-        // TODO: pad to a power of 2.
-        // Self::pad_to_power_of_two(&mut trace.values);
+        pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
 
         trace
     }
 
-    fn global_sends(&self) -> Vec<Interaction<F>> {
+    fn sends(&self) -> Vec<Interaction<F>> {
         let mut interactions = Vec::new();
 
         // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
