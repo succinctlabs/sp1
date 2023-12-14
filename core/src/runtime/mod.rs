@@ -756,8 +756,8 @@ impl Runtime {
         // Compute the quotient argument.
         //
         // Note: It seems like open_multi_batches does not currently yet support traces of different
-        // lengths. As a result, I had to not used the batched opening scheme. We'll need to fix
-        // this in the future?.
+        // lengths. As a result, I had to not use the batched opening scheme. We'll need to fix
+        // this in the future?
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
