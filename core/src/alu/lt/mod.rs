@@ -15,11 +15,11 @@ use crate::utils::{pad_to_power_of_two, Chip};
 
 use super::AluEvent;
 
-pub const NUM_SHIFT_COLS: usize = size_of::<ShiftCols<u8>>();
+pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
-pub struct ShiftCols<T> {
+pub struct LtCols<T> {
     /// The output operand.
     pub a: Word<T>,
 
@@ -35,20 +35,20 @@ pub struct ShiftCols<T> {
     pub is_sra: T,
 }
 
-/// A chip that implements bitwise operations for the opcodes SLL, SLLI, SRL, SRLI, SRA, and SRAI.
-pub struct ShiftChip {
+/// A chip that implements bitwise operations for the opcodes SLT, SLTI, SLTU, and SLTIU.
+pub struct LtChip {
     events: Vec<AluEvent>,
 }
 
-impl<F: PrimeField> Chip<F> for ShiftChip {
+impl<F: PrimeField> Chip<F> for LtChip {
     fn generate_trace(&self, _: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = self
             .events
             .par_iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_SHIFT_COLS];
-                let cols: &mut ShiftCols<F> = unsafe { transmute(&mut row) };
+                let mut row = [F::zero(); NUM_LT_COLS];
+                let cols: &mut LtCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
@@ -60,31 +60,29 @@ impl<F: PrimeField> Chip<F> for ShiftChip {
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHIFT_COLS,
-        );
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LT_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
 
         trace
     }
 }
 
-impl<F> BaseAir<F> for ShiftChip {
+impl<F> BaseAir<F> for LtChip {
     fn width(&self) -> usize {
-        NUM_SHIFT_COLS
+        NUM_LT_COLS
     }
 }
 
-impl<AB> Air<AB> for ShiftChip
+impl<AB> Air<AB> for LtChip
 where
     AB: AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ShiftCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &LtCols<AB::Var> = main.row_slice(0).borrow();
 
         let two = AB::F::from_canonical_u32(2);
 
@@ -118,7 +116,7 @@ mod tests {
     };
     use p3_commit::ExtensionMmcs;
 
-    use super::ShiftChip;
+    use super::LtChip;
 
     #[test]
     fn generate_trace() {
@@ -131,7 +129,7 @@ mod tests {
             b: 8,
             c: 6,
         }];
-        let chip = ShiftChip { events };
+        let chip = LtChip { events };
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
     }
@@ -204,7 +202,7 @@ mod tests {
             },
         ]
         .repeat(1000);
-        let chip = ShiftChip { events };
+        let chip = LtChip { events };
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
