@@ -176,40 +176,40 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let events = vec![
-            MemoryEvent {
-                clk: 1,
-                addr: 0,
-                op: MemOp::Write,
-                value: 1,
-            },
-            MemoryEvent {
-                clk: 2,
-                addr: 0,
-                op: MemOp::Read,
-                value: 1,
-            },
-            MemoryEvent {
-                clk: 3,
-                addr: 1,
-                op: MemOp::Write,
-                value: 0,
-            },
-            MemoryEvent {
-                clk: 4,
-                addr: 1,
-                op: MemOp::Read,
-                value: 0,
-            },
-        ];
-        // let events = (0..(1 << 3))
-        //     .map(|i| MemoryEvent {
-        //         clk: i + 1,
-        //         addr: i + 1,
+        // let events = vec![
+        //     MemoryEvent {
+        //         clk: 1,
+        //         addr: 0,
         //         op: MemOp::Write,
-        //         value: i,
-        //     })
-        //     .collect::<Vec<_>>();
+        //         value: 1,
+        //     },
+        //     MemoryEvent {
+        //         clk: 2,
+        //         addr: 0,
+        //         op: MemOp::Read,
+        //         value: 1,
+        //     },
+        //     MemoryEvent {
+        //         clk: 3,
+        //         addr: 1,
+        //         op: MemOp::Write,
+        //         value: 0,
+        //     },
+        //     MemoryEvent {
+        //         clk: 4,
+        //         addr: 1,
+        //         op: MemOp::Read,
+        //         value: 0,
+        //     },
+        // ];
+        let events = (0..1024)
+            .map(|i| MemoryEvent {
+                clk: i + 1,
+                addr: i + 1,
+                op: MemOp::Write,
+                value: i,
+            })
+            .collect::<Vec<_>>();
         let trace: RowMajorMatrix<BabyBear> = MemoryAir::generate_trace(&events);
         let air = MemoryAir {};
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
