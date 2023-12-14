@@ -165,7 +165,7 @@ impl Instruction {
                     opcode: Opcode::JALR,
                     op_a: rd,
                     op_b: (input >> 15) & 0b11111,
-                    op_c: imm_11_0,
+                    op_c: extend_sign(imm_11_0, 12),
                 }
             }
             0b1100011 => {
@@ -408,5 +408,7 @@ pub mod tests {
         decode_unit_test(0x2f22f36f, Opcode::JAL, 6, 0x2f2f2, 0); // jal x1 604
 
         decode_unit_test(0x00008067, Opcode::JALR, 0, 1, 0); // JALR x0 0(x1)
+
+        decode_unit_test(0xeec080e7, Opcode::JALR, 1, 1, u32::MAX - 276 + 1); // JALR x1 -276(x1)
     }
 }
