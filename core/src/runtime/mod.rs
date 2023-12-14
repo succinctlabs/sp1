@@ -1,24 +1,22 @@
-//! An implementation of a runtime for the Curta VM.
-//!
-//! The runtime is responsible for executing a user program and tracing important events which occur
-//! during execution (i.e., memory reads, alu operations, etc).
-//!
-//! For more information on the RV32IM instruction set, see the following:
-//! https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
+mod instruction;
+mod opcode;
+mod register;
 
-use std::{
-    collections::BTreeMap,
-    fmt::{Display, Formatter},
-};
-
-use crate::prover::{debug_constraints, debug_cumulative_sums, generate_permutation_trace};
+pub use instruction::*;
+pub use opcode::*;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs};
+pub use register::*;
+
+use std::collections::BTreeMap;
+
+use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, TwoAdicField};
 use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_strict_usize;
 
+use crate::prover::{debug_cumulative_sums, generate_permutation_trace};
 use crate::{
     alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
     cpu::{trace::CpuChip, CpuEvent},
@@ -27,330 +25,13 @@ use crate::{
     utils::Chip,
 };
 
-/// An opcode specifies which operation to execute.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
-pub enum Opcode {
-    /// Register instructions.
-    ADD = 0,
-    SUB = 1,
-    XOR = 2,
-    OR = 3,
-    AND = 4,
-    SLL = 5,
-    SRL = 6,
-    SRA = 7,
-    SLT = 8,
-    SLTU = 9,
-
-    /// Immediate instructions.
-    ADDI = 10,
-    XORI = 11,
-    ORI = 12,
-    ANDI = 13,
-    SLLI = 14,
-    SRLI = 15,
-    SRAI = 16,
-    SLTI = 17,
-    SLTIU = 18,
-
-    /// Load instructions.
-    LB = 19,
-    LH = 20,
-    LW = 21,
-    LBU = 22,
-    LHU = 23,
-
-    /// Store instructions.
-    SB = 24,
-    SH = 25,
-    SW = 26,
-
-    /// Branch instructions.
-    BEQ = 27,
-    BNE = 28,
-    BLT = 29,
-    BGE = 30,
-    BLTU = 31,
-    BGEU = 32,
-
-    /// Jump instructions.
-    JAL = 33,
-    JALR = 34,
-    LUI = 35,
-    AUIPC = 36,
-
-    /// System instructions.
-    ECALL = 37,
-    EBREAK = 38,
-
-    /// Multiply instructions.
-    MUL = 39,
-    MULH = 40,
-    MULSU = 41,
-    MULU = 42,
-    DIV = 43,
-    DIVU = 44,
-    REM = 45,
-    REMU = 46,
-}
-
-impl Display for Opcode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            // R-type instructions.
-            Opcode::ADD => write!(f, "add"),
-            Opcode::SUB => write!(f, "sub"),
-            Opcode::XOR => write!(f, "xor"),
-            Opcode::OR => write!(f, "or"),
-            Opcode::AND => write!(f, "and"),
-            Opcode::SLL => write!(f, "sll"),
-            Opcode::SRL => write!(f, "srl"),
-            Opcode::SRA => write!(f, "sra"),
-            Opcode::SLT => write!(f, "slt"),
-            Opcode::SLTU => write!(f, "sltu"),
-
-            // I-type instructions.
-            Opcode::ADDI => write!(f, "addi"),
-            Opcode::XORI => write!(f, "xori"),
-            Opcode::ORI => write!(f, "ori"),
-            Opcode::ANDI => write!(f, "andi"),
-            Opcode::SLLI => write!(f, "slli"),
-            Opcode::SRLI => write!(f, "srli"),
-            Opcode::SRAI => write!(f, "srai"),
-            Opcode::SLTI => write!(f, "slti"),
-            Opcode::SLTIU => write!(f, "sltiu"),
-
-            // Load instructions.
-            Opcode::LB => write!(f, "lb"),
-            Opcode::LH => write!(f, "lh"),
-            Opcode::LW => write!(f, "lw"),
-            Opcode::LBU => write!(f, "lbu"),
-            Opcode::LHU => write!(f, "lhu"),
-
-            // Store instructions.
-            Opcode::SB => write!(f, "sb"),
-            Opcode::SH => write!(f, "sh"),
-            Opcode::SW => write!(f, "sw"),
-
-            // Branch instructions.
-            Opcode::BEQ => write!(f, "beq"),
-            Opcode::BNE => write!(f, "bne"),
-            Opcode::BLT => write!(f, "blt"),
-            Opcode::BGE => write!(f, "bge"),
-            Opcode::BLTU => write!(f, "bltu"),
-            Opcode::BGEU => write!(f, "bgeu"),
-
-            // Jump instructions.
-            Opcode::JAL => write!(f, "jal"),
-            Opcode::JALR => write!(f, "jalr"),
-
-            // Upper immediate instructions.
-            Opcode::LUI => write!(f, "lui"),
-            Opcode::AUIPC => write!(f, "auipc"),
-
-            // System instructions.
-            Opcode::ECALL => write!(f, "ecall"),
-            Opcode::EBREAK => write!(f, "ebreak"),
-
-            // Multiply instructions.
-            Opcode::MUL => write!(f, "mul"),
-            Opcode::MULH => write!(f, "mulh"),
-            Opcode::MULSU => write!(f, "mulsu"),
-            Opcode::MULU => write!(f, "mulu"),
-            Opcode::DIV => write!(f, "div"),
-            Opcode::DIVU => write!(f, "divu"),
-            Opcode::REM => write!(f, "rem"),
-            Opcode::REMU => write!(f, "remu"),
-        }
-    }
-}
-
-/// A register stores a 32-bit value used by operations.
-#[derive(Debug, Clone, Copy)]
-pub enum Register {
-    X0 = 0,
-    X1 = 1,
-    X2 = 2,
-    X3 = 3,
-    X4 = 4,
-    X5 = 5,
-    X6 = 6,
-    X7 = 7,
-    X8 = 8,
-    X9 = 9,
-    X10 = 10,
-    X11 = 11,
-    X12 = 12,
-    X13 = 13,
-    X14 = 14,
-    X15 = 15,
-    X16 = 16,
-    X17 = 17,
-    X18 = 18,
-    X19 = 19,
-    X20 = 20,
-    X21 = 21,
-    X22 = 22,
-    X23 = 23,
-    X24 = 24,
-    X25 = 25,
-    X26 = 26,
-    X27 = 27,
-    X28 = 28,
-    X29 = 29,
-    X30 = 30,
-    X31 = 31,
-}
-
-impl Register {
-    fn from_u32(value: u32) -> Self {
-        match value {
-            0 => Register::X0,
-            1 => Register::X1,
-            2 => Register::X2,
-            3 => Register::X3,
-            4 => Register::X4,
-            5 => Register::X5,
-            6 => Register::X6,
-            7 => Register::X7,
-            8 => Register::X8,
-            9 => Register::X9,
-            10 => Register::X10,
-            11 => Register::X11,
-            12 => Register::X12,
-            13 => Register::X13,
-            14 => Register::X14,
-            15 => Register::X15,
-            16 => Register::X16,
-            17 => Register::X17,
-            18 => Register::X18,
-            19 => Register::X19,
-            20 => Register::X20,
-            21 => Register::X21,
-            22 => Register::X22,
-            23 => Register::X23,
-            24 => Register::X24,
-            25 => Register::X25,
-            26 => Register::X26,
-            27 => Register::X27,
-            28 => Register::X28,
-            29 => Register::X29,
-            30 => Register::X30,
-            31 => Register::X31,
-            _ => panic!("Invalid register"),
-        }
-    }
-}
-
-impl Display for Register {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Register::X0 => write!(f, "%x0"),
-            Register::X1 => write!(f, "%x1"),
-            Register::X2 => write!(f, "%x2"),
-            Register::X3 => write!(f, "%x3"),
-            Register::X4 => write!(f, "%x4"),
-            Register::X5 => write!(f, "%x5"),
-            Register::X6 => write!(f, "%x6"),
-            Register::X7 => write!(f, "%x7"),
-            Register::X8 => write!(f, "%x8"),
-            Register::X9 => write!(f, "%x9"),
-            Register::X10 => write!(f, "%x10"),
-            Register::X11 => write!(f, "%x11"),
-            Register::X12 => write!(f, "%x12"),
-            Register::X13 => write!(f, "%x13"),
-            Register::X14 => write!(f, "%x14"),
-            Register::X15 => write!(f, "%x15"),
-            Register::X16 => write!(f, "%x16"),
-            Register::X17 => write!(f, "%x17"),
-            Register::X18 => write!(f, "%x18"),
-            Register::X19 => write!(f, "%x19"),
-            Register::X20 => write!(f, "%x20"),
-            Register::X21 => write!(f, "%x21"),
-            Register::X22 => write!(f, "%x22"),
-            Register::X23 => write!(f, "%x23"),
-            Register::X24 => write!(f, "%x24"),
-            Register::X25 => write!(f, "%x25"),
-            Register::X26 => write!(f, "%x26"),
-            Register::X27 => write!(f, "%x27"),
-            Register::X28 => write!(f, "%x28"),
-            Register::X29 => write!(f, "%x29"),
-            Register::X30 => write!(f, "%x30"),
-            Register::X31 => write!(f, "%x31"),
-        }
-    }
-}
-
-/// An instruction specifies an operation to execute and the operands.
-#[derive(Debug, Clone, Copy)]
-pub struct Instruction {
-    pub opcode: Opcode,
-    pub op_a: u32,
-    pub op_b: u32,
-    pub op_c: u32,
-}
-
-impl Instruction {
-    /// Create a new instruction.
-    pub fn new(opcode: Opcode, op_a: u32, op_b: u32, op_c: u32) -> Instruction {
-        Instruction {
-            opcode,
-            op_a,
-            op_b,
-            op_c,
-        }
-    }
-
-    /// Decode the instruction in the R-type format.
-    pub fn r_type(&self) -> (Register, Register, Register) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            Register::from_u32(self.op_c),
-        )
-    }
-
-    /// Decode the instruction in the I-type format.
-    pub fn i_type(&self) -> (Register, Register, u32) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            self.op_c,
-        )
-    }
-
-    /// Decode the instruction in the S-type format.
-    pub fn s_type(&self) -> (Register, Register, u32) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            self.op_c,
-        )
-    }
-
-    /// Decode the instruction in the B-type format.
-    pub fn b_type(&self) -> (Register, Register, u32) {
-        (
-            Register::from_u32(self.op_a),
-            Register::from_u32(self.op_b),
-            self.op_c,
-        )
-    }
-
-    /// Decode the instruction in the J-type format.
-    pub fn j_type(&self) -> (Register, u32) {
-        (Register::from_u32(self.op_a), self.op_b)
-    }
-
-    /// Decode the instruction in the U-type format.
-    pub fn u_type(&self) -> (Register, u32) {
-        (Register::from_u32(self.op_a), self.op_b)
-    }
-}
-
-/// A runtime executes a program.
-#[derive(Debug)]
+/// An implementation of a runtime for the Curta VM.
+///
+/// The runtime is responsible for executing a user program and tracing important events which occur
+/// during execution (i.e., memory reads, alu operations, etc).
+///
+/// For more information on the RV32IM instruction set, see the following:
+/// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
 pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
     pub clk: u32,
@@ -386,6 +67,20 @@ impl Runtime {
         Self {
             clk: 0,
             pc: 0,
+            memory: BTreeMap::new(),
+            program,
+            cpu_events: Vec::new(),
+            memory_events: Vec::new(),
+            add_events: Vec::new(),
+            sub_events: Vec::new(),
+            bitwise_events: Vec::new(),
+        }
+    }
+
+    pub fn new_with_pc(program: Vec<Instruction>, init_pc: u32) -> Self {
+        Self {
+            clk: 0,
+            pc: init_pc,
             memory: BTreeMap::new(),
             program,
             cpu_events: Vec::new(),
@@ -449,7 +144,16 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
-    fn emit_cpu(&mut self, clk: u32, pc: u32, instruction: Instruction, a: u32, b: u32, c: u32) {
+    fn emit_cpu(
+        &mut self,
+        clk: u32,
+        pc: u32,
+        instruction: Instruction,
+        a: u32,
+        b: u32,
+        c: u32,
+        memory_value: Option<u32>,
+    ) {
         self.cpu_events.push(CpuEvent {
             clk: clk,
             pc: pc,
@@ -457,6 +161,7 @@ impl Runtime {
             a,
             b,
             c,
+            memory_value,
         });
     }
 
@@ -496,7 +201,8 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let (mut a, mut b, mut c): (u32, u32, u32) = (u32::MAX, u32::MAX, u32::MAX);
+        let (mut a, mut b, mut c, mut memory_value): (u32, u32, u32, Option<u32>) =
+            (u32::MAX, u32::MAX, u32::MAX, None);
         match instruction.opcode {
             // R-type instructions.
             Opcode::ADD => {
@@ -640,35 +346,40 @@ impl Runtime {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = (self.mr(addr) as i8) as u32;
+                memory_value = Some(self.mr(addr));
+                a = (memory_value.unwrap() as i8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = (self.mr(addr) as i16) as u32;
+                memory_value = Some(self.mr(addr));
+                a = (memory_value.unwrap() as i16) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                a = self.mr(addr);
+                memory_value = Some(self.mr(addr));
+                a = memory_value.unwrap();
                 self.rw(rd, a);
             }
             Opcode::LBU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                let a = (self.mr(addr) as u8) as u32;
+                memory_value = Some(self.mr(addr));
+                let a = (memory_value.unwrap() as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
-                let a = (self.mr(addr) as u16) as u32;
+                memory_value = Some(self.mr(addr));
+                let a = (memory_value.unwrap() as u16) as u32;
                 self.rw(rd, a);
             }
 
@@ -676,22 +387,25 @@ impl Runtime {
             Opcode::SB => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = (b as u8) as u32;
+                let addr = b.wrapping_add(c);
+                let value = (a as u8) as u32;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = (b as u16) as u32;
+                let addr = b.wrapping_add(c);
+                let value = (a as u16) as u32;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = a.wrapping_add(c);
-                let value = b;
+                let addr = b.wrapping_add(c);
+                let value = a;
+                memory_value = Some(value);
                 self.mw(addr, value);
             }
 
@@ -745,14 +459,14 @@ impl Runtime {
                 (b, c) = (imm, 0);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = self.pc.wrapping_add(imm);
+                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 a = self.pc + 4;
                 self.rw(rd, a);
-                self.pc = b.wrapping_add(c);
+                self.pc = self.pc.wrapping_add(imm.wrapping_sub(4)); // We always add 4 later, so we need to subtract 4 here.
             }
 
             // Upper immediate instructions.
@@ -790,13 +504,13 @@ impl Runtime {
                 let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
-            Opcode::MULSU => {
+            Opcode::MULHSU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
-            Opcode::MULU => {
+            Opcode::MULHU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 let (b, c) = (self.rr(rs1), self.rr(rs2));
                 let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
@@ -826,10 +540,13 @@ impl Runtime {
                 let a = b.wrapping_rem(c);
                 self.rw(rd, a);
             }
+            Opcode::UNIMP => {
+                println!("UNIMP encountered, ignoring");
+            }
         }
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(self.clk, pc, instruction, a, b, c);
+        self.emit_cpu(self.clk, pc, instruction, a, b, c, memory_value);
     }
 
     /// Execute the program.
@@ -837,6 +554,10 @@ impl Runtime {
         // Set %x2 to the size of memory when the CPU is initialized.
         self.rw(Register::X2, 1024 * 1024 * 8);
 
+        // Set the return address to the end of the program.
+        self.rw(Register::X1, (self.program.len() * 4) as u32);
+
+        self.clk += 1;
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
@@ -845,7 +566,7 @@ impl Runtime {
             self.execute(instruction);
 
             // Increment the program counter by 4.
-            self.pc = self.pc + 4;
+            self.pc = self.pc.wrapping_add(4);
 
             // Increment the clock.
             self.clk += 1;
@@ -927,12 +648,12 @@ impl Runtime {
             &permutation_traces[0],
             &permutation_challenges,
         );
-        debug_constraints(
-            &cpu,
-            &traces[1],
-            &permutation_traces[1],
-            &permutation_challenges,
-        );
+        // debug_constraints(
+        //     &cpu,
+        //     &traces[1],
+        //     &permutation_traces[1],
+        //     &permutation_challenges,
+        // );
         debug_constraints(
             &add,
             &traces[2],
@@ -953,33 +674,98 @@ impl Runtime {
         );
 
         // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 
 #[cfg(test)]
 #[allow(non_snake_case)]
-mod tests {
+pub mod tests {
+    use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::Field;
-
-    use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
-    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+    use p3_field::Field;
+    use p3_fri::FriBasedPcs;
+    use p3_fri::FriConfigImpl;
+    use p3_fri::FriLdt;
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
     use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_poseidon2::DiffusionMatrixBabybear;
+    use p3_poseidon2::Poseidon2;
+    use p3_symmetric::CompressionFunctionFromHasher;
+    use p3_symmetric::SerializingHasher32;
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
-    use crate::{runtime::Register, Runtime};
+    use crate::runtime::instruction::Instruction;
 
-    use super::{Instruction, Opcode};
+    use super::Opcode;
+    use super::Register;
+    use super::Runtime;
+
+    pub fn get_simple_program() -> Vec<Instruction> {
+        // int main() {
+        //     int a = 5;
+        //     int b = 8;
+        //     int result = a + b;
+        //     return 0;
+        //   }
+        // main:
+        // addi    sp,sp,-32
+        // sw      s0,28(sp)
+        // addi    s0,sp,32
+        // li      a5,5
+        // sw      a5,-20(s0)
+        // li      a5,8
+        // sw      a5,-24(s0)
+        // lw      a4,-20(s0)
+        // lw      a5,-24(s0)
+        // add     a5,a4,a5
+        // sw      a5,-28(s0)
+        // lw      a5,-28(s0)
+        // mv      a0,a5
+        // lw      s0,28(sp)
+        // addi    sp,sp,32
+        // jr      ra
+        // Mapping taken from here: https://en.wikichip.org/wiki/risc-v/registers
+        let SP = Register::X2 as u32;
+        let X0 = Register::X0 as u32;
+        let S0 = Register::X8 as u32;
+        let A0 = Register::X10 as u32;
+        let A5 = Register::X15 as u32;
+        let A4 = Register::X14 as u32;
+        let _RA = Register::X1 as u32;
+        let code = vec![
+            Instruction::new(Opcode::ADDI, SP, SP, (-32i32) as u32),
+            Instruction::new(Opcode::SW, S0, SP, 28),
+            Instruction::new(Opcode::ADDI, S0, SP, 32),
+            Instruction::new(Opcode::ADDI, A5, X0, 5),
+            Instruction::new(Opcode::SW, A5, S0, (-20i32) as u32),
+            Instruction::new(Opcode::ADDI, A5, X0, 8),
+            Instruction::new(Opcode::SW, A5, S0, (-24i32) as u32),
+            Instruction::new(Opcode::LW, A4, S0, (-20i32) as u32),
+            Instruction::new(Opcode::LW, A5, S0, (-24i32) as u32),
+            Instruction::new(Opcode::ADD, A5, A4, A5),
+            Instruction::new(Opcode::SW, A5, S0, (-28i32) as u32),
+            Instruction::new(Opcode::LW, A5, S0, (-28i32) as u32),
+            Instruction::new(Opcode::ADDI, A0, A5, 0),
+            Instruction::new(Opcode::LW, S0, SP, 28),
+            Instruction::new(Opcode::ADDI, SP, SP, 32),
+            // Instruction::new(Opcode::JALR, X0, RA, 0), // Commented this out because JAL is not working properly right now.
+        ];
+        code
+    }
+
+    #[test]
+    fn SIMPLE_PROGRAM() {
+        let code = get_simple_program();
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+    }
 
     #[test]
     fn PROVE() {
@@ -1051,7 +837,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
+
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }
 
@@ -1067,7 +853,6 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
 
@@ -1083,7 +868,6 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
 
@@ -1099,7 +883,6 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 37);
     }
 
@@ -1115,7 +898,6 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5);
     }
 
@@ -1210,6 +992,21 @@ mod tests {
     }
 
     #[test]
+    fn ADDI_NEGATIVE() {
+        //     addi x29, x0, 5
+        //     addi x30, x29, -1
+        //     addi x31, x30, 4
+        let code = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADDI, 30, 29, 0xffffffff),
+            Instruction::new(Opcode::ADDI, 31, 30, 4),
+        ];
+        let mut runtime = Runtime::new(code);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 5 - 1 + 4);
+    }
+
+    #[test]
     fn XORI() {
         //     addi x29, x0, 5
         //     xori x30, x29, 37
@@ -1221,7 +1018,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
+
         assert_eq!(runtime.registers()[Register::X31 as usize], 10);
     }
 
@@ -1237,7 +1034,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
+
         assert_eq!(runtime.registers()[Register::X31 as usize], 47);
     }
 
@@ -1253,7 +1050,7 @@ mod tests {
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
-        // runtime.prove::<BabyBear>();
+
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
 

@@ -10,6 +10,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
+use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
 
 use super::AluEvent;
@@ -43,7 +44,7 @@ pub struct ShiftChip {
 }
 
 impl<F: PrimeField> Chip<F> for ShiftChip {
-    fn generate_trace(&self, _: &mut crate::Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, _: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = self
             .events
@@ -113,7 +114,11 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{alu::AluEvent, runtime::Opcode, utils::Chip, Runtime};
+    use crate::{
+        alu::AluEvent,
+        runtime::{Opcode, Runtime},
+        utils::Chip,
+    };
     use p3_commit::ExtensionMmcs;
 
     use super::ShiftChip;

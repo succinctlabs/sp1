@@ -7,10 +7,7 @@ pub mod memory;
 pub mod precompiles;
 pub mod program;
 pub mod prover;
+pub mod runtime;
 pub mod utils;
 
 extern crate alloc;
-
-mod runtime;
-
-pub use runtime::Runtime;

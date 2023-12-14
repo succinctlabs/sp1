@@ -1,8 +1,8 @@
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::BaseAir;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{lookup::Interaction, Runtime};
+use crate::{lookup::Interaction, runtime::Runtime};
 
 pub trait Chip<F: PrimeField>: BaseAir<F> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;

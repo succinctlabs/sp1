@@ -1,0 +1,261 @@
+
+kernel.s:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+0001119c <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E>:
+   1119c:	fb010113          	addi	sp,sp,-80
+   111a0:	04112623          	sw	ra,76(sp)
+   111a4:	00a12623          	sw	a0,12(sp)
+   111a8:	04a12423          	sw	a0,72(sp)
+   111ac:	00200593          	li	a1,2
+   111b0:	04b56e63          	bltu	a0,a1,1120c <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0x70>
+   111b4:	0040006f          	j	111b8 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0x1c>
+   111b8:	00c12603          	lw	a2,12(sp)
+   111bc:	00000513          	li	a0,0
+   111c0:	00a12a23          	sw	a0,20(sp)
+   111c4:	00100513          	li	a0,1
+   111c8:	00a12c23          	sw	a0,24(sp)
+   111cc:	02810513          	addi	a0,sp,40
+   111d0:	00a12423          	sw	a0,8(sp)
+   111d4:	00200593          	li	a1,2
+   111d8:	00000097          	auipc	ra,0x0
+   111dc:	208080e7          	jalr	520(ra) # 113e0 <_ZN4core3ops5range25RangeInclusive$LT$Idx$GT$3new17h68a9c3ad59e79c32E>
+   111e0:	00812583          	lw	a1,8(sp)
+   111e4:	01c10513          	addi	a0,sp,28
+   111e8:	00000097          	auipc	ra,0x0
+   111ec:	248080e7          	jalr	584(ra) # 11430 <_ZN63_$LT$I$u20$as$u20$core..iter..traits..collect..IntoIterator$GT$9into_iter17h36572bb38510a18dE>
+   111f0:	02412503          	lw	a0,36(sp)
+   111f4:	02a12e23          	sw	a0,60(sp)
+   111f8:	02012503          	lw	a0,32(sp)
+   111fc:	02a12c23          	sw	a0,56(sp)
+   11200:	01c12503          	lw	a0,28(sp)
+   11204:	02a12a23          	sw	a0,52(sp)
+   11208:	0100006f          	j	11218 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0x7c>
+   1120c:	00c12503          	lw	a0,12(sp)
+   11210:	00a12823          	sw	a0,16(sp)
+   11214:	04c0006f          	j	11260 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0xc4>
+   11218:	03410513          	addi	a0,sp,52
+   1121c:	00000097          	auipc	ra,0x0
+   11220:	1f4080e7          	jalr	500(ra) # 11410 <_ZN4core4iter5range110_$LT$impl$u20$core..iter..traits..iterator..Iterator$u20$for$u20$core..ops..range..RangeInclusive$LT$A$GT$$GT$4next17h2278b82a4b770c2cE>
+   11224:	04b12223          	sw	a1,68(sp)
+   11228:	04a12023          	sw	a0,64(sp)
+   1122c:	04012503          	lw	a0,64(sp)
+   11230:	00051a63          	bnez	a0,11244 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0xa8>
+   11234:	0040006f          	j	11238 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0x9c>
+   11238:	01812503          	lw	a0,24(sp)
+   1123c:	00a12823          	sw	a0,16(sp)
+   11240:	0200006f          	j	11260 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0xc4>
+   11244:	01812503          	lw	a0,24(sp)
+   11248:	00a12023          	sw	a0,0(sp)
+   1124c:	01412583          	lw	a1,20(sp)
+   11250:	00a58533          	add	a0,a1,a0
+   11254:	00a12223          	sw	a0,4(sp)
+   11258:	02b56663          	bltu	a0,a1,11284 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0xe8>
+   1125c:	0140006f          	j	11270 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0xd4>
+   11260:	01012503          	lw	a0,16(sp)
+   11264:	04c12083          	lw	ra,76(sp)
+   11268:	05010113          	addi	sp,sp,80
+   1126c:	00008067          	ret
+   11270:	00412503          	lw	a0,4(sp)
+   11274:	00012583          	lw	a1,0(sp)
+   11278:	00b12a23          	sw	a1,20(sp)
+   1127c:	00a12c23          	sw	a0,24(sp)
+   11280:	f99ff06f          	j	11218 <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E+0x7c>
+   11284:	00010537          	lui	a0,0x10
+   11288:	10050513          	addi	a0,a0,256 # 10100 <str.0>
+   1128c:	000105b7          	lui	a1,0x10
+   11290:	0ec58613          	addi	a2,a1,236 # 100ec <.L__unnamed_1>
+   11294:	01c00593          	li	a1,28
+   11298:	00000097          	auipc	ra,0x0
+   1129c:	25c080e7          	jalr	604(ra) # 114f4 <_ZN4core9panicking5panic17h4bb86bc16dfb59acE>
+   112a0:	c0001073          	unimp
+
+000112a4 <_start>:
+   112a4:	ff010113          	addi	sp,sp,-16
+   112a8:	00112623          	sw	ra,12(sp)
+   112ac:	00a00513          	li	a0,10
+   112b0:	00000097          	auipc	ra,0x0
+   112b4:	eec080e7          	jalr	-276(ra) # 1119c <_ZN6kernel3fib9fibonacci17hf2bdcdd5dc8103e2E>
+   112b8:	00c12083          	lw	ra,12(sp)
+   112bc:	01010113          	addi	sp,sp,16
+   112c0:	00008067          	ret
+
+000112c4 <rust_begin_unwind>:
+   112c4:	ff010113          	addi	sp,sp,-16
+   112c8:	00a12623          	sw	a0,12(sp)
+   112cc:	0040006f          	j	112d0 <rust_begin_unwind+0xc>
+   112d0:	0000006f          	j	112d0 <rust_begin_unwind+0xc>
+
+000112d4 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E>:
+   112d4:	fc010113          	addi	sp,sp,-64
+   112d8:	02112e23          	sw	ra,60(sp)
+   112dc:	00a12023          	sw	a0,0(sp)
+   112e0:	00a12a23          	sw	a0,20(sp)
+   112e4:	00854503          	lbu	a0,8(a0)
+   112e8:	00157513          	andi	a0,a0,1
+   112ec:	02051663          	bnez	a0,11318 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x44>
+   112f0:	0040006f          	j	112f4 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x20>
+   112f4:	00012503          	lw	a0,0(sp)
+   112f8:	00450593          	addi	a1,a0,4
+   112fc:	02a12223          	sw	a0,36(sp)
+   11300:	02b12423          	sw	a1,40(sp)
+   11304:	00052583          	lw	a1,0(a0)
+   11308:	00452503          	lw	a0,4(a0)
+   1130c:	00b53533          	sltu	a0,a0,a1
+   11310:	00a107a3          	sb	a0,15(sp)
+   11314:	0100006f          	j	11324 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x50>
+   11318:	00100513          	li	a0,1
+   1131c:	00a107a3          	sb	a0,15(sp)
+   11320:	0040006f          	j	11324 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x50>
+   11324:	00f14503          	lbu	a0,15(sp)
+   11328:	00157513          	andi	a0,a0,1
+   1132c:	02051863          	bnez	a0,1135c <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x88>
+   11330:	0040006f          	j	11334 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x60>
+   11334:	00012583          	lw	a1,0(sp)
+   11338:	00458513          	addi	a0,a1,4
+   1133c:	02b12623          	sw	a1,44(sp)
+   11340:	02a12823          	sw	a0,48(sp)
+   11344:	0005a503          	lw	a0,0(a1)
+   11348:	0045a583          	lw	a1,4(a1)
+   1134c:	00b53633          	sltu	a2,a0,a1
+   11350:	00c10da3          	sb	a2,27(sp)
+   11354:	02b56863          	bltu	a0,a1,11384 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0xb0>
+   11358:	0100006f          	j	11368 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0x94>
+   1135c:	00000513          	li	a0,0
+   11360:	00a12223          	sw	a0,4(sp)
+   11364:	0680006f          	j	113cc <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0xf8>
+   11368:	00012503          	lw	a0,0(sp)
+   1136c:	00100593          	li	a1,1
+   11370:	00b50423          	sb	a1,8(a0)
+   11374:	02a12c23          	sw	a0,56(sp)
+   11378:	00052503          	lw	a0,0(a0)
+   1137c:	00a12823          	sw	a0,16(sp)
+   11380:	0380006f          	j	113b8 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0xe4>
+   11384:	00012503          	lw	a0,0(sp)
+   11388:	02a12a23          	sw	a0,52(sp)
+   1138c:	00052503          	lw	a0,0(a0)
+   11390:	00100593          	li	a1,1
+   11394:	00000097          	auipc	ra,0x0
+   11398:	0cc080e7          	jalr	204(ra) # 11460 <_ZN47_$LT$u32$u20$as$u20$core..iter..range..Step$GT$17forward_unchecked17hcfe01a9443d9ff9dE>
+   1139c:	00012583          	lw	a1,0(sp)
+   113a0:	00a12e23          	sw	a0,28(sp)
+   113a4:	02a12023          	sw	a0,32(sp)
+   113a8:	0005a603          	lw	a2,0(a1)
+   113ac:	00c12823          	sw	a2,16(sp)
+   113b0:	00a5a023          	sw	a0,0(a1)
+   113b4:	0040006f          	j	113b8 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0xe4>
+   113b8:	01012503          	lw	a0,16(sp)
+   113bc:	00a12423          	sw	a0,8(sp)
+   113c0:	00100513          	li	a0,1
+   113c4:	00a12223          	sw	a0,4(sp)
+   113c8:	0040006f          	j	113cc <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E+0xf8>
+   113cc:	00412503          	lw	a0,4(sp)
+   113d0:	00812583          	lw	a1,8(sp)
+   113d4:	03c12083          	lw	ra,60(sp)
+   113d8:	04010113          	addi	sp,sp,64
+   113dc:	00008067          	ret
+
+000113e0 <_ZN4core3ops5range25RangeInclusive$LT$Idx$GT$3new17h68a9c3ad59e79c32E>:
+   113e0:	ff010113          	addi	sp,sp,-16
+   113e4:	00b12223          	sw	a1,4(sp)
+   113e8:	00050593          	mv	a1,a0
+   113ec:	00412503          	lw	a0,4(sp)
+   113f0:	00a12423          	sw	a0,8(sp)
+   113f4:	00c12623          	sw	a2,12(sp)
+   113f8:	00a5a023          	sw	a0,0(a1)
+   113fc:	00c5a223          	sw	a2,4(a1)
+   11400:	00000513          	li	a0,0
+   11404:	00a58423          	sb	a0,8(a1)
+   11408:	01010113          	addi	sp,sp,16
+   1140c:	00008067          	ret
+
+00011410 <_ZN4core4iter5range110_$LT$impl$u20$core..iter..traits..iterator..Iterator$u20$for$u20$core..ops..range..RangeInclusive$LT$A$GT$$GT$4next17h2278b82a4b770c2cE>:
+   11410:	ff010113          	addi	sp,sp,-16
+   11414:	00112623          	sw	ra,12(sp)
+   11418:	00a12423          	sw	a0,8(sp)
+   1141c:	00000097          	auipc	ra,0x0
+   11420:	eb8080e7          	jalr	-328(ra) # 112d4 <_ZN107_$LT$core..ops..range..RangeInclusive$LT$T$GT$$u20$as$u20$core..iter..range..RangeInclusiveIteratorImpl$GT$9spec_next17ha6a67923368f5814E>
+   11424:	00c12083          	lw	ra,12(sp)
+   11428:	01010113          	addi	sp,sp,16
+   1142c:	00008067          	ret
+
+00011430 <_ZN63_$LT$I$u20$as$u20$core..iter..traits..collect..IntoIterator$GT$9into_iter17h36572bb38510a18dE>:
+   11430:	ff010113          	addi	sp,sp,-16
+   11434:	00b12623          	sw	a1,12(sp)
+   11438:	00050593          	mv	a1,a0
+   1143c:	00c12503          	lw	a0,12(sp)
+   11440:	00852603          	lw	a2,8(a0)
+   11444:	00c5a423          	sw	a2,8(a1)
+   11448:	00452603          	lw	a2,4(a0)
+   1144c:	00c5a223          	sw	a2,4(a1)
+   11450:	00052503          	lw	a0,0(a0)
+   11454:	00a5a023          	sw	a0,0(a1)
+   11458:	01010113          	addi	sp,sp,16
+   1145c:	00008067          	ret
+
+00011460 <_ZN47_$LT$u32$u20$as$u20$core..iter..range..Step$GT$17forward_unchecked17hcfe01a9443d9ff9dE>:
+   11460:	ff010113          	addi	sp,sp,-16
+   11464:	00a12223          	sw	a0,4(sp)
+   11468:	00b12423          	sw	a1,8(sp)
+   1146c:	00b12623          	sw	a1,12(sp)
+   11470:	00b50533          	add	a0,a0,a1
+   11474:	01010113          	addi	sp,sp,16
+   11478:	00008067          	ret
+
+0001147c <_ZN4core3ptr37drop_in_place$LT$core..fmt..Error$GT$17h48fe5fc16942ea5dE>:
+   1147c:	00008067          	ret
+
+00011480 <_ZN36_$LT$T$u20$as$u20$core..any..Any$GT$7type_id17hca160cc112b8c6d1E>:
+   11480:	821ce5b7          	lui	a1,0x821ce
+   11484:	c2958593          	addi	a1,a1,-983 # 821cdc29 <.Lline_table_start0+0x8219d131>
+   11488:	00b52623          	sw	a1,12(a0)
+   1148c:	def2e5b7          	lui	a1,0xdef2e
+   11490:	3dd58593          	addi	a1,a1,989 # def2e3dd <.Lline_table_start0+0xdeefd8e5>
+   11494:	00b52423          	sw	a1,8(a0)
+   11498:	6e6d75b7          	lui	a1,0x6e6d7
+   1149c:	6b358593          	addi	a1,a1,1715 # 6e6d76b3 <.Lline_table_start0+0x6e6a6bbb>
+   114a0:	00b52223          	sw	a1,4(a0)
+   114a4:	2891c5b7          	lui	a1,0x2891c
+   114a8:	a2e58593          	addi	a1,a1,-1490 # 2891ba2e <.Lline_table_start0+0x288eaf36>
+   114ac:	00b52023          	sw	a1,0(a0)
+   114b0:	00008067          	ret
+
+000114b4 <_ZN4core9panicking9panic_fmt17h6b2a17522889af95E>:
+   114b4:	fe010113          	addi	sp,sp,-32
+   114b8:	00112e23          	sw	ra,28(sp)
+   114bc:	00010637          	lui	a2,0x10
+   114c0:	11c60613          	addi	a2,a2,284 # 1011c <.Lanon.c3ec433a82ddc54caf8a90468961b9aa.260>
+   114c4:	00c12423          	sw	a2,8(sp)
+   114c8:	00010637          	lui	a2,0x10
+   114cc:	11c60613          	addi	a2,a2,284 # 1011c <.Lanon.c3ec433a82ddc54caf8a90468961b9aa.260>
+   114d0:	00c12623          	sw	a2,12(sp)
+   114d4:	00a12823          	sw	a0,16(sp)
+   114d8:	00b12a23          	sw	a1,20(sp)
+   114dc:	00100513          	li	a0,1
+   114e0:	00a11c23          	sh	a0,24(sp)
+   114e4:	00810513          	addi	a0,sp,8
+   114e8:	00000097          	auipc	ra,0x0
+   114ec:	ddc080e7          	jalr	-548(ra) # 112c4 <rust_begin_unwind>
+   114f0:	c0001073          	unimp
+
+000114f4 <_ZN4core9panicking5panic17h4bb86bc16dfb59acE>:
+   114f4:	fd010113          	addi	sp,sp,-48
+   114f8:	02112623          	sw	ra,44(sp)
+   114fc:	02a12223          	sw	a0,36(sp)
+   11500:	02b12423          	sw	a1,40(sp)
+   11504:	02410513          	addi	a0,sp,36
+   11508:	00a12623          	sw	a0,12(sp)
+   1150c:	00100513          	li	a0,1
+   11510:	00a12823          	sw	a0,16(sp)
+   11514:	00012e23          	sw	zero,28(sp)
+   11518:	00010537          	lui	a0,0x10
+   1151c:	11c50513          	addi	a0,a0,284 # 1011c <.Lanon.c3ec433a82ddc54caf8a90468961b9aa.260>
+   11520:	00a12a23          	sw	a0,20(sp)
+   11524:	00012c23          	sw	zero,24(sp)
+   11528:	00c10513          	addi	a0,sp,12
+   1152c:	00060593          	mv	a1,a2
+   11530:	00000097          	auipc	ra,0x0
+   11534:	f84080e7          	jalr	-124(ra) # 114b4 <_ZN4core9panicking9panic_fmt17h6b2a17522889af95E>
+   11538:	c0001073          	unimp
