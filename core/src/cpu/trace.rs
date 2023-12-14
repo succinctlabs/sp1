@@ -38,102 +38,102 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     fn sends(&self) -> Vec<Interaction<F>> {
         let mut interactions = Vec::new();
 
-        // // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
-        // interactions.push(Interaction::lookup_register(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.instruction.op_a,
-        //     CPU_COL_MAP.op_a_val,
-        //     IsRead::Expr(VirtualPairCol::single_main(
-        //         CPU_COL_MAP.selectors.reg_a_read,
-        //     )),
-        //     VirtualPairCol::constant(F::one()),
-        // ));
-        // // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
-        // // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
-        // interactions.push(Interaction::lookup_register(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.instruction.op_c,
-        //     CPU_COL_MAP.op_c_val,
-        //     IsRead::Bool(true),
-        //     VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())], F::one()), // 1-imm_c
-        // ));
-        // interactions.push(Interaction::lookup_register(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.instruction.op_b,
-        //     CPU_COL_MAP.op_b_val,
-        //     IsRead::Bool(true),
-        //     VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
-        // ));
-        // interactions.push(Interaction::add(
-        //     CPU_COL_MAP.op_a_val,
-        //     CPU_COL_MAP.op_b_val,
-        //     CPU_COL_MAP.op_c_val,
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.register_instruction),
-        // ));
+        // lookup (clk, op_a, op_a_val, is_read=reg_a_read) in the register table with multiplicity 1.
+        interactions.push(Interaction::lookup_register(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.instruction.op_a,
+            CPU_COL_MAP.op_a_val,
+            IsRead::Expr(VirtualPairCol::single_main(
+                CPU_COL_MAP.selectors.reg_a_read,
+            )),
+            VirtualPairCol::constant(F::one()),
+        ));
+        // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
+        // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
+        interactions.push(Interaction::lookup_register(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.instruction.op_c,
+            CPU_COL_MAP.op_c_val,
+            IsRead::Bool(true),
+            VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())], F::one()), // 1-imm_c
+        ));
+        interactions.push(Interaction::lookup_register(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.instruction.op_b,
+            CPU_COL_MAP.op_b_val,
+            IsRead::Bool(true),
+            VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
+        ));
+        interactions.push(Interaction::add(
+            CPU_COL_MAP.op_a_val,
+            CPU_COL_MAP.op_b_val,
+            CPU_COL_MAP.op_c_val,
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.register_instruction),
+        ));
 
-        // //// For both load and store instructions, we must constraint mem_val to be a lookup of [addr]
-        // //// For load instructions
-        // // To constraint addr, we add op_b_val + op_c_val
-        // // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
-        // interactions.push(Interaction::add(
-        //     CPU_COL_MAP.addr,
-        //     CPU_COL_MAP.op_b_val,
-        //     CPU_COL_MAP.op_c_val,
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
-        // ));
-        // // To constraint mem_val, we lookup [addr] in the memory table
-        // // lookup (clk, addr, mem_val, is_read=true) in the memory table with multiplicity load_instruction
-        // interactions.push(Interaction::lookup_memory(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.addr,
-        //     CPU_COL_MAP.mem_val,
-        //     IsRead::Bool(true),
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
-        // ));
-        // // Now we must constraint mem_val and op_a_val
-        // // We bus this to a "match_word" table with a combination of s/u and h/b/w
-        // // TODO: lookup (clk, mem_val, op_a_val, byte, half, word, unsigned) in the "match_word" table with multiplicity load_instruction
+        //// For both load and store instructions, we must constraint mem_val to be a lookup of [addr]
+        //// For load instructions
+        // To constraint addr, we add op_b_val + op_c_val
+        // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
+        interactions.push(Interaction::add(
+            CPU_COL_MAP.addr,
+            CPU_COL_MAP.op_b_val,
+            CPU_COL_MAP.op_c_val,
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+        ));
+        // To constraint mem_val, we lookup [addr] in the memory table
+        // lookup (clk, addr, mem_val, is_read=true) in the memory table with multiplicity load_instruction
+        interactions.push(Interaction::lookup_memory(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.addr,
+            CPU_COL_MAP.mem_val,
+            IsRead::Bool(true),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+        ));
+        // Now we must constraint mem_val and op_a_val
+        // We bus this to a "match_word" table with a combination of s/u and h/b/w
+        // TODO: lookup (clk, mem_val, op_a_val, byte, half, word, unsigned) in the "match_word" table with multiplicity load_instruction
 
-        // //// For store instructions
-        // // To constraint addr, we add op_a_val + op_c_val
-        // // lookup (clk, op_a_val, op_c_val, addr) in the "add" table with multiplicity store_instruction
-        // interactions.push(Interaction::add(
-        //     CPU_COL_MAP.addr,
-        //     CPU_COL_MAP.op_a_val,
-        //     CPU_COL_MAP.op_c_val,
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        // ));
-        // // To constraint mem_val, we lookup [addr] in the memory table
-        // // lookup (clk, addr, mem_val, is_read=false) in the memory table with multiplicity store_instruction
-        // interactions.push(Interaction::lookup_memory(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.addr,
-        //     CPU_COL_MAP.mem_val,
-        //     IsRead::Bool(false),
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        // ));
-        // // Now we must constraint mem_val and op_b_val
-        // // TODO: lookup (clk, mem_val, op_b_val, byte, half, word, unsigned) in the "match_word" table with multiplicity store_instruction
+        //// For store instructions
+        // To constraint addr, we add op_a_val + op_c_val
+        // lookup (clk, op_a_val, op_c_val, addr) in the "add" table with multiplicity store_instruction
+        interactions.push(Interaction::add(
+            CPU_COL_MAP.addr,
+            CPU_COL_MAP.op_a_val,
+            CPU_COL_MAP.op_c_val,
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
+        ));
+        // To constraint mem_val, we lookup [addr] in the memory table
+        // lookup (clk, addr, mem_val, is_read=false) in the memory table with multiplicity store_instruction
+        interactions.push(Interaction::lookup_memory(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.addr,
+            CPU_COL_MAP.mem_val,
+            IsRead::Bool(false),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
+        ));
+        // Now we must constraint mem_val and op_b_val
+        // TODO: lookup (clk, mem_val, op_b_val, byte, half, word, unsigned) in the "match_word" table with multiplicity store_instruction
 
-        // // Constraining the memory
-        // // TODO: there is likely some optimization to be done here making the is_read column a VirtualPair.
-        // // Constraint the memory in the case of a load instruction.
-        // interactions.push(Interaction::lookup_memory(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.addr,
-        //     CPU_COL_MAP.mem_val,
-        //     IsRead::Bool(true),
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
-        // ));
+        // Constraining the memory
+        // TODO: there is likely some optimization to be done here making the is_read column a VirtualPair.
+        // Constraint the memory in the case of a load instruction.
+        interactions.push(Interaction::lookup_memory(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.addr,
+            CPU_COL_MAP.mem_val,
+            IsRead::Bool(true),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.load_instruction),
+        ));
 
-        // // Constraint the memory in the case of a store instruction.
-        // interactions.push(Interaction::lookup_memory(
-        //     CPU_COL_MAP.clk,
-        //     CPU_COL_MAP.addr,
-        //     CPU_COL_MAP.mem_val,
-        //     IsRead::Bool(false),
-        //     VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
-        // ));
+        // Constraint the memory in the case of a store instruction.
+        interactions.push(Interaction::lookup_memory(
+            CPU_COL_MAP.clk,
+            CPU_COL_MAP.addr,
+            CPU_COL_MAP.mem_val,
+            IsRead::Bool(false),
+            VirtualPairCol::single_main(CPU_COL_MAP.selectors.store_instruction),
+        ));
         interactions
     }
 }
