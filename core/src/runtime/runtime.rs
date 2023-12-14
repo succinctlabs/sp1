@@ -668,22 +668,15 @@ impl Runtime {
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
-            println!("pc = {}, instruction = {:?}", self.pc, instruction);
 
             // Execute the instruction.
             self.execute(instruction);
-
-            println!("{:?}", self.cpu_events.last().unwrap());
 
             // Increment the program counter by 4.
             self.pc = self.pc + 4;
 
             // Increment the clock.
             self.clk += 1;
-
-            if self.clk > 20 {
-                break;
-            }
         }
     }
 
