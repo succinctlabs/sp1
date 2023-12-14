@@ -1,12 +1,17 @@
-use std::collections::BTreeMap;
-
 pub mod air;
 mod interaction;
 pub mod trace;
 
 pub use interaction::MemoryInteraction;
 
-use crate::runtime::Register;
+#[derive(Debug, Clone, Copy)]
+pub struct MemoryChip;
+
+impl MemoryChip {
+    pub fn new() -> Self {
+        MemoryChip
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MemOp {
@@ -20,73 +25,6 @@ pub struct MemoryEvent {
     pub clk: u32,
     pub op: MemOp,
     pub value: u32,
-}
-
-pub struct Memory {
-    max_memory: u32,
-    memory: BTreeMap<u32, u32>,
-    registers: [u32; 32],
-    memory_events: Vec<MemoryEvent>,
-}
-
-impl Memory {
-    pub fn new(max_memory: u32) -> Self {
-        assert_eq!(max_memory % 4, 0, "Memory size must be a multiple of 4");
-        assert!(
-            max_memory < u32::MAX - 31,
-            "Memory size must be smaller than 2^32 - 32"
-        );
-        Self {
-            max_memory,
-            memory: BTreeMap::new(),
-            registers: [0; 32],
-            memory_events: Vec::new(),
-        }
-    }
-
-    pub fn read(&mut self, clk: u32, addr: u32) -> u32 {
-        let value = self.memory.get(&addr).expect("Unititialized memory");
-        self.memory_events.push(MemoryEvent {
-            clk,
-            addr,
-            op: MemOp::Read,
-            value: *value,
-        });
-        *value
-    }
-
-    pub fn write(&mut self, clk: u32, addr: u32, value: u32) {
-        self.memory_events.push(MemoryEvent {
-            clk,
-            addr,
-            op: MemOp::Write,
-            value,
-        });
-        self.memory.insert(addr, value);
-    }
-
-    pub fn read_register(&mut self, clk: u32, reg: Register) -> u32 {
-        let value = self.registers[reg as usize];
-        let addr = self.max_memory + reg as u32;
-        self.memory_events.push(MemoryEvent {
-            clk,
-            addr,
-            op: MemOp::Read,
-            value,
-        });
-        value
-    }
-
-    pub fn write_register(&mut self, clk: u32, reg: Register, value: u32) {
-        self.registers[reg as usize] = value;
-        let addr = self.max_memory + reg as u32;
-        self.memory_events.push(MemoryEvent {
-            clk,
-            addr,
-            op: MemOp::Write,
-            value,
-        });
-    }
 }
 
 #[cfg(test)]
@@ -108,13 +46,12 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::memory::MemOp;
+    use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
 
     use p3_commit::ExtensionMmcs;
 
-    use super::air::MemoryAir;
     use super::MemoryEvent;
 
     #[test]
@@ -133,7 +70,7 @@ mod tests {
                 value: 0,
             },
         ];
-        let trace: RowMajorMatrix<BabyBear> = MemoryAir::generate_trace(&events);
+        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
         println!("{:?}", trace.values)
     }
 
@@ -184,8 +121,8 @@ mod tests {
         runtime.run();
         let events = runtime.memory_events;
 
-        let trace: RowMajorMatrix<BabyBear> = MemoryAir::generate_trace(&events);
-        let air = MemoryAir {};
+        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
+        let air = MemoryChip {};
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

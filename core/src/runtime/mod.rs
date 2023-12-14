@@ -10,6 +10,7 @@ pub use register::*;
 
 use std::collections::BTreeMap;
 
+use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, TwoAdicField};
 use p3_matrix::Matrix;
@@ -587,19 +588,21 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
+        const NUM_CHIPS: usize = 6;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
+        let memory = MemoryChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
-        let chips: [&dyn Chip<F>; 5] = [&program, &cpu, &add, &sub, &bitwise];
+        let chips: [&dyn Chip<F>; NUM_CHIPS] = [&program, &cpu, &memory, &add, &sub, &bitwise];
 
         // For each chip, generate the trace.
         let traces = chips.map(|chip| chip.generate_trace(self));
 
         // For each trace, compute the degree.
-        let degrees: [usize; 5] = traces
+        let degrees: [usize; NUM_CHIPS] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -654,28 +657,34 @@ impl Runtime {
             &permutation_traces[0],
             &permutation_challenges,
         );
-        // debug_constraints(
-        //     &cpu,
-        //     &traces[1],
-        //     &permutation_traces[1],
-        //     &permutation_challenges,
-        // );
         debug_constraints(
-            &add,
+            &cpu,
+            &traces[1],
+            &permutation_traces[1],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &memory,
             &traces[2],
             &permutation_traces[2],
             &permutation_challenges,
         );
         debug_constraints(
-            &sub,
+            &add,
             &traces[3],
             &permutation_traces[3],
             &permutation_challenges,
         );
         debug_constraints(
-            &bitwise,
+            &sub,
             &traces[4],
             &permutation_traces[4],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &bitwise,
+            &traces[5],
+            &permutation_traces[5],
             &permutation_challenges,
         );
 
