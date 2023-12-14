@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -239,7 +239,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.bitwise_events = vec![
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),

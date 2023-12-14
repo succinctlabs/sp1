@@ -64,22 +64,8 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    /// Create a new runtime.
-    pub fn new(program: Vec<Instruction>) -> Self {
-        Self {
-            clk: 0,
-            pc: 0,
-            memory: BTreeMap::new(),
-            program,
-            cpu_events: Vec::new(),
-            memory_events: Vec::new(),
-            add_events: Vec::new(),
-            sub_events: Vec::new(),
-            bitwise_events: Vec::new(),
-        }
-    }
-
-    pub fn new_with_pc(program: Vec<Instruction>, init_pc: u32) -> Self {
+    // Create a new runtime
+    pub fn new(program: Vec<Instruction>, init_pc: u32) -> Self {
         Self {
             clk: 0,
             pc: init_pc,
@@ -603,7 +589,61 @@ impl Runtime {
         let mut traces = chips.map(|chip| chip.generate_trace(self));
 
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://pastebin.com/ynPyVVY6
+        println!("CPU trace");
+        traces[1].rows_mut().for_each(|row| {
+            let cols = CpuCols::<u32>::from_trace_row(row);
 
+            let multiplicity = 1 - cols.selectors.noop;
+            if multiplicity != 0 {
+                println!(
+                    "clk: {:?} reg: {:?} value: {:?} read: {:?} | multiplicity: {:?}",
+                    cols.clk,
+                    cols.instruction.op_a[0],
+                    cols.op_a_val,
+                    cols.selectors.branch_op,
+                    multiplicity
+                );
+            }
+
+            let multiplicity = 1 - cols.selectors.imm_c;
+            if multiplicity != 0 {
+                println!(
+                    "clk: {:?} reg: {:?} value: {:?} read: true | multiplicity: {:?}",
+                    cols.clk, cols.instruction.op_c[0], cols.op_c_val, multiplicity
+                );
+            }
+
+            let multiplicity = 1 - cols.selectors.imm_b;
+            if multiplicity != 0 {
+                println!(
+                    "clk: {:?} reg: {:?} value: {:?} read: true | multiplicity: {:?}",
+                    cols.clk, cols.instruction.op_b[0], cols.op_b_val, multiplicity
+                );
+            }
+
+            let multiplicity = cols.selectors.mem_op;
+            if multiplicity != 0 {
+                println!(
+                    "clk: {:?} addr: {:?} value: {:?} is_read: {:?} | multiplicity: {:?}",
+                    cols.clk,
+                    cols.addr,
+                    cols.mem_val,
+                    cols.selectors.mem_read,
+                    cols.selectors.mem_op
+                );
+            }
+        });
+        println!("memory trace");
+        traces[2].rows_mut().for_each(|row| {
+            let cols = MemoryCols::<u32>::from_trace_row(row);
+            let multiplicity = cols.multiplicity;
+            if multiplicity != 0 {
+                println!(
+                    "clk: {:?} addr: {:?} value: {:?} is_read: {:?} | multiplicity: {:?}",
+                    cols.clk, cols.addr, cols.value, cols.is_read, multiplicity
+                );
+            }
+        });
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
             .iter()
@@ -699,6 +739,11 @@ impl Runtime {
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {
+    use super::Opcode;
+    use super::Register;
+    use super::Runtime;
+    use crate::disassembler::parse_elf;
+    use crate::runtime::instruction::Instruction;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -718,12 +763,8 @@ pub mod tests {
     use p3_symmetric::SerializingHasher32;
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
-
-    use crate::runtime::instruction::Instruction;
-
-    use super::Opcode;
-    use super::Register;
-    use super::Runtime;
+    use std::io::Read;
+    use std::path::Path;
 
     pub fn get_simple_program() -> Vec<Instruction> {
         // int main() {
@@ -778,10 +819,29 @@ pub mod tests {
         code
     }
 
+    fn get_fibonacci_program() -> (Vec<Instruction>, u32) {
+        let mut elf_code = Vec::new();
+        let path = Path::new("").join("../programs/fib").with_extension("s");
+        std::fs::File::open(path)
+            .expect("Failed to open input file")
+            .read_to_end(&mut elf_code)
+            .expect("Failed to read from input file");
+
+        // Parse ELF code.
+        parse_elf(&elf_code).expect("Failed to assemble code")
+    }
+
     #[test]
     fn SIMPLE_PROGRAM() {
         let code = get_simple_program();
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(code, 0);
+        runtime.run();
+    }
+
+    #[test]
+    fn fibonacci_program() {
+        let (code, pc) = get_fibonacci_program();
+        let mut runtime = Runtime::new(code, pc);
         runtime.run();
     }
 
@@ -831,12 +891,16 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let program = vec![
+        let mut program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut pc = 0;
+        let program = get_simple_program();
+        let (program, pc) = get_fibonacci_program();
+
+        let mut runtime = Runtime::new(program, pc);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
@@ -853,7 +917,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
@@ -869,7 +933,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SUB, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
@@ -884,7 +948,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::XOR, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
@@ -899,7 +963,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::OR, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 37);
     }
@@ -914,7 +978,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::AND, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5);
     }
@@ -929,7 +993,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLL, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1184);
     }
@@ -944,7 +1008,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SRL, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1);
     }
@@ -959,7 +1023,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SRA, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1);
     }
@@ -974,7 +1038,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLT, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -989,7 +1053,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLTU, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1004,7 +1068,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 29, 37),
             Instruction::new(Opcode::ADDI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 84);
     }
@@ -1019,7 +1083,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 29, 0xffffffff),
             Instruction::new(Opcode::ADDI, 31, 30, 4),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(code, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5 - 1 + 4);
     }
@@ -1034,7 +1098,7 @@ pub mod tests {
             Instruction::new(Opcode::XORI, 30, 29, 37),
             Instruction::new(Opcode::XORI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 10);
@@ -1050,7 +1114,7 @@ pub mod tests {
             Instruction::new(Opcode::ORI, 30, 29, 37),
             Instruction::new(Opcode::ORI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 47);
@@ -1066,7 +1130,7 @@ pub mod tests {
             Instruction::new(Opcode::ANDI, 30, 29, 37),
             Instruction::new(Opcode::ANDI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
@@ -1080,7 +1144,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::SLLI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 80);
     }
@@ -1093,7 +1157,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SRLI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 2);
     }
@@ -1106,7 +1170,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SRAI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 2);
     }
@@ -1119,7 +1183,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SLTI, 31, 29, 37),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1132,7 +1196,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SLTIU, 31, 29, 37),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1147,7 +1211,7 @@ pub mod tests {
             Instruction::new(Opcode::SW, 11, 10, 8),
             Instruction::new(Opcode::JALR, 5, 10, 8),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X10 as usize], 0);
         assert_eq!(runtime.registers()[Register::X5 as usize], 12);

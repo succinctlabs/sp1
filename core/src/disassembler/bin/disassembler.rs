@@ -1,7 +1,6 @@
+use super::parse_elf;
 use clap::{arg, command};
-use curta_disassembler::parse_elf;
 use std::io::Read;
-
 
 fn main() {
     let matches = command!()

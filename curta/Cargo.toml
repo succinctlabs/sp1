@@ -9,5 +9,4 @@ edition = "2021"
 anyhow = "1.0.75"
 byteorder = "1.5.0"
 clap = { version = "4.4.11", features = ["derive"] }
-curta-disassembler = { workspace = true }
 curta-core = { workspace = true }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "disassembler", "curta"]
+members = ["core",  "curta"]
 resolver = "2"
 
 [profile.release]
@@ -32,4 +32,3 @@ p3-symmetric = { git = "https://github.com/Plonky3/Plonky3" }
 p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3" }
 
 curta-core = { path = "core" }
-curta-disassembler = { path = "disassembler" }

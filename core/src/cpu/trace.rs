@@ -43,18 +43,24 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         let mut interactions = Vec::new();
 
         // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
-        // We always write to the first register, unless we are doing a branch operation in which case we read from it.
+        // We always write to the first register, unless we are doing a store or branch operation in which case we read from it.
         // We always connect op_a unless it is a noop.
         interactions.push(
             MemoryInteraction::lookup_register(
                 CPU_COL_MAP.clk,
                 CPU_COL_MAP.instruction.op_a[0],
                 CPU_COL_MAP.op_a_val,
-                IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.branch_op)),
+                IsRead::Expr(VirtualPairCol::new_main(
+                    vec![
+                        (CPU_COL_MAP.selectors.branch_op, F::one()),
+                        (CPU_COL_MAP.selectors.mem_write, F::one()),
+                    ],
+                    F::zero(),
+                )),
                 VirtualPairCol::new_main(
                     vec![(CPU_COL_MAP.selectors.noop, F::neg_one())],
                     F::one(),
-                ), // 1-imm_c
+                ), // 1-selectors.noop
             )
             .into(),
         );
@@ -239,7 +245,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.cpu_events = vec![CpuEvent {
             clk: 6,
             pc: 1,
@@ -268,7 +274,7 @@ mod tests {
     #[test]
     fn generate_trace_simple_program() {
         let program = get_simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -318,7 +324,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = get_simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

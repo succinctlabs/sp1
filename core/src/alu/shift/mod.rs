@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         let events = vec![AluEvent {
             clk: 0,
             opcode: Opcode::ADD,
@@ -182,7 +182,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         let events = vec![
             AluEvent {
                 clk: 0,

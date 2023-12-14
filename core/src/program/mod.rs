@@ -102,7 +102,7 @@ mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)

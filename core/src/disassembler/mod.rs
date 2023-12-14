@@ -3,7 +3,7 @@ use anyhow::bail;
 use anyhow::Context;
 use anyhow::Result;
 
-use curta_core::runtime::Instruction;
+use crate::runtime::Instruction;
 use elf::ElfBytes;
 
 use elf::endian::LittleEndian;

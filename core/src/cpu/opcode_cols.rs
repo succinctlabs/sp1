@@ -23,6 +23,7 @@ pub struct OpcodeSelectors<T> {
     // Memory operation
     pub mem_op: T,
     pub mem_read: T,
+    pub mem_write: T,
 
     // Specific instruction selectors.
     pub jalr: T,
@@ -120,6 +121,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 // For store instructions, imm_c should be turned on, but mem_read stays off.
                 self.imm_c = F::one();
                 self.mem_op = F::one();
+                self.mem_write = F::one();
             }
             // Branch instructions
             Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {

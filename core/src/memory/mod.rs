@@ -117,7 +117,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let code = get_simple_program();
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(code, 0);
         runtime.run();
         let events = runtime.memory_events;
 
