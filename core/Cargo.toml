@@ -28,3 +28,4 @@ p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 rand = "0.8.5"
 p3-util = { workspace = true }
+itertools = "0.12.0"

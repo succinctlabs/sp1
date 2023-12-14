@@ -12,7 +12,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 
-use crate::runtime::Runtime;
+use crate::alu::AluEvent;
+use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
@@ -44,6 +45,11 @@ impl SubChip {
 
 impl<F: PrimeField> Chip<F> for SubChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+        // Always have one nonzero event.
+        runtime
+            .sub_events
+            .push(AluEvent::new(0, Opcode::SUB, 10, 12, 2));
+
         // Generate the trace rows for each event.
         let rows = runtime
             .sub_events
