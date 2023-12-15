@@ -499,8 +499,12 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
-                todo!()
+                // While not all ECALLs obviously halt the CPU, we will for now halt. We need to
+                // come back to this and figure out how to handle this properly.
+                println!("ECALL encountered! Halting!");
+                next_pc = self.program.len() as u32 * 4;
             }
+
             Opcode::EBREAK => {
                 todo!()
             }
@@ -555,7 +559,8 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::UNIMP => {
-                println!("UNIMP encountered, ignoring");
+                // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
+                panic!("UNIMP encountered, we should never get here.");
             }
         }
         self.pc = next_pc;
