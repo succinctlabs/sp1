@@ -28,6 +28,8 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
 
+        println!("cpu: {:?}", trace);
+
         Self::pad_to_power_of_two::<F>(&mut trace.values);
 
         trace

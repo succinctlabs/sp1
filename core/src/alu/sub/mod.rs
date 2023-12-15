@@ -33,6 +33,9 @@ pub struct SubCols<T> {
 
     /// Trace.
     pub carry: [T; 3],
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 /// A chip that implements subtraction for the opcode SUB.
@@ -46,11 +49,6 @@ impl SubChip {
 
 impl<F: PrimeField> Chip<F> for SubChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        // Always have one nonzero event.
-        runtime
-            .sub_events
-            .push(AluEvent::new(0, Opcode::SUB, 10, 12, 2));
-
         // Generate the trace rows for each event.
         let rows = runtime
             .sub_events
@@ -79,6 +77,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+                cols.is_real = F::one();
                 row
             })
             .collect::<Vec<_>>();
@@ -148,7 +147,7 @@ where
             local.a,
             local.b,
             local.c,
-            AB::F::one(),
+            local.is_real,
         )
     }
 }

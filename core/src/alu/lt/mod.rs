@@ -97,8 +97,8 @@ where
             local.a,
             local.b,
             local.c,
-            AB::F::one(),
-        )
+            local.is_slt + local.is_sltu,
+        );
     }
 }
 

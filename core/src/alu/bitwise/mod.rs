@@ -168,7 +168,7 @@ where
             local.a,
             local.b,
             local.c,
-            local.is_xor,
+            local.is_xor + local.is_or + local.is_and,
         );
     }
 }

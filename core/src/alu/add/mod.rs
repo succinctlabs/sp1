@@ -29,6 +29,9 @@ pub struct AddCols<T> {
 
     /// Trace.
     pub carry: [T; 3],
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
@@ -70,6 +73,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+                cols.is_real = F::one();
                 row
             })
             .collect::<Vec<_>>();
@@ -77,6 +81,8 @@ impl<F: PrimeField> Chip<F> for AddChip {
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_COLS);
+
+        println!("add {:?}", trace);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_ADD_COLS, F>(&mut trace.values);
@@ -134,7 +140,7 @@ where
             local.a,
             local.b,
             local.c,
-            AB::F::one(),
+            local.is_real,
         );
     }
 }

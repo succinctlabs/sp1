@@ -1088,7 +1088,7 @@ pub mod tests {
         //     add x31, x30, x29
         let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
+            Instruction::new(Opcode::ADDI, 31, 29, 9),
         ];
         let mut runtime = Runtime::new(program);
         runtime.run();
