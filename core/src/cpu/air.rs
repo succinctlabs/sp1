@@ -1,4 +1,4 @@
-use crate::air::Word;
+use crate::air::{CurtaAirBuilder, Word};
 use crate::runtime::{Instruction, Opcode};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -58,7 +58,7 @@ impl<F> BaseAir<F> for CpuChip {
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
