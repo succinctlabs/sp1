@@ -5,6 +5,7 @@ mod register;
 pub use instruction::*;
 pub use opcode::*;
 
+use crate::prover::debug_cumulative_sums;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
@@ -946,7 +947,7 @@ impl Runtime {
         );
 
         // Check the permutation argument between all tables.
-        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 
@@ -1088,8 +1089,7 @@ pub mod tests {
         let program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADD, 31, 30, 29),
-        ]
-        .repeat(1024);
+        ];
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);

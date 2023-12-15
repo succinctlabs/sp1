@@ -1,13 +1,4 @@
-use std::iter::once;
-
-use p3_air::VirtualPairCol;
-use p3_field::Field;
-
-use crate::{
-    air::Word,
-    lookup::{Interaction, InteractionKind},
-    runtime::Opcode,
-};
+use crate::runtime::Opcode;
 
 pub mod add;
 pub mod bitwise;

@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, AirBuilder, BaseAir, VirtualPairCol};
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -9,18 +9,11 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
-use crate::lookup::{Interaction, InteractionKind};
+use crate::air::{CurtaAirBuilder, Word};
 use crate::runtime::{Opcode, Runtime};
-use crate::utils::{indices_arr, pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
-const ADD_COL_MAP: AddCols<usize> = make_col_map();
-
-const fn make_col_map() -> AddCols<usize> {
-    let indices_arr = indices_arr::<NUM_ADD_COLS>();
-    unsafe { transmute::<[usize; NUM_ADD_COLS], AddCols<usize>>(indices_arr) }
-}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -90,28 +83,6 @@ impl<F: PrimeField> Chip<F> for AddChip {
 
         trace
     }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![Interaction::new(
-            vec![
-                VirtualPairCol::constant(F::from_canonical_u32(Opcode::ADD as u32)),
-                VirtualPairCol::single_main(ADD_COL_MAP.a[0]),
-                VirtualPairCol::single_main(ADD_COL_MAP.a[1]),
-                VirtualPairCol::single_main(ADD_COL_MAP.a[2]),
-                VirtualPairCol::single_main(ADD_COL_MAP.a[3]),
-                VirtualPairCol::single_main(ADD_COL_MAP.b[0]),
-                VirtualPairCol::single_main(ADD_COL_MAP.b[1]),
-                VirtualPairCol::single_main(ADD_COL_MAP.b[2]),
-                VirtualPairCol::single_main(ADD_COL_MAP.b[3]),
-                VirtualPairCol::single_main(ADD_COL_MAP.c[0]),
-                VirtualPairCol::single_main(ADD_COL_MAP.c[1]),
-                VirtualPairCol::single_main(ADD_COL_MAP.c[2]),
-                VirtualPairCol::single_main(ADD_COL_MAP.c[3]),
-            ],
-            VirtualPairCol::constant(F::one()),
-            InteractionKind::Alu,
-        )]
-    }
 }
 
 impl<F> BaseAir<F> for AddChip {
@@ -122,7 +93,7 @@ impl<F> BaseAir<F> for AddChip {
 
 impl<AB> Air<AB> for AddChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -156,6 +127,15 @@ where
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
+
+        // Receive the arguments.
+        builder.receive_alu(
+            AB::F::from_canonical_u32(Opcode::ADD as u32),
+            local.a,
+            local.b,
+            local.c,
+            AB::F::one(),
+        );
     }
 }
 

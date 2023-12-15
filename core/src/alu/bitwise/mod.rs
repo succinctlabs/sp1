@@ -1,7 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, AirBuilder, BaseAir, VirtualPairCol};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -10,18 +10,12 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
-use crate::lookup::{Interaction, InteractionKind};
+use crate::air::{CurtaAirBuilder, Word};
+
 use crate::runtime::{Opcode, Runtime};
-use crate::utils::{indices_arr, pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
-const BITWISE_COL_MAP: BitwiseCols<usize> = make_col_map();
-
-const fn make_col_map() -> BitwiseCols<usize> {
-    let indices_arr = indices_arr::<NUM_BITWISE_COLS>();
-    unsafe { transmute::<[usize; NUM_BITWISE_COLS], BitwiseCols<usize>>(indices_arr) }
-}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -100,44 +94,6 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
 
         trace
     }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![Interaction::new(
-            vec![
-                VirtualPairCol::new_main(
-                    vec![
-                        (
-                            BITWISE_COL_MAP.is_xor,
-                            F::from_canonical_u32(Opcode::XOR as u32),
-                        ),
-                        (
-                            BITWISE_COL_MAP.is_or,
-                            F::from_canonical_u32(Opcode::OR as u32),
-                        ),
-                        (
-                            BITWISE_COL_MAP.is_and,
-                            F::from_canonical_u32(Opcode::AND as u32),
-                        ),
-                    ],
-                    F::zero(),
-                ),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.a[0]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.a[1]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.a[2]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.a[3]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.b[0]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.b[1]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.b[2]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.b[3]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.c[0]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.c[1]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.c[2]),
-                VirtualPairCol::single_main(BITWISE_COL_MAP.c[3]),
-            ],
-            VirtualPairCol::constant(F::one()),
-            InteractionKind::Alu,
-        )]
-    }
 }
 
 impl<F> BaseAir<F> for BitwiseChip {
@@ -148,7 +104,7 @@ impl<F> BaseAir<F> for BitwiseChip {
 
 impl<AB> Air<AB> for BitwiseChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -202,6 +158,17 @@ where
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
+
+        // Receive the arguments.
+        builder.receive_alu(
+            local.is_xor * AB::F::from_canonical_u32(Opcode::XOR as u32)
+                + local.is_or * AB::F::from_canonical_u32(Opcode::OR as u32)
+                + local.is_and * AB::F::from_canonical_u32(Opcode::AND as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_xor,
         );
     }
 }

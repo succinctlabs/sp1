@@ -1,7 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, AirBuilder, BaseAir, VirtualPairCol};
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -9,18 +9,12 @@ use p3_matrix::MatrixRowSlices;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
-use crate::lookup::{Interaction, InteractionKind};
+use crate::air::{CurtaAirBuilder, Word};
+
 use crate::runtime::{Opcode, Runtime};
-use crate::utils::{indices_arr, pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
-const LT_COL_MAP: LtCols<usize> = make_col_map();
-
-const fn make_col_map() -> LtCols<usize> {
-    let indices_arr = indices_arr::<NUM_LT_COLS>();
-    unsafe { transmute::<[usize; NUM_LT_COLS], LtCols<usize>>(indices_arr) }
-}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -76,37 +70,6 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
         trace
     }
-
-    fn receives(&self) -> Vec<Interaction<F>> {
-        vec![Interaction::new(
-            vec![
-                VirtualPairCol::new_main(
-                    vec![
-                        (LT_COL_MAP.is_slt, F::from_canonical_u32(Opcode::SLT as u32)),
-                        (
-                            LT_COL_MAP.is_sltu,
-                            F::from_canonical_u32(Opcode::SLTU as u32),
-                        ),
-                    ],
-                    F::zero(),
-                ),
-                VirtualPairCol::single_main(LT_COL_MAP.a[0]),
-                VirtualPairCol::single_main(LT_COL_MAP.a[1]),
-                VirtualPairCol::single_main(LT_COL_MAP.a[2]),
-                VirtualPairCol::single_main(LT_COL_MAP.a[3]),
-                VirtualPairCol::single_main(LT_COL_MAP.b[0]),
-                VirtualPairCol::single_main(LT_COL_MAP.b[1]),
-                VirtualPairCol::single_main(LT_COL_MAP.b[2]),
-                VirtualPairCol::single_main(LT_COL_MAP.b[3]),
-                VirtualPairCol::single_main(LT_COL_MAP.c[0]),
-                VirtualPairCol::single_main(LT_COL_MAP.c[1]),
-                VirtualPairCol::single_main(LT_COL_MAP.c[2]),
-                VirtualPairCol::single_main(LT_COL_MAP.c[3]),
-            ],
-            VirtualPairCol::constant(F::one()),
-            InteractionKind::Alu,
-        )]
-    }
 }
 
 impl<F> BaseAir<F> for LtChip {
@@ -117,17 +80,25 @@ impl<F> BaseAir<F> for LtChip {
 
 impl<AB> Air<AB> for LtChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &LtCols<AB::Var> = main.row_slice(0).borrow();
 
-        let two = AB::F::from_canonical_u32(2);
-
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
+
+        // Receive the arguments.
+        builder.receive_alu(
+            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
+                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
+            local.a,
+            local.b,
+            local.c,
+            AB::F::one(),
+        )
     }
 }
 
