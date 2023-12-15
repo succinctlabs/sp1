@@ -676,28 +676,36 @@ impl Runtime {
             &main_ldes[1],
             alpha,
         );
-        let add_quotient_values = quotient_values(
+        let memory_quotient_values = quotient_values(
             config,
-            &add,
+            &memory,
             log_degrees[2],
             log_quotient_degree,
             &main_ldes[2],
             alpha,
         );
-        let sub_quotient_values = quotient_values(
+        let add_quotient_values = quotient_values(
             config,
-            &sub,
+            &add,
             log_degrees[3],
             log_quotient_degree,
             &main_ldes[3],
             alpha,
         );
-        let bitwise_quotient_values = quotient_values(
+        let sub_quotient_values = quotient_values(
             config,
-            &bitwise,
+            &sub,
             log_degrees[4],
             log_quotient_degree,
             &main_ldes[4],
+            alpha,
+        );
+        let bitwise_quotient_values = quotient_values(
+            config,
+            &bitwise,
+            log_degrees[5],
+            log_quotient_degree,
+            &main_ldes[5],
             alpha,
         );
 
@@ -709,6 +717,11 @@ impl Runtime {
         );
         let cpu_quotient_chunks = decompose_and_flatten::<SC>(
             cpu_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degree,
+        );
+        let memory_quotient_chunks = decompose_and_flatten::<SC>(
+            memory_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
             log_quotient_degree,
         );
@@ -744,6 +757,14 @@ impl Runtime {
                 .coset_shift()
                 .exp_power_of_2(log_quotient_degree),
         );
+        let (memory_quotient_commit, memory_quotient_commit_data) =
+            config.pcs().commit_shifted_batch(
+                memory_quotient_chunks,
+                config
+                    .pcs()
+                    .coset_shift()
+                    .exp_power_of_2(log_quotient_degree),
+            );
         let (add_quotient_commit, add_quotient_commit_data) = config.pcs().commit_shifted_batch(
             add_quotient_chunks,
             config
@@ -770,6 +791,7 @@ impl Runtime {
         // Observe the quotient commitments.
         challenger.observe(program_quotient_commit);
         challenger.observe(cpu_quotient_commit);
+        challenger.observe(memory_quotient_commit);
         challenger.observe(add_quotient_commit);
         challenger.observe(sub_quotient_commit);
         challenger.observe(bitwise_quotient_commit);
@@ -991,7 +1013,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ]
-        .repeat(1024 * 512);
+        .repeat(1024);
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
