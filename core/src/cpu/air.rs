@@ -1,11 +1,11 @@
-use crate::air::Word;
-use crate::runtime::{Instruction, Opcode};
+use crate::air::{CurtaAirBuilder, Word};
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
-use p3_field::{AbstractField, PrimeField};
+use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
@@ -58,7 +58,7 @@ impl<F> BaseAir<F> for CpuChip {
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -125,5 +125,23 @@ where
         //     reduce::<AB>(local.op_a_val),
         //     reduce::<AB>(local.op_c_val) + local.pc,
         // );
+
+        // Send interactions for all the ALUs.
+        let ops = vec![
+            local.selectors.add_op,
+            local.selectors.sub_op,
+            local.selectors.bitwise_op,
+            local.selectors.shift_op,
+            local.selectors.lt_op,
+        ];
+        for op in ops {
+            builder.send_alu(
+                local.instruction.opcode,
+                local.op_a_val,
+                local.op_b_val,
+                local.op_c_val,
+                op,
+            );
+        }
     }
 }

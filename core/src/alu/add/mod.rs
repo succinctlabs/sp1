@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -9,8 +9,8 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
-use crate::runtime::Runtime;
+use crate::air::{CurtaAirBuilder, Word};
+use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
@@ -29,6 +29,9 @@ pub struct AddCols<T> {
 
     /// Trace.
     pub carry: [T; 3],
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
@@ -70,6 +73,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+                cols.is_real = F::one();
                 row
             })
             .collect::<Vec<_>>();
@@ -93,7 +97,7 @@ impl<F> BaseAir<F> for AddChip {
 
 impl<AB> Air<AB> for AddChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -127,6 +131,15 @@ where
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
+
+        // Receive the arguments.
+        builder.receive_alu(
+            AB::F::from_canonical_u32(Opcode::ADD as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_real,
+        );
     }
 }
 

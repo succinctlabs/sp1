@@ -1,5 +1,4 @@
 use core::borrow::{Borrow, BorrowMut};
-use core::fmt::Debug;
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -11,7 +10,8 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
+use crate::air::{CurtaAirBuilder, Word};
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -104,7 +104,7 @@ impl<F> BaseAir<F> for BitwiseChip {
 
 impl<AB> Air<AB> for BitwiseChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -158,6 +158,17 @@ where
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
+
+        // Receive the arguments.
+        builder.receive_alu(
+            local.is_xor * AB::F::from_canonical_u32(Opcode::XOR as u32)
+                + local.is_or * AB::F::from_canonical_u32(Opcode::OR as u32)
+                + local.is_and * AB::F::from_canonical_u32(Opcode::AND as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_xor + local.is_or + local.is_and,
         );
     }
 }
