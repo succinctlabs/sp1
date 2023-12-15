@@ -414,5 +414,7 @@ pub mod tests {
         decode_unit_test(0x00008067, Opcode::JALR, 0, 1, 0); // JALR x0 0(x1)
 
         decode_unit_test(0xeec080e7, Opcode::JALR, 1, 1, u32::MAX - 276 + 1); // JALR x1 -276(x1)
+
+        decode_unit_test(0x000010b7, Opcode::LUI, 1, 1, 0); // LUI x1, 1
     }
 }

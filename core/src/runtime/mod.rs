@@ -98,23 +98,26 @@ impl Runtime {
 
     /// Read from memory.
     fn mr(&mut self, addr: u32) -> u32 {
-        let value = match self.memory.get(&addr) {
+        let addr_word_aligned = addr - addr % 4;
+        let value = match self.memory.get(&addr_word_aligned) {
             Some(value) => *value,
             None => 0,
         };
-        self.emit_memory(self.clk, addr, MemOp::Read, value);
+        self.emit_memory(self.clk, addr_word_aligned, MemOp::Read, value);
         return value;
     }
 
     /// Write to memory.
     fn mw(&mut self, addr: u32, value: u32) {
-        self.memory.insert(addr, value);
-        self.emit_memory(self.clk, addr, MemOp::Write, value);
+        let addr_word_aligned = addr - addr % 4;
+        self.memory.insert(addr_word_aligned, value);
+        self.emit_memory(self.clk, addr_word_aligned, MemOp::Write, value);
     }
 
     /// Convert a register to a memory address.
     fn r2m(&self, register: Register) -> u32 {
-        1024 * 1024 * 8 + (register as u32)
+        // We have to word-align the register memory address.
+        u32::from_be_bytes([0xFF, 0xFF, 0xFF, (register as u8) * 4])
     }
 
     /// Read from register.
