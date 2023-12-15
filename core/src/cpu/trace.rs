@@ -1,6 +1,7 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
-use crate::lookup::{Interaction, IsRead};
+use crate::alu::bitwise;
+use crate::lookup::{Interaction, InteractionKind};
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
@@ -32,6 +33,37 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         Self::pad_to_power_of_two::<F>(&mut trace.values);
 
         trace
+    }
+
+    fn sends(&self) -> Vec<Interaction<F>> {
+        let alu_interaction = |col: usize| {
+            Interaction::new(
+                vec![
+                    VirtualPairCol::single_main(CPU_COL_MAP.instruction.opcode),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_a_val[0]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_a_val[1]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_a_val[2]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_a_val[3]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_b_val[0]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_b_val[1]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_b_val[2]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_b_val[3]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_c_val[0]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_c_val[1]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_c_val[2]),
+                    VirtualPairCol::single_main(CPU_COL_MAP.op_c_val[3]),
+                ],
+                VirtualPairCol::single_main(col),
+                InteractionKind::Alu,
+            )
+        };
+        vec![
+            alu_interaction(CPU_COL_MAP.selectors.add_op),
+            alu_interaction(CPU_COL_MAP.selectors.sub_op),
+            alu_interaction(CPU_COL_MAP.selectors.bitwise_op),
+            alu_interaction(CPU_COL_MAP.selectors.shift_op),
+            alu_interaction(CPU_COL_MAP.selectors.lt_op),
+        ]
     }
 
     // fn sends(&self) -> Vec<Interaction<F>> {
