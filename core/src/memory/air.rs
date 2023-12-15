@@ -170,7 +170,7 @@ impl<AB: CurtaBuilder> CurtaAir<AB> for MemoryChip {
                 local.addr[2],
                 local.addr[3],
             ],
-            local.multiplicity + AB::F::one(),
+            local.multiplicity,
             InteractionKind::Memory,
         )
     }

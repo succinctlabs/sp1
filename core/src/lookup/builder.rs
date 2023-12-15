@@ -190,3 +190,46 @@ impl Into<PairCol> for MyPairCol {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use p3_air::VirtualPairCol;
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+
+    use crate::symbolic::variable::SymbolicVariable;
+
+    #[test]
+    fn test_symbolic_to_virtual_pair_col() {
+        type F = BabyBear;
+
+        let x = SymbolicVariable::<F> {
+            is_next: false,
+            column: 0,
+            _phantom: Default::default(),
+        };
+
+        let y = SymbolicVariable::<F> {
+            is_next: false,
+            column: 1,
+            _phantom: Default::default(),
+        };
+
+        let z = x + y;
+
+        let (column_weights, constant) = super::eval_symbolic_to_virtual_pair(&z);
+        println!("column_weights: {:?}", column_weights);
+        println!("constant: {:?}", constant);
+
+        let column_weights = column_weights
+            .into_iter()
+            .map(|(c, w)| (c.into(), w))
+            .collect::<Vec<_>>();
+
+        let z = VirtualPairCol::new(column_weights, constant);
+
+        let expr: F = z.apply(&[], &[F::one(), F::one()]);
+
+        println!("expr: {:?}", expr);
+    }
+}

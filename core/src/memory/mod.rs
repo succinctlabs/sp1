@@ -49,6 +49,7 @@ mod tests {
 
     use crate::air::{AirAdapter, CurtaAir};
     use crate::lookup::InteractionBuilder;
+    use crate::memory::air::MEM_COL;
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
@@ -146,6 +147,8 @@ mod tests {
 
         let mut main = builder.main();
         let (sends, receives) = builder.interactions();
+
+        // let main = MEM_COL;
 
         for interaction in receives {
             for value in interaction.values {
