@@ -1410,4 +1410,29 @@ pub mod tests {
         assert_eq!(runtime.registers()[Register::X18 as usize], 0xfffffff7);
         assert_eq!(runtime.memory[&148], 0xf7); // SH stores the lower 8 bits only.
     }
+
+    #[test]
+    fn test_LBU_and_LHU() {
+        // Test LBU, LHU
+        // addi x29, x29, 0xffffffff
+        // addi x11, x11, 20
+        // sw x29, x11, 128 # Store the value at address 20 + 128 = 148
+        // lbu x30, x11, 128 # Should get 0xff
+        // lhu x31, x11, 128 # Should get 0xffff
+
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 29, 29, 0xffffffff),
+            Instruction::new(Opcode::ADDI, 11, 11, 20),
+            Instruction::new(Opcode::SW, 29, 11, 128),
+            Instruction::new(Opcode::LBU, 30, 11, 128),
+            Instruction::new(Opcode::LHU, 31, 11, 128),
+        ];
+
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        assert_eq!(runtime.memory[&148], 0xffffffff);
+        assert_eq!(runtime.registers()[Register::X30 as usize], 0xff);
+        assert_eq!(runtime.registers()[Register::X31 as usize], 0xffff);
+    }
 }
