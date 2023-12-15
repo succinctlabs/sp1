@@ -25,7 +25,6 @@ const fn make_col_map() -> BitwiseCols<usize> {
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
-#[repr(C)]
 pub struct BitwiseCols<T> {
     /// The output operand.
     pub a: Word<T>,
