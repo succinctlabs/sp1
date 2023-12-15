@@ -29,6 +29,7 @@ pub struct MemoryEvent {
 
 #[cfg(test)]
 mod tests {
+    use p3_air::{AirBuilder, BaseAir};
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -47,13 +48,17 @@ mod tests {
     use rand::thread_rng;
 
     use crate::air::{AirAdapter, CurtaAir};
+    use crate::lookup::InteractionBuilder;
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
+    use crate::symbolic::expression::SymbolicExpression;
+    use crate::symbolic::variable::SymbolicVariable;
 
     use p3_commit::ExtensionMmcs;
 
-    use super::MemoryEvent;
+    use super::air::NUM_MEMORY_COLS;
+    use super::{interaction, MemoryEvent};
 
     #[test]
     fn test_memory_generate_trace() {
@@ -129,5 +134,29 @@ mod tests {
 
         let mut challenger = Challenger::new(perm);
         verify(&config, &air, &mut challenger, &proof).unwrap();
+    }
+
+    #[test]
+    fn test_lookup_interactions() {
+        let air = MemoryChip::new();
+
+        let mut builder = InteractionBuilder::<BabyBear>::new(NUM_MEMORY_COLS);
+
+        air.eval(&mut builder);
+
+        let mut main = builder.main();
+        let (sends, receives) = builder.interactions();
+
+        for interaction in receives {
+            for value in interaction.values {
+                let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+                println!("{:?}", expr);
+            }
+        }
+
+        assert!(sends.is_empty());
     }
 }

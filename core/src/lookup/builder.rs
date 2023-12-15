@@ -1,4 +1,4 @@
-use std::{ops::Add, os::unix::process, rc::Rc};
+use std::marker::PhantomData;
 
 use p3_air::{AirBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
@@ -13,6 +13,7 @@ use super::{Interaction, InteractionKind};
 
 /// A column in a PAIR, i.e. either a preprocessed column or a main trace column.
 #[derive(Copy, Clone, Debug)]
+#[allow(dead_code)]
 pub enum MyPairCol {
     Preprocessed(usize),
     Main(usize),
@@ -20,9 +21,32 @@ pub enum MyPairCol {
 
 pub struct InteractionBuilder<F: Field> {
     main: RowMajorMatrix<SymbolicVariable<F>>,
-    constraints: Vec<SymbolicExpression<F>>,
     sends: Vec<Interaction<F>>,
     receives: Vec<Interaction<F>>,
+}
+
+impl<F: Field> InteractionBuilder<F> {
+    pub fn new(width: usize) -> Self {
+        let values = [false, true]
+            .into_iter()
+            .flat_map(|is_next| {
+                (0..width).map(move |column| SymbolicVariable {
+                    is_next,
+                    column,
+                    _phantom: PhantomData,
+                })
+            })
+            .collect();
+        Self {
+            main: RowMajorMatrix::new(values, width),
+            sends: vec![],
+            receives: vec![],
+        }
+    }
+
+    pub fn interactions(self) -> (Vec<Interaction<F>>, Vec<Interaction<F>>) {
+        (self.sends, self.receives)
+    }
 }
 
 impl<F: Field> AirBuilder for InteractionBuilder<F> {
@@ -55,25 +79,35 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
 }
 
 impl<F: Field> CurtaBuilder for InteractionBuilder<F> {
-    fn send(&mut self, values: &[Self::Expr], multiplicity: Self::Expr, kind: InteractionKind) {
+    fn send<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Self::Expr>,
+        J: Into<Self::Expr>,
+    {
         let values = values
-            .iter()
-            .map(|v| symbolic_to_virtual_pair(v))
+            .into_iter()
+            .map(|v| symbolic_to_virtual_pair(&v.into()))
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&multiplicity);
+        let multiplicity = symbolic_to_virtual_pair(&multiplicity.into());
 
         self.sends
             .push(Interaction::new(values, multiplicity, kind));
     }
 
-    fn receive(&mut self, values: &[Self::Expr], multiplicity: Self::Expr, kind: InteractionKind) {
+    fn receive<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Self::Expr>,
+        J: Into<Self::Expr>,
+    {
         let values = values
-            .iter()
-            .map(|v| symbolic_to_virtual_pair(v))
+            .into_iter()
+            .map(|v| symbolic_to_virtual_pair(&v.into()))
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&multiplicity);
+        let multiplicity = symbolic_to_virtual_pair(&multiplicity.into());
 
         self.receives
             .push(Interaction::new(values, multiplicity, kind));

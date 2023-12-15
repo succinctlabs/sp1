@@ -41,9 +41,17 @@ pub trait CurtaAirBuilder: AirBuilder {
 impl<AB: AirBuilder> CurtaAirBuilder for AB {}
 
 pub trait CurtaBuilder: CurtaAirBuilder {
-    fn send(&mut self, values: &[Self::Expr], multiplicity: Self::Expr, kind: InteractionKind);
+    fn send<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Self::Expr>,
+        J: Into<Self::Expr>;
 
-    fn receive(&mut self, values: &[Self::Expr], multiplicity: Self::Expr, kind: InteractionKind);
+    fn receive<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Self::Expr>,
+        J: Into<Self::Expr>;
 }
 
 pub struct DefaultCurta<'a, T>(pub &'a mut T);
@@ -91,14 +99,20 @@ impl<'a, AB: PermutationAirBuilder> PermutationAirBuilder for DefaultCurta<'a, A
 }
 
 impl<'a, AB: AirBuilder> CurtaBuilder for DefaultCurta<'a, AB> {
-    fn send(&mut self, _values: &[Self::Expr], multiplicity: Self::Expr, _kind: InteractionKind) {}
+    fn send<I, T, J>(&mut self, _values: I, _mult: J, _kind: InteractionKind)
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Self::Expr>,
+        J: Into<Self::Expr>,
+    {
+    }
 
-    fn receive(
-        &mut self,
-        _values: &[Self::Expr],
-        multiplicity: Self::Expr,
-        _kind: InteractionKind,
-    ) {
+    fn receive<I, T, J>(&mut self, _values: I, _mult: J, _kind: InteractionKind)
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Self::Expr>,
+        J: Into<Self::Expr>,
+    {
     }
 }
 

@@ -3,7 +3,7 @@ use core::borrow::BorrowMut;
 use core::mem::size_of;
 use core::mem::transmute;
 
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
@@ -16,6 +16,7 @@ use crate::air::CurtaAir;
 use crate::air::CurtaAirBuilder;
 use crate::air::CurtaBuilder;
 use crate::air::{Bool, Word};
+use crate::lookup::InteractionKind;
 
 use super::MemoryChip;
 
@@ -159,5 +160,18 @@ impl<AB: CurtaBuilder> CurtaAir<AB> for MemoryChip {
             .when_transition()
             .when(next.is_clk_eq.0)
             .assert_eq(next.clk, local.clk);
+
+        // Recieve memory requests.
+        builder.receive(
+            [
+                local.clk,
+                local.addr[0],
+                local.addr[1],
+                local.addr[2],
+                local.addr[3],
+            ],
+            local.multiplicity + AB::F::one(),
+            InteractionKind::Memory,
+        )
     }
 }
