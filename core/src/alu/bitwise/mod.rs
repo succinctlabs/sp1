@@ -1,4 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
+use core::fmt::Debug;
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -17,6 +18,7 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
 /// The column layout for the chip.
+#[repr(C)]
 #[derive(AlignedBorrow, Default)]
 pub struct BitwiseCols<T> {
     /// The output operand.
@@ -104,6 +106,7 @@ impl<F> BaseAir<F> for BitwiseChip {
 impl<AB> Air<AB> for BitwiseChip
 where
     AB: AirBuilder,
+    AB::Var: Debug,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

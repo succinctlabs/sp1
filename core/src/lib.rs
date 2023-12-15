@@ -1,3 +1,5 @@
+#![feature(no_sanitize)]
+
 pub mod air;
 pub mod alu;
 pub mod bytes;
