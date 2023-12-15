@@ -13,7 +13,6 @@ pub use register::*;
 
 use std::collections::BTreeMap;
 
-use crate::air::AirAdapter;
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use crate::prover::quotient_values;
@@ -598,7 +597,7 @@ impl Runtime {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let memory = AirAdapter::new(MemoryChip::new());
+        let memory = MemoryChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();

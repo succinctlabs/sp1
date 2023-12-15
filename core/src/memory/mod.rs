@@ -29,7 +29,7 @@ pub struct MemoryEvent {
 
 #[cfg(test)]
 mod tests {
-    use p3_air::{AirBuilder, BaseAir};
+    use p3_air::{Air, AirBuilder};
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -47,7 +47,6 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
     use rand::thread_rng;
 
-    use crate::air::{AirAdapter, CurtaAir};
     use crate::lookup::InteractionBuilder;
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
@@ -127,7 +126,6 @@ mod tests {
 
         let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
         let air = MemoryChip::new();
-        let air = AirAdapter::new(air);
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

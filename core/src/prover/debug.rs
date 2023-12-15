@@ -1,4 +1,6 @@
-use p3_air::{AirBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
+use p3_air::{
+    AirBuilder, EmptyMessageBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
+};
 use p3_field::{ExtensionField, Field};
 
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
@@ -74,4 +76,9 @@ where
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         assert_eq!(x.into(), F::zero(), "constraints must evaluate to zero");
     }
+}
+
+impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
+    for DebugConstraintBuilder<'a, F, EF>
+{
 }

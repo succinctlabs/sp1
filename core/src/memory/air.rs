@@ -3,6 +3,7 @@ use core::borrow::BorrowMut;
 use core::mem::size_of;
 use core::mem::transmute;
 
+use p3_air::Air;
 use p3_air::{AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -12,9 +13,8 @@ use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::reduce;
-use crate::air::CurtaAir;
+use crate::air::AirInteraction;
 use crate::air::CurtaAirBuilder;
-use crate::air::CurtaTypesBuilder;
 use crate::air::{Bool, Word};
 use crate::lookup::InteractionKind;
 
@@ -67,7 +67,7 @@ impl<F: Field> BaseAir<F> for MemoryChip {
     }
 }
 
-impl<AB: CurtaAirBuilder> CurtaAir<AB> for MemoryChip {
+impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &MemoryCols<AB::Var> = main.row_slice(0).borrow();
@@ -162,16 +162,19 @@ impl<AB: CurtaAirBuilder> CurtaAir<AB> for MemoryChip {
             .assert_eq(next.clk, local.clk);
 
         // Recieve memory requests.
-        builder.receive(
+        builder.receive(AirInteraction::new(
             [
                 local.clk,
                 local.addr[0],
                 local.addr[1],
                 local.addr[2],
                 local.addr[3],
-            ],
-            local.multiplicity,
+            ]
+            .into_iter()
+            .map(|x| x.into())
+            .collect(),
+            local.multiplicity.into(),
             InteractionKind::Memory,
-        )
+        ))
     }
 }

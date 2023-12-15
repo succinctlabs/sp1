@@ -1,11 +1,11 @@
-use p3_air::{AirBuilder, PairCol, VirtualPairCol};
+use p3_air::{AirBuilder, MessageBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
 
-use crate::air::CurtaAirBuilder;
+use crate::air::AirInteraction;
 
-use super::{Interaction, InteractionKind};
+use super::Interaction;
 
 pub struct InteractionBuilder<F: Field> {
     main: RowMajorMatrix<SymbolicVariable<F>>,
@@ -62,41 +62,37 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
     fn assert_zero<I: Into<Self::Expr>>(&mut self, _x: I) {}
 }
 
-impl<F: Field> CurtaAirBuilder for InteractionBuilder<F> {
-    fn send<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<Self::Expr>,
-        J: Into<Self::Expr>,
-    {
-        let values = values
+impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
+    fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
+        let values = message
+            .values
             .into_iter()
             .map(|v| symbolic_to_virtual_pair(&v.into()))
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&multiplicity.into());
+        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity.into());
 
         self.sends
-            .push(Interaction::new(values, multiplicity, kind));
+            .push(Interaction::new(values, multiplicity, message.kind));
     }
 
-    fn receive<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<Self::Expr>,
-        J: Into<Self::Expr>,
-    {
-        let values = values
+    fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
+        let values = message
+            .values
             .into_iter()
             .map(|v| symbolic_to_virtual_pair(&v.into()))
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&multiplicity.into());
+        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity.into());
 
         self.receives
-            .push(Interaction::new(values, multiplicity, kind));
+            .push(Interaction::new(values, multiplicity, message.kind));
     }
 }
+
+// impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>> for InteractionBuilder<F> {
+
+// }
 
 fn symbolic_to_virtual_pair<F: Field>(expression: &SymbolicExpression<F>) -> VirtualPairCol<F> {
     if expression.degree_multiple() > 1 {
@@ -169,13 +165,13 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use p3_air::{BaseAir, VirtualPairCol};
+    use p3_air::{Air, BaseAir, VirtualPairCol};
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, Field};
     use p3_matrix::MatrixRowSlices;
 
     use crate::{
-        air::{CurtaAir, CurtaAirBuilder},
+        air::CurtaAirBuilder,
         lookup::{InteractionBuilder, InteractionKind},
     };
 
@@ -215,7 +211,7 @@ mod tests {
         }
     }
 
-    impl<AB: CurtaAirBuilder> CurtaAir<AB> for LookupTestAir {
+    impl<AB: CurtaAirBuilder> Air<AB> for LookupTestAir {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local = main.row_slice(0);
@@ -224,14 +220,22 @@ mod tests {
             let y = local[1];
             let z = local[2];
 
-            builder.send([x, y], AB::F::from_canonical_u32(3), InteractionKind::Alu);
-            builder.send(
-                [x + y, z.into()],
-                AB::F::from_canonical_u32(5),
+            builder.send(AirInteraction::new(
+                vec![x.into(), y.into()],
+                AB::F::from_canonical_u32(3).into(),
                 InteractionKind::Alu,
-            );
+            ));
+            builder.send(AirInteraction::new(
+                vec![x + y, z.into()],
+                AB::F::from_canonical_u32(5).into(),
+                InteractionKind::Alu,
+            ));
 
-            builder.receive([x], y, InteractionKind::Byte);
+            builder.receive(AirInteraction::new(
+                vec![x.into()],
+                y.into(),
+                InteractionKind::Byte,
+            ));
         }
     }
 
