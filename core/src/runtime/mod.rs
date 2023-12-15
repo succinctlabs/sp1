@@ -1360,4 +1360,30 @@ pub mod tests {
         assert_eq!(runtime.registers()[Register::X29 as usize], 30);
         assert_eq!(runtime.memory[&148], 30);
     }
+
+    #[test]
+    fn test_store_and_load_half_word() {
+        // Test LH, SH
+        // addi x29, x29, 0x777
+        // lui x29, 0xffffa
+        // addi x11, x11, 20
+        // sw x29, x11, 128
+        // lw x30, x11, 128
+
+        let program = vec![
+            Instruction::new(Opcode::LUI, 29, 0xffffa, 0), // Now x29 = 0xffffa777
+            Instruction::new(Opcode::ADDI, 29, 29, 0x777),
+            Instruction::new(Opcode::ADDI, 11, 11, 20),
+            Instruction::new(Opcode::SH, 29, 11, 128), // Store  at address 20 + 128 = 148
+            Instruction::new(Opcode::LH, 18, 11, 128),
+        ];
+
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        // LH sign-extends the value.
+        assert_eq!(runtime.registers()[Register::X29 as usize], 0xffffa777);
+        assert_eq!(runtime.registers()[Register::X18 as usize], 0xffffa777);
+        assert_eq!(runtime.memory[&148], 0xa777); // SH stores the lower 16 bits only.
+    }
 }
