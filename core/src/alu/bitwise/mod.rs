@@ -1,4 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
+use core::fmt::Debug;
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
