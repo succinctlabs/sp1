@@ -1,10 +1,13 @@
-use p3_air::BaseAir;
+use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{lookup::Interaction, runtime::Runtime};
+use crate::{
+    lookup::{Interaction, InteractionBuilder},
+    runtime::Runtime,
+};
 
-pub trait Chip<F: PrimeField>: BaseAir<F> {
+pub trait Chip<F: PrimeField>: Air<InteractionBuilder<F>> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
     fn receives(&self) -> Vec<Interaction<F>> {
