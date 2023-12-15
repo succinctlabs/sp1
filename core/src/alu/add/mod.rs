@@ -82,8 +82,6 @@ impl<F: PrimeField> Chip<F> for AddChip {
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_COLS);
 
-        println!("add {:?}", trace);
-
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_ADD_COLS, F>(&mut trace.values);
 
