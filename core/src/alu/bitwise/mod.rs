@@ -1,8 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
-use core::fmt::Debug;
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir, VirtualPairCol};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -12,10 +11,17 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
+use crate::lookup::{Interaction, InteractionKind};
 use crate::runtime::{Opcode, Runtime};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{indices_arr, pad_to_power_of_two, Chip};
 
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
+const BITWISE_COL_MAP: BitwiseCols<usize> = make_col_map();
+
+const fn make_col_map() -> BitwiseCols<usize> {
+    let indices_arr = indices_arr::<NUM_BITWISE_COLS>();
+    unsafe { transmute::<[usize; NUM_BITWISE_COLS], BitwiseCols<usize>>(indices_arr) }
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -94,6 +100,44 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn receives(&self) -> Vec<Interaction<F>> {
+        vec![Interaction::new(
+            vec![
+                VirtualPairCol::new_main(
+                    vec![
+                        (
+                            BITWISE_COL_MAP.is_xor,
+                            F::from_canonical_u32(Opcode::XOR as u32),
+                        ),
+                        (
+                            BITWISE_COL_MAP.is_or,
+                            F::from_canonical_u32(Opcode::OR as u32),
+                        ),
+                        (
+                            BITWISE_COL_MAP.is_and,
+                            F::from_canonical_u32(Opcode::AND as u32),
+                        ),
+                    ],
+                    F::zero(),
+                ),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.a[0]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.a[1]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.a[2]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.a[3]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.b[0]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.b[1]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.b[2]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.b[3]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.c[0]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.c[1]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.c[2]),
+                VirtualPairCol::single_main(BITWISE_COL_MAP.c[3]),
+            ],
+            VirtualPairCol::constant(F::one()),
+            InteractionKind::Alu,
+        )]
     }
 }
 
