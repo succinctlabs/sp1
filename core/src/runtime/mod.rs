@@ -10,6 +10,7 @@ pub use register::*;
 
 use std::collections::BTreeMap;
 
+use crate::air::AirAdapter;
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, TwoAdicField};
@@ -592,7 +593,7 @@ impl Runtime {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let memory = MemoryChip::new();
+        let memory = AirAdapter::new(MemoryChip::new());
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();

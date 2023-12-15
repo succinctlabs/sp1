@@ -2,6 +2,7 @@ use p3_air::VirtualPairCol;
 use p3_field::Field;
 
 use crate::air::Word;
+mod builder;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {

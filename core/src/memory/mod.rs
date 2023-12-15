@@ -46,6 +46,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
+    use crate::air::{AirAdapter, CurtaAir};
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
@@ -122,7 +123,8 @@ mod tests {
         let events = runtime.memory_events;
 
         let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
-        let air = MemoryChip {};
+        let air = MemoryChip::new();
+        let air = AirAdapter::new(air);
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

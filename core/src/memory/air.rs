@@ -12,7 +12,9 @@ use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::reduce;
+use crate::air::CurtaAir;
 use crate::air::CurtaAirBuilder;
+use crate::air::CurtaBuilder;
 use crate::air::{Bool, Word};
 
 use super::MemoryChip;
@@ -64,7 +66,7 @@ impl<F: Field> BaseAir<F> for MemoryChip {
     }
 }
 
-impl<AB: AirBuilder> Air<AB> for MemoryChip {
+impl<AB: CurtaBuilder> CurtaAir<AB> for MemoryChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &MemoryCols<AB::Var> = main.row_slice(0).borrow();
