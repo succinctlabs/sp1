@@ -19,7 +19,11 @@ pub struct InstructionCols<T> {
 
 impl<F: PrimeField> InstructionCols<F> {
     pub fn populate(&mut self, instruction: Instruction) {
-        self.opcode = F::from_canonical_u32(instruction.opcode as u32);
+        let opcode = match instruction.opcode {
+            Opcode::ADDI => Opcode::ADD,
+            _ => instruction.opcode,
+        };
+        self.opcode = F::from_canonical_u32(opcode as u32);
         match instruction.opcode {
             Opcode::LUI => {
                 // For LUI, we convert it to a SLL instruction with imm_b and imm_c turned on.

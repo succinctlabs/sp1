@@ -67,6 +67,33 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             InteractionKind::Alu,
         ));
     }
+
+    fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a: Word<Ea>,
+        b: Word<Eb>,
+        c: Word<Ec>,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        let values = once(opcode.into())
+            .chain(a.0.into_iter().map(Into::into))
+            .chain(b.0.into_iter().map(Into::into))
+            .chain(c.0.into_iter().map(Into::into))
+            .collect();
+
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Alu,
+        ));
+    }
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
