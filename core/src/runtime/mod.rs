@@ -13,6 +13,8 @@ pub use register::*;
 
 use std::collections::BTreeMap;
 
+use crate::alu::lt::LtChip;
+use crate::alu::shift::ShiftChip;
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use crate::prover::quotient_values;
@@ -603,7 +605,6 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 6;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -611,7 +612,9 @@ impl Runtime {
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
-        let chips: [&dyn Chip<F>; NUM_CHIPS] = [&program, &cpu, &memory, &add, &sub, &bitwise];
+        let shift = ShiftChip::new();
+        let lt = LtChip::new();
+        let chips: [&dyn Chip<F>; 8] = [&program, &cpu, &memory, &add, &sub, &bitwise, &shift, &lt];
 
         // Compute some statistics.
         let mut main_cols = 0usize;
@@ -627,7 +630,7 @@ impl Runtime {
         let traces = chips.map(|chip| chip.generate_trace(self));
 
         // For each trace, compute the degree.
-        let degrees: [usize; NUM_CHIPS] = traces
+        let degrees: [usize; 8] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -718,6 +721,22 @@ impl Runtime {
             &main_ldes[5],
             alpha,
         );
+        let shift_quotient_values = quotient_values(
+            config,
+            &shift,
+            log_degrees[6],
+            log_quotient_degree,
+            &main_ldes[6],
+            alpha,
+        );
+        let lt_quotient_values = quotient_values(
+            config,
+            &lt,
+            log_degrees[7],
+            log_quotient_degree,
+            &main_ldes[7],
+            alpha,
+        );
 
         // Decompose the quotient values into chunks.
         let program_quotient_chunks = decompose_and_flatten::<SC>(
@@ -747,6 +766,16 @@ impl Runtime {
         );
         let bitwise_quotient_chunks = decompose_and_flatten::<SC>(
             bitwise_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degree,
+        );
+        let shift_quotient_chunks = decompose_and_flatten::<SC>(
+            shift_quotient_values,
+            SC::Challenge::from_base(config.pcs().coset_shift()),
+            log_quotient_degree,
+        );
+        let lt_quotient_chunks = decompose_and_flatten::<SC>(
+            lt_quotient_values,
             SC::Challenge::from_base(config.pcs().coset_shift()),
             log_quotient_degree,
         );
@@ -797,6 +826,21 @@ impl Runtime {
                     .coset_shift()
                     .exp_power_of_2(log_quotient_degree),
             );
+        let (shift_quotient_commit, shift_quotient_commit_data) =
+            config.pcs().commit_shifted_batch(
+                shift_quotient_chunks,
+                config
+                    .pcs()
+                    .coset_shift()
+                    .exp_power_of_2(log_quotient_degree),
+            );
+        let (lt_quotient_commit, lt_quotient_commit_data) = config.pcs().commit_shifted_batch(
+            lt_quotient_chunks,
+            config
+                .pcs()
+                .coset_shift()
+                .exp_power_of_2(log_quotient_degree),
+        );
 
         // Observe the quotient commitments.
         challenger.observe(program_quotient_commit);
@@ -805,6 +849,8 @@ impl Runtime {
         challenger.observe(add_quotient_commit);
         challenger.observe(sub_quotient_commit);
         challenger.observe(bitwise_quotient_commit);
+        challenger.observe(shift_quotient_commit);
+        challenger.observe(lt_quotient_commit);
 
         // Compute the quotient argument.
         //
@@ -837,6 +883,14 @@ impl Runtime {
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
         let prover_data_and_points = [(&bitwise_quotient_commit_data, zeta_and_next.as_slice())];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&shift_quotient_commit_data, zeta_and_next.as_slice())];
+        let (openings, opening_proof) = config
+            .pcs()
+            .open_multi_batches(&prover_data_and_points, challenger);
+        let prover_data_and_points = [(&lt_quotient_commit_data, zeta_and_next.as_slice())];
         let (openings, opening_proof) = config
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
@@ -876,6 +930,18 @@ impl Runtime {
             &bitwise,
             &traces[5],
             &permutation_traces[5],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &shift,
+            &traces[6],
+            &permutation_traces[6],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &lt,
+            &traces[7],
+            &permutation_traces[7],
             &permutation_challenges,
         );
 
