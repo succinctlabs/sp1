@@ -5,7 +5,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    air::CurtaBuilder,
+    air::CurtaAirBuilder,
     symbolic::{expression::SymbolicExpression, variable::SymbolicVariable},
 };
 
@@ -78,7 +78,7 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
     fn assert_zero<I: Into<Self::Expr>>(&mut self, _x: I) {}
 }
 
-impl<F: Field> CurtaBuilder for InteractionBuilder<F> {
+impl<F: Field> CurtaAirBuilder for InteractionBuilder<F> {
     fn send<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
     where
         I: IntoIterator<Item = T>,
@@ -193,11 +193,17 @@ impl Into<PairCol> for MyPairCol {
 
 #[cfg(test)]
 mod tests {
-    use p3_air::VirtualPairCol;
+    use super::*;
+    use p3_air::{BaseAir, VirtualPairCol};
     use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
+    use p3_field::{AbstractField, Field};
+    use p3_matrix::MatrixRowSlices;
 
-    use crate::symbolic::variable::SymbolicVariable;
+    use crate::{
+        air::{CurtaAir, CurtaAirBuilder},
+        lookup::{InteractionBuilder, InteractionKind},
+        symbolic::variable::SymbolicVariable,
+    };
 
     #[test]
     fn test_symbolic_to_virtual_pair_col() {
@@ -230,6 +236,88 @@ mod tests {
 
         let expr: F = z.apply(&[], &[F::one(), F::one()]);
 
-        println!("expr: {:?}", expr);
+        println!("expr: {}", expr);
+    }
+
+    pub struct LookupTestAir;
+
+    const NUM_COLS: usize = 3;
+
+    impl<F: Field> BaseAir<F> for LookupTestAir {
+        fn width(&self) -> usize {
+            NUM_COLS
+        }
+    }
+
+    impl<AB: CurtaAirBuilder> CurtaAir<AB> for LookupTestAir {
+        fn eval(&self, builder: &mut AB) {
+            let main = builder.main();
+            let local = main.row_slice(0);
+
+            let x = local[0];
+            let y = local[1];
+            let z = local[2];
+
+            builder.send([x, y], AB::F::from_canonical_u32(3), InteractionKind::Alu);
+            builder.send(
+                [x + y, z.into()],
+                AB::F::from_canonical_u32(5),
+                InteractionKind::Alu,
+            );
+
+            builder.receive([x], y, InteractionKind::Byte);
+        }
+    }
+
+    #[test]
+    fn test_lookup_interactions() {
+        let air = LookupTestAir {};
+
+        let mut builder = InteractionBuilder::<BabyBear>::new(NUM_COLS);
+
+        air.eval(&mut builder);
+
+        let mut main = builder.main();
+        let (sends, receives) = builder.interactions();
+
+        for interaction in receives {
+            print!("Receive values: ");
+            for value in interaction.values {
+                let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+                print!("{}, ", expr);
+            }
+
+            let multiplicity = interaction
+                .multiplicity
+                .apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+
+            println!(", multiplicity: {}", multiplicity);
+        }
+
+        for interaction in sends {
+            print!("Send values: ");
+            for value in interaction.values {
+                let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+                print!("{}, ", expr);
+            }
+
+            let multiplicity = interaction
+                .multiplicity
+                .apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+
+            println!(", multiplicity: {}", multiplicity);
+        }
     }
 }

@@ -26,7 +26,7 @@ pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
 /// An extension of the `AirBuilder` trait with additional methods for Curta types.
 ///
 /// All `AirBuilder` implementations automatically implement this trait.
-pub trait CurtaAirBuilder: AirBuilder {
+pub trait CurtaTypesBuilder: AirBuilder {
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
@@ -38,9 +38,9 @@ pub trait CurtaAirBuilder: AirBuilder {
     }
 }
 
-impl<AB: AirBuilder> CurtaAirBuilder for AB {}
+impl<AB: AirBuilder> CurtaTypesBuilder for AB {}
 
-pub trait CurtaBuilder: CurtaAirBuilder {
+pub trait CurtaAirBuilder: AirBuilder {
     fn send<I, T, J>(&mut self, values: I, multiplicity: J, kind: InteractionKind)
     where
         I: IntoIterator<Item = T>,
@@ -98,7 +98,7 @@ impl<'a, AB: PermutationAirBuilder> PermutationAirBuilder for DefaultCurta<'a, A
     }
 }
 
-impl<'a, AB: AirBuilder> CurtaBuilder for DefaultCurta<'a, AB> {
+impl<'a, AB: AirBuilder> CurtaAirBuilder for DefaultCurta<'a, AB> {
     fn send<I, T, J>(&mut self, _values: I, _mult: J, _kind: InteractionKind)
     where
         I: IntoIterator<Item = T>,
@@ -138,7 +138,7 @@ impl<F: PrimeField, T: Chip<F>> Chip<F> for AirAdapter<T> {
     }
 }
 
-pub trait CurtaAir<AB: CurtaBuilder>: BaseAir<AB::F> {
+pub trait CurtaAir<AB: CurtaAirBuilder>: BaseAir<AB::F> {
     fn eval(&self, builder: &mut AB);
 }
 

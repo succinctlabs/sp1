@@ -1,5 +1,7 @@
 use alloc::rc::Rc;
 use core::fmt::Debug;
+use core::fmt::Display;
+use core::fmt::Formatter;
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -221,5 +223,21 @@ impl<F: Field> Product for SymbolicExpression<F> {
 impl<F: Field> Product<F> for SymbolicExpression<F> {
     fn product<I: Iterator<Item = F>>(iter: I) -> Self {
         iter.map(|x| Self::from(x)).product()
+    }
+}
+
+impl<F: Field> Display for SymbolicExpression<F> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SymbolicExpression::Variable(v) => write!(f, "{}", v),
+            SymbolicExpression::IsFirstRow => write!(f, "IsFirstRow"),
+            SymbolicExpression::IsLastRow => write!(f, "IsLastRow"),
+            SymbolicExpression::IsTransition => write!(f, "IsTransition"),
+            SymbolicExpression::Constant(c) => write!(f, "{}", c),
+            SymbolicExpression::Add(x, y) => write!(f, "({} + {})", x, y),
+            SymbolicExpression::Sub(x, y) => write!(f, "({} - {})", x, y),
+            SymbolicExpression::Neg(x) => write!(f, "-{}", x),
+            SymbolicExpression::Mul(x, y) => write!(f, "({} * {})", x, y),
+        }
     }
 }

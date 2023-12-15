@@ -49,7 +49,6 @@ mod tests {
 
     use crate::air::{AirAdapter, CurtaAir};
     use crate::lookup::InteractionBuilder;
-    use crate::memory::air::MEM_COL;
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
@@ -59,7 +58,7 @@ mod tests {
     use p3_commit::ExtensionMmcs;
 
     use super::air::NUM_MEMORY_COLS;
-    use super::{interaction, MemoryEvent};
+    use super::MemoryEvent;
 
     #[test]
     fn test_memory_generate_trace() {
@@ -138,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lookup_interactions() {
+    fn test_memory_lookup_interactions() {
         let air = MemoryChip::new();
 
         let mut builder = InteractionBuilder::<BabyBear>::new(NUM_MEMORY_COLS);
@@ -148,15 +147,13 @@ mod tests {
         let mut main = builder.main();
         let (sends, receives) = builder.interactions();
 
-        // let main = MEM_COL;
-
         for interaction in receives {
             for value in interaction.values {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     &main.row_mut(0),
                 );
-                println!("{:?}", expr);
+                println!("{}", expr);
             }
         }
 
