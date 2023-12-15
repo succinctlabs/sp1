@@ -1339,4 +1339,25 @@ pub mod tests {
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
         assert_eq!(runtime.pc, 108);
     }
+
+    #[test]
+    fn test_store_and_load_word() {
+        // Test LW, SW
+        // addi x11, x11, 20
+        // addi x29, x29, 30
+        // sw x29, x11, 128
+        // lw x30, x11, 128
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 11, 11, 20),
+            Instruction::new(Opcode::ADDI, 29, 29, 30),
+            Instruction::new(Opcode::SW, 29, 11, 128), // Store 30 at address 20 + 128 = 148
+            Instruction::new(Opcode::LW, 18, 11, 128),
+        ];
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X18 as usize], 30);
+        assert_eq!(runtime.registers()[Register::X11 as usize], 20);
+        assert_eq!(runtime.registers()[Register::X29 as usize], 30);
+        assert_eq!(runtime.memory[&148], 30);
+    }
 }
