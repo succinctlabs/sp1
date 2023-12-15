@@ -44,7 +44,7 @@ mod tests {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
-    use p3_uni_stark::{prove, verify, StarkConfigImpl};
+    use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
     use rand::thread_rng;
 
     use crate::air::{AirAdapter, CurtaAir};
@@ -52,8 +52,6 @@ mod tests {
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
-    use crate::symbolic::expression::SymbolicExpression;
-    use crate::symbolic::variable::SymbolicVariable;
 
     use p3_commit::ExtensionMmcs;
 

@@ -1,23 +1,11 @@
-use std::marker::PhantomData;
-
 use p3_air::{AirBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
 
-use crate::{
-    air::CurtaAirBuilder,
-    symbolic::{expression::SymbolicExpression, variable::SymbolicVariable},
-};
+use crate::air::CurtaAirBuilder;
 
 use super::{Interaction, InteractionKind};
-
-/// A column in a PAIR, i.e. either a preprocessed column or a main trace column.
-#[derive(Copy, Clone, Debug)]
-#[allow(dead_code)]
-pub enum MyPairCol {
-    Preprocessed(usize),
-    Main(usize),
-}
 
 pub struct InteractionBuilder<F: Field> {
     main: RowMajorMatrix<SymbolicVariable<F>>,
@@ -30,11 +18,7 @@ impl<F: Field> InteractionBuilder<F> {
         let values = [false, true]
             .into_iter()
             .flat_map(|is_next| {
-                (0..width).map(move |column| SymbolicVariable {
-                    is_next,
-                    column,
-                    _phantom: PhantomData,
-                })
+                (0..width).map(move |column| SymbolicVariable::new(is_next, column))
             })
             .collect();
         Self {
@@ -131,11 +115,11 @@ fn symbolic_to_virtual_pair<F: Field>(expression: &SymbolicExpression<F>) -> Vir
 
 fn eval_symbolic_to_virtual_pair<F: Field>(
     expression: &SymbolicExpression<F>,
-) -> (Vec<(MyPairCol, F)>, F) {
+) -> (Vec<(PairCol, F)>, F) {
     match expression {
         SymbolicExpression::Constant(c) => (vec![], *c),
         SymbolicExpression::Variable(v) if !v.is_next => {
-            (vec![(MyPairCol::Main(v.column), F::one())], F::zero())
+            (vec![(PairCol::Main(v.column), F::one())], F::zero())
         }
         SymbolicExpression::Add(left, right) => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(left);
@@ -182,15 +166,6 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
     }
 }
 
-impl Into<PairCol> for MyPairCol {
-    fn into(self) -> PairCol {
-        match self {
-            MyPairCol::Preprocessed(i) => PairCol::Preprocessed(i),
-            MyPairCol::Main(i) => PairCol::Main(i),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,24 +177,15 @@ mod tests {
     use crate::{
         air::{CurtaAir, CurtaAirBuilder},
         lookup::{InteractionBuilder, InteractionKind},
-        symbolic::variable::SymbolicVariable,
     };
 
     #[test]
     fn test_symbolic_to_virtual_pair_col() {
         type F = BabyBear;
 
-        let x = SymbolicVariable::<F> {
-            is_next: false,
-            column: 0,
-            _phantom: Default::default(),
-        };
+        let x = SymbolicVariable::<F>::new(false, 0);
 
-        let y = SymbolicVariable::<F> {
-            is_next: false,
-            column: 1,
-            _phantom: Default::default(),
-        };
+        let y = SymbolicVariable::<F>::new(false, 1);
 
         let z = x + y;
 
