@@ -203,7 +203,6 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
-        println!("Executing instruction: {:?}", instruction);
         let pc = self.pc;
         let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
             u32,
@@ -283,8 +282,8 @@ impl Runtime {
             }
             Opcode::SLTU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = if b < c { 1 } else { 0 };
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = if b < c { 1 } else { 0 };
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
@@ -545,50 +544,50 @@ impl Runtime {
             // Multiply instructions.
             Opcode::MUL => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = b.wrapping_mul(c);
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = b.wrapping_mul(c);
                 self.rw(rd, a);
             }
             Opcode::MULH => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::MULHSU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::MULHU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = (b as i32).wrapping_div(c as i32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = (b as i32).wrapping_div(c as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::DIVU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = b.wrapping_div(c);
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = b.wrapping_div(c);
                 self.rw(rd, a);
             }
             Opcode::REM => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1) as i32, self.rr(rs2) as i32);
-                let a = (b as i32).wrapping_rem(c as i32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = (b as i32).wrapping_rem(c as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::REMU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = b.wrapping_rem(c);
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = b.wrapping_rem(c);
                 self.rw(rd, a);
             }
             Opcode::UNIMP => {
@@ -662,104 +661,7 @@ impl Runtime {
         // For each chip, generate the trace.
         let mut traces = chips.map(|chip| chip.generate_trace(self));
 
-        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://pastebin.com/ynPyVVY6
-        println!("CPU trace");
-        let mut cpu_str = Vec::new();
-        traces[1].clone().rows_mut().for_each(|row| {
-            let cols = CpuCols::<u32>::from_trace_row(row);
-
-            let multiplicity = 1 - cols.selectors.noop - cols.selectors.reg_0_write;
-            if multiplicity != 0 {
-                let a = format!(
-                    "clk: {:?} addr: Word([{:?}, 255, 255, 255]) value: {:?} is_read: Bool({:?}) | multiplicity: {:?}",
-                    cols.clk,
-                    cols.instruction.op_a[0] * 4,
-                    cols.op_a_val,
-                    cols.selectors.branch_op + cols.selectors.is_store,
-                    multiplicity
-                );
-                cpu_str.push(a);
-            }
-
-            let multiplicity = 1 - cols.selectors.imm_c;
-            if multiplicity != 0{
-                let a = format!(
-                    "clk: {:?} addr: Word([{:?}, 255, 255, 255]) value: {:?} is_read: Bool(1) | multiplicity: {:?}",
-                    cols.clk, cols.instruction.op_c[0] * 4, cols.op_c_val, multiplicity
-                );
-                cpu_str.push(a);
-            }
-
-            let multiplicity = 1 - cols.selectors.imm_b;
-            if multiplicity != 0 {
-                let a = format!(
-                    "clk: {:?} addr: Word([{:?}, 255, 255, 255]) value: {:?} is_read: Bool(1) | multiplicity: {:?}",
-                    cols.clk, cols.instruction.op_b[0] * 4, cols.op_b_val, multiplicity
-                );
-                cpu_str.push(a);
-            }
-
-            let multiplicity = cols.selectors.mem_op;
-            if multiplicity != 0 {
-                let a = format!(
-                    "clk: {:?} addr: {:?} value: {:?} is_read: Bool({:?}) | multiplicity: {:?}",
-                    cols.clk,
-                    cols.addr,
-                    cols.mem_val,
-                    1,
-                    multiplicity
-                );
-                cpu_str.push(a);
-            }
-
-            let multiplicity = cols.selectors.is_store;
-            if multiplicity != 0 {
-                let a = format!(
-                    "clk: {:?} addr: {:?} value: {:?} is_read: Bool({:?}) | multiplicity: {:?}",
-                    cols.clk,
-                    cols.addr,
-                    cols.mem_scratch,
-                    0,
-                    multiplicity
-                );
-                cpu_str.push(a);
-            }
-        });
-        println!("memory trace");
-        let mut mem_str = Vec::new();
-        let mut mem_hash: HashMap<u32, Vec<String>> = HashMap::new();
-        traces[2].clone().rows_mut().for_each(|row| {
-            let cols = MemoryCols::<u32>::from_trace_row(row);
-            let multiplicity = cols.multiplicity;
-            if multiplicity != 0 {
-                let a = format!(
-                    "clk: {:?} addr: {:?} value: {:?} is_read: {:?} | multiplicity: {:?}",
-                    cols.clk, cols.addr, cols.value, cols.is_read, multiplicity
-                );
-                mem_str.push(a.clone());
-                mem_hash
-                    .entry(cols.clk)
-                    .or_insert_with(Vec::new)
-                    .push(a.clone());
-            }
-        });
-
-        let set1: std::collections::HashSet<_> = cpu_str.clone().into_iter().collect();
-        let set2: std::collections::HashSet<_> = mem_str.into_iter().collect();
-
-        for element in cpu_str.clone() {
-            if !set2.contains(&element) {
-                println!("{}", element);
-            }
-        }
-
-        // let out: Vec<String> = set1.symmetric_difference(&set2).cloned().collect();
-        // for element in out {
-        //     println!("{}", element);
-        // }
-
-        println!("{:?}", self.cpu_events[4]);
-        println!("{:?}", mem_hash.get(&5));
+        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
@@ -1159,10 +1061,11 @@ pub mod tests {
         ];
         let mut pc = 0;
         let program = get_simple_program();
-        // let (program, pc) = get_fibonacci_program();
+        let (program, pc) = get_fibonacci_program();
 
         let mut runtime = Runtime::new(program, pc);
         runtime.run();
+        let register = runtime.registers();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
         // assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }
