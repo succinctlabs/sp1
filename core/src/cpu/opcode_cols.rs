@@ -164,6 +164,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             | Opcode::REMU => {
                 self.mul_op = F::one();
             }
+            Opcode::UNIMP => {}
             _ => panic!("Invalid opcode"),
         }
     }

@@ -776,6 +776,11 @@ impl Runtime {
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {
+    use super::Opcode;
+    use super::Register;
+    use super::Runtime;
+    use crate::disassembler::parse_elf;
+    use crate::runtime::instruction::Instruction;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -795,12 +800,8 @@ pub mod tests {
     use p3_symmetric::SerializingHasher32;
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
-
-    use crate::runtime::instruction::Instruction;
-
-    use super::Opcode;
-    use super::Register;
-    use super::Runtime;
+    use std::io::Read;
+    use std::path::Path;
 
     pub fn get_simple_program() -> Vec<Instruction> {
         // int main() {
@@ -855,10 +856,30 @@ pub mod tests {
         code
     }
 
+    fn get_fibonacci_program() -> (Vec<Instruction>, u32) {
+        let mut elf_code = Vec::new();
+        let path = Path::new("").join("../programs/fib").with_extension("s");
+        std::fs::File::open(path)
+            .expect("Failed to open input file")
+            .read_to_end(&mut elf_code)
+            .expect("Failed to read from input file");
+
+        // Parse ELF code.
+        parse_elf(&elf_code).expect("Failed to assemble code")
+    }
+
     #[test]
     fn SIMPLE_PROGRAM() {
         let code = get_simple_program();
         let mut runtime = Runtime::new(code);
+        runtime.run();
+    }
+
+    #[test]
+    fn fibonacci_program() {
+        let (code, pc) = get_fibonacci_program();
+        let mut runtime: Runtime = Runtime::new(code);
+        runtime.pc = pc;
         runtime.run();
     }
 
@@ -908,11 +929,17 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let program = vec![
+        let mut program = vec![
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::ADDI, 31, 29, 9),
         ];
+        let mut pc = 0;
+        // program = get_simple_program();
+
+        (program, pc) = get_fibonacci_program();
+
         let mut runtime = Runtime::new(program);
+        runtime.pc = pc;
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
         // assert_eq!(runtime.registers()[Register::X31 as usize], 42);

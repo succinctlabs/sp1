@@ -308,6 +308,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "elf",
  "itertools 0.12.0",
  "p3-air",
  "p3-baby-bear",

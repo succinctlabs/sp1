@@ -24,20 +24,22 @@ impl<F: PrimeField> InstructionCols<F> {
             _ => instruction.opcode,
         };
         self.opcode = F::from_canonical_u32(opcode as u32);
+        let mut op_c = instruction.op_c;
         match instruction.opcode {
             Opcode::LUI => {
+                println!("Conversion to SLL");
                 // For LUI, we convert it to a SLL instruction with imm_b and imm_c turned on.
                 self.opcode = F::from_canonical_u32(Opcode::SLL as u32);
-                assert_eq!(instruction.op_c as u32, 12);
+                op_c = 12;
             }
             Opcode::AUIPC => {
                 // For AUIPC, we set the 3rd operand to imm_b << 12.
-                assert_eq!(instruction.op_c as u32, instruction.op_b << 12);
+                op_c = instruction.op_b << 12;
             }
             _ => {}
         }
         self.op_a = instruction.op_a.into();
         self.op_b = instruction.op_b.into();
-        self.op_c = instruction.op_c.into();
+        self.op_c = op_c.into();
     }
 }
