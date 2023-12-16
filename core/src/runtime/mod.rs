@@ -14,6 +14,7 @@ use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 pub use register::*;
 use std::collections::{BTreeMap, HashMap};
+use std::mem;
 
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
@@ -202,6 +203,7 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
+        println!("Executing instruction: {:?}", instruction);
         let pc = self.pc;
         let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
             u32,
@@ -358,16 +360,7 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
                 memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    (memory_value.unwrap() & 0x000000FF)
-                } else if offset == 1 {
-                    (memory_value.unwrap() & 0x0000FF00)
-                } else if offset == 2 {
-                    (memory_value.unwrap() & 0x00FF0000)
-                } else {
-                    (memory_value.unwrap() & 0xFF000000)
-                };
+                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = ((value as i8) as i32) as u32;
                 self.rw(rd, a);
             }
@@ -400,16 +393,7 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
                 memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    (memory_value.unwrap() & 0x000000FF)
-                } else if offset == 1 {
-                    (memory_value.unwrap() & 0x0000FF00)
-                } else if offset == 2 {
-                    (memory_value.unwrap() & 0x00FF0000)
-                } else {
-                    (memory_value.unwrap() & 0xFF000000)
-                };
+                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = (value as u8) as u32;
                 self.rw(rd, a);
             }
