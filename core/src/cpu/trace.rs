@@ -1,11 +1,10 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
-use crate::lookup::{Interaction, IsRead};
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
 use core::mem::transmute;
-use p3_air::VirtualPairCol;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;

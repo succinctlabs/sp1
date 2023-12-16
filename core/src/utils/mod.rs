@@ -10,24 +10,25 @@ use crate::{
 pub trait Chip<F: PrimeField>: Air<InteractionBuilder<F>> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
-    // TODO: remove this
     fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
+        let mut builder = InteractionBuilder::new(self.width());
+        self.eval(&mut builder);
+        let (_, receives) = builder.interactions();
+        receives
     }
 
-    // TODO: remove this
     fn sends(&self) -> Vec<Interaction<F>> {
-        vec![]
+        let mut builder = InteractionBuilder::new(self.width());
+        self.eval(&mut builder);
+        let (sends, _) = builder.interactions();
+        sends
     }
 
     fn all_interactions(&self) -> Vec<Interaction<F>> {
         let mut builder = InteractionBuilder::new(self.width());
         self.eval(&mut builder);
-
         let (mut sends, receives) = builder.interactions();
-
         sends.extend(receives);
-
         sends
     }
 }

@@ -2,6 +2,7 @@ use crate::runtime::Opcode;
 
 pub mod add;
 pub mod bitwise;
+pub mod lt;
 pub mod shift;
 pub mod sub;
 

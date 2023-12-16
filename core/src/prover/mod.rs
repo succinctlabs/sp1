@@ -10,7 +10,6 @@ use p3_field::{
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixGet, MatrixRowSlices};
 use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 use p3_util::log2_strict_usize;
-use rayon::iter::IndexedParallelIterator;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 mod debug;
@@ -56,9 +55,7 @@ fn generate_interaction_rlc_elements<F: PrimeField, EF: AbstractExtensionField<F
         .powers()
         .skip(1)
         .take(
-            chip.sends()
-                .into_iter()
-                .chain(chip.receives())
+            chip.all_interactions()
                 .into_iter()
                 .map(|interaction| interaction.argument_index())
                 .max()
