@@ -9,7 +9,7 @@ use crate::{
     runtime::Runtime,
 };
 
-pub trait Chip<F: PrimeField>: BaseAir<F> {
+pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String {
         "".to_string()
     }

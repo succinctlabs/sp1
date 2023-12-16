@@ -83,6 +83,12 @@ where
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
 
+        // Dummy constraint of degree 3.
+        builder.assert_eq(
+            local.pc * local.pc * local.pc,
+            local.pc * local.pc * local.pc,
+        );
+
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
         builder
@@ -93,18 +99,50 @@ where
 
         //// Constraint op_a_val, op_b_val, op_c_val
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
-        for i in 0..4 {
-            builder
-                .when(local.selectors.imm_b)
-                .assert_eq(local.op_b_val[i], local.instruction.op_b[i]);
-            builder
-                .when(local.selectors.imm_c)
-                .assert_eq(local.op_c_val[i], local.instruction.op_c[i]);
-        }
+        builder
+            .when(local.selectors.imm_b)
+            .assert_word_eq(local.op_b_val, local.instruction.op_b);
+        builder
+            .when(local.selectors.imm_c)
+            .assert_word_eq(local.op_c_val, local.instruction.op_c);
 
-        builder.assert_eq(
-            local.pc * local.pc * local.pc,
-            local.pc * local.pc * local.pc,
+        builder.send_register(
+            local.clk,
+            local.instruction.op_a[0],
+            local.op_a_val,
+            local.selectors.branch_op + local.selectors.is_store,
+            -(local.selectors.noop + local.selectors.reg_0_write) + AB::F::one(), // Need weird order because of type inference
+        );
+
+        builder.send_register(
+            local.clk,
+            local.instruction.op_c[0],
+            local.op_c_val,
+            AB::F::one(), // Always a read
+            (local.selectors.imm_c) * (AB::F::zero() - AB::F::one()) + AB::F::one(), // Only a read if not an immediate
+        );
+        builder.send_register(
+            local.clk,
+            local.instruction.op_b[0],
+            local.op_b_val,
+            AB::F::one(), // Always a read
+            (local.selectors.imm_b) * (AB::F::zero() - AB::F::one()) + AB::F::one(), // Only a read if not an immediate
+        );
+
+        builder.send_memory(
+            local.clk,
+            local.addr,
+            local.mem_val,
+            AB::F::one(),
+            local.selectors.mem_op,
+        );
+
+        builder.send_memory(
+            local.clk,
+            local.addr,
+            local.mem_scratch,
+            AB::F::zero(),
+            local.selectors.is_store,
         );
 
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table

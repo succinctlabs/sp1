@@ -734,48 +734,6 @@ impl Runtime {
             config.pcs().commit_batches(flattened_permutation_traces);
         challenger.observe(permutation_commit);
 
-        // Check that the table-specific constraints are correct for each chip.
-        debug_constraints(
-            &program,
-            &traces[0],
-            &permutation_traces[0],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &cpu,
-            &traces[1],
-            &permutation_traces[1],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &memory,
-            &traces[2],
-            &permutation_traces[2],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &add,
-            &traces[3],
-            &permutation_traces[3],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &sub,
-            &traces[4],
-            &permutation_traces[4],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &bitwise,
-            &traces[5],
-            &permutation_traces[5],
-            &permutation_challenges,
-        );
-
-        // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
-
-        return;
         // For each chip, compute the quotient polynomial.
         let main_ldes = config.pcs().get_ldes(&main_data);
         let permutation_ldes = config.pcs().get_ldes(&permutation_data);

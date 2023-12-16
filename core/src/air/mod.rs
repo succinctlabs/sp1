@@ -94,6 +94,99 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             InteractionKind::Alu,
         ));
     }
+
+    fn send_register<EClk, EReg, EVal, ERead, EMult>(
+        &mut self,
+        clk: EClk,
+        register: EReg,
+        value: Word<EVal>,
+        is_read: ERead,
+        multiplicity: EMult,
+    ) where
+        EClk: Into<Self::Expr>,
+        EReg: Into<Self::Expr>,
+        EVal: Into<Self::Expr>,
+        ERead: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        let register_aligned = register.into() * Self::Expr::from_canonical_u32(4);
+        // let values = once(clk.into())
+        //     .chain(once(register_aligned.into()))
+        //     .chain(
+        //         vec![
+        //             Self::F::from_canonical_u32(0xFF),
+        //             Self::F::from_canonical_u32(0xFF),
+        //             Self::F::from_canonical_u32(0xFF),
+        //         ]
+        //         .into_iter()
+        //         .map(Into::into),
+        //     )
+        //     .chain(value.0.into_iter().map(Into::into))
+        //     .collect();
+        // let values = once(clk.into()).collect();
+
+        // self.send(AirInteraction::new(
+        //     values,
+        //     multiplicity.into(),
+        //     InteractionKind::Memory,
+        // ));
+    }
+
+    fn send_memory<EClk, Ea, Eb, Ec, EMult>(
+        &mut self,
+        clk: EClk,
+        addr: Word<Ea>,
+        value: Word<Eb>,
+        is_read: Ec,
+        multiplicity: EMult,
+    ) where
+        EClk: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        // let values = once(clk.into())
+        //     .chain(addr.0.into_iter().map(Into::into))
+        //     .chain(value.0.into_iter().map(Into::into))
+        //     .chain(once(is_read.into()))
+        //     .collect();
+        // let values = once(clk.into()).collect();
+
+        // self.send(AirInteraction::new(
+        //     values,
+        //     multiplicity.into(),
+        //     InteractionKind::Memory,
+        // ));
+    }
+
+    fn recieve_memory<EClk, Ea, Eb, Ec, EMult>(
+        &mut self,
+        clk: EClk,
+        addr: Word<Ea>,
+        value: Word<Eb>,
+        is_read: Ec,
+        multiplicity: EMult,
+    ) where
+        EClk: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        // let values = once(clk.into())
+        //     .chain(addr.0.into_iter().map(Into::into))
+        //     .chain(value.0.into_iter().map(Into::into))
+        //     .chain(once(is_read.into()))
+        //     .collect();
+        // let values = once(clk.into()).collect();
+
+        // self.receive(AirInteraction::new(
+        //     values,
+        //     multiplicity.into(),
+        //     InteractionKind::Memory,
+        // ));
+    }
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
