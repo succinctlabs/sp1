@@ -228,9 +228,7 @@ mod tests {
             memory_value: None,
         }];
         let chip = CpuChip::new();
-        let mut trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        let mut first_row = trace.row_mut(0);
-        let cols: &mut CpuCols<BabyBear> = unsafe { transmute(&mut first_row) };
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values);
         // println!(
         //     "{:?} {:?} {:?} {:?} {:?}",
