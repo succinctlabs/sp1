@@ -19,7 +19,19 @@ pub struct InstructionCols<T> {
 
 impl<F: PrimeField> InstructionCols<F> {
     pub fn populate(&mut self, instruction: Instruction) {
-        self.opcode = F::from_canonical_u32(instruction.opcode as u32);
+        let opcode = match instruction.opcode {
+            Opcode::ADDI => Opcode::ADD,
+            Opcode::XORI => Opcode::XOR,
+            Opcode::ORI => Opcode::OR,
+            Opcode::ANDI => Opcode::AND,
+            Opcode::SLLI => Opcode::SLL,
+            Opcode::SRLI => Opcode::SRL,
+            Opcode::SRAI => Opcode::SRA,
+            Opcode::SLTI => Opcode::SLT,
+            Opcode::SLTIU => Opcode::SLTU,
+            _ => instruction.opcode,
+        };
+        self.opcode = F::from_canonical_u32(opcode as u32);
         let mut op_c = instruction.op_c;
         match instruction.opcode {
             Opcode::LUI => {

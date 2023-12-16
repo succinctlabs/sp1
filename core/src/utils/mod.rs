@@ -1,8 +1,13 @@
-use p3_air::BaseAir;
-use p3_field::PrimeField;
+use p3_air::{Air, BaseAir};
+use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
-use crate::{lookup::Interaction, runtime::Runtime};
+use crate::{
+    lookup::{Interaction, InteractionBuilder},
+    prover::DebugConstraintBuilder,
+    runtime::Runtime,
+};
 
 pub trait Chip<F: PrimeField>: BaseAir<F> {
     fn name(&self) -> String {
@@ -12,18 +17,43 @@ pub trait Chip<F: PrimeField>: BaseAir<F> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
     fn receives(&self) -> Vec<Interaction<F>> {
-        vec![]
+        let mut builder = InteractionBuilder::new(self.width());
+        self.eval(&mut builder);
+        let (_, receives) = builder.interactions();
+        receives
     }
 
     fn sends(&self) -> Vec<Interaction<F>> {
-        vec![]
+        let mut builder = InteractionBuilder::new(self.width());
+        self.eval(&mut builder);
+        let (sends, _) = builder.interactions();
+        sends
     }
 
     fn all_interactions(&self) -> Vec<Interaction<F>> {
-        let mut interactions = self.sends();
-        interactions.extend(self.receives());
-        interactions
+        let mut builder = InteractionBuilder::new(self.width());
+        self.eval(&mut builder);
+        let (mut sends, receives) = builder.interactions();
+        sends.extend(receives);
+        sends
     }
+}
+
+pub trait AirChip<SC: StarkConfig>:
+    Chip<SC::Val>
+    + for<'a> Air<ProverConstraintFolder<'a, SC>>
+    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+{
+    fn air_width(&self) -> usize {
+        <Self as BaseAir<SC::Val>>::width(self)
+    }
+}
+
+impl<SC: StarkConfig, T> AirChip<SC> for T where
+    T: Chip<SC::Val>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+{
 }
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {

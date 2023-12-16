@@ -10,7 +10,6 @@ use p3_field::{
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixGet, MatrixRowSlices};
 use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 use p3_util::log2_strict_usize;
-use rayon::iter::IndexedParallelIterator;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 mod debug;
@@ -48,17 +47,18 @@ pub fn batch_multiplicative_inverse<F: Field>(values: Vec<F>) -> Vec<F> {
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-fn generate_interaction_rlc_elements<F: PrimeField, EF: AbstractExtensionField<F>>(
-    chip: &dyn Chip<F>,
+fn generate_interaction_rlc_elements<C, F: PrimeField, EF: AbstractExtensionField<F>>(
+    chip: &C,
     random_element: EF,
-) -> Vec<EF> {
+) -> Vec<EF>
+where
+    C: Chip<F> + ?Sized,
+{
     let alphas = random_element
         .powers()
         .skip(1)
         .take(
-            chip.sends()
-                .into_iter()
-                .chain(chip.receives())
+            chip.all_interactions()
                 .into_iter()
                 .map(|interaction| interaction.argument_index())
                 .max()
@@ -167,7 +167,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 pub fn eval_permutation_constraints<F, C, AB>(chip: &C, builder: &mut AB, cumulative_sum: AB::EF)
 where
     F: PrimeField,
-    C: Chip<F> + Air<AB>,
+    C: Chip<F> + Air<AB> + ?Sized,
     AB: PermutationAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
@@ -270,7 +270,7 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
     perm: &RowMajorMatrix<EF>,
     perm_challenges: &[EF],
 ) where
-    A: for<'a> Air<DebugConstraintBuilder<'a, F, EF>> + BaseAir<F> + Chip<F>,
+    A: for<'a> Air<DebugConstraintBuilder<'a, F, EF>> + BaseAir<F> + Chip<F> + ?Sized,
 {
     assert_eq!(main.height(), perm.height());
     let height = main.height();
@@ -353,7 +353,7 @@ pub fn quotient_values<SC, A, Mat>(
 ) -> Vec<SC::Challenge>
 where
     SC: StarkConfig,
-    A: for<'a> Air<ProverConstraintFolder<'a, SC>>,
+    A: for<'a> Air<ProverConstraintFolder<'a, SC>> + ?Sized,
     Mat: MatrixGet<SC::Val> + Sync,
 {
     let degree = 1 << degree_bits;

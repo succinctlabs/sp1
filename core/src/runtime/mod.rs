@@ -8,6 +8,7 @@ pub use instruction::*;
 pub use opcode::*;
 
 use crate::prover::{debug_cumulative_sums, quotient_values};
+use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
@@ -16,6 +17,8 @@ pub use register::*;
 use std::collections::{BTreeMap, HashMap};
 use std::mem;
 
+use crate::alu::lt::LtChip;
+use crate::alu::shift::ShiftChip;
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
@@ -29,7 +32,6 @@ use crate::{
     cpu::{trace::CpuChip, CpuEvent},
     memory::{MemOp, MemoryEvent},
     program::ProgramChip,
-    utils::Chip,
 };
 
 /// An implementation of a runtime for the Curta VM.
@@ -66,6 +68,12 @@ pub struct Runtime {
 
     /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
     pub bitwise_events: Vec<AluEvent>,
+
+    /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
+    pub shift_events: Vec<AluEvent>,
+
+    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
+    pub lt_events: Vec<AluEvent>,
 }
 
 impl Runtime {
@@ -81,6 +89,8 @@ impl Runtime {
             add_events: Vec::new(),
             sub_events: Vec::new(),
             bitwise_events: Vec::new(),
+            shift_events: Vec::new(),
+            lt_events: Vec::new(),
         }
     }
 
@@ -535,8 +545,12 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
-                todo!()
+                // While not all ECALLs obviously halt the CPU, we will for now halt. We need to
+                // come back to this and figure out how to handle this properly.
+                println!("ECALL encountered! Halting!");
+                next_pc = self.program.len() as u32 * 4;
             }
+
             Opcode::EBREAK => {
                 todo!()
             }
@@ -591,7 +605,8 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::UNIMP => {
-                println!("UNIMP encountered, ignoring");
+                // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
+                panic!("UNIMP encountered, we should never get here.");
             }
         }
         self.pc = next_pc;
@@ -638,7 +653,6 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 6;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -646,25 +660,38 @@ impl Runtime {
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
-        let chips: [&dyn Chip<F>; NUM_CHIPS] = [&program, &cpu, &memory, &add, &sub, &bitwise];
+        let shift = ShiftChip::new();
+        let lt = LtChip::new();
+        let chips: [Box<dyn AirChip<SC>>; 8] = [
+            Box::new(program),
+            Box::new(cpu),
+            Box::new(memory),
+            Box::new(add),
+            Box::new(sub),
+            Box::new(bitwise),
+            Box::new(shift),
+            Box::new(lt),
+        ];
 
         // Compute some statistics.
         let mut main_cols = 0usize;
         let mut perm_cols = 0usize;
         for chip in chips.iter() {
-            main_cols += chip.width();
+            main_cols += chip.air_width();
             perm_cols += (chip.all_interactions().len() + 1) * 5;
         }
         println!("MAIN_COLS: {}", main_cols);
         println!("PERM_COLS: {}", perm_cols);
 
         // For each chip, generate the trace.
-        let mut traces = chips.map(|chip| chip.generate_trace(self));
-
+        let traces = chips
+            .iter()
+            .map(|chip| chip.generate_trace(self))
+            .collect::<Vec<_>>();
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
-        let degrees: [usize; NUM_CHIPS] = traces
+        let degrees: [usize; 8] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -687,10 +714,14 @@ impl Runtime {
 
         // Generate the permutation traces.
         let permutation_traces = chips
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(i, chip)| {
-                generate_permutation_trace(chip, &traces[i], permutation_challenges.clone())
+                generate_permutation_trace(
+                    chip.as_ref(),
+                    &traces[i],
+                    permutation_challenges.clone(),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -749,125 +780,50 @@ impl Runtime {
         let main_ldes = config.pcs().get_ldes(&main_data);
         let permutation_ldes = config.pcs().get_ldes(&permutation_data);
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-        let program_quotient_values = quotient_values(
-            config,
-            &program,
-            log_degrees[0],
-            log_quotient_degree,
-            &main_ldes[0],
-            alpha,
-        );
-        let cpu_quotient_values = quotient_values(
-            config,
-            &cpu,
-            log_degrees[1],
-            log_quotient_degree,
-            &main_ldes[1],
-            alpha,
-        );
-        let add_quotient_values = quotient_values(
-            config,
-            &add,
-            log_degrees[2],
-            log_quotient_degree,
-            &main_ldes[2],
-            alpha,
-        );
-        let sub_quotient_values = quotient_values(
-            config,
-            &sub,
-            log_degrees[3],
-            log_quotient_degree,
-            &main_ldes[3],
-            alpha,
-        );
-        let bitwise_quotient_values = quotient_values(
-            config,
-            &bitwise,
-            log_degrees[4],
-            log_quotient_degree,
-            &main_ldes[4],
-            alpha,
-        );
 
-        // Decompose the quotient values into chunks.
-        let program_quotient_chunks = decompose_and_flatten::<SC>(
-            program_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let cpu_quotient_chunks = decompose_and_flatten::<SC>(
-            cpu_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let add_quotient_chunks = decompose_and_flatten::<SC>(
-            add_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let sub_quotient_chunks = decompose_and_flatten::<SC>(
-            sub_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let bitwise_quotient_chunks = decompose_and_flatten::<SC>(
-            bitwise_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
+        // Compute the quotient values.
+        let quotient_values = (0..chips.len()).map(|i| {
+            quotient_values(
+                config,
+                &*chips[i],
+                log_degrees[i],
+                log_quotient_degree,
+                &main_ldes[i],
+                alpha,
+            )
+        });
+
+        // Compute the quotient chunks.
+        let quotient_chunks = quotient_values
+            .map(|values| {
+                decompose_and_flatten::<SC>(
+                    values,
+                    SC::Challenge::from_base(config.pcs().coset_shift()),
+                    log_quotient_degree,
+                )
+            })
+            .collect::<Vec<_>>();
 
         // Commit to the quotient chunks.
-        let (program_quotient_commit, program_quotient_commit_data) =
-            config.pcs().commit_shifted_batch(
-                program_quotient_chunks,
-                config
-                    .pcs()
-                    .coset_shift()
-                    .exp_power_of_2(log_quotient_degree),
-            );
-        let (cpu_quotient_commit, cpu_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            cpu_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
-        let (add_quotient_commit, add_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            add_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
-        let (sub_quotient_commit, sub_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            sub_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
-        let (bitwise_quotient_commit, bitwise_quotient_commit_data) =
-            config.pcs().commit_shifted_batch(
-                bitwise_quotient_chunks,
-                config
-                    .pcs()
-                    .coset_shift()
-                    .exp_power_of_2(log_quotient_degree),
-            );
+        let (quotient_commit, quotient_commit_data): (Vec<_>, Vec<_>) = (0..chips.len())
+            .map(|i| {
+                config.pcs().commit_shifted_batch(
+                    quotient_chunks[i].clone(),
+                    config
+                        .pcs()
+                        .coset_shift()
+                        .exp_power_of_2(log_quotient_degree),
+                )
+            })
+            .into_iter()
+            .unzip();
 
         // Observe the quotient commitments.
-        challenger.observe(program_quotient_commit);
-        challenger.observe(cpu_quotient_commit);
-        challenger.observe(add_quotient_commit);
-        challenger.observe(sub_quotient_commit);
-        challenger.observe(bitwise_quotient_commit);
+        for commit in quotient_commit {
+            challenger.observe(commit);
+        }
 
         // Compute the quotient argument.
-        //
-        // Note: It seems like open_multi_batches does not currently yet support traces of different
-        // lengths. As a result, I had to not use the batched opening scheme. We'll need to fix
-        // this in the future?
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
@@ -877,26 +833,28 @@ impl Runtime {
         let (openings, opening_proof) = config
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&program_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&cpu_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&add_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&sub_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&bitwise_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
+        let (openings, opening_proofs): (Vec<_>, Vec<_>) = (0..chips.len())
+            .map(|i| {
+                let prover_data_and_points = [(&quotient_commit_data[i], zeta_and_next.as_slice())];
+                config
+                    .pcs()
+                    .open_multi_batches(&prover_data_and_points, challenger)
+            })
+            .into_iter()
+            .unzip();
+
+        // Check that the table-specific constraints are correct for each chip.
+        for i in 0..chips.len() {
+            debug_constraints(
+                &*chips[i],
+                &traces[i],
+                &permutation_traces[i],
+                &permutation_challenges,
+            );
+        }
+
+        // Check the permutation argument between all tables.
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 

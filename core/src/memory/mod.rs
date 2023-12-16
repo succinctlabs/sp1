@@ -29,6 +29,7 @@ pub struct MemoryEvent {
 
 #[cfg(test)]
 mod tests {
+    use p3_air::{Air, AirBuilder};
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -43,15 +44,17 @@ mod tests {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
-    use p3_uni_stark::{prove, verify, StarkConfigImpl};
+    use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
     use rand::thread_rng;
 
+    use crate::lookup::InteractionBuilder;
     use crate::memory::{MemOp, MemoryChip};
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
 
     use p3_commit::ExtensionMmcs;
 
+    use super::air::NUM_MEMORY_COLS;
     use super::MemoryEvent;
 
     #[test]
@@ -122,10 +125,34 @@ mod tests {
         let events = runtime.memory_events;
 
         let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
-        let air = MemoryChip {};
+        let air = MemoryChip::new();
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);
         verify(&config, &air, &mut challenger, &proof).unwrap();
+    }
+
+    #[test]
+    fn test_memory_lookup_interactions() {
+        let air = MemoryChip::new();
+
+        let mut builder = InteractionBuilder::<BabyBear>::new(NUM_MEMORY_COLS);
+
+        air.eval(&mut builder);
+
+        let mut main = builder.main();
+        let (sends, receives) = builder.interactions();
+
+        for interaction in receives {
+            for value in interaction.values {
+                let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+                println!("{}", expr);
+            }
+        }
+
+        assert!(sends.is_empty());
     }
 }

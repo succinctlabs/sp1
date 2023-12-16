@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -10,9 +10,10 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
+use crate::air::{CurtaAirBuilder, Word};
 
 use crate::alu::AluEvent;
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -32,6 +33,9 @@ pub struct SubCols<T> {
 
     /// Trace.
     pub carry: [T; 3],
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 /// A chip that implements subtraction for the opcode SUB.
@@ -45,11 +49,6 @@ impl SubChip {
 
 impl<F: PrimeField> Chip<F> for SubChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        // Always have one nonzero event.
-        runtime
-            .sub_events
-            .push(AluEvent::new(0, Opcode::SUB, 10, 12, 2));
-
         // Generate the trace rows for each event.
         let rows = runtime
             .sub_events
@@ -78,6 +77,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+                cols.is_real = F::one();
                 row
             })
             .collect::<Vec<_>>();
@@ -101,7 +101,7 @@ impl<F> BaseAir<F> for SubChip {
 
 impl<AB> Air<AB> for SubChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -140,6 +140,15 @@ where
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
+
+        // Receive the arguments.
+        builder.receive_alu(
+            AB::F::from_canonical_u32(Opcode::SUB as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_real,
+        )
     }
 }
 

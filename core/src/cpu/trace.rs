@@ -6,8 +6,6 @@ use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
 use core::mem::transmute;
-use p3_air::VirtualPairCol;
-use std::mem;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -291,9 +289,7 @@ mod tests {
             memory_store_value: None,
         }];
         let chip = CpuChip::new();
-        let mut trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        let mut first_row = trace.row_mut(0);
-        let cols: &mut CpuCols<BabyBear> = unsafe { transmute(&mut first_row) };
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values);
         // println!(
         //     "{:?} {:?} {:?} {:?} {:?}",
