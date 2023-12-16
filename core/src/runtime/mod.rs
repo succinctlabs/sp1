@@ -534,7 +534,6 @@ impl Runtime {
                 (b, c) = (imm, 12); // Note that we'll special-case this in the CPU table
                 a = b << 12;
                 self.rw(rd, a);
-                println!("LUI: a: {}, b: {}, c: {}", a, b, c);
             }
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
