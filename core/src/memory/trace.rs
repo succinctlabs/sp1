@@ -1,6 +1,5 @@
 use core::mem::transmute;
 
-use p3_air::VirtualPairCol;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -11,12 +10,12 @@ use rayon::slice::ParallelSlice;
 
 use crate::air::Bool;
 use crate::air::Word;
-use crate::lookup::Interaction;
+
 use crate::memory::air::MemoryCols;
-use crate::memory::air::MEM_COL;
+
 use crate::memory::air::NUM_MEMORY_COLS;
 use crate::memory::MemOp;
-use crate::memory::MemoryInteraction;
+
 use crate::runtime::Runtime;
 use crate::utils::Chip;
 

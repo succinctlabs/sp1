@@ -13,10 +13,9 @@ use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::reduce;
-use crate::air::AirInteraction;
+
 use crate::air::CurtaAirBuilder;
 use crate::air::{Bool, Word};
-use crate::lookup::InteractionKind;
 
 use super::MemoryChip;
 
