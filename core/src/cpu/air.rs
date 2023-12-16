@@ -106,6 +106,8 @@ where
             .when(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val, local.instruction.op_c);
 
+        // We always write to the first register unless we are doing a branch_op or a store_op.
+        // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
         builder.send_register(
             local.clk,
             local.instruction.op_a[0],
@@ -114,29 +116,32 @@ where
             -(local.selectors.noop + local.selectors.reg_0_write) + AB::F::one(), // Need weird order because of type inference
         );
 
+        // We always read to register b and register c unless the imm_b or imm_c flags are set.
         builder.send_register(
             local.clk,
             local.instruction.op_c[0],
             local.op_c_val,
-            AB::F::one(), // Always a read
-            (local.selectors.imm_c) * (AB::F::zero() - AB::F::one()) + AB::F::one(), // Only a read if not an immediate
+            AB::Expr::one(),
+            AB::Expr::one() - local.selectors.imm_c,
         );
         builder.send_register(
             local.clk,
             local.instruction.op_b[0],
             local.op_b_val,
-            AB::F::one(), // Always a read
-            (local.selectors.imm_b) * (AB::F::zero() - AB::F::one()) + AB::F::one(), // Only a read if not an immediate
+            AB::F::one(),
+            AB::Expr::one() - local.selectors.imm_b,
         );
 
+        // We always read to mem_val if is_load or is_store is set.
         builder.send_memory(
             local.clk,
             local.addr,
             local.mem_val,
             AB::F::one(),
-            local.selectors.mem_op,
+            local.selectors.is_load + local.selectors.is_store,
         );
 
+        // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
         builder.send_memory(
             local.clk,
             local.addr,
@@ -144,6 +149,8 @@ where
             AB::F::zero(),
             local.selectors.is_store,
         );
+
+        // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
 
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
         // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
