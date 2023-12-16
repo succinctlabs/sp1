@@ -413,9 +413,13 @@ impl Runtime {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
-                let value = (a as u16) as u32;
-                memory_value = Some(value);
-                self.mw(addr, value);
+                let mut new_val = match self.memory.get(&addr) {
+                    Some(value) => *value,
+                    None => 0,
+                };
+                new_val &= 0xffff0000; // Only keep the most significant 16 bits.
+                new_val |= a & 0xffff; // Set the least significant 16 bits.
+                self.mw(addr, new_val);
             }
             Opcode::SW => {
                 let (rs1, rs2, imm) = instruction.s_type();
@@ -1367,27 +1371,37 @@ pub mod tests {
     #[test]
     fn test_store_and_load_half_word() {
         // Test LH, SH
-        // addi x29, x29, 0x777
-        // lui x29, 0xffffa
-        // addi x11, x11, 20
-        // sw x29, x11, 128
-        // lw x30, x11, 128
-
         let program = vec![
-            Instruction::new(Opcode::LUI, 29, 0xffffa, 0), // Now x29 = 0xffffa777
-            Instruction::new(Opcode::ADDI, 29, 29, 0x777),
+            // x29 = 0xaaaaa111
+            Instruction::new(Opcode::LUI, 29, 0xaaaaa, 0),
+            Instruction::new(Opcode::ADDI, 29, 29, 0x111),
+            // x30 = 0xbbbbb222
+            Instruction::new(Opcode::LUI, 30, 0xbbbbb, 0),
+            Instruction::new(Opcode::ADDI, 30, 30, 0x222),
+            // x11 = 20
             Instruction::new(Opcode::ADDI, 11, 11, 20),
-            Instruction::new(Opcode::SH, 29, 11, 128), // Store the value at address 20 + 128 = 148
+            // Store x29's value at address 20 + 128 = 148 and load. Use SW now
+            // to test SH next.
+            Instruction::new(Opcode::SW, 29, 11, 128),
             Instruction::new(Opcode::LH, 18, 11, 128),
+            // Overwrite the least significant 2 bytes with 0xb222, while
+            // keeping the most significant 2 bytes the same. (i.e., 0xaaaab222)
+            Instruction::new(Opcode::SH, 30, 11, 128),
+            Instruction::new(Opcode::LH, 19, 11, 128),
         ];
 
         let mut runtime = Runtime::new(program);
         runtime.run();
 
         // LH sign-extends the value.
-        assert_eq!(runtime.registers()[Register::X29 as usize], 0xffffa777);
-        assert_eq!(runtime.registers()[Register::X18 as usize], 0xffffa777);
-        assert_eq!(runtime.memory[&148], 0xa777); // SH stores the lower 16 bits only.
+        assert_eq!(runtime.registers()[Register::X29 as usize], 0xaaaaa111);
+        assert_eq!(runtime.registers()[Register::X30 as usize], 0xbbbbb222);
+        assert_eq!(runtime.registers()[Register::X11 as usize], 20);
+
+        assert_eq!(runtime.memory[&148], 0xaaaab222);
+        // Sign extended
+        assert_eq!(runtime.registers()[Register::X18 as usize], 0xffffa111);
+        assert_eq!(runtime.registers()[Register::X19 as usize], 0xffffb222);
     }
 
     #[test]
