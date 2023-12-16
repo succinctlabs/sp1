@@ -1,8 +1,5 @@
 pub mod air;
-mod interaction;
 pub mod trace;
-
-pub use interaction::{IsRead, MemoryInteraction};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryChip;

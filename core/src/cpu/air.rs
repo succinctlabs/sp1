@@ -5,7 +5,7 @@ use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
-use p3_field::{AbstractField, PrimeField, PrimeField32};
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
@@ -35,7 +35,7 @@ pub struct CpuCols<T> {
 
     // An addr that we are reading from or writing to.
     pub addr: Word<T>,
-    // The addr offset, TODO this can be shrunk likely.
+    // TODO: this can be reduced to 1 element.
     pub addr_offset: Word<T>,
     // The associated memory value for `addr`.
     pub mem_val: Word<T>,
@@ -113,7 +113,7 @@ where
             local.instruction.op_a[0],
             local.op_a_val,
             local.selectors.branch_op + local.selectors.is_store,
-            -(local.selectors.noop + local.selectors.reg_0_write) + AB::F::one(), // Need weird order because of type inference
+            AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
         );
 
         // We always read to register b and register c unless the imm_b or imm_c flags are set.

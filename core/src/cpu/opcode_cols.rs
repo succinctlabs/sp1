@@ -20,8 +20,7 @@ pub struct OpcodeSelectors<T> {
     pub bitwise_op: T,
     pub lt_op: T,
 
-    // Memory operation
-    pub mem_op: T,
+    // Memory operation selectors.
     pub is_load: T,
     pub is_store: T,
     pub is_word: T,
@@ -118,7 +117,6 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 // For load instructions, imm_c should be turned on.
                 self.imm_c = F::one();
-                self.mem_op = F::one(); // TODO: might be able to remove this since mem_op = is_load + is_store
                 self.is_load = F::one();
                 match instruction.opcode {
                     Opcode::LB => {
@@ -147,7 +145,6 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             Opcode::SB | Opcode::SH | Opcode::SW => {
                 // For store instructions, imm_c should be turned on, but mem_read stays off.
                 self.imm_c = F::one();
-                self.mem_op = F::one();
                 self.is_store = F::one();
                 match instruction.opcode {
                     Opcode::SB => {

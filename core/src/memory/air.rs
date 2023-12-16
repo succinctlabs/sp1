@@ -179,20 +179,5 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
             local.is_read.0,
             local.multiplicity,
         );
-        // Recieve memory requests.
-        // builder.receive(AirInteraction::new(
-        //     [
-        //         local.clk,
-        //         local.addr[0],
-        //         local.addr[1],
-        //         local.addr[2],
-        //         local.addr[3],
-        //     ]
-        //     .into_iter()
-        //     .map(|x| x.into())
-        //     .collect(),
-        //     local.multiplicity.into(),
-        //     InteractionKind::Memory,
-        // ))
     }
 }

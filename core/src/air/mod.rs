@@ -41,6 +41,7 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         self.assert_bool(value.0);
     }
 
+    #[allow(unused)]
     fn send_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
@@ -68,6 +69,7 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         // ));
     }
 
+    #[allow(unused)]
     fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
@@ -124,7 +126,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             .chain(value.map(Into::into))
             .chain(once(is_read.into()))
             .collect();
-        // let values = once(clk.into()).collect();
 
         self.send(AirInteraction::new(
             values,
@@ -152,7 +153,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             .chain(value.map(Into::into))
             .chain(once(is_read.into()))
             .collect();
-        // let values = once(clk.into()).collect();
 
         self.send(AirInteraction::new(
             values,
@@ -180,7 +180,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             .chain(value.map(Into::into))
             .chain(once(is_read.into()))
             .collect();
-        // let values = once(clk.into()).collect();
 
         self.receive(AirInteraction::new(
             values,

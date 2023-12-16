@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use p3_air::VirtualPairCol;
 use p3_field::Field;
 
-use crate::air::Word;
 mod builder;
 
 pub use builder::InteractionBuilder;
@@ -56,32 +55,5 @@ impl<F: Field> Interaction<F> {
 
     pub fn argument_index(&self) -> usize {
         self.kind as usize
-    }
-
-    // TODO: move to the add chip
-    pub fn add(
-        res: Word<usize>,
-        a: Word<usize>,
-        b: Word<usize>,
-        multiplicity: VirtualPairCol<F>,
-    ) -> Self {
-        Self {
-            values: vec![
-                VirtualPairCol::single_main(res.0[0]),
-                VirtualPairCol::single_main(res.0[1]),
-                VirtualPairCol::single_main(res.0[2]),
-                VirtualPairCol::single_main(res.0[3]),
-                VirtualPairCol::single_main(a.0[0]),
-                VirtualPairCol::single_main(a.0[1]),
-                VirtualPairCol::single_main(a.0[2]),
-                VirtualPairCol::single_main(a.0[3]),
-                VirtualPairCol::single_main(b.0[0]),
-                VirtualPairCol::single_main(b.0[1]),
-                VirtualPairCol::single_main(b.0[2]),
-                VirtualPairCol::single_main(b.0[3]),
-            ],
-            multiplicity,
-            kind: InteractionKind::Alu,
-        }
     }
 }

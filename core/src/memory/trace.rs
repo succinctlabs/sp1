@@ -1,5 +1,4 @@
 use core::mem::transmute;
-use std::ops::Mul;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;

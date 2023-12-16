@@ -2,8 +2,6 @@ mod instruction;
 mod opcode;
 mod register;
 
-use crate::cpu::air::CpuCols;
-use crate::memory::air::MemoryCols;
 pub use instruction::*;
 pub use opcode::*;
 
@@ -14,8 +12,7 @@ use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 pub use register::*;
-use std::collections::{BTreeMap, HashMap};
-use std::mem;
+use std::collections::BTreeMap;
 
 use crate::alu::lt::LtChip;
 use crate::alu::shift::ShiftChip;
@@ -381,9 +378,9 @@ impl Runtime {
                 memory_value = Some(self.mr(addr));
                 let offset = addr % 4;
                 let value = if offset == 0 {
-                    (memory_value.unwrap() & 0x0000FFFF)
+                    memory_value.unwrap() & 0x0000FFFF
                 } else {
-                    (memory_value.unwrap() & 0xFFFF0000)
+                    memory_value.unwrap() & 0xFFFF0000
                 };
                 a = ((value as i16) as i32) as u32;
                 self.rw(rd, a);
@@ -414,9 +411,9 @@ impl Runtime {
                 memory_value = Some(self.mr(addr));
                 let offset = addr % 4;
                 let value = if offset == 0 {
-                    (memory_value.unwrap() & 0x0000FFFF)
+                    memory_value.unwrap() & 0x0000FFFF
                 } else {
-                    (memory_value.unwrap() & 0xFFFF0000)
+                    memory_value.unwrap() & 0xFFFF0000
                 };
                 a = (value as u16) as u32;
                 self.rw(rd, a);
@@ -920,12 +917,51 @@ pub mod tests {
     #[test]
     fn fibonacci_program() {
         let (code, pc) = get_fibonacci_program();
-        let mut runtime = Runtime::new(code, pc);
+        let mut runtime: Runtime = Runtime::new(code, pc);
         runtime.run();
     }
 
     #[test]
-    fn PROVE() {
+    fn basic_pogram() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADD, 31, 30, 29),
+        ];
+        let mut runtime: Runtime = Runtime::new(program, 0);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
+    }
+
+    #[test]
+    fn prove_fibonacci() {
+        let (program, pc) = get_fibonacci_program();
+        prove(program, pc);
+    }
+
+    #[test]
+    fn prove_simple() {
+        let program = get_simple_program();
+        prove(program, 0);
+    }
+
+    #[test]
+    fn prove_basic() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADD, 31, 30, 29),
+        ];
+        prove(program, 0);
+    }
+
+    fn prove(program: Vec<Instruction>, init_pc: u32) {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -966,23 +1002,9 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        // main:
-        //     addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
-        let mut program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
-        ];
-        let mut pc = 0;
-        let program = get_simple_program();
-        let (program, pc) = get_fibonacci_program();
-
-        let mut runtime = Runtime::new(program, pc);
+        let mut runtime = Runtime::new(program, init_pc);
         runtime.run();
-        let register = runtime.registers();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
-        // assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }
 
     #[test]

@@ -4,7 +4,6 @@ use anyhow::Context;
 use anyhow::Result;
 
 use crate::runtime::Instruction;
-use crate::runtime::Opcode;
 use elf::ElfBytes;
 
 use elf::endian::LittleEndian;
@@ -12,17 +11,6 @@ use elf::file::Class;
 
 pub const MAX_MEM: u32 = u32::MAX;
 pub const WORD_SIZE: usize = 4;
-
-// For load ininstructions
-// LBU rd rs1 imm addr_aligned addr_offset mem_val
-// shift_and_mask(rd, mem_val, addr_offset, is_word, is_half, is_byte, is_signed=false)
-// shift_and_mask takes the mem_val and shifts it by addr_offset and then masks it with the flags (is_word, is_half, is_byte, is_signed)
-
-// For store instructions
-// SB rs1 rs2 imm addr_aligned addr_offset mem_val mem_new_val
-// First we lookup mem_val to be the value at the address addr_aligned
-// Then we mask(rs1, mem_val, mem_new_val) with the flags (addr_offset, is_word, is_half, is_byte)
-// mask(a, b, addr_offset, is_word, is_half, is_byte || mask_0, mask_1, mask_2, mask_4) || means only in this table
 
 pub fn parse_elf(input: &[u8]) -> Result<(Vec<Instruction>, u32)> {
     let elf = ElfBytes::<LittleEndian>::minimal_parse(input)

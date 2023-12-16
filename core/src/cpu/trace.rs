@@ -1,7 +1,5 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
-use crate::lookup::Interaction;
-use crate::memory::{IsRead, MemoryInteraction};
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
