@@ -13,7 +13,7 @@ use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 pub use register::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
@@ -85,23 +85,26 @@ impl Runtime {
 
     /// Read from memory.
     fn mr(&mut self, addr: u32) -> u32 {
-        let value = match self.memory.get(&addr) {
+        let addr_word_aligned = addr - addr % 4;
+        let value = match self.memory.get(&addr_word_aligned) {
             Some(value) => *value,
             None => 0,
         };
-        self.emit_memory(self.clk, addr, MemOp::Read, value);
+        self.emit_memory(self.clk, addr_word_aligned, MemOp::Read, value);
         return value;
     }
 
     /// Write to memory.
     fn mw(&mut self, addr: u32, value: u32) {
-        self.memory.insert(addr, value);
-        self.emit_memory(self.clk, addr, MemOp::Write, value);
+        let addr_word_aligned = addr - addr % 4;
+        self.memory.insert(addr_word_aligned, value);
+        self.emit_memory(self.clk, addr_word_aligned, MemOp::Write, value);
     }
 
     /// Convert a register to a memory address.
     fn r2m(&self, register: Register) -> u32 {
-        u32::from_be_bytes([0xFF, 0xFF, 0xFF, register as u8])
+        // We have to word-align the register memory address.
+        u32::from_be_bytes([0xFF, 0xFF, 0xFF, (register as u8) * 4])
     }
 
     /// Read from register.
@@ -150,6 +153,7 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_value: Option<u32>,
+        memory_store_value: Option<u32>,
     ) {
         self.cpu_events.push(CpuEvent {
             clk: clk,
@@ -159,6 +163,7 @@ impl Runtime {
             b,
             c,
             memory_value,
+            memory_store_value,
         });
     }
 
@@ -198,8 +203,13 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let (mut a, mut b, mut c, mut memory_value): (u32, u32, u32, Option<u32>) =
-            (u32::MAX, u32::MAX, u32::MAX, None);
+        let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
+            u32,
+            u32,
+            u32,
+            Option<u32>,
+            Option<u32>,
+        ) = (u32::MAX, u32::MAX, u32::MAX, None, None);
 
         // By default, we add 4 to the next PC. However, some instructions (e.g., JAL) will modify
         // this value.
@@ -348,21 +358,39 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
                 memory_value = Some(self.mr(addr));
-                a = (memory_value.unwrap() as i8) as u32;
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    (memory_value.unwrap() & 0x000000FF)
+                } else if offset == 1 {
+                    (memory_value.unwrap() & 0x0000FF00)
+                } else if offset == 2 {
+                    (memory_value.unwrap() & 0x00FF0000)
+                } else {
+                    (memory_value.unwrap() & 0xFF000000)
+                };
+                a = ((value as i8) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 2, 0, "LH");
                 memory_value = Some(self.mr(addr));
-                a = (memory_value.unwrap() as i16) as u32;
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    (memory_value.unwrap() & 0x0000FFFF)
+                } else {
+                    (memory_value.unwrap() & 0xFFFF0000)
+                };
+                a = ((value as i16) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 4, 0, "LW");
                 memory_value = Some(self.mr(addr));
                 a = memory_value.unwrap();
                 self.rw(rd, a);
@@ -372,15 +400,32 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
                 memory_value = Some(self.mr(addr));
-                let a = (memory_value.unwrap() as u8) as u32;
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    (memory_value.unwrap() & 0x000000FF)
+                } else if offset == 1 {
+                    (memory_value.unwrap() & 0x0000FF00)
+                } else if offset == 2 {
+                    (memory_value.unwrap() & 0x00FF0000)
+                } else {
+                    (memory_value.unwrap() & 0xFF000000)
+                };
+                a = (value as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 2, 0, "LHU");
                 memory_value = Some(self.mr(addr));
-                let a = (memory_value.unwrap() as u16) as u32;
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    (memory_value.unwrap() & 0x0000FFFF)
+                } else {
+                    (memory_value.unwrap() & 0xFFFF0000)
+                };
+                a = (value as u16) as u32;
                 self.rw(rd, a);
             }
 
@@ -389,24 +434,44 @@ impl Runtime {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
-                let value = (a as u8) as u32;
-                memory_value = Some(value);
+                memory_value = Some(self.mr(addr)); // Get current memory_value to
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    (a & 0x000000FF) + (memory_value.unwrap() & 0xFFFFFF00)
+                } else if offset == 1 {
+                    (a & 0x000000FF) << 8 + (memory_value.unwrap() & 0xFFFF00FF)
+                } else if offset == 2 {
+                    (a & 0x000000FF) << 16 + (memory_value.unwrap() & 0xFF00FFFF)
+                } else {
+                    (a & 0x000000FF) << 24 + (memory_value.unwrap() & 0x00FFFFFF)
+                };
+                memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
-                let value = (a as u16) as u32;
-                memory_value = Some(value);
+                assert_eq!(addr % 2, 0, "SH");
+                memory_value = Some(self.mr(addr)); // We read the current memory value.
+                let offset = addr % 2;
+                let value = if offset == 0 {
+                    // If offset == 0, then change the first two bytes.
+                    (memory_value.unwrap() & 0xFFFF0000) + (a & 0x0000FFFF)
+                } else {
+                    (memory_value.unwrap() & 0x0000FFFF) + (a & 0x0000FFFF) << 16
+                };
+                memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 4, 0, "SW");
+                memory_value = Some(self.mr(addr)); // We read the address even though we will overwrite it fully.
                 let value = a;
-                memory_value = Some(value);
+                memory_store_value = Some(value);
                 self.mw(addr, value);
             }
 
@@ -421,35 +486,35 @@ impl Runtime {
             Opcode::BNE => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if self.rr(rs1) != self.rr(rs2) {
+                if a != b {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BLT => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if (self.rr(rs1) as i32) < (self.rr(rs2) as i32) {
+                if (a as i32) < (b as i32) {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BGE => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if (self.rr(rs1) as i32) >= (self.rr(rs2) as i32) {
+                if (a as i32) >= (b as i32) {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BLTU => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if self.rr(rs1) < self.rr(rs2) {
+                if a < b {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BGEU => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if self.rr(rs1) >= self.rr(rs2) {
+                if a >= b {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
@@ -476,6 +541,7 @@ impl Runtime {
                 (b, c) = (imm, 12); // Note that we'll special-case this in the CPU table
                 a = b << 12;
                 self.rw(rd, a);
+                println!("LUI: a: {}, b: {}, c: {}", a, b, c);
             }
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
@@ -548,7 +614,16 @@ impl Runtime {
         self.pc = next_pc;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(self.clk, pc, instruction, a, b, c, memory_value);
+        self.emit_cpu(
+            self.clk,
+            pc,
+            instruction,
+            a,
+            b,
+            c,
+            memory_value,
+            memory_store_value,
+        );
     }
 
     /// Execute the program.
@@ -604,61 +679,104 @@ impl Runtime {
         let mut traces = chips.map(|chip| chip.generate_trace(self));
 
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://pastebin.com/ynPyVVY6
-        // println!("CPU trace");
-        // traces[1].clone().rows_mut().for_each(|row| {
-        //     let cols = CpuCols::<u32>::from_trace_row(row);
+        println!("CPU trace");
+        let mut cpu_str = Vec::new();
+        traces[1].clone().rows_mut().for_each(|row| {
+            let cols = CpuCols::<u32>::from_trace_row(row);
 
-        //     let multiplicity = 1 - cols.selectors.noop;
-        //     if multiplicity != 0 {
-        //         println!(
-        //             "clk: {:?} reg: {:?} value: {:?} read: {:?} | multiplicity: {:?}",
-        //             cols.clk,
-        //             cols.instruction.op_a[0],
-        //             cols.op_a_val,
-        //             cols.selectors.branch_op,
-        //             multiplicity
-        //         );
-        //     }
+            let multiplicity = 1 - cols.selectors.noop - cols.selectors.reg_0_write;
+            if multiplicity != 0 {
+                let a = format!(
+                    "clk: {:?} addr: Word([{:?}, 255, 255, 255]) value: {:?} is_read: Bool({:?}) | multiplicity: {:?}",
+                    cols.clk,
+                    cols.instruction.op_a[0] * 4,
+                    cols.op_a_val,
+                    cols.selectors.branch_op + cols.selectors.is_store,
+                    multiplicity
+                );
+                cpu_str.push(a);
+            }
 
-        //     let multiplicity = 1 - cols.selectors.imm_c;
-        //     if multiplicity != 0 {
-        //         println!(
-        //             "clk: {:?} reg: {:?} value: {:?} read: true | multiplicity: {:?}",
-        //             cols.clk, cols.instruction.op_c[0], cols.op_c_val, multiplicity
-        //         );
-        //     }
+            let multiplicity = 1 - cols.selectors.imm_c;
+            if multiplicity != 0{
+                let a = format!(
+                    "clk: {:?} addr: Word([{:?}, 255, 255, 255]) value: {:?} is_read: Bool(1) | multiplicity: {:?}",
+                    cols.clk, cols.instruction.op_c[0] * 4, cols.op_c_val, multiplicity
+                );
+                cpu_str.push(a);
+            }
 
-        //     let multiplicity = 1 - cols.selectors.imm_b;
-        //     if multiplicity != 0 {
-        //         println!(
-        //             "clk: {:?} reg: {:?} value: {:?} read: true | multiplicity: {:?}",
-        //             cols.clk, cols.instruction.op_b[0], cols.op_b_val, multiplicity
-        //         );
-        //     }
+            let multiplicity = 1 - cols.selectors.imm_b;
+            if multiplicity != 0 {
+                let a = format!(
+                    "clk: {:?} addr: Word([{:?}, 255, 255, 255]) value: {:?} is_read: Bool(1) | multiplicity: {:?}",
+                    cols.clk, cols.instruction.op_b[0] * 4, cols.op_b_val, multiplicity
+                );
+                cpu_str.push(a);
+            }
 
-        //     let multiplicity = cols.selectors.mem_op;
-        //     if multiplicity != 0 {
-        //         println!(
-        //             "clk: {:?} addr: {:?} value: {:?} is_read: {:?} | multiplicity: {:?}",
-        //             cols.clk,
-        //             cols.addr,
-        //             cols.mem_val,
-        //             cols.selectors.mem_read,
-        //             cols.selectors.mem_op
-        //         );
-        //     }
-        // });
-        // println!("memory trace");
-        // traces[2].clone().rows_mut().for_each(|row| {
-        //     let cols = MemoryCols::<u32>::from_trace_row(row);
-        //     let multiplicity = cols.multiplicity;
-        //     if multiplicity != 0 {
-        //         println!(
-        //             "clk: {:?} addr: {:?} value: {:?} is_read: {:?} | multiplicity: {:?}",
-        //             cols.clk, cols.addr, cols.value, cols.is_read, multiplicity
-        //         );
-        //     }
-        // });
+            let multiplicity = cols.selectors.mem_op;
+            if multiplicity != 0 {
+                let a = format!(
+                    "clk: {:?} addr: {:?} value: {:?} is_read: Bool({:?}) | multiplicity: {:?}",
+                    cols.clk,
+                    cols.addr,
+                    cols.mem_val,
+                    1,
+                    multiplicity
+                );
+                cpu_str.push(a);
+            }
+
+            let multiplicity = cols.selectors.is_store;
+            if multiplicity != 0 {
+                let a = format!(
+                    "clk: {:?} addr: {:?} value: {:?} is_read: Bool({:?}) | multiplicity: {:?}",
+                    cols.clk,
+                    cols.addr,
+                    cols.mem_scratch,
+                    0,
+                    multiplicity
+                );
+                cpu_str.push(a);
+            }
+        });
+        println!("memory trace");
+        let mut mem_str = Vec::new();
+        let mut mem_hash: HashMap<u32, Vec<String>> = HashMap::new();
+        traces[2].clone().rows_mut().for_each(|row| {
+            let cols = MemoryCols::<u32>::from_trace_row(row);
+            let multiplicity = cols.multiplicity;
+            if multiplicity != 0 {
+                let a = format!(
+                    "clk: {:?} addr: {:?} value: {:?} is_read: {:?} | multiplicity: {:?}",
+                    cols.clk, cols.addr, cols.value, cols.is_read, multiplicity
+                );
+                mem_str.push(a.clone());
+                mem_hash
+                    .entry(cols.clk)
+                    .or_insert_with(Vec::new)
+                    .push(a.clone());
+            }
+        });
+
+        let set1: std::collections::HashSet<_> = cpu_str.clone().into_iter().collect();
+        let set2: std::collections::HashSet<_> = mem_str.into_iter().collect();
+
+        for element in cpu_str.clone() {
+            if !set2.contains(&element) {
+                println!("{}", element);
+            }
+        }
+
+        // let out: Vec<String> = set1.symmetric_difference(&set2).cloned().collect();
+        // for element in out {
+        //     println!("{}", element);
+        // }
+
+        println!("{:?}", self.cpu_events[4]);
+        println!("{:?}", mem_hash.get(&5));
+
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
             .iter()
@@ -699,6 +817,48 @@ impl Runtime {
             config.pcs().commit_batches(flattened_permutation_traces);
         challenger.observe(permutation_commit);
 
+        // Check that the table-specific constraints are correct for each chip.
+        debug_constraints(
+            &program,
+            &traces[0],
+            &permutation_traces[0],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &cpu,
+            &traces[1],
+            &permutation_traces[1],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &memory,
+            &traces[2],
+            &permutation_traces[2],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &add,
+            &traces[3],
+            &permutation_traces[3],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &sub,
+            &traces[4],
+            &permutation_traces[4],
+            &permutation_challenges,
+        );
+        debug_constraints(
+            &bitwise,
+            &traces[5],
+            &permutation_traces[5],
+            &permutation_challenges,
+        );
+
+        // Check the permutation argument between all tables.
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+
+        return;
         // For each chip, compute the quotient polynomial.
         let main_ldes = config.pcs().get_ldes(&main_data);
         let permutation_ldes = config.pcs().get_ldes(&permutation_data);
@@ -851,47 +1011,6 @@ impl Runtime {
         let (openings, opening_proof) = config
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
-
-        // Check that the table-specific constraints are correct for each chip.
-        debug_constraints(
-            &program,
-            &traces[0],
-            &permutation_traces[0],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &cpu,
-            &traces[1],
-            &permutation_traces[1],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &memory,
-            &traces[2],
-            &permutation_traces[2],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &add,
-            &traces[3],
-            &permutation_traces[3],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &sub,
-            &traces[4],
-            &permutation_traces[4],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &bitwise,
-            &traces[5],
-            &permutation_traces[5],
-            &permutation_challenges,
-        );
-
-        // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 
@@ -1055,7 +1174,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
         let mut pc = 0;
-        // let program = get_simple_program();
+        let program = get_simple_program();
         // let (program, pc) = get_fibonacci_program();
 
         let mut runtime = Runtime::new(program, pc);

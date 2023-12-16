@@ -71,9 +71,9 @@ impl<F: Field> MemoryInteraction<F> {
         };
         Self::new(
             VirtualPairCol::single_main(clk),
-            // Our convention is that registers are stored at {register, 0xFF, 0xFF, 0xFF} address in memory.
+            // Our convention is that registers are stored at {register * 4, 0xFF, 0xFF, 0xFF} address in memory.
             Word([
-                VirtualPairCol::single_main(register),
+                VirtualPairCol::new_main(vec![(register, F::from_canonical_u8(4))], F::zero()),
                 VirtualPairCol::constant(F::from_canonical_u32(0xFF)),
                 VirtualPairCol::constant(F::from_canonical_u32(0xFF)),
                 VirtualPairCol::constant(F::from_canonical_u32(0xFF)),

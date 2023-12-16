@@ -7,6 +7,7 @@ use crate::utils::Chip;
 
 use core::mem::transmute;
 use p3_air::VirtualPairCol;
+use std::mem;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -44,7 +45,7 @@ impl<F: PrimeField> Chip<F> for CpuChip {
 
         // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
         // We always write to the first register, unless we are doing a store or branch operation in which case we read from it.
-        // We always connect op_a unless it is a noop.
+        // We always connect op_a unless it is a NOOP OR register 0.
         interactions.push(
             MemoryInteraction::lookup_register(
                 CPU_COL_MAP.clk,
@@ -53,12 +54,15 @@ impl<F: PrimeField> Chip<F> for CpuChip {
                 IsRead::Expr(VirtualPairCol::new_main(
                     vec![
                         (CPU_COL_MAP.selectors.branch_op, F::one()),
-                        (CPU_COL_MAP.selectors.mem_write, F::one()),
+                        (CPU_COL_MAP.selectors.is_store, F::one()),
                     ],
                     F::zero(),
                 )),
                 VirtualPairCol::new_main(
-                    vec![(CPU_COL_MAP.selectors.noop, F::neg_one())],
+                    vec![
+                        (CPU_COL_MAP.selectors.noop, F::neg_one()),
+                        (CPU_COL_MAP.selectors.reg_0_write, F::neg_one()),
+                    ],
                     F::one(),
                 ), // 1-selectors.noop
             )
@@ -116,8 +120,18 @@ impl<F: PrimeField> Chip<F> for CpuChip {
                 CPU_COL_MAP.clk,
                 CPU_COL_MAP.addr,
                 CPU_COL_MAP.mem_val,
-                IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
+                IsRead::Bool(true),
                 VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
+            )
+            .into(),
+        );
+        interactions.push(
+            MemoryInteraction::lookup_memory(
+                CPU_COL_MAP.clk,
+                CPU_COL_MAP.addr,
+                CPU_COL_MAP.mem_scratch,
+                IsRead::Bool(false), // We only want to write to this if it's a store instruction.
+                VirtualPairCol::single_main(CPU_COL_MAP.selectors.is_store),
             )
             .into(),
         );
@@ -150,20 +164,35 @@ impl CpuChip {
 
     fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
         match event.instruction.opcode {
-            Opcode::LB
-            | Opcode::LH
-            | Opcode::LW
-            | Opcode::LBU
-            | Opcode::LHU
-            | Opcode::SB
-            | Opcode::SH
-            | Opcode::SW => {
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 let memory_addr = event.b.wrapping_add(event.c);
                 cols.mem_val = event
                     .memory_value
                     .expect("Memory value should be present")
                     .into();
-                cols.addr = memory_addr.into();
+                let memory_offset = memory_addr % 4;
+                let memory_aligned = memory_addr - memory_offset;
+                cols.addr = memory_aligned.into();
+                cols.addr_offset = memory_offset.into();
+                // TODO: we have to populate cols.mem_scratch with cols.mem_val >> cols.addr_offset
+                // TODO: populate cols.mem_bit_decomp depending on which byte of the memory we want to grab the top bit of
+            }
+            Opcode::SB | Opcode::SH | Opcode::SW => {
+                let memory_addr = event.b.wrapping_add(event.c);
+                cols.mem_val = event
+                    .memory_value
+                    .expect("Memory value should be present")
+                    .into();
+                let memory_offset = memory_addr % 4;
+                let memory_aligned = memory_addr - memory_offset;
+                cols.addr = memory_aligned.into();
+                cols.addr_offset = memory_offset.into();
+                // But we also have to populate mem_scratch because in this case it's the memory result that we'll connect.
+                cols.mem_scratch = event
+                    .memory_store_value
+                    .expect("Memory store value should be present")
+                    .into();
+                // TODO: populate cols.mem_mask based on is_word, is_half, is_byte, addr_offset
             }
             _ => {}
         }
@@ -259,6 +288,7 @@ mod tests {
             b: 2,
             c: 3,
             memory_value: None,
+            memory_store_value: None,
         }];
         let chip = CpuChip::new();
         let mut trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

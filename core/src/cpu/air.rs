@@ -35,8 +35,14 @@ pub struct CpuCols<T> {
 
     // An addr that we are reading from or writing to.
     pub addr: Word<T>,
+    // The addr offset, TODO this can be shrunk likely.
+    pub addr_offset: Word<T>,
     // The associated memory value for `addr`.
     pub mem_val: Word<T>,
+    // Scratch space for constraining memory operations.
+    pub mem_scratch: Word<T>,
+    pub mem_bit_decomposition: [T; 8],
+    pub mem_mask: [T; 4],
 
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,

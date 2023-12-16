@@ -22,8 +22,12 @@ pub struct OpcodeSelectors<T> {
 
     // Memory operation
     pub mem_op: T,
-    pub mem_read: T,
-    pub mem_write: T,
+    pub is_load: T,
+    pub is_store: T,
+    pub is_word: T,
+    pub is_half: T,
+    pub is_byte: T,
+    pub is_signed: T,
 
     // Specific instruction selectors.
     pub jalr: T,
@@ -35,6 +39,7 @@ pub struct OpcodeSelectors<T> {
 
     // Whether this is a no-op.
     pub noop: T,
+    pub reg_0_write: T,
 }
 
 impl<F: PrimeField> OpcodeSelectors<F> {
@@ -113,15 +118,51 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 // For load instructions, imm_c should be turned on.
                 self.imm_c = F::one();
-                self.mem_op = F::one();
-                self.mem_read = F::one();
+                self.mem_op = F::one(); // TODO: might be able to remove this since mem_op = is_load + is_store
+                self.is_load = F::one();
+                match instruction.opcode {
+                    Opcode::LB => {
+                        self.is_byte = F::one();
+                        self.is_signed = F::one();
+                    }
+                    Opcode::LBU => {
+                        self.is_byte = F::one();
+                    }
+                    Opcode::LHU => {
+                        self.is_half = F::one();
+                    }
+                    Opcode::LH => {
+                        self.is_half = F::one();
+                        self.is_signed = F::one();
+                    }
+                    Opcode::LW => {
+                        self.is_word = F::one();
+                    }
+                    _ => {
+                        panic!("unexpected opcode in load instruction table processing.")
+                    }
+                }
             }
             // Store instructions
             Opcode::SB | Opcode::SH | Opcode::SW => {
                 // For store instructions, imm_c should be turned on, but mem_read stays off.
                 self.imm_c = F::one();
                 self.mem_op = F::one();
-                self.mem_write = F::one();
+                self.is_store = F::one();
+                match instruction.opcode {
+                    Opcode::SB => {
+                        self.is_byte = F::one();
+                    }
+                    Opcode::SH => {
+                        self.is_half = F::one();
+                    }
+                    Opcode::SW => {
+                        self.is_word = F::one();
+                    }
+                    _ => {
+                        panic!("unexpected opcode in store instruction table processing.")
+                    }
+                }
             }
             // Branch instructions
             Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
@@ -166,7 +207,20 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             | Opcode::REMU => {
                 self.mul_op = F::one();
             }
-            _ => panic!("Invalid opcode"),
+            Opcode::UNIMP => {
+                self.noop = F::one();
+                // So that we don't read from the registers for these instructions.
+                self.imm_b = F::one();
+                self.imm_c = F::one();
+            }
+            _ => panic!("Invalid opcode {:?}", instruction.opcode),
+        }
+        if instruction.op_a == 0 {
+            // If op_a is 0 and we're writing to the register, then we don't do a write.
+            // We are always writing to the first register UNLESS it is a branch, is_store.
+            if !(self.branch_op == F::one() || self.is_store == F::one() || self.noop == F::one()) {
+                self.reg_0_write = F::one();
+            }
         }
     }
 }

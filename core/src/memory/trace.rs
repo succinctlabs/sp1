@@ -67,7 +67,6 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
 impl MemoryChip {
     pub fn generate_trace<F: PrimeField>(events: &[MemoryEvent]) -> RowMajorMatrix<F> {
         let mut events = events.to_vec();
-        println!("memory events {:?}", events);
         // Sort the events by address and then by clock cycle.
         events.sort_by_key(|event| (event.addr, event.clk, event.op));
 
@@ -75,7 +74,7 @@ impl MemoryChip {
         let mut unique_events = Vec::new();
         let mut multiplicities = Vec::new();
         let mut last_event = None;
-        for event in events.into_iter() {
+        for event in events.clone().into_iter() {
             if Some(event) == last_event {
                 *multiplicities.last_mut().unwrap() += 1;
             } else {
@@ -84,6 +83,9 @@ impl MemoryChip {
             }
             last_event = Some(event);
         }
+
+        unique_events = events.clone();
+        multiplicities = vec![1; unique_events.len()];
 
         let mut next_events = unique_events[1..].to_vec();
 
