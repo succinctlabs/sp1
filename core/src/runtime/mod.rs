@@ -204,6 +204,17 @@ impl Runtime {
             Opcode::XOR | Opcode::XORI | Opcode::OR | Opcode::ORI | Opcode::AND | Opcode::ANDI => {
                 self.bitwise_events.push(event);
             }
+            Opcode::SLL
+            | Opcode::SLLI
+            | Opcode::SRL
+            | Opcode::SRLI
+            | Opcode::SRA
+            | Opcode::SRAI => {
+                self.shift_events.push(event);
+            }
+            Opcode::SLT | Opcode::SLTU | Opcode::SLTI | Opcode::SLTIU => {
+                self.lt_events.push(event);
+            }
             _ => {}
         }
     }

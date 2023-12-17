@@ -56,17 +56,17 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let values = once(opcode.into())
-        //     .chain(a.0.into_iter().map(Into::into))
-        //     .chain(b.0.into_iter().map(Into::into))
-        //     .chain(c.0.into_iter().map(Into::into))
-        //     .collect();
+        let values = once(opcode.into())
+            .chain(a.0.into_iter().map(Into::into))
+            .chain(b.0.into_iter().map(Into::into))
+            .chain(c.0.into_iter().map(Into::into))
+            .collect();
 
-        // self.send(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Alu,
-        // ));
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Alu,
+        ));
     }
 
     #[allow(unused)]
@@ -84,17 +84,17 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let values = once(opcode.into())
-        //     .chain(a.0.into_iter().map(Into::into))
-        //     .chain(b.0.into_iter().map(Into::into))
-        //     .chain(c.0.into_iter().map(Into::into))
-        //     .collect();
+        let values = once(opcode.into())
+            .chain(a.0.into_iter().map(Into::into))
+            .chain(b.0.into_iter().map(Into::into))
+            .chain(c.0.into_iter().map(Into::into))
+            .collect();
 
-        // self.receive(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Alu,
-        // ));
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Alu,
+        ));
     }
 
     fn send_register<EClk, EReg, EVal, ERead, EMult>(

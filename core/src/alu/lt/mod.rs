@@ -57,6 +57,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+                cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
+                cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
                 row
             })
             .collect::<Vec<_>>();
