@@ -9,18 +9,23 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 
 use super::ByteChip;
+use super::NUM_BYTE_OPS;
 
 pub const NUM_BYTE_COLS: usize = size_of::<ByteCols<u8>>();
 
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 pub struct ByteCols<T> {
-    pub opcode: T,
+    /// The first byte operand.
     pub a: T,
+    /// The second byte operand.
     pub b: T,
+    /// The result of the `AND` operation on `a` and `b`
     pub and: T,
+    /// The result of the `OR` operation on `a` and `b`
     pub or: T,
+    /// The result of the `XOR` operation on `a` and `b`
     pub xor: T,
-    pub multiplicity: T,
+    pub multiplicities: [T; NUM_BYTE_OPS],
 }
 
 const fn make_col_map() -> ByteCols<usize> {
