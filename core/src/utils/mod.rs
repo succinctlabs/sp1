@@ -1,13 +1,19 @@
-use p3_air::Air;
-use p3_field::PrimeField;
+use p3_air::{Air, BaseAir};
+use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
 use crate::{
     lookup::{Interaction, InteractionBuilder},
+    prover::DebugConstraintBuilder,
     runtime::Runtime,
 };
 
-pub trait Chip<F: PrimeField>: Air<InteractionBuilder<F>> {
+pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
+    fn name(&self) -> String {
+        "".to_string()
+    }
+
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
     fn receives(&self) -> Vec<Interaction<F>> {
@@ -31,6 +37,33 @@ pub trait Chip<F: PrimeField>: Air<InteractionBuilder<F>> {
         sends.extend(receives);
         sends
     }
+}
+
+pub trait AirChip<SC: StarkConfig>:
+    Chip<SC::Val>
+    + for<'a> Air<ProverConstraintFolder<'a, SC>>
+    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+{
+    fn air_width(&self) -> usize {
+        <Self as BaseAir<SC::Val>>::width(self)
+    }
+}
+
+impl<SC: StarkConfig, T> AirChip<SC> for T where
+    T: Chip<SC::Val>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+{
+}
+
+pub const fn indices_arr<const N: usize>() -> [usize; N] {
+    let mut indices_arr = [0; N];
+    let mut i = 0;
+    while i < N {
+        indices_arr[i] = i;
+        i += 1;
+    }
+    indices_arr
 }
 
 pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {

@@ -5,7 +5,7 @@ use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
@@ -15,7 +15,7 @@ use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
 
 /// An AIR table for memory accesses.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct CpuCols<T> {
     /// The clock cycle value.
@@ -35,8 +35,14 @@ pub struct CpuCols<T> {
 
     // An addr that we are reading from or writing to.
     pub addr: Word<T>,
+    // TODO: this can be reduced to 1 element.
+    pub addr_offset: Word<T>,
     // The associated memory value for `addr`.
     pub mem_val: Word<T>,
+    // Scratch space for constraining memory operations.
+    pub mem_scratch: Word<T>,
+    pub mem_bit_decomposition: [T; 8],
+    pub mem_mask: [T; 4],
 
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,
@@ -48,6 +54,18 @@ pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+impl CpuCols<u32> {
+    pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
+        let sized: [u32; NUM_CPU_COLS] = row
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<u32>>()
+            .try_into()
+            .unwrap();
+        unsafe { transmute::<[u32; NUM_CPU_COLS], CpuCols<u32>>(sized) }
+    }
 }
 
 impl<F> BaseAir<F> for CpuChip {
@@ -65,6 +83,12 @@ where
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
 
+        // Dummy constraint of degree 3.
+        builder.assert_eq(
+            local.pc * local.pc * local.pc,
+            local.pc * local.pc * local.pc,
+        );
+
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
         builder
@@ -75,19 +99,58 @@ where
 
         //// Constraint op_a_val, op_b_val, op_c_val
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
-        for i in 0..4 {
-            builder
-                .when(local.selectors.imm_b)
-                .assert_eq(local.op_b_val[i], local.instruction.op_b[i]);
-            builder
-                .when(local.selectors.imm_c)
-                .assert_eq(local.op_c_val[i], local.instruction.op_c[i]);
-        }
+        builder
+            .when(local.selectors.imm_b)
+            .assert_word_eq(local.op_b_val, local.instruction.op_b);
+        builder
+            .when(local.selectors.imm_c)
+            .assert_word_eq(local.op_c_val, local.instruction.op_c);
 
-        builder.assert_eq(
-            local.pc * local.pc * local.pc,
-            local.pc * local.pc * local.pc,
+        // We always write to the first register unless we are doing a branch_op or a store_op.
+        // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
+        builder.send_register(
+            local.clk,
+            local.instruction.op_a[0],
+            local.op_a_val,
+            local.selectors.branch_op + local.selectors.is_store,
+            AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
         );
+
+        // We always read to register b and register c unless the imm_b or imm_c flags are set.
+        builder.send_register(
+            local.clk,
+            local.instruction.op_c[0],
+            local.op_c_val,
+            AB::Expr::one(),
+            AB::Expr::one() - local.selectors.imm_c,
+        );
+        builder.send_register(
+            local.clk,
+            local.instruction.op_b[0],
+            local.op_b_val,
+            AB::F::one(),
+            AB::Expr::one() - local.selectors.imm_b,
+        );
+
+        // We always read to mem_val if is_load or is_store is set.
+        builder.send_memory(
+            local.clk,
+            local.addr,
+            local.mem_val,
+            AB::F::one(),
+            local.selectors.is_load + local.selectors.is_store,
+        );
+
+        // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
+        builder.send_memory(
+            local.clk,
+            local.addr,
+            local.mem_scratch,
+            AB::F::zero(),
+            local.selectors.is_store,
+        );
+
+        // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
 
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
         // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)

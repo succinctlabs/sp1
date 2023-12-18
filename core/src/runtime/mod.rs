@@ -5,21 +5,20 @@ mod register;
 pub use instruction::*;
 pub use opcode::*;
 
-use crate::prover::debug_cumulative_sums;
+use crate::prover::{debug_cumulative_sums, quotient_values};
+use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 pub use register::*;
-
 use std::collections::BTreeMap;
 
 use crate::alu::lt::LtChip;
 use crate::alu::shift::ShiftChip;
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
-use crate::prover::quotient_values;
-use p3_field::{ExtensionField, PrimeField, TwoAdicField};
+use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_strict_usize;
@@ -30,7 +29,6 @@ use crate::{
     cpu::{trace::CpuChip, CpuEvent},
     memory::{MemOp, MemoryEvent},
     program::ProgramChip,
-    utils::Chip,
 };
 
 /// An implementation of a runtime for the Curta VM.
@@ -76,24 +74,8 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    /// Create a new runtime.
-    pub fn new(program: Vec<Instruction>) -> Self {
-        Self {
-            clk: 0,
-            pc: 0,
-            memory: BTreeMap::new(),
-            program,
-            cpu_events: Vec::new(),
-            memory_events: Vec::new(),
-            add_events: Vec::new(),
-            sub_events: Vec::new(),
-            bitwise_events: Vec::new(),
-            shift_events: Vec::new(),
-            lt_events: Vec::new(),
-        }
-    }
-
-    pub fn new_with_pc(program: Vec<Instruction>, init_pc: u32) -> Self {
+    // Create a new runtime
+    pub fn new(program: Vec<Instruction>, init_pc: u32) -> Self {
         Self {
             clk: 0,
             pc: init_pc,
@@ -111,23 +93,26 @@ impl Runtime {
 
     /// Read from memory.
     fn mr(&mut self, addr: u32) -> u32 {
-        let value = match self.memory.get(&addr) {
+        let addr_word_aligned = addr - addr % 4;
+        let value = match self.memory.get(&addr_word_aligned) {
             Some(value) => *value,
             None => 0,
         };
-        self.emit_memory(self.clk, addr, MemOp::Read, value);
+        self.emit_memory(self.clk, addr_word_aligned, MemOp::Read, value);
         return value;
     }
 
     /// Write to memory.
     fn mw(&mut self, addr: u32, value: u32) {
-        self.memory.insert(addr, value);
-        self.emit_memory(self.clk, addr, MemOp::Write, value);
+        let addr_word_aligned = addr - addr % 4;
+        self.memory.insert(addr_word_aligned, value);
+        self.emit_memory(self.clk, addr_word_aligned, MemOp::Write, value);
     }
 
     /// Convert a register to a memory address.
     fn r2m(&self, register: Register) -> u32 {
-        1024 * 1024 * 8 + (register as u32)
+        // We have to word-align the register memory address.
+        u32::from_be_bytes([0xFF, 0xFF, 0xFF, (register as u8) * 4])
     }
 
     /// Read from register.
@@ -176,6 +161,7 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_value: Option<u32>,
+        memory_store_value: Option<u32>,
     ) {
         self.cpu_events.push(CpuEvent {
             clk: clk,
@@ -185,6 +171,7 @@ impl Runtime {
             b,
             c,
             memory_value,
+            memory_store_value,
         });
     }
 
@@ -217,6 +204,17 @@ impl Runtime {
             Opcode::XOR | Opcode::XORI | Opcode::OR | Opcode::ORI | Opcode::AND | Opcode::ANDI => {
                 self.bitwise_events.push(event);
             }
+            Opcode::SLL
+            | Opcode::SLLI
+            | Opcode::SRL
+            | Opcode::SRLI
+            | Opcode::SRA
+            | Opcode::SRAI => {
+                self.shift_events.push(event);
+            }
+            Opcode::SLT | Opcode::SLTU | Opcode::SLTI | Opcode::SLTIU => {
+                self.lt_events.push(event);
+            }
             _ => {}
         }
     }
@@ -224,8 +222,13 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let (mut a, mut b, mut c, mut memory_value): (u32, u32, u32, Option<u32>) =
-            (u32::MAX, u32::MAX, u32::MAX, None);
+        let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
+            u32,
+            u32,
+            u32,
+            Option<u32>,
+            Option<u32>,
+        ) = (u32::MAX, u32::MAX, u32::MAX, None, None);
 
         // By default, we add 4 to the next PC. However, some instructions (e.g., JAL) will modify
         // this value.
@@ -297,8 +300,8 @@ impl Runtime {
             }
             Opcode::SLTU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = if b < c { 1 } else { 0 };
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = if b < c { 1 } else { 0 };
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
@@ -374,21 +377,30 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
                 memory_value = Some(self.mr(addr));
-                a = (memory_value.unwrap() as i8) as u32;
+                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
+                a = ((value as i8) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 2, 0, "LH");
                 memory_value = Some(self.mr(addr));
-                a = (memory_value.unwrap() as i16) as u32;
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    memory_value.unwrap() & 0x0000FFFF
+                } else {
+                    memory_value.unwrap() & 0xFFFF0000
+                };
+                a = ((value as i16) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 4, 0, "LW");
                 memory_value = Some(self.mr(addr));
                 a = memory_value.unwrap();
                 self.rw(rd, a);
@@ -398,15 +410,23 @@ impl Runtime {
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
                 memory_value = Some(self.mr(addr));
-                let a = (memory_value.unwrap() as u8) as u32;
+                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
+                a = (value as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 2, 0, "LHU");
                 memory_value = Some(self.mr(addr));
-                let a = (memory_value.unwrap() as u16) as u32;
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    memory_value.unwrap() & 0x0000FFFF
+                } else {
+                    memory_value.unwrap() & 0xFFFF0000
+                };
+                a = (value as u16) as u32;
                 self.rw(rd, a);
             }
 
@@ -415,24 +435,44 @@ impl Runtime {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
-                let value = (a as u8) as u32;
-                memory_value = Some(value);
+                memory_value = Some(self.mr(addr)); // Get current memory_value to
+                let offset = addr % 4;
+                let value = if offset == 0 {
+                    (a & 0x000000FF) + (memory_value.unwrap() & 0xFFFFFF00)
+                } else if offset == 1 {
+                    (a & 0x000000FF) << 8 + (memory_value.unwrap() & 0xFFFF00FF)
+                } else if offset == 2 {
+                    (a & 0x000000FF) << 16 + (memory_value.unwrap() & 0xFF00FFFF)
+                } else {
+                    (a & 0x000000FF) << 24 + (memory_value.unwrap() & 0x00FFFFFF)
+                };
+                memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
-                let value = (a as u16) as u32;
-                memory_value = Some(value);
+                assert_eq!(addr % 2, 0, "SH");
+                memory_value = Some(self.mr(addr)); // We read the current memory value.
+                let offset = addr % 2;
+                let value = if offset == 0 {
+                    // If offset == 0, then change the first two bytes.
+                    (memory_value.unwrap() & 0xFFFF0000) + (a & 0x0000FFFF)
+                } else {
+                    (memory_value.unwrap() & 0x0000FFFF) + (a & 0x0000FFFF) << 16
+                };
+                memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
                 let addr = b.wrapping_add(c);
+                assert_eq!(addr % 4, 0, "SW");
+                memory_value = Some(self.mr(addr)); // We read the address even though we will overwrite it fully.
                 let value = a;
-                memory_value = Some(value);
+                memory_store_value = Some(value);
                 self.mw(addr, value);
             }
 
@@ -447,35 +487,35 @@ impl Runtime {
             Opcode::BNE => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if self.rr(rs1) != self.rr(rs2) {
+                if a != b {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BLT => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if (self.rr(rs1) as i32) < (self.rr(rs2) as i32) {
+                if (a as i32) < (b as i32) {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BGE => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if (self.rr(rs1) as i32) >= (self.rr(rs2) as i32) {
+                if (a as i32) >= (b as i32) {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BLTU => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if self.rr(rs1) < self.rr(rs2) {
+                if a < b {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
             Opcode::BGEU => {
                 let (rs1, rs2, imm) = instruction.b_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                if self.rr(rs1) >= self.rr(rs2) {
+                if a >= b {
                     next_pc = self.pc.wrapping_add(imm);
                 }
             }
@@ -502,6 +542,7 @@ impl Runtime {
                 (b, c) = (imm, 12); // Note that we'll special-case this in the CPU table
                 a = b << 12;
                 self.rw(rd, a);
+                self.emit_alu(self.clk, Opcode::SLL, a, b, c);
             }
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
@@ -525,50 +566,50 @@ impl Runtime {
             // Multiply instructions.
             Opcode::MUL => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = b.wrapping_mul(c);
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = b.wrapping_mul(c);
                 self.rw(rd, a);
             }
             Opcode::MULH => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::MULHSU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::MULHU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = (b as i32).wrapping_div(c as i32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = (b as i32).wrapping_div(c as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::DIVU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = b.wrapping_div(c);
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = b.wrapping_div(c);
                 self.rw(rd, a);
             }
             Opcode::REM => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1) as i32, self.rr(rs2) as i32);
-                let a = (b as i32).wrapping_rem(c as i32) as u32;
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = (b as i32).wrapping_rem(c as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::REMU => {
                 let (rd, rs1, rs2) = instruction.r_type();
-                let (b, c) = (self.rr(rs1), self.rr(rs2));
-                let a = b.wrapping_rem(c);
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = b.wrapping_rem(c);
                 self.rw(rd, a);
             }
             Opcode::UNIMP => {
@@ -579,7 +620,16 @@ impl Runtime {
         self.pc = next_pc;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(self.clk, pc, instruction, a, b, c, memory_value);
+        self.emit_cpu(
+            self.clk,
+            pc,
+            instruction,
+            a,
+            b,
+            c,
+            memory_value,
+            memory_store_value,
+        );
     }
 
     /// Execute the program.
@@ -607,7 +657,7 @@ impl Runtime {
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
     where
-        F: PrimeField + TwoAdicField,
+        F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
@@ -620,20 +670,33 @@ impl Runtime {
         let bitwise = BitwiseChip::new();
         let shift = ShiftChip::new();
         let lt = LtChip::new();
-        let chips: [&dyn Chip<F>; 8] = [&program, &cpu, &memory, &add, &sub, &bitwise, &shift, &lt];
+        let chips: [Box<dyn AirChip<SC>>; 8] = [
+            Box::new(program),
+            Box::new(cpu),
+            Box::new(memory),
+            Box::new(add),
+            Box::new(sub),
+            Box::new(bitwise),
+            Box::new(shift),
+            Box::new(lt),
+        ];
 
         // Compute some statistics.
         let mut main_cols = 0usize;
         let mut perm_cols = 0usize;
         for chip in chips.iter() {
-            main_cols += chip.width();
+            main_cols += chip.air_width();
             perm_cols += (chip.all_interactions().len() + 1) * 5;
         }
         println!("MAIN_COLS: {}", main_cols);
         println!("PERM_COLS: {}", perm_cols);
 
         // For each chip, generate the trace.
-        let traces = chips.map(|chip| chip.generate_trace(self));
+        let traces = chips
+            .iter()
+            .map(|chip| chip.generate_trace(self))
+            .collect::<Vec<_>>();
+        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
         let degrees: [usize; 8] = traces
@@ -659,10 +722,14 @@ impl Runtime {
 
         // Generate the permutation traces.
         let permutation_traces = chips
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(i, chip)| {
-                generate_permutation_trace(chip, &traces[i], permutation_challenges.clone())
+                generate_permutation_trace(
+                    chip.as_ref(),
+                    &traces[i],
+                    permutation_challenges.clone(),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -679,190 +746,50 @@ impl Runtime {
         let main_ldes = config.pcs().get_ldes(&main_data);
         let permutation_ldes = config.pcs().get_ldes(&permutation_data);
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-        let program_quotient_values = quotient_values(
-            config,
-            &program,
-            log_degrees[0],
-            log_quotient_degree,
-            &main_ldes[0],
-            alpha,
-        );
-        let cpu_quotient_values = quotient_values(
-            config,
-            &cpu,
-            log_degrees[1],
-            log_quotient_degree,
-            &main_ldes[1],
-            alpha,
-        );
-        let memory_quotient_values = quotient_values(
-            config,
-            &memory,
-            log_degrees[2],
-            log_quotient_degree,
-            &main_ldes[2],
-            alpha,
-        );
-        let add_quotient_values = quotient_values(
-            config,
-            &add,
-            log_degrees[3],
-            log_quotient_degree,
-            &main_ldes[3],
-            alpha,
-        );
-        let sub_quotient_values = quotient_values(
-            config,
-            &sub,
-            log_degrees[4],
-            log_quotient_degree,
-            &main_ldes[4],
-            alpha,
-        );
-        let bitwise_quotient_values = quotient_values(
-            config,
-            &bitwise,
-            log_degrees[5],
-            log_quotient_degree,
-            &main_ldes[5],
-            alpha,
-        );
-        let shift_quotient_values = quotient_values(
-            config,
-            &shift,
-            log_degrees[6],
-            log_quotient_degree,
-            &main_ldes[6],
-            alpha,
-        );
-        let lt_quotient_values = quotient_values(
-            config,
-            &lt,
-            log_degrees[7],
-            log_quotient_degree,
-            &main_ldes[7],
-            alpha,
-        );
 
-        // Decompose the quotient values into chunks.
-        let program_quotient_chunks = decompose_and_flatten::<SC>(
-            program_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let cpu_quotient_chunks = decompose_and_flatten::<SC>(
-            cpu_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let memory_quotient_chunks = decompose_and_flatten::<SC>(
-            memory_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let add_quotient_chunks = decompose_and_flatten::<SC>(
-            add_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let sub_quotient_chunks = decompose_and_flatten::<SC>(
-            sub_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let bitwise_quotient_chunks = decompose_and_flatten::<SC>(
-            bitwise_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let shift_quotient_chunks = decompose_and_flatten::<SC>(
-            shift_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
-        let lt_quotient_chunks = decompose_and_flatten::<SC>(
-            lt_quotient_values,
-            SC::Challenge::from_base(config.pcs().coset_shift()),
-            log_quotient_degree,
-        );
+        // Compute the quotient values.
+        let quotient_values = (0..chips.len()).map(|i| {
+            quotient_values(
+                config,
+                &*chips[i],
+                log_degrees[i],
+                log_quotient_degree,
+                &main_ldes[i],
+                alpha,
+            )
+        });
+
+        // Compute the quotient chunks.
+        let quotient_chunks = quotient_values
+            .map(|values| {
+                decompose_and_flatten::<SC>(
+                    values,
+                    SC::Challenge::from_base(config.pcs().coset_shift()),
+                    log_quotient_degree,
+                )
+            })
+            .collect::<Vec<_>>();
 
         // Commit to the quotient chunks.
-        let (program_quotient_commit, program_quotient_commit_data) =
-            config.pcs().commit_shifted_batch(
-                program_quotient_chunks,
-                config
-                    .pcs()
-                    .coset_shift()
-                    .exp_power_of_2(log_quotient_degree),
-            );
-        let (cpu_quotient_commit, cpu_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            cpu_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
-        let (memory_quotient_commit, memory_quotient_commit_data) =
-            config.pcs().commit_shifted_batch(
-                memory_quotient_chunks,
-                config
-                    .pcs()
-                    .coset_shift()
-                    .exp_power_of_2(log_quotient_degree),
-            );
-        let (add_quotient_commit, add_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            add_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
-        let (sub_quotient_commit, sub_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            sub_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
-        let (bitwise_quotient_commit, bitwise_quotient_commit_data) =
-            config.pcs().commit_shifted_batch(
-                bitwise_quotient_chunks,
-                config
-                    .pcs()
-                    .coset_shift()
-                    .exp_power_of_2(log_quotient_degree),
-            );
-        let (shift_quotient_commit, shift_quotient_commit_data) =
-            config.pcs().commit_shifted_batch(
-                shift_quotient_chunks,
-                config
-                    .pcs()
-                    .coset_shift()
-                    .exp_power_of_2(log_quotient_degree),
-            );
-        let (lt_quotient_commit, lt_quotient_commit_data) = config.pcs().commit_shifted_batch(
-            lt_quotient_chunks,
-            config
-                .pcs()
-                .coset_shift()
-                .exp_power_of_2(log_quotient_degree),
-        );
+        let (quotient_commit, quotient_commit_data): (Vec<_>, Vec<_>) = (0..chips.len())
+            .map(|i| {
+                config.pcs().commit_shifted_batch(
+                    quotient_chunks[i].clone(),
+                    config
+                        .pcs()
+                        .coset_shift()
+                        .exp_power_of_2(log_quotient_degree),
+                )
+            })
+            .into_iter()
+            .unzip();
 
         // Observe the quotient commitments.
-        challenger.observe(program_quotient_commit);
-        challenger.observe(cpu_quotient_commit);
-        challenger.observe(memory_quotient_commit);
-        challenger.observe(add_quotient_commit);
-        challenger.observe(sub_quotient_commit);
-        challenger.observe(bitwise_quotient_commit);
-        challenger.observe(shift_quotient_commit);
-        challenger.observe(lt_quotient_commit);
+        for commit in quotient_commit {
+            challenger.observe(commit);
+        }
 
         // Compute the quotient argument.
-        //
-        // Note: It seems like open_multi_batches does not currently yet support traces of different
-        // lengths. As a result, I had to not use the batched opening scheme. We'll need to fix
-        // this in the future?
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
@@ -872,84 +799,25 @@ impl Runtime {
         let (openings, opening_proof) = config
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&program_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&cpu_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&add_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&sub_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&bitwise_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&shift_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let prover_data_and_points = [(&lt_quotient_commit_data, zeta_and_next.as_slice())];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
+        let (openings, opening_proofs): (Vec<_>, Vec<_>) = (0..chips.len())
+            .map(|i| {
+                let prover_data_and_points = [(&quotient_commit_data[i], zeta_and_next.as_slice())];
+                config
+                    .pcs()
+                    .open_multi_batches(&prover_data_and_points, challenger)
+            })
+            .into_iter()
+            .unzip();
 
         // Check that the table-specific constraints are correct for each chip.
-        debug_constraints(
-            &program,
-            &traces[0],
-            &permutation_traces[0],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &cpu,
-            &traces[1],
-            &permutation_traces[1],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &memory,
-            &traces[2],
-            &permutation_traces[2],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &add,
-            &traces[3],
-            &permutation_traces[3],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &sub,
-            &traces[4],
-            &permutation_traces[4],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &bitwise,
-            &traces[5],
-            &permutation_traces[5],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &shift,
-            &traces[6],
-            &permutation_traces[6],
-            &permutation_challenges,
-        );
-        debug_constraints(
-            &lt,
-            &traces[7],
-            &permutation_traces[7],
-            &permutation_challenges,
-        );
+        for i in 0..chips.len() {
+            debug_constraints(
+                &*chips[i],
+                &traces[i],
+                &permutation_traces[i],
+                &permutation_challenges,
+            );
+        }
 
         // Check the permutation argument between all tables.
         debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
@@ -959,6 +827,11 @@ impl Runtime {
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {
+    use super::Opcode;
+    use super::Register;
+    use super::Runtime;
+    use crate::disassembler::parse_elf;
+    use crate::runtime::instruction::Instruction;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -978,12 +851,8 @@ pub mod tests {
     use p3_symmetric::SerializingHasher32;
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
-
-    use crate::runtime::instruction::Instruction;
-
-    use super::Opcode;
-    use super::Register;
-    use super::Runtime;
+    use std::io::Read;
+    use std::path::Path;
 
     pub fn get_simple_program() -> Vec<Instruction> {
         // int main() {
@@ -1038,15 +907,73 @@ pub mod tests {
         code
     }
 
+    fn get_fibonacci_program() -> (Vec<Instruction>, u32) {
+        let mut elf_code = Vec::new();
+        let path = Path::new("").join("../programs/fib").with_extension("s");
+        std::fs::File::open(path)
+            .expect("Failed to open input file")
+            .read_to_end(&mut elf_code)
+            .expect("Failed to read from input file");
+
+        // Parse ELF code.
+        parse_elf(&elf_code).expect("Failed to assemble code")
+    }
+
     #[test]
     fn SIMPLE_PROGRAM() {
         let code = get_simple_program();
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(code, 0);
         runtime.run();
     }
 
     #[test]
-    fn PROVE() {
+    fn fibonacci_program() {
+        let (code, pc) = get_fibonacci_program();
+        let mut runtime: Runtime = Runtime::new(code, pc);
+        runtime.run();
+    }
+
+    #[test]
+    fn basic_pogram() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADD, 31, 30, 29),
+        ];
+        let mut runtime: Runtime = Runtime::new(program, 0);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
+    }
+
+    #[test]
+    fn prove_fibonacci() {
+        let (program, pc) = get_fibonacci_program();
+        prove(program, pc);
+    }
+
+    #[test]
+    fn prove_simple() {
+        let program = get_simple_program();
+        prove(program, 0);
+    }
+
+    #[test]
+    fn prove_basic() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5),
+            Instruction::new(Opcode::ADD, 31, 30, 29),
+        ];
+        prove(program, 0);
+    }
+
+    fn prove(program: Vec<Instruction>, init_pc: u32) {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -1087,18 +1014,9 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        // main:
-        //     addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 31, 29, 9),
-        ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, init_pc);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
-        // assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }
 
     #[test]
@@ -1112,7 +1030,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::ADD, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
@@ -1128,7 +1046,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SUB, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
@@ -1143,7 +1061,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::XOR, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 32);
     }
@@ -1158,7 +1076,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::OR, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 37);
     }
@@ -1173,7 +1091,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::AND, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5);
     }
@@ -1188,7 +1106,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLL, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1184);
     }
@@ -1203,7 +1121,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SRL, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1);
     }
@@ -1218,7 +1136,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SRA, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 1);
     }
@@ -1233,7 +1151,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLT, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1248,7 +1166,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 0, 37),
             Instruction::new(Opcode::SLTU, 31, 30, 29),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1263,7 +1181,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 29, 37),
             Instruction::new(Opcode::ADDI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 84);
     }
@@ -1278,7 +1196,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 30, 29, 0xffffffff),
             Instruction::new(Opcode::ADDI, 31, 30, 4),
         ];
-        let mut runtime = Runtime::new(code);
+        let mut runtime = Runtime::new(code, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 5 - 1 + 4);
     }
@@ -1293,7 +1211,7 @@ pub mod tests {
             Instruction::new(Opcode::XORI, 30, 29, 37),
             Instruction::new(Opcode::XORI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 10);
@@ -1309,7 +1227,7 @@ pub mod tests {
             Instruction::new(Opcode::ORI, 30, 29, 37),
             Instruction::new(Opcode::ORI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 47);
@@ -1325,7 +1243,7 @@ pub mod tests {
             Instruction::new(Opcode::ANDI, 30, 29, 37),
             Instruction::new(Opcode::ANDI, 31, 30, 42),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
 
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
@@ -1339,7 +1257,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 5),
             Instruction::new(Opcode::SLLI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 80);
     }
@@ -1352,7 +1270,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SRLI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 2);
     }
@@ -1365,7 +1283,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SRAI, 31, 29, 4),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 2);
     }
@@ -1378,7 +1296,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SLTI, 31, 29, 37),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1391,7 +1309,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 29, 0, 42),
             Instruction::new(Opcode::SLTIU, 31, 29, 37),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 0);
     }
@@ -1409,7 +1327,7 @@ pub mod tests {
             Instruction::new(Opcode::ADDI, 11, 11, 100),
             Instruction::new(Opcode::JALR, 5, 11, 8),
         ];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
