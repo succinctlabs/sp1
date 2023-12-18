@@ -17,7 +17,9 @@ pub struct ByteCols<T> {
     pub opcode: T,
     pub a: T,
     pub b: T,
-    pub c: T,
+    pub and: T,
+    pub or: T,
+    pub xor: T,
     pub multiplicity: T,
 }
 
