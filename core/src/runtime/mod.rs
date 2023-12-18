@@ -1350,7 +1350,6 @@ pub mod tests {
         ];
         let mut runtime = Runtime::new(program, 0);
         runtime.run();
-        println!("0x{:x} 0x{:x} 0x{:x}", a, b, expected);
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
     }
 
