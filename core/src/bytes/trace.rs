@@ -3,13 +3,7 @@ use std::collections::BTreeMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    bytes::{
-        air::{BYTE_MULT_INDICES, NUM_BYTE_COLS},
-        NUM_BYTE_OPS,
-    },
-    runtime::Runtime,
-};
+use crate::bytes::air::{BYTE_MULT_INDICES, NUM_BYTE_COLS};
 
 use super::{ByteChip, ByteLookupEvent};
 

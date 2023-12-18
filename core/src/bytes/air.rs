@@ -2,7 +2,9 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
 use p3_field::Field;
+use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
@@ -45,11 +47,30 @@ impl<F: Field> BaseAir<F> for ByteChip<F> {
 
 impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
     fn eval(&self, builder: &mut AB) {
-        // Send all the lookups for each operation.
-        let operations = ByteOpcode::get_all();
+        let main = builder.main();
+        let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
 
-        for op in operations {
-            todo!()
+        // Send all the lookups for each operation.
+        for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {
+            let field_op = AB::F::from_canonical_u8(*opcode as u8);
+            let mult = local.multiplicities[i];
+            match opcode {
+                ByteOpcode::And => {
+                    builder.receive_byte_lookup(field_op, local.a, local.b, local.and, mult)
+                }
+                ByteOpcode::Or => {
+                    builder.receive_byte_lookup(field_op, local.a, local.b, local.or, mult)
+                }
+                ByteOpcode::Xor => {
+                    builder.receive_byte_lookup(field_op, local.a, local.b, local.xor, mult)
+                }
+                ByteOpcode::SLL => {
+                    builder.receive_byte_lookup(field_op, local.a, local.b, local.sll, mult)
+                }
+                ByteOpcode::Range => {
+                    builder.receive_byte_lookup(field_op, local.a, local.b, AB::F::zero(), mult)
+                }
+            }
         }
     }
 }
