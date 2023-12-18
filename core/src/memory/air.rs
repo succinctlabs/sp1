@@ -6,7 +6,7 @@ use core::mem::transmute;
 use p3_air::Air;
 use p3_air::{AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{Field, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 
@@ -58,6 +58,18 @@ pub struct MemoryCols<T> {
 const fn make_col_map() -> MemoryCols<usize> {
     let indices_arr = indices_arr::<NUM_MEMORY_COLS>();
     unsafe { transmute::<[usize; NUM_MEMORY_COLS], MemoryCols<usize>>(indices_arr) }
+}
+
+impl MemoryCols<u32> {
+    pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
+        let sized: [u32; NUM_MEMORY_COLS] = row
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<u32>>()
+            .try_into()
+            .unwrap();
+        unsafe { transmute::<[u32; NUM_MEMORY_COLS], MemoryCols<u32>>(sized) }
+    }
 }
 
 impl<F: Field> BaseAir<F> for MemoryChip {
@@ -160,20 +172,12 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
             .when(next.is_clk_eq.0)
             .assert_eq(next.clk, local.clk);
 
-        // Recieve memory requests.
-        // builder.receive(AirInteraction::new(
-        //     [
-        //         local.clk,
-        //         local.addr[0],
-        //         local.addr[1],
-        //         local.addr[2],
-        //         local.addr[3],
-        //     ]
-        //     .into_iter()
-        //     .map(|x| x.into())
-        //     .collect(),
-        //     local.multiplicity.into(),
-        //     InteractionKind::Memory,
-        // ))
+        builder.recieve_memory(
+            local.clk,
+            local.addr,
+            local.value,
+            local.is_read.0,
+            local.multiplicity,
+        );
     }
 }

@@ -1,6 +1,5 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
-
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
@@ -18,6 +17,10 @@ impl CpuChip {
 }
 
 impl<F: PrimeField> Chip<F> for CpuChip {
+    fn name(&self) -> String {
+        "CPU".to_string()
+    }
+
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         let rows = runtime
             .cpu_events
@@ -32,69 +35,6 @@ impl<F: PrimeField> Chip<F> for CpuChip {
 
         trace
     }
-
-    // fn sends(&self) -> Vec<Interaction<F>> {
-    //     let mut interactions = Vec::new();
-
-    //     // lookup (clk, op_a, op_a_val, is_read=1-branch_op) in the register table with multiplicity 1.
-    //     // We always write to the first register, unless we are doing a branch operation in which case we read from it.
-    //     interactions.push(Interaction::lookup_register(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.instruction.op_a[0],
-    //         CPU_COL_MAP.op_a_val,
-    //         IsRead::Expr(VirtualPairCol::new_main(
-    //             vec![(CPU_COL_MAP.selectors.branch_op, F::neg_one())],
-    //             F::one(),
-    //         )),
-    //         VirtualPairCol::constant(F::one()),
-    //     ));
-    //     // lookup (clk, op_c, op_c_val, is_read=true) in the register table with multiplicity 1-imm_c
-    //     // lookup (clk, op_b, op_b_val, is_read=true) in the register table with multiplicity 1-imm_b
-    //     interactions.push(Interaction::lookup_register(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.instruction.op_c[0],
-    //         CPU_COL_MAP.op_c_val,
-    //         IsRead::Bool(true),
-    //         VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_c, F::neg_one())], F::one()), // 1-imm_c
-    //     ));
-    //     interactions.push(Interaction::lookup_register(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.instruction.op_b[0],
-    //         CPU_COL_MAP.op_b_val,
-    //         IsRead::Bool(true),
-    //         VirtualPairCol::new_main(vec![(CPU_COL_MAP.selectors.imm_b, F::neg_one())], F::one()), // 1-imm_b
-    //     ));
-
-    //     // TODO: add interactions with all tables, with selectors `add_op, sub_op, mul_op, etc.`
-    //     interactions.push(Interaction::add(
-    //         CPU_COL_MAP.op_a_val,
-    //         CPU_COL_MAP.op_b_val,
-    //         CPU_COL_MAP.op_c_val,
-    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.add_op),
-    //     ));
-
-    //     //// For both load and store instructions, we must constraint that the addr = op_b_val + op_c_val
-    //     // lookup (clk, op_b_val, op_c_val, addr) in the "add" table with multiplicity load_instruction
-    //     interactions.push(Interaction::add(
-    //         CPU_COL_MAP.addr,
-    //         CPU_COL_MAP.op_b_val,
-    //         CPU_COL_MAP.op_c_val,
-    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
-    //     ));
-    //     // To constraint mem_val, we lookup [addr] in the memory table
-    //     // is_read is set to the `mem_read` flag, which = 1 for load instructions and 0 for store instructions.
-    //     interactions.push(Interaction::lookup_memory(
-    //         CPU_COL_MAP.clk,
-    //         CPU_COL_MAP.addr,
-    //         CPU_COL_MAP.mem_val,
-    //         IsRead::Expr(VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_read)),
-    //         VirtualPairCol::single_main(CPU_COL_MAP.selectors.mem_op),
-    //     ));
-    //     // Now we must constraint mem_val and op_a_val
-    //     // We bus this to a "match_word" table with a combination of s/u and h/b/w
-    //     // TODO: lookup (clk, opcode, mem_val, op_a_val) in the "match_word" table with multiplicity load_instruction
-    //     interactions
-    // }
 }
 
 impl CpuChip {
@@ -119,20 +59,35 @@ impl CpuChip {
 
     fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
         match event.instruction.opcode {
-            Opcode::LB
-            | Opcode::LH
-            | Opcode::LW
-            | Opcode::LBU
-            | Opcode::LHU
-            | Opcode::SB
-            | Opcode::SH
-            | Opcode::SW => {
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 let memory_addr = event.b.wrapping_add(event.c);
                 cols.mem_val = event
                     .memory_value
                     .expect("Memory value should be present")
                     .into();
-                cols.addr = memory_addr.into();
+                let memory_offset = memory_addr % 4;
+                let memory_aligned = memory_addr - memory_offset;
+                cols.addr = memory_aligned.into();
+                cols.addr_offset = memory_offset.into();
+                // TODO: we have to populate cols.mem_scratch with cols.mem_val >> cols.addr_offset
+                // TODO: populate cols.mem_bit_decomp depending on which byte of the memory we want to grab the top bit of
+            }
+            Opcode::SB | Opcode::SH | Opcode::SW => {
+                let memory_addr = event.b.wrapping_add(event.c);
+                cols.mem_val = event
+                    .memory_value
+                    .expect("Memory value should be present")
+                    .into();
+                let memory_offset = memory_addr % 4;
+                let memory_aligned = memory_addr - memory_offset;
+                cols.addr = memory_aligned.into();
+                cols.addr_offset = memory_offset.into();
+                // But we also have to populate mem_scratch because in this case it's the memory result that we'll connect.
+                cols.mem_scratch = event
+                    .memory_store_value
+                    .expect("Memory store value should be present")
+                    .into();
+                // TODO: populate cols.mem_mask based on is_word, is_half, is_byte, addr_offset
             }
             _ => {}
         }
@@ -178,6 +133,8 @@ impl CpuChip {
                 padded_row[CPU_COL_MAP.pc] = pc;
                 padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32(n as u32 + 1);
                 padded_row[CPU_COL_MAP.selectors.noop] = F::one();
+                padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
+                padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
                 // The operands will default by 0, so this will be a no-op anyways.
             });
     }
@@ -212,7 +169,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.cpu_events = vec![CpuEvent {
             clk: 6,
             pc: 1,
@@ -226,6 +183,7 @@ mod tests {
             b: 2,
             c: 3,
             memory_value: None,
+            memory_store_value: None,
         }];
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -239,7 +197,7 @@ mod tests {
     #[test]
     fn generate_trace_simple_program() {
         let program = get_simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -289,7 +247,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = get_simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

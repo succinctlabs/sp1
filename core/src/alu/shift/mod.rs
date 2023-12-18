@@ -94,7 +94,7 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        // // Receive the arguments.
+        // Receive the arguments.
         builder.receive_alu(
             local.is_sll * AB::F::from_canonical_u32(Opcode::SLL as u32)
                 + local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)];
         let chip = ShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -188,7 +188,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)].repeat(1000);
         let chip = ShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

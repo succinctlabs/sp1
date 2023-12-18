@@ -2,6 +2,7 @@ pub mod air;
 pub mod alu;
 pub mod bytes;
 pub mod cpu;
+pub mod disassembler;
 pub mod lookup;
 pub mod memory;
 pub mod precompiles;

@@ -10,6 +10,10 @@ use crate::{
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
+    fn name(&self) -> String {
+        "".to_string()
+    }
+
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
 
     fn receives(&self) -> Vec<Interaction<F>> {

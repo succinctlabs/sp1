@@ -56,7 +56,7 @@ impl MemoryChip {
         let mut unique_events = Vec::new();
         let mut multiplicities = Vec::new();
         let mut last_event = None;
-        for event in events.into_iter() {
+        for event in events.clone().into_iter() {
             if Some(event) == last_event {
                 *multiplicities.last_mut().unwrap() += 1;
             } else {
@@ -65,6 +65,9 @@ impl MemoryChip {
             }
             last_event = Some(event);
         }
+
+        unique_events = events.clone();
+        multiplicities = vec![1; unique_events.len()];
 
         let mut next_events = unique_events[1..].to_vec();
 
@@ -105,6 +108,12 @@ impl MemoryChip {
                 cols.value = Word::from(curr.value);
                 cols.is_read = Bool::from(curr.op == MemOp::Read);
                 cols.multiplicity = F::from_canonical_u32(*mult as u32);
+                // TODO(Uma): Figure out if this is right
+                // NOTE(Uma): I set it to this so that the CPU <> Memory lookups are correct as
+                // the CPU table has no clk=0.
+                if curr.clk == 0 {
+                    cols.multiplicity = F::from_canonical_u32(0);
+                }
 
                 cols.prev_addr = Word::from(prev.addr);
                 cols.prev_clk_word = Word::from(prev.clk);
