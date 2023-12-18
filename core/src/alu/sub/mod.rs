@@ -12,8 +12,6 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::alu::AluEvent;
-
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -183,7 +181,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -233,7 +231,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = vec![];
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, 0);
         runtime.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)].repeat(1000);
         let chip = SubChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
