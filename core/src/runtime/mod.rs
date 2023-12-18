@@ -5,6 +5,7 @@ mod register;
 pub use instruction::*;
 pub use opcode::*;
 
+use crate::bytes::ByteLookupEvent;
 use crate::prover::{debug_cumulative_sums, quotient_values};
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
@@ -71,6 +72,9 @@ pub struct Runtime {
 
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
+
+    /// A trace of the byte lookups needed.
+    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 }
 
 impl Runtime {
@@ -88,6 +92,7 @@ impl Runtime {
             bitwise_events: Vec::new(),
             shift_events: Vec::new(),
             lt_events: Vec::new(),
+            byte_lookups: BTreeMap::new(),
         }
     }
 
