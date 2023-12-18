@@ -9,10 +9,15 @@ use alloc::collections::BTreeMap;
 pub use event::ByteLookupEvent;
 use itertools::Itertools;
 use p3_field::Field;
+use p3_matrix::dense::RowMajorMatrix;
 
-use crate::bytes::{
-    air::{ByteCols, NUM_BYTE_COLS},
-    trace::NUM_ROWS,
+use crate::{
+    bytes::{
+        air::{ByteCols, NUM_BYTE_COLS},
+        trace::NUM_ROWS,
+    },
+    runtime::Runtime,
+    utils::Chip,
 };
 
 #[derive(Debug, Clone)]
@@ -47,6 +52,20 @@ impl ByteOpcode {
             Self::Range => ByteLookupEvent::new(*self, a, b, 0),
         }
     }
+
+    pub fn get_all() -> Vec<Self> {
+        let opcodes = vec![
+            ByteOpcode::And,
+            ByteOpcode::Or,
+            ByteOpcode::Xor,
+            ByteOpcode::SLL,
+            ByteOpcode::Range,
+        ];
+        // Make sure we included all the enum variants.
+        assert_eq!(opcodes.len(), NUM_BYTE_OPS);
+
+        opcodes
+    }
 }
 
 impl<F: Field> ByteChip<F> {
@@ -79,21 +98,13 @@ impl<F: Field> ByteChip<F> {
         let mut initial_trace_rows = Vec::with_capacity(NUM_ROWS * NUM_BYTE_COLS);
 
         // Record all the necessary operations for each byte lookup.
-        let opcodes = vec![
-            ByteOpcode::And,
-            ByteOpcode::Or,
-            ByteOpcode::Xor,
-            ByteOpcode::SLL,
-            ByteOpcode::Range,
-        ];
-        // Make sure we included all the enum variants.
-        assert_eq!(opcodes.len(), NUM_BYTE_OPS);
+        let opcodes = ByteOpcode::get_all();
 
         // Iterate over all options for pairs of bytes `a` and `b`.
         for (row_index, (a, b)) in (0..u8::MAX).cartesian_product(0..u8::MAX).enumerate() {
-            let mut row_slice = &mut initial_trace_rows
+            let row_slice = &mut initial_trace_rows
                 [row_index * NUM_BYTE_COLS..row_index * NUM_BYTE_COLS + NUM_BYTE_COLS];
-            let mut col: &mut ByteCols<F> = row_slice.borrow_mut();
+            let col: &mut ByteCols<F> = row_slice.borrow_mut();
 
             // Set the values of `a` and `b`.
             col.a = F::from_canonical_u8(a);
@@ -111,6 +122,12 @@ impl<F: Field> ByteChip<F> {
             table_map,
             initial_trace_rows,
         }
+    }
+}
+
+impl<F: Field> Chip<F> for ByteChip<F> {
+    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+        self.generate_trace_from_events(&runtime.byte_lookups)
     }
 }
 

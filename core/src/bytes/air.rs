@@ -8,8 +8,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 
-use super::ByteChip;
 use super::NUM_BYTE_OPS;
+use super::{ByteChip, ByteOpcode};
 
 pub const NUM_BYTE_COLS: usize = size_of::<ByteCols<u8>>();
 pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
@@ -44,5 +44,12 @@ impl<F: Field> BaseAir<F> for ByteChip<F> {
 }
 
 impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
-    fn eval(&self, builder: &mut AB) {}
+    fn eval(&self, builder: &mut AB) {
+        // Send all the lookups for each operation.
+        let operations = ByteOpcode::get_all();
+
+        for op in operations {
+            todo!()
+        }
+    }
 }
