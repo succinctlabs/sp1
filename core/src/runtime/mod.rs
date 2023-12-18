@@ -1357,21 +1357,56 @@ pub mod tests {
     fn multiplication_tests() {
         simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000000, 0x00000000);
         simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000001, 0x00000001);
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000003, 0x00000007);
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000000, 0xffff8000);
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x80000000, 0x00000000);
+        simple_op_code_test(Opcode::MULHU, 0x7fffc000, 0x80000000, 0xffff8000);
+        simple_op_code_test(Opcode::MULHU, 0x0001fefe, 0xaaaaaaab, 0x0002fe7d);
+        simple_op_code_test(Opcode::MULHU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab);
+        simple_op_code_test(Opcode::MULHU, 0xfe010000, 0xff000000, 0xff000000);
+        simple_op_code_test(Opcode::MULHU, 0xfffffffe, 0xffffffff, 0xffffffff);
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0xffffffff, 0x00000001);
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000001, 0xffffffff);
 
         simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000000, 0x00000000);
         simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000001, 0x00000001);
+        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000003, 0x00000007);
+        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000000, 0xffff8000);
+        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x80000000, 0x00000000);
+        simple_op_code_test(Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000);
+        simple_op_code_test(Opcode::MULHSU, 0xffff0081, 0xaaaaaaab, 0x0002fe7d);
+        simple_op_code_test(Opcode::MULHSU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab);
+        simple_op_code_test(Opcode::MULHSU, 0xff010000, 0xff000000, 0xff000000);
+        simple_op_code_test(Opcode::MULHSU, 0xffffffff, 0xffffffff, 0xffffffff);
+        simple_op_code_test(Opcode::MULHSU, 0xffffffff, 0xffffffff, 0x00000001);
+        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000001, 0xffffffff);
 
         simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000000, 0x00000000);
         simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000001, 0x00000001);
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000003, 0x00000007);
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000000, 0xffff8000);
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0x80000000, 0x00000000);
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0x80000000, 0x00000000);
+        simple_op_code_test(Opcode::MULH, 0xffff0081, 0xaaaaaaab, 0x0002fe7d);
+        simple_op_code_test(Opcode::MULH, 0xffff0081, 0x0002fe7d, 0xaaaaaaab);
+        simple_op_code_test(Opcode::MULH, 0x00010000, 0xff000000, 0xff000000);
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0xffffffff, 0xffffffff);
+        simple_op_code_test(Opcode::MULH, 0xffffffff, 0xffffffff, 0x00000001);
+        simple_op_code_test(Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff);
 
-        simple_op_code_test(Opcode::MUL, 1125215709, 0xffffffff, 0xbcee9223);
-        simple_op_code_test(Opcode::MULHU, 3169751586, 0xffffffff, 0xbcee9223);
-        simple_op_code_test(Opcode::MULH, 0, 0xffffffff, 0xbcee9223);
-        simple_op_code_test(Opcode::MULHSU, 4294967295, 0xffffffff, 0xbcee9223);
-
-        simple_op_code_test(Opcode::MUL, 1930522077, 0x0fffffff, 0xbcee9223);
-        simple_op_code_test(Opcode::MULHU, 198109473, 0x0fffffff, 0xbcee9223);
-        simple_op_code_test(Opcode::MULH, 4224641314, 0x0fffffff, 0xbcee9223);
-        simple_op_code_test(Opcode::MULHSU, 198109473, 0x0fffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MUL, 0x00001200, 0x00007e00, 0xb6db6db7);
+        simple_op_code_test(Opcode::MUL, 0x00001240, 0x00007fc0, 0xb6db6db7);
+        simple_op_code_test(Opcode::MUL, 0x00000000, 0x00000000, 0x00000000);
+        simple_op_code_test(Opcode::MUL, 0x00000001, 0x00000001, 0x00000001);
+        simple_op_code_test(Opcode::MUL, 0x00000015, 0x00000003, 0x00000007);
+        simple_op_code_test(Opcode::MUL, 0x00000000, 0x00000000, 0xffff8000);
+        simple_op_code_test(Opcode::MUL, 0x00000000, 0x80000000, 0x00000000);
+        simple_op_code_test(Opcode::MUL, 0x00000000, 0x80000000, 0xffff8000);
+        simple_op_code_test(Opcode::MUL, 0x0000ff7f, 0xaaaaaaab, 0x0002fe7d);
+        simple_op_code_test(Opcode::MUL, 0x0000ff7f, 0x0002fe7d, 0xaaaaaaab);
+        simple_op_code_test(Opcode::MUL, 0x00000000, 0xff000000, 0xff000000);
+        simple_op_code_test(Opcode::MUL, 0x00000001, 0xffffffff, 0xffffffff);
+        simple_op_code_test(Opcode::MUL, 0xffffffff, 0xffffffff, 0x00000001);
+        simple_op_code_test(Opcode::MUL, 0xffffffff, 0x00000001, 0xffffffff);
     }
 }
