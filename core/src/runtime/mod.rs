@@ -565,27 +565,35 @@ impl Runtime {
 
             // Multiply instructions.
             Opcode::MUL => {
+                // MUL performs an 32-bit×32-bit multiplication and places the
+                // lower 32 bits in the destination register.
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = b.wrapping_mul(c);
                 self.rw(rd, a);
             }
             Opcode::MULH => {
+                // MULH performs the same multiplication, but returns the upper
+                // 32 bits of the product. (signed x signed)
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.rw(rd, a);
-            }
-            Opcode::MULHSU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = ((b as i64).wrapping_mul(c as i64) >> 32) as u32;
+                a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::MULHU => {
+                // MULH performs the same multiplication, but returns the upper
+                // 32 bits of the product. (unsigned x unsigned)
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                self.rw(rd, a);
+            }
+            Opcode::MULHSU => {
+                // MULH performs the same multiplication, but returns the upper
+                // 32 bits of the product. (signed x unsigned)
+                let (rd, rs1, rs2) = instruction.r_type();
+                (b, c) = (self.rr(rs1), self.rr(rs2));
+                a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
             }
             Opcode::DIV => {
@@ -1332,5 +1340,39 @@ pub mod tests {
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
         assert_eq!(runtime.pc, 108);
+    }
+
+    fn simple_op_code_test(opcode: Opcode, expected: u32, a: u32, b: u32) {
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 10, 0, a),
+            Instruction::new(Opcode::ADDI, 11, 0, b),
+            Instruction::new(opcode, 12, 10, 11),
+        ];
+        let mut runtime = Runtime::new(program, 0);
+        runtime.run();
+        println!("0x{:x} 0x{:x} 0x{:x}", a, b, expected);
+        assert_eq!(runtime.registers()[Register::X12 as usize], expected);
+    }
+
+    #[test]
+    fn multiplication_tests() {
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000000, 0x00000000);
+        simple_op_code_test(Opcode::MULHU, 0x00000000, 0x00000001, 0x00000001);
+
+        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000000, 0x00000000);
+        simple_op_code_test(Opcode::MULHSU, 0x00000000, 0x00000001, 0x00000001);
+
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000000, 0x00000000);
+        simple_op_code_test(Opcode::MULH, 0x00000000, 0x00000001, 0x00000001);
+
+        simple_op_code_test(Opcode::MUL, 1125215709, 0xffffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MULHU, 3169751586, 0xffffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MULH, 0, 0xffffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MULHSU, 4294967295, 0xffffffff, 0xbcee9223);
+
+        simple_op_code_test(Opcode::MUL, 1930522077, 0x0fffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MULHU, 198109473, 0x0fffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MULH, 4224641314, 0x0fffffff, 0xbcee9223);
+        simple_op_code_test(Opcode::MULHSU, 198109473, 0x0fffffff, 0xbcee9223);
     }
 }
