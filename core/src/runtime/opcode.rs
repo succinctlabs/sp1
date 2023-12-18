@@ -60,8 +60,8 @@ pub enum Opcode {
     /// Multiply instructions.
     MUL = 39,
     MULH = 40,
-    MULHSU = 41,
-    MULHU = 42,
+    MULHU = 41,
+    MULHSU = 42,
     DIV = 43,
     DIVU = 44,
     REM = 45,
