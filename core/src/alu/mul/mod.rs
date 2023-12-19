@@ -46,6 +46,7 @@ const BYTE_SIZE: usize = 8;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
+#[repr(C)]
 pub struct MulCols<T> {
     /// The output operand.
     pub a: Word<T>,
@@ -120,7 +121,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 c.resize(PRODUCT_SIZE, 0);
 
                 if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
-                    if b[PRODUCT_SIZE - 1] & 0x80 != 0 {
+                    if b_word[WORD_SIZE - 1] & 0x80 != 0 {
                         // b is signed and it is negative. Sign extend b.
                         cols.is_b_negative = F::one();
                         // can i combine resize and fill?
@@ -129,7 +130,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 }
 
                 if event.opcode == Opcode::MULH {
-                    if c[PRODUCT_SIZE - 1] & 0x80 != 0 {
+                    if c_word[WORD_SIZE - 1] & 0x80 != 0 {
                         // c is signed and it is negative. Sign extend c.
                         cols.is_c_negative = F::one();
                         c[WORD_SIZE..PRODUCT_SIZE].fill(0xff);
@@ -195,7 +196,7 @@ where
 
         let sign_mask = AB::F::from_canonical_u8(0xff);
 
-        // Sign extend local.b and local.c
+        // Sign extend local.b and local.c whenever appropriate.
         let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
         let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
         for i in 0..PRODUCT_SIZE {
@@ -227,17 +228,14 @@ where
                 // When i = 0, there is no carry from the previous term as
                 // there is no previous term.
                 builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
-            } else if i < PRODUCT_SIZE - 1 {
-                // When 0 < i < PRODUCT_SIZE - 1, there is a carry from the
-                // previous term, and there's a carry from this term.
+            } else {
+                // When 0 < i < PRODUCT_SIZE, there is a carry from the
+                // previous term, and there's a carry from this term. This is
+                // true even for the highest term due to the possible sign bits.
                 builder.assert_eq(
                     local.product[i],
                     m[i].clone() + local.carry[i - 1] - local.carry[i] * base,
                 );
-            } else {
-                // The highest term can only be the carry from the previous
-                // term since there is not b[k]c[l] such that k + l == i.
-                builder.assert_eq(local.product[i], local.carry[i - 1]);
             }
         }
 
@@ -306,10 +304,10 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         runtime.mul_events = vec![AluEvent::new(
             0,
-            Opcode::MULH,
-            100000,
-            0xffffffff as u32,
-            0xffffffff as u32,
+            Opcode::MULHSU,
+            0x80004000,
+            0x80000000,
+            0xffff8000,
         )];
         let chip = MulChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -401,6 +399,18 @@ mod tests {
             (Opcode::MULHSU, 0xffffffff, 0xffffffff, 0xffffffff),
             (Opcode::MULHSU, 0xffffffff, 0xffffffff, 0x00000001),
             (Opcode::MULHSU, 0x00000000, 0x00000001, 0xffffffff),
+            (Opcode::MULH, 0x00000000, 0x00000000, 0x00000000),
+            (Opcode::MULH, 0x00000000, 0x00000001, 0x00000001),
+            (Opcode::MULH, 0x00000000, 0x00000003, 0x00000007),
+            (Opcode::MULH, 0x00000000, 0x00000000, 0xffff8000),
+            (Opcode::MULH, 0x00000000, 0x80000000, 0x00000000),
+            (Opcode::MULH, 0x00000000, 0x80000000, 0x00000000),
+            (Opcode::MULH, 0xffff0081, 0xaaaaaaab, 0x0002fe7d),
+            (Opcode::MULH, 0xffff0081, 0x0002fe7d, 0xaaaaaaab),
+            (Opcode::MULH, 0x00010000, 0xff000000, 0xff000000),
+            (Opcode::MULH, 0x00000000, 0xffffffff, 0xffffffff),
+            (Opcode::MULH, 0xffffffff, 0xffffffff, 0x00000001),
+            (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
             mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
