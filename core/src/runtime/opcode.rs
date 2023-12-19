@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 
 /// An opcode specifies which operation to execute.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Opcode {
     /// Register instructions.

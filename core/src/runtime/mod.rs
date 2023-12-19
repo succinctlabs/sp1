@@ -1,9 +1,11 @@
 mod instruction;
 mod opcode;
+mod precompile;
 mod register;
 
 pub use instruction::*;
 pub use opcode::*;
+pub use precompile::*;
 
 use crate::prover::{debug_cumulative_sums, quotient_values};
 use crate::utils::AirChip;
@@ -71,6 +73,9 @@ pub struct Runtime {
 
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
+
+    /// A stream of witnessed values.
+    pub witness: Vec<u32>,
 }
 
 impl Runtime {
@@ -88,7 +93,14 @@ impl Runtime {
             bitwise_events: Vec::new(),
             shift_events: Vec::new(),
             lt_events: Vec::new(),
+            witness: Vec::new(),
         }
+    }
+
+    /// Write to the witness stream.
+    #[allow(dead_code)]
+    fn write_witness(&mut self, witness: &[u32]) {
+        self.witness.extend(witness);
     }
 
     /// Read from memory.
@@ -143,6 +155,15 @@ impl Runtime {
             };
         }
         return registers;
+    }
+
+    /// Get the current value of a register.
+    pub fn register(&self, register: Register) -> u32 {
+        let addr = self.r2m(register);
+        match self.memory.get(&addr) {
+            Some(value) => *value,
+            None => 0,
+        }
     }
 
     /// Fetch the instruction at the current program counter.
@@ -553,10 +574,29 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
-                // While not all ECALLs obviously halt the CPU, we will for now halt. We need to
-                // come back to this and figure out how to handle this properly.
-                println!("ECALL encountered! Halting!");
-                next_pc = self.program.len() as u32 * 4;
+                // The fixed register set used during ECALL's.
+                let t0 = Register::X5;
+                let a0 = Register::X10;
+                let a1 = Register::X11;
+
+                // The precompile is always specified by the value in `t0`.
+                let precompile = Precompile::from_u32(self.register(t0));
+                match precompile {
+                    Precompile::HALT => {
+                        next_pc = self.program.len() as u32 * 4;
+                    }
+                    Precompile::LWA => {
+                        let _ = self.register(a0);
+                        let witness = self.witness.pop().expect("witness stream is empty");
+                        self.rw(a1, witness);
+                    }
+                    Precompile::BIGINT => {
+                        todo!()
+                    }
+                    Precompile::SHA => {
+                        todo!()
+                    }
+                }
             }
 
             Opcode::EBREAK => {
@@ -1025,6 +1065,34 @@ pub mod tests {
         let mut runtime = Runtime::new(program, init_pc);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+    }
+
+    #[test]
+    fn HALT() {
+        // main:
+        //     addi x29, x0, 0
+        //     ecall
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 5, 0, 0),
+            Instruction::new(Opcode::ECALL, 0, 0, 0),
+        ];
+        let mut runtime = Runtime::new(program, 0);
+        runtime.run();
+    }
+
+    #[test]
+    fn LWA() {
+        // main:
+        //     addi x29, x0, 1
+        //     ecall
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 5, 0, 1),
+            Instruction::new(Opcode::ECALL, 0, 0, 0),
+        ];
+        let mut runtime = Runtime::new(program, 0);
+        runtime.write_witness(&[69420]);
+        runtime.run();
+        assert_eq!(runtime.register(Register::X11), 69420);
     }
 
     #[test]

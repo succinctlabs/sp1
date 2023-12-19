@@ -38,6 +38,10 @@ pub enum Register {
 }
 
 impl Register {
+    pub fn as_usize(&self) -> usize {
+        *self as usize
+    }
+
     pub fn from_u32(value: u32) -> Self {
         match value {
             0 => Register::X0,
