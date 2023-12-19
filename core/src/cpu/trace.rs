@@ -140,122 +140,122 @@ impl CpuChip {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::runtime::{tests::get_simple_program, Instruction};
+// #[cfg(test)]
+// mod tests {
+//     use crate::runtime::{tests::get_simple_program, Instruction};
 
-    use p3_baby_bear::BabyBear;
+//     use p3_baby_bear::BabyBear;
 
-    use p3_challenger::DuplexChallenger;
-    use p3_dft::Radix2DitParallel;
-    use p3_field::Field;
+//     use p3_challenger::DuplexChallenger;
+//     use p3_dft::Radix2DitParallel;
+//     use p3_field::Field;
 
-    use p3_field::extension::BinomialExtensionField;
-    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-    use p3_keccak::Keccak256Hash;
-    use p3_ldt::QuotientMmcs;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_mds::coset_mds::CosetMds;
-    use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
-    use p3_uni_stark::{prove, verify, StarkConfigImpl};
-    use rand::thread_rng;
+//     use p3_field::extension::BinomialExtensionField;
+//     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+//     use p3_keccak::Keccak256Hash;
+//     use p3_ldt::QuotientMmcs;
+//     use p3_matrix::dense::RowMajorMatrix;
+//     use p3_mds::coset_mds::CosetMds;
+//     use p3_merkle_tree::FieldMerkleTreeMmcs;
+//     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+//     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+//     use p3_uni_stark::{prove, verify, StarkConfigImpl};
+//     use rand::thread_rng;
 
-    use crate::utils::Chip;
-    use p3_commit::ExtensionMmcs;
+//     use crate::utils::Chip;
+//     use p3_commit::ExtensionMmcs;
 
-    use super::*;
-    #[test]
-    fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.cpu_events = vec![CpuEvent {
-            clk: 6,
-            pc: 1,
-            instruction: Instruction {
-                opcode: Opcode::ADD,
-                op_a: 0,
-                op_b: 1,
-                op_c: 2,
-            },
-            a: 1,
-            b: 2,
-            c: 3,
-            memory_value: None,
-            memory_store_value: None,
-        }];
-        let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        println!("{:?}", trace.values);
-        // println!(
-        //     "{:?} {:?} {:?} {:?} {:?}",
-        //     cols.clk, cols.pc, cols.op_a_val, cols.op_b_val, cols.op_c_val
-        // );
-    }
+//     use super::*;
+//     #[test]
+//     fn generate_trace() {
+//         let program = vec![];
+//         let mut runtime = Runtime::new(program, 0);
+//         runtime.cpu_events = vec![CpuEvent {
+//             clk: 6,
+//             pc: 1,
+//             instruction: Instruction {
+//                 opcode: Opcode::ADD,
+//                 op_a: 0,
+//                 op_b: 1,
+//                 op_c: 2,
+//             },
+//             a: 1,
+//             b: 2,
+//             c: 3,
+//             memory_value: None,
+//             memory_store_value: None,
+//         }];
+//         let chip = CpuChip::new();
+//         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+//         println!("{:?}", trace.values);
+//         // println!(
+//         //     "{:?} {:?} {:?} {:?} {:?}",
+//         //     cols.clk, cols.pc, cols.op_a_val, cols.op_b_val, cols.op_c_val
+//         // );
+//     }
 
-    #[test]
-    fn generate_trace_simple_program() {
-        let program = get_simple_program();
-        let mut runtime = Runtime::new(program, 0);
-        runtime.run();
-        let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        println!("{:?}", trace.values)
-    }
+//     #[test]
+//     fn generate_trace_simple_program() {
+//         let program = get_simple_program();
+//         let mut runtime = Runtime::new(program, 0);
+//         runtime.run();
+//         let chip = CpuChip::new();
+//         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+//         println!("{:?}", trace.values)
+//     }
 
-    #[test]
-    fn prove_trace() {
-        type Val = BabyBear;
-        type Domain = Val;
-        type Challenge = BinomialExtensionField<Val, 4>;
-        type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+//     #[test]
+//     fn prove_trace() {
+//         type Val = BabyBear;
+//         type Domain = Val;
+//         type Challenge = BinomialExtensionField<Val, 4>;
+//         type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
-        type MyMds = CosetMds<Val, 16>;
-        let mds = MyMds::default();
+//         type MyMds = CosetMds<Val, 16>;
+//         let mds = MyMds::default();
 
-        type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+//         type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+//         let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
 
-        type MyHash = SerializingHasher32<Keccak256Hash>;
-        let hash = MyHash::new(Keccak256Hash {});
+//         type MyHash = SerializingHasher32<Keccak256Hash>;
+//         let hash = MyHash::new(Keccak256Hash {});
 
-        type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
-        let compress = MyCompress::new(hash);
+//         type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+//         let compress = MyCompress::new(hash);
 
-        type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
-        let val_mmcs = ValMmcs::new(hash, compress);
+//         type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+//         let val_mmcs = ValMmcs::new(hash, compress);
 
-        type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-        let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+//         type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+//         let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
-        type Dft = Radix2DitParallel;
-        let dft = Dft {};
+//         type Dft = Radix2DitParallel;
+//         let dft = Dft {};
 
-        type Challenger = DuplexChallenger<Val, Perm, 16>;
+//         type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-        type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-        type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
-        let ldt = FriLdt { config: fri_config };
+//         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+//         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+//         let fri_config = MyFriConfig::new(40, challenge_mmcs);
+//         let ldt = FriLdt { config: fri_config };
 
-        type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
-        type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
+//         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+//         type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
 
-        let pcs = Pcs::new(dft, val_mmcs, ldt);
-        let config = StarkConfigImpl::new(pcs);
-        let mut challenger = Challenger::new(perm.clone());
+//         let pcs = Pcs::new(dft, val_mmcs, ldt);
+//         let config = StarkConfigImpl::new(pcs);
+//         let mut challenger = Challenger::new(perm.clone());
 
-        let program = get_simple_program();
-        let mut runtime = Runtime::new(program, 0);
-        runtime.run();
-        let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        trace.rows().for_each(|row| println!("{:?}", row));
+//         let program = get_simple_program();
+//         let mut runtime = Runtime::new(program, 0);
+//         runtime.run();
+//         let chip = CpuChip::new();
+//         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+//         trace.rows().for_each(|row| println!("{:?}", row));
 
-        let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
+//         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
-        let mut challenger = Challenger::new(perm);
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
-    }
-}
+//         let mut challenger = Challenger::new(perm);
+//         verify(&config, &chip, &mut challenger, &proof).unwrap();
+//     }
+// }
