@@ -619,7 +619,11 @@ impl Runtime {
             Opcode::REM => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = (b as i32).wrapping_rem(c as i32) as u32;
+                if c == 0 {
+                    a = b;
+                } else {
+                    a = (b as i32).wrapping_rem(c as i32) as u32;
+                }
                 self.rw(rd, a);
             }
             Opcode::REMU => {
@@ -1440,5 +1444,20 @@ pub mod tests {
         simple_op_code_test(Opcode::DIV, neg(6), neg(24), 4);
         simple_op_code_test(Opcode::DIV, neg(2), 16, neg(8));
         simple_op_code_test(Opcode::DIV, neg(1), 0, 0);
+    }
+
+    #[test]
+    fn remainder_tests() {
+        simple_op_code_test(Opcode::REM, 7, 16, 9);
+        simple_op_code_test(Opcode::REM, neg(4), neg(22), 6);
+        simple_op_code_test(Opcode::REM, 1, 25, neg(3));
+        simple_op_code_test(Opcode::REM, neg(2), neg(22), neg(4));
+
+        simple_op_code_test(Opcode::REM, 0, 873, 1);
+        simple_op_code_test(Opcode::REM, 0, 873, neg(1));
+
+        simple_op_code_test(Opcode::REM, 5, 5, 0);
+        simple_op_code_test(Opcode::REM, neg(5), neg(5), 0);
+        simple_op_code_test(Opcode::REM, 0, 0, 0);
     }
 }
