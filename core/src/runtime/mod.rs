@@ -599,13 +599,21 @@ impl Runtime {
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = (b as i32).wrapping_div(c as i32) as u32;
+                if c == 0 {
+                    a = u32::MAX;
+                } else {
+                    a = (b as i32).wrapping_div(c as i32) as u32;
+                }
                 self.rw(rd, a);
             }
             Opcode::DIVU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = b.wrapping_div(c);
+                if c == 0 {
+                    a = u32::MAX;
+                } else {
+                    a = b.wrapping_div(c);
+                }
                 self.rw(rd, a);
             }
             Opcode::REM => {
@@ -1408,5 +1416,29 @@ pub mod tests {
         simple_op_code_test(Opcode::MUL, 0x00000001, 0xffffffff, 0xffffffff);
         simple_op_code_test(Opcode::MUL, 0xffffffff, 0xffffffff, 0x00000001);
         simple_op_code_test(Opcode::MUL, 0xffffffff, 0x00000001, 0xffffffff);
+    }
+
+    fn neg(a: u32) -> u32 {
+        u32::MAX - a + 1
+    }
+
+    #[test]
+    fn division_tests() {
+        simple_op_code_test(Opcode::DIVU, 3, 20, 6);
+        simple_op_code_test(Opcode::DIVU, 715827879, u32::MAX - 20 + 1, 6);
+        simple_op_code_test(Opcode::DIVU, 0, 20, u32::MAX - 6 + 1);
+        simple_op_code_test(Opcode::DIVU, 0, u32::MAX - 20 + 1, u32::MAX - 6 + 1);
+
+        simple_op_code_test(Opcode::DIVU, 1 << 31, 1 << 31, 1);
+        simple_op_code_test(Opcode::DIVU, 0, 1 << 31, u32::MAX - 1 + 1);
+
+        simple_op_code_test(Opcode::DIVU, u32::MAX, 1 << 31, 0);
+        simple_op_code_test(Opcode::DIVU, u32::MAX, 1, 0);
+        simple_op_code_test(Opcode::DIVU, u32::MAX, 0, 0);
+
+        simple_op_code_test(Opcode::DIV, 3, 18, 6);
+        simple_op_code_test(Opcode::DIV, neg(6), neg(24), 4);
+        simple_op_code_test(Opcode::DIV, neg(2), 16, neg(8));
+        simple_op_code_test(Opcode::DIV, neg(1), 0, 0);
     }
 }
