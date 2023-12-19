@@ -362,8 +362,7 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
-        const MUL_TEST_LENGTH: usize = 26;
-        let mul_instructions: [(Opcode, u32, u32, u32); MUL_TEST_LENGTH] = [
+        let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::MUL, 0x00001200, 0x00007e00, 0xb6db6db7),
             (Opcode::MUL, 0x00001240, 0x00007fc0, 0xb6db6db7),
             (Opcode::MUL, 0x00000000, 0x00000000, 0x00000000),
@@ -390,13 +389,25 @@ mod tests {
             (Opcode::MULHU, 0xfffffffe, 0xffffffff, 0xffffffff),
             (Opcode::MULHU, 0x00000000, 0xffffffff, 0x00000001),
             (Opcode::MULHU, 0x00000000, 0x00000001, 0xffffffff),
+            (Opcode::MULHSU, 0x00000000, 0x00000000, 0x00000000),
+            (Opcode::MULHSU, 0x00000000, 0x00000001, 0x00000001),
+            (Opcode::MULHSU, 0x00000000, 0x00000003, 0x00000007),
+            (Opcode::MULHSU, 0x00000000, 0x00000000, 0xffff8000),
+            (Opcode::MULHSU, 0x00000000, 0x80000000, 0x00000000),
+            (Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000),
+            (Opcode::MULHSU, 0xffff0081, 0xaaaaaaab, 0x0002fe7d),
+            (Opcode::MULHSU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab),
+            (Opcode::MULHSU, 0xff010000, 0xff000000, 0xff000000),
+            (Opcode::MULHSU, 0xffffffff, 0xffffffff, 0xffffffff),
+            (Opcode::MULHSU, 0xffffffff, 0xffffffff, 0x00000001),
+            (Opcode::MULHSU, 0x00000000, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
             mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
-        for _ in 0..(1000 - MUL_TEST_LENGTH) {
+        for _ in 0..(1000 - mul_instructions.len()) {
             mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
         }
 
