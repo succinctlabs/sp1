@@ -31,6 +31,9 @@ pub struct LtCols<T> {
     /// Boolean flag to indicate which byte pair differs
     pub byte_flag: [T; 4],
 
+    /// Boolean flag to indicate whether to do an equality check between the bytes (after the byte that differs, this should be false)
+    pub byte_equality_check: [T; 4],
+
     // Bit decomposition of 256 + input_1 - input_2
     pub bits: [T; 10],
 
@@ -64,22 +67,35 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                if let Some(n) = b
+                let rev_b = event.b.to_be_bytes();
+                let rev_c = event.c.to_be_bytes();
+
+                // TODO: Add a byte_check flag to skip equality check for bytes after the byte flag.
+                if let Some(n) = rev_b
                     .into_iter()
-                    .zip(c.into_iter())
+                    .zip(rev_c.into_iter())
                     .enumerate()
                     .find_map(|(n, (x, y))| if x != y { Some(n) } else { None })
                 {
-                    let z = 256u16 + b[n] as u16 - c[n] as u16;
+                    let z = 256u16 + rev_b[n] as u16 - rev_c[n] as u16;
                     for i in 0..10 {
                         cols.bits[i] = F::from_canonical_u16(z >> i & 1);
                     }
                     cols.byte_flag[n] = F::one();
+
+                    for i in 0..n {
+                        cols.byte_equality_check[i] = F::one();
+                    }
                 }
+
+                // Reverse cols.byte_flag from BE to match the LE byte order of a, b and c.
+                cols.byte_flag.reverse();
+                cols.byte_equality_check.reverse();
 
                 println!("Event: {:?} {:?} {:?}", a, b, c);
                 println!("Bits: {:?}", cols.bits);
                 println!("Byte flag: {:?}", cols.byte_flag);
+                println!("Byte equality check: {:?}", cols.byte_equality_check);
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
@@ -112,6 +128,7 @@ where
         let main = builder.main();
         let local: &LtCols<AB::Var> = main.row_slice(0).borrow();
 
+        // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
@@ -127,6 +144,7 @@ where
         for i in 0..4 {
             builder
                 .when_ne(local.byte_flag[i], AB::F::one())
+                .when(local.byte_equality_check[i])
                 .assert_eq(local.b[i], local.c[i]);
 
             builder.when(local.byte_flag[i]).assert_eq(
@@ -146,6 +164,7 @@ where
 
         // builder
         //     .when_ne(flag_sum.clone(), AB::Expr::one())
+        //     .when_ne(local.multiplicity, AB::Expr::zero())
         //     .assert_eq(
         //         AB::Expr::from_canonical_u32(256) + local.b[3] - local.c[3],
         //         bit_comp.clone(),
@@ -157,7 +176,8 @@ where
         //     .when_ne(local.bits[8], AB::Expr::one())
         //     .assert_one(local.a[0]);
 
-        // Output constraint. If local.bits[8] == 1, then b >= c, so a = 0.
+        // Output constraint. If local.bits[8] == 1, then b >= c, so a = 0. Else, a = 1.
+        builder.assert_bool(local.bits[8]);
         builder.when(local.bits[8]).assert_zero(local.a[0]);
 
         // Check bit decomposition is valid.
@@ -260,7 +280,20 @@ mod tests {
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
         // runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        runtime.lt_events = vec![
+            // AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            // AluEvent::new(1, Opcode::SLT, 1, 2, 3),
+            // AluEvent::new(
+            //     2,
+            //     Opcode::SLT,
+            //     0,
+            //     // -3
+            //     0b11111111111111111111111111111101,
+            //     // -4
+            //     0b11111111111111111111111111111100,
+            // ),
+            AluEvent::new(0, Opcode::SLT, 0, 65536, 255),
+        ];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
