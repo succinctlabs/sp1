@@ -34,7 +34,6 @@ use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
-
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
 pub struct MulCols<T> {
@@ -249,8 +248,35 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
-        runtime.mul_events =
-            vec![AluEvent::new(0, Opcode::MUL, 3160867512, 2222324, 3335238)].repeat(1000);
+        let mut mul_events: Vec<AluEvent> = Vec::new();
+
+        const TEST_INSTRUCTION_LENGTH: usize = 14;
+        let test_instructions: [(u32, u32, u32); TEST_INSTRUCTION_LENGTH] = [
+            (0x00001200, 0x00007e00, 0xb6db6db7),
+            (0x00001240, 0x00007fc0, 0xb6db6db7),
+            (0x00000000, 0x00000000, 0x00000000),
+            (0x00000001, 0x00000001, 0x00000001),
+            (0x00000015, 0x00000003, 0x00000007),
+            (0x00000000, 0x00000000, 0xffff8000),
+            (0x00000000, 0x80000000, 0x00000000),
+            (0x00000000, 0x80000000, 0xffff8000),
+            (0x0000ff7f, 0xaaaaaaab, 0x0002fe7d),
+            (0x0000ff7f, 0x0002fe7d, 0xaaaaaaab),
+            (0x00000000, 0xff000000, 0xff000000),
+            (0x00000001, 0xffffffff, 0xffffffff),
+            (0xffffffff, 0xffffffff, 0x00000001),
+            (0xffffffff, 0x00000001, 0xffffffff),
+        ];
+        for t in test_instructions.iter() {
+            mul_events.push(AluEvent::new(0, Opcode::MUL, t.0, t.1, t.2));
+        }
+
+        // Append more events until we have 1000 tests.
+        for _ in 0..(1000 - TEST_INSTRUCTION_LENGTH) {
+            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
+        }
+
+        runtime.mul_events = mul_events;
         let chip = MulChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
