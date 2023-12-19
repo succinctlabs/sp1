@@ -20,9 +20,21 @@ use crate::{
     utils::Chip,
 };
 
+/// A chip for computing byte operations.
+///
+/// The chip contains a preprocessed table of all possible byte operations. Other chips can then
+/// use lookups into this table to compute their own operations.
 #[derive(Debug, Clone)]
 pub struct ByteChip<F> {
+    //// A map from a byte lookup to the corresponding row it appears in the table and the index of
+    /// the result in the array of multiplicities.
     table_map: BTreeMap<ByteLookupEvent, (usize, usize)>,
+    /// The trace containing the enumeration of all byte operations.
+    ///
+    /// The rows of the matrix loop over all pairs of bytes and record the results of all byte
+    /// operations on them. Each result has an associated lookup multiplicity, which is the number
+    /// of times that result was looked up in the program. The multiplicities are initialized at
+    /// zero.
     initial_trace: RowMajorMatrix<F>,
 }
 
@@ -43,16 +55,6 @@ pub enum ByteOpcode {
 }
 
 impl ByteOpcode {
-    pub const fn event(&self, b: u8, c: u8) -> ByteLookupEvent {
-        match self {
-            Self::And => ByteLookupEvent::new(*self, b & c, b, c),
-            Self::Or => ByteLookupEvent::new(*self, b | c, b, c),
-            Self::Xor => ByteLookupEvent::new(*self, b ^ c, b, c),
-            Self::SLL => ByteLookupEvent::new(*self, b << c, b, c),
-            Self::Range => ByteLookupEvent::new(*self, 0, b, c),
-        }
-    }
-
     pub fn get_all() -> Vec<Self> {
         let opcodes = vec![
             ByteOpcode::And,
@@ -73,26 +75,6 @@ impl ByteOpcode {
 }
 
 impl<F: Field> ByteChip<F> {
-    pub fn update_trace(event: &ByteLookupEvent, col: &mut ByteCols<F>) {
-        match event.opcode {
-            ByteOpcode::And => {
-                col.and = F::from_canonical_u8(event.a);
-            }
-            ByteOpcode::Or => {
-                col.or = F::from_canonical_u8(event.a);
-            }
-            ByteOpcode::Xor => {
-                col.xor = F::from_canonical_u8(event.a);
-            }
-            ByteOpcode::SLL => {
-                col.sll = F::from_canonical_u8(event.a);
-            }
-            ByteOpcode::Range => {
-                // Do nothing.
-            }
-        }
-    }
-
     pub fn new() -> Self {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
@@ -115,9 +97,30 @@ impl<F: Field> ByteChip<F> {
 
             // Iterate over all operations for results and updating the table map.
             for (i, opcode) in opcodes.iter().enumerate() {
-                let event = opcode.event(b, c);
-                Self::update_trace(&event, col);
-                table_map.insert(opcode.event(b, c), (row_index, i));
+                let event = match opcode {
+                    ByteOpcode::And => {
+                        let and = b & c;
+                        col.and = F::from_canonical_u8(and);
+                        ByteLookupEvent::new(*opcode, and, b, c)
+                    }
+                    ByteOpcode::Or => {
+                        let or = b | c;
+                        col.or = F::from_canonical_u8(or);
+                        ByteLookupEvent::new(*opcode, or, b, c)
+                    }
+                    ByteOpcode::Xor => {
+                        let xor = b ^ c;
+                        col.xor = F::from_canonical_u8(xor);
+                        ByteLookupEvent::new(*opcode, xor, b, c)
+                    }
+                    ByteOpcode::SLL => {
+                        let sll = b << c;
+                        col.sll = F::from_canonical_u8(sll);
+                        ByteLookupEvent::new(*opcode, sll, b, c)
+                    }
+                    ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, b, c),
+                };
+                table_map.insert(event, (row_index, i));
             }
         }
 
