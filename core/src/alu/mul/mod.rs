@@ -1,3 +1,22 @@
+//! Implementation to check that b * c = product. (no `mod N`, no truncation)
+//!
+//! Decompose b, c, product into u8's. Perform the appropriate range checks.
+//!
+//! 1. Use m[i] to denote the convolution (i.e., b[i]c[0] + b[i - 1]c[1] +
+//!    ... + b[1]c[i - 1] + b[0]c[i]).
+//! 2. carry[i]: "overflow" from calculating the i-th term. More
+//!    specifically, carry[i] = floor((m[i] + carry[i - 1]) / 256).
+//
+//! local.product[i] = m[i] + carry[i - 1] (mod 256)
+//! <=> local.product[i] = m[i] + carry[i - 1] + 256K for some integer K
+//! <=> local.product[i]
+//!    = m[i] + carry[i - 1] + 256 * floor((m[i] + carry[i - 1]) / 256)
+//
+//! Conveniently, this value of K is equivalent to carry[i].
+//!
+//! Finally, we verify that the result `a` matches the appropriate bits.
+//! (e.g., For MUL, `a` matches the low word of `local.product`)
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, BaseAir};
