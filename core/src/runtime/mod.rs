@@ -629,7 +629,11 @@ impl Runtime {
             Opcode::REMU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = b.wrapping_rem(c);
+                if c == 0 {
+                    a = b;
+                } else {
+                    a = b.wrapping_rem(c);
+                }
                 self.rw(rd, a);
             }
             Opcode::UNIMP => {
@@ -1452,12 +1456,18 @@ pub mod tests {
         simple_op_code_test(Opcode::REM, neg(4), neg(22), 6);
         simple_op_code_test(Opcode::REM, 1, 25, neg(3));
         simple_op_code_test(Opcode::REM, neg(2), neg(22), neg(4));
-
         simple_op_code_test(Opcode::REM, 0, 873, 1);
         simple_op_code_test(Opcode::REM, 0, 873, neg(1));
-
         simple_op_code_test(Opcode::REM, 5, 5, 0);
         simple_op_code_test(Opcode::REM, neg(5), neg(5), 0);
         simple_op_code_test(Opcode::REM, 0, 0, 0);
+
+        simple_op_code_test(Opcode::REMU, 4, 18, 7);
+        simple_op_code_test(Opcode::REMU, 6, neg(20), 11);
+        simple_op_code_test(Opcode::REMU, 23, 23, neg(6));
+        simple_op_code_test(Opcode::REMU, neg(21), neg(21), neg(11));
+        simple_op_code_test(Opcode::REMU, 5, 5, 0);
+        simple_op_code_test(Opcode::REMU, neg(1), neg(1), 0);
+        simple_op_code_test(Opcode::REMU, 0, 0, 0);
     }
 }
