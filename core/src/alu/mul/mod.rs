@@ -86,12 +86,12 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
                 let mut product = [0u32; PRODUCT_SIZE];
 
-                for i in 0..4 {
-                    for j in 0..4 {
+                for i in 0..WORD_SIZE {
+                    for j in 0..WORD_SIZE {
                         product[i + j] += (b[i] as u32) * (c[j] as u32);
                     }
                 }
-                for i in 0..8 {
+                for i in 0..PRODUCT_SIZE {
                     cols.product[i] = F::from_canonical_u32(product[i] & 0xff);
                     cols.carry[i] = F::from_canonical_u32(product[i] >> 8);
                     if i + 1 < PRODUCT_SIZE {
