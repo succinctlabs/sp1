@@ -5,7 +5,7 @@ mod register;
 pub use instruction::*;
 pub use opcode::*;
 
-use crate::bytes::ByteLookupEvent;
+use crate::bytes::{ByteChip, ByteLookupEvent};
 use crate::prover::{debug_cumulative_sums, quotient_values};
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
@@ -666,6 +666,7 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
+        const NUM_CHIPS: usize = 9;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -675,7 +676,8 @@ impl Runtime {
         let bitwise = BitwiseChip::new();
         let shift = ShiftChip::new();
         let lt = LtChip::new();
-        let chips: [Box<dyn AirChip<SC>>; 8] = [
+        let bytes = ByteChip::<F>::new();
+        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
             Box::new(memory),
@@ -684,6 +686,7 @@ impl Runtime {
             Box::new(bitwise),
             Box::new(shift),
             Box::new(lt),
+            Box::new(bytes),
         ];
 
         // Compute some statistics.
@@ -704,7 +707,7 @@ impl Runtime {
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
-        let degrees: [usize; 8] = traces
+        let degrees: [usize; NUM_CHIPS] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()

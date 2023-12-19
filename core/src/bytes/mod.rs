@@ -23,10 +23,10 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ByteChip<F> {
     table_map: BTreeMap<ByteLookupEvent, (usize, usize)>,
-    initial_trace_rows: Vec<F>,
+    initial_trace: RowMajorMatrix<F>,
 }
 
-pub const NUM_BYTE_OPS: usize = core::mem::variant_count::<ByteOpcode>();
+pub const NUM_BYTE_OPS: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteOpcode {
@@ -95,16 +95,15 @@ impl<F: Field> ByteChip<F> {
         let mut table_map = BTreeMap::new();
 
         // The trace containing all values, with all multiplicities set to zero.
-        let mut initial_trace_rows = Vec::with_capacity(NUM_ROWS * NUM_BYTE_COLS);
+        let mut initial_trace =
+            RowMajorMatrix::new(vec![F::zero(); NUM_ROWS * NUM_BYTE_COLS], NUM_BYTE_COLS);
 
         // Record all the necessary operations for each byte lookup.
         let opcodes = ByteOpcode::get_all();
 
         // Iterate over all options for pairs of bytes `a` and `b`.
         for (row_index, (a, b)) in (0..u8::MAX).cartesian_product(0..u8::MAX).enumerate() {
-            let row_slice = &mut initial_trace_rows
-                [row_index * NUM_BYTE_COLS..row_index * NUM_BYTE_COLS + NUM_BYTE_COLS];
-            let col: &mut ByteCols<F> = row_slice.borrow_mut();
+            let col: &mut ByteCols<F> = initial_trace.row_mut(row_index).borrow_mut();
 
             // Set the values of `a` and `b`.
             col.a = F::from_canonical_u8(a);
@@ -120,7 +119,7 @@ impl<F: Field> ByteChip<F> {
 
         Self {
             table_map,
-            initial_trace_rows,
+            initial_trace,
         }
     }
 }
@@ -130,6 +129,3 @@ impl<F: Field> Chip<F> for ByteChip<F> {
         self.generate_trace_from_events(&runtime.byte_lookups)
     }
 }
-
-#[cfg(test)]
-mod tests {}

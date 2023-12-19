@@ -1,5 +1,3 @@
-#![feature(variant_count)]
-
 pub mod air;
 pub mod alu;
 pub mod bytes;

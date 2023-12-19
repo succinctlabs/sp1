@@ -23,6 +23,7 @@ const fn make_col_map() -> ByteCols<usize> {
 }
 
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
+#[repr(C)]
 pub struct ByteCols<T> {
     /// The first byte operand.
     pub a: T,
@@ -49,6 +50,9 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
+
+        // Dummy constraint for normalizing to degree 3.
+        builder.assert_zero(local.a * local.a * local.a - local.a * local.a * local.a);
 
         // Send all the lookups for each operation.
         for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {

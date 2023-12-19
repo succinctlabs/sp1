@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::bytes::air::{BYTE_MULT_INDICES, NUM_BYTE_COLS};
+use crate::bytes::air::NUM_BYTE_COLS;
 
 use super::{ByteChip, ByteLookupEvent};
 
@@ -14,17 +14,17 @@ impl<F: Field> ByteChip<F> {
         &self,
         byte_lookups: &BTreeMap<ByteLookupEvent, usize>,
     ) -> RowMajorMatrix<F> {
-        let mut trace_rows = self.initial_trace_rows.clone();
+        let mut trace = self.initial_trace.clone();
 
-        for (lookup, mult) in byte_lookups.iter() {
-            let (row, index) = self.table_map[lookup];
+        // for (lookup, mult) in byte_lookups.iter() {
+        //     let (row, index) = self.table_map[lookup];
 
-            // Get the column index for the multiplicity.
-            let mult_idx = row * NUM_BYTE_COLS + BYTE_MULT_INDICES[index];
-            // Update the trace value
-            trace_rows[mult_idx] += F::from_canonical_usize(*mult);
-        }
+        //     // Get the column index for the multiplicity.
+        //     let mult_idx = row * NUM_BYTE_COLS + BYTE_MULT_INDICES[index];
+        //     // Update the trace value
+        //     trace_rows[mult_idx] = F::from_canonical_usize(*mult);
+        // }
 
-        RowMajorMatrix::new(trace_rows, NUM_BYTE_COLS)
+        trace
     }
 }
