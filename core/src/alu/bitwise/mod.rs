@@ -29,10 +29,6 @@ pub struct BitwiseCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// Trace.
-    // pub b_bits: [[T; 8]; 4],
-    // pub c_bits: [[T; 8]; 4],
-
     /// Selector flags for the operation to perform.
     pub is_xor: T,
     pub is_or: T,
@@ -60,13 +56,6 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
-
-                // for i in 0..4 {
-                //     for j in 0..8 {
-                //         cols.b_bits[i][j] = F::from_bool((b[i] >> j) & 1 == 1);
-                //         cols.c_bits[i][j] = F::from_bool((c[i] >> j) & 1 == 1);
-                //     }
-                // }
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
