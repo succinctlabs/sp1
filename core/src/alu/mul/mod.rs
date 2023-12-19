@@ -141,8 +141,9 @@ where
             }
         }
 
-        // Compute the carried product by decomposing each coefficient of m(x) into some carry
-        // and product. Note that we must assume that the carry is range checked to avoid underflow.
+        // Compute the carried product by decomposing each coefficient of m(x)
+        // into some carry and product. Note that we must assume that the carry
+        // is range checked to avoid underflow.
         for i in 0..PRODUCT_SIZE {
             if i == 0 {
                 // When i = 0, there is no carry from the previous term as
