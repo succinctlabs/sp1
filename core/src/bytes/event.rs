@@ -9,7 +9,7 @@ pub struct ByteLookupEvent {
 }
 
 impl ByteLookupEvent {
-    pub fn new(opcode: ByteOpcode, a: u8, b: u8, c: u8) -> Self {
+    pub const fn new(opcode: ByteOpcode, a: u8, b: u8, c: u8) -> Self {
         Self { opcode, a, b, c }
     }
 }

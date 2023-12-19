@@ -43,7 +43,7 @@ pub enum ByteOpcode {
 }
 
 impl ByteOpcode {
-    pub fn event(&self, b: u8, c: u8) -> ByteLookupEvent {
+    pub const fn event(&self, b: u8, c: u8) -> ByteLookupEvent {
         match self {
             Self::And => ByteLookupEvent::new(*self, b & c, b, c),
             Self::Or => ByteLookupEvent::new(*self, b | c, b, c),
