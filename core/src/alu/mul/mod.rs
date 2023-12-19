@@ -50,9 +50,10 @@ impl<F: PrimeField> Chip<F> for MulChip {
         // Generate the trace rows for each event.
         // TODO: This is currently 100% incorrect.
         let rows = runtime
-            .add_events
+            .mul_events
             .par_iter()
             .map(|event| {
+                assert!(event.opcode == Opcode::MUL);
                 let mut row = [F::zero(); NUM_MUL_COLS];
                 let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
@@ -233,7 +234,7 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
-        runtime.add_events =
+        runtime.mul_events =
             vec![AluEvent::new(0, Opcode::MUL, 3160867512, 2222324, 3335238)].repeat(1000);
         let chip = MulChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

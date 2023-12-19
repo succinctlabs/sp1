@@ -60,6 +60,9 @@ pub struct Runtime {
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
 
+    /// A trace of the MUL events.
+    pub mul_events: Vec<AluEvent>,
+
     /// A trace of the SUB events.
     pub sub_events: Vec<AluEvent>,
 
@@ -84,6 +87,7 @@ impl Runtime {
             cpu_events: Vec::new(),
             memory_events: Vec::new(),
             add_events: Vec::new(),
+            mul_events: Vec::new(),
             sub_events: Vec::new(),
             bitwise_events: Vec::new(),
             shift_events: Vec::new(),
