@@ -48,7 +48,6 @@ impl MulChip {
 impl<F: PrimeField> Chip<F> for MulChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        // TODO: This is currently 100% incorrect.
         let rows = runtime
             .mul_events
             .par_iter()
