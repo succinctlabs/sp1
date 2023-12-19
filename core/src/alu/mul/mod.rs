@@ -57,6 +57,7 @@ pub struct MulCols<T> {
     pub c: Word<T>,
 
     pub is_b_negative: T,
+
     pub is_c_negative: T,
 
     /// Trace.
@@ -109,19 +110,39 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 );
                 let mut row = [F::zero(); NUM_MUL_COLS];
                 let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+                let a_word = event.a.to_le_bytes();
+                let b_word = event.b.to_le_bytes();
+                let c_word = event.c.to_le_bytes();
 
-                let signed_b = extend_sign(b);
-                let signed_c = extend_sign(c);
+                let mut b = b_word.to_vec();
+                let mut c = c_word.to_vec();
+                b.resize(PRODUCT_SIZE, 0);
+                c.resize(PRODUCT_SIZE, 0);
+
+                if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
+                    if b[PRODUCT_SIZE - 1] & 0x80 != 0 {
+                        // b is signed and it is negative. Sign extend b.
+                        cols.is_b_negative = F::one();
+                        // can i combine resize and fill?
+                        b[WORD_SIZE..PRODUCT_SIZE].fill(0xff);
+                    }
+                }
+
+                if event.opcode == Opcode::MULH {
+                    if c[PRODUCT_SIZE - 1] & 0x80 != 0 {
+                        // c is signed and it is negative. Sign extend c.
+                        cols.is_c_negative = F::one();
+                        c[WORD_SIZE..PRODUCT_SIZE].fill(0xff);
+                    }
+                }
 
                 let mut product = [0u32; PRODUCT_SIZE];
 
+                // replace this witht he length of b?
                 for i in 0..PRODUCT_SIZE {
                     for j in 0..PRODUCT_SIZE {
                         if i + j < PRODUCT_SIZE {
-                            product[i + j] += (signed_b[i] as u32) * (signed_c[j] as u32);
+                            product[i + j] += (b[i] as u32) * (c[j] as u32);
                         }
                     }
                 }
@@ -132,22 +153,10 @@ impl<F: PrimeField> Chip<F> for MulChip {
                         product[i + 1] += product[i] >> BYTE_SIZE;
                     }
                 }
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
+                cols.a = Word(a_word.map(F::from_canonical_u8));
+                cols.b = Word(b_word.map(F::from_canonical_u8));
+                cols.c = Word(c_word.map(F::from_canonical_u8));
                 cols.is_real = F::one();
-
-                if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
-                    if signed_b[WORD_SIZE - 1] & 0x80 != 0 {
-                        cols.is_b_negative = F::one();
-                    }
-                }
-
-                if event.opcode == Opcode::MULH {
-                    if signed_c[WORD_SIZE - 1] & 0x80 != 0 {
-                        cols.is_c_negative = F::one();
-                    }
-                }
 
                 if event.opcode != Opcode::MUL {
                     cols.is_upper = F::one();
@@ -299,8 +308,8 @@ mod tests {
             0,
             Opcode::MULH,
             100000,
-            0xffffffff,
-            0xffffffff,
+            0xffffffff as u32,
+            0xffffffff as u32,
         )];
         let chip = MulChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
