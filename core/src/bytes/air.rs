@@ -26,9 +26,9 @@ const fn make_col_map() -> ByteCols<usize> {
 #[repr(C)]
 pub struct ByteCols<T> {
     /// The first byte operand.
-    pub a: T,
-    /// The second byte operand.
     pub b: T,
+    /// The second byte operand.
+    pub c: T,
     /// The result of the `AND` operation on `a` and `b`
     pub and: T,
     /// The result of the `OR` operation on `a` and `b`
@@ -52,27 +52,27 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
-        builder.assert_zero(local.a * local.a * local.a - local.a * local.a * local.a);
+        builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
 
         // Send all the lookups for each operation.
         for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {
-            let field_op = AB::F::from_canonical_u8(*opcode as u8);
+            let field_op = ByteOpcode::And.to_field::<AB::F>();
             let mult = local.multiplicities[i];
             match opcode {
                 ByteOpcode::And => {
-                    builder.receive_byte_lookup(field_op, local.a, local.b, local.and, mult)
+                    builder.receive_byte_lookup(field_op, local.and, local.b, local.c, mult)
                 }
                 ByteOpcode::Or => {
-                    builder.receive_byte_lookup(field_op, local.a, local.b, local.or, mult)
+                    builder.receive_byte_lookup(field_op, local.or, local.b, local.c, mult)
                 }
                 ByteOpcode::Xor => {
-                    builder.receive_byte_lookup(field_op, local.a, local.b, local.xor, mult)
+                    builder.receive_byte_lookup(field_op, local.xor, local.b, local.c, mult)
                 }
                 ByteOpcode::SLL => {
-                    builder.receive_byte_lookup(field_op, local.a, local.b, local.sll, mult)
+                    builder.receive_byte_lookup(field_op, local.sll, local.b, local.c, mult)
                 }
                 ByteOpcode::Range => {
-                    builder.receive_byte_lookup(field_op, local.a, local.b, AB::F::zero(), mult)
+                    builder.receive_byte_lookup(field_op, AB::F::zero(), local.b, local.c, mult)
                 }
             }
         }

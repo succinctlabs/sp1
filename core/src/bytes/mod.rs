@@ -16,7 +16,7 @@ use crate::{
         air::{ByteCols, NUM_BYTE_COLS},
         trace::NUM_ROWS,
     },
-    runtime::Runtime,
+    runtime::{Opcode, Runtime},
     utils::Chip,
 };
 
@@ -43,13 +43,13 @@ pub enum ByteOpcode {
 }
 
 impl ByteOpcode {
-    pub fn event(&self, a: u8, b: u8) -> ByteLookupEvent {
+    pub fn event(&self, b: u8, c: u8) -> ByteLookupEvent {
         match self {
-            Self::And => ByteLookupEvent::new(*self, a, b, a & b),
-            Self::Or => ByteLookupEvent::new(*self, a, b, a | b),
-            Self::Xor => ByteLookupEvent::new(*self, a, b, a ^ b),
-            Self::SLL => ByteLookupEvent::new(*self, a, b, a << b),
-            Self::Range => ByteLookupEvent::new(*self, a, b, 0),
+            Self::And => ByteLookupEvent::new(*self, b & c, b, c),
+            Self::Or => ByteLookupEvent::new(*self, b | c, b, c),
+            Self::Xor => ByteLookupEvent::new(*self, b ^ c, b, c),
+            Self::SLL => ByteLookupEvent::new(*self, b << c, b, c),
+            Self::Range => ByteLookupEvent::new(*self, 0, b, c),
         }
     }
 
@@ -66,22 +66,26 @@ impl ByteOpcode {
 
         opcodes
     }
+
+    pub fn to_field<F: Field>(self) -> F {
+        F::from_canonical_u8(self as u8)
+    }
 }
 
 impl<F: Field> ByteChip<F> {
     pub fn update_trace(event: &ByteLookupEvent, col: &mut ByteCols<F>) {
         match event.opcode {
             ByteOpcode::And => {
-                col.and = F::from_canonical_u8(event.c);
+                col.and = F::from_canonical_u8(event.a);
             }
             ByteOpcode::Or => {
-                col.or = F::from_canonical_u8(event.c);
+                col.or = F::from_canonical_u8(event.a);
             }
             ByteOpcode::Xor => {
-                col.xor = F::from_canonical_u8(event.c);
+                col.xor = F::from_canonical_u8(event.a);
             }
             ByteOpcode::SLL => {
-                col.sll = F::from_canonical_u8(event.c);
+                col.sll = F::from_canonical_u8(event.a);
             }
             ByteOpcode::Range => {
                 // Do nothing.
@@ -102,18 +106,18 @@ impl<F: Field> ByteChip<F> {
         let opcodes = ByteOpcode::get_all();
 
         // Iterate over all options for pairs of bytes `a` and `b`.
-        for (row_index, (a, b)) in (0..u8::MAX).cartesian_product(0..u8::MAX).enumerate() {
+        for (row_index, (b, c)) in (0..u8::MAX).cartesian_product(0..u8::MAX).enumerate() {
             let col: &mut ByteCols<F> = initial_trace.row_mut(row_index).borrow_mut();
 
             // Set the values of `a` and `b`.
-            col.a = F::from_canonical_u8(a);
             col.b = F::from_canonical_u8(b);
+            col.c = F::from_canonical_u8(c);
 
             // Iterate over all operations for results and updating the table map.
             for (i, opcode) in opcodes.iter().enumerate() {
-                let event = opcode.event(a, b);
+                let event = opcode.event(b, c);
                 Self::update_trace(&event, col);
-                table_map.insert(opcode.event(a, b), (row_index, i));
+                table_map.insert(opcode.event(b, c), (row_index, i));
             }
         }
 
@@ -127,5 +131,17 @@ impl<F: Field> ByteChip<F> {
 impl<F: Field> Chip<F> for ByteChip<F> {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         self.generate_trace_from_events(&runtime.byte_lookups)
+    }
+}
+
+impl From<Opcode> for ByteOpcode {
+    fn from(value: Opcode) -> Self {
+        match value {
+            Opcode::AND | Opcode::ANDI => Self::And,
+            Opcode::OR | Opcode::ORI => Self::Or,
+            Opcode::XOR | Opcode::XORI => Self::Xor,
+            Opcode::SLL | Opcode::SLLI => Self::SLL,
+            _ => panic!("Invalid opcode for ByteChip: {:?}", value),
+        }
     }
 }
