@@ -15,7 +15,7 @@ impl<F: Field> ByteChip<F> {
         let mut trace = self.initial_trace.clone();
 
         for (lookup, mult) in byte_lookups.iter() {
-            let (row, index) = self.table_map[lookup];
+            let (row, index) = self.event_map[lookup];
 
             // Get the column index for the multiplicity.
             let idx = BYTE_MULT_INDICES[index];

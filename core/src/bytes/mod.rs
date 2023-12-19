@@ -28,7 +28,7 @@ use crate::{
 pub struct ByteChip<F> {
     //// A map from a byte lookup to the corresponding row it appears in the table and the index of
     /// the result in the array of multiplicities.
-    table_map: BTreeMap<ByteLookupEvent, (usize, usize)>,
+    event_map: BTreeMap<ByteLookupEvent, (usize, usize)>,
     /// The trace containing the enumeration of all byte operations.
     ///
     /// The rows of the matrix loop over all pairs of bytes and record the results of all byte
@@ -49,6 +49,8 @@ pub enum ByteOpcode {
     /// Bitwise XOR.
     Xor = 2,
     /// Bit-shift Left.
+    ///
+    /// This operation shifts by the first three least significant bits of the second byte.
     SLL = 3,
     /// Range check.
     Range = 5,
@@ -78,7 +80,7 @@ impl<F: Field> ByteChip<F> {
     pub fn new() -> Self {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
-        let mut table_map = BTreeMap::new();
+        let mut event_map = BTreeMap::new();
 
         // The trace containing all values, with all multiplicities set to zero.
         let mut initial_trace =
@@ -114,18 +116,18 @@ impl<F: Field> ByteChip<F> {
                         ByteLookupEvent::new(*opcode, xor, b, c)
                     }
                     ByteOpcode::SLL => {
-                        let sll = b << c;
+                        let sll = b << (c & 7);
                         col.sll = F::from_canonical_u8(sll);
                         ByteLookupEvent::new(*opcode, sll, b, c)
                     }
                     ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, b, c),
                 };
-                table_map.insert(event, (row_index, i));
+                event_map.insert(event, (row_index, i));
             }
         }
 
         Self {
-            table_map,
+            event_map,
             initial_trace,
         }
     }
