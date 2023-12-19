@@ -89,8 +89,8 @@ impl Instruction {
                 // ECALL
                 return Instruction {
                     opcode: Opcode::ECALL,
-                    op_a: 0,
-                    op_b: 0,
+                    op_a: Register::X11.as_u32(),
+                    op_b: Register::X5.as_u32(),
                     op_c: 0,
                 };
             }

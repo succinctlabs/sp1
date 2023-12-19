@@ -213,6 +213,10 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 self.imm_b = F::one();
                 self.imm_c = F::one();
             }
+            Opcode::ECALL => {
+                // TODO: set is_lookup_precompile to true
+                self.imm_c = F::one();
+            }
             _ => panic!("Invalid opcode {:?}", instruction.opcode),
         }
         if instruction.op_a == 0 {

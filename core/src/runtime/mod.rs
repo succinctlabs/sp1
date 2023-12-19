@@ -588,7 +588,8 @@ impl Runtime {
                     Precompile::LWW => {
                         let _ = self.register(a0);
                         let witness = self.witness.pop().expect("witness stream is empty");
-                        self.rw(a1, witness);
+                        (a, b, c) = (witness, self.rr(t0), 0);
+                        self.rw(a1, a);
                     }
                     Precompile::BIGINT => {
                         todo!()
@@ -967,6 +968,17 @@ pub mod tests {
         parse_elf(&elf_code).expect("Failed to assemble code")
     }
 
+    fn get_lww_program() -> Vec<Instruction> {
+        // main:
+        //     addi x29, x0, 1
+        //     ecall
+        let program = vec![
+            Instruction::new(Opcode::ADDI, 5, 0, 1),
+            Instruction::new(Opcode::ECALL, 11, 5, 0),
+        ];
+        program
+    }
+
     #[test]
     fn SIMPLE_PROGRAM() {
         let code = get_simple_program();
@@ -982,7 +994,7 @@ pub mod tests {
     }
 
     #[test]
-    fn basic_pogram() {
+    fn basic_program() {
         // main:
         //     addi x29, x0, 5
         //     addi x30, x0, 37
@@ -1005,6 +1017,12 @@ pub mod tests {
     #[test]
     fn prove_simple() {
         let program = get_simple_program();
+        prove(program, 0);
+    }
+
+    #[test]
+    fn prove_lww() {
+        let program = get_lww_program();
         prove(program, 0);
     }
 
@@ -1063,6 +1081,7 @@ pub mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut runtime = Runtime::new(program, init_pc);
+        runtime.write_witness(&[69420]);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
@@ -1081,7 +1100,7 @@ pub mod tests {
     }
 
     #[test]
-    fn LWA() {
+    fn LWW() {
         // main:
         //     addi x29, x0, 1
         //     ecall
