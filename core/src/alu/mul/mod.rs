@@ -43,6 +43,8 @@ pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
 const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
 
 const BYTE_SIZE: usize = 8;
+const BYTE_MASK: u8 = 0xff;
+const SIGN_BIT_MASK: u8 = 0x80;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -83,17 +85,8 @@ impl MulChip {
     }
 }
 
-fn extend_sign(a: [u8; WORD_SIZE]) -> [u8; 2 * WORD_SIZE] {
-    let mut result = [0u8; 2 * WORD_SIZE];
-    for i in 0..WORD_SIZE {
-        result[i] = a[i];
-    }
-    if a[WORD_SIZE - 1] & 0x80 != 0 {
-        for i in WORD_SIZE..2 * WORD_SIZE {
-            result[i] = 0xff;
-        }
-    }
-    result
+fn is_sign_bit_on(a: [u8; WORD_SIZE]) -> bool {
+    (a[WORD_SIZE - 1] & SIGN_BIT_MASK) != 0
 }
 
 impl<F: PrimeField> Chip<F> for MulChip {
@@ -117,49 +110,52 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
                 let mut b = b_word.to_vec();
                 let mut c = c_word.to_vec();
-                b.resize(PRODUCT_SIZE, 0);
-                c.resize(PRODUCT_SIZE, 0);
 
+                // Sign extend b and c whenever appropriate.
                 if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
-                    if b_word[WORD_SIZE - 1] & 0x80 != 0 {
+                    if is_sign_bit_on(b_word) {
                         // b is signed and it is negative. Sign extend b.
                         cols.is_b_negative = F::one();
-                        // can i combine resize and fill?
-                        b[WORD_SIZE..PRODUCT_SIZE].fill(0xff);
+                        b.resize(PRODUCT_SIZE, BYTE_MASK);
                     }
                 }
 
                 if event.opcode == Opcode::MULH {
-                    if c_word[WORD_SIZE - 1] & 0x80 != 0 {
+                    if is_sign_bit_on(c_word) {
                         // c is signed and it is negative. Sign extend c.
                         cols.is_c_negative = F::one();
-                        c[WORD_SIZE..PRODUCT_SIZE].fill(0xff);
+                        c.resize(PRODUCT_SIZE, BYTE_MASK);
                     }
                 }
 
                 let mut product = [0u32; PRODUCT_SIZE];
 
-                // replace this witht he length of b?
-                for i in 0..PRODUCT_SIZE {
-                    for j in 0..PRODUCT_SIZE {
+                for i in 0..b.len() {
+                    for j in 0..c.len() {
                         if i + j < PRODUCT_SIZE {
                             product[i + j] += (b[i] as u32) * (c[j] as u32);
                         }
                     }
                 }
+
+                let base = 1 << BYTE_SIZE;
                 for i in 0..PRODUCT_SIZE {
-                    cols.product[i] = F::from_canonical_u32(product[i] & 0xff);
-                    cols.carry[i] = F::from_canonical_u32(product[i] >> BYTE_SIZE);
+                    let carry = product[i] / base;
+                    product[i] %= base;
                     if i + 1 < PRODUCT_SIZE {
-                        product[i + 1] += product[i] >> BYTE_SIZE;
+                        product[i + 1] += carry;
                     }
+                    cols.carry[i] = F::from_canonical_u32(carry);
                 }
+
+                cols.product = product.map(F::from_canonical_u32);
                 cols.a = Word(a_word.map(F::from_canonical_u8));
                 cols.b = Word(b_word.map(F::from_canonical_u8));
                 cols.c = Word(c_word.map(F::from_canonical_u8));
                 cols.is_real = F::one();
 
                 if event.opcode != Opcode::MUL {
+                    // MUL is the only op code that checks the lower half.
                     cols.is_upper = F::one();
                 }
 
@@ -250,7 +246,8 @@ where
 
         builder.assert_bool(local.is_real);
         builder.assert_bool(local.is_upper);
-        // TODO: assert is_negative
+        builder.assert_bool(local.is_b_negative);
+        builder.assert_bool(local.is_c_negative);
 
         // Receive the arguments.
         builder.receive_alu(
