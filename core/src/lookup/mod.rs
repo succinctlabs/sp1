@@ -38,6 +38,8 @@ pub enum InteractionKind {
     Byte = 5,
     /// Requesting a range check for a given value and range.
     Range = 6,
+    /// Interaction with a precompile.
+    Precompile = 7,
 }
 
 impl<F: Field> Interaction<F> {

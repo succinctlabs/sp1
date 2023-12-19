@@ -150,6 +150,13 @@ where
             local.selectors.is_store,
         );
 
+        // For precompiles, we store the precompile operation in the first byte of `b`.
+        builder.send_precompile(
+            local.clk,
+            local.op_b_val[0],
+            local.selectors.is_lookup_precompile,
+        );
+
         // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
 
         //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table

@@ -585,7 +585,7 @@ impl Runtime {
                     Precompile::HALT => {
                         next_pc = self.program.len() as u32 * 4;
                     }
-                    Precompile::LWA => {
+                    Precompile::LWW => {
                         let _ = self.register(a0);
                         let witness = self.witness.pop().expect("witness stream is empty");
                         self.rw(a1, witness);

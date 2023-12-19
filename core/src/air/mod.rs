@@ -187,6 +187,42 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             InteractionKind::Memory,
         ));
     }
+
+    fn send_precompile<EClk, EPrecompile, EMult>(
+        &mut self,
+        clk: EClk,
+        precompile: EPrecompile,
+        multiplicity: EMult,
+    ) where
+        EPrecompile: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        let values = once(clk.into()).chain(once(precompile.into())).collect();
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Precompile,
+        ));
+    }
+
+    fn receive_precompile<EClk, EPrecompile, EMult>(
+        &mut self,
+        precompile: EPrecompile,
+        clk: EClk,
+        multiplicity: EMult,
+    ) where
+        EPrecompile: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        let values = once(clk.into()).chain(once(precompile.into())).collect();
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Precompile,
+        ));
+    }
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}

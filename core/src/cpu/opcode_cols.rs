@@ -28,6 +28,9 @@ pub struct OpcodeSelectors<T> {
     pub is_byte: T,
     pub is_signed: T,
 
+    // Whether this is a precompile that requires a lookup.
+    pub is_lookup_precompile: T,
+
     // Specific instruction selectors.
     pub jalr: T,
     pub jal: T,

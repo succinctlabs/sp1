@@ -5,7 +5,7 @@ pub enum Precompile {
     HALT = 0,
 
     /// Used to read witness values from the prover.
-    LWA = 1,
+    LWW = 1,
 
     /// Used to accelerate SHA256.
     SHA = 2,
@@ -18,7 +18,7 @@ impl Precompile {
     pub fn from_u32(n: u32) -> Self {
         match n {
             0 => Precompile::HALT,
-            1 => Precompile::LWA,
+            1 => Precompile::LWW,
             2 => Precompile::SHA,
             3 => Precompile::BIGINT,
             _ => panic!("unsupported precompile"),
