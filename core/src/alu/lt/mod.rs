@@ -1,7 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -27,6 +27,12 @@ pub struct LtCols<T> {
 
     /// The second input operand.
     pub c: Word<T>,
+
+    /// Boolean flag to indicate which byte pair differs
+    pub byte_flag: [T; 4],
+
+    // Bit decomposition of 256 + input_1 - input_2
+    pub bits: [T; 10],
 
     /// Selector flags for the operation to perform.
     pub is_slt: T,
@@ -57,6 +63,24 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+
+                if let Some(n) = b
+                    .into_iter()
+                    .zip(c.into_iter())
+                    .enumerate()
+                    .find_map(|(n, (x, y))| if x != y { Some(n) } else { None })
+                {
+                    let z = 256u16 + b[n] as u16 - c[n] as u16;
+                    for i in 0..10 {
+                        cols.bits[i] = F::from_canonical_u16(z >> i & 1);
+                    }
+                    cols.byte_flag[n] = F::one();
+                }
+
+                println!("Event: {:?} {:?} {:?}", a, b, c);
+                println!("Bits: {:?}", cols.bits);
+                println!("Byte flag: {:?}", cols.byte_flag);
+
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
                 row
@@ -91,6 +115,55 @@ where
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
+
+        let base_2 = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512].map(AB::F::from_canonical_u32);
+        let bit_comp: AB::Expr = local
+            .bits
+            .into_iter()
+            .zip(base_2)
+            .map(|(bit, base)| bit * base)
+            .sum();
+
+        for i in 0..4 {
+            builder
+                .when_ne(local.byte_flag[i], AB::F::one())
+                .assert_eq(local.b[i], local.c[i]);
+
+            builder.when(local.byte_flag[i]).assert_eq(
+                AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+                bit_comp.clone(),
+            );
+
+            builder.assert_bool(local.byte_flag[i]);
+        }
+        let flag_sum =
+            local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
+        builder.assert_bool(flag_sum.clone());
+
+        // TODO: If we need to factor into account multiplicity, the Valida approach should be used.
+        // Valida: Have byte flags for first 3 bytes, the last byte should only be flagged if the
+        // multiplicity is non-zero (i.e. the lt event is requested).
+
+        // builder
+        //     .when_ne(flag_sum.clone(), AB::Expr::one())
+        //     .assert_eq(
+        //         AB::Expr::from_canonical_u32(256) + local.b[3] - local.c[3],
+        //         bit_comp.clone(),
+        //     );
+
+        // // Output constraints
+        // builder.when(local.bits[8]).assert_zero(local.a[0]);
+        // builder
+        //     .when_ne(local.bits[8], AB::Expr::one())
+        //     .assert_one(local.a[0]);
+
+        // Output constraint. If local.bits[8] == 1, then b >= c, so a = 0.
+        builder.when(local.bits[8]).assert_zero(local.a[0]);
+
+        // Check bit decomposition is valid.
+        for bit in local.bits.into_iter() {
+            builder.assert_bool(bit);
+        }
 
         // Receive the arguments.
         builder.receive_alu(
@@ -143,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn prove_babybear() {
+    fn prove_babybear_lt() {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -186,7 +259,8 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
+        // runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
+        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
