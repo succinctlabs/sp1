@@ -27,8 +27,9 @@ pub struct MulCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// Trace.
-    pub carry: [T; 4],
+    /// Trace. u32::max ** 2 = (2^32 - 1)^ 2 = 63 bits, so we need 8 bytes.
+    pub carry: [T; 8],
+    pub product: [T; 8],
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -57,16 +58,17 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
-                let mut long_results = [0u32; 8];
+                let mut product = [0u32; 9];
 
                 for i in 0..4 {
                     for j in 0..4 {
-                        long_results[i + j] += (b[i] as u32) * (c[j] as u32);
+                        product[i + j] += (b[i] as u32) * (c[j] as u32);
                     }
                 }
-                for i in 0..4 {
-                    cols.carry[i] = F::from_canonical_u32(long_results[i] >> 8);
-                    long_results[i + 1] += long_results[i] >> 8;
+                for i in 0..8 {
+                    cols.product[i] = F::from_canonical_u32(product[i] & 0xff);
+                    cols.carry[i] = F::from_canonical_u32(product[i] >> 8);
+                    product[i + 1] += product[i] >> 8;
                 }
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
@@ -108,33 +110,28 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        let overflow_0 = local.b[0] * local.c[0] - local.a[0];
+        let zero = local.a[0] - local.a[0];
+        for n in 0..8 {
+            let mut diff = zero.clone();
+            if n > 0 {
+                diff += local.carry[n - 1] + zero.clone();
+            }
+            for i in 0..4 {
+                let j = (n as i32) - (i as i32);
 
-        let mut overflow_1 = local.carry[0] - local.a[1];
-        for i in 0..2 {
-            overflow_1 += local.b[i] * local.c[1 - i];
+                if 0 <= j && j < 4 {
+                    diff += local.b[i] * local.c[n - i];
+                }
+            }
+            diff -= local.product[n] + zero.clone();
+            builder.assert_eq(diff, local.carry[n] * base);
         }
 
-        let mut overflow_2 = local.carry[1] - local.a[2];
-        for i in 0..3 {
-            overflow_2 += local.b[i] * local.c[2 - i];
-        }
-
-        let mut overflow_3 = local.carry[2] - local.a[3];
+        // Ensure that the lowest 4 bits are calculated correctly.
         for i in 0..4 {
-            overflow_3 += local.b[i] * local.c[3 - i];
+            builder.assert_eq(local.product[i], local.a[i]);
         }
 
-        builder.assert_eq(overflow_0, local.carry[0] * base);
-        builder.assert_eq(overflow_1, local.carry[1] * base);
-        builder.assert_eq(overflow_2, local.carry[2] * base);
-        builder.assert_eq(overflow_3, local.carry[3] * base);
-
-        // TODO: carry[0] can't be bigger than 254.
-        // What about carry[1], carry[2]?
-
-        // For each limb, assert that difference between the carried result and the non-carried
-        // result is either zero or the base.
         // Receive the arguments.
         builder.receive_alu(
             AB::F::from_canonical_u32(Opcode::MUL as u32),
