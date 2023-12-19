@@ -59,6 +59,9 @@ pub struct MulCols<T> {
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
+
+    // Whether the output is the upper half or the lower half of b * c.
+    pub is_upper: T,
 }
 
 /// A chip that implements addition for the opcodes MUL.
@@ -77,7 +80,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
             .mul_events
             .par_iter()
             .map(|event| {
-                assert!(event.opcode == Opcode::MUL);
+                assert!(event.opcode == Opcode::MUL || event.opcode == Opcode::MULHU);
                 let mut row = [F::zero(); NUM_MUL_COLS];
                 let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
@@ -102,6 +105,10 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
                 cols.is_real = F::one();
+
+                // - MUL: unsigned x unsigned and take the lower half.
+                // - MULHU: unsigned x unsigned and take the upper half.
+                cols.is_upper = F::from_bool(event.opcode == Opcode::MULHU);
                 row
             })
             .collect::<Vec<_>>();
@@ -131,6 +138,7 @@ where
         let main = builder.main();
         let local: &MulCols<AB::Var> = main.row_slice(0).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
+        let one: AB::Expr = AB::F::one().into();
 
         // Compute the uncarried product b(x) * c(x) = m(x).
         const UNCARRIED_PRODUCT_SIZE: usize = 2 * WORD_SIZE - 1;
@@ -163,10 +171,17 @@ where
             }
         }
 
-        // Assert that the lower word of the product matches the result.
+        // Assert that the upper or lower half word of the product matches the result.
         for i in 0..WORD_SIZE {
-            builder.assert_eq(local.product[i], local.a[i]);
+            builder.assert_eq(
+                local.is_upper * local.product[i + WORD_SIZE]
+                    + (one.clone() - local.is_upper) * local.product[i],
+                local.a[i],
+            );
         }
+
+        builder.assert_bool(local.is_real);
+        builder.assert_bool(local.is_upper);
 
         // Receive the arguments.
         builder.receive_alu(
@@ -270,29 +285,41 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
-        const TEST_INSTRUCTION_LENGTH: usize = 14;
-        let test_instructions: [(u32, u32, u32); TEST_INSTRUCTION_LENGTH] = [
-            (0x00001200, 0x00007e00, 0xb6db6db7),
-            (0x00001240, 0x00007fc0, 0xb6db6db7),
-            (0x00000000, 0x00000000, 0x00000000),
-            (0x00000001, 0x00000001, 0x00000001),
-            (0x00000015, 0x00000003, 0x00000007),
-            (0x00000000, 0x00000000, 0xffff8000),
-            (0x00000000, 0x80000000, 0x00000000),
-            (0x00000000, 0x80000000, 0xffff8000),
-            (0x0000ff7f, 0xaaaaaaab, 0x0002fe7d),
-            (0x0000ff7f, 0x0002fe7d, 0xaaaaaaab),
-            (0x00000000, 0xff000000, 0xff000000),
-            (0x00000001, 0xffffffff, 0xffffffff),
-            (0xffffffff, 0xffffffff, 0x00000001),
-            (0xffffffff, 0x00000001, 0xffffffff),
+        const MUL_TEST_LENGTH: usize = 26;
+        let mul_instructions: [(Opcode, u32, u32, u32); MUL_TEST_LENGTH] = [
+            (Opcode::MUL, 0x00001200, 0x00007e00, 0xb6db6db7),
+            (Opcode::MUL, 0x00001240, 0x00007fc0, 0xb6db6db7),
+            (Opcode::MUL, 0x00000000, 0x00000000, 0x00000000),
+            (Opcode::MUL, 0x00000001, 0x00000001, 0x00000001),
+            (Opcode::MUL, 0x00000015, 0x00000003, 0x00000007),
+            (Opcode::MUL, 0x00000000, 0x00000000, 0xffff8000),
+            (Opcode::MUL, 0x00000000, 0x80000000, 0x00000000),
+            (Opcode::MUL, 0x00000000, 0x80000000, 0xffff8000),
+            (Opcode::MUL, 0x0000ff7f, 0xaaaaaaab, 0x0002fe7d),
+            (Opcode::MUL, 0x0000ff7f, 0x0002fe7d, 0xaaaaaaab),
+            (Opcode::MUL, 0x00000000, 0xff000000, 0xff000000),
+            (Opcode::MUL, 0x00000001, 0xffffffff, 0xffffffff),
+            (Opcode::MUL, 0xffffffff, 0xffffffff, 0x00000001),
+            (Opcode::MUL, 0xffffffff, 0x00000001, 0xffffffff),
+            (Opcode::MULHU, 0x00000000, 0x00000000, 0x00000000),
+            (Opcode::MULHU, 0x00000000, 0x00000001, 0x00000001),
+            (Opcode::MULHU, 0x00000000, 0x00000003, 0x00000007),
+            (Opcode::MULHU, 0x00000000, 0x00000000, 0xffff8000),
+            (Opcode::MULHU, 0x00000000, 0x80000000, 0x00000000),
+            (Opcode::MULHU, 0x7fffc000, 0x80000000, 0xffff8000),
+            (Opcode::MULHU, 0x0001fefe, 0xaaaaaaab, 0x0002fe7d),
+            (Opcode::MULHU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab),
+            (Opcode::MULHU, 0xfe010000, 0xff000000, 0xff000000),
+            (Opcode::MULHU, 0xfffffffe, 0xffffffff, 0xffffffff),
+            (Opcode::MULHU, 0x00000000, 0xffffffff, 0x00000001),
+            (Opcode::MULHU, 0x00000000, 0x00000001, 0xffffffff),
         ];
-        for t in test_instructions.iter() {
-            mul_events.push(AluEvent::new(0, Opcode::MUL, t.0, t.1, t.2));
+        for t in mul_instructions.iter() {
+            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
-        for _ in 0..(1000 - TEST_INSTRUCTION_LENGTH) {
+        for _ in 0..(1000 - MUL_TEST_LENGTH) {
             mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
         }
 
