@@ -2,20 +2,17 @@ mod instruction;
 mod opcode;
 mod register;
 
-pub use instruction::*;
-pub use opcode::*;
-
+use crate::disassembler::{Instruction, Opcode, Register};
 use crate::prover::{debug_cumulative_sums, quotient_values};
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
-pub use register::*;
 use std::collections::BTreeMap;
 
-use crate::alu::lt::LtChip;
-use crate::alu::shift::ShiftChip;
+// use crate::alu::lt::LtChip;
+// use crate::alu::shift::ShiftChip;
 use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
@@ -25,10 +22,9 @@ use p3_util::log2_strict_usize;
 
 use crate::prover::generate_permutation_trace;
 use crate::{
-    alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
-    cpu::{trace::CpuChip, CpuEvent},
+    // alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
+    // cpu::{trace::CpuChip, CpuEvent},
     memory::{MemOp, MemoryEvent},
-    program::ProgramChip,
 };
 
 /// An implementation of a runtime for the Curta VM.
@@ -50,27 +46,26 @@ pub struct Runtime {
 
     /// The memory which instructions operate over.
     pub memory: BTreeMap<u32, u32>,
+    // /// A trace of the CPU events which get emitted during execution.
+    // pub cpu_events: Vec<CpuEvent>,
 
-    /// A trace of the CPU events which get emitted during execution.
-    pub cpu_events: Vec<CpuEvent>,
+    // /// A trace of the memory events which get emitted during execution.
+    // pub memory_events: Vec<MemoryEvent>,
 
-    /// A trace of the memory events which get emitted during execution.
-    pub memory_events: Vec<MemoryEvent>,
+    // /// A trace of the ADD, and ADDI events.
+    // pub add_events: Vec<AluEvent>,
 
-    /// A trace of the ADD, and ADDI events.
-    pub add_events: Vec<AluEvent>,
+    // /// A trace of the SUB events.
+    // pub sub_events: Vec<AluEvent>,
 
-    /// A trace of the SUB events.
-    pub sub_events: Vec<AluEvent>,
+    // /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
+    // pub bitwise_events: Vec<AluEvent>,
 
-    /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
-    pub bitwise_events: Vec<AluEvent>,
+    // /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
+    // pub shift_events: Vec<AluEvent>,
 
-    /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
-    pub shift_events: Vec<AluEvent>,
-
-    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
-    pub lt_events: Vec<AluEvent>,
+    // /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
+    // pub lt_events: Vec<AluEvent>,
 }
 
 impl Runtime {
@@ -81,13 +76,13 @@ impl Runtime {
             pc: init_pc,
             memory: BTreeMap::new(),
             program,
-            cpu_events: Vec::new(),
-            memory_events: Vec::new(),
-            add_events: Vec::new(),
-            sub_events: Vec::new(),
-            bitwise_events: Vec::new(),
-            shift_events: Vec::new(),
-            lt_events: Vec::new(),
+            // cpu_events: Vec::new(),
+            // memory_events: Vec::new(),
+            // add_events: Vec::new(),
+            // sub_events: Vec::new(),
+            // bitwise_events: Vec::new(),
+            // shift_events: Vec::new(),
+            // lt_events: Vec::new(),
         }
     }
 
@@ -163,65 +158,73 @@ impl Runtime {
         memory_value: Option<u32>,
         memory_store_value: Option<u32>,
     ) {
-        self.cpu_events.push(CpuEvent {
-            clk: clk,
-            pc: pc,
-            instruction,
-            a,
-            b,
-            c,
-            memory_value,
-            memory_store_value,
-        });
+        // self.cpu_events.push(CpuEvent {
+        //     clk: clk,
+        //     pc: pc,
+        //     instruction,
+        //     a,
+        //     b,
+        //     c,
+        //     memory_value,
+        //     memory_store_value,
+        // });
     }
 
     /// Emit a memory event.
     fn emit_memory(&mut self, clk: u32, addr: u32, op: MemOp, value: u32) {
-        self.memory_events.push(MemoryEvent {
-            clk,
-            addr,
-            op,
-            value,
-        });
+        // self.memory_events.push(MemoryEvent {
+        //     clk,
+        //     addr,
+        //     op,
+        //     value,
+        // });
     }
 
     /// Emit an ALU event.
     fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
-        let event = AluEvent {
-            clk,
-            opcode,
-            a,
-            b,
-            c,
-        };
-        match opcode {
-            Opcode::ADD | Opcode::ADDI => {
-                self.add_events.push(event);
-            }
-            Opcode::SUB => {
-                self.sub_events.push(event);
-            }
-            Opcode::XOR | Opcode::XORI | Opcode::OR | Opcode::ORI | Opcode::AND | Opcode::ANDI => {
-                self.bitwise_events.push(event);
-            }
-            Opcode::SLL
-            | Opcode::SLLI
-            | Opcode::SRL
-            | Opcode::SRLI
-            | Opcode::SRA
-            | Opcode::SRAI => {
-                self.shift_events.push(event);
-            }
-            Opcode::SLT | Opcode::SLTU | Opcode::SLTI | Opcode::SLTIU => {
-                self.lt_events.push(event);
-            }
-            _ => {}
+        // let event = AluEvent {
+        //     clk,
+        //     opcode,
+        //     a,
+        //     b,
+        //     c,
+        // };
+        // match opcode {
+        //     Opcode::ADD => {
+        //         self.add_events.push(event);
+        //     }
+        //     Opcode::SUB => {
+        //         self.sub_events.push(event);
+        //     }
+        //     Opcode::XOR | Opcode::OR | Opcode::AND => {
+        //         self.bitwise_events.push(event);
+        //     }
+        //     Opcode::SLL | Opcode::SRL | Opcode::SRA => {
+        //         self.shift_events.push(event);
+        //     }
+        //     Opcode::SLT | Opcode::SLTU => {
+        //         self.lt_events.push(event);
+        //     }
+        //     _ => {}
+        // }
+    }
+
+    fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
+        if instruction.is_r_type() {
+            let (rd, rs1, rs2) = instruction.r_type();
+            let (b, c) = (self.rr(rs1), self.rr(rs2));
+            (rd, b, c)
+        } else {
+            let (rd, rs1, imm) = instruction.i_type();
+            let (b, c) = (self.rr(rs1), imm);
+            (rd, b, c)
         }
     }
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
+        let mut rd: Register = Register::X0;
         let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
             u32,
             u32,
@@ -230,142 +233,67 @@ impl Runtime {
             Option<u32>,
         ) = (u32::MAX, u32::MAX, u32::MAX, None, None);
 
-        // By default, we add 4 to the next PC. However, some instructions (e.g., JAL) will modify
-        // this value.
         let mut next_pc = self.pc.wrapping_add(4);
         match instruction.opcode {
-            // R-type instructions.
+            // Arithmetic instructions.
             Opcode::ADD => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SUB => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::XOR => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b ^ c;
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::OR => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b | c;
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::AND => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b & c;
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLL => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b << c;
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SRL => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b >> c;
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SRA => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32 >> c) as u32;
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLT => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
+                a = (b as i32 >> c) as u32;
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::SLTU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = if b < c { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-
-            // I-type instructions.
-            Opcode::ADDI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b.wrapping_add(c);
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::XORI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b ^ c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::ORI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b | c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::ANDI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b & c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SLLI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b << c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SRLI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b >> c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SRAI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
+                (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32 >> c) as u32;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SLTI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SLTIU => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
                 a = if b < c { 1 } else { 0 };
                 self.rw(rd, a);
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
@@ -430,7 +358,7 @@ impl Runtime {
                 self.rw(rd, a);
             }
 
-            // S-type instructions.
+            // Store instructions.
             Opcode::SB => {
                 let (rs1, rs2, imm) = instruction.s_type();
                 (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
@@ -537,13 +465,6 @@ impl Runtime {
             }
 
             // Upper immediate instructions.
-            Opcode::LUI => {
-                let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, 12); // Note that we'll special-case this in the CPU table
-                a = b << 12;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, Opcode::SLL, a, b, c);
-            }
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
                 (b, c) = (imm, imm << 12); // Note that we'll special-case this in the CPU table
@@ -599,27 +520,55 @@ impl Runtime {
             Opcode::DIV => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = (b as i32).wrapping_div(c as i32) as u32;
+                if c == 0 {
+                    a = u32::MAX;
+                } else {
+                    a = (b as i32).wrapping_div(c as i32) as u32;
+                }
                 self.rw(rd, a);
             }
             Opcode::DIVU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = b.wrapping_div(c);
+                if c == 0 {
+                    a = u32::MAX;
+                } else {
+                    a = b.wrapping_div(c);
+                }
                 self.rw(rd, a);
             }
             Opcode::REM => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = (b as i32).wrapping_rem(c as i32) as u32;
+                if c == 0 {
+                    a = b;
+                } else {
+                    a = (b as i32).wrapping_rem(c as i32) as u32;
+                }
                 self.rw(rd, a);
             }
             Opcode::REMU => {
                 let (rd, rs1, rs2) = instruction.r_type();
                 (b, c) = (self.rr(rs1), self.rr(rs2));
-                a = b.wrapping_rem(c);
+                if c == 0 {
+                    a = b;
+                } else {
+                    a = b.wrapping_rem(c);
+                }
                 self.rw(rd, a);
             }
+
+            // Precompile instructions.
+            Opcode::HALT => {
+                todo!()
+            }
+            Opcode::LWA => {
+                todo!()
+            }
+            Opcode::PRECOMPILE => {
+                todo!()
+            }
+
             Opcode::UNIMP => {
                 // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
                 panic!("UNIMP encountered, we should never get here.");
@@ -661,174 +610,202 @@ impl Runtime {
         }
     }
 
-    /// Prove the program.
-    #[allow(unused)]
-    pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
-    {
-        // Initialize chips.
-        let program = ProgramChip::new();
-        let cpu = CpuChip::new();
-        let memory = MemoryChip::new();
-        let add = AddChip::new();
-        let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
-        let shift = ShiftChip::new();
-        let lt = LtChip::new();
-        let chips: [Box<dyn AirChip<SC>>; 8] = [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(memory),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(shift),
-            Box::new(lt),
+    // /// Prove the program.
+    // #[allow(unused)]
+    // pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+    // where
+    //     F: PrimeField + TwoAdicField + PrimeField32,
+    //     EF: ExtensionField<F>,
+    //     SC: StarkConfig<Val = F, Challenge = EF>,
+    // {
+    //     // Initialize chips.
+    //     let program = ProgramChip::new();
+    //     let cpu = CpuChip::new();
+    //     let memory = MemoryChip::new();
+    //     let add = AddChip::new();
+    //     let sub = SubChip::new();
+    //     let bitwise = BitwiseChip::new();
+    //     let shift = ShiftChip::new();
+    //     let lt = LtChip::new();
+    //     let chips: [Box<dyn AirChip<SC>>; 8] = [
+    //         Box::new(program),
+    //         Box::new(cpu),
+    //         Box::new(memory),
+    //         Box::new(add),
+    //         Box::new(sub),
+    //         Box::new(bitwise),
+    //         Box::new(shift),
+    //         Box::new(lt),
+    //     ];
+
+    //     // Compute some statistics.
+    //     let mut main_cols = 0usize;
+    //     let mut perm_cols = 0usize;
+    //     for chip in chips.iter() {
+    //         main_cols += chip.air_width();
+    //         perm_cols += (chip.all_interactions().len() + 1) * 5;
+    //     }
+    //     println!("MAIN_COLS: {}", main_cols);
+    //     println!("PERM_COLS: {}", perm_cols);
+
+    //     // For each chip, generate the trace.
+    //     let traces = chips
+    //         .iter()
+    //         .map(|chip| chip.generate_trace(self))
+    //         .collect::<Vec<_>>();
+    //     // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
+
+    //     // For each trace, compute the degree.
+    //     let degrees: [usize; 8] = traces
+    //         .iter()
+    //         .map(|trace| trace.height())
+    //         .collect::<Vec<_>>()
+    //         .try_into()
+    //         .unwrap();
+    //     let log_degrees = degrees.map(|d| log2_strict_usize(d));
+    //     let max_constraint_degree = 3;
+    //     let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
+    //     let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
+
+    //     // Commit to the batch of traces.
+    //     let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+    //     challenger.observe(main_commit);
+
+    //     // Obtain the challenges used for the permutation argument.
+    //     let mut permutation_challenges: Vec<EF> = Vec::new();
+    //     for _ in 0..2 {
+    //         permutation_challenges.push(challenger.sample_ext_element());
+    //     }
+
+    //     // Generate the permutation traces.
+    //     let permutation_traces = chips
+    //         .iter()
+    //         .enumerate()
+    //         .map(|(i, chip)| {
+    //             generate_permutation_trace(
+    //                 chip.as_ref(),
+    //                 &traces[i],
+    //                 permutation_challenges.clone(),
+    //             )
+    //         })
+    //         .collect::<Vec<_>>();
+
+    //     // Commit to the permutation traces.
+    //     let flattened_permutation_traces = permutation_traces
+    //         .iter()
+    //         .map(|trace| trace.flatten_to_base())
+    //         .collect::<Vec<_>>();
+    //     let (permutation_commit, permutation_data) =
+    //         config.pcs().commit_batches(flattened_permutation_traces);
+    //     challenger.observe(permutation_commit);
+
+    //     // For each chip, compute the quotient polynomial.
+    //     let main_ldes = config.pcs().get_ldes(&main_data);
+    //     let permutation_ldes = config.pcs().get_ldes(&permutation_data);
+    //     let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
+
+    //     // Compute the quotient values.
+    //     let quotient_values = (0..chips.len()).map(|i| {
+    //         quotient_values(
+    //             config,
+    //             &*chips[i],
+    //             log_degrees[i],
+    //             log_quotient_degree,
+    //             &main_ldes[i],
+    //             alpha,
+    //         )
+    //     });
+
+    //     // Compute the quotient chunks.
+    //     let quotient_chunks = quotient_values
+    //         .map(|values| {
+    //             decompose_and_flatten::<SC>(
+    //                 values,
+    //                 SC::Challenge::from_base(config.pcs().coset_shift()),
+    //                 log_quotient_degree,
+    //             )
+    //         })
+    //         .collect::<Vec<_>>();
+
+    //     // Commit to the quotient chunks.
+    //     let (quotient_commit, quotient_commit_data): (Vec<_>, Vec<_>) = (0..chips.len())
+    //         .map(|i| {
+    //             config.pcs().commit_shifted_batch(
+    //                 quotient_chunks[i].clone(),
+    //                 config
+    //                     .pcs()
+    //                     .coset_shift()
+    //                     .exp_power_of_2(log_quotient_degree),
+    //             )
+    //         })
+    //         .into_iter()
+    //         .unzip();
+
+    //     // Observe the quotient commitments.
+    //     for commit in quotient_commit {
+    //         challenger.observe(commit);
+    //     }
+
+    //     // Compute the quotient argument.
+    //     let zeta: SC::Challenge = challenger.sample_ext_element();
+    //     let zeta_and_next = [zeta, zeta * g_subgroups[0]];
+    //     let prover_data_and_points = [
+    //         (&main_data, zeta_and_next.as_slice()),
+    //         (&permutation_data, zeta_and_next.as_slice()),
+    //     ];
+    //     let (openings, opening_proof) = config
+    //         .pcs()
+    //         .open_multi_batches(&prover_data_and_points, challenger);
+    //     let (openings, opening_proofs): (Vec<_>, Vec<_>) = (0..chips.len())
+    //         .map(|i| {
+    //             let prover_data_and_points = [(&quotient_commit_data[i], zeta_and_next.as_slice())];
+    //             config
+    //                 .pcs()
+    //                 .open_multi_batches(&prover_data_and_points, challenger)
+    //         })
+    //         .into_iter()
+    //         .unzip();
+
+    //     // Check that the table-specific constraints are correct for each chip.
+    //     for i in 0..chips.len() {
+    //         debug_constraints(
+    //             &*chips[i],
+    //             &traces[i],
+    //             &permutation_traces[i],
+    //             &permutation_challenges,
+    //         );
+    //     }
+
+    //     // Check the permutation argument between all tables.
+    //     debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+    // }
+}
+
+#[cfg(test)]
+#[allow(non_snake_case)]
+pub mod tests {
+    use crate::disassembler::{disassemble_from_elf, Instruction, Opcode, Register};
+
+    use super::Runtime;
+
+    #[test]
+    fn test_fibonacci() {
+        let (program, pc) = disassemble_from_elf("../programs/fib.s");
+        let mut runtime = Runtime::new(program, pc);
+        runtime.run();
+        println!("{:?}", runtime.registers());
+    }
+
+    #[test]
+    fn test_simple_program() {
+        let program = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-
-        // Compute some statistics.
-        let mut main_cols = 0usize;
-        let mut perm_cols = 0usize;
-        for chip in chips.iter() {
-            main_cols += chip.air_width();
-            perm_cols += (chip.all_interactions().len() + 1) * 5;
-        }
-        println!("MAIN_COLS: {}", main_cols);
-        println!("PERM_COLS: {}", perm_cols);
-
-        // For each chip, generate the trace.
-        let traces = chips
-            .iter()
-            .map(|chip| chip.generate_trace(self))
-            .collect::<Vec<_>>();
-        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
-
-        // For each trace, compute the degree.
-        let degrees: [usize; 8] = traces
-            .iter()
-            .map(|trace| trace.height())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        let log_degrees = degrees.map(|d| log2_strict_usize(d));
-        let max_constraint_degree = 3;
-        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
-
-        // Commit to the batch of traces.
-        let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        challenger.observe(main_commit);
-
-        // Obtain the challenges used for the permutation argument.
-        let mut permutation_challenges: Vec<EF> = Vec::new();
-        for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
-        }
-
-        // Generate the permutation traces.
-        let permutation_traces = chips
-            .iter()
-            .enumerate()
-            .map(|(i, chip)| {
-                generate_permutation_trace(
-                    chip.as_ref(),
-                    &traces[i],
-                    permutation_challenges.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // Commit to the permutation traces.
-        let flattened_permutation_traces = permutation_traces
-            .iter()
-            .map(|trace| trace.flatten_to_base())
-            .collect::<Vec<_>>();
-        let (permutation_commit, permutation_data) =
-            config.pcs().commit_batches(flattened_permutation_traces);
-        challenger.observe(permutation_commit);
-
-        // For each chip, compute the quotient polynomial.
-        let main_ldes = config.pcs().get_ldes(&main_data);
-        let permutation_ldes = config.pcs().get_ldes(&permutation_data);
-        let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-
-        // Compute the quotient values.
-        let quotient_values = (0..chips.len()).map(|i| {
-            quotient_values(
-                config,
-                &*chips[i],
-                log_degrees[i],
-                log_quotient_degree,
-                &main_ldes[i],
-                alpha,
-            )
-        });
-
-        // Compute the quotient chunks.
-        let quotient_chunks = quotient_values
-            .map(|values| {
-                decompose_and_flatten::<SC>(
-                    values,
-                    SC::Challenge::from_base(config.pcs().coset_shift()),
-                    log_quotient_degree,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // Commit to the quotient chunks.
-        let (quotient_commit, quotient_commit_data): (Vec<_>, Vec<_>) = (0..chips.len())
-            .map(|i| {
-                config.pcs().commit_shifted_batch(
-                    quotient_chunks[i].clone(),
-                    config
-                        .pcs()
-                        .coset_shift()
-                        .exp_power_of_2(log_quotient_degree),
-                )
-            })
-            .into_iter()
-            .unzip();
-
-        // Observe the quotient commitments.
-        for commit in quotient_commit {
-            challenger.observe(commit);
-        }
-
-        // Compute the quotient argument.
-        let zeta: SC::Challenge = challenger.sample_ext_element();
-        let zeta_and_next = [zeta, zeta * g_subgroups[0]];
-        let prover_data_and_points = [
-            (&main_data, zeta_and_next.as_slice()),
-            (&permutation_data, zeta_and_next.as_slice()),
-        ];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let (openings, opening_proofs): (Vec<_>, Vec<_>) = (0..chips.len())
-            .map(|i| {
-                let prover_data_and_points = [(&quotient_commit_data[i], zeta_and_next.as_slice())];
-                config
-                    .pcs()
-                    .open_multi_batches(&prover_data_and_points, challenger)
-            })
-            .into_iter()
-            .unzip();
-
-        // Check that the table-specific constraints are correct for each chip.
-        for i in 0..chips.len() {
-            debug_constraints(
-                &*chips[i],
-                &traces[i],
-                &permutation_traces[i],
-                &permutation_challenges,
-            );
-        }
-
-        // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        let mut runtime = Runtime::new(program, 0);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
     }
 }
 

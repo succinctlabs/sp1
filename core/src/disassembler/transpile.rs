@@ -1,8 +1,8 @@
 use rrs_lib::process_instruction;
 
-use crate::{disassembler::Opcode, runtime::Register};
+use crate::disassembler::Opcode;
 
-use super::{Instruction, InstructionDecoder};
+use super::{Instruction, InstructionDecoder, Register};
 
 /// Decode the instructions from the 32-bit encoding instructions.
 ///
@@ -43,7 +43,7 @@ pub fn ecall_translation_pass(instructions: &[Instruction]) -> Vec<Instruction> 
         // an immediate value identifying what type of ecall it is.
         let prev_instruction = instructions[i - 1];
         if prev_instruction.opcode != Opcode::ADD
-            || prev_instruction.a != Register::X5 as u32
+            || prev_instruction.op_a != Register::X5 as u32
             || prev_instruction.imm_c
         {
             instructions_new.push(instruction);
@@ -51,7 +51,7 @@ pub fn ecall_translation_pass(instructions: &[Instruction]) -> Vec<Instruction> 
         }
 
         // Translate the ecall to HALT, LWA, or PRECOMPILE depending on the value of %t0.
-        let precompile_opcode = prev_instruction.c;
+        let precompile_opcode = prev_instruction.op_c;
         let instruction = if precompile_opcode == Opcode::HALT as u32 {
             Instruction::new(Opcode::HALT, 0, 0, 0, false, false)
         } else if precompile_opcode == Opcode::LWA as u32 {

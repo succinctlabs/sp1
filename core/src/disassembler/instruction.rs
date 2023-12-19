@@ -3,30 +3,33 @@ use rrs_lib::instruction_formats::{
 };
 use rrs_lib::InstructionProcessor;
 
-use super::Opcode;
+use super::{Opcode, Register};
 
+/// An instruction specifies an operation to execute and the operands.
 #[derive(Debug, Clone, Copy)]
 pub struct Instruction {
     pub opcode: Opcode,
-    pub a: u32,
-    pub b: u32,
-    pub c: u32,
+    pub op_a: u32,
+    pub op_b: u32,
+    pub op_c: u32,
     pub imm_b: bool,
     pub imm_c: bool,
 }
 
 impl Instruction {
+    /// Create a new instruction.
     pub fn new(opcode: Opcode, a: u32, b: u32, c: u32, imm_b: bool, imm_c: bool) -> Self {
         Self {
             opcode,
-            a,
-            b,
-            c,
+            op_a: a,
+            op_b: b,
+            op_c: c,
             imm_b,
             imm_c,
         }
     }
 
+    /// Create a new instruction from an R-type instruction.
     fn from_r_type(opcode: Opcode, dec_insn: RType) -> Self {
         Self::new(
             opcode,
@@ -38,6 +41,7 @@ impl Instruction {
         )
     }
 
+    /// Create a new instruction from an I-type instruction.
     fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
         Self::new(
             opcode,
@@ -49,6 +53,7 @@ impl Instruction {
         )
     }
 
+    /// Create a new instruction from an I-type instruction with a shamt.
     fn from_i_type_shamt(opcode: Opcode, dec_insn: ITypeShamt) -> Self {
         Self::new(
             opcode,
@@ -60,6 +65,7 @@ impl Instruction {
         )
     }
 
+    /// Create a new instruction from an S-type instruction.
     fn from_s_type(opcode: Opcode, dec_insn: SType) -> Self {
         Self::new(
             opcode,
@@ -71,6 +77,7 @@ impl Instruction {
         )
     }
 
+    /// Create a new instruction from a B-type instruction.
     fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
         Self::new(
             opcode,
@@ -82,6 +89,7 @@ impl Instruction {
         )
     }
 
+    /// Create a new instruction from a J-type instruction.
     fn from_j_type(opcode: Opcode, dec_isn: JType) -> Self {
         Self::new(
             opcode,
@@ -93,8 +101,90 @@ impl Instruction {
         )
     }
 
+    /// Create a new instruction that is not implemented.
     fn unimp() -> Self {
         Self::new(Opcode::UNIMP, 0, 0, 0, false, false)
+    }
+
+    /// Returns if the instruction is an ALU instruction.
+    pub fn is_alu_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::ADD
+            | Opcode::SUB
+            | Opcode::XOR
+            | Opcode::OR
+            | Opcode::AND
+            | Opcode::SLL
+            | Opcode::SRL
+            | Opcode::SRA
+            | Opcode::SLT
+            | Opcode::SLTU => true,
+            _ => false,
+        }
+    }
+
+    /// Returns if the instruction is a load instruction.
+    pub fn is_load_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => true,
+            _ => false,
+        }
+    }
+
+    /// Returns if the instruction is an R-type instruction.
+    pub fn is_r_type(&self) -> bool {
+        !self.imm_c
+    }
+
+    /// Returns whether the instruction is an I-type instruction.
+    pub fn is_i_type(&self) -> bool {
+        self.imm_c
+    }
+
+    /// Decode the instruction in the R-type format.
+    pub fn r_type(&self) -> (Register, Register, Register) {
+        (
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            Register::from_u32(self.op_c),
+        )
+    }
+
+    /// Decode the instruction in the I-type format.
+    pub fn i_type(&self) -> (Register, Register, u32) {
+        (
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            self.op_c,
+        )
+    }
+
+    /// Decode the instruction in the S-type format.
+    pub fn s_type(&self) -> (Register, Register, u32) {
+        (
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            self.op_c,
+        )
+    }
+
+    /// Decode the instruction in the B-type format.
+    pub fn b_type(&self) -> (Register, Register, u32) {
+        (
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            self.op_c,
+        )
+    }
+
+    /// Decode the instruction in the J-type format.
+    pub fn j_type(&self) -> (Register, u32) {
+        (Register::from_u32(self.op_a), self.op_b)
+    }
+
+    /// Decode the instruction in the U-type format.
+    pub fn u_type(&self) -> (Register, u32) {
+        (Register::from_u32(self.op_a), self.op_b)
     }
 }
 

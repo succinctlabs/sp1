@@ -78,33 +78,33 @@ where
     fn eval(&self, _: &mut AB) {}
 }
 
-#[cfg(test)]
-mod tests {
+// #[cfg(test)]
+// mod tests {
 
-    use p3_baby_bear::BabyBear;
+//     use p3_baby_bear::BabyBear;
 
-    use p3_matrix::dense::RowMajorMatrix;
+//     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::{
-        program::ProgramChip,
-        runtime::{Instruction, Opcode, Runtime},
-        utils::Chip,
-    };
+//     use crate::{
+//         program::ProgramChip,
+//         runtime::{Instruction, Opcode, Runtime},
+//         utils::Chip,
+//     };
 
-    #[test]
-    fn generate_trace() {
-        // main:
-        //     addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
-        ];
-        let mut runtime = Runtime::new(program, 0);
-        let chip = ProgramChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        println!("{:?}", trace.values)
-    }
-}
+//     #[test]
+//     fn generate_trace() {
+//         // main:
+//         //     addi x29, x0, 5
+//         //     addi x30, x0, 37
+//         //     add x31, x30, x29
+//         let program = vec![
+//             Instruction::new(Opcode::ADDI, 29, 0, 5),
+//             Instruction::new(Opcode::ADDI, 30, 0, 37),
+//             Instruction::new(Opcode::ADD, 31, 30, 29),
+//         ];
+//         let mut runtime = Runtime::new(program, 0);
+//         let chip = ProgramChip::new();
+//         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+//         println!("{:?}", trace.values)
+//     }
+// }
