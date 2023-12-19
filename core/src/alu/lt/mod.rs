@@ -158,6 +158,8 @@ where
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
+        // TODO: Add assert on local.byte_equality_check that it only comes after local.byte_flag?
+
         // TODO: If we need to factor into account multiplicity, the Valida approach should be used.
         // Valida: Have byte flags for first 3 bytes, the last byte should only be flagged if the
         // multiplicity is non-zero (i.e. the lt event is requested).
@@ -281,18 +283,18 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         // runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
         runtime.lt_events = vec![
-            // AluEvent::new(0, Opcode::SLT, 0, 3, 2),
-            // AluEvent::new(1, Opcode::SLT, 1, 2, 3),
-            // AluEvent::new(
-            //     2,
-            //     Opcode::SLT,
-            //     0,
-            //     // -3
-            //     0b11111111111111111111111111111101,
-            //     // -4
-            //     0b11111111111111111111111111111100,
-            // ),
-            AluEvent::new(0, Opcode::SLT, 0, 65536, 255),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            AluEvent::new(1, Opcode::SLT, 1, 2, 3),
+            AluEvent::new(
+                2,
+                Opcode::SLT,
+                0,
+                // -3
+                0b11111111111111111111111111111101,
+                // -4
+                0b11111111111111111111111111111100,
+            ),
+            AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
         ];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
