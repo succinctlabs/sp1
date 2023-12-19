@@ -110,11 +110,44 @@ where
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
+        // We'll check that b * c = product. Note that, here, we check that
+        // this product is _actually_ the product of b * c without any truncation.
+        // We first decompose b, c, product into an array of u8's.
+        //
+        // We check b * c = product by actually calculating what the value of the
+        // i-th term of product (i.e., product[i]) should be.
+        //
+        // We will do so by comparing these pieces of information:
+        //
+        // 1. local.product[i]: What we think `product[i]` ought to be.
+        // 2. BC[i] := b[i]c[0] + b[i - 1]c[1] + ... + b[1]c[i - 1] + b[0]c[i]
+        // 3. carry[i]: "overflow" from calculating the i-th term. More
+        //    specifically, floor((BC[i] + carry[i - 1]) / 256).
+        //
+        // local.product[i] is indeed the correct value of product[i] iff
+        // local.product[i] = BC[i] + carry[i - 1] (mod 256).
+        //
+        // local.product[i] = BC[i] + carry[i - 1] (mod 256)
+        // <=> local.product[i] = BC[i] + carry[i - 1] + 256K for some integer K
+        // <=> local.product[i]
+        //    = BC[i] + carry[i - 1] + 256 * floor((BC[i] + carry[i - 1]) / 256)
+        //
+        // Conveniently, this value of K is equivalent to carry[i]. Therefore,
+        // we obtain the necessary and sufficient condition
+        // local.product[i] = BC[i] + carry[i - 1] + 256 * carry[i].
+        //
+        // Notice that carry[i] was the only value for K that would satisfy the
+        // equation. Therefore, this constraint also verifies that carry[i] was
+        // correct.
+        //
+        // It is clear that this argument can be easily turned into induction.
 
         let zero: AB::Expr = AB::F::zero().into();
         for n in 0..8 {
-            // Calculate the the n-th term of b * c when decomposed to u8's.
             let mut b_times_c = zero.clone();
+
+            // Calculate BC[i] here. We have to be careful with indices as both
+            // b and c only have 4 elements.
             for i in 0..4 {
                 let j = (n as i32) - (i as i32);
 
@@ -122,20 +155,22 @@ where
                     b_times_c += local.b[i] * local.c[n - i];
                 }
             }
+
             if n > 0 {
-                // carry[n - 1] = the overflow from the (n-1)-th term of b * c
-                // when decomposed to u8's.
+                // carry[n-1] = the overflow from calculating product[n-1].
                 b_times_c += local.carry[n - 1].into();
             }
 
+            // We set K = local.carry[n].
             let overflow = local.carry[n] * base;
 
+            // This is BC[i] - 256 * K.
             let b_times_c_minus_overflow = b_times_c - overflow;
 
             builder.assert_eq(b_times_c_minus_overflow, local.product[n]);
         }
 
-        // Ensure that the lowest 4 bits are calculated correctly.
+        // Ensure that the lowest 4 bytes are calculated correctly (MUL)
         for i in 0..4 {
             builder.assert_eq(local.product[i], local.a[i]);
         }
