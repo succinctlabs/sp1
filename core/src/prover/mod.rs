@@ -13,6 +13,7 @@ use p3_util::log2_strict_usize;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 mod debug;
+mod runtime;
 pub use debug::*;
 
 use crate::utils::Chip;

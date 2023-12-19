@@ -99,7 +99,7 @@ pub fn parse_elf(input: &[u8]) -> (Vec<u32>, u32) {
 
             // If we are reading past the end of the file, then break.
             if i >= file_size {
-                break;
+                continue;
             }
 
             // Get the word as an u32 but make sure we don't read past the end of the file.

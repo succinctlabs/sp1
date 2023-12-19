@@ -1,10 +1,16 @@
-use crate::runtime::Opcode;
+use crate::disassembler::Opcode;
 
 pub mod add;
 pub mod bitwise;
 pub mod lt;
 pub mod shift;
 pub mod sub;
+
+pub use add::*;
+pub use bitwise::*;
+pub use lt::*;
+pub use shift::*;
+pub use sub::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AluEvent {

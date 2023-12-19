@@ -11,7 +11,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::runtime::{Opcode, Runtime};
+use crate::disassembler::Opcode;
+use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -123,11 +124,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{
-        alu::AluEvent,
-        runtime::{Opcode, Runtime},
-        utils::Chip,
-    };
+    use crate::{alu::AluEvent, disassembler::Opcode, runtime::Runtime, utils::Chip};
     use p3_commit::ExtensionMmcs;
 
     use super::LtChip;

@@ -60,8 +60,8 @@ impl Instruction {
             dec_insn.rd as u32,
             dec_insn.rs1 as u32,
             dec_insn.shamt as u32,
-            true,
             false,
+            true,
         )
     }
 
@@ -81,29 +81,17 @@ impl Instruction {
     fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
         Self::new(
             opcode,
-            dec_insn.rs2 as u32,
             dec_insn.rs1 as u32,
+            dec_insn.rs2 as u32,
             dec_insn.imm as u32,
             false,
             true,
         )
     }
 
-    /// Create a new instruction from a J-type instruction.
-    fn from_j_type(opcode: Opcode, dec_isn: JType) -> Self {
-        Self::new(
-            opcode,
-            dec_isn.rd as u32,
-            dec_isn.imm as u32,
-            0,
-            true,
-            false,
-        )
-    }
-
     /// Create a new instruction that is not implemented.
     fn unimp() -> Self {
-        Self::new(Opcode::UNIMP, 0, 0, 0, false, false)
+        Self::new(Opcode::UNIMP, 0, 0, 0, true, true)
     }
 
     /// Returns if the instruction is an ALU instruction.
@@ -118,7 +106,15 @@ impl Instruction {
             | Opcode::SRL
             | Opcode::SRA
             | Opcode::SLT
-            | Opcode::SLTU => true,
+            | Opcode::SLTU
+            | Opcode::MUL
+            | Opcode::MULH
+            | Opcode::MULHU
+            | Opcode::MULHSU
+            | Opcode::DIV
+            | Opcode::DIVU
+            | Opcode::REM
+            | Opcode::REMU => true,
             _ => false,
         }
     }
@@ -127,6 +123,16 @@ impl Instruction {
     pub fn is_load_instruction(&self) -> bool {
         match self.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => true,
+            _ => false,
+        }
+    }
+
+    /// Returns if the instruction is a branch instruction.
+    pub fn is_branch_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
+                true
+            }
             _ => false,
         }
     }
@@ -326,11 +332,25 @@ impl InstructionProcessor for InstructionDecoder {
     }
 
     fn process_jal(&mut self, dec_insn: JType) -> Self::InstructionResult {
-        Instruction::from_j_type(Opcode::JAL, dec_insn)
+        Instruction::new(
+            Opcode::JAL,
+            dec_insn.rd as u32,
+            dec_insn.imm as u32,
+            dec_insn.imm as u32,
+            true,
+            true,
+        )
     }
 
     fn process_jalr(&mut self, dec_insn: IType) -> Self::InstructionResult {
-        Instruction::from_i_type(Opcode::JALR, dec_insn)
+        Instruction::new(
+            Opcode::JALR,
+            dec_insn.rd as u32,
+            dec_insn.rs1 as u32,
+            dec_insn.imm as u32,
+            false,
+            true,
+        )
     }
 
     /// LUI instructions are converted to an SLL instruction with imm_b and imm_c turned on.
