@@ -28,6 +28,7 @@ pub struct MulCols<T> {
     pub c: Word<T>,
 
     /// Trace. u32::max ** 2 = (2^32 - 1)^ 2 = 63 bits, so we need 8 bytes.
+    /// `product` stores the actual product of b * c without truncating.
     pub carry: [T; 8],
     pub product: [T; 8],
 
@@ -110,21 +111,28 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        let zero = local.a[0] - local.a[0];
+        let zero: AB::Expr = AB::F::zero().into();
         for n in 0..8 {
-            let mut diff = zero.clone();
-            if n > 0 {
-                diff += local.carry[n - 1] + zero.clone();
-            }
+            // Calculate the the n-th term of b * c when decomposed to u8's.
+            let mut b_times_c = zero.clone();
             for i in 0..4 {
                 let j = (n as i32) - (i as i32);
 
                 if 0 <= j && j < 4 {
-                    diff += local.b[i] * local.c[n - i];
+                    b_times_c += local.b[i] * local.c[n - i];
                 }
             }
-            diff -= local.product[n] + zero.clone();
-            builder.assert_eq(diff, local.carry[n] * base);
+            if n > 0 {
+                // carry[n - 1] = the overflow from the (n-1)-th term of b * c
+                // when decomposed to u8's.
+                b_times_c += local.carry[n - 1].into();
+            }
+
+            let overflow = local.carry[n] * base;
+
+            let b_times_c_minus_overflow = b_times_c - overflow;
+
+            builder.assert_eq(b_times_c_minus_overflow, local.product[n]);
         }
 
         // Ensure that the lowest 4 bits are calculated correctly.
