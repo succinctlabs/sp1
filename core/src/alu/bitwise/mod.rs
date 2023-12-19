@@ -125,10 +125,12 @@ where
         let main = builder.main();
         let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
 
+        // Get the opcode for the operation.
         let opcode = local.is_xor * ByteOpcode::Xor.to_field::<AB::F>()
             + local.is_or * ByteOpcode::Or.to_field::<AB::F>()
             + local.is_and * ByteOpcode::And.to_field::<AB::F>();
 
+        // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
 
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
