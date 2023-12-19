@@ -34,6 +34,11 @@ use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
+
+// The number of digits in the product is at most the sum of the number of
+// digits in the multiplicands.
+const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
 pub struct MulCols<T> {
@@ -46,10 +51,11 @@ pub struct MulCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// Trace. u32::max ** 2 = (2^32 - 1)^ 2 = 63 bits, so we need 8 bytes.
+    /// Trace.
+    pub carry: [T; PRODUCT_SIZE],
+
     /// `product` stores the actual product of b * c without truncating.
-    pub carry: [T; 8],
-    pub product: [T; 8],
+    pub product: [T; PRODUCT_SIZE],
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -78,7 +84,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
-                let mut product = [0u32; 9];
+                let mut product = [0u32; PRODUCT_SIZE];
 
                 for i in 0..4 {
                     for j in 0..4 {
@@ -88,7 +94,9 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 for i in 0..8 {
                     cols.product[i] = F::from_canonical_u32(product[i] & 0xff);
                     cols.carry[i] = F::from_canonical_u32(product[i] >> 8);
-                    product[i + 1] += product[i] >> 8;
+                    if i + 1 < PRODUCT_SIZE {
+                        product[i + 1] += product[i] >> 8;
+                    }
                 }
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
@@ -124,10 +132,9 @@ where
         let local: &MulCols<AB::Var> = main.row_slice(0).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
-        const PRODUCT_SIZE: usize = 2 * WORD_SIZE - 1;
-
         // Compute the uncarried product b(x) * c(x) = m(x).
-        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+        const UNCARRIED_PRODUCT_SIZE: usize = 2 * WORD_SIZE - 1;
+        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); UNCARRIED_PRODUCT_SIZE];
         for i in 0..WORD_SIZE {
             for j in 0..WORD_SIZE {
                 m[i + j] += local.b[i] * local.c[j];
@@ -137,14 +144,26 @@ where
         // Compute the carried product by decomposing each coefficient of m(x) into some carry
         // and product. Note that we must assume that the carry is range checked to avoid underflow.
         for i in 0..PRODUCT_SIZE {
-            builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
-            if i < PRODUCT_SIZE - 1 {
-                m[i + 1] += local.carry[i].into();
+            if i == 0 {
+                // When i = 0, there is no carry from the previous term as
+                // there is no previous term.
+                builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
+            } else if i < PRODUCT_SIZE - 1 {
+                // When 0 < i < PRODUCT_SIZE - 1, there is a carry from the
+                // previous term, and there's a carry from this term.
+                builder.assert_eq(
+                    local.product[i],
+                    m[i].clone() + local.carry[i - 1] - local.carry[i] * base,
+                );
+            } else {
+                // The highest term can only be the carry from the previous
+                // term since there is not b[k]c[l] such that k + l == i.
+                builder.assert_eq(local.product[i], local.carry[i - 1]);
             }
         }
 
         // Assert that the lower word of the product matches the result.
-        for i in 0..4 {
+        for i in 0..WORD_SIZE {
             builder.assert_eq(local.product[i], local.a[i]);
         }
 
