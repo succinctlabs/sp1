@@ -16,6 +16,9 @@
 //!
 //! Finally, we verify that the result `a` matches the appropriate bits.
 //! (e.g., For MUL, `a` matches the low word of `local.product`)
+//!
+//! For signed multiplication, all we need to worry about is to extend the sign
+//! bit.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -39,6 +42,8 @@ pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
 // digits in the multiplicands.
 const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
 
+const BYTE_SIZE: usize = 8;
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
 pub struct MulCols<T> {
@@ -50,6 +55,9 @@ pub struct MulCols<T> {
 
     /// The second input operand.
     pub c: Word<T>,
+
+    pub is_b_negative: T,
+    pub is_c_negative: T,
 
     /// Trace.
     pub carry: [T; PRODUCT_SIZE],
@@ -73,6 +81,19 @@ impl MulChip {
     }
 }
 
+fn extend_sign(a: [u8; WORD_SIZE]) -> [u8; 2 * WORD_SIZE] {
+    let mut result = [0u8; 2 * WORD_SIZE];
+    for i in 0..WORD_SIZE {
+        result[i] = a[i];
+    }
+    if a[WORD_SIZE - 1] & 0x80 != 0 {
+        for i in WORD_SIZE..2 * WORD_SIZE {
+            result[i] = 0xff;
+        }
+    }
+    result
+}
+
 impl<F: PrimeField> Chip<F> for MulChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
@@ -80,25 +101,35 @@ impl<F: PrimeField> Chip<F> for MulChip {
             .mul_events
             .par_iter()
             .map(|event| {
-                assert!(event.opcode == Opcode::MUL || event.opcode == Opcode::MULHU);
+                assert!(
+                    event.opcode == Opcode::MUL
+                        || event.opcode == Opcode::MULHU
+                        || event.opcode == Opcode::MULH
+                        || event.opcode == Opcode::MULHSU
+                );
                 let mut row = [F::zero(); NUM_MUL_COLS];
                 let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                let signed_b = extend_sign(b);
+                let signed_c = extend_sign(c);
+
                 let mut product = [0u32; PRODUCT_SIZE];
 
-                for i in 0..WORD_SIZE {
-                    for j in 0..WORD_SIZE {
-                        product[i + j] += (b[i] as u32) * (c[j] as u32);
+                for i in 0..PRODUCT_SIZE {
+                    for j in 0..PRODUCT_SIZE {
+                        if i + j < PRODUCT_SIZE {
+                            product[i + j] += (signed_b[i] as u32) * (signed_c[j] as u32);
+                        }
                     }
                 }
                 for i in 0..PRODUCT_SIZE {
                     cols.product[i] = F::from_canonical_u32(product[i] & 0xff);
-                    cols.carry[i] = F::from_canonical_u32(product[i] >> 8);
+                    cols.carry[i] = F::from_canonical_u32(product[i] >> BYTE_SIZE);
                     if i + 1 < PRODUCT_SIZE {
-                        product[i + 1] += product[i] >> 8;
+                        product[i + 1] += product[i] >> BYTE_SIZE;
                     }
                 }
                 cols.a = Word(a.map(F::from_canonical_u8));
@@ -106,9 +137,22 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 cols.c = Word(c.map(F::from_canonical_u8));
                 cols.is_real = F::one();
 
-                // - MUL: unsigned x unsigned and take the lower half.
-                // - MULHU: unsigned x unsigned and take the upper half.
-                cols.is_upper = F::from_bool(event.opcode == Opcode::MULHU);
+                if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
+                    if signed_b[WORD_SIZE - 1] & 0x80 != 0 {
+                        cols.is_b_negative = F::one();
+                    }
+                }
+
+                if event.opcode == Opcode::MULH {
+                    if signed_c[WORD_SIZE - 1] & 0x80 != 0 {
+                        cols.is_c_negative = F::one();
+                    }
+                }
+
+                if event.opcode != Opcode::MUL {
+                    cols.is_upper = F::one();
+                }
+
                 row
             })
             .collect::<Vec<_>>();
@@ -140,12 +184,29 @@ where
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
 
+        let sign_mask = AB::F::from_canonical_u8(0xff);
+
+        // Sign extend local.b and local.c
+        let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+        let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+        for i in 0..PRODUCT_SIZE {
+            if i < WORD_SIZE {
+                b[i] = local.b[i].into();
+                c[i] = local.c[i].into();
+            } else {
+                b[i] = local.is_b_negative.clone() * sign_mask;
+                c[i] = local.is_c_negative.clone() * sign_mask;
+            }
+        }
+
         // Compute the uncarried product b(x) * c(x) = m(x).
-        const UNCARRIED_PRODUCT_SIZE: usize = 2 * WORD_SIZE - 1;
-        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); UNCARRIED_PRODUCT_SIZE];
-        for i in 0..WORD_SIZE {
-            for j in 0..WORD_SIZE {
-                m[i + j] += local.b[i] * local.c[j];
+        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+
+        for i in 0..PRODUCT_SIZE {
+            for j in 0..PRODUCT_SIZE {
+                if i + j < PRODUCT_SIZE {
+                    m[i + j] += b[i].clone() * c[j].clone();
+                }
             }
         }
 
@@ -182,6 +243,7 @@ where
 
         builder.assert_bool(local.is_real);
         builder.assert_bool(local.is_upper);
+        // TODO: assert is_negative
 
         // Receive the arguments.
         builder.receive_alu(
@@ -233,7 +295,13 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
-        runtime.add_events = vec![AluEvent::new(0, Opcode::MUL, 100000, 500, 200)];
+        runtime.mul_events = vec![AluEvent::new(
+            0,
+            Opcode::MULH,
+            100000,
+            0xffffffff,
+            0xffffffff,
+        )];
         let chip = MulChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
