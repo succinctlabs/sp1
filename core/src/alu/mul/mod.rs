@@ -8,9 +8,9 @@
 //!    specifically, carry[i] = floor((m[i] + carry[i - 1]) / 256).
 //
 //! local.product[i] = m[i] + carry[i - 1] (mod 256)
-//! <=> local.product[i] = m[i] + carry[i - 1] + 256K for some integer K
+//! <=> local.product[i] = m[i] + carry[i - 1] - 256K for some integer K
 //! <=> local.product[i]
-//!    = m[i] + carry[i - 1] + 256 * floor((m[i] + carry[i - 1]) / 256)
+//!    = m[i] + carry[i - 1] - 256 * floor((m[i] + carry[i - 1]) / 256)
 //
 //! Conveniently, this value of K is equivalent to carry[i].
 //!
