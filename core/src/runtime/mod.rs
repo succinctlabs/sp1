@@ -64,10 +64,10 @@ pub struct Runtime {
 
 impl Runtime {
     // Create a new runtime
-    pub fn new(program: Vec<Instruction>, init_pc: u32) -> Self {
+    pub fn new(program: Vec<Instruction>, pc: u32) -> Self {
         Self {
             clk: 0,
-            pc: init_pc,
+            pc,
             memory: BTreeMap::new(),
             program,
             cpu_events: Vec::new(),
@@ -209,8 +209,9 @@ impl Runtime {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
+    #[inline]
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
-        if instruction.is_r_type() {
+        if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
             let (b, c) = (self.rr(rs1), self.rr(rs2));
             (rd, b, c)
@@ -228,6 +229,37 @@ impl Runtime {
         }
     }
 
+    #[inline]
+    fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
+        self.rw(rd, a);
+        self.emit_alu(self.clk, instruction.opcode, a, b, c);
+    }
+
+    /// Fetch the input operand values for a load instruction.
+    fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, Option<u32>) {
+        let (rd, rs1, imm) = instruction.i_type();
+        let (b, c) = (self.rr(rs1), imm);
+        let addr = b.wrapping_add(c);
+        let memory_value = Some(self.mr(addr));
+        (rd, b, c, addr, memory_value)
+    }
+
+    /// Fetch the input operand values for a store instruction.
+    fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, Option<u32>) {
+        let (rs1, rs2, imm) = instruction.s_type();
+        let (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+        let addr = b.wrapping_add(c);
+        let memory_value = Some(self.mr(addr));
+        (a, b, c, addr, memory_value)
+    }
+
+    /// Fetch the input operand values for a branch instruction.
+    fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
+        let (rs1, rs2, imm) = instruction.b_type();
+        let (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+        (a, b, c)
+    }
+
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
         let idx = (self.pc / 4) as usize;
@@ -237,133 +269,104 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let rd: Register;
-        let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
-            u32,
-            u32,
-            u32,
-            Option<u32>,
-            Option<u32>,
-        ) = (u32::MAX, u32::MAX, u32::MAX, None, None);
-
         let mut next_pc = self.pc.wrapping_add(4);
+
+        let rd: Register;
+        let (a, b, c): (u32, u32, u32);
+        let addr: u32;
+        let (mut memory_read_value, mut memory_store_value): (Option<u32>, Option<u32>) =
+            (None, None);
+
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SUB => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::XOR => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b ^ c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::OR => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b | c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::AND => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b & c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b << c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRL => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b >> c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRA => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32 >> c) as u32;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLT => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLTU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
 
-            // Load instructions
+            // Load instructions.
             Opcode::LB => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                memory_value = Some(self.mr(addr));
-                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                let value = (memory_read_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = ((value as i8) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 2, 0, "LH");
-                memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    memory_value.unwrap() & 0x0000FFFF
-                } else {
-                    memory_value.unwrap() & 0xFFFF0000
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                assert_eq!(addr % 2, 0, "addr is not aligned");
+                let value = match addr % 4 {
+                    0 => memory_read_value.unwrap() & 0x0000FFFF,
+                    1 => memory_read_value.unwrap() & 0xFFFF0000,
+                    _ => unreachable!(),
                 };
                 a = ((value as i16) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 4, 0, "LW");
-                memory_value = Some(self.mr(addr));
-                a = memory_value.unwrap();
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                assert_eq!(addr % 4, 0, "addr is not aligned");
+                a = memory_read_value.unwrap();
                 self.rw(rd, a);
             }
             Opcode::LBU => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                memory_value = Some(self.mr(addr));
-                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                let value = (memory_read_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = (value as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 2, 0, "LHU");
-                memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    memory_value.unwrap() & 0x0000FFFF
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                assert_eq!(addr % 2, 0, "addr is not aligned");
+                let value = if addr % 4 == 0 {
+                    memory_read_value.unwrap() & 0x0000FFFF
                 } else {
-                    memory_value.unwrap() & 0xFFFF0000
+                    memory_read_value.unwrap() & 0xFFFF0000
                 };
                 a = (value as u16) as u32;
                 self.rw(rd, a);
@@ -371,44 +374,31 @@ impl Runtime {
 
             // Store instructions.
             Opcode::SB => {
-                let (rs1, rs2, imm) = instruction.s_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = b.wrapping_add(c);
-                memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    (a & 0x000000FF) + (memory_value.unwrap() & 0xFFFFFF00)
-                } else if offset == 1 {
-                    (a & 0x000000FF) << 8 + (memory_value.unwrap() & 0xFFFF00FF)
-                } else if offset == 2 {
-                    (a & 0x000000FF) << 16 + (memory_value.unwrap() & 0xFF00FFFF)
-                } else {
-                    (a & 0x000000FF) << 24 + (memory_value.unwrap() & 0x00FFFFFF)
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                let value = match addr % 4 {
+                    0 => (a & 0x000000FF) + (memory_read_value.unwrap() & 0xFFFFFF00),
+                    1 => (a & 0x000000FF) << 8 + (memory_read_value.unwrap() & 0xFFFF00FF),
+                    2 => (a & 0x000000FF) << 16 + (memory_read_value.unwrap() & 0xFF00FFFF),
+                    3 => (a & 0x000000FF) << 24 + (memory_read_value.unwrap() & 0x00FFFFFF),
+                    _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
-                let (rs1, rs2, imm) = instruction.s_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 2, 0, "SH");
-                memory_value = Some(self.mr(addr));
-                let offset = addr % 2;
-                let value = if offset == 0 {
-                    (memory_value.unwrap() & 0xFFFF0000) + (a & 0x0000FFFF)
-                } else {
-                    (memory_value.unwrap() & 0x0000FFFF) + (a & 0x0000FFFF) << 16
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                assert_eq!(addr % 2, 0, "addr is not aligned");
+                let value = match addr % 2 {
+                    0 => (memory_read_value.unwrap() & 0xFFFF0000) + (a & 0x0000FFFF),
+                    1 => (memory_read_value.unwrap() & 0x0000FFFF) + (a & 0x0000FFFF) << 16,
+                    _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
-                let (rs1, rs2, imm) = instruction.s_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 4, 0, "SW");
-                memory_value = Some(self.mr(addr));
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
                 self.mw(addr, value);
@@ -416,45 +406,39 @@ impl Runtime {
 
             // B-type instructions.
             Opcode::BEQ => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a == b {
                     next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BNE => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a != b {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BLT => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) < (b as i32) {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BGE => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) >= (b as i32) {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BLTU => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a < b {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BGEU => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a >= b {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
 
@@ -493,32 +477,24 @@ impl Runtime {
 
             // Multiply instructions.
             Opcode::MUL => {
-                // MUL performs an 32-bit×32-bit multiplication and places the
-                // lower 32 bits in the destination register.
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_mul(c);
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULH => {
-                // MULH performs the same multiplication, but returns the upper
-                // 32 bits of the product. (signed x signed)
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHU => {
-                // MULH performs the same multiplication, but returns the upper
-                // 32 bits of the product. (unsigned x unsigned)
                 (rd, b, c) = self.alu_rr(instruction);
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHSU => {
-                // MULH performs the same multiplication, but returns the upper
-                // 32 bits of the product. (signed x unsigned)
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIV => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -527,7 +503,7 @@ impl Runtime {
                 } else {
                     a = (b as i32).wrapping_div(c as i32) as u32;
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIVU => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -536,7 +512,7 @@ impl Runtime {
                 } else {
                     a = b.wrapping_div(c);
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REM => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -545,7 +521,7 @@ impl Runtime {
                 } else {
                     a = (b as i32).wrapping_rem(c as i32) as u32;
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REMU => {
                 (rd, b, c) = self.alu_rr(instruction);
@@ -554,7 +530,7 @@ impl Runtime {
                 } else {
                     a = b.wrapping_rem(c);
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
 
             // Precompile instructions.
@@ -573,6 +549,8 @@ impl Runtime {
                 panic!("UNIMP encountered, we should never get here.");
             }
         }
+
+        // Update the program counter.
         self.pc = next_pc;
 
         // Emit the CPU event for this cycle.
@@ -583,7 +561,7 @@ impl Runtime {
             a,
             b,
             c,
-            memory_value,
+            memory_read_value,
             memory_store_value,
         );
     }

@@ -40,10 +40,16 @@ impl Debug for Instruction {
         } else {
             format!("%x{}", self.op_c)
         };
+
+        let width = 10;
         write!(
             f,
-            "\"{} {} {} {}\"",
-            mnemonic, op_a_formatted, op_b_formatted, op_c_formatted
+            "{:<width$} {:<width$} {:<width$} {:<width$}",
+            mnemonic,
+            op_a_formatted,
+            op_b_formatted,
+            op_c_formatted,
+            width = width
         )
     }
 }
