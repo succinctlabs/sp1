@@ -6,6 +6,7 @@ pub use instruction::*;
 pub use opcode::*;
 
 use crate::bytes::{ByteChip, ByteLookupEvent};
+use crate::memory::state::MemoryStateChip;
 use crate::prover::{debug_cumulative_sums, quotient_values};
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
@@ -698,11 +699,12 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 9;
+        const NUM_CHIPS: usize = 10;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
         let memory = MemoryChip::new();
+        let mem_state_out = MemoryStateChip::Output;
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
@@ -713,6 +715,7 @@ impl Runtime {
             Box::new(program),
             Box::new(cpu),
             Box::new(memory),
+            Box::new(mem_state_out),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),

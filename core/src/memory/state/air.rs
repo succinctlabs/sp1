@@ -58,12 +58,12 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryStateChip {
             .when(local.multiplicity)
             .assert_zero(local.is_dummy.0);
 
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.value,
-            local.is_read.0,
-            AB::F::one(),
-        );
+        // builder.send_memory(
+        //     local.clk,
+        //     local.addr,
+        //     local.value,
+        //     local.is_read.0,
+        //     AB::F::one(),
+        // );
     }
 }
