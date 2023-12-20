@@ -26,7 +26,7 @@
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -79,6 +79,7 @@ pub struct MulCols<T> {
     // Whether the output is the upper half or the lower half of b * c.
     pub is_upper: T,
 
+    // The opcode.
     pub opcode: T,
 }
 
@@ -267,6 +268,22 @@ where
 
         // Receive the arguments.
         builder.receive_alu(local.opcode, local.a, local.b, local.c, local.is_real);
+
+        let mul: AB::Expr = AB::F::from_canonical_u32(Opcode::MUL as u32).into();
+        let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
+        let mulhsu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHSU as u32).into();
+        // b can be negative only if the opcode is MULH or MULHSU.
+        builder
+            .when(local.is_b_negative)
+            .assert_zero((local.opcode - mulh.clone()) * (local.opcode - mulhsu.clone()));
+        // b can be negative only if the opcode is MULH.
+        builder
+            .when(local.is_c_negative)
+            .assert_eq(local.opcode, mulh.clone());
+
+        // If we take the lower half, it has to be MUL.
+        let one: AB::Expr = AB::F::one().into();
+        builder.assert_zero(local.is_real * (one.clone() - local.is_upper) * (local.opcode - mul));
 
         // TODO: Range check the carry column.
 
