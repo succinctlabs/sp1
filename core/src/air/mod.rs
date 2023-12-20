@@ -162,7 +162,7 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         ));
     }
 
-    fn recieve_memory<EClk, Ea, Eb, Ec, EMult>(
+    fn receive_memory<EClk, Ea, Eb, Ec, EMult>(
         &mut self,
         clk: EClk,
         addr: Word<Ea>,

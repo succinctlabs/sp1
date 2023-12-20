@@ -172,7 +172,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
             .when(next.is_clk_eq.0)
             .assert_eq(next.clk, local.clk);
 
-        builder.recieve_memory(
+        builder.receive_memory(
             local.clk,
             local.addr,
             local.value,
