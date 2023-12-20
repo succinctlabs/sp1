@@ -10,6 +10,7 @@ use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
