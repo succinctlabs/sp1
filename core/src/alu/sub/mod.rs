@@ -139,14 +139,14 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        // // Receive the arguments.
-        // builder.receive_alu(
-        //     AB::F::from_canonical_u32(Opcode::SUB as u32),
-        //     local.a,
-        //     local.b,
-        //     local.c,
-        //     local.is_real,
-        // )
+        // Receive the arguments.
+        builder.receive_alu(
+            AB::F::from_canonical_u32(Opcode::SUB as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_real,
+        )
     }
 }
 

@@ -133,14 +133,14 @@ where
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
 
-        // // Receive the arguments.
-        // builder.receive_alu(
-        //     AB::F::from_canonical_u32(Opcode::ADD as u32),
-        //     local.a,
-        //     local.b,
-        //     local.c,
-        //     local.is_real,
-        // );
+        // Receive the arguments.
+        builder.receive_alu(
+            AB::F::from_canonical_u32(Opcode::ADD as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_real,
+        );
     }
 }
 

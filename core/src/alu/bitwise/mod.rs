@@ -129,16 +129,16 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        // // Receive the arguments.
-        // builder.receive_alu(
-        //     local.is_xor * AB::F::from_canonical_u32(Opcode::XOR as u32)
-        //         + local.is_or * AB::F::from_canonical_u32(Opcode::OR as u32)
-        //         + local.is_and * AB::F::from_canonical_u32(Opcode::AND as u32),
-        //     local.a,
-        //     local.b,
-        //     local.c,
-        //     local.is_xor + local.is_or + local.is_and,
-        // );
+        // Receive the arguments.
+        builder.receive_alu(
+            local.is_xor * AB::F::from_canonical_u32(Opcode::XOR as u32)
+                + local.is_or * AB::F::from_canonical_u32(Opcode::OR as u32)
+                + local.is_and * AB::F::from_canonical_u32(Opcode::AND as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_xor + local.is_or + local.is_and,
+        );
     }
 }
 

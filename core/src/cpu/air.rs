@@ -197,14 +197,14 @@ where
             local.selectors.shift_op,
             local.selectors.lt_op,
         ];
-        // for op in ops {
-        //     builder.send_alu(
-        //         local.instruction.opcode,
-        //         local.op_a_val,
-        //         local.op_b_val,
-        //         local.op_c_val,
-        //         op,
-        //     );
-        // }
+        for op in ops {
+            builder.send_alu(
+                local.instruction.opcode,
+                local.op_a_val,
+                local.op_b_val,
+                local.op_c_val,
+                op,
+            );
+        }
     }
 }
