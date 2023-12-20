@@ -222,7 +222,7 @@ where
 
         let byte_mask = AB::F::from_canonical_u32(0xFF);
         for i in 0..WORD_SIZE {
-            // if the division_by_0 flag is set, then c better be 0.
+            // If the division_by_0 flag is set, then c better be 0.
             builder.assert_zero(local.division_by_0.clone() * local.c[i]);
 
             // division by 0 => DIVU returns 2^32 - 1 and REMU returns b.
