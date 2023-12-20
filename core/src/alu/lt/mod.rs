@@ -35,6 +35,8 @@ pub struct LtCols<T> {
     /// Sign bits of MSG
     pub sign: [T; 2],
 
+    pub is_neq: T,
+
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
     /// true for all bytes after the differing byte pair marked by byte_flag.
     pub byte_equality_check: [T; 4],
@@ -85,9 +87,15 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 if event.opcode == Opcode::SLT || event.opcode == Opcode::SLTI {
                     cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
                     cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
+
                     b[3] = b[3] & (0b0111_1111);
                     c[3] = c[3] & (0b0111_1111);
                 }
+
+                cols.is_neq = F::from_canonical_u16(1)
+                    - (cols.sign[0] * cols.sign[1]
+                        + (F::from_canonical_u16(1) - cols.sign[0])
+                            * (F::from_canonical_u16(1) - cols.sign[1]));
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
@@ -125,6 +133,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 // TODO: Remove this block.
                 // Compute the expected result.
+                println!("IS_NEQ_SIGN: {:?}", cols.is_neq);
                 let computed_is_ltu = F::from_canonical_u16(1) - cols.bits[8];
                 println!("Computed IS_SLTU: {:?}", computed_is_ltu);
 
@@ -195,13 +204,13 @@ where
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
-        let computed_is_ltu = AB::Expr::one() - local.bits[8];
-        builder.assert_bool(computed_is_ltu.clone());
+        let computed_is_sltu = AB::Expr::one() - local.bits[8];
+        builder.assert_bool(computed_is_sltu.clone());
         // Output constraints
         // SLTU (unsigned)
         builder
             .when(local.is_sltu)
-            .assert_eq(local.a[0], computed_is_ltu.clone());
+            .assert_eq(local.a[0], computed_is_sltu.clone());
 
         // SLT (signed)
         // b_s and c_s are sign bits.
@@ -212,13 +221,19 @@ where
         builder.assert_bool(local.sign[1]);
         let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
 
-        let equal_sign = local.sign[0] * local.sign[1]
-            + (one.clone() - local.sign[0]) * (one.clone() - local.sign[1]);
-        let computed_is_lt = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
-        builder.assert_zero(local.is_slt * local.a[0] - local.is_slt * computed_is_lt.clone());
+        builder.assert_eq(
+            local.is_neq,
+            one.clone()
+                - (local.sign[0] * local.sign[1]
+                    + (local.sign[0] - AB::F::one()) * (local.sign[1] - AB::F::one())),
+        );
+        let computed_is_slt =
+            only_b_neg.clone() + ((one.clone() - local.is_neq) * computed_is_sltu.clone());
 
         // TODO: This constraint is failing, fix in the future. Probably a deeper issue.
-        // builder.assert_eq(local.is_slt * local.a[0], local.is_slt * computed_is_lt);
+        builder
+            .when(local.is_slt)
+            .assert_eq(local.a[0], computed_is_slt.clone());
 
         // Check bit decomposition is valid.
         builder.assert_bool(local.a[0]);
