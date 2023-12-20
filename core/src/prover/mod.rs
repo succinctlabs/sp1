@@ -13,6 +13,7 @@ use p3_util::log2_strict_usize;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 mod debug;
+mod runtime;
 pub use debug::*;
 
 use crate::utils::Chip;
@@ -281,7 +282,7 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
     let cumulative_sum = *perm.row_slice(perm.height() - 1).last().unwrap();
 
     // Check that constraints are satisfied.
-    (0..height).into_par_iter().for_each(|i| {
+    (0..height).into_iter().for_each(|i| {
         let i_next = (i + 1) % height;
 
         let main_local = main.row_slice(i);

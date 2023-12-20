@@ -98,9 +98,9 @@ mod tests {
         //     addi x30, x0, 37
         //     add x31, x30, x29
         let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let mut runtime = Runtime::new(program, 0);
         let chip = ProgramChip::new();

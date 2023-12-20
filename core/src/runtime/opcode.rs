@@ -1,10 +1,8 @@
-use std::fmt::{Display, Formatter};
-
 /// An opcode specifies which operation to execute.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
 pub enum Opcode {
-    /// Register instructions.
+    // Arithmetic instructions.
     ADD = 0,
     SUB = 1,
     XOR = 2,
@@ -16,129 +14,98 @@ pub enum Opcode {
     SLT = 8,
     SLTU = 9,
 
-    /// Immediate instructions.
-    ADDI = 10,
-    XORI = 11,
-    ORI = 12,
-    ANDI = 13,
-    SLLI = 14,
-    SRLI = 15,
-    SRAI = 16,
-    SLTI = 17,
-    SLTIU = 18,
+    // Load instructions.
+    LB = 10,
+    LH = 11,
+    LW = 12,
+    LBU = 13,
+    LHU = 14,
 
-    /// Load instructions.
-    LB = 19,
-    LH = 20,
-    LW = 21,
-    LBU = 22,
-    LHU = 23,
+    // Store instructions.
+    SB = 15,
+    SH = 16,
+    SW = 17,
 
-    /// Store instructions.
-    SB = 24,
-    SH = 25,
-    SW = 26,
+    // Branch instructions.
+    BEQ = 18,
+    BNE = 19,
+    BLT = 20,
+    BGE = 21,
+    BLTU = 22,
+    BGEU = 23,
 
-    /// Branch instructions.
-    BEQ = 27,
-    BNE = 28,
-    BLT = 29,
-    BGE = 30,
-    BLTU = 31,
-    BGEU = 32,
+    // Jump instructions.
+    JAL = 24,
+    JALR = 25,
+    AUIPC = 27,
 
-    /// Jump instructions.
-    JAL = 33,
-    JALR = 34,
-    LUI = 35,
-    AUIPC = 36,
+    // System instructions.
+    ECALL = 28,
+    EBREAK = 29,
 
-    /// System instructions.
-    ECALL = 37,
-    EBREAK = 38,
+    // Multiplication instructions.
+    MUL = 30,
+    MULH = 31,
+    MULHU = 32,
+    MULHSU = 33,
+    DIV = 34,
+    DIVU = 35,
+    REM = 36,
+    REMU = 37,
 
-    /// Multiply instructions.
-    MUL = 39,
-    MULH = 40,
-    MULHU = 41,
-    MULHSU = 42,
-    DIV = 43,
-    DIVU = 44,
-    REM = 45,
-    REMU = 46,
+    // Precompile instructions.
+    HALT = 38,
+    LWA = 39,
+    PRECOMPILE = 40,
 
-    UNIMP = 47,
+    // Miscellaneaous instructions.
+    UNIMP = 41,
 }
 
-impl Display for Opcode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Opcode {
+    pub fn mnemonic(&self) -> &str {
         match self {
-            // R-type instructions.
-            Opcode::ADD => write!(f, "add"),
-            Opcode::SUB => write!(f, "sub"),
-            Opcode::XOR => write!(f, "xor"),
-            Opcode::OR => write!(f, "or"),
-            Opcode::AND => write!(f, "and"),
-            Opcode::SLL => write!(f, "sll"),
-            Opcode::SRL => write!(f, "srl"),
-            Opcode::SRA => write!(f, "sra"),
-            Opcode::SLT => write!(f, "slt"),
-            Opcode::SLTU => write!(f, "sltu"),
-
-            // I-type instructions.
-            Opcode::ADDI => write!(f, "addi"),
-            Opcode::XORI => write!(f, "xori"),
-            Opcode::ORI => write!(f, "ori"),
-            Opcode::ANDI => write!(f, "andi"),
-            Opcode::SLLI => write!(f, "slli"),
-            Opcode::SRLI => write!(f, "srli"),
-            Opcode::SRAI => write!(f, "srai"),
-            Opcode::SLTI => write!(f, "slti"),
-            Opcode::SLTIU => write!(f, "sltiu"),
-
-            // Load instructions.
-            Opcode::LB => write!(f, "lb"),
-            Opcode::LH => write!(f, "lh"),
-            Opcode::LW => write!(f, "lw"),
-            Opcode::LBU => write!(f, "lbu"),
-            Opcode::LHU => write!(f, "lhu"),
-
-            // Store instructions.
-            Opcode::SB => write!(f, "sb"),
-            Opcode::SH => write!(f, "sh"),
-            Opcode::SW => write!(f, "sw"),
-
-            // Branch instructions.
-            Opcode::BEQ => write!(f, "beq"),
-            Opcode::BNE => write!(f, "bne"),
-            Opcode::BLT => write!(f, "blt"),
-            Opcode::BGE => write!(f, "bge"),
-            Opcode::BLTU => write!(f, "bltu"),
-            Opcode::BGEU => write!(f, "bgeu"),
-
-            // Jump instructions.
-            Opcode::JAL => write!(f, "jal"),
-            Opcode::JALR => write!(f, "jalr"),
-
-            // Upper immediate instructions.
-            Opcode::LUI => write!(f, "lui"),
-            Opcode::AUIPC => write!(f, "auipc"),
-
-            // System instructions.
-            Opcode::ECALL => write!(f, "ecall"),
-            Opcode::EBREAK => write!(f, "ebreak"),
-
-            // Multiply instructions.
-            Opcode::MUL => write!(f, "mul"),
-            Opcode::MULH => write!(f, "mulh"),
-            Opcode::MULHSU => write!(f, "mulhsu"),
-            Opcode::MULHU => write!(f, "mulhu"),
-            Opcode::DIV => write!(f, "div"),
-            Opcode::DIVU => write!(f, "divu"),
-            Opcode::REM => write!(f, "rem"),
-            Opcode::REMU => write!(f, "remu"),
-
-            Opcode::UNIMP => write!(f, "unimp"),
+            Opcode::ADD => "add",
+            Opcode::SUB => "sub",
+            Opcode::XOR => "xor",
+            Opcode::OR => "or",
+            Opcode::AND => "and",
+            Opcode::SLL => "sll",
+            Opcode::SRL => "srl",
+            Opcode::SRA => "sra",
+            Opcode::SLT => "slt",
+            Opcode::SLTU => "sltu",
+            Opcode::LB => "lb",
+            Opcode::LH => "lh",
+            Opcode::LW => "lw",
+            Opcode::LBU => "lbu",
+            Opcode::LHU => "lhu",
+            Opcode::SB => "sb",
+            Opcode::SH => "sh",
+            Opcode::SW => "sw",
+            Opcode::BEQ => "beq",
+            Opcode::BNE => "bne",
+            Opcode::BLT => "blt",
+            Opcode::BGE => "bge",
+            Opcode::BLTU => "bltu",
+            Opcode::BGEU => "bgeu",
+            Opcode::JAL => "jal",
+            Opcode::JALR => "jalr",
+            Opcode::AUIPC => "auipc",
+            Opcode::ECALL => "ecall",
+            Opcode::EBREAK => "ebreak",
+            Opcode::MUL => "mul",
+            Opcode::MULH => "mulh",
+            Opcode::MULHU => "mulhu",
+            Opcode::MULHSU => "mulhsu",
+            Opcode::DIV => "div",
+            Opcode::DIVU => "divu",
+            Opcode::REM => "rem",
+            Opcode::REMU => "remu",
+            Opcode::HALT => "halt",
+            Opcode::LWA => "lwa",
+            Opcode::PRECOMPILE => "???",
+            Opcode::UNIMP => "unimp",
         }
     }
 }

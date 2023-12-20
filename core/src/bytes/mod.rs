@@ -142,10 +142,10 @@ impl<F: Field> Chip<F> for ByteChip<F> {
 impl From<Opcode> for ByteOpcode {
     fn from(value: Opcode) -> Self {
         match value {
-            Opcode::AND | Opcode::ANDI => Self::And,
-            Opcode::OR | Opcode::ORI => Self::Or,
-            Opcode::XOR | Opcode::XORI => Self::Xor,
-            Opcode::SLL | Opcode::SLLI => Self::SLL,
+            Opcode::AND => Self::And,
+            Opcode::OR => Self::Or,
+            Opcode::XOR => Self::Xor,
+            Opcode::SLL => Self::SLL,
             _ => panic!("Invalid opcode for ByteChip: {:?}", value),
         }
     }

@@ -46,8 +46,8 @@ mod tests {
     use rand::thread_rng;
 
     use crate::lookup::InteractionBuilder;
-    use crate::memory::MemoryChip;
-    use crate::runtime::tests::get_simple_program;
+    use crate::memory::{MemOp, MemoryChip};
+    use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
     use crate::utils::Chip;
 
@@ -97,8 +97,8 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let code = get_simple_program();
-        let mut runtime = Runtime::new(code, 0);
+        let (program, pc) = simple_program();
+        let mut runtime = Runtime::new(program, pc);
         runtime.run();
 
         let air = MemoryChip::new();
