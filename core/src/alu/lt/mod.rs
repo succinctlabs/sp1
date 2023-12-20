@@ -205,7 +205,7 @@ where
 
         // SLT (signed)
         // b_s and c_s are sign bits.
-        // b_<s and c_<s are b and c after the MSB is masked.
+        // b_<s, c_<s are b, c after masking the MSB.
         // LTS = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
         // Source: Jolt 5.3: Set Less Than (https://people.cs.georgetown.edu/jthaler/Jolt-paper.pdf)
         builder.assert_bool(local.sign[0]);
@@ -217,7 +217,7 @@ where
         let computed_is_lt = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
         builder.assert_zero(local.is_slt * local.a[0] - local.is_slt * computed_is_lt.clone());
 
-        // TODO: This constraint is failing, fix in the future.
+        // TODO: This constraint is failing, fix in the future. Probably a deeper issue.
         // builder.assert_eq(local.is_slt * local.a[0], local.is_slt * computed_is_lt);
 
         // Check bit decomposition is valid.
