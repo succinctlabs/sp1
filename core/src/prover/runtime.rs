@@ -1,7 +1,9 @@
 use crate::cpu::trace::CpuChip;
+use crate::memory::state::MemoryStateChip;
 use crate::runtime::Runtime;
 
 use crate::program::ProgramChip;
+use crate::prover::debug_cumulative_sums;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
 use crate::utils::AirChip;
@@ -27,19 +29,23 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
+        const NUM_CHIPS: usize = 9;
+
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
         let memory = MemoryChip::new();
+        let mem_state_out = MemoryStateChip::Output;
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
         let shift = ShiftChip::new();
         let lt = LtChip::new();
-        let chips: [Box<dyn AirChip<SC>>; 8] = [
+        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
             Box::new(memory),
+            Box::new(mem_state_out),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -65,7 +71,7 @@ impl Runtime {
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
-        let degrees: [usize; 8] = traces
+        let degrees: [usize; NUM_CHIPS] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -186,7 +192,7 @@ impl Runtime {
         }
 
         // // Check the permutation argument between all tables.
-        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 
