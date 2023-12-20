@@ -17,8 +17,12 @@
 //! Finally, we verify that the result `a` matches the appropriate bits.
 //! (e.g., For MUL, `a` matches the low word of `local.product`)
 //!
-//! For signed multiplication, all we need to worry about is to extend the sign
-//! bit.
+//! For signed multiplication, we only need to extend the sign from 32 bits
+//! to 64 bits. This is done by sign extending the multiplicands. The actual
+//! multiplication can be done as usual since RISC-V uses two's complement.
+//! More specifically, when the sign is extended, the value "-n" is represented
+//! as (2^64 - n) in the bit representation. Therefore, when multiplied,
+//! unnecessary terms all disappear mod 2^64.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -138,6 +142,8 @@ impl<F: PrimeField> Chip<F> for MulChip {
                     }
                 }
 
+                // Calculate the correct product using the `product` array. We
+                // store the correct carry value for verification.
                 let base = 1 << BYTE_SIZE;
                 for i in 0..PRODUCT_SIZE {
                     let carry = product[i] / base;
@@ -190,7 +196,8 @@ where
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
 
-        let sign_mask = AB::F::from_canonical_u8(0xff);
+        // 0xff
+        let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
 
         // Sign extend local.b and local.c whenever appropriate.
         let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
@@ -200,8 +207,8 @@ where
                 b[i] = local.b[i].into();
                 c[i] = local.c[i].into();
             } else {
-                b[i] = local.is_b_negative.clone() * sign_mask;
-                c[i] = local.is_c_negative.clone() * sign_mask;
+                b[i] = local.is_b_negative.clone() * byte_mask;
+                c[i] = local.is_c_negative.clone() * byte_mask;
             }
         }
 
@@ -237,11 +244,9 @@ where
 
         // Assert that the upper or lower half word of the product matches the result.
         for i in 0..WORD_SIZE {
-            builder.assert_eq(
-                local.is_upper * local.product[i + WORD_SIZE]
-                    + (one.clone() - local.is_upper) * local.product[i],
-                local.a[i],
-            );
+            let appropriate_half = local.is_upper * local.product[i + WORD_SIZE]
+                + (one.clone() - local.is_upper) * local.product[i];
+            builder.assert_eq(appropriate_half, local.a[i]);
         }
 
         builder.assert_bool(local.is_real);
