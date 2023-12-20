@@ -212,7 +212,7 @@ impl Debug for Instruction {
         };
         write!(
             f,
-            "{} {} {} {}",
+            "\"{} {} {} {}\"",
             mnemonic, op_a_formatted, op_b_formatted, op_c_formatted
         )
     }
