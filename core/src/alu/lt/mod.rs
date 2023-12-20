@@ -218,10 +218,9 @@ where
 
         let equal_sign = local.sign[0] * local.sign[1]
             + (one.clone() - local.sign[0]) * (one.clone() - local.sign[1]);
-        let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
-        builder
-            .when(local.is_slt)
-            .assert_eq(local.a[0], computed_is_lt);
+        let computed_is_lt = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
+        builder.assert_zero(local.is_slt * local.a[0] - local.is_slt * computed_is_lt.clone());
+        // builder.assert_eq(local.is_slt * local.a[0], local.is_slt * computed_is_lt);
 
         // Check bit decomposition is valid.
         builder.assert_bool(local.a[0]);
@@ -278,13 +277,33 @@ mod tests {
         runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        let new_local = LtCols::<u32>::from_trace_row(trace.row_slice(0));
 
-        println!("{:?}", trace.values);
-        println!(
-            "a: {:?}, b: {:?}, c: {:?}",
-            new_local.a, new_local.b, new_local.c
-        );
+        // let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
+        // // builder.when(only_b_neg).assert_one(local.a[0]);
+
+        // let equal_sign = local.sign[0] * local.sign[1]
+        //     + (one.clone() - local.sign[0]) * (one.clone() - local.sign[1]);
+        // let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
+        // builder
+        //     .when(local.is_slt)
+        //     .assert_eq(local.a[0], computed_is_lt);
+
+        // builder.assert_eq(local.is_slt * local.a[0], local.is_slt * computed_is_lt);
+
+        let num_rows = trace.values.len() / trace.width;
+        for i in 0..num_rows {
+            let cols = LtCols::<u32>::from_trace_row(trace.row_slice(i));
+            let only_b_neg = cols.sign[0] * (1 - cols.sign[1]);
+            println!("{}", only_b_neg);
+            let equal_sign = cols.sign[0] * cols.sign[1] + (1 - cols.sign[0]) * (1 - cols.sign[1]);
+            let computed_is_lt = only_b_neg + (equal_sign * (1 - cols.bits[8]));
+            println!("{} {} {}", cols.is_slt, cols.a[0], computed_is_lt);
+            println!(
+                "{} {}",
+                cols.is_slt * cols.a[0],
+                cols.is_slt * computed_is_lt
+            );
+        }
     }
 
     #[test]
