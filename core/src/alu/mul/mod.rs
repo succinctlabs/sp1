@@ -169,13 +169,13 @@ where
         }
 
         // Receive the arguments.
-        // builder.receive_alu(
-        //     AB::F::from_canonical_u32(Opcode::MUL as u32),
-        //     local.a,
-        //     local.b,
-        //     local.c,
-        //     local.is_real,
-        // );
+        builder.receive_alu(
+            AB::F::from_canonical_u32(Opcode::MUL as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_real,
+        );
 
         // TODO: Range check the carry column.
 
