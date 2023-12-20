@@ -17,7 +17,7 @@ impl MemoryStateChip {
 
         let mut rows = last_writes
             .iter()
-            .flat_map(|(event, mult)| {
+            .flat_map(|event| {
                 let mut row = [F::zero(); NUM_MEMORY_STATE_COLS];
 
                 let cols: &mut MemoryStateCols<F> = row.as_mut_slice().borrow_mut();
@@ -26,7 +26,6 @@ impl MemoryStateChip {
                 cols.addr = Word::from(event.addr);
                 cols.value = Word::from(event.value);
                 cols.is_read = Bool::from(event.op == MemOp::Read);
-                cols.multiplicity = F::from_canonical_usize(*mult);
                 cols.is_dummy = Bool::from(false);
 
                 row

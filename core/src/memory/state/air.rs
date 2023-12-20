@@ -27,7 +27,7 @@ pub struct MemoryStateCols<T> {
     pub value: Word<T>,
     /// Whether the memory was being read from or written to.
     pub is_read: Bool<T>,
-    pub multiplicity: T,
+
     pub is_dummy: Bool<T>,
 }
 
@@ -49,21 +49,13 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryStateChip {
         builder.when(local.is_dummy.0).assert_word_zero(local.addr);
         builder.when(local.is_dummy.0).assert_word_zero(local.value);
         builder.when(local.is_dummy.0).assert_is_bool(local.is_read);
-        builder
-            .when(local.is_dummy.0)
-            .assert_zero(local.multiplicity);
 
-        // When the multiplicity is non-zero, the dummy flag should be set to false.
-        builder
-            .when(local.multiplicity)
-            .assert_zero(local.is_dummy.0);
-
-        // builder.send_memory(
-        //     local.clk,
-        //     local.addr,
-        //     local.value,
-        //     local.is_read.0,
-        //     AB::F::one(),
-        // );
+        builder.send_memory(
+            local.clk,
+            local.addr,
+            local.value,
+            local.is_read.0,
+            AB::F::zero(),
+        );
     }
 }

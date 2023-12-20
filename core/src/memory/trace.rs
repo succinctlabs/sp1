@@ -134,9 +134,7 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                     cols.is_last = Bool::from(false);
                 } else {
                     cols.is_last = Bool::from(true);
-                    runtime
-                        .last_memory_events
-                        .push((unique_events[i].clone(), multiplicities[i]))
+                    runtime.last_memory_events.push(unique_events[i].clone())
                 }
             }
         }
