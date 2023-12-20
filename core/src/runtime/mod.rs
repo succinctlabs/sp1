@@ -205,20 +205,10 @@ impl Runtime {
         }
     }
 
-    /// Fetch the destination register, address, and memory value for a load instruction.
-    fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, Option<u32>) {
-        let (rd, rs1, imm) = instruction.i_type();
-        let (b, c) = (self.rr(rs1), imm);
-        let addr = b.wrapping_add(c);
-        let memory_value = Some(self.mr(addr));
-        (rd, addr, memory_value)
-    }
-
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
         let rd: Register;
-        let addr: u32;
         let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
             u32,
             u32,
@@ -291,16 +281,22 @@ impl Runtime {
                 self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
 
-            // Load instructions.
+            // Load instructions
             Opcode::LB => {
-                (rd, addr, memory_value) = self.load_rr(instruction);
+                let (rd, rs1, imm) = instruction.i_type();
+                (b, c) = (self.rr(rs1), imm);
+                let addr = b.wrapping_add(c);
+                memory_value = Some(self.mr(addr));
                 let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = ((value as i8) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
-                (rd, addr, memory_value) = self.load_rr(instruction);
+                let (rd, rs1, imm) = instruction.i_type();
+                (b, c) = (self.rr(rs1), imm);
+                let addr = b.wrapping_add(c);
                 assert_eq!(addr % 2, 0, "LH");
+                memory_value = Some(self.mr(addr));
                 let offset = addr % 4;
                 let value = if offset == 0 {
                     memory_value.unwrap() & 0x0000FFFF
@@ -311,20 +307,29 @@ impl Runtime {
                 self.rw(rd, a);
             }
             Opcode::LW => {
-                (rd, addr, memory_value) = self.load_rr(instruction);
+                let (rd, rs1, imm) = instruction.i_type();
+                (b, c) = (self.rr(rs1), imm);
+                let addr = b.wrapping_add(c);
                 assert_eq!(addr % 4, 0, "LW");
+                memory_value = Some(self.mr(addr));
                 a = memory_value.unwrap();
                 self.rw(rd, a);
             }
             Opcode::LBU => {
-                (rd, addr, memory_value) = self.load_rr(instruction);
+                let (rd, rs1, imm) = instruction.i_type();
+                (b, c) = (self.rr(rs1), imm);
+                let addr = b.wrapping_add(c);
+                memory_value = Some(self.mr(addr));
                 let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = (value as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
-                (rd, addr, memory_value) = self.load_rr(instruction);
+                let (rd, rs1, imm) = instruction.i_type();
+                (b, c) = (self.rr(rs1), imm);
+                let addr = b.wrapping_add(c);
                 assert_eq!(addr % 2, 0, "LHU");
+                memory_value = Some(self.mr(addr));
                 let offset = addr % 4;
                 let value = if offset == 0 {
                     memory_value.unwrap() & 0x0000FFFF
@@ -586,24 +591,34 @@ pub mod tests {
 
     use super::Runtime;
 
-    #[test]
-    fn test_fibonacci() {
-        let (program, pc) = disassemble_from_elf("../programs/fib.s");
-        let mut runtime = Runtime::new(program, pc);
-        runtime.run();
-        println!("{:?}", runtime.registers());
-    }
-
-    #[test]
-    fn test_simple_program() {
+    pub fn simple_program() -> (Vec<Instruction>, u32) {
         let program = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        (program, 0)
+    }
+
+    pub fn fibonacci_program() -> (Vec<Instruction>, u32) {
+        let (program, pc) = disassemble_from_elf("../programs/fib.s");
+        (program, pc)
+    }
+
+    #[test]
+    fn test_simple_program_run() {
+        let (program, pc) = simple_program();
+        let mut runtime = Runtime::new(program, pc);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X31 as usize], 42);
+    }
+
+    #[test]
+    fn test_fibonacci_run() {
+        let (program, pc) = fibonacci_program();
+        let mut runtime = Runtime::new(program, pc);
+        runtime.run();
+        println!("{:?}", runtime.registers());
     }
 }
 

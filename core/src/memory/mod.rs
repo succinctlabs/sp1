@@ -24,132 +24,133 @@ pub struct MemoryEvent {
     pub value: u32,
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use p3_air::{Air, AirBuilder};
-//     use p3_challenger::DuplexChallenger;
-//     use p3_dft::Radix2DitParallel;
-//     use p3_field::Field;
+#[cfg(test)]
+mod tests {
+    use p3_air::{Air, AirBuilder};
+    use p3_challenger::DuplexChallenger;
+    use p3_dft::Radix2DitParallel;
+    use p3_field::Field;
 
-//     use p3_baby_bear::BabyBear;
-//     use p3_field::extension::BinomialExtensionField;
-//     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-//     use p3_keccak::Keccak256Hash;
-//     use p3_ldt::QuotientMmcs;
-//     use p3_matrix::dense::RowMajorMatrix;
-//     use p3_mds::coset_mds::CosetMds;
-//     use p3_merkle_tree::FieldMerkleTreeMmcs;
-//     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-//     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
-//     use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
-//     use rand::thread_rng;
+    use p3_baby_bear::BabyBear;
+    use p3_field::extension::BinomialExtensionField;
+    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+    use p3_keccak::Keccak256Hash;
+    use p3_ldt::QuotientMmcs;
+    use p3_matrix::dense::RowMajorMatrix;
+    use p3_mds::coset_mds::CosetMds;
+    use p3_merkle_tree::FieldMerkleTreeMmcs;
+    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
+    use rand::thread_rng;
 
-//     use crate::lookup::InteractionBuilder;
-//     use crate::memory::{MemOp, MemoryChip};
-//     use crate::runtime::tests::get_simple_program;
-//     use crate::runtime::Runtime;
+    use crate::lookup::InteractionBuilder;
+    use crate::memory::{MemOp, MemoryChip};
 
-//     use p3_commit::ExtensionMmcs;
+    use crate::runtime::tests::simple_program;
+    use crate::runtime::Runtime;
 
-//     use super::air::NUM_MEMORY_COLS;
-//     use super::MemoryEvent;
+    use p3_commit::ExtensionMmcs;
 
-//     #[test]
-//     fn test_memory_generate_trace() {
-//         let events = vec![
-//             MemoryEvent {
-//                 clk: 0,
-//                 addr: 0,
-//                 op: MemOp::Write,
-//                 value: 0,
-//             },
-//             MemoryEvent {
-//                 clk: 1,
-//                 addr: 0,
-//                 op: MemOp::Read,
-//                 value: 0,
-//             },
-//         ];
-//         let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
-//         println!("{:?}", trace.values)
-//     }
+    use super::air::NUM_MEMORY_COLS;
+    use super::MemoryEvent;
 
-//     #[test]
-//     fn test_memory_prove_babybear() {
-//         type Val = BabyBear;
-//         type Domain = Val;
-//         type Challenge = BinomialExtensionField<Val, 4>;
-//         type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    #[test]
+    fn test_memory_generate_trace() {
+        let events = vec![
+            MemoryEvent {
+                clk: 0,
+                addr: 0,
+                op: MemOp::Write,
+                value: 0,
+            },
+            MemoryEvent {
+                clk: 1,
+                addr: 0,
+                op: MemOp::Read,
+                value: 0,
+            },
+        ];
+        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
+        println!("{:?}", trace.values)
+    }
 
-//         type MyMds = CosetMds<Val, 16>;
-//         let mds = MyMds::default();
+    #[test]
+    fn test_memory_prove_babybear() {
+        type Val = BabyBear;
+        type Domain = Val;
+        type Challenge = BinomialExtensionField<Val, 4>;
+        type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
-//         type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-//         let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+        type MyMds = CosetMds<Val, 16>;
+        let mds = MyMds::default();
 
-//         type MyHash = SerializingHasher32<Keccak256Hash>;
-//         let hash = MyHash::new(Keccak256Hash {});
+        type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
 
-//         type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
-//         let compress = MyCompress::new(hash);
+        type MyHash = SerializingHasher32<Keccak256Hash>;
+        let hash = MyHash::new(Keccak256Hash {});
 
-//         type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
-//         let val_mmcs = ValMmcs::new(hash, compress);
+        type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+        let compress = MyCompress::new(hash);
 
-//         type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-//         let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+        type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+        let val_mmcs = ValMmcs::new(hash, compress);
 
-//         type Dft = Radix2DitParallel;
-//         let dft = Dft {};
+        type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+        let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
-//         type Challenger = DuplexChallenger<Val, Perm, 16>;
+        type Dft = Radix2DitParallel;
+        let dft = Dft {};
 
-//         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-//         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-//         let fri_config = MyFriConfig::new(40, challenge_mmcs);
-//         let ldt = FriLdt { config: fri_config };
+        type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-//         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
-//         type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
+        type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+        type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let ldt = FriLdt { config: fri_config };
 
-//         let pcs = Pcs::new(dft, val_mmcs, ldt);
-//         let config = StarkConfigImpl::new(pcs);
-//         let mut challenger = Challenger::new(perm.clone());
+        type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+        type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
 
-//         let code = get_simple_program();
-//         let mut runtime = Runtime::new(code, 0);
-//         runtime.run();
-//         let events = runtime.memory_events;
+        let pcs = Pcs::new(dft, val_mmcs, ldt);
+        let config = StarkConfigImpl::new(pcs);
+        let mut challenger = Challenger::new(perm.clone());
 
-//         let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
-//         let air = MemoryChip::new();
-//         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
+        let (program, pc) = simple_program();
+        let mut runtime = Runtime::new(program, pc);
+        runtime.run();
+        let events = runtime.memory_events;
 
-//         let mut challenger = Challenger::new(perm);
-//         verify(&config, &air, &mut challenger, &proof).unwrap();
-//     }
+        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
+        let air = MemoryChip::new();
+        let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
-//     #[test]
-//     fn test_memory_lookup_interactions() {
-//         let air = MemoryChip::new();
+        let mut challenger = Challenger::new(perm);
+        verify(&config, &air, &mut challenger, &proof).unwrap();
+    }
 
-//         let mut builder = InteractionBuilder::<BabyBear>::new(NUM_MEMORY_COLS);
+    #[test]
+    fn test_memory_lookup_interactions() {
+        let air = MemoryChip::new();
 
-//         air.eval(&mut builder);
+        let mut builder = InteractionBuilder::<BabyBear>::new(NUM_MEMORY_COLS);
 
-//         let mut main = builder.main();
-//         let (sends, receives) = builder.interactions();
+        air.eval(&mut builder);
 
-//         for interaction in receives {
-//             for value in interaction.values {
-//                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
-//                     &[],
-//                     &main.row_mut(0),
-//                 );
-//                 println!("{}", expr);
-//             }
-//         }
+        let mut main = builder.main();
+        let (sends, receives) = builder.interactions();
 
-//         assert!(sends.is_empty());
-//     }
-// }
+        for interaction in receives {
+            for value in interaction.values {
+                let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
+                    &[],
+                    &main.row_mut(0),
+                );
+                println!("{}", expr);
+            }
+        }
+
+        assert!(sends.is_empty());
+    }
+}

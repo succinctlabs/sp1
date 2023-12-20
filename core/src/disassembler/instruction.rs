@@ -336,7 +336,7 @@ impl InstructionProcessor for InstructionDecoder {
             Opcode::JAL,
             dec_insn.rd as u32,
             dec_insn.imm as u32,
-            dec_insn.imm as u32,
+            0,
             true,
             true,
         )

@@ -52,6 +52,21 @@ impl CpuChip {
         cols.op_b_val = event.b.into();
         cols.op_c_val = event.c.into();
 
+        println!("{:?}", event);
+        if cols.selectors.imm_b == F::one() {
+            assert_eq!(cols.op_b_val, cols.instruction.op_b)
+        }
+        if cols.selectors.imm_c == F::one() {
+            assert_eq!(cols.op_c_val, cols.instruction.op_c)
+        }
+
+        //     builder
+        //     .when(local.selectors.imm_b)
+        //     .assert_word_eq(local.op_b_val, local.instruction.op_b);
+        // builder
+        //     .when(local.selectors.imm_c)
+        //     .assert_word_eq(local.op_c_val, local.instruction.op_c);
+
         self.populate_memory(cols, event);
         self.populate_branch(cols, event);
 
