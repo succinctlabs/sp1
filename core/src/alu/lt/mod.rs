@@ -118,16 +118,28 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.byte_flag.reverse();
                 cols.byte_equality_check.reverse();
 
-                println!("Event: {:?} {:?} {:?}", cols.a, cols.b, cols.c);
-                println!("Sign: {:?} {:?}", cols.sign_b, cols.sign_c);
-                println!("Bits: {:?}", cols.bits);
-                println!("Byte flag: {:?}", cols.byte_flag);
-                println!("Byte equality check: {:?}", cols.byte_equality_check);
+                println!("A: {:?}, B: {:?}, C: {:?}", cols.a, cols.b, cols.c);
+                // println!("Sign: {:?} {:?}", cols.sign_b, cols.sign_c);
+                // println!("Bits: {:?}", cols.bits);
+                // println!("Byte flag: {:?}", cols.byte_flag);
+                // println!("Byte equality check: {:?}", cols.byte_equality_check);
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-                println!("IS_SLT: {:?}", cols.is_slt);
-                println!("IS_SLTU: {:?}", cols.is_sltu);
+                // println!("IS_SLT: {:?}", cols.is_slt);
+                // println!("IS_SLTU: {:?}", cols.is_sltu);
+
+                // Compute the expected result.
+                let computed_is_ltu = F::from_canonical_u16(1) - cols.bits[8];
+                println!("Computed IS_SLTU: {:?}", computed_is_ltu);
+
+                let only_b_neg = cols.sign_b * (F::from_canonical_u16(1) - cols.sign_c);
+                let equal_sign = cols.sign_b * cols.sign_c
+                    + (F::from_canonical_u16(1) - cols.sign_b)
+                        * (F::from_canonical_u16(1) - cols.sign_c);
+                let computed_is_lt: F = only_b_neg + (equal_sign * computed_is_ltu.clone());
+                println!("Computed IS_SLT: {:?}", computed_is_lt);
+
                 row
             })
             .collect::<Vec<_>>();
@@ -205,12 +217,11 @@ where
         builder.assert_bool(local.sign_b);
         builder.assert_bool(local.sign_c);
         let only_b_neg = local.sign_b * (one.clone() - local.sign_c);
+        // builder.when(only_b_neg).assert_one(local.a[0]);
 
-        let equal_sign =
-            local.sign_b * local.sign_c + (AB::Expr::one() - local.sign_b) * (one - local.sign_c);
-        // // builder.assert_bool(equal_sign.clone());
+        let equal_sign = local.sign_b * local.sign_c
+            + (one.clone() - local.sign_b) * (one.clone() - local.sign_c);
         let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
-        // builder.assert_bool(computed_is_lt.clone());
         builder
             .when(local.is_slt)
             .assert_eq(local.a[0], computed_is_lt);
@@ -341,6 +352,7 @@ mod tests {
             //  1 == -3 < 5
             // AluEvent::new(0, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
         ];
+        // .repeat(10);
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
