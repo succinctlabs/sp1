@@ -224,7 +224,7 @@ where
             .assert_eq(local.a[0], computed_is_lt);
 
         // Check bit decomposition is valid.
-        // builder.assert_bool(local.a[0]);
+        builder.assert_bool(local.a[0]);
         for bit in local.bits.into_iter() {
             builder.assert_bool(bit);
         }
