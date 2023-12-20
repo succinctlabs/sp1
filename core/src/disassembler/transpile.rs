@@ -2,18 +2,18 @@ use rrs_lib::process_instruction;
 
 use crate::disassembler::Opcode;
 
-use super::{Instruction, InstructionDecoder, Register};
+use super::{Instruction, InstructionTranspiler, Register};
 
-/// Decode the instructions from the 32-bit encoding instructions.
+/// Transpile the instructions from the 32-bit encoded instructions.
 ///
 /// This step removes immediate instructions and replaces them with the corresponding register
 /// instructions but with the immediate flags turned on. It also translates some unsupported
 /// RISCV instructions (i.e., LUI) into supported instructions.
-pub fn decode_instructions(instructions_u32: &[u32]) -> Vec<Instruction> {
+pub fn transpile(instructions_u32: &[u32]) -> Vec<Instruction> {
     let mut instructions = Vec::new();
-    let mut decoder = InstructionDecoder;
+    let mut transpiler = InstructionTranspiler;
     for instruction_u32 in instructions_u32 {
-        let instruction = process_instruction(&mut decoder, *instruction_u32).unwrap();
+        let instruction = process_instruction(&mut transpiler, *instruction_u32).unwrap();
         instructions.push(instruction);
     }
     instructions
@@ -29,7 +29,7 @@ pub fn decode_instructions(instructions_u32: &[u32]) -> Vec<Instruction> {
 ///     ecall
 ///
 /// Note that standard system calls set %a7, not %t0.
-pub fn ecall_translation_pass(instructions: &[Instruction]) -> Vec<Instruction> {
+pub fn ecall_analysis_pass(instructions: &[Instruction]) -> Vec<Instruction> {
     let mut instructions_new = Vec::new();
     for i in 0..instructions.len() {
         // Ensure that the current instruction is an `ecall` instruction.

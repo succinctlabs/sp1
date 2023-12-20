@@ -20,11 +20,11 @@ pub fn disassemble(input: &[u8]) -> (Vec<Instruction>, u32) {
     // Parse the ELF file.
     let (instructions_u32, pc) = parse_elf(input);
 
-    // Decode the instructions.
-    let mut instructions = decode_instructions(&instructions_u32);
+    // Transpile the instructions.
+    let mut instructions = transpile(&instructions_u32);
 
     // Perform optimization passes.
-    instructions = ecall_translation_pass(&instructions);
+    instructions = ecall_analysis_pass(&instructions);
 
     // Return the instructions and the program counter.
     (instructions, pc)
@@ -47,6 +47,6 @@ pub mod tests {
     #[test]
     fn test_fibonacci() {
         let (instructions, pc) = disassemble_from_elf("../programs/fib.s");
-        println!("{:?}, {}", instructions, pc);
+        println!("{:#?}, {}", instructions, pc);
     }
 }

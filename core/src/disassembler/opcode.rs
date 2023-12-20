@@ -61,3 +61,51 @@ pub enum Opcode {
     // Miscellaneaous instructions.
     UNIMP = 41,
 }
+
+impl Opcode {
+    pub fn mnemonic(&self) -> &str {
+        match self {
+            Opcode::ADD => "add",
+            Opcode::SUB => "sub",
+            Opcode::XOR => "xor",
+            Opcode::OR => "or",
+            Opcode::AND => "and",
+            Opcode::SLL => "sll",
+            Opcode::SRL => "srl",
+            Opcode::SRA => "sra",
+            Opcode::SLT => "slt",
+            Opcode::SLTU => "sltu",
+            Opcode::LB => "lb",
+            Opcode::LH => "lh",
+            Opcode::LW => "lw",
+            Opcode::LBU => "lbu",
+            Opcode::LHU => "lhu",
+            Opcode::SB => "sb",
+            Opcode::SH => "sh",
+            Opcode::SW => "sw",
+            Opcode::BEQ => "beq",
+            Opcode::BNE => "bne",
+            Opcode::BLT => "blt",
+            Opcode::BGE => "bge",
+            Opcode::BLTU => "bltu",
+            Opcode::BGEU => "bgeu",
+            Opcode::JAL => "jal",
+            Opcode::JALR => "jalr",
+            Opcode::AUIPC => "auipc",
+            Opcode::ECALL => "ecall",
+            Opcode::EBREAK => "ebreak",
+            Opcode::MUL => "mul",
+            Opcode::MULH => "mulh",
+            Opcode::MULHU => "mulhu",
+            Opcode::MULHSU => "mulhsu",
+            Opcode::DIV => "div",
+            Opcode::DIVU => "divu",
+            Opcode::REM => "rem",
+            Opcode::REMU => "remu",
+            Opcode::HALT => "halt",
+            Opcode::LWA => "lwa",
+            Opcode::PRECOMPILE => "???",
+            Opcode::UNIMP => "unimp",
+        }
+    }
+}

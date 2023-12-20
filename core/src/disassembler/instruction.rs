@@ -1,12 +1,14 @@
-use rrs_lib::instruction_formats::{
-    BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType,
+use core::fmt::Debug;
+
+use rrs_lib::{
+    instruction_formats::{BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType},
+    InstructionProcessor,
 };
-use rrs_lib::InstructionProcessor;
 
 use super::{Opcode, Register};
 
 /// An instruction specifies an operation to execute and the operands.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Instruction {
     pub opcode: Opcode,
     pub op_a: u32,
@@ -30,7 +32,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an R-type instruction.
-    fn from_r_type(opcode: Opcode, dec_insn: RType) -> Self {
+    pub fn from_r_type(opcode: Opcode, dec_insn: RType) -> Self {
         Self::new(
             opcode,
             dec_insn.rd as u32,
@@ -42,7 +44,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an I-type instruction.
-    fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
+    pub fn from_i_type(opcode: Opcode, dec_insn: IType) -> Self {
         Self::new(
             opcode,
             dec_insn.rd as u32,
@@ -54,7 +56,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an I-type instruction with a shamt.
-    fn from_i_type_shamt(opcode: Opcode, dec_insn: ITypeShamt) -> Self {
+    pub fn from_i_type_shamt(opcode: Opcode, dec_insn: ITypeShamt) -> Self {
         Self::new(
             opcode,
             dec_insn.rd as u32,
@@ -66,7 +68,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from an S-type instruction.
-    fn from_s_type(opcode: Opcode, dec_insn: SType) -> Self {
+    pub fn from_s_type(opcode: Opcode, dec_insn: SType) -> Self {
         Self::new(
             opcode,
             dec_insn.rs2 as u32,
@@ -78,7 +80,7 @@ impl Instruction {
     }
 
     /// Create a new instruction from a B-type instruction.
-    fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
+    pub fn from_b_type(opcode: Opcode, dec_insn: BType) -> Self {
         Self::new(
             opcode,
             dec_insn.rs1 as u32,
@@ -90,7 +92,7 @@ impl Instruction {
     }
 
     /// Create a new instruction that is not implemented.
-    fn unimp() -> Self {
+    pub fn unimp() -> Self {
         Self::new(Opcode::UNIMP, 0, 0, 0, true, true)
     }
 
@@ -194,9 +196,31 @@ impl Instruction {
     }
 }
 
-pub struct InstructionDecoder;
+impl Debug for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mnemonic = self.opcode.mnemonic();
+        let op_a_formatted = format!("%x{}", self.op_a);
+        let op_b_formatted = if self.imm_b {
+            format!("{}", self.op_b)
+        } else {
+            format!("%x{}", self.op_b)
+        };
+        let op_c_formatted = if self.imm_c {
+            format!("{}", self.op_c)
+        } else {
+            format!("%x{}", self.op_c)
+        };
+        write!(
+            f,
+            "{} {} {} {}",
+            mnemonic, op_a_formatted, op_b_formatted, op_c_formatted
+        )
+    }
+}
 
-impl InstructionProcessor for InstructionDecoder {
+pub struct InstructionTranspiler;
+
+impl InstructionProcessor for InstructionTranspiler {
     type InstructionResult = Instruction;
 
     fn process_add(&mut self, dec_insn: RType) -> Self::InstructionResult {
