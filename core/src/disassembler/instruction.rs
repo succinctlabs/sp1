@@ -104,6 +104,14 @@ impl Instruction {
         }
     }
 
+    /// Returns if the instruction is a store instruction.
+    pub fn is_store_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::SB | Opcode::SH | Opcode::SW => true,
+            _ => false,
+        }
+    }
+
     /// Returns if the instruction is a branch instruction.
     pub fn is_branch_instruction(&self) -> bool {
         match self.opcode {
