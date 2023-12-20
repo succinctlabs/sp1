@@ -1,0 +1,184 @@
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use super::instruction::Instruction;
+use crate::memory::{MemOp, MemoryEvent};
+
+#[derive(Default, Clone)]
+pub struct SegmentMemoryEvent {
+    pub event: MemoryEvent,
+    pub first_read: bool,
+    pub connect_clk: bool,
+    pub write_value: bool,
+}
+
+#[derive(Default, Clone)]
+pub struct SegmentMemory {
+    writes: HashSet<u32>,
+    events: Vec<SegmentMemoryEvent>,
+    uninitialized_read: HashMap<u32, u32>,
+    sealed: bool,
+}
+
+impl SegmentMemory {
+    pub fn new() -> Self {
+        Self {
+            writes: HashSet::new(),
+            events: Vec::new(),
+            uninitialized_read: HashMap::new(),
+            sealed: false,
+        }
+    }
+
+    pub fn add_event(&mut self, event: MemoryEvent) {
+        if self.sealed {
+            panic!("Segment is already sealed");
+        }
+        let first_read = match event.op {
+            MemOp::Write => {
+                self.writes.insert(event.addr);
+                false
+            }
+            MemOp::Read => {
+                if self.writes.contains(&event.addr) {
+                    false
+                } else {
+                    let exists = self.uninitialized_read.contains_key(&event.addr);
+                    if exists {
+                        // This means that it hasn't been written to yet, so should be same.
+                        assert_eq!(
+                            self.uninitialized_read[&event.addr], event.value,
+                            "uninitialized_read[&event.addr] != event.value"
+                        );
+                        false
+                    } else {
+                        self.uninitialized_read.insert(event.addr, event.value);
+                        true
+                    }
+                }
+            }
+        };
+        self.events.push(SegmentMemoryEvent {
+            event,
+            first_read,
+            connect_clk: true,
+            write_value: false,
+        });
+    }
+
+    pub fn add_ghost_event(&mut self, addr: u32, value: u32) {
+        if self.sealed {
+            panic!("Segment is already sealed");
+        }
+        assert!(
+            !self.uninitialized_read.contains_key(&addr),
+            "addr is already in self.uninitialized_read"
+        );
+        assert!(
+            !self.writes.contains(&addr),
+            "addr is already in self.writes"
+        );
+        self.uninitialized_read.insert(addr, value);
+        self.events.push(SegmentMemoryEvent {
+            event: MemoryEvent {
+                clk: 0,
+                addr,
+                op: MemOp::Read,
+                value,
+            },
+            first_read: true,
+            connect_clk: false,
+            write_value: false,
+        });
+    }
+
+    pub fn finalize(&mut self, last_write_addr_inp: HashSet<u32>) {
+        if self.sealed {
+            panic!("Segment is already sealed");
+        }
+        self.sealed = true;
+        let mut last_write_addr = last_write_addr_inp.clone();
+        for event in self.events.iter_mut().rev() {
+            if last_write_addr.contains(&event.event.addr) {
+                event.write_value = true;
+                last_write_addr.remove(&event.event.addr);
+            }
+        }
+        assert_eq!(last_write_addr.len(), 0, "last_write_addr is not empty");
+    }
+
+    pub fn touched(&mut self) -> HashSet<u32> {
+        self.writes
+            .union(
+                &self
+                    .uninitialized_read
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+            )
+            .cloned()
+            .collect()
+    }
+
+    pub fn first_reads(&mut self) -> HashSet<u32> {
+        self.events
+            .iter()
+            .filter(|event| event.first_read)
+            .map(|event| event.event.addr)
+            .collect()
+    }
+}
+#[derive(Default, Clone)]
+pub struct Segment {
+    pub start_clk: u32,
+    pub end_clk: u32,
+    pub start_pc: u32,
+    pub end_pc: u32,
+    pub program: Vec<Instruction>,
+    pub witness: Vec<u32>,
+    pub memory: SegmentMemory,
+}
+
+impl Segment {
+    pub fn emit_memory(&mut self, event: &MemoryEvent) {
+        self.memory.add_event(event.clone());
+    }
+
+    pub fn finalize_all(segments: &mut Vec<Segment>) {
+        // Iterate through all the segments backwards.
+        // [w1, r1, w2, r2, w5, r5] [w2, r2, r1] [w3, w4, r1, r1, r1, r2, r5]
+        // reads
+        // [], [r1], [r1, r2, r5]
+        // synthetic reads
+        // [], [r5], []
+
+        let len = segments.len();
+
+        for idx in (0..len).rev() {
+            if idx < len - 1 {
+                let (first_part, second_part) = segments.split_at_mut(idx + 1);
+                let segment = &mut first_part[idx];
+                let next_segment = &mut second_part[0];
+                let unitialized_reads: HashSet<_> = next_segment
+                    .memory
+                    .uninitialized_read
+                    .keys()
+                    .cloned()
+                    .collect();
+                // Find all unitialized_reads from next segment that are not in segment.touched();
+                unitialized_reads
+                    .difference(&segment.memory.touched())
+                    .for_each(|addr| {
+                        segment
+                            .memory
+                            .add_ghost_event(*addr, next_segment.memory.uninitialized_read[addr])
+                    });
+                segment
+                    .memory
+                    .finalize(unitialized_reads.iter().cloned().collect());
+            } else {
+                let segment = &mut segments[idx];
+                segment.memory.finalize(HashSet::new());
+            }
+        }
+    }
+}
