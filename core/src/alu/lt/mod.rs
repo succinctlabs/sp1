@@ -39,10 +39,11 @@ pub struct LtCols<T> {
     pub is_neq_sign: T,
 
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
-    /// true for all bytes after the differing byte pair marked by byte_flag.
+    /// true for all bytes smaller than the first byte pair that differs. With LE bytes, this is all
+    /// bytes after the differing byte pair.
     pub byte_equality_check: [T; 4],
 
-    // Bit decomposition of 256 + input_1 - input_2
+    // Bit decomposition of 256 + b - c.
     pub bits: [T; 10],
 
     /// Selector flags for the operation to perform.
@@ -101,10 +102,12 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
+                // Now, b and c are big-endian.
                 b.reverse();
                 c.reverse();
 
-                // TODO: Add a byte_check flag to skip equality check for bytes after the byte flag.
+                // Find the first byte pair, index i, that differs, and set the byte flag as well as
+                // the bits for 256 + b[i] - c[i].
                 if let Some(n) = b
                     .into_iter()
                     .zip(c.into_iter())
@@ -122,27 +125,24 @@ impl<F: PrimeField> Chip<F> for LtChip {
                     }
                 }
 
+                if b == c {
+                    let z = 256u16 + b[3] as u16 - c[3] as u16;
+                    for i in 0..10 {
+                        cols.bits[i] = F::from_canonical_u16(z >> i & 1);
+                    }
+                    cols.byte_flag[3] = F::one();
+
+                    for i in 0..3 {
+                        cols.byte_equality_check[i] = F::one();
+                    }
+                }
+
                 // Reverse cols.byte_flag from BE to match the LE byte order of a, b and c.
                 cols.byte_flag.reverse();
                 cols.byte_equality_check.reverse();
 
-                println!("A: {:?}, B: {:?}, C: {:?}", cols.a, cols.b, cols.c);
-
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-
-                // TODO: Remove this block.
-                // Compute the expected result.
-                println!("is_neq_sign: {:?}", cols.is_neq_sign);
-                let computed_is_ltu = F::from_canonical_u16(1) - cols.bits[8];
-                println!("Computed IS_SLTU: {:?}", computed_is_ltu);
-
-                let only_b_neg = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1]);
-                let equal_sign = cols.sign[0] * cols.sign[1]
-                    + (F::from_canonical_u16(1) - cols.sign[0])
-                        * (F::from_canonical_u16(1) - cols.sign[1]);
-                let computed_is_lt: F = only_b_neg + (equal_sign * computed_is_ltu.clone());
-                println!("Computed IS_SLT: {:?}", computed_is_lt);
 
                 row
             })
@@ -204,10 +204,10 @@ where
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
-        let computed_is_sltu = AB::Expr::one() - local.bits[8];
-        builder.assert_bool(computed_is_sltu.clone());
-        // Output constraints
         // SLTU (unsigned)
+        // SLTU = 1 - bits[8]
+        // local.bits = 256 + b - c, so if bits[8] is 0, then b < c.
+        let computed_is_sltu = AB::Expr::one() - local.bits[8];
         builder
             .when(local.is_sltu)
             .assert_eq(local.a[0], computed_is_sltu.clone());
@@ -289,7 +289,7 @@ mod tests {
     fn generate_trace() {
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 3)];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
 
@@ -309,8 +309,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn prove_babybear_lt() {
+    fn prove_babybear_template(runtime: &mut Runtime) {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -351,34 +350,117 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.lt_events = vec![
-            AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
-            AluEvent::new(1, Opcode::SLT, 1, 2, 3),
-            AluEvent::new(
-                2,
-                Opcode::SLT,
-                0,
-                // -3
-                0b11111111111111111111111111111101,
-                // -4
-                0b11111111111111111111111111111100,
-            ),
-            AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
-            AluEvent::new(4, Opcode::SLT, 1, 255, 65536),
-            //  1 == -3 < 5
-            AluEvent::new(5, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
-            // 1 == -3 < 256
-            AluEvent::new(6, Opcode::SLTI, 1, 0b11111111111111111111111111111101, 256),
-            // 0 == 2^32 - 3 < 256
-            AluEvent::new(7, Opcode::SLTIU, 0, 0b11111111111111111111111111111101, 256),
-        ];
         let chip = LtChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);
         verify(&config, &chip, &mut challenger, &proof).unwrap();
+    }
+
+    #[test]
+    fn prove_babybear_slt() {
+        let program = vec![];
+        let mut runtime = Runtime::new(program, 0);
+
+        const NEG_3: u32 = 0b11111111111111111111111111111101;
+        const NEG_4: u32 = 0b11111111111111111111111111111100;
+        runtime.lt_events = vec![
+            // 0 == 3 < 2
+            AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            // 1 == 2 < 3
+            AluEvent::new(1, Opcode::SLT, 1, 2, 3),
+            // 0 == 5 < -3
+            AluEvent::new(3, Opcode::SLT, 0, 5, NEG_3),
+            // 1 == -3 < 5
+            AluEvent::new(2, Opcode::SLT, 1, NEG_3, 5),
+            // 0 == -3 < -4
+            AluEvent::new(4, Opcode::SLT, 0, NEG_3, NEG_4),
+            // 1 == -4 < -3
+            AluEvent::new(4, Opcode::SLT, 1, NEG_4, NEG_3),
+            // 0 == 3 < 3
+            AluEvent::new(5, Opcode::SLT, 0, 3, 3),
+            // 0 == -3 < -3
+            AluEvent::new(5, Opcode::SLT, 0, NEG_3, NEG_3),
+        ];
+
+        prove_babybear_template(&mut runtime);
+    }
+
+    #[test]
+    fn prove_babybear_slti() {
+        let program = vec![];
+        let mut runtime = Runtime::new(program, 0);
+
+        const NEG_3: u32 = 0b11111111111111111111111111111101;
+        const NEG_4: u32 = 0b11111111111111111111111111111100;
+        runtime.lt_events = vec![
+            // 0 == 3 < 2
+            AluEvent::new(0, Opcode::SLTI, 0, 3, 2),
+            // 1 == 2 < 3
+            AluEvent::new(1, Opcode::SLTI, 1, 2, 3),
+            // 0 == 5 < -3
+            AluEvent::new(3, Opcode::SLTI, 0, 5, NEG_3),
+            // 1 == -3 < 5
+            AluEvent::new(2, Opcode::SLTI, 1, NEG_3, 5),
+            // 0 == -3 < -4
+            AluEvent::new(4, Opcode::SLTI, 0, NEG_3, NEG_4),
+            // 1 == -4 < -3
+            AluEvent::new(4, Opcode::SLTI, 1, NEG_4, NEG_3),
+            // 0 == 3 < 3
+            AluEvent::new(5, Opcode::SLTI, 0, 3, 3),
+            // 0 == -3 < -3
+            AluEvent::new(5, Opcode::SLTI, 0, NEG_3, NEG_3),
+        ];
+
+        prove_babybear_template(&mut runtime);
+    }
+
+    #[test]
+    fn prove_babybear_sltu() {
+        let program = vec![];
+        let mut runtime = Runtime::new(program, 0);
+
+        const LARGE: u32 = 0b11111111111111111111111111111101;
+        runtime.lt_events = vec![
+            // 0 == 3 < 2
+            AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
+            // 1 == 2 < 3
+            AluEvent::new(1, Opcode::SLTU, 1, 2, 3),
+            // 0 == LARGE < 5
+            AluEvent::new(2, Opcode::SLTU, 0, LARGE, 5),
+            // 1 == 5 < LARGE
+            AluEvent::new(3, Opcode::SLTU, 1, 5, LARGE),
+            // 0 == 0 < 0
+            AluEvent::new(5, Opcode::SLTU, 0, 0, 0),
+            // 0 == LARGE < LARGE
+            AluEvent::new(5, Opcode::SLTU, 0, LARGE, LARGE),
+        ];
+
+        prove_babybear_template(&mut runtime);
+    }
+
+    #[test]
+    fn prove_babybear_sltiu() {
+        let program = vec![];
+        let mut runtime = Runtime::new(program, 0);
+
+        const LARGE: u32 = 0b11111111111111111111111111111101;
+        runtime.lt_events = vec![
+            // 0 == 3 < 2
+            AluEvent::new(0, Opcode::SLTIU, 0, 3, 2),
+            // 1 == 2 < 3
+            AluEvent::new(1, Opcode::SLTIU, 1, 2, 3),
+            // 0 == LARGE < 5
+            AluEvent::new(2, Opcode::SLTIU, 1, LARGE, 5),
+            // 1 == 5 < LARGE
+            AluEvent::new(3, Opcode::SLTIU, 1, 5, LARGE),
+            // 0 == 0 < 0
+            AluEvent::new(5, Opcode::SLTIU, 0, 0, 0),
+            // 0 == LARGE < LARGE
+            AluEvent::new(5, Opcode::SLTIU, 0, LARGE, LARGE),
+        ];
+
+        prove_babybear_template(&mut runtime);
     }
 }
