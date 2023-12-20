@@ -119,8 +119,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
 
-                println!("{:?}", row);
-                println!("cols.div_by_0 {}", cols.division_by_0);
                 row
             })
             .collect::<Vec<_>>();
@@ -134,7 +132,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
 
-        println!("trace: {:?}", trace);
         trace
     }
 }
@@ -206,7 +203,6 @@ where
 
         // Finally, deal with division by 0,
         builder.assert_bool(local.division_by_0);
-        builder.assert_zero(local.division_by_0);
 
         let byte_mask = AB::F::from_canonical_u32(0xFF);
         for i in 0..WORD_SIZE {
@@ -341,21 +337,21 @@ mod tests {
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::DIVU, 3, 20, 6),
-            (Opcode::DIVU, 715827879, u32::MAX - 20 + 1, 6),
-            (Opcode::DIVU, 0, 20, u32::MAX - 6 + 1),
-            (Opcode::DIVU, 0, u32::MAX - 20 + 1, u32::MAX - 6 + 1),
+            (Opcode::DIVU, 715827879, neg(20), 6),
+            (Opcode::DIVU, 0, 20, neg(6)),
+            (Opcode::DIVU, 0, neg(20), neg(6)),
             (Opcode::DIVU, 1 << 31, 1 << 31, 1),
-            (Opcode::DIVU, 0, 1 << 31, u32::MAX - 1 + 1),
-            //(Opcode::DIVU, u32::MAX, 1 << 31, 0),
-            //(Opcode::DIVU, u32::MAX, 1, 0),
-            //(Opcode::DIVU, u32::MAX, 0, 0),
+            (Opcode::DIVU, 0, 1 << 31, neg(1)),
+            (Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            (Opcode::DIVU, u32::MAX, 1, 0),
+            (Opcode::DIVU, u32::MAX, 0, 0),
             (Opcode::REMU, 4, 18, 7),
             (Opcode::REMU, 6, neg(20), 11),
             (Opcode::REMU, 23, 23, neg(6)),
             (Opcode::REMU, neg(21), neg(21), neg(11)),
-            ////(Opcode::REMU, 5, 5, 0),
-            ////(Opcode::REMU, neg(1), neg(1), 0),
-            ////(Opcode::REMU, 0, 0, 0),
+            (Opcode::REMU, 5, 5, 0),
+            (Opcode::REMU, neg(1), neg(1), 0),
+            (Opcode::REMU, 0, 0, 0),
         ];
         for t in mul_instructions.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
