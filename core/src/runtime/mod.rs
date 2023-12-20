@@ -28,7 +28,7 @@ pub struct Runtime {
     /// The program counter keeps track of the next instruction.
     pub pc: u32,
 
-    /// The prgram used during execution.
+    /// The program used during execution.
     pub program: Vec<Instruction>,
 
     /// The memory which instructions operate over.

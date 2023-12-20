@@ -206,7 +206,7 @@ mod tests {
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        println!("{:?}", trace.values)
+        trace.rows().for_each(|row| println!("{:?}", row));
     }
 
     #[test]

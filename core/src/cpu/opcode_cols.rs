@@ -4,7 +4,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::runtime::{Instruction, Opcode};
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectors<T> {
     // // Whether op_b is an immediate value.

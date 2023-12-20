@@ -95,7 +95,12 @@ where
             .when_transition()
             .assert_eq(local.clk + AB::Expr::one(), next.clk);
 
-        // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
+        builder.send_program(
+            local.pc,
+            local.instruction,
+            local.selectors,
+            AB::Expr::one(),
+        );
 
         //// Constraint op_a_val, op_b_val, op_c_val
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.

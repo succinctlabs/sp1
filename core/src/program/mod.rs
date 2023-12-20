@@ -1,12 +1,15 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::MatrixRowSlices;
+use std::collections::HashMap;
 
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
+use crate::air::CurtaAirBuilder;
 use crate::cpu::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
 use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
@@ -19,6 +22,7 @@ pub struct ProgramCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
     pub selectors: OpcodeSelectors<T>,
+    pub mult: T,
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
@@ -37,6 +41,18 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
 
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
+
+        // Collect the number of times each instruction is called from the cpu events.
+        // Store it as a map of PC -> count.
+        let mut instruction_counts = HashMap::new();
+        runtime.cpu_events.clone().into_iter().for_each(|event| {
+            let pc = event.pc;
+            instruction_counts
+                .entry(pc)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+        });
+
         let rows = runtime
             .program
             .clone()
@@ -48,6 +64,8 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
                 cols.pc = F::from_canonical_usize(i);
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);
+                cols.mult =
+                    F::from_canonical_usize(*instruction_counts.get(&(i as u32)).unwrap_or(&0));
                 row
             })
             .collect::<Vec<_>>();
@@ -73,9 +91,14 @@ impl<F> BaseAir<F> for ProgramChip {
 
 impl<AB> Air<AB> for ProgramChip
 where
-    AB: AirBuilder,
+    AB: CurtaAirBuilder,
 {
-    fn eval(&self, _: &mut AB) {}
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local: &ProgramCols<AB::Var> = main.row_slice(0).borrow();
+
+        builder.receive_program(local.pc, local.instruction, local.selectors, local.mult);
+    }
 }
 
 #[cfg(test)]
