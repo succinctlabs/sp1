@@ -229,6 +229,7 @@ impl Runtime {
         }
     }
 
+    /// Set the destination register with the result and emit an ALU event.
     #[inline]
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
@@ -236,6 +237,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a load instruction.
+    #[inline]
     fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, Option<u32>) {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1), imm);
@@ -245,6 +247,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a store instruction.
+    #[inline]
     fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, Option<u32>) {
         let (rs1, rs2, imm) = instruction.s_type();
         let (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
@@ -254,6 +257,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a branch instruction.
+    #[inline]
     fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
