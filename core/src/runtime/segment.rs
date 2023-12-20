@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use super::instruction::Instruction;
 use crate::memory::{MemOp, MemoryEvent};
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct SegmentMemoryEvent {
     pub event: MemoryEvent,
     pub first_read: bool,
@@ -179,6 +179,45 @@ impl Segment {
                 let segment = &mut segments[idx];
                 segment.memory.finalize(HashSet::new());
             }
+        }
+    }
+
+    pub fn sanity_cehck(segments: &mut Vec<Segment>) {
+        let len = segments.len();
+
+        // Check that the "unitialized_reads" for the first segment is empty.
+        let segment_0 = &segments[0];
+        assert_eq!(
+            segment_0.memory.uninitialized_read.len(),
+            0,
+            "segment_0.memory.uninitialized_read.len() != 0"
+        );
+
+        // Check that for all events in the last segment, write_value is false.
+        let segment_last = &segments[len - 1];
+        for event in segment_last.memory.events.iter() {
+            assert_eq!(
+                event.write_value, false,
+                "event.write_value != false for event {:?} in last segment",
+                event
+            );
+        }
+
+        // Check for all segments except last that for segment[idx+1].memory.uninitialized_read
+        // has exactly 1 corresponding event in segment[idx].memory.events where write_value=true.
+        for idx in 0..len - 1 {
+            let mut next_reads = segments[idx + 1].memory.uninitialized_read.clone();
+            for event in segments[idx].memory.events.iter() {
+                if event.write_value {
+                    next_reads.remove(&event.event.addr);
+                }
+            }
+            assert_eq!(
+                next_reads.len(),
+                0,
+                "next_reads.len() != 0 for segment {}",
+                idx + 1
+            );
         }
     }
 }
