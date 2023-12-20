@@ -48,10 +48,9 @@ const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
 
 const BYTE_SIZE: usize = 8;
 const BYTE_MASK: u8 = 0xff;
-const SIGN_BIT_MASK: u8 = 0x80;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct MulCols<T> {
     /// The output operand.
@@ -63,24 +62,24 @@ pub struct MulCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    pub is_b_negative: T,
-
-    pub is_c_negative: T,
-
     /// Trace.
     pub carry: [T; PRODUCT_SIZE],
 
     /// `product` stores the actual product of b * c without truncating.
     pub product: [T; PRODUCT_SIZE],
 
+    pub b_msb: T,
+    pub c_msb: T,
+    pub b_sign_extend: T,
+    pub c_sign_extend: T,
+
+    pub is_mul: T,    // u32 x u32 (sign doesn't matter)
+    pub is_mulh: T,   // i32 x i32, upper half
+    pub is_mulhu: T,  // u32 x u32, upper half
+    pub is_mulhsu: T, // i32 x u32, upper half
+
     /// Selector to know whether this row is enabled.
     pub is_real: T,
-
-    // Whether the output is the upper half or the lower half of b * c.
-    pub is_upper: T,
-
-    // The opcode.
-    pub opcode: T,
 }
 
 /// A chip that implements addition for the opcodes MUL.
@@ -92,8 +91,8 @@ impl MulChip {
     }
 }
 
-fn is_sign_bit_on(a: [u8; WORD_SIZE]) -> bool {
-    (a[WORD_SIZE - 1] & SIGN_BIT_MASK) != 0
+fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
+    (a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)) & 1
 }
 
 impl<F: PrimeField> Chip<F> for MulChip {
@@ -118,19 +117,23 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 let mut b = b_word.to_vec();
                 let mut c = c_word.to_vec();
 
+                let b_msb = get_msb(b_word);
+                cols.b_msb = F::from_canonical_u8(b_msb);
+                let c_msb = get_msb(c_word);
+                cols.c_msb = F::from_canonical_u8(c_msb);
                 // Sign extend b and c whenever appropriate.
                 if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
-                    if is_sign_bit_on(b_word) {
+                    if b_msb == 1 {
                         // b is signed and it is negative. Sign extend b.
-                        cols.is_b_negative = F::one();
+                        cols.b_sign_extend = F::one();
                         b.resize(PRODUCT_SIZE, BYTE_MASK);
                     }
                 }
 
                 if event.opcode == Opcode::MULH {
-                    if is_sign_bit_on(c_word) {
+                    if c_msb == 1 {
                         // c is signed and it is negative. Sign extend c.
-                        cols.is_c_negative = F::one();
+                        cols.c_sign_extend = F::one();
                         c.resize(PRODUCT_SIZE, BYTE_MASK);
                     }
                 }
@@ -162,12 +165,10 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 cols.b = Word(b_word.map(F::from_canonical_u8));
                 cols.c = Word(c_word.map(F::from_canonical_u8));
                 cols.is_real = F::one();
-                cols.opcode = F::from_canonical_u32(event.opcode as u32);
-
-                if event.opcode != Opcode::MUL {
-                    // MUL is the only op code that checks the lower half.
-                    cols.is_upper = F::one();
-                }
+                cols.is_mul = F::from_bool(event.opcode == Opcode::MUL);
+                cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
+                cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
+                cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
 
                 row
             })
@@ -198,10 +199,22 @@ where
         let main = builder.main();
         let local: &MulCols<AB::Var> = main.row_slice(0).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
-        let one: AB::Expr = AB::F::one().into();
 
+        let one: AB::Expr = AB::F::one().into();
         // 0xff
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
+
+        // TODO: Confirm that the MSB's are correct.
+        // lookup(local.b[3], local.is_b_msb_one)
+        // lookup(local.b[3], local.is_b_msb_one)
+
+        // MULH or MULHSU
+        let is_b_i32 = local.is_mulh + local.is_mulhsu - local.is_mulh * local.is_mulhsu;
+
+        let is_c_i32 = local.is_mulh;
+
+        builder.assert_eq(local.b_sign_extend, is_b_i32 * local.b_msb);
+        builder.assert_eq(local.c_sign_extend, is_c_i32 * local.c_msb);
 
         // Sign extend local.b and local.c whenever appropriate.
         let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
@@ -211,14 +224,13 @@ where
                 b[i] = local.b[i].into();
                 c[i] = local.c[i].into();
             } else {
-                b[i] = local.is_b_negative.clone() * byte_mask;
-                c[i] = local.is_c_negative.clone() * byte_mask;
+                b[i] = local.b_sign_extend.clone() * byte_mask;
+                c[i] = local.c_sign_extend.clone() * byte_mask;
             }
         }
 
         // Compute the uncarried product b(x) * c(x) = m(x).
         let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-
         for i in 0..PRODUCT_SIZE {
             for j in 0..PRODUCT_SIZE {
                 if i + j < PRODUCT_SIZE {
@@ -247,44 +259,62 @@ where
         }
 
         // Assert that the upper or lower half word of the product matches the result.
+        let is_lower = local.is_mul;
+        let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
         for i in 0..WORD_SIZE {
-            let appropriate_half = local.is_upper * local.product[i + WORD_SIZE]
-                + (one.clone() - local.is_upper) * local.product[i];
-            builder.assert_eq(appropriate_half, local.a[i]);
+            builder
+                .when(is_lower.clone())
+                .assert_eq(local.product[i], local.a[i]);
+            builder
+                .when(is_upper.clone())
+                .assert_eq(local.product[i + WORD_SIZE], local.a[i]);
         }
 
+        // There are 9 members that are bool, check them all here.
         builder.assert_bool(local.is_real);
-        builder.assert_bool(local.is_upper);
-        builder.assert_bool(local.is_b_negative);
-        builder.assert_bool(local.is_c_negative);
+        builder.assert_bool(local.is_mul);
+        builder.assert_bool(local.is_mulh);
+        builder.assert_bool(local.is_mulhu);
+        builder.assert_bool(local.is_mulhsu);
+        builder.assert_bool(local.b_msb);
+        builder.assert_bool(local.c_msb);
+        builder.assert_bool(local.b_sign_extend);
+        builder.assert_bool(local.c_sign_extend);
 
-        // Finally, confirm that local.is_{b, c}_negative is indeed consistent
-        // with the sign of b and c.
-        //
-        // This can be done by confirming
-        //
-        // 1. (local.is_b_negative << 8) <= local.b[WORD_SIZE - 1], and
-        // 2. (local.is_c_negative << 8) <= local.c[WORD_SIZE - 1].
+        // If signed extended, the MSB better be 1.
+        builder
+            .when(local.b_sign_extend)
+            .assert_eq(local.b_msb, one.clone());
+        builder
+            .when(local.c_sign_extend)
+            .assert_eq(local.c_msb, one.clone());
+
+        // Some opcodes don't allow sign extension.
+        builder
+            .when(local.is_mul + local.is_mulhu)
+            .assert_zero(local.b_sign_extend + local.c_sign_extend);
+        builder
+            .when(local.is_mul + local.is_mulhsu + local.is_mulhsu)
+            .assert_zero(local.c_sign_extend);
+
+        // Exactly one of the op codes must be on.
+        builder
+            .when(local.is_real)
+            .assert_one(local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu);
+
+        let opcode = {
+            let mul: AB::Expr = AB::F::from_canonical_u32(Opcode::MUL as u32).into();
+            let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
+            let mulhu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHU as u32).into();
+            let mulhsu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHSU as u32).into();
+            local.is_mul * mul
+                + local.is_mulh * mulh
+                + local.is_mulhu * mulhu
+                + local.is_mulhsu * mulhsu
+        };
 
         // Receive the arguments.
-        builder.receive_alu(local.opcode, local.a, local.b, local.c, local.is_real);
-
-        let mul: AB::Expr = AB::F::from_canonical_u32(Opcode::MUL as u32).into();
-        let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
-        let mulhsu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHSU as u32).into();
-        // b can be negative only if the opcode is MULH or MULHSU.
-        builder
-            .when(local.is_b_negative)
-            .assert_zero((local.opcode - mulh.clone()) * (local.opcode - mulhsu.clone()));
-        // b can be negative only if the opcode is MULH.
-        builder
-            .when(local.is_c_negative)
-            .assert_eq(local.opcode, mulh.clone());
-
-        // If we take the lower half, it has to be MUL.
-        let one: AB::Expr = AB::F::one().into();
-        builder.assert_zero(local.is_real * (one.clone() - local.is_upper) * (local.opcode - mul));
-
+        builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
         // TODO: Range check the carry column.
 
         // A dummy constraint to keep the degree at least 3.
