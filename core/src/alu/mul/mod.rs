@@ -78,6 +78,8 @@ pub struct MulCols<T> {
 
     // Whether the output is the upper half or the lower half of b * c.
     pub is_upper: T,
+
+    pub opcode: T,
 }
 
 /// A chip that implements addition for the opcodes MUL.
@@ -159,6 +161,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 cols.b = Word(b_word.map(F::from_canonical_u8));
                 cols.c = Word(c_word.map(F::from_canonical_u8));
                 cols.is_real = F::one();
+                cols.opcode = F::from_canonical_u32(event.opcode as u32);
 
                 if event.opcode != Opcode::MUL {
                     // MUL is the only op code that checks the lower half.
@@ -255,13 +258,7 @@ where
         builder.assert_bool(local.is_c_negative);
 
         // Receive the arguments.
-        builder.receive_alu(
-            AB::F::from_canonical_u32(Opcode::MUL as u32),
-            local.a,
-            local.b,
-            local.c,
-            local.is_real,
-        );
+        builder.receive_alu(local.opcode, local.a, local.b, local.c, local.is_real);
 
         // TODO: Range check the carry column.
 
