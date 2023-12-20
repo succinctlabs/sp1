@@ -46,7 +46,8 @@ mod tests {
 
     use crate::lookup::InteractionBuilder;
     use crate::memory::{MemOp, MemoryChip};
-    use crate::runtime::tests::get_simple_program;
+
+    use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
 
     use p3_commit::ExtensionMmcs;
@@ -116,8 +117,8 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let code = get_simple_program();
-        let mut runtime = Runtime::new(code, 0);
+        let (program, pc) = simple_program();
+        let mut runtime = Runtime::new(program, pc);
         runtime.run();
         let events = runtime.memory_events;
 

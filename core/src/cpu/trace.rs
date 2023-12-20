@@ -1,5 +1,6 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
@@ -142,7 +143,6 @@ impl CpuChip {
 
 #[cfg(test)]
 mod tests {
-    use crate::runtime::{tests::get_simple_program, Instruction};
 
     use p3_baby_bear::BabyBear;
 
@@ -162,7 +162,10 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::utils::Chip;
+    use crate::{
+        runtime::{tests::simple_program, Instruction},
+        utils::Chip,
+    };
     use p3_commit::ExtensionMmcs;
 
     use super::*;
@@ -178,6 +181,8 @@ mod tests {
                 op_a: 0,
                 op_b: 1,
                 op_c: 2,
+                imm_b: false,
+                imm_c: false,
             },
             a: 1,
             b: 2,
@@ -196,8 +201,8 @@ mod tests {
 
     #[test]
     fn generate_trace_simple_program() {
-        let program = get_simple_program();
-        let mut runtime = Runtime::new(program, 0);
+        let (program, pc) = simple_program();
+        let mut runtime = Runtime::new(program, pc);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -246,8 +251,8 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = get_simple_program();
-        let mut runtime = Runtime::new(program, 0);
+        let (program, pc) = simple_program();
+        let mut runtime = Runtime::new(program, pc);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

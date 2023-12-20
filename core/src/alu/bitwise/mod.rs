@@ -12,6 +12,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -61,12 +62,9 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                cols.is_xor =
-                    F::from_bool(event.opcode == Opcode::XOR || event.opcode == Opcode::XORI);
-                cols.is_or =
-                    F::from_bool(event.opcode == Opcode::OR || event.opcode == Opcode::ORI);
-                cols.is_and =
-                    F::from_bool(event.opcode == Opcode::AND || event.opcode == Opcode::ANDI);
+                cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
+                cols.is_or = F::from_bool(event.opcode == Opcode::OR);
+                cols.is_and = F::from_bool(event.opcode == Opcode::AND);
 
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
