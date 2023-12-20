@@ -41,6 +41,8 @@ pub struct DivRemCols<T> {
     pub is_divu: T,
     pub is_remu: T,
 
+    pub division_by_0: T,
+
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 }
@@ -68,51 +70,57 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
 
-                let quotient = (event.b / event.c).to_le_bytes();
-                let remainder = (event.b % event.c).to_le_bytes();
+                if event.c == 0 {
+                    cols.division_by_0 = F::one();
+                } else {
+                    let quotient = (event.b / event.c).to_le_bytes();
+                    let remainder = (event.b % event.c).to_le_bytes();
 
-                let mut result = [0u32; WORD_SIZE];
+                    let mut result = [0u32; WORD_SIZE];
 
-                // Multiply the quotient by c.
-                for i in 0..quotient.len() {
-                    for j in 0..c_word.len() {
-                        if i + j < result.len() {
-                            result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
+                    // Multiply the quotient by c.
+                    for i in 0..quotient.len() {
+                        for j in 0..c_word.len() {
+                            if i + j < result.len() {
+                                result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
+                            }
                         }
                     }
-                }
 
-                // Add remainder to product.
-                for i in 0..WORD_SIZE {
-                    result[i] += remainder[i] as u32;
-                }
-
-                let base = 1 << BYTE_SIZE;
-
-                // "normalize" as some terms are bigger than u8 now.
-                for i in 0..WORD_SIZE {
-                    let carry = result[i] / base;
-                    result[i] %= base;
-                    if i + 1 < result.len() {
-                        result[i + 1] += carry;
+                    // Add remainder to product.
+                    for i in 0..WORD_SIZE {
+                        result[i] += remainder[i] as u32;
                     }
-                    cols.carry[i] = F::from_canonical_u32(carry);
-                }
 
-                // result is c * quotient + remainder, which must equal b.
-                result.iter().zip(b_word.iter()).for_each(|(r, b)| {
-                    assert_eq!(*r, *b as u32);
-                });
+                    let base = 1 << BYTE_SIZE;
+
+                    // "normalize" as some terms are bigger than u8 now.
+                    for i in 0..WORD_SIZE {
+                        let carry = result[i] / base;
+                        result[i] %= base;
+                        if i + 1 < result.len() {
+                            result[i + 1] += carry;
+                        }
+                        cols.carry[i] = F::from_canonical_u32(carry);
+                    }
+
+                    // result is c * quotient + remainder, which must equal b.
+                    result.iter().zip(b_word.iter()).for_each(|(r, b)| {
+                        assert_eq!(*r, *b as u32);
+                    });
+                    cols.quotient = quotient.map(F::from_canonical_u8);
+                    cols.remainder = remainder.map(F::from_canonical_u8);
+                }
 
                 cols.a = Word(a_word.map(F::from_canonical_u8));
                 cols.b = Word(b_word.map(F::from_canonical_u8));
                 cols.c = Word(c_word.map(F::from_canonical_u8));
-                cols.quotient = quotient.map(F::from_canonical_u8);
-                cols.remainder = remainder.map(F::from_canonical_u8);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
 
+                println!("{:?}", row);
+                println!("cols.div_by_0 {}", cols.division_by_0);
                 row
             })
             .collect::<Vec<_>>();
@@ -178,16 +186,40 @@ where
             }
         }
 
-        // Now, result is c * quotient + remainder, which must equal b.
+        // We will multiply this when we want to constraint regarding actual
+        // division.
+        let div_0_multiplier = one.clone() - local.division_by_0;
+
+        // Now, result is c * quotient + remainder, which must equal b, unless c
+        // was 0.
         for i in 0..WORD_SIZE {
-            builder.assert_eq(result[i].clone(), local.b[i].clone());
+            let res_eq_b = result[i].clone() - local.b[i].clone();
+            builder.assert_zero(div_0_multiplier.clone() * res_eq_b);
         }
 
-        // We've finally calculated the result. Now, we need to check the
-        // output a indeed matches what we have.
+        // We've finally calculated the result. Now, we need to check the output
+        // a indeed matches what we have.
         for i in 0..WORD_SIZE {
             let exp = local.is_divu * local.quotient[i] + local.is_remu * local.remainder[i];
-            builder.assert_eq(exp, local.a[i]);
+            builder.assert_zero(div_0_multiplier.clone() * (exp - local.a[i]));
+        }
+
+        // Finally, deal with division by 0,
+        builder.assert_bool(local.division_by_0);
+        builder.assert_zero(local.division_by_0);
+
+        let byte_mask = AB::F::from_canonical_u32(0xFF);
+        for i in 0..WORD_SIZE {
+            // if the division_by_0 flag is set, then c better be 0.
+            builder.assert_zero(local.division_by_0.clone() * local.c[i]);
+
+            // division by 0 => DIVU returns 2^32 - 1 and REMU returns b.
+            builder.assert_zero(
+                local.division_by_0.clone() * local.is_divu * (local.a[i] - byte_mask),
+            );
+            builder.assert_zero(
+                local.division_by_0.clone() * local.is_remu * (local.a[i] - local.b[i]),
+            );
         }
 
         builder.assert_bool(local.is_real);
@@ -198,11 +230,7 @@ where
         builder.assert_zero(local.is_real * local.is_remu * local.is_divu);
 
         // If it's a real column, exactly one of is_remu and is_divu must be 1.
-        builder.assert_zero(local.is_real * (one - local.is_divu - local.is_remu));
-
-        //        builder.assert_zero(one - local.is_divu);
-        //        builder.assert_zero(local.is_divu);
-        //        builder.assert_zero((one.clone() - local.is_remu) * (one.clone() - local.is_divu));
+        builder.assert_zero(local.is_real * (one.clone() - local.is_divu - local.is_remu));
 
         let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
         let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
