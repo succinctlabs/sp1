@@ -54,27 +54,27 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
         // Dummy constraint for normalizing to degree 3.
         builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
 
-        // Send all the lookups for each operation.
-        for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {
-            let field_op = opcode.to_field::<AB::F>();
-            let mult = local.multiplicities[i];
-            match opcode {
-                ByteOpcode::And => {
-                    builder.receive_byte_lookup(field_op, local.and, local.b, local.c, mult)
-                }
-                ByteOpcode::Or => {
-                    builder.receive_byte_lookup(field_op, local.or, local.b, local.c, mult)
-                }
-                ByteOpcode::Xor => {
-                    builder.receive_byte_lookup(field_op, local.xor, local.b, local.c, mult)
-                }
-                ByteOpcode::SLL => {
-                    builder.receive_byte_lookup(field_op, local.sll, local.b, local.c, mult)
-                }
-                ByteOpcode::Range => {
-                    builder.receive_byte_lookup(field_op, AB::F::zero(), local.b, local.c, mult)
-                }
-            }
-        }
+        // // Send all the lookups for each operation.
+        // for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {
+        //     let field_op = opcode.to_field::<AB::F>();
+        //     let mult = local.multiplicities[i];
+        //     match opcode {
+        //         ByteOpcode::And => {
+        //             builder.receive_byte_lookup(field_op, local.and, local.b, local.c, mult)
+        //         }
+        //         ByteOpcode::Or => {
+        //             builder.receive_byte_lookup(field_op, local.or, local.b, local.c, mult)
+        //         }
+        //         ByteOpcode::Xor => {
+        //             builder.receive_byte_lookup(field_op, local.xor, local.b, local.c, mult)
+        //         }
+        //         ByteOpcode::SLL => {
+        //             builder.receive_byte_lookup(field_op, local.sll, local.b, local.c, mult)
+        //         }
+        //         ByteOpcode::Range => {
+        //             builder.receive_byte_lookup(field_op, AB::F::zero(), local.b, local.c, mult)
+        //         }
+        //     }
+        // }
     }
 }

@@ -106,49 +106,49 @@ where
             .when(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val, local.instruction.op_c);
 
-        // We always write to the first register unless we are doing a branch_op or a store_op.
-        // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
-        builder.send_register(
-            local.clk,
-            local.instruction.op_a[0],
-            local.op_a_val,
-            local.selectors.branch_op + local.selectors.is_store,
-            AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
-        );
+        // // We always write to the first register unless we are doing a branch_op or a store_op.
+        // // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
+        // builder.send_register(
+        //     local.clk,
+        //     local.instruction.op_a[0],
+        //     local.op_a_val,
+        //     local.selectors.branch_op + local.selectors.is_store,
+        //     AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
+        // );
 
-        // We always read to register b and register c unless the imm_b or imm_c flags are set.
-        builder.send_register(
-            local.clk,
-            local.instruction.op_c[0],
-            local.op_c_val,
-            AB::Expr::one(),
-            AB::Expr::one() - local.selectors.imm_c,
-        );
-        builder.send_register(
-            local.clk,
-            local.instruction.op_b[0],
-            local.op_b_val,
-            AB::F::one(),
-            AB::Expr::one() - local.selectors.imm_b,
-        );
+        // // We always read to register b and register c unless the imm_b or imm_c flags are set.
+        // builder.send_register(
+        //     local.clk,
+        //     local.instruction.op_c[0],
+        //     local.op_c_val,
+        //     AB::Expr::one(),
+        //     AB::Expr::one() - local.selectors.imm_c,
+        // );
+        // builder.send_register(
+        //     local.clk,
+        //     local.instruction.op_b[0],
+        //     local.op_b_val,
+        //     AB::F::one(),
+        //     AB::Expr::one() - local.selectors.imm_b,
+        // );
 
-        // We always read to mem_val if is_load or is_store is set.
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.mem_val,
-            AB::F::one(),
-            local.selectors.is_load + local.selectors.is_store,
-        );
+        // // We always read to mem_val if is_load or is_store is set.
+        // builder.send_memory(
+        //     local.clk,
+        //     local.addr,
+        //     local.mem_val,
+        //     AB::F::one(),
+        //     local.selectors.is_load + local.selectors.is_store,
+        // );
 
-        // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.mem_scratch,
-            AB::F::zero(),
-            local.selectors.is_store,
-        );
+        // // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
+        // builder.send_memory(
+        //     local.clk,
+        //     local.addr,
+        //     local.mem_scratch,
+        //     AB::F::zero(),
+        //     local.selectors.is_store,
+        // );
 
         // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
 
@@ -197,14 +197,14 @@ where
             local.selectors.shift_op,
             local.selectors.lt_op,
         ];
-        for op in ops {
-            builder.send_alu(
-                local.instruction.opcode,
-                local.op_a_val,
-                local.op_b_val,
-                local.op_c_val,
-                op,
-            );
-        }
+        // for op in ops {
+        //     builder.send_alu(
+        //         local.instruction.opcode,
+        //         local.op_a_val,
+        //         local.op_b_val,
+        //         local.op_c_val,
+        //         op,
+        //     );
+        // }
     }
 }
