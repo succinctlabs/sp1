@@ -202,12 +202,9 @@ where
             // F(result) remains the same.
         }
 
-        // Now, we have successfully calculated quotient * c + remainder only if
-        // the `carry` is correct.
-
         // Now, result is c * quotient + remainder, which must equal b, unless c
-        // was 0. Here, we confirm that the `quotient` and `remainder` are
-        // correct.
+        // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
+        // are correct.
         for i in 0..WORD_SIZE {
             let res_eq_b = result[i].clone() - local.b[i].clone();
             builder.assert_zero((one.clone() - local.division_by_0) * res_eq_b);
