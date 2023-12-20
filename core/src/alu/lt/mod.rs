@@ -2,10 +2,10 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, Field, PrimeField32};
-use p3_field::{PackedField, PrimeField};
+use p3_field::PrimeField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{MatrixRowSlices, MatrixRows};
+use p3_matrix::MatrixRowSlices;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
@@ -35,7 +35,8 @@ pub struct LtCols<T> {
     /// Sign bits of MSG
     pub sign: [T; 2],
 
-    /// Boolean flag to indicate whether to do an equality check between the bytes (after the byte that differs, this should be false)
+    /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
+    /// true for all bytes after the differing byte pair marked by byte_flag.
     pub byte_equality_check: [T; 4],
 
     // Bit decomposition of 256 + input_1 - input_2
@@ -118,16 +119,11 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.byte_equality_check.reverse();
 
                 println!("A: {:?}, B: {:?}, C: {:?}", cols.a, cols.b, cols.c);
-                // println!("Sign: {:?} {:?}", cols.sign[0], cols.sign[1]);
-                // println!("Bits: {:?}", cols.bits);
-                // println!("Byte flag: {:?}", cols.byte_flag);
-                // println!("Byte equality check: {:?}", cols.byte_equality_check);
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-                // println!("IS_SLT: {:?}", cols.is_slt);
-                // println!("IS_SLTU: {:?}", cols.is_sltu);
 
+                // TODO: Remove this block.
                 // Compute the expected result.
                 let computed_is_ltu = F::from_canonical_u16(1) - cols.bits[8];
                 println!("Computed IS_SLTU: {:?}", computed_is_ltu);
@@ -202,24 +198,26 @@ where
         let computed_is_ltu = AB::Expr::one() - local.bits[8];
         builder.assert_bool(computed_is_ltu.clone());
         // Output constraints
-        // SLTU
+        // SLTU (unsigned)
         builder
             .when(local.is_sltu)
             .assert_eq(local.a[0], computed_is_ltu.clone());
 
-        // SLT
+        // SLT (signed)
         // b_s and c_s are sign bits.
         // b_<s and c_<s are b and c after the MSB is masked.
         // LTS = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
+        // Source: Jolt 5.3: Set Less Than (https://people.cs.georgetown.edu/jthaler/Jolt-paper.pdf)
         builder.assert_bool(local.sign[0]);
         builder.assert_bool(local.sign[1]);
         let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
-        // builder.when(only_b_neg).assert_one(local.a[0]);
 
         let equal_sign = local.sign[0] * local.sign[1]
             + (one.clone() - local.sign[0]) * (one.clone() - local.sign[1]);
         let computed_is_lt = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
         builder.assert_zero(local.is_slt * local.a[0] - local.is_slt * computed_is_lt.clone());
+
+        // TODO: This constraint is failing, fix in the future.
         // builder.assert_eq(local.is_slt * local.a[0], local.is_slt * computed_is_lt);
 
         // Check bit decomposition is valid.
@@ -277,18 +275,6 @@ mod tests {
         runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-
-        // let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
-        // // builder.when(only_b_neg).assert_one(local.a[0]);
-
-        // let equal_sign = local.sign[0] * local.sign[1]
-        //     + (one.clone() - local.sign[0]) * (one.clone() - local.sign[1]);
-        // let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
-        // builder
-        //     .when(local.is_slt)
-        //     .assert_eq(local.a[0], computed_is_lt);
-
-        // builder.assert_eq(local.is_slt * local.a[0], local.is_slt * computed_is_lt);
 
         let num_rows = trace.values.len() / trace.width;
         for i in 0..num_rows {
@@ -350,7 +336,6 @@ mod tests {
 
         let program = vec![];
         let mut runtime = Runtime::new(program, 0);
-        // runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
         runtime.lt_events = vec![
             AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
             // AluEvent::new(1, Opcode::SLT, 1, 2, 3),
