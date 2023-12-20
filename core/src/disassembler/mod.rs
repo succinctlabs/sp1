@@ -1,6 +1,6 @@
 mod elf;
 mod instruction;
-mod opcode;
+
 mod register;
 
 mod transpile;
@@ -9,10 +9,10 @@ use std::{fs::File, io::Read};
 
 pub use elf::*;
 pub use instruction::*;
-pub use opcode::*;
-pub use register::*;
 
 pub use transpile::*;
+
+use crate::runtime::Instruction;
 
 pub const MAXIMUM_MEMORY_SIZE: u32 = u32::MAX;
 pub const WORD_SIZE: usize = 4;

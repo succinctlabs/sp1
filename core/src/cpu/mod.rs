@@ -1,4 +1,4 @@
-use crate::disassembler::Instruction;
+use crate::runtime::Instruction;
 
 pub mod air;
 pub mod instruction_cols;

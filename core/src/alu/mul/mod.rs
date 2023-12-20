@@ -29,8 +29,8 @@ use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
-use crate::disassembler::{Opcode, WORD_SIZE};
-use crate::runtime::Runtime;
+use crate::disassembler::WORD_SIZE;
+use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -205,7 +205,11 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{alu::AluEvent, disassembler::Opcode, runtime::Runtime, utils::Chip};
+    use crate::{
+        alu::AluEvent,
+        runtime::{Opcode, Runtime},
+        utils::Chip,
+    };
     use p3_commit::ExtensionMmcs;
 
     use super::MulChip;

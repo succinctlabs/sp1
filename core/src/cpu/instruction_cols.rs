@@ -1,4 +1,4 @@
-use crate::{air::Word, disassembler::Instruction};
+use crate::{air::Word, runtime::Instruction};
 
 use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;

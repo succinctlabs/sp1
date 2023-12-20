@@ -1,8 +1,8 @@
 use rrs_lib::process_instruction;
 
-use crate::disassembler::Opcode;
+use crate::runtime::{Opcode, Register};
 
-use super::{Instruction, InstructionTranspiler, Register};
+use super::{Instruction, InstructionTranspiler};
 
 /// Transpile the instructions from the 32-bit encoded instructions.
 ///

@@ -1,7 +1,7 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
-use crate::disassembler::Opcode;
-use crate::runtime::Runtime;
+
+use crate::runtime::{Opcode, Runtime};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -162,7 +162,10 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::{disassembler::Instruction, runtime::tests::simple_program, utils::Chip};
+    use crate::{
+        runtime::{tests::simple_program, Instruction},
+        utils::Chip,
+    };
     use p3_commit::ExtensionMmcs;
 
     use super::*;

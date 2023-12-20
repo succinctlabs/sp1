@@ -86,9 +86,8 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        disassembler::{Instruction, Opcode},
         program::ProgramChip,
-        runtime::Runtime,
+        runtime::{Instruction, Opcode, Runtime},
         utils::Chip,
     };
 

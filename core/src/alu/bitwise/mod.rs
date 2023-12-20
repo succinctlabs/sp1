@@ -12,8 +12,8 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::disassembler::Opcode;
-use crate::runtime::Runtime;
+
+use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -161,8 +161,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::disassembler::Opcode;
-    use crate::runtime::Runtime;
+    use crate::runtime::{Opcode, Runtime};
     use crate::{alu::AluEvent, utils::Chip};
     use p3_commit::ExtensionMmcs;
 

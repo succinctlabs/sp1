@@ -11,13 +11,12 @@ use itertools::Itertools;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::disassembler::Opcode;
 use crate::{
     bytes::{
         air::{ByteCols, NUM_BYTE_COLS},
         trace::NUM_ROWS,
     },
-    runtime::Runtime,
+    runtime::{Opcode, Runtime},
     utils::Chip,
 };
 

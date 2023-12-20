@@ -2,7 +2,7 @@ use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
 use valida_derive::AlignedBorrow;
 
-use crate::disassembler::{Instruction, Opcode};
+use crate::runtime::{Instruction, Opcode};
 
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]

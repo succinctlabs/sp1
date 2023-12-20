@@ -1,7 +1,14 @@
+mod instruction;
+mod opcode;
+mod register;
+
+pub use instruction::*;
+pub use opcode::*;
+pub use register::*;
+
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
-use crate::disassembler::{Instruction, Opcode, Register};
 
 use std::collections::BTreeMap;
 
@@ -601,9 +608,9 @@ impl Runtime {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::disassembler::{disassemble_from_elf, Instruction, Opcode, Register};
+    use crate::{disassembler::disassemble_from_elf, runtime::Register};
 
-    use super::Runtime;
+    use super::{Instruction, Opcode, Runtime};
 
     pub fn simple_program() -> (Vec<Instruction>, u32) {
         let program = vec![

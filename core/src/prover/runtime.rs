@@ -193,9 +193,10 @@ impl Runtime {
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {
-    use crate::disassembler::Instruction;
+
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::Instruction;
     use crate::runtime::Runtime;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
