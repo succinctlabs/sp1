@@ -585,7 +585,6 @@ impl Runtime {
 }
 
 #[cfg(test)]
-#[allow(non_snake_case)]
 pub mod tests {
     use crate::disassembler::{disassemble_from_elf, Instruction, Opcode, Register};
 
@@ -684,7 +683,7 @@ pub mod tests {
     }
 
     #[test]
-    fn AND() {
+    fn test_and() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     and x31, x30, x29
@@ -759,7 +758,7 @@ pub mod tests {
     }
 
     #[test]
-    fn SLTU() {
+    fn test_sltu() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sltu x31, x30, x29
