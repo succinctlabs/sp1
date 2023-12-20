@@ -257,6 +257,14 @@ where
         builder.assert_bool(local.is_b_negative);
         builder.assert_bool(local.is_c_negative);
 
+        // Finally, confirm that local.is_{b, c}_negative is indeed consistent
+        // with the sign of b and c.
+        //
+        // This can be done by confirming
+        //
+        // 1. (local.is_b_negative << 8) <= local.b[WORD_SIZE - 1], and
+        // 2. (local.is_c_negative << 8) <= local.c[WORD_SIZE - 1].
+
         // Receive the arguments.
         builder.receive_alu(local.opcode, local.a, local.b, local.c, local.is_real);
 
