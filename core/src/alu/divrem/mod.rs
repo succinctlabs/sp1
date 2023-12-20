@@ -1,3 +1,13 @@
+//! Perform the division and remainder verification.
+//!
+//! The trace contains quotient, remainder, and carry columns where
+//! b = c * quotient + remainder.
+//!
+//! Given (a, b, c, quotient, remainder, carry) in the trace,
+//! (quotient, remainder, carry) are correct if and only if
+//!
+//! b = c * quotient + remainder with 0 <= remainder < c.
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, BaseAir};
@@ -35,7 +45,7 @@ pub struct DivRemCols<T> {
     pub quotient: [T; WORD_SIZE],
     pub remainder: [T; WORD_SIZE],
 
-    /// `carry` stores the carry when "normalizing" quotient * c + remainder.
+    /// `carry` stores the carry when "carry-propagating" quotient * c + remainder.
     pub carry: [T; WORD_SIZE],
 
     pub is_divu: T,
@@ -94,7 +104,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                     let base = 1 << BYTE_SIZE;
 
-                    // "normalize" as some terms are bigger than u8 now.
+                    // "carry-propagate" as some terms are bigger than u8 now.
                     for i in 0..WORD_SIZE {
                         let carry = result[i] / base;
                         result[i] %= base;
@@ -154,7 +164,11 @@ where
 
         let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
 
-        // Multiply the quotient by c.
+        // Multiply the quotient by c. After this for loop, we have
+        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
+        //
+        // For simplicity, we will write F(result) =
+        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
         for i in 0..WORD_SIZE {
             for j in 0..WORD_SIZE {
                 if i + j < WORD_SIZE {
@@ -163,42 +177,47 @@ where
             }
         }
 
-        // Add remainder to product.
+        // Add remainder to product. After this for loop, we have
+        // F(result) = quotient * c + remainder.
         for i in 0..WORD_SIZE {
             result[i] += local.remainder[i].into();
         }
 
-        // "normalize" just like earlier.
+        // We will "carry-propagate" the `result` array without changing
+        // F(result).
         for i in 0..WORD_SIZE {
-            // We would calculate carry = result [i] / base, but of course we
-            // can't do divide during verification. Therefore, we use
-            // `mul_carry` as a hint.
             let carry = local.carry[i].clone();
 
-            // result [i] %= base;
+            // We subtract carry * base from result[i], which reduces
+            // F(result) by carry * base^{i + 1}.
             result[i] -= carry.clone() * base.clone();
 
             if i + 1 < WORD_SIZE {
+                // Adding carry to result[i + 1] increases
+                // F(result) by carry * base^{i + 1}.
                 result[i + 1] += carry.into();
             }
+
+            // We added and subtracted carry * base^{i + 1} to F(result), so
+            // F(result) remains the same.
         }
 
-        // We will multiply this when we want to constraint regarding actual
-        // division.
-        let div_0_multiplier = one.clone() - local.division_by_0;
+        // Now, we have successfully calculated quotient * c + remainder only if
+        // the `carry` is correct.
 
         // Now, result is c * quotient + remainder, which must equal b, unless c
-        // was 0.
+        // was 0. Here, we confirm that the `quotient` and `remainder` are
+        // correct.
         for i in 0..WORD_SIZE {
             let res_eq_b = result[i].clone() - local.b[i].clone();
-            builder.assert_zero(div_0_multiplier.clone() * res_eq_b);
+            builder.assert_zero((one.clone() - local.division_by_0) * res_eq_b);
         }
 
-        // We've finally calculated the result. Now, we need to check the output
-        // a indeed matches what we have.
+        // We've confirmed the correctness of `quotient` and `remainder`. Now,
+        // we need to check the output `a` indeed matches what we have.
         for i in 0..WORD_SIZE {
             let exp = local.is_divu * local.quotient[i] + local.is_remu * local.remainder[i];
-            builder.assert_zero(div_0_multiplier.clone() * (exp - local.a[i]));
+            builder.assert_zero((one.clone() - local.division_by_0) * (exp - local.a[i]));
         }
 
         // Finally, deal with division by 0,
@@ -236,6 +255,7 @@ where
         builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
 
         // TODO: Range check the carry column.
+        // TODO: Range check remainder. (i.e., 0 <= remainder < c)
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(
@@ -335,7 +355,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
-        let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
+        let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::DIVU, 3, 20, 6),
             (Opcode::DIVU, 715827879, neg(20), 6),
             (Opcode::DIVU, 0, 20, neg(6)),
@@ -353,12 +373,12 @@ mod tests {
             (Opcode::REMU, neg(1), neg(1), 0),
             (Opcode::REMU, 0, 0, 0),
         ];
-        for t in mul_instructions.iter() {
+        for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
-        for _ in 0..(1000 - mul_instructions.len()) {
+        for _ in 0..(1000 - divrems.len()) {
             //mul_events.push(AluEvent::new(0, Opcode::DIVREM, 1, 1, 1));
         }
 
