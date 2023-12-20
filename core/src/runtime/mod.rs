@@ -60,6 +60,9 @@ pub struct Runtime {
 
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+
+    /// A stream of witnessed values.
+    pub witness: Vec<u32>,
 }
 
 impl Runtime {
@@ -79,7 +82,13 @@ impl Runtime {
             shift_events: Vec::new(),
             lt_events: Vec::new(),
             byte_lookups: BTreeMap::new(),
+            witness: Vec::new(),
         }
+    }
+
+    /// Write to the witness stream.
+    pub fn write_witness(&mut self, witness: &[u32]) {
+        self.witness.extend(witness);
     }
 
     /// Get the current values of the registers.
@@ -472,6 +481,8 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
+                println!("{:?}", self.registers());
+                println!("ecall");
                 panic!("ecall encountered");
             }
 
@@ -539,10 +550,18 @@ impl Runtime {
 
             // Precompile instructions.
             Opcode::HALT => {
+                println!("{:?}", self.registers());
                 todo!()
             }
             Opcode::LWA => {
-                todo!()
+                println!("lwa");
+                let t0 = Register::X5;
+                let a0 = Register::X10;
+                let a1 = Register::X11;
+                let _ = self.register(a0);
+                let witness = self.witness.pop().expect("witness stream is empty");
+                (a, b, c) = (witness, self.rr(t0), 0);
+                self.rw(a0, a);
             }
             Opcode::PRECOMPILE => {
                 todo!()
@@ -582,6 +601,8 @@ impl Runtime {
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
+
+            println!("{:?}", instruction);
 
             // Execute the instruction.
             self.execute(instruction);

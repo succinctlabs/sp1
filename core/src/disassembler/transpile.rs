@@ -42,9 +42,11 @@ pub fn ecall_analysis_pass(instructions: &[Instruction]) -> Vec<Instruction> {
         // Ensure that the previous instruction is an `add` instruction that is setting %t0 with
         // an immediate value identifying what type of ecall it is.
         let prev_instruction = instructions[i - 1];
+        println!("{:?}", instruction);
+        println!("{:?}", prev_instruction);
         if prev_instruction.opcode != Opcode::ADD
             || prev_instruction.op_a != Register::X5 as u32
-            || prev_instruction.imm_c
+            || !prev_instruction.imm_c
         {
             instructions_new.push(instruction);
             continue;
