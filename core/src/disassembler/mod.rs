@@ -1,8 +1,6 @@
 mod elf;
 mod instruction;
 
-mod register;
-
 mod transpile;
 
 use std::{fs::File, io::Read};
