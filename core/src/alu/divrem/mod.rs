@@ -6,7 +6,15 @@
 //! Given (a, b, c, quotient, remainder, carry) in the trace,
 //! (quotient, remainder, carry) are correct if and only if
 //!
-//! b = c * quotient + remainder with 0 <= remainder < c.
+//! 1) b = c * quotient + remainder
+//! 2) sgn(b) = sgn(remainder)
+//! 3) 0 <= abs(remainder) < abs(b)
+//!
+//! There is no need to take care of the overflow case separately. If
+//! b = -2^{31}, c = -1, then quotient = 0x800....000, c = 0xff...ff.
+//!
+//! So the product of those would simply become 0x80..00, which is
+//! exactly b, and the remainder would be 0.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -27,6 +35,12 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 const BYTE_SIZE: usize = 8;
+
+const SIGN_BIT_MASK: u8 = 0x80;
+
+fn is_sign_bit_on(a: [u8; WORD_SIZE]) -> bool {
+    (a[WORD_SIZE - 1] & SIGN_BIT_MASK) != 0
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -50,8 +64,13 @@ pub struct DivRemCols<T> {
 
     pub is_divu: T,
     pub is_remu: T,
+    pub is_rem: T,
+    pub is_div: T,
 
     pub division_by_0: T,
+
+    pub is_b_negative: T,
+    pub is_rem_negative: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -66,6 +85,24 @@ impl DivRemChip {
     }
 }
 
+fn is_signed_operation(opcode: Opcode) -> bool {
+    opcode == Opcode::DIV || opcode == Opcode::REM
+}
+
+fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8; WORD_SIZE]) {
+    if is_signed_operation(opcode) {
+        (
+            ((b as i32).wrapping_div(c as i32) as u32).to_le_bytes(),
+            ((b as i32).wrapping_rem(c as i32) as u32).to_le_bytes(),
+        )
+    } else {
+        (
+            ((b as u32).wrapping_div(c as u32) as u32).to_le_bytes(),
+            ((b as u32).wrapping_rem(c as u32) as u32).to_le_bytes(),
+        )
+    }
+}
+
 impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
@@ -73,7 +110,12 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             .divrem_events
             .par_iter()
             .map(|event| {
-                assert!(event.opcode == Opcode::DIVU || event.opcode == Opcode::REMU);
+                assert!(
+                    event.opcode == Opcode::DIVU
+                        || event.opcode == Opcode::REMU
+                        || event.opcode == Opcode::REM
+                        || event.opcode == Opcode::DIV
+                );
                 let mut row = [F::zero(); NUM_DIVREM_COLS];
                 let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
                 let a_word = event.a.to_le_bytes();
@@ -83,8 +125,13 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 if event.c == 0 {
                     cols.division_by_0 = F::one();
                 } else {
-                    let quotient = (event.b / event.c).to_le_bytes();
-                    let remainder = (event.b % event.c).to_le_bytes();
+                    let (quotient, remainder) =
+                        divide_and_remainder(event.b, event.c, event.opcode);
+
+                    if is_signed_operation(event.opcode) {
+                        cols.is_rem_negative = F::from_bool(is_sign_bit_on(remainder));
+                        cols.is_b_negative = F::from_bool(is_sign_bit_on(b_word));
+                    }
 
                     let mut result = [0u32; WORD_SIZE];
 
@@ -114,6 +161,13 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         cols.carry[i] = F::from_canonical_u32(carry);
                     }
 
+                    for i in 0..WORD_SIZE {
+                        println!("result[{}] = 0x{:x}", i, result[i]);
+                    }
+                    for i in 0..WORD_SIZE {
+                        println!("b_word[{}] = 0x{:x}", i, b_word[i]);
+                    }
+
                     // result is c * quotient + remainder, which must equal b.
                     result.iter().zip(b_word.iter()).for_each(|(r, b)| {
                         assert_eq!(*r, *b as u32);
@@ -128,6 +182,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
+                cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
+                cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
 
                 row
             })
@@ -234,12 +290,27 @@ where
             );
         }
 
+        // Check the sign cases.
+        // b and remainder have to have the same sign
+        builder.assert_eq(local.is_b_negative, local.is_rem_negative);
+
+        // If b is negative (hence signed), then the op code has to be either DIV or REM.
+        builder.assert_zero(local.is_b_negative * (local.is_div + local.is_rem));
+
+        // Range check for rem: -b < remainder < b or b < remainder < -b.
+
+        // Misc checks.
         builder.assert_bool(local.is_real);
         builder.assert_bool(local.is_remu);
         builder.assert_bool(local.is_divu);
+        builder.assert_bool(local.is_rem);
+        builder.assert_bool(local.is_div);
 
         // If it's a real column, exactly one of is_remu and is_divu must be 1.
-        builder.assert_zero(local.is_real * (one.clone() - local.is_divu - local.is_remu));
+        builder.assert_zero(
+            local.is_real
+                * (one.clone() - local.is_divu - local.is_remu - local.is_div - local.is_rem),
+        );
 
         let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
         let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();

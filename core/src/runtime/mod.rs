@@ -70,7 +70,7 @@ pub struct Runtime {
     /// A trace of the MUL events.
     pub mul_events: Vec<AluEvent>,
 
-    /// A trace of the DIVU and REMU events.
+    /// A trace of the DIV, REM, DIVU and REMU events.
     pub divrem_events: Vec<AluEvent>,
 
     /// A trace of the SUB events.
@@ -309,7 +309,7 @@ impl Runtime {
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
                 self.segment.add_events.push(event);
             }
-            Opcode::DIVU | Opcode::REMU => {
+            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.divrem_events.push(event);
             }
             _ => {}
@@ -1279,6 +1279,12 @@ pub mod tests {
         simple_op_code_test(Opcode::REM, 5, 5, 0);
         simple_op_code_test(Opcode::REM, neg(5), neg(5), 0);
         simple_op_code_test(Opcode::REM, 0, 0, 0);
+        simple_op_code_test(Opcode::REM, 0, 0x80000001, neg(1));
+
+        let a = ((-(1i64 << 31)) as u64) as u32;
+        println!("a = {}", a);
+        println!("a = 0x{:x}", a);
+        simple_op_code_test(Opcode::DIV, a, a, neg(1));
 
         simple_op_code_test(Opcode::REMU, 4, 18, 7);
         simple_op_code_test(Opcode::REMU, 6, neg(20), 11);
