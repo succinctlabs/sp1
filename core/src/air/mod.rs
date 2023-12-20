@@ -31,6 +31,12 @@ pub struct AirInteraction<E> {
 ///
 /// All `AirBuilder` implementations automatically implement this trait.
 pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
+    fn assert_word_zero<I: Into<Self::Expr>>(&mut self, value: Word<I>) {
+        for value in value.0 {
+            self.assert_zero(value);
+        }
+    }
+
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);

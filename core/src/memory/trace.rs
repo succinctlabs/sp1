@@ -123,7 +123,7 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
 
         let rows_view = rows.clone();
 
-        // Set the `is_last` flag.
+        // Set the `is_last` flag and update the `last_memory_events` values.
         for (i, row) in rows.chunks_exact_mut(NUM_MEMORY_COLS).enumerate() {
             let cols: &mut MemoryCols<F> = row.borrow_mut();
 
@@ -134,7 +134,9 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                     cols.is_last = Bool::from(false);
                 } else {
                     cols.is_last = Bool::from(true);
-                    runtime.last_memory_events.push(unique_events[i].clone())
+                    runtime
+                        .last_memory_events
+                        .push((unique_events[i].clone(), multiplicities[i]))
                 }
             }
         }

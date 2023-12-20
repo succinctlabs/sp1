@@ -3,9 +3,16 @@ use core::borrow::BorrowMut;
 use core::mem::size_of;
 
 use crate::air::{Bool, CurtaAirBuilder, Word};
+use p3_air::Air;
+use p3_air::AirBuilder;
+use p3_air::BaseAir;
 use p3_field::AbstractField;
 
+use p3_field::Field;
+use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
+
+use super::MemoryStateChip;
 
 pub const NUM_MEMORY_STATE_COLS: usize = size_of::<MemoryStateCols<u8>>();
 
@@ -20,19 +27,43 @@ pub struct MemoryStateCols<T> {
     pub value: Word<T>,
     /// Whether the memory was being read from or written to.
     pub is_read: Bool<T>,
+    pub multiplicity: T,
+    pub is_dummy: Bool<T>,
 }
 
-// impl<T> MemoryStateAir<T> {
-//     pub fn eval<AB: CurtaAirBuilder>(&self, builder: &mut AB)
-//     where
-//         T: Into<AB::Expr> + Copy,
-//     {
-//         builder.send_memory(
-//             self.clk,
-//             self.addr,
-//             self.value,
-//             self.is_read.0,
-//             AB::F::one(),
-//         );
-//     }
-// }
+impl<F: Field> BaseAir<F> for MemoryStateChip {
+    fn width(&self) -> usize {
+        NUM_MEMORY_STATE_COLS
+    }
+}
+
+impl<AB: CurtaAirBuilder> Air<AB> for MemoryStateChip {
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local: &MemoryStateCols<AB::Var> = main.row_slice(0).borrow();
+
+        builder.assert_is_bool(local.is_dummy);
+
+        // If the dummy flag is set, everything else should be set to zero.
+        builder.when(local.is_dummy.0).assert_zero(local.clk);
+        builder.when(local.is_dummy.0).assert_word_zero(local.addr);
+        builder.when(local.is_dummy.0).assert_word_zero(local.value);
+        builder.when(local.is_dummy.0).assert_is_bool(local.is_read);
+        builder
+            .when(local.is_dummy.0)
+            .assert_zero(local.multiplicity);
+
+        // When the multiplicity is non-zero, the dummy flag should be set to false.
+        builder
+            .when(local.multiplicity)
+            .assert_zero(local.is_dummy.0);
+
+        builder.send_memory(
+            local.clk,
+            local.addr,
+            local.value,
+            local.is_read.0,
+            AB::F::one(),
+        );
+    }
+}
