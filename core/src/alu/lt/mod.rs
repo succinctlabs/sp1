@@ -194,9 +194,9 @@ where
         builder.assert_bool(computed_is_ltu.clone());
         // Output constraints
         // SLTU
-        // builder
-        //     .when(local.is_sltu)
-        //     .assert_eq(local.a[0], computed_is_ltu.clone());
+        builder
+            .when(local.is_sltu)
+            .assert_eq(local.a[0], computed_is_ltu.clone());
 
         // SLT
         // b_s and c_s are sign bits.
@@ -211,16 +211,15 @@ where
         // // builder.assert_bool(equal_sign.clone());
         let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
         // builder.assert_bool(computed_is_lt.clone());
+        builder
+            .when(local.is_slt)
+            .assert_eq(local.a[0], computed_is_lt);
 
         // Check bit decomposition is valid.
         // builder.assert_bool(local.a[0]);
         for bit in local.bits.into_iter() {
             builder.assert_bool(bit);
         }
-
-        builder
-            .when(local.is_slt)
-            .assert_eq(local.a[0], computed_is_lt);
 
         // Receive the arguments.
         builder.receive_alu(
