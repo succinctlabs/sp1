@@ -1,17 +1,17 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::Opcode;
 use crate::runtime::Runtime;
 use crate::utils::{pad_to_power_of_two, Chip};
@@ -29,10 +29,6 @@ pub struct BitwiseCols<T> {
 
     /// The second input operand.
     pub c: Word<T>,
-
-    /// Trace.
-    pub b_bits: [[T; 8]; 4],
-    pub c_bits: [[T; 8]; 4],
 
     /// Selector flags for the operation to perform.
     pub is_xor: T,
@@ -54,20 +50,13 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         // Generate the trace rows for each event.
         let rows = runtime
             .bitwise_events
-            .par_iter()
+            .iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
                 let cols: &mut BitwiseCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
-
-                for i in 0..4 {
-                    for j in 0..8 {
-                        cols.b_bits[i][j] = F::from_bool((b[i] >> j) & 1 == 1);
-                        cols.c_bits[i][j] = F::from_bool((c[i] >> j) & 1 == 1);
-                    }
-                }
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
@@ -76,6 +65,21 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
                 cols.is_or = F::from_bool(event.opcode == Opcode::OR);
                 cols.is_and = F::from_bool(event.opcode == Opcode::AND);
+
+                for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
+                    let byte_event = ByteLookupEvent {
+                        opcode: ByteOpcode::from(event.opcode),
+                        a: b_a,
+                        b: b_b,
+                        c: b_c,
+                    };
+
+                    runtime
+                        .byte_lookups
+                        .entry(byte_event)
+                        .and_modify(|i| *i += 1)
+                        .or_insert(1);
+                }
 
                 row
             })
@@ -108,49 +112,16 @@ where
         let main = builder.main();
         let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
 
-        let two = AB::F::from_canonical_u32(2);
+        // Get the opcode for the operation.
+        let opcode = local.is_xor * ByteOpcode::Xor.to_field::<AB::F>()
+            + local.is_or * ByteOpcode::Or.to_field::<AB::F>()
+            + local.is_and * ByteOpcode::And.to_field::<AB::F>();
 
-        // Check that the bits of the operands are correct.
-        for i in 0..4 {
-            let mut b_sum = AB::Expr::zero();
-            let mut c_sum = AB::Expr::zero();
-            let mut power = AB::F::one();
-            for j in 0..8 {
-                builder.assert_bool(local.b_bits[i][j]);
-                builder.assert_bool(local.c_bits[i][j]);
-                b_sum += local.b_bits[i][j] * power;
-                c_sum += local.c_bits[i][j] * power;
-                power *= two;
-            }
-            builder.assert_zero(b_sum - local.b[i]);
-            builder.assert_zero(c_sum - local.c[i]);
-        }
+        // Get a multiplicity of `1` only for a true row.
+        let mult = local.is_xor + local.is_or + local.is_and;
 
-        // Constrain is_xor, is_or, and is_and to be bits and that only at most one is enabled.
-        builder.assert_bool(local.is_xor);
-        builder.assert_bool(local.is_or);
-        builder.assert_bool(local.is_and);
-        builder.assert_bool(local.is_xor + local.is_or + local.is_and);
-
-        // Constrain the bitwise operation.
-        for i in 0..4 {
-            let mut xor = AB::Expr::zero();
-            let mut or = AB::Expr::zero();
-            let mut and = AB::Expr::zero();
-            let mut power = AB::F::one();
-            for j in 0..8 {
-                xor += (local.b_bits[i][j] + local.c_bits[i][j]
-                    - local.b_bits[i][j] * local.c_bits[i][j] * two)
-                    * power;
-                or += (local.b_bits[i][j] + local.c_bits[i][j]
-                    - local.b_bits[i][j] * local.c_bits[i][j])
-                    * power;
-                and += local.b_bits[i][j] * local.c_bits[i][j] * power;
-                power *= two;
-            }
-            builder.when(local.is_xor).assert_zero(xor - local.a[i]);
-            builder.when(local.is_or).assert_zero(or - local.a[i]);
-            builder.when(local.is_and).assert_zero(and - local.a[i]);
+        for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
+            builder.send_byte_lookup(opcode.clone(), a, b, c, mult.clone());
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

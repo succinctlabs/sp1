@@ -1,6 +1,8 @@
 use crate::alu::AluEvent;
+use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
 use crate::disassembler::{Instruction, Opcode, Register};
+
 use std::collections::BTreeMap;
 
 use crate::memory::{MemOp, MemoryEvent};
@@ -34,6 +36,9 @@ pub struct Runtime {
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
 
+    /// A trace of the MUL events.
+    pub mul_events: Vec<AluEvent>,
+
     /// A trace of the SUB events.
     pub sub_events: Vec<AluEvent>,
 
@@ -45,6 +50,9 @@ pub struct Runtime {
 
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
+
+    /// A trace of the byte lookups needed.
+    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 }
 
 impl Runtime {
@@ -58,10 +66,12 @@ impl Runtime {
             cpu_events: Vec::new(),
             memory_events: Vec::new(),
             add_events: Vec::new(),
+            mul_events: Vec::new(),
             sub_events: Vec::new(),
             bitwise_events: Vec::new(),
             shift_events: Vec::new(),
             lt_events: Vec::new(),
+            byte_lookups: BTreeMap::new(),
         }
     }
 
@@ -1006,5 +1016,50 @@ pub mod tests {
         simple_op_code_test(Opcode::MUL, 0x00000001, 0xffffffff, 0xffffffff);
         simple_op_code_test(Opcode::MUL, 0xffffffff, 0xffffffff, 0x00000001);
         simple_op_code_test(Opcode::MUL, 0xffffffff, 0x00000001, 0xffffffff);
+    }
+
+    fn neg(a: u32) -> u32 {
+        u32::MAX - a + 1
+    }
+
+    #[test]
+    fn division_tests() {
+        simple_op_code_test(Opcode::DIVU, 3, 20, 6);
+        simple_op_code_test(Opcode::DIVU, 715827879, u32::MAX - 20 + 1, 6);
+        simple_op_code_test(Opcode::DIVU, 0, 20, u32::MAX - 6 + 1);
+        simple_op_code_test(Opcode::DIVU, 0, u32::MAX - 20 + 1, u32::MAX - 6 + 1);
+
+        simple_op_code_test(Opcode::DIVU, 1 << 31, 1 << 31, 1);
+        simple_op_code_test(Opcode::DIVU, 0, 1 << 31, u32::MAX - 1 + 1);
+
+        simple_op_code_test(Opcode::DIVU, u32::MAX, 1 << 31, 0);
+        simple_op_code_test(Opcode::DIVU, u32::MAX, 1, 0);
+        simple_op_code_test(Opcode::DIVU, u32::MAX, 0, 0);
+
+        simple_op_code_test(Opcode::DIV, 3, 18, 6);
+        simple_op_code_test(Opcode::DIV, neg(6), neg(24), 4);
+        simple_op_code_test(Opcode::DIV, neg(2), 16, neg(8));
+        simple_op_code_test(Opcode::DIV, neg(1), 0, 0);
+    }
+
+    #[test]
+    fn remainder_tests() {
+        simple_op_code_test(Opcode::REM, 7, 16, 9);
+        simple_op_code_test(Opcode::REM, neg(4), neg(22), 6);
+        simple_op_code_test(Opcode::REM, 1, 25, neg(3));
+        simple_op_code_test(Opcode::REM, neg(2), neg(22), neg(4));
+        simple_op_code_test(Opcode::REM, 0, 873, 1);
+        simple_op_code_test(Opcode::REM, 0, 873, neg(1));
+        simple_op_code_test(Opcode::REM, 5, 5, 0);
+        simple_op_code_test(Opcode::REM, neg(5), neg(5), 0);
+        simple_op_code_test(Opcode::REM, 0, 0, 0);
+
+        simple_op_code_test(Opcode::REMU, 4, 18, 7);
+        simple_op_code_test(Opcode::REMU, 6, neg(20), 11);
+        simple_op_code_test(Opcode::REMU, 23, 23, neg(6));
+        simple_op_code_test(Opcode::REMU, neg(21), neg(21), neg(11));
+        simple_op_code_test(Opcode::REMU, 5, 5, 0);
+        simple_op_code_test(Opcode::REMU, neg(1), neg(1), 0);
+        simple_op_code_test(Opcode::REMU, 0, 0, 0);
     }
 }

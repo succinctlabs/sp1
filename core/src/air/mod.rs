@@ -41,7 +41,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         self.assert_bool(value.0);
     }
 
-    #[allow(unused)]
     fn send_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
@@ -69,7 +68,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         ));
     }
 
-    #[allow(unused)]
     fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
@@ -185,6 +183,48 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             values,
             multiplicity.into(),
             InteractionKind::Memory,
+        ));
+    }
+
+    fn send_byte_lookup<EOp, Ea, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a: Ea,
+        b: Eb,
+        c: Ec,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.send(AirInteraction::new(
+            vec![opcode.into(), a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Byte,
+        ));
+    }
+
+    fn receive_byte_lookup<EOp, Ea, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a: Ea,
+        b: Eb,
+        c: Ec,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.receive(AirInteraction::new(
+            vec![opcode.into(), a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Byte,
         ));
     }
 }

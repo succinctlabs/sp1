@@ -3,6 +3,7 @@ use crate::disassembler::Opcode;
 pub mod add;
 pub mod bitwise;
 pub mod lt;
+pub mod mul;
 pub mod shift;
 pub mod sub;
 
