@@ -373,7 +373,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            //mul_events.push(AluEvent::new(0, Opcode::DIVREM, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         runtime.divrem_events = divrem_events;
