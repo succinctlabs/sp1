@@ -214,9 +214,16 @@ impl Runtime {
             let (rd, rs1, rs2) = instruction.r_type();
             let (b, c) = (self.rr(rs1), self.rr(rs2));
             (rd, b, c)
-        } else {
+        } else if !instruction.imm_b && instruction.imm_c {
             let (rd, rs1, imm) = instruction.i_type();
             let (b, c) = (self.rr(rs1), imm);
+            (rd, b, c)
+        } else {
+            let (rd, b, c) = (
+                Register::from_u32(instruction.op_a),
+                instruction.op_b,
+                instruction.op_c,
+            );
             (rd, b, c)
         }
     }
@@ -477,10 +484,7 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
-                // While not all ECALLs obviously halt the CPU, we will for now halt. We need to
-                // come back to this and figure out how to handle this properly.
-                println!("ECALL encountered! Halting!");
-                next_pc = self.program.len() as u32 * 4;
+                panic!("ecall encountered");
             }
 
             Opcode::EBREAK => {

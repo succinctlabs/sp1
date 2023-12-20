@@ -44,11 +44,13 @@ pub fn disassemble_from_elf(path: &str) -> (Vec<Instruction>, u32) {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::disassembler::disassemble_from_elf;
+    use crate::{disassembler::disassemble_from_elf, runtime::Runtime};
 
     #[test]
     fn test_fibonacci() {
         let (instructions, pc) = disassemble_from_elf("../programs/fib.s");
+        let mut runtime = Runtime::new(instructions.clone(), pc);
+        runtime.run();
         println!("{:#?}, {}", instructions, pc);
     }
 }

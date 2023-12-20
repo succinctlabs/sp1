@@ -356,11 +356,11 @@ impl InstructionProcessor for InstructionTranspiler {
     }
 
     fn process_ecall(&mut self) -> Self::InstructionResult {
-        todo!()
+        Instruction::new(Opcode::ECALL, 0, 0, 0, false, false)
     }
 
     fn process_ebreak(&mut self) -> Self::InstructionResult {
-        todo!()
+        Instruction::new(Opcode::EBREAK, 0, 0, 0, false, false)
     }
 
     fn process_mul(&mut self, dec_insn: RType) -> Self::InstructionResult {
