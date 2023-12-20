@@ -35,7 +35,8 @@ pub struct LtCols<T> {
     /// Sign bits of MSG
     pub sign: [T; 2],
 
-    pub is_neq: T,
+    // Boolean flag to indicate whether the sign bits of b and c are equal.
+    pub is_neq_sign: T,
 
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
     /// true for all bytes after the differing byte pair marked by byte_flag.
@@ -92,10 +93,9 @@ impl<F: PrimeField> Chip<F> for LtChip {
                     c[3] = c[3] & (0b0111_1111);
                 }
 
-                cols.is_neq = F::from_canonical_u16(1)
-                    - (cols.sign[0] * cols.sign[1]
-                        + (F::from_canonical_u16(1) - cols.sign[0])
-                            * (F::from_canonical_u16(1) - cols.sign[1]));
+                // neq is the same as xor.
+                cols.is_neq_sign = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
+                    + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
@@ -133,7 +133,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 // TODO: Remove this block.
                 // Compute the expected result.
-                println!("IS_NEQ_SIGN: {:?}", cols.is_neq);
+                println!("is_neq_sign: {:?}", cols.is_neq_sign);
                 let computed_is_ltu = F::from_canonical_u16(1) - cols.bits[8];
                 println!("Computed IS_SLTU: {:?}", computed_is_ltu);
 
@@ -213,30 +213,34 @@ where
             .assert_eq(local.a[0], computed_is_sltu.clone());
 
         // SLT (signed)
-        // b_s and c_s are sign bits.
+        // b_s and c_s are the sign bits.
         // b_<s, c_<s are b, c after masking the MSB.
-        // LTS = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
+        // SLT = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
         // Source: Jolt 5.3: Set Less Than (https://people.cs.georgetown.edu/jthaler/Jolt-paper.pdf)
         builder.assert_bool(local.sign[0]);
         builder.assert_bool(local.sign[1]);
         let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
 
+        // Assert local.is_neq_sign was computed correctly. is_neq_sign is equivalent to xor.
         builder.assert_eq(
-            local.is_neq,
-            one.clone()
-                - (local.sign[0] * local.sign[1]
-                    + (local.sign[0] - AB::F::one()) * (local.sign[1] - AB::F::one())),
+            local.is_neq_sign,
+            local.sign[0] * (one.clone() - local.sign[1])
+                + local.sign[1] * (one.clone() - local.sign[0]),
         );
+        // SLT = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
+        // Note: EQ(b_s, c_s) = 1 - is_neq_sign
         let computed_is_slt =
-            only_b_neg.clone() + ((one.clone() - local.is_neq) * computed_is_sltu.clone());
-
-        // TODO: This constraint is failing, fix in the future. Probably a deeper issue.
+            only_b_neg.clone() + ((one.clone() - local.is_neq_sign) * computed_is_sltu.clone());
+        // Assert computed_is_slt matches the output.
         builder
             .when(local.is_slt)
             .assert_eq(local.a[0], computed_is_slt.clone());
 
-        // Check bit decomposition is valid.
+        // Check output bits and bit decomposition are valid.
         builder.assert_bool(local.a[0]);
+        for i in 1..4 {
+            builder.assert_zero(local.a[i]);
+        }
         for bit in local.bits.into_iter() {
             builder.assert_bool(bit);
         }
@@ -255,8 +259,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Borrow;
-
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -353,22 +355,25 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         runtime.lt_events = vec![
             AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
-            // AluEvent::new(1, Opcode::SLT, 1, 2, 3),
-            // AluEvent::new(
-            //     2,
-            //     Opcode::SLT,
-            //     0,
-            //     // -3
-            //     0b11111111111111111111111111111101,
-            //     // -4
-            //     0b11111111111111111111111111111100,
-            // ),
-            // AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
-            // AluEvent::new(4, Opcode::SLT, 1, 255, 65536),
+            AluEvent::new(1, Opcode::SLT, 1, 2, 3),
+            AluEvent::new(
+                2,
+                Opcode::SLT,
+                0,
+                // -3
+                0b11111111111111111111111111111101,
+                // -4
+                0b11111111111111111111111111111100,
+            ),
+            AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
+            AluEvent::new(4, Opcode::SLT, 1, 255, 65536),
             //  1 == -3 < 5
-            // AluEvent::new(0, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
+            AluEvent::new(5, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
+            // 1 == -3 < 256
+            AluEvent::new(6, Opcode::SLTI, 1, 0b11111111111111111111111111111101, 256),
+            // 0 == 2^32 - 3 < 256
+            AluEvent::new(7, Opcode::SLTIU, 0, 0b11111111111111111111111111111101, 256),
         ];
-        // .repeat(10);
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
