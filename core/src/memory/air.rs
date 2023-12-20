@@ -53,6 +53,8 @@ pub struct MemoryCols<T> {
     pub is_clk_lt: Bool<T>,
     /// A flag to indicate whether the memory access consistency is checked.
     pub is_checked: Bool<T>,
+    /// A flag to indicate whether this is the last operation for the current address.
+    pub is_last: Bool<T>,
 }
 
 const fn make_col_map() -> MemoryCols<usize> {
@@ -111,9 +113,6 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
         // Assert that `clk_word` is a decoding of `clk`.
         let clk_expected = reduce::<AB>(local.clk_word);
         builder.assert_eq(clk_expected, local.clk);
-        // If the operation is a write, the multiplicity must be 1.
-        // TODO: Figure out if this constraint is necessary.
-        // builder.assert_zero(local.is_read.0 * (local.multiplicity - AB::F::one()));
 
         // Lookup values validity checks
         //
@@ -172,6 +171,18 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
             .when(next.is_clk_eq.0)
             .assert_eq(next.clk, local.clk);
 
+        // An operation is the last one for an adress if the next address is different from the
+        // current one.
+        builder
+            .when_transition()
+            .assert_one(local.is_last.0 + next.is_addr_eq.0);
+        // In the last row, record `is_last` as `1` if the multiplicity is non-zero.
+        // builder
+        //     .when_last_row()
+        //     .when(local.multiplicity)
+        //     .assert_eq(local.is_last.0, AB::F::one());
+
+        // At every row, record the memory interaction.
         builder.recieve_memory(
             local.clk,
             local.addr,

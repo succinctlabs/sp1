@@ -1,4 +1,5 @@
 pub mod air;
+pub mod state;
 pub mod trace;
 
 #[derive(Debug, Clone, Copy)]
@@ -45,34 +46,14 @@ mod tests {
     use rand::thread_rng;
 
     use crate::lookup::InteractionBuilder;
-    use crate::memory::{MemOp, MemoryChip};
+    use crate::memory::MemoryChip;
     use crate::runtime::tests::get_simple_program;
     use crate::runtime::Runtime;
+    use crate::utils::Chip;
 
     use p3_commit::ExtensionMmcs;
 
     use super::air::NUM_MEMORY_COLS;
-    use super::MemoryEvent;
-
-    #[test]
-    fn test_memory_generate_trace() {
-        let events = vec![
-            MemoryEvent {
-                clk: 0,
-                addr: 0,
-                op: MemOp::Write,
-                value: 0,
-            },
-            MemoryEvent {
-                clk: 1,
-                addr: 0,
-                op: MemOp::Read,
-                value: 0,
-            },
-        ];
-        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
-        println!("{:?}", trace.values)
-    }
 
     #[test]
     fn test_memory_prove_babybear() {
@@ -119,10 +100,9 @@ mod tests {
         let code = get_simple_program();
         let mut runtime = Runtime::new(code, 0);
         runtime.run();
-        let events = runtime.memory_events;
 
-        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
         let air = MemoryChip::new();
+        let trace: RowMajorMatrix<BabyBear> = air.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

@@ -1,5 +1,5 @@
-use core::mem::transmute;
-
+use core::borrow::Borrow;
+use core::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -41,14 +41,7 @@ const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
 impl<F: PrimeField> Chip<F> for MemoryChip {
     // TODO: missing STLU events.
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        let Runtime { memory_events, .. } = runtime;
-        Self::generate_trace(memory_events)
-    }
-}
-
-impl MemoryChip {
-    pub fn generate_trace<F: PrimeField>(events: &[MemoryEvent]) -> RowMajorMatrix<F> {
-        let mut events = events.to_vec();
+        let mut events = runtime.memory_events.clone();
         // Sort the events by address and then by clock cycle.
         events.sort_by_key(|event| (event.addr, event.clk, event.op));
 
@@ -94,13 +87,13 @@ impl MemoryChip {
         unique_events.insert(0, first_event);
 
         // Create the trace.
-        let rows = unique_events
+        let mut rows = unique_events
             .par_windows(2)
-            .zip(multiplicities.par_iter())
+            .zip_eq(multiplicities.par_iter())
             .flat_map(|(window, mult)| {
                 let (prev, curr) = (window[0], window[1]);
                 let mut row = [F::zero(); NUM_MEMORY_COLS];
-                let cols: &mut MemoryCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut MemoryCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.clk = F::from_canonical_u32(curr.clk);
                 cols.clk_word = Word::from(curr.clk);
@@ -127,6 +120,24 @@ impl MemoryChip {
                 row
             })
             .collect::<Vec<_>>();
+
+        let rows_view = rows.clone();
+
+        // Set the `is_last` flag.
+        for (i, row) in rows.chunks_exact_mut(NUM_MEMORY_COLS).enumerate() {
+            let cols: &mut MemoryCols<F> = row.borrow_mut();
+
+            if let Some(next) = rows_view.get((i + 1) * NUM_MEMORY_COLS..(i + 2) * NUM_MEMORY_COLS)
+            {
+                let cols_next: &MemoryCols<F> = next.borrow();
+                if cols.addr == cols_next.addr {
+                    cols.is_last = Bool::from(false);
+                } else {
+                    cols.is_last = Bool::from(true);
+                    runtime.last_memory_events.push(unique_events[i].clone())
+                }
+            }
+        }
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows, NUM_MEMORY_COLS)

@@ -58,6 +58,9 @@ pub struct Runtime {
     /// A trace of the memory events which get emitted during execution.
     pub memory_events: Vec<MemoryEvent>,
 
+    /// A trace of the last memory events to each processed address.
+    pub last_memory_events: Vec<MemoryEvent>,
+
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
 
@@ -87,6 +90,7 @@ impl Runtime {
             program,
             cpu_events: Vec::new(),
             memory_events: Vec::new(),
+            last_memory_events: Vec::new(),
             add_events: Vec::new(),
             sub_events: Vec::new(),
             bitwise_events: Vec::new(),
