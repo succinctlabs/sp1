@@ -1,4 +1,3 @@
-use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -60,6 +59,7 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
         }
 
         unique_events = events.clone();
+        let real_len = unique_events.len();
         multiplicities = vec![1; unique_events.len()];
 
         let mut next_events = unique_events[1..].to_vec();
@@ -121,21 +121,22 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
             })
             .collect::<Vec<_>>();
 
-        let rows_view = rows.clone();
-
         // Set the `is_last` flag and update the `last_memory_events` values.
-        for (i, row) in rows.chunks_exact_mut(NUM_MEMORY_COLS).enumerate() {
+        for (i, row) in rows
+            .chunks_exact_mut(NUM_MEMORY_COLS)
+            .enumerate()
+            .take(real_len)
+        {
             let cols: &mut MemoryCols<F> = row.borrow_mut();
 
-            if let Some(next) = rows_view.get((i + 1) * NUM_MEMORY_COLS..(i + 2) * NUM_MEMORY_COLS)
-            {
-                let cols_next: &MemoryCols<F> = next.borrow();
-                if cols.addr == cols_next.addr {
-                    cols.is_last = Bool::from(false);
-                } else {
-                    cols.is_last = Bool::from(true);
-                    runtime.last_memory_events.push(unique_events[i].clone())
-                }
+            let addr = unique_events[i + 1].addr;
+            let next_addr = unique_events[i + 2].addr;
+
+            cols.is_last = Bool::from(addr != next_addr);
+            if addr != next_addr {
+                runtime
+                    .last_memory_events
+                    .push(unique_events[i + 1].clone());
             }
         }
 

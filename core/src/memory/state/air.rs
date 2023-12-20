@@ -28,7 +28,7 @@ pub struct MemoryStateCols<T> {
     /// Whether the memory was being read from or written to.
     pub is_read: Bool<T>,
 
-    pub is_dummy: Bool<T>,
+    pub is_real: Bool<T>,
 }
 
 impl<F: Field> BaseAir<F> for MemoryStateChip {
@@ -42,20 +42,22 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryStateChip {
         let main = builder.main();
         let local: &MemoryStateCols<AB::Var> = main.row_slice(0).borrow();
 
-        builder.assert_is_bool(local.is_dummy);
+        let is_dummy = AB::Expr::one() - local.is_real.0;
+
+        builder.assert_is_bool(local.is_real);
 
         // If the dummy flag is set, everything else should be set to zero.
-        builder.when(local.is_dummy.0).assert_zero(local.clk);
-        builder.when(local.is_dummy.0).assert_word_zero(local.addr);
-        builder.when(local.is_dummy.0).assert_word_zero(local.value);
-        builder.when(local.is_dummy.0).assert_is_bool(local.is_read);
+        builder.when(is_dummy.clone()).assert_zero(local.clk);
+        builder.when(is_dummy.clone()).assert_word_zero(local.addr);
+        builder.when(is_dummy.clone()).assert_word_zero(local.value);
+        builder.when(is_dummy).assert_is_bool(local.is_read);
 
         builder.send_memory(
             local.clk,
             local.addr,
             local.value,
             local.is_read.0,
-            AB::F::zero(),
+            local.is_real.0,
         );
     }
 }

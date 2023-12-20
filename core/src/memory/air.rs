@@ -175,6 +175,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
         // current one.
         builder
             .when_transition()
+            .when(local.multiplicity)
             .assert_one(local.is_last.0 + next.is_addr_eq.0);
         // In the last row, record `is_last` as `1` if the multiplicity is non-zero.
         // builder
@@ -188,7 +189,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
             local.addr,
             local.value,
             local.is_read.0,
-            local.multiplicity,
+            local.multiplicity + local.is_last.0,
         );
     }
 }
