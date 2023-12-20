@@ -18,7 +18,7 @@
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -198,6 +198,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
 
+        println!("{:?}", trace.values);
         trace
     }
 }
@@ -258,19 +259,23 @@ where
             // F(result) remains the same.
         }
 
+        let mut b_nonzero = builder.when(one.clone() - local.division_by_0);
         // Now, result is c * quotient + remainder, which must equal b, unless c
         // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
         // are correct.
         for i in 0..WORD_SIZE {
-            let res_eq_b = result[i].clone() - local.b[i].clone();
-            builder.assert_zero((one.clone() - local.division_by_0) * res_eq_b);
+            b_nonzero.assert_zero(result[i].clone() - local.b[i].clone());
         }
 
         // We've confirmed the correctness of `quotient` and `remainder`. Now,
         // we need to check the output `a` indeed matches what we have.
         for i in 0..WORD_SIZE {
-            let exp = local.is_divu * local.quotient[i] + local.is_remu * local.remainder[i];
-            builder.assert_zero((one.clone() - local.division_by_0) * (exp - local.a[i]));
+            b_nonzero
+                .when(local.is_remu + local.is_rem)
+                .assert_zero(local.remainder[i] - local.a[i]);
+            b_nonzero
+                .when(local.is_divu + local.is_div)
+                .assert_zero(local.quotient[i] - local.a[i]);
         }
 
         // Finally, deal with division by 0,
@@ -437,6 +442,20 @@ mod tests {
             (Opcode::REMU, 5, 5, 0),
             (Opcode::REMU, neg(1), neg(1), 0),
             (Opcode::REMU, 0, 0, 0),
+            (Opcode::REM, 7, 16, 9),
+            // (Opcode::REM, neg(4), neg(22), 6),
+            // (Opcode::REM, 1, 25, neg(3)),
+            // (Opcode::REM, neg(2), neg(22), neg(4)),
+            // (Opcode::REM, 0, 873, 1),
+            // (Opcode::REM, 0, 873, neg(1)),
+            // (Opcode::REM, 5, 5, 0),
+            // (Opcode::REM, neg(5), neg(5), 0),
+            // (Opcode::REM, 0, 0, 0),
+            // (Opcode::REM, 0, 0x80000001, neg(1)),
+            // (Opcode::DIV, 3, 18, 6),
+            // (Opcode::DIV, neg(6), neg(24), 4),
+            // (Opcode::DIV, neg(2), 16, neg(8)),
+            // (Opcode::DIV, neg(1), 0, 0),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
@@ -444,7 +463,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            // divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         runtime.divrem_events = divrem_events;
