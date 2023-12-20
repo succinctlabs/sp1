@@ -300,7 +300,9 @@ where
         builder.assert_eq(local.is_b_negative, local.is_rem_negative);
 
         // If b is negative (hence signed), then the op code has to be either DIV or REM.
-        builder.assert_zero(local.is_b_negative * (local.is_div + local.is_rem));
+        builder
+            .when(local.is_b_negative)
+            .assert_eq(local.is_div + local.is_rem, one.clone());
 
         // Range check for rem: -b < remainder < b or b < remainder < -b.
 
@@ -443,7 +445,7 @@ mod tests {
             (Opcode::REMU, neg(1), neg(1), 0),
             (Opcode::REMU, 0, 0, 0),
             (Opcode::REM, 7, 16, 9),
-            // (Opcode::REM, neg(4), neg(22), 6),
+            (Opcode::REM, neg(4), neg(22), 6),
             // (Opcode::REM, 1, 25, neg(3)),
             // (Opcode::REM, neg(2), neg(22), neg(4)),
             // (Opcode::REM, 0, 873, 1),
