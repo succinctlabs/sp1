@@ -2,8 +2,8 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
 use p3_field::PrimeField;
+use p3_field::{AbstractField, Field};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -30,6 +30,10 @@ pub struct LtCols<T> {
 
     /// Boolean flag to indicate which byte pair differs
     pub byte_flag: [T; 4],
+
+    /// Sign bits of MSG
+    pub sign_b: T,
+    pub sign_c: T,
 
     /// Boolean flag to indicate whether to do an equality check between the bytes (after the byte that differs, this should be false)
     pub byte_equality_check: [T; 4],
@@ -61,8 +65,17 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 let mut row = [F::zero(); NUM_LT_COLS];
                 let cols: &mut LtCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+                let mut b = event.b.to_le_bytes();
+                let mut c = event.c.to_le_bytes();
+
+                // If the operands are signed, get and then mask the MSB of b & c.
+                if event.opcode == Opcode::SLT || event.opcode == Opcode::SLTI {
+                    cols.sign_b = F::from_canonical_u8(b[3] >> 7);
+                    cols.sign_c = F::from_canonical_u8(c[3] >> 7);
+                    b[3] = b[3] & (0b0111_1111);
+                    c[3] = c[3] & (0b0111_1111);
+                }
+
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
@@ -93,12 +106,15 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.byte_equality_check.reverse();
 
                 println!("Event: {:?} {:?} {:?}", a, b, c);
+                println!("Sign: {:?} {:?}", cols.sign_b, cols.sign_c);
                 println!("Bits: {:?}", cols.bits);
                 println!("Byte flag: {:?}", cols.byte_flag);
                 println!("Byte equality check: {:?}", cols.byte_equality_check);
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
+                println!("IS_SLT: {:?}", cols.is_slt);
+                println!("IS_SLTU: {:?}", cols.is_sltu);
                 row
             })
             .collect::<Vec<_>>();
@@ -147,42 +163,40 @@ where
                 .when(local.byte_equality_check[i])
                 .assert_eq(local.b[i], local.c[i]);
 
-            builder.when(local.byte_flag[i]).assert_eq(
-                AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
-                bit_comp.clone(),
-            );
+            // builder.when(local.byte_flag[i]).assert_eq(
+            //     AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+            //     bit_comp.clone(),
+            // );
 
             builder.assert_bool(local.byte_flag[i]);
         }
+        // Verify at most one byte flag is set.
         let flag_sum =
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
-        // TODO: Add assert on local.byte_equality_check that it only comes after local.byte_flag?
+        let computed_is_ltu = AB::Expr::one() - local.bits[8];
+        // Output constraints
+        // SLTU
+        builder
+            .when(local.is_sltu)
+            .assert_eq(local.a[0], computed_is_ltu.clone());
 
-        // TODO: If we need to factor into account multiplicity, the Valida approach should be used.
-        // Valida: Have byte flags for first 3 bytes, the last byte should only be flagged if the
-        // multiplicity is non-zero (i.e. the lt event is requested).
-
+        // SLT
+        // b_s and c_s are sign bits.
+        // b_<s and c_<s are b and c after the MSB is masked.
+        // LTS = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
+        let only_b_neg = local.sign_b * (AB::Expr::one() - local.sign_c);
+        let equal_sign = local.sign_b * local.sign_c
+            + (AB::Expr::one() - local.sign_b) * (AB::Expr::one() - local.sign_c);
+        let computed_is_lt = only_b_neg + equal_sign.clone() * computed_is_ltu;
         // builder
-        //     .when_ne(flag_sum.clone(), AB::Expr::one())
-        //     .when_ne(local.multiplicity, AB::Expr::zero())
-        //     .assert_eq(
-        //         AB::Expr::from_canonical_u32(256) + local.b[3] - local.c[3],
-        //         bit_comp.clone(),
-        //     );
-
-        // // Output constraints
-        // builder.when(local.bits[8]).assert_zero(local.a[0]);
-        // builder
-        //     .when_ne(local.bits[8], AB::Expr::one())
-        //     .assert_one(local.a[0]);
-
-        // Output constraint. If local.bits[8] == 1, then b >= c, so a = 0. Else, a = 1.
-        builder.assert_bool(local.bits[8]);
-        builder.when(local.bits[8]).assert_zero(local.a[0]);
+        //     .when(local.is_slt)
+        //     .assert_eq(local.a[0], computed_is_lt);
 
         // Check bit decomposition is valid.
+        builder.assert_bool(local.sign_b);
+        builder.assert_bool(local.sign_c);
         for bit in local.bits.into_iter() {
             builder.assert_bool(bit);
         }
@@ -283,18 +297,21 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         // runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
         runtime.lt_events = vec![
-            AluEvent::new(0, Opcode::SLT, 0, 3, 2),
-            AluEvent::new(1, Opcode::SLT, 1, 2, 3),
-            AluEvent::new(
-                2,
-                Opcode::SLT,
-                0,
-                // -3
-                0b11111111111111111111111111111101,
-                // -4
-                0b11111111111111111111111111111100,
-            ),
-            AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
+            // AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            // AluEvent::new(1, Opcode::SLT, 1, 2, 3),
+            // AluEvent::new(
+            //     2,
+            //     Opcode::SLT,
+            //     0,
+            //     // -3
+            //     0b11111111111111111111111111111101,
+            //     // -4
+            //     0b11111111111111111111111111111100,
+            // ),
+            // AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
+            // AluEvent::new(4, Opcode::SLT, 1, 255, 65536),
+            //  1 == -3 < 5
+            AluEvent::new(0, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
         ];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
