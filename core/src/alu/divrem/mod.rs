@@ -239,9 +239,6 @@ where
         builder.assert_bool(local.is_divu);
 
         // If it's a real column, exactly one of is_remu and is_divu must be 1.
-        builder.assert_zero(local.is_real * local.is_remu * local.is_divu);
-
-        // If it's a real column, exactly one of is_remu and is_divu must be 1.
         builder.assert_zero(local.is_real * (one.clone() - local.is_divu - local.is_remu));
 
         let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
