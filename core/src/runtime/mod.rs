@@ -242,8 +242,8 @@ impl Runtime {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = Some(self.mr(addr));
-        (rd, b, c, addr, memory_value)
+        let memory_read_value = Some(self.mr(addr));
+        (rd, b, c, addr, memory_read_value)
     }
 
     /// Fetch the input operand values for a store instruction.
