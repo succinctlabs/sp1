@@ -33,8 +33,7 @@ pub struct LtCols<T> {
     pub byte_flag: [T; 4],
 
     /// Sign bits of MSG
-    pub sign_b: T,
-    pub sign_c: T,
+    pub sign: [T; 2],
 
     /// Boolean flag to indicate whether to do an equality check between the bytes (after the byte that differs, this should be false)
     pub byte_equality_check: [T; 4],
@@ -83,8 +82,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 // If the operands are signed, get and then mask the MSB of b & c.
                 if event.opcode == Opcode::SLT || event.opcode == Opcode::SLTI {
-                    cols.sign_b = F::from_canonical_u8(b[3] >> 7);
-                    cols.sign_c = F::from_canonical_u8(c[3] >> 7);
+                    cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
+                    cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
                     b[3] = b[3] & (0b0111_1111);
                     c[3] = c[3] & (0b0111_1111);
                 }
@@ -119,7 +118,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.byte_equality_check.reverse();
 
                 println!("A: {:?}, B: {:?}, C: {:?}", cols.a, cols.b, cols.c);
-                // println!("Sign: {:?} {:?}", cols.sign_b, cols.sign_c);
+                // println!("Sign: {:?} {:?}", cols.sign[0], cols.sign[1]);
                 // println!("Bits: {:?}", cols.bits);
                 // println!("Byte flag: {:?}", cols.byte_flag);
                 // println!("Byte equality check: {:?}", cols.byte_equality_check);
@@ -133,10 +132,10 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 let computed_is_ltu = F::from_canonical_u16(1) - cols.bits[8];
                 println!("Computed IS_SLTU: {:?}", computed_is_ltu);
 
-                let only_b_neg = cols.sign_b * (F::from_canonical_u16(1) - cols.sign_c);
-                let equal_sign = cols.sign_b * cols.sign_c
-                    + (F::from_canonical_u16(1) - cols.sign_b)
-                        * (F::from_canonical_u16(1) - cols.sign_c);
+                let only_b_neg = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1]);
+                let equal_sign = cols.sign[0] * cols.sign[1]
+                    + (F::from_canonical_u16(1) - cols.sign[0])
+                        * (F::from_canonical_u16(1) - cols.sign[1]);
                 let computed_is_lt: F = only_b_neg + (equal_sign * computed_is_ltu.clone());
                 println!("Computed IS_SLT: {:?}", computed_is_lt);
 
@@ -185,10 +184,8 @@ where
             .sum();
 
         for i in 0..4 {
-            builder
-                .when_ne(local.byte_flag[i], AB::F::one())
-                .when(local.byte_equality_check[i])
-                .assert_eq(local.b[i], local.c[i]);
+            let check_eq = (one.clone() - local.byte_flag[i]) * local.byte_equality_check[i];
+            builder.when(check_eq).assert_eq(local.b[i], local.c[i]);
 
             builder.when(local.byte_flag[i]).assert_eq(
                 AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
@@ -214,13 +211,13 @@ where
         // b_s and c_s are sign bits.
         // b_<s and c_<s are b and c after the MSB is masked.
         // LTS = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
-        builder.assert_bool(local.sign_b);
-        builder.assert_bool(local.sign_c);
-        let only_b_neg = local.sign_b * (one.clone() - local.sign_c);
+        builder.assert_bool(local.sign[0]);
+        builder.assert_bool(local.sign[1]);
+        let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
         // builder.when(only_b_neg).assert_one(local.a[0]);
 
-        let equal_sign = local.sign_b * local.sign_c
-            + (one.clone() - local.sign_b) * (one.clone() - local.sign_c);
+        let equal_sign = local.sign[0] * local.sign[1]
+            + (one.clone() - local.sign[0]) * (one.clone() - local.sign[1]);
         let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
         builder
             .when(local.is_slt)
