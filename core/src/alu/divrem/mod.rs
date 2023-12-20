@@ -17,8 +17,6 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 const BYTE_SIZE: usize = 8;
-const BYTE_MASK: u8 = 0xff;
-const SIGN_BIT_MASK: u8 = 0x80;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -37,12 +35,11 @@ pub struct DivRemCols<T> {
     pub quotient: [T; WORD_SIZE],
     pub remainder: [T; WORD_SIZE],
 
-    /// `mul_carry` stores the carry when multiplying quotient by c. Since
-    /// the product is strictly smaller than b, we only need WORD_SIZE bytes.
-    pub mul_carry: [T; WORD_SIZE],
+    /// `carry` stores the carry when "normalizing" quotient * c + remainder.
+    pub carry: [T; WORD_SIZE],
 
-    /// `add_carry` stores the carry when adding remainder to quotient * c.
-    pub add_carry: [T; WORD_SIZE],
+    pub is_divu: T,
+    pub is_remu: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -57,81 +54,64 @@ impl DivRemChip {
     }
 }
 
-fn is_sign_bit_on(a: [u8; WORD_SIZE]) -> bool {
-    (a[WORD_SIZE - 1] & SIGN_BIT_MASK) != 0
-}
-
 impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = runtime
-            .mul_events
+            .divrem_events
             .par_iter()
             .map(|event| {
-                assert!(
-                    event.opcode == Opcode::DIVREM
-                        || event.opcode == Opcode::DIVREMHU
-                        || event.opcode == Opcode::DIVREMH
-                        || event.opcode == Opcode::DIVREMHSU
-                );
+                assert!(event.opcode == Opcode::DIVU || event.opcode == Opcode::REMU);
                 let mut row = [F::zero(); NUM_DIVREM_COLS];
                 let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
                 let a_word = event.a.to_le_bytes();
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
 
-                let mut b = b_word.to_vec();
-                let mut c = c_word.to_vec();
+                let quotient = (event.b / event.c).to_le_bytes();
+                let remainder = (event.b % event.c).to_le_bytes();
 
-                // Sign extend b and c whenever appropriate.
-                if event.opcode == Opcode::DIVREMH || event.opcode == Opcode::MULHSU {
-                    if is_sign_bit_on(b_word) {
-                        // b is signed and it is negative. Sign extend b.
-                        cols.is_b_negative = F::one();
-                        b.resize(PRODUCT_SIZE, BYTE_MASK);
-                    }
-                }
+                let mut result = [0u32; WORD_SIZE];
 
-                if event.opcode == Opcode::DIVREMH {
-                    if is_sign_bit_on(c_word) {
-                        // c is signed and it is negative. Sign extend c.
-                        cols.is_c_negative = F::one();
-                        c.resize(PRODUCT_SIZE, BYTE_MASK);
-                    }
-                }
-
-                let mut product = [0u32; PRODUCT_SIZE];
-
-                for i in 0..b.len() {
-                    for j in 0..c.len() {
-                        if i + j < PRODUCT_SIZE {
-                            product[i + j] += (b[i] as u32) * (c[j] as u32);
+                // Multiply the quotient by c.
+                for i in 0..quotient.len() {
+                    for j in 0..c_word.len() {
+                        if i + j < result.len() {
+                            result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
                         }
                     }
                 }
 
-                // Calculate the correct product using the `product` array. We
-                // store the correct carry value for verification.
+                // Add remainder to product.
+                for i in 0..WORD_SIZE {
+                    result[i] += remainder[i] as u32;
+                }
+
                 let base = 1 << BYTE_SIZE;
-                for i in 0..PRODUCT_SIZE {
-                    let carry = product[i] / base;
-                    product[i] %= base;
-                    if i + 1 < PRODUCT_SIZE {
-                        product[i + 1] += carry;
+
+                // "normalize" as some terms are bigger than u8 now.
+                for i in 0..WORD_SIZE {
+                    let carry = result[i] / base;
+                    result[i] %= base;
+                    if i + 1 < result.len() {
+                        result[i + 1] += carry;
                     }
                     cols.carry[i] = F::from_canonical_u32(carry);
                 }
 
-                cols.product = product.map(F::from_canonical_u32);
+                // result is c * quotient + remainder, which must equal b.
+                result.iter().zip(b_word.iter()).for_each(|(r, b)| {
+                    assert_eq!(*r, *b as u32);
+                });
+
                 cols.a = Word(a_word.map(F::from_canonical_u8));
                 cols.b = Word(b_word.map(F::from_canonical_u8));
                 cols.c = Word(c_word.map(F::from_canonical_u8));
+                cols.quotient = quotient.map(F::from_canonical_u8);
+                cols.remainder = remainder.map(F::from_canonical_u8);
                 cols.is_real = F::one();
-
-                if event.opcode != Opcode::DIVREM {
-                    // DIVREM is the only op code that checks the lower half.
-                    cols.is_upper = F::one();
-                }
+                cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
+                cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
 
                 row
             })
@@ -146,6 +126,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
 
+        println!("trace: {:?}", trace);
         trace
     }
 }
@@ -166,72 +147,69 @@ where
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
 
-        // 0xff
-        let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
+        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
 
-        // Sign extend local.b and local.c whenever appropriate.
-        let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-        let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
-            if i < WORD_SIZE {
-                b[i] = local.b[i].into();
-                c[i] = local.c[i].into();
-            } else {
-                b[i] = local.is_b_negative.clone() * byte_mask;
-                c[i] = local.is_c_negative.clone() * byte_mask;
-            }
-        }
-
-        // Compute the uncarried product b(x) * c(x) = m(x).
-        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-
-        for i in 0..PRODUCT_SIZE {
-            for j in 0..PRODUCT_SIZE {
-                if i + j < PRODUCT_SIZE {
-                    m[i + j] += b[i].clone() * c[j].clone();
+        // Multiply the quotient by c.
+        for i in 0..WORD_SIZE {
+            for j in 0..WORD_SIZE {
+                if i + j < WORD_SIZE {
+                    result[i + j] += local.quotient[i].clone() * local.c[j].clone();
                 }
             }
         }
 
-        // Compute the carried product by decomposing each coefficient of m(x)
-        // into some carry and product. Note that we must assume that the carry
-        // is range checked to avoid underflow.
-        for i in 0..PRODUCT_SIZE {
-            if i == 0 {
-                // When i = 0, there is no carry from the previous term as
-                // there is no previous term.
-                builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
-            } else {
-                // When 0 < i < PRODUCT_SIZE, there is a carry from the
-                // previous term, and there's a carry from this term. This is
-                // true even for the highest term due to the possible sign bits.
-                builder.assert_eq(
-                    local.product[i],
-                    m[i].clone() + local.carry[i - 1] - local.carry[i] * base,
-                );
+        // Add remainder to product.
+        for i in 0..WORD_SIZE {
+            result[i] += local.remainder[i].into();
+        }
+
+        // "normalize" just like earlier.
+        for i in 0..WORD_SIZE {
+            // We would calculate carry = result [i] / base, but of course we
+            // can't do divide during verification. Therefore, we use
+            // `mul_carry` as a hint.
+            let carry = local.carry[i].clone();
+
+            // result [i] %= base;
+            result[i] -= carry.clone() * base.clone();
+
+            if i + 1 < WORD_SIZE {
+                result[i + 1] += carry.into();
             }
         }
 
-        // Assert that the upper or lower half word of the product matches the result.
+        // Now, result is c * quotient + remainder, which must equal b.
         for i in 0..WORD_SIZE {
-            let appropriate_half = local.is_upper * local.product[i + WORD_SIZE]
-                + (one.clone() - local.is_upper) * local.product[i];
-            builder.assert_eq(appropriate_half, local.a[i]);
+            builder.assert_eq(result[i].clone(), local.b[i].clone());
+        }
+
+        // We've finally calculated the result. Now, we need to check the
+        // output a indeed matches what we have.
+        for i in 0..WORD_SIZE {
+            let exp = local.is_divu * local.quotient[i] + local.is_remu * local.remainder[i];
+            builder.assert_eq(exp, local.a[i]);
         }
 
         builder.assert_bool(local.is_real);
-        builder.assert_bool(local.is_upper);
-        builder.assert_bool(local.is_b_negative);
-        builder.assert_bool(local.is_c_negative);
+        builder.assert_bool(local.is_remu);
+        builder.assert_bool(local.is_divu);
+
+        // If it's a real column, exactly one of is_remu and is_divu must be 1.
+        builder.assert_zero(local.is_real * local.is_remu * local.is_divu);
+
+        // If it's a real column, exactly one of is_remu and is_divu must be 1.
+        builder.assert_zero(local.is_real * (one - local.is_divu - local.is_remu));
+
+        //        builder.assert_zero(one - local.is_divu);
+        //        builder.assert_zero(local.is_divu);
+        //        builder.assert_zero((one.clone() - local.is_remu) * (one.clone() - local.is_divu));
+
+        let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
+        let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
+        let opcode = local.is_divu * divu + local.is_remu * remu;
 
         // Receive the arguments.
-        builder.receive_alu(
-            AB::F::from_canonical_u32(Opcode::DIVREM as u32),
-            local.a,
-            local.b,
-            local.c,
-            local.is_real,
-        );
+        builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
 
         // TODO: Range check the carry column.
 
@@ -263,7 +241,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Runtime},
+        runtime::{Opcode, Program, Runtime},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -272,18 +250,18 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.mul_events = vec![AluEvent::new(
-            0,
-            Opcode::DIVREMHSU,
-            0x80004000,
-            0x80000000,
-            0xffff8000,
-        )];
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
+
+        runtime.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)
+    }
+
+    fn neg(a: u32) -> u32 {
+        u32::MAX - a + 1
     }
 
     #[test]
@@ -328,72 +306,39 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        let mut mul_events: Vec<AluEvent> = Vec::new();
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
+        let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
-            //(Opcode::DIVREM, 0x00001200, 0x00007e00, 0xb6db6db7),
-            //(Opcode::DIVREM, 0x00001240, 0x00007fc0, 0xb6db6db7),
-            //(Opcode::DIVREM, 0x00000000, 0x00000000, 0x00000000),
-            //(Opcode::DIVREM, 0x00000001, 0x00000001, 0x00000001),
-            //(Opcode::DIVREM, 0x00000015, 0x00000003, 0x00000007),
-            //(Opcode::DIVREM, 0x00000000, 0x00000000, 0xffff8000),
-            //(Opcode::DIVREM, 0x00000000, 0x80000000, 0x00000000),
-            //(Opcode::DIVREM, 0x00000000, 0x80000000, 0xffff8000),
-            //(Opcode::DIVREM, 0x0000ff7f, 0xaaaaaaab, 0x0002fe7d),
-            //(Opcode::DIVREM, 0x0000ff7f, 0x0002fe7d, 0xaaaaaaab),
-            //(Opcode::DIVREM, 0x00000000, 0xff000000, 0xff000000),
-            //(Opcode::DIVREM, 0x00000001, 0xffffffff, 0xffffffff),
-            //(Opcode::DIVREM, 0xffffffff, 0xffffffff, 0x00000001),
-            //(Opcode::DIVREM, 0xffffffff, 0x00000001, 0xffffffff),
-            //(Opcode::DIVREMHU, 0x00000000, 0x00000000, 0x00000000),
-            //(Opcode::DIVREMHU, 0x00000000, 0x00000001, 0x00000001),
-            //(Opcode::DIVREMHU, 0x00000000, 0x00000003, 0x00000007),
-            //(Opcode::DIVREMHU, 0x00000000, 0x00000000, 0xffff8000),
-            //(Opcode::DIVREMHU, 0x00000000, 0x80000000, 0x00000000),
-            //(Opcode::DIVREMHU, 0x7fffc000, 0x80000000, 0xffff8000),
-            //(Opcode::DIVREMHU, 0x0001fefe, 0xaaaaaaab, 0x0002fe7d),
-            //(Opcode::DIVREMHU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab),
-            //(Opcode::DIVREMHU, 0xfe010000, 0xff000000, 0xff000000),
-            //(Opcode::DIVREMHU, 0xfffffffe, 0xffffffff, 0xffffffff),
-            //(Opcode::DIVREMHU, 0x00000000, 0xffffffff, 0x00000001),
-            //(Opcode::DIVREMHU, 0x00000000, 0x00000001, 0xffffffff),
-            //(Opcode::DIVREMHSU, 0x00000000, 0x00000000, 0x00000000),
-            //(Opcode::DIVREMHSU, 0x00000000, 0x00000001, 0x00000001),
-            //(Opcode::DIVREMHSU, 0x00000000, 0x00000003, 0x00000007),
-            //(Opcode::DIVREMHSU, 0x00000000, 0x00000000, 0xffff8000),
-            //(Opcode::DIVREMHSU, 0x00000000, 0x80000000, 0x00000000),
-            //(Opcode::DIVREMHSU, 0x80004000, 0x80000000, 0xffff8000),
-            //(Opcode::DIVREMHSU, 0xffff0081, 0xaaaaaaab, 0x0002fe7d),
-            //(Opcode::DIVREMHSU, 0x0001fefe, 0x0002fe7d, 0xaaaaaaab),
-            //(Opcode::DIVREMHSU, 0xff010000, 0xff000000, 0xff000000),
-            //(Opcode::DIVREMHSU, 0xffffffff, 0xffffffff, 0xffffffff),
-            //(Opcode::DIVREMHSU, 0xffffffff, 0xffffffff, 0x00000001),
-            //(Opcode::DIVREMHSU, 0x00000000, 0x00000001, 0xffffffff),
-            //(Opcode::DIVREMH, 0x00000000, 0x00000000, 0x00000000),
-            //(Opcode::DIVREMH, 0x00000000, 0x00000001, 0x00000001),
-            //(Opcode::DIVREMH, 0x00000000, 0x00000003, 0x00000007),
-            //(Opcode::DIVREMH, 0x00000000, 0x00000000, 0xffff8000),
-            //(Opcode::DIVREMH, 0x00000000, 0x80000000, 0x00000000),
-            //(Opcode::DIVREMH, 0x00000000, 0x80000000, 0x00000000),
-            //(Opcode::DIVREMH, 0xffff0081, 0xaaaaaaab, 0x0002fe7d),
-            //(Opcode::DIVREMH, 0xffff0081, 0x0002fe7d, 0xaaaaaaab),
-            //(Opcode::DIVREMH, 0x00010000, 0xff000000, 0xff000000),
-            //(Opcode::DIVREMH, 0x00000000, 0xffffffff, 0xffffffff),
-            //(Opcode::DIVREMH, 0xffffffff, 0xffffffff, 0x00000001),
-            //(Opcode::DIVREMH, 0xffffffff, 0x00000001, 0xffffffff),
+            (Opcode::DIVU, 3, 20, 6),
+            (Opcode::DIVU, 715827879, u32::MAX - 20 + 1, 6),
+            (Opcode::DIVU, 0, 20, u32::MAX - 6 + 1),
+            (Opcode::DIVU, 0, u32::MAX - 20 + 1, u32::MAX - 6 + 1),
+            (Opcode::DIVU, 1 << 31, 1 << 31, 1),
+            (Opcode::DIVU, 0, 1 << 31, u32::MAX - 1 + 1),
+            //(Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            //(Opcode::DIVU, u32::MAX, 1, 0),
+            //(Opcode::DIVU, u32::MAX, 0, 0),
+            (Opcode::REMU, 4, 18, 7),
+            (Opcode::REMU, 6, neg(20), 11),
+            (Opcode::REMU, 23, 23, neg(6)),
+            (Opcode::REMU, neg(21), neg(21), neg(11)),
+            ////(Opcode::REMU, 5, 5, 0),
+            ////(Opcode::REMU, neg(1), neg(1), 0),
+            ////(Opcode::REMU, 0, 0, 0),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, Opcode::DIVREM, 1, 1, 1));
+            //mul_events.push(AluEvent::new(0, Opcode::DIVREM, 1, 1, 1));
         }
 
-        runtime.mul_events = mul_events;
+        runtime.divrem_events = divrem_events;
         let chip = DivRemChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);

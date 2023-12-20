@@ -62,6 +62,33 @@ pub struct Runtime {
     pub memory_access: BTreeMap<u32, (u32, u32)>,
 
     /// A stream of witnessed values (global to the entire program).
+    pub memory_events: Vec<MemoryEvent>,
+
+    /// A trace of the ADD, and ADDI events.
+    pub add_events: Vec<AluEvent>,
+
+    /// A trace of the MUL events.
+    pub mul_events: Vec<AluEvent>,
+
+    /// A trace of the ADD, and ADDI events.
+    pub divrem_events: Vec<AluEvent>,
+
+    /// A trace of the SUB events.
+    pub sub_events: Vec<AluEvent>,
+
+    /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
+    pub bitwise_events: Vec<AluEvent>,
+
+    /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
+    pub shift_events: Vec<AluEvent>,
+
+    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
+    pub lt_events: Vec<AluEvent>,
+
+    /// A trace of the byte lookups needed.
+    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+
+    /// A stream of witnessed values.
     pub witness: Vec<u32>,
 
     /// Segments
@@ -91,6 +118,16 @@ impl Runtime {
             program,
             memory: BTreeMap::new(),
             memory_access: BTreeMap::new(),
+            cpu_events: Vec::new(),
+            memory_events: Vec::new(),
+            add_events: Vec::new(),
+            mul_events: Vec::new(),
+            sub_events: Vec::new(),
+            divrem_events: Vec::new(),
+            bitwise_events: Vec::new(),
+            shift_events: Vec::new(),
+            lt_events: Vec::new(),
+            byte_lookups: BTreeMap::new(),
             witness: Vec::new(),
             segments: Vec::new(),
             segment,
@@ -271,6 +308,9 @@ impl Runtime {
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
                 self.segment.add_events.push(event);
+            }
+            Opcode::DIVU | Opcode::REMU => {
+                self.divrem_events.push(event);
             }
             _ => {}
         }
