@@ -2,10 +2,10 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::PrimeField;
-use p3_field::{AbstractField, Field};
+use p3_field::{AbstractField, Field, PrimeField32};
+use p3_field::{PackedField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::{MatrixRowSlices, MatrixRows};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
@@ -18,6 +18,7 @@ pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
+#[repr(C)]
 pub struct LtCols<T> {
     /// The output operand.
     pub a: Word<T>,
@@ -44,6 +45,18 @@ pub struct LtCols<T> {
     /// Selector flags for the operation to perform.
     pub is_slt: T,
     pub is_sltu: T,
+}
+
+impl LtCols<u32> {
+    pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
+        let sized: [u32; NUM_LT_COLS] = row
+            .iter()
+            .map(|x| x.as_canonical_u32())
+            .collect::<Vec<u32>>()
+            .try_into()
+            .unwrap();
+        unsafe { transmute::<[u32; NUM_LT_COLS], LtCols<u32>>(sized) }
+    }
 }
 
 /// A chip that implements bitwise operations for the opcodes SLT, SLTI, SLTU, and SLTIU.
@@ -80,17 +93,17 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                let rev_b = event.b.to_be_bytes();
-                let rev_c = event.c.to_be_bytes();
+                b.reverse();
+                c.reverse();
 
                 // TODO: Add a byte_check flag to skip equality check for bytes after the byte flag.
-                if let Some(n) = rev_b
+                if let Some(n) = b
                     .into_iter()
-                    .zip(rev_c.into_iter())
+                    .zip(c.into_iter())
                     .enumerate()
                     .find_map(|(n, (x, y))| if x != y { Some(n) } else { None })
                 {
-                    let z = 256u16 + rev_b[n] as u16 - rev_c[n] as u16;
+                    let z = 256u16 + b[n] as u16 - c[n] as u16;
                     for i in 0..10 {
                         cols.bits[i] = F::from_canonical_u16(z >> i & 1);
                     }
@@ -105,7 +118,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.byte_flag.reverse();
                 cols.byte_equality_check.reverse();
 
-                println!("Event: {:?} {:?} {:?}", a, b, c);
+                println!("Event: {:?} {:?} {:?}", cols.a, cols.b, cols.c);
                 println!("Sign: {:?} {:?}", cols.sign_b, cols.sign_c);
                 println!("Bits: {:?}", cols.bits);
                 println!("Byte flag: {:?}", cols.byte_flag);
@@ -144,6 +157,8 @@ where
         let main = builder.main();
         let local: &LtCols<AB::Var> = main.row_slice(0).borrow();
 
+        let one = AB::Expr::one();
+
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
@@ -163,10 +178,10 @@ where
                 .when(local.byte_equality_check[i])
                 .assert_eq(local.b[i], local.c[i]);
 
-            // builder.when(local.byte_flag[i]).assert_eq(
-            //     AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
-            //     bit_comp.clone(),
-            // );
+            builder.when(local.byte_flag[i]).assert_eq(
+                AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+                bit_comp.clone(),
+            );
 
             builder.assert_bool(local.byte_flag[i]);
         }
@@ -176,30 +191,36 @@ where
         builder.assert_bool(flag_sum.clone());
 
         let computed_is_ltu = AB::Expr::one() - local.bits[8];
+        builder.assert_bool(computed_is_ltu.clone());
         // Output constraints
         // SLTU
-        builder
-            .when(local.is_sltu)
-            .assert_eq(local.a[0], computed_is_ltu.clone());
+        // builder
+        //     .when(local.is_sltu)
+        //     .assert_eq(local.a[0], computed_is_ltu.clone());
 
         // SLT
         // b_s and c_s are sign bits.
         // b_<s and c_<s are b and c after the MSB is masked.
         // LTS = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
-        let only_b_neg = local.sign_b * (AB::Expr::one() - local.sign_c);
-        let equal_sign = local.sign_b * local.sign_c
-            + (AB::Expr::one() - local.sign_b) * (AB::Expr::one() - local.sign_c);
-        let computed_is_lt = only_b_neg + equal_sign.clone() * computed_is_ltu;
-        // builder
-        //     .when(local.is_slt)
-        //     .assert_eq(local.a[0], computed_is_lt);
-
-        // Check bit decomposition is valid.
         builder.assert_bool(local.sign_b);
         builder.assert_bool(local.sign_c);
+        let only_b_neg = local.sign_b * (one.clone() - local.sign_c);
+
+        let equal_sign =
+            local.sign_b * local.sign_c + (AB::Expr::one() - local.sign_b) * (one - local.sign_c);
+        // // builder.assert_bool(equal_sign.clone());
+        let computed_is_lt: AB::Expr = only_b_neg + (equal_sign.clone() * computed_is_ltu.clone());
+        // builder.assert_bool(computed_is_lt.clone());
+
+        // Check bit decomposition is valid.
+        // builder.assert_bool(local.a[0]);
         for bit in local.bits.into_iter() {
             builder.assert_bool(bit);
         }
+
+        builder
+            .when(local.is_slt)
+            .assert_eq(local.a[0], computed_is_lt);
 
         // Receive the arguments.
         builder.receive_alu(
@@ -215,6 +236,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Borrow;
+
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -224,7 +247,7 @@ mod tests {
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
-    use p3_matrix::dense::RowMajorMatrix;
+    use p3_matrix::{dense::RowMajorMatrix, MatrixRowSlices};
     use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
@@ -233,7 +256,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        alu::AluEvent,
+        alu::{lt::LtCols, AluEvent},
         runtime::{Opcode, Runtime},
         utils::Chip,
     };
@@ -248,7 +271,13 @@ mod tests {
         runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-        println!("{:?}", trace.values)
+        let new_local = LtCols::<u32>::from_trace_row(trace.row_slice(0));
+
+        println!("{:?}", trace.values);
+        println!(
+            "a: {:?}, b: {:?}, c: {:?}",
+            new_local.a, new_local.b, new_local.c
+        );
     }
 
     #[test]
@@ -297,7 +326,7 @@ mod tests {
         let mut runtime = Runtime::new(program, 0);
         // runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
         runtime.lt_events = vec![
-            // AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
             // AluEvent::new(1, Opcode::SLT, 1, 2, 3),
             // AluEvent::new(
             //     2,
@@ -311,7 +340,7 @@ mod tests {
             // AluEvent::new(3, Opcode::SLT, 0, 65536, 255),
             // AluEvent::new(4, Opcode::SLT, 1, 255, 65536),
             //  1 == -3 < 5
-            AluEvent::new(0, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
+            // AluEvent::new(0, Opcode::SLT, 1, 0b11111111111111111111111111111101, 5),
         ];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);

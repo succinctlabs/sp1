@@ -866,6 +866,7 @@ pub mod tests {
     use super::Opcode;
     use super::Register;
     use super::Runtime;
+    use crate::alu::AluEvent;
     use crate::disassembler::parse_elf;
     use crate::runtime::instruction::Instruction;
     use p3_baby_bear::BabyBear;
@@ -1050,7 +1051,14 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let mut runtime = Runtime::new(program, init_pc);
+        let mut runtime = Runtime::new(program, 0);
+        runtime.lt_events = vec![AluEvent::new(
+            0,
+            Opcode::SLT,
+            1,
+            0b11111111111111111111111111111101,
+            5,
+        )];
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
