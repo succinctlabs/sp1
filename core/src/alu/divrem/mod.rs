@@ -344,7 +344,7 @@ where
 
         // 1'. If remainder < 0, then b < 0.
         builder
-            .when(local.rem_neg) // rem is not negative.
+            .when(local.rem_neg) // rem is negative.
             .assert_one(local.b_neg); // b is negative.
 
         // 2'. If remainder > 0, then b >= 0.
