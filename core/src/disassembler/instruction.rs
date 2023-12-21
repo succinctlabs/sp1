@@ -342,10 +342,10 @@ impl InstructionProcessor for InstructionTranspiler {
     /// Additionally the op_c should be set to 12.
     fn process_lui(&mut self, dec_insn: UType) -> Self::InstructionResult {
         Instruction::new(
-            Opcode::SLL,
+            Opcode::ADD,
             dec_insn.rd as u32,
+            0,
             dec_insn.imm as u32,
-            12,
             true,
             true,
         )

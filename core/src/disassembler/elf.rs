@@ -115,5 +115,6 @@ pub fn parse_elf(input: &[u8]) -> (Vec<u32>, u32) {
     }
 
     let pc = entry - first_memory_address;
-    (instructions, pc)
+    println!("{}", first_memory_address);
+    (instructions, entry)
 }

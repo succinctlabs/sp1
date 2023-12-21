@@ -52,4 +52,13 @@ pub mod tests {
         runtime.run();
         println!("{:#?}, {}", instructions, pc);
     }
+
+    #[test]
+    fn test_malloc() {
+        let (instructions, pc) = disassemble_from_elf("/Users/jtguibas/Succinct/risc0/examples/target/riscv-guest/riscv32im-risc0-zkvm-elf/release/search_json");
+        let mut runtime = Runtime::new(instructions.clone(), pc);
+        runtime.write_witness(&[1, 2]);
+        runtime.run();
+        println!("{:#?}, {}", instructions, pc);
+    }
 }

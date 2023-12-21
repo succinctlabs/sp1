@@ -25,6 +25,9 @@ pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
     pub clk: u32,
 
+    /// The initial program counter.
+    pub pc_init: u32,
+
     /// The program counter keeps track of the next instruction.
     pub pc: u32,
 
@@ -70,6 +73,7 @@ impl Runtime {
     pub fn new(program: Vec<Instruction>, pc: u32) -> Self {
         Self {
             clk: 0,
+            pc_init: 2099200,
             pc,
             memory: BTreeMap::new(),
             program,
@@ -278,7 +282,7 @@ impl Runtime {
 
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
-        let idx = (self.pc / 4) as usize;
+        let idx = ((self.pc - self.pc_init) / 4) as usize;
         return self.program[idx];
     }
 
@@ -448,6 +452,7 @@ impl Runtime {
             Opcode::BLTU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a < b {
+                    println!("jumped! a: {}, b: {}, c: {}", a, b, c);
                     next_pc = self.pc.wrapping_add(c);
                 }
             }
@@ -478,7 +483,7 @@ impl Runtime {
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
                 (b, c) = (imm, imm << 12);
-                a = self.pc.wrapping_add(b << 12);
+                a = self.pc.wrapping_add(b);
                 self.rw(rd, a);
             }
 
@@ -594,18 +599,35 @@ impl Runtime {
 
     /// Execute the program.
     pub fn run(&mut self) {
-        // Set %x2 to the size of memory when the CPU is initialized.
-        self.rw(Register::X2, 1024 * 1024 * 8);
+        // // Set %x2 to the size of memory when the CPU is initialized.
+        // self.rw(Register::X2, 1024 * 1024 * 8);
 
-        // Set the return address to the end of the program.
-        self.rw(Register::X1, (self.program.len() * 4) as u32);
+        // // Set the return address to the end of the program.
+        // self.rw(Register::X1, (self.program.len() * 4) as u32);
 
         self.clk += 1;
-        while self.pc < (self.program.len() * 4) as u32 {
+        while self.pc < (self.program.len() * 4) as u32 + self.pc_init {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            println!("{:?}", instruction);
+            let width = 10;
+            println!(
+                "[0x{:x?}] {:<width$?} x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                self.pc,
+                instruction,
+                self.register(Register::X0),
+                self.register(Register::X1),
+                self.register(Register::X2),
+                self.register(Register::X3),
+                self.register(Register::X4),
+                self.register(Register::X5),
+                self.register(Register::X6),
+                self.register(Register::X7),
+                self.register(Register::X8),
+                self.register(Register::X9),
+                self.register(Register::X10),
+                self.register(Register::X11)
+            );
 
             // Execute the instruction.
             self.execute(instruction);
