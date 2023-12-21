@@ -53,7 +53,7 @@ pub mod tests {
 
     #[test]
     fn test_malloc() {
-        let program = Program::from_elf("/Users/jtguibas/Succinct/risc0/examples/target/riscv-guest/riscv32im-risc0-zkvm-elf/release/search_json");
+        let program = Program::from_elf("../programs/malloc");
         prove(program.clone());
     }
 }
