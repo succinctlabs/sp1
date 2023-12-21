@@ -15,11 +15,19 @@
 //!
 //! So the product of those would simply become 0x80..00, which is
 //! exactly b, and the remainder would be 0.
+//!
+//! We also perform a fairly nontrivial check to see if a byte-decomposed
+//! number is 0.
+//!
+//! Given a, we compute sum = a[0] + a[1] + ... + a[3] and its inverse.
+//! (1 - sum * sum_inv) * sum is 0 if and only if a is indeed 0 even if
+//! sum_inv is incorrect. This is because if a is 0, then sum is 0, and
+//! the whole expression is 0 regardless. if a is not 0, then sum is not 0
+//! and sum_inv is correct, so the whole expression is nonzero.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -60,11 +68,6 @@ pub struct DivRemCols<T> {
     /// `carry` stores the carry when "carry-propagating" quotient * c + remainder.
     pub carry: [T; WORD_SIZE],
 
-    pub is_divu: T,
-    pub is_remu: T,
-    pub is_rem: T,
-    pub is_div: T,
-
     /// The inverse of \sum_{i=0..WORD_SIZE} local.rem[i] in F. Used to find out
     /// whether remainder is 0.
     pub rem_is_zero_inv: T,
@@ -74,10 +77,12 @@ pub struct DivRemCols<T> {
     pub b_is_zero_negative_assertion: T,
     pub rem_is_zero_negative_assertion: T,
 
-    pub b_is_neg: T,
-    pub rem_is_neg: T,
-
     pub division_by_0: T,
+
+    pub is_divu: T,
+    pub is_remu: T,
+    pub is_rem: T,
+    pub is_div: T,
 
     pub b_msb: T,
     pub rem_msb: T,
@@ -390,7 +395,7 @@ where
         // TODO: Range check remainder. (i.e., 0 <= remainder < c when c != 0)
         // TODO: Range check all the bytes.
 
-        // There are 8 bool member variables, so check them all here.
+        // There are 10 bool member variables, so check them all here.
         builder.assert_bool(local.is_real);
         builder.assert_bool(local.is_remu);
         builder.assert_bool(local.is_divu);
@@ -398,8 +403,11 @@ where
         builder.assert_bool(local.is_div);
         builder.assert_bool(local.b_neg);
         builder.assert_bool(local.rem_neg);
+        builder.assert_bool(local.b_msb);
+        builder.assert_bool(local.rem_msb);
         builder.assert_bool(local.division_by_0);
 
+        // Exactly one of the opcode flags must be on.
         builder.when(local.is_real).assert_eq(
             one.clone(),
             local.is_divu + local.is_remu + local.is_div + local.is_rem,
