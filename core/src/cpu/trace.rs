@@ -55,6 +55,10 @@ impl CpuChip {
         self.populate_memory(cols, event);
         self.populate_branch(cols, event);
 
+        cols.is_real = F::one();
+
+        println!("cpu row is {:?}", row);
+
         row
     }
 

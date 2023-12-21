@@ -18,6 +18,8 @@ use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_strict_usize;
 
+use crate::prover::debug_cumulative_sums;
+
 impl Runtime {
     /// Prove the program.
     #[allow(unused)]
@@ -186,7 +188,7 @@ impl Runtime {
         }
 
         // // Check the permutation argument between all tables.
-        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
 

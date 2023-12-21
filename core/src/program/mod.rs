@@ -6,6 +6,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::collections::HashMap;
 
+use p3_field::AbstractField;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
@@ -56,16 +57,17 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         let rows = runtime
             .program
             .clone()
-            .into_par_iter()
+            .into_iter()
             .enumerate()
             .map(|(i, instruction)| {
+                let pc = i as u32 * 4;
                 let mut row = [F::zero(); NUM_PROGRAM_COLS];
                 let cols: &mut ProgramCols<F> = unsafe { transmute(&mut row) };
-                cols.pc = F::from_canonical_usize(i);
+                cols.pc = F::from_canonical_u32(pc);
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);
-                cols.mult =
-                    F::from_canonical_usize(*instruction_counts.get(&(i as u32)).unwrap_or(&0));
+                cols.mult = F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+                println!("program row is {:?}", row);
                 row
             })
             .collect::<Vec<_>>();

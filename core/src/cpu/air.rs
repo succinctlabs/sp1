@@ -46,6 +46,9 @@ pub struct CpuCols<T> {
 
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -99,7 +102,7 @@ where
             local.pc,
             local.instruction,
             local.selectors,
-            AB::Expr::one(),
+            AB::Expr::one() * local.is_real,
         );
 
         //// Constraint op_a_val, op_b_val, op_c_val
