@@ -32,7 +32,7 @@ pub struct LtCols<T> {
     /// Boolean flag to indicate which byte pair differs
     pub byte_flag: [T; 4],
 
-    /// Sign bits of MSG
+    /// Sign bits of MSB
     pub sign: [T; 2],
 
     // Boolean flag to indicate whether the sign bits of b and c are equal.
@@ -43,7 +43,8 @@ pub struct LtCols<T> {
     /// bytes after the differing byte pair.
     pub byte_equality_check: [T; 4],
 
-    // Bit decomposition of 256 + b - c.
+    // Bit decomposition of 256 + b[i] - c[i], where i is the index of the largest byte pair that
+    // differs.
     pub bits: [T; 10],
 
     /// Selector flags for the operation to perform.
