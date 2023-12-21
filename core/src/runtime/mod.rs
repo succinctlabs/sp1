@@ -204,6 +204,9 @@ impl Runtime {
             Opcode::SLT | Opcode::SLTU => {
                 self.lt_events.push(event);
             }
+            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
+                self.add_events.push(event);
+            }
             _ => {}
         }
     }
@@ -498,6 +501,7 @@ impl Runtime {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_mul(c);
                 self.rw(rd, a);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::MULH => {
                 // MULH performs the same multiplication, but returns the upper
@@ -505,6 +509,7 @@ impl Runtime {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
                 self.rw(rd, a);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::MULHU => {
                 // MULH performs the same multiplication, but returns the upper
@@ -512,6 +517,7 @@ impl Runtime {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
                 self.rw(rd, a);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::MULHSU => {
                 // MULH performs the same multiplication, but returns the upper
@@ -519,6 +525,7 @@ impl Runtime {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
                 self.rw(rd, a);
+                self.emit_alu(self.clk, instruction.opcode, a, b, c);
             }
             Opcode::DIV => {
                 (rd, b, c) = self.alu_rr(instruction);
