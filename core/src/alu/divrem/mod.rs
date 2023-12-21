@@ -59,15 +59,6 @@ pub struct DivRemCols<T> {
     /// `carry` stores the carry when "carry-propagating" quotient * c + remainder.
     pub carry: [T; WORD_SIZE],
 
-    /// The inverse of \sum_{i=0..WORD_SIZE} local.rem[i] in F. Used to find out
-    /// whether remainder is 0.
-    pub rem_is_zero_inv: T,
-    pub b_is_zero_inv: T,
-
-    /// {b, rem}_is_zero is 0 if the value is indeed 0, but nonzero if it's not.
-    pub b_is_zero_negative_assertion: T,
-    pub rem_is_zero_negative_assertion: T,
-
     pub division_by_0: T,
 
     pub is_divu: T,
@@ -101,7 +92,7 @@ fn is_signed_operation(opcode: Opcode) -> bool {
 fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8; WORD_SIZE]) {
     if c == 0 {
         // When c is 0, the quotient is 2^32 - 1 and the remainder is b
-        // reagrdless of whether we perform signed or unsigned division.
+        // regardless of whether we perform signed or unsigned division.
         ([0xff; WORD_SIZE], b.to_le_bytes())
     } else if is_signed_operation(opcode) {
         (
@@ -114,19 +105,6 @@ fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8
             ((b as u32).wrapping_rem(c as u32) as u32).to_le_bytes(),
         )
     }
-}
-
-/// This function takes in a number as a byte array and returns (indicator, inv)
-/// 1. inv = sum(bytes)'s inverse if exists, and 0 otherwise.
-/// 2. indicator = 0 if the number is 0, and
-///    (1 - sum(bytes) * inv) * sum(bytes), which is never 0 for nonzero input.
-fn nonzero_verifier<F: PrimeField>(a: [u8; WORD_SIZE]) -> (F, F) {
-    let sum = a
-        .iter()
-        .fold(F::zero(), |acc, x| acc + F::from_canonical_u8(*x));
-
-    let inv = sum.try_inverse().unwrap_or(F::zero());
-    ((F::one() - sum * inv) * sum, inv)
 }
 
 impl<F: PrimeField> Chip<F> for DivRemChip {
@@ -188,8 +166,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 cols.quotient = quotient.map(F::from_canonical_u8);
                 cols.remainder = remainder.map(F::from_canonical_u8);
-                (cols.rem_is_zero_negative_assertion, cols.rem_is_zero_inv) =
-                    nonzero_verifier::<F>(remainder);
 
                 cols.a = Word(a_word.map(F::from_canonical_u8));
                 cols.b = Word(b_word.map(F::from_canonical_u8));
@@ -207,8 +183,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 if event.c == 0 {
                     cols.division_by_0 = F::one();
                 }
-                (cols.b_is_zero_negative_assertion, cols.b_is_zero_inv) =
-                    nonzero_verifier::<F>(b_word);
 
                 row
             })
@@ -346,7 +320,6 @@ where
         // remainder, so if remainder < 0, then b can't be 0 anyway.
 
         let is_signed_type = local.is_div + local.is_rem;
-        let is_unsigned_type = local.is_divu + local.is_remu;
 
         //  is_signed_type AND (MSB == 1);
         let b_neg = is_signed_type.clone() * local.b_msb;
