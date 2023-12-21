@@ -345,7 +345,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Runtime},
+        runtime::{Opcode, Program, Runtime},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -354,8 +354,9 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.mul_events = vec![AluEvent::new(
             0,
             Opcode::MULHSU,
@@ -410,8 +411,9 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![

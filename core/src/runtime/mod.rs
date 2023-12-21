@@ -1,14 +1,18 @@
 mod instruction;
 mod opcode;
+mod program;
 mod register;
+mod syscall;
 
 pub use instruction::*;
 pub use opcode::*;
+pub use program::*;
 pub use register::*;
+pub use syscall::*;
+
+use crate::{bytes::ByteLookupEvent, cpu::CpuEvent};
 
 use crate::alu::AluEvent;
-use crate::bytes::ByteLookupEvent;
-use crate::cpu::CpuEvent;
 
 use std::collections::BTreeMap;
 
@@ -25,11 +29,11 @@ pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
     pub clk: u32,
 
-    /// The program counter keeps track of the next instruction.
+    /// The program counter.
     pub pc: u32,
 
-    /// The prgram used during execution.
-    pub program: Vec<Instruction>,
+    /// The program.
+    pub program: Program,
 
     /// The memory which instructions operate over.
     pub memory: BTreeMap<u32, u32>,
@@ -67,12 +71,12 @@ pub struct Runtime {
 
 impl Runtime {
     // Create a new runtime
-    pub fn new(program: Vec<Instruction>, pc: u32) -> Self {
+    pub fn new(program: Program) -> Self {
         Self {
             clk: 0,
-            pc,
-            memory: BTreeMap::new(),
+            pc: program.pc_start,
             program,
+            memory: BTreeMap::new(),
             cpu_events: Vec::new(),
             memory_events: Vec::new(),
             add_events: Vec::new(),
@@ -278,8 +282,8 @@ impl Runtime {
 
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
-        let idx = (self.pc / 4) as usize;
-        return self.program[idx];
+        let idx = ((self.pc - self.program.pc_base) / 4) as usize;
+        return self.program.instructions[idx];
     }
 
     /// Execute the given instruction over the current state of the runtime.
@@ -477,16 +481,29 @@ impl Runtime {
             // Upper immediate instructions.
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, imm << 12);
-                a = self.pc.wrapping_add(b << 12);
+                (b, c) = (imm, imm);
+                a = self.pc.wrapping_add(b);
                 self.rw(rd, a);
             }
 
             // System instructions.
             Opcode::ECALL => {
-                println!("{:?}", self.registers());
-                println!("ecall");
-                panic!("ecall encountered");
+                let t0 = Register::X5;
+                let a0 = Register::X10;
+                let syscall_id = self.register(Register::X5);
+                let syscall = Syscall::from_u32(syscall_id);
+                match syscall {
+                    Syscall::HALT => {
+                        (a, b, c) = (0, self.rr(t0), 0);
+                        next_pc = 0;
+                        self.rw(a0, a);
+                    }
+                    Syscall::LWA => {
+                        let witness = self.witness.pop().expect("witness stream is empty");
+                        (a, b, c) = (witness, self.rr(t0), 0);
+                        self.rw(a0, a);
+                    }
+                }
             }
 
             Opcode::EBREAK => {
@@ -551,25 +568,6 @@ impl Runtime {
                 self.alu_rw(instruction, rd, a, b, c);
             }
 
-            // Precompile instructions.
-            Opcode::HALT => {
-                println!("{:?}", self.registers());
-                todo!()
-            }
-            Opcode::LWA => {
-                println!("lwa");
-                let t0 = Register::X5;
-                let a0 = Register::X10;
-                let a1 = Register::X11;
-                let _ = self.register(a0);
-                let witness = self.witness.pop().expect("witness stream is empty");
-                (a, b, c) = (witness, self.rr(t0), 0);
-                self.rw(a0, a);
-            }
-            Opcode::PRECOMPILE => {
-                todo!()
-            }
-
             Opcode::UNIMP => {
                 // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
                 panic!("UNIMP encountered, we should never get here.");
@@ -594,18 +592,29 @@ impl Runtime {
 
     /// Execute the program.
     pub fn run(&mut self) {
-        // Set %x2 to the size of memory when the CPU is initialized.
-        self.rw(Register::X2, 1024 * 1024 * 8);
-
-        // Set the return address to the end of the program.
-        self.rw(Register::X1, (self.program.len() * 4) as u32);
-
         self.clk += 1;
-        while self.pc < (self.program.len() * 4) as u32 {
+        while self.pc - self.program.pc_base < (self.program.instructions.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            println!("{:?}", instruction);
+            let width = 12;
+            log::debug!(
+                "[pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                self.pc,
+                instruction,
+                self.register(Register::X0),
+                self.register(Register::X1),
+                self.register(Register::X2),
+                self.register(Register::X3),
+                self.register(Register::X4),
+                self.register(Register::X5),
+                self.register(Register::X6),
+                self.register(Register::X7),
+                self.register(Register::X8),
+                self.register(Register::X9),
+                self.register(Register::X10),
+                self.register(Register::X11)
+            );
 
             // Execute the instruction.
             self.execute(instruction);
@@ -618,36 +627,35 @@ impl Runtime {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{disassembler::disassemble_from_elf, runtime::Register};
+    use crate::runtime::Register;
 
-    use super::{Instruction, Opcode, Runtime};
+    use super::{Instruction, Opcode, Program, Runtime};
 
-    pub fn simple_program() -> (Vec<Instruction>, u32) {
-        let program = vec![
+    pub fn simple_program() -> Program {
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        (program, 0)
+        Program::new(instructions, 0, 0)
     }
 
-    pub fn fibonacci_program() -> (Vec<Instruction>, u32) {
-        let (program, pc) = disassemble_from_elf("../programs/fib.s");
-        (program, pc)
+    pub fn fibonacci_program() -> Program {
+        Program::from_elf("../programs/fib.s")
     }
 
     #[test]
     fn test_simple_program_run() {
-        let (program, pc) = simple_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 42);
     }
 
     #[test]
     fn test_fibonacci_run() {
-        let (program, pc) = fibonacci_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = fibonacci_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X10 as usize], 55);
     }
@@ -658,12 +666,13 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
 
         assert_eq!(runtime.register(Register::X31), 42);
@@ -674,12 +683,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sub x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 32);
     }
@@ -689,12 +700,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     xor x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::XOR, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 32);
     }
@@ -704,12 +717,15 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     or x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::OR, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
+
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 37);
     }
@@ -719,12 +735,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     and x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::AND, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 5);
     }
@@ -734,12 +752,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sll x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::SLL, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 1184);
     }
@@ -749,12 +769,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     srl x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::SRL, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 1);
     }
@@ -764,12 +786,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sra x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::SRA, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 1);
     }
@@ -779,12 +803,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     slt x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::SLT, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -794,12 +820,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sltu x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::SLTU, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -809,12 +837,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x29, 37
         //     addi x31, x30, 42
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 29, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 84);
     }
@@ -824,12 +854,13 @@ pub mod tests {
         //     addi x29, x0, 5
         //     addi x30, x29, -1
         //     addi x31, x30, 4
-        let code = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 29, 0xffffffff, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 4, false, true),
         ];
-        let mut runtime = Runtime::new(code, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 5 - 1 + 4);
     }
@@ -839,14 +870,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     xori x30, x29, 37
         //     xori x31, x30, 42
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::XOR, 30, 29, 37, false, true),
             Instruction::new(Opcode::XOR, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-
         assert_eq!(runtime.register(Register::X31), 10);
     }
 
@@ -855,14 +886,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     ori x30, x29, 37
         //     ori x31, x30, 42
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::OR, 30, 29, 37, false, true),
             Instruction::new(Opcode::OR, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-
         assert_eq!(runtime.register(Register::X31), 47);
     }
 
@@ -871,14 +902,14 @@ pub mod tests {
         //     addi x29, x0, 5
         //     andi x30, x29, 37
         //     andi x31, x30, 42
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::AND, 30, 29, 37, false, true),
             Instruction::new(Opcode::AND, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -886,11 +917,12 @@ pub mod tests {
     fn test_slli() {
         //     addi x29, x0, 5
         //     slli x31, x29, 37
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::SLL, 31, 29, 4, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 80);
     }
@@ -899,11 +931,12 @@ pub mod tests {
     fn test_srli() {
         //    addi x29, x0, 5
         //    srli x31, x29, 37
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
             Instruction::new(Opcode::SRL, 31, 29, 4, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 2);
     }
@@ -912,11 +945,12 @@ pub mod tests {
     fn test_srai() {
         //   addi x29, x0, 5
         //   srai x31, x29, 37
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
             Instruction::new(Opcode::SRA, 31, 29, 4, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 2);
     }
@@ -925,11 +959,12 @@ pub mod tests {
     fn test_slti() {
         //   addi x29, x0, 5
         //   slti x31, x29, 37
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
             Instruction::new(Opcode::SLT, 31, 29, 37, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -938,11 +973,12 @@ pub mod tests {
     fn test_sltiu() {
         //   addi x29, x0, 5
         //   sltiu x31, x29, 37
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
             Instruction::new(Opcode::SLTU, 31, 29, 37, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -956,11 +992,12 @@ pub mod tests {
         // destination address. It then stores the address of the next instruction in rd in case
         // we'd want to come back here.
 
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 11, 11, 100, false, true),
             Instruction::new(Opcode::JALR, 5, 11, 8, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
@@ -968,12 +1005,13 @@ pub mod tests {
     }
 
     fn simple_op_code_test(opcode: Opcode, expected: u32, a: u32, b: u32) {
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 10, 0, a, false, true),
             Instruction::new(Opcode::ADD, 11, 0, b, false, true),
             Instruction::new(opcode, 12, 10, 11, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
     }

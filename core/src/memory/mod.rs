@@ -117,8 +117,8 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let (program, pc) = simple_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         let events = runtime.memory_events;
 
