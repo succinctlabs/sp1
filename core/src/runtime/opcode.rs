@@ -53,13 +53,8 @@ pub enum Opcode {
     REM = 36,
     REMU = 37,
 
-    // Precompile instructions.
-    HALT = 38,
-    LWA = 39,
-    PRECOMPILE = 40,
-
     // Miscellaneaous instructions.
-    UNIMP = 41,
+    UNIMP = 39,
 }
 
 impl Opcode {
@@ -102,9 +97,6 @@ impl Opcode {
             Opcode::DIVU => "divu",
             Opcode::REM => "rem",
             Opcode::REMU => "remu",
-            Opcode::HALT => "halt",
-            Opcode::LWA => "lwa",
-            Opcode::PRECOMPILE => "???",
             Opcode::UNIMP => "unimp",
         }
     }

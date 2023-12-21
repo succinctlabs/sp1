@@ -1,6 +1,6 @@
 use rrs_lib::{
     instruction_formats::{BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType},
-    InstructionProcessor,
+    process_instruction, InstructionProcessor,
 };
 
 use crate::runtime::{Instruction, Opcode, Register};
@@ -71,57 +71,6 @@ impl Instruction {
         Self::new(Opcode::UNIMP, 0, 0, 0, true, true)
     }
 
-    /// Returns if the instruction is an ALU instruction.
-    pub fn is_alu_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::ADD
-            | Opcode::SUB
-            | Opcode::XOR
-            | Opcode::OR
-            | Opcode::AND
-            | Opcode::SLL
-            | Opcode::SRL
-            | Opcode::SRA
-            | Opcode::SLT
-            | Opcode::SLTU
-            | Opcode::MUL
-            | Opcode::MULH
-            | Opcode::MULHU
-            | Opcode::MULHSU
-            | Opcode::DIV
-            | Opcode::DIVU
-            | Opcode::REM
-            | Opcode::REMU => true,
-            _ => false,
-        }
-    }
-
-    /// Returns if the instruction is a load instruction.
-    pub fn is_load_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => true,
-            _ => false,
-        }
-    }
-
-    /// Returns if the instruction is a store instruction.
-    pub fn is_store_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::SB | Opcode::SH | Opcode::SW => true,
-            _ => false,
-        }
-    }
-
-    /// Returns if the instruction is a branch instruction.
-    pub fn is_branch_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
-                true
-            }
-            _ => false,
-        }
-    }
-
     /// Returns if the instruction is an R-type instruction.
     pub fn is_r_type(&self) -> bool {
         !self.imm_c
@@ -179,6 +128,7 @@ impl Instruction {
     }
 }
 
+/// A transpiler that converts the 32-bit encoded instructions into instructions.
 pub struct InstructionTranspiler;
 
 impl InstructionProcessor for InstructionTranspiler {
@@ -438,4 +388,15 @@ impl InstructionProcessor for InstructionTranspiler {
     fn process_wfi(&mut self) -> Self::InstructionResult {
         Instruction::unimp()
     }
+}
+
+/// Transpile the instructions from the 32-bit encoded instructions.
+pub fn transpile(instructions_u32: &[u32]) -> Vec<Instruction> {
+    let mut instructions = Vec::new();
+    let mut transpiler = InstructionTranspiler;
+    for instruction_u32 in instructions_u32 {
+        let instruction = process_instruction(&mut transpiler, *instruction_u32).unwrap();
+        instructions.push(instruction);
+    }
+    instructions
 }

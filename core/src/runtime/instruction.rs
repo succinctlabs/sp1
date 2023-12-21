@@ -24,6 +24,57 @@ impl Instruction {
             imm_c,
         }
     }
+
+    /// Returns if the instruction is an ALU instruction.
+    pub fn is_alu_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::ADD
+            | Opcode::SUB
+            | Opcode::XOR
+            | Opcode::OR
+            | Opcode::AND
+            | Opcode::SLL
+            | Opcode::SRL
+            | Opcode::SRA
+            | Opcode::SLT
+            | Opcode::SLTU
+            | Opcode::MUL
+            | Opcode::MULH
+            | Opcode::MULHU
+            | Opcode::MULHSU
+            | Opcode::DIV
+            | Opcode::DIVU
+            | Opcode::REM
+            | Opcode::REMU => true,
+            _ => false,
+        }
+    }
+
+    /// Returns if the instruction is a load instruction.
+    pub fn is_load_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => true,
+            _ => false,
+        }
+    }
+
+    /// Returns if the instruction is a store instruction.
+    pub fn is_store_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::SB | Opcode::SH | Opcode::SW => true,
+            _ => false,
+        }
+    }
+
+    /// Returns if the instruction is a branch instruction.
+    pub fn is_branch_instruction(&self) -> bool {
+        match self.opcode {
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 impl Debug for Instruction {
