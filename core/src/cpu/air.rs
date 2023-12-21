@@ -44,6 +44,14 @@ pub struct CpuCols<T> {
     pub mem_bit_decomposition: [T; 8],
     pub mem_mask: [T; 4],
 
+    // SW  = [1,1,1,1]
+    // SB & offset = 0 [1,0,0,0]
+    // SB & offset = 1 [0,1,0,0]
+    // SB & offset = 2 [0,0,1,0]
+    // SB & offset = 3 [0,0,0,1]
+    // SH & offset = 0 [1,1,0,0]
+    // SH & offset = 1 [0,0,1,1]
+
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,
 }
@@ -150,10 +158,12 @@ where
             local.selectors.is_store,
         );
 
-        // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
+        builder.send_alu(opcode, a, b, c, multiplicity);
 
-        //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
-        // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
+        // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
+        // TODO: range check addr_offset to be 0..4
+
+        // ((addr[0] + addr_offset, addr[1], addr[2], addr[3]), op_b_val, op_c_val)
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction

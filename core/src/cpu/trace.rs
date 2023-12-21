@@ -29,6 +29,9 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             .map(|op| self.event_to_row(*op))
             .collect::<Vec<_>>();
 
+        // TODO: for all events that are load/store,
+        // segment.alu_events.push(...)
+
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
 
