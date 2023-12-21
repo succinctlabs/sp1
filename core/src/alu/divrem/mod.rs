@@ -103,7 +103,11 @@ fn is_signed_operation(opcode: Opcode) -> bool {
 }
 
 fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8; WORD_SIZE]) {
-    if is_signed_operation(opcode) {
+    if c == 0 {
+        // When c is 0, the quotient is 2^32 - 1 and the remainder is b
+        // reagrdless of whether we perform signed or unsigned division.
+        ([0xff; WORD_SIZE], b.to_le_bytes())
+    } else if is_signed_operation(opcode) {
         (
             ((b as i32).wrapping_div(c as i32) as u32).to_le_bytes(),
             ((b as i32).wrapping_rem(c as i32) as u32).to_le_bytes(),
@@ -148,67 +152,48 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
 
-                if is_signed_operation(event.opcode) {
-                    cols.b_neg = F::from_bool((event.b as i32) < 0);
-                }
+                let (quotient, remainder) = divide_and_remainder(event.b, event.c, event.opcode);
 
-                if event.c == 0 {
-                    cols.division_by_0 = F::one();
-                } else {
-                    let (quotient, remainder) =
-                        divide_and_remainder(event.b, event.c, event.opcode);
+                cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
+                cols.b_msb = F::from_canonical_u8(get_msb(b_word));
 
-                    cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
-                    cols.b_msb = F::from_canonical_u8(get_msb(b_word));
+                let mut result = [0u32; WORD_SIZE];
 
-                    let mut result = [0u32; WORD_SIZE];
-
-                    // Multiply the quotient by c.
-                    for i in 0..quotient.len() {
-                        for j in 0..c_word.len() {
-                            if i + j < result.len() {
-                                result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
-                            }
+                // Multiply the quotient by c.
+                for i in 0..quotient.len() {
+                    for j in 0..c_word.len() {
+                        if i + j < result.len() {
+                            result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
                         }
                     }
-
-                    // Add remainder to product.
-                    for i in 0..WORD_SIZE {
-                        result[i] += remainder[i] as u32;
-                    }
-
-                    let base = 1 << BYTE_SIZE;
-
-                    // "carry-propagate" as some terms are bigger than u8 now.
-                    for i in 0..WORD_SIZE {
-                        let carry = result[i] / base;
-                        result[i] %= base;
-                        if i + 1 < result.len() {
-                            result[i + 1] += carry;
-                        }
-                        cols.carry[i] = F::from_canonical_u32(carry);
-                    }
-
-                    for i in 0..WORD_SIZE {
-                        println!("result[{}] = 0x{:x}", i, result[i]);
-                    }
-                    for i in 0..WORD_SIZE {
-                        println!("b_word[{}] = 0x{:x}", i, b_word[i]);
-                    }
-
-                    // result is c * quotient + remainder, which must equal b.
-                    result.iter().zip(b_word.iter()).for_each(|(r, b)| {
-                        assert_eq!(*r, *b as u32);
-                    });
-
-                    cols.quotient = quotient.map(F::from_canonical_u8);
-                    cols.remainder = remainder.map(F::from_canonical_u8);
-                    (cols.rem_is_zero_negative_assertion, cols.rem_is_zero_inv) =
-                        nonzero_verifier::<F>(remainder);
-                    if is_signed_operation(event.opcode) {
-                        cols.rem_neg = F::from_bool(i32::from_le_bytes(remainder) < 0);
-                    }
                 }
+
+                // Add remainder to product.
+                for i in 0..WORD_SIZE {
+                    result[i] += remainder[i] as u32;
+                }
+
+                let base = 1 << BYTE_SIZE;
+
+                // "carry-propagate" as some terms are bigger than u8 now.
+                for i in 0..WORD_SIZE {
+                    let carry = result[i] / base;
+                    result[i] %= base;
+                    if i + 1 < result.len() {
+                        result[i + 1] += carry;
+                    }
+                    cols.carry[i] = F::from_canonical_u32(carry);
+                }
+
+                // result is c * quotient + remainder, which must equal b.
+                result.iter().zip(b_word.iter()).for_each(|(r, b)| {
+                    assert_eq!(*r, *b as u32);
+                });
+
+                cols.quotient = quotient.map(F::from_canonical_u8);
+                cols.remainder = remainder.map(F::from_canonical_u8);
+                (cols.rem_is_zero_negative_assertion, cols.rem_is_zero_inv) =
+                    nonzero_verifier::<F>(remainder);
 
                 cols.a = Word(a_word.map(F::from_canonical_u8));
                 cols.b = Word(b_word.map(F::from_canonical_u8));
@@ -218,10 +203,17 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
+                if is_signed_operation(event.opcode) {
+                    cols.b_neg = F::from_bool((event.b as i32) < 0);
+                    cols.rem_neg = F::from_bool(i32::from_le_bytes(remainder) < 0);
+                }
+
+                if event.c == 0 {
+                    cols.division_by_0 = F::one();
+                }
                 (cols.b_is_zero_negative_assertion, cols.b_is_zero_inv) =
                     nonzero_verifier::<F>(b_word);
 
-                println!("{:#?}", cols);
                 row
             })
             .collect::<Vec<_>>();
@@ -263,7 +255,7 @@ where
         // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
         //
         // For simplicity, we will write F(result) =
-        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
+        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i.
         for i in 0..WORD_SIZE {
             for j in 0..WORD_SIZE {
                 if i + j < WORD_SIZE {
@@ -297,41 +289,41 @@ where
             // F(result) remains the same.
         }
 
-        let mut b_nonzero = builder.when(one.clone() - local.division_by_0);
+        let mut division_by_non_zero = builder.when(one.clone() - local.division_by_0);
 
         // Now, result is c * quotient + remainder, which must equal b, unless c
         // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
         // are correct.
         for i in 0..WORD_SIZE {
-            b_nonzero.assert_zero(result[i].clone() - local.b[i].clone());
+            division_by_non_zero.assert_eq(result[i].clone(), local.b[i].clone());
         }
 
+        let div_op = local.is_divu + local.is_div;
+        let rem_op = local.is_remu + local.is_rem;
         // We've confirmed the correctness of `quotient` and `remainder`. Now,
         // we need to check the output `a` indeed matches what we have.
         for i in 0..WORD_SIZE {
-            b_nonzero
-                .when(local.is_remu + local.is_rem)
+            division_by_non_zero
+                .when(rem_op.clone())
                 .assert_eq(local.remainder[i], local.a[i]);
-            b_nonzero
-                .when(local.is_divu + local.is_div)
+            division_by_non_zero
+                .when(div_op.clone())
                 .assert_eq(local.quotient[i], local.a[i]);
         }
 
-        // Finally, deal with division by 0,
-        builder.assert_bool(local.division_by_0);
-
+        // Division by 0
+        let mut division_by_0 = builder.when(local.division_by_0.clone());
         let byte_mask = AB::F::from_canonical_u32(0xFF);
-        let mut b_when_div_by_0 = builder.when(local.division_by_0.clone());
         for i in 0..WORD_SIZE {
             // If the division_by_0 flag is set, then c better be 0.
-            b_when_div_by_0.assert_zero(local.c[i]);
+            division_by_0.assert_zero(local.c[i]);
 
             // division by 0 => DIVU returns 2^32 - 1 and REMU returns b.
-            b_when_div_by_0
-                .when(local.is_divu)
+            division_by_0
+                .when(div_op.clone())
                 .assert_eq(local.a[i], byte_mask);
-            b_when_div_by_0
-                .when(local.is_remu)
+            division_by_0
+                .when(rem_op.clone())
                 .assert_eq(local.a[i], local.b[i]);
         }
 
@@ -341,26 +333,11 @@ where
         //
         // 1. If rem > 0, then b > 0.
         // 2. If rem < 0, then b < 0.
-        //
-        // 1'. If b > 0, then rem >= 0.
-        // 2'. If b < 0, then rem <= 0.
-        //
-        //   rem_is_negative := is_signed_type * rem_msb
-        //   b_is_negative := is_signed_type * b_msb
-        //
-        //   rem_is_zero := 1 - (local.rem[0] + local.rem[1] + local.rem[2] + local.rem[3]) * rem_is_zero_inv
-        //      rem_is_zero * (local.rem[0] + local.rem[1] + local.rem[2] + local.rem[3]) === 0
-        //   b_is_zero := ...
-        //
-        //   rem_is_positive := 1 - (rem_is_negative + rem_is_zero)
-        //   b_is_positive := 1 - (b_is_negative + b_is_zero)
-        //   builder.when(rem_is_positive).assert_eq(b_is_positive, 1)
-        //   ...
 
         let is_signed_type = local.is_div + local.is_rem;
         let is_unsigned_type = local.is_divu + local.is_remu;
 
-        // is_signed_type AND (local.b_msb == 1);
+        //  is_signed_type AND (MSB == 1);
         let b_neg = is_signed_type.clone() * local.b_msb;
         let rem_neg = is_signed_type.clone() * local.rem_msb;
 
@@ -391,9 +368,13 @@ where
         );
 
         // When the remainder is positive, b must be positive.
-        // rem_is_zero * (one.clone() - rem_neg) is non-zero if and only if
-        // 1. rem_is_zero != 0 <=> remainder != 0
-        // 1. one.clone() - rem_neg != 0 <=> rem_neg != 1 <=> remainder >= 0.
+
+        //
+        // rem_is_zero_neg_assert * (one.clone() - rem_neg) is non-zero if and only if
+        // 1. rem_is_zero_neg_assert != 0 <=> remainder != 0, AND
+        // 2. one.clone() - rem_neg != 0 <=> rem_neg != 1 <=> remainder >= 0.
+        //
+        // Thus this `when` clause says "when the remainder is positive".
         builder
             .when(local.rem_is_zero_negative_assertion * (one.clone() - local.rem_neg))
             .assert_zero(local.b_neg);
@@ -404,11 +385,12 @@ where
             .assert_zero(local.rem_neg);
 
         // TODO: Use lookup to constrain the MSBs.
-
-        //
         // TODO: Range check for rem: -b < remainder < b or b < remainder < -b.
+        // TODO: Range check the carry column.
+        // TODO: Range check remainder. (i.e., 0 <= remainder < c when c != 0)
+        // TODO: Range check all the bytes.
 
-        // Misc checks.
+        // There are 8 bool member variables, so check them all here.
         builder.assert_bool(local.is_real);
         builder.assert_bool(local.is_remu);
         builder.assert_bool(local.is_divu);
@@ -416,26 +398,22 @@ where
         builder.assert_bool(local.is_div);
         builder.assert_bool(local.b_neg);
         builder.assert_bool(local.rem_neg);
-        //        builder.assert_zero(
-        //            local.is_real
-        //                * (one.clone() - local.is_divu - local.is_remu - local.is_div - local.is_rem),
-        //        );
+        builder.assert_bool(local.division_by_0);
+
+        builder.when(local.is_real).assert_eq(
+            one.clone(),
+            local.is_divu + local.is_remu + local.is_div + local.is_rem,
+        );
 
         let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
         let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
-        let opcode = local.is_divu * divu + local.is_remu * remu;
+        let div: AB::Expr = AB::F::from_canonical_u32(Opcode::DIV as u32).into();
+        let rem: AB::Expr = AB::F::from_canonical_u32(Opcode::REM as u32).into();
+        let opcode =
+            local.is_divu * divu + local.is_remu * remu + local.is_div * div + local.is_rem * rem;
 
         // Receive the arguments.
         builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
-
-        // TODO: Range check the carry column.
-        // TODO: Range check remainder. (i.e., 0 <= remainder < c when c != 0)
-        // TODO: Range check all the bytes.
-
-        // A dummy constraint to keep the degree at least 3.
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
     }
 }
 
@@ -531,30 +509,30 @@ mod tests {
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
-            // (Opcode::DIVU, 3, 20, 6),
-            // (Opcode::DIVU, 715827879, neg(20), 6),
-            // (Opcode::DIVU, 0, 20, neg(6)),
-            // (Opcode::DIVU, 0, neg(20), neg(6)),
-            // (Opcode::DIVU, 1 << 31, 1 << 31, 1),
-            // (Opcode::DIVU, 0, 1 << 31, neg(1)),
-            // (Opcode::DIVU, u32::MAX, 1 << 31, 0),
-            // (Opcode::DIVU, u32::MAX, 1, 0),
-            // (Opcode::DIVU, u32::MAX, 0, 0),
-            // (Opcode::REMU, 4, 18, 7),
-            // (Opcode::REMU, 6, neg(20), 11),
-            // (Opcode::REMU, 23, 23, neg(6)),
-            // (Opcode::REMU, neg(21), neg(21), neg(11)),
-            // (Opcode::REMU, 5, 5, 0),
-            // (Opcode::REMU, neg(1), neg(1), 0),
-            // (Opcode::REMU, 0, 0, 0),
-            // (Opcode::REM, 7, 16, 9),
-            // (Opcode::REM, neg(4), neg(22), 6),
-            // (Opcode::REM, 1, 25, neg(3)),
-            // (Opcode::REM, neg(2), neg(22), neg(4)),
-            // (Opcode::REM, 0, 873, 1),
-            // (Opcode::REM, 0, 873, neg(1)),
-            // (Opcode::REM, 5, 5, 0),
-            // (Opcode::REM, neg(5), neg(5), 0),
+            (Opcode::DIVU, 3, 20, 6),
+            (Opcode::DIVU, 715827879, neg(20), 6),
+            (Opcode::DIVU, 0, 20, neg(6)),
+            (Opcode::DIVU, 0, neg(20), neg(6)),
+            (Opcode::DIVU, 1 << 31, 1 << 31, 1),
+            (Opcode::DIVU, 0, 1 << 31, neg(1)),
+            (Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            (Opcode::DIVU, u32::MAX, 1, 0),
+            (Opcode::DIVU, u32::MAX, 0, 0),
+            (Opcode::REMU, 4, 18, 7),
+            (Opcode::REMU, 6, neg(20), 11),
+            (Opcode::REMU, 23, 23, neg(6)),
+            (Opcode::REMU, neg(21), neg(21), neg(11)),
+            (Opcode::REMU, 5, 5, 0),
+            (Opcode::REMU, neg(1), neg(1), 0),
+            (Opcode::REMU, 0, 0, 0),
+            (Opcode::REM, 7, 16, 9),
+            (Opcode::REM, neg(4), neg(22), 6),
+            (Opcode::REM, 1, 25, neg(3)),
+            (Opcode::REM, neg(2), neg(22), neg(4)),
+            (Opcode::REM, 0, 873, 1),
+            (Opcode::REM, 0, 873, neg(1)),
+            (Opcode::REM, 5, 5, 0),
+            (Opcode::REM, neg(5), neg(5), 0),
             (Opcode::REM, 0, 0, 0),
             (Opcode::REM, 0, 0x80000001, neg(1)),
             (Opcode::DIV, 3, 18, 6),
@@ -568,7 +546,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            // divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         runtime.divrem_events = divrem_events;
