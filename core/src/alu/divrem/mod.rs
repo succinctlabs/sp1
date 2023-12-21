@@ -47,7 +47,6 @@ fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
 pub struct DivRemCols<T> {
     /// The output operand.
     pub a: Word<T>,
-
     /// The first input operand.
     pub b: Word<T>,
 
@@ -71,10 +70,20 @@ pub struct DivRemCols<T> {
     pub rem_is_zero_inv: T,
     pub b_is_zero_inv: T,
 
+    /// {b, rem}_is_zero is 0 if the value is indeed 0, but nonzero if it's not.
+    pub b_is_zero_negative_assertion: T,
+    pub rem_is_zero_negative_assertion: T,
+
+    pub b_is_neg: T,
+    pub rem_is_neg: T,
+
     pub division_by_0: T,
 
     pub b_msb: T,
     pub rem_msb: T,
+
+    pub b_neg: T,
+    pub rem_neg: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -107,11 +116,17 @@ fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8
     }
 }
 
-fn inv_or_0<F: PrimeField>(a: [u8; WORD_SIZE]) -> F {
-    a.iter()
-        .fold(F::zero(), |acc, x| acc + F::from_canonical_u8(*x))
-        .try_inverse()
-        .unwrap_or(F::zero())
+/// This function takes in a number as a byte array and returns (indicator, inv)
+/// 1. inv = sum(bytes)'s inverse if exists, and 0 otherwise.
+/// 2. indicator = 0 if the number is 0, and
+///    (1 - sum(bytes) * inv) * sum(bytes), which is never 0 for nonzero input.
+fn nonzero_verifier<F: PrimeField>(a: [u8; WORD_SIZE]) -> (F, F) {
+    let sum = a
+        .iter()
+        .fold(F::zero(), |acc, x| acc + F::from_canonical_u8(*x));
+
+    let inv = sum.try_inverse().unwrap_or(F::zero());
+    ((F::one() - sum * inv) * sum, inv)
 }
 
 impl<F: PrimeField> Chip<F> for DivRemChip {
@@ -132,6 +147,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let a_word = event.a.to_le_bytes();
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
+
+                if is_signed_operation(event.opcode) {
+                    cols.b_neg = F::from_bool((event.b as i32) < 0);
+                }
 
                 if event.c == 0 {
                     cols.division_by_0 = F::one();
@@ -182,10 +201,13 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         assert_eq!(*r, *b as u32);
                     });
 
-                    cols.rem_is_zero_inv = inv_or_0::<F>(remainder);
-
                     cols.quotient = quotient.map(F::from_canonical_u8);
                     cols.remainder = remainder.map(F::from_canonical_u8);
+                    (cols.rem_is_zero_negative_assertion, cols.rem_is_zero_inv) =
+                        nonzero_verifier::<F>(remainder);
+                    if is_signed_operation(event.opcode) {
+                        cols.rem_neg = F::from_bool(i32::from_le_bytes(remainder) < 0);
+                    }
                 }
 
                 cols.a = Word(a_word.map(F::from_canonical_u8));
@@ -196,6 +218,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
+                (cols.b_is_zero_negative_assertion, cols.b_is_zero_inv) =
+                    nonzero_verifier::<F>(b_word);
 
                 println!("{:#?}", cols);
                 row
@@ -340,6 +364,9 @@ where
         let b_neg = is_signed_type.clone() * local.b_msb;
         let rem_neg = is_signed_type.clone() * local.rem_msb;
 
+        builder.assert_eq(b_neg.clone(), local.b_neg);
+        builder.assert_eq(rem_neg.clone(), local.rem_neg);
+
         let mut rem_byte_sum = zero.clone();
         let mut b_byte_sum = zero.clone();
 
@@ -349,59 +376,46 @@ where
         }
 
         // This is 0 if remainder is 0 regardless of whether rem_is_zero_inv is correct.
-        let rem_is_zero =
+        let rem_is_zero_negative_assertion =
             (one.clone() - rem_byte_sum.clone() * local.rem_is_zero_inv) * rem_byte_sum.clone();
-        let b_is_zero =
+        let b_is_zero_negative_assertion =
             (one.clone() - b_byte_sum.clone() * local.b_is_zero_inv) * b_byte_sum.clone();
+
+        builder.assert_eq(
+            rem_is_zero_negative_assertion.clone(),
+            local.rem_is_zero_negative_assertion,
+        );
+        builder.assert_eq(
+            b_is_zero_negative_assertion.clone(),
+            local.b_is_zero_negative_assertion,
+        );
 
         // When the remainder is positive, b must be positive.
         // rem_is_zero * (one.clone() - rem_neg) is non-zero if and only if
         // 1. rem_is_zero != 0 <=> remainder != 0
         // 1. one.clone() - rem_neg != 0 <=> rem_neg != 1 <=> remainder >= 0.
         builder
-            .when(rem_is_zero.clone() * (one.clone() - rem_neg.clone()))
-            .assert_zero(b_neg.clone());
+            .when(local.rem_is_zero_negative_assertion * (one.clone() - local.rem_neg))
+            .assert_zero(local.b_neg);
+
+        // Similarly, when the remainder is negative, b must be negative.
         builder
-            .when(b_is_zero.clone() * (one.clone() - b_neg.clone()))
-            .assert_zero(rem_neg.clone());
+            .when(local.rem_is_zero_negative_assertion.clone() * (one.clone() - local.b_neg))
+            .assert_zero(local.rem_neg);
+
+        // TODO: Use lookup to constrain the MSBs.
 
         //
-        //        builder.when(local.is_real).assert_eq(b_le_0, local.b_le_0);
-        //        // builder.assert_eq(b_ge_0, local.b_ge_0);
-        //
-        //        // is_signed_type AND (local.rem_msb == 1);
-        //        let rem_neg = is_signed_type.clone() * local.rem_msb;
-        //
-        //        // is_unsigned_type OR (local.rem_msb == 0);
-        //        let rem_ge_0 = is_unsigned_type.clone() + (one.clone() - local.rem_msb)
-        //            - is_unsigned_type.clone() * (one.clone() - local.rem_msb);
+        // TODO: Range check for rem: -b < remainder < b or b < remainder < -b.
 
-        // TODO: Polynoimal of degree 4?
-        // builder.when(local.b_le_0).assert_one(rem_le_0);
-        // builder.when(local.b_ge_0).assert_one(rem_ge_0);
-
-        // TODO: Check if is_{b,rem}_0 is correct
-        // TODO: Use lookup to constraint the MSBs.
-
-        //
-        //         // If b is negative (hence signed), then the op code has to be either DIV or REM.
-        //         builder
-        //             .when(local.b_msb)
-        //             .assert_eq(local.is_div + local.is_rem, one.clone());
-        //
-        //        // Range check for rem: -b < remainder < b or b < remainder < -b.
-        //
-        //        // Misc checks.
-        //        builder.assert_bool(local.is_real);
-        //        builder.assert_bool(local.is_remu);
-        //        builder.assert_bool(local.is_divu);
-        //        builder.assert_bool(local.is_rem);
-        //        builder.assert_bool(local.is_div);
-        //        builder.assert_bool(local.is_b_zero);
-        //        builder.assert_bool(local.is_rem_zero);
-        //        TODO: check that is_{b, rem}_zero are correct.
-        //
-        //        // If it's a real column, exactly one of is_remu and is_divu must be 1.
+        // Misc checks.
+        builder.assert_bool(local.is_real);
+        builder.assert_bool(local.is_remu);
+        builder.assert_bool(local.is_divu);
+        builder.assert_bool(local.is_rem);
+        builder.assert_bool(local.is_div);
+        builder.assert_bool(local.b_neg);
+        builder.assert_bool(local.rem_neg);
         //        builder.assert_zero(
         //            local.is_real
         //                * (one.clone() - local.is_divu - local.is_remu - local.is_div - local.is_rem),
@@ -542,7 +556,7 @@ mod tests {
             // (Opcode::REM, 5, 5, 0),
             // (Opcode::REM, neg(5), neg(5), 0),
             (Opcode::REM, 0, 0, 0),
-            // (Opcode::REM, 0, 0x80000001, neg(1)),
+            (Opcode::REM, 0, 0x80000001, neg(1)),
             // (Opcode::DIV, 3, 18, 6),
             // (Opcode::DIV, neg(6), neg(24), 4),
             // (Opcode::DIV, neg(2), 16, neg(8)),
