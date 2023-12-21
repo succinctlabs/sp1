@@ -557,10 +557,10 @@ mod tests {
             // (Opcode::REM, neg(5), neg(5), 0),
             (Opcode::REM, 0, 0, 0),
             (Opcode::REM, 0, 0x80000001, neg(1)),
-            // (Opcode::DIV, 3, 18, 6),
-            // (Opcode::DIV, neg(6), neg(24), 4),
-            // (Opcode::DIV, neg(2), 16, neg(8)),
-            // (Opcode::DIV, neg(1), 0, 0),
+            (Opcode::DIV, 3, 18, 6),
+            (Opcode::DIV, neg(6), neg(24), 4),
+            (Opcode::DIV, neg(2), 16, neg(8)),
+            (Opcode::DIV, neg(1), 0, 0),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
