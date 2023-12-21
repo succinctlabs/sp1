@@ -43,23 +43,17 @@ impl Program {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{disassembler::Program, runtime::Runtime};
+    use crate::{disassembler::Program, prover::tests::prove};
 
     #[test]
     fn test_fibonacci() {
-        let program = Program::from_elf("../programs/fib");
-        let mut runtime = Runtime::new(program.clone());
-        runtime.write_witness(&[1, 2]);
-        runtime.run();
-        println!("{:#?}, {}", program.instructions, program.pc_start);
+        let program = Program::from_elf("../programs/fib.s");
+        prove(program.clone());
     }
 
     #[test]
     fn test_malloc() {
         let program = Program::from_elf("/Users/jtguibas/Succinct/risc0/examples/target/riscv-guest/riscv32im-risc0-zkvm-elf/release/search_json");
-        let mut runtime = Runtime::new(program.clone());
-        runtime.write_witness(&[1, 2]);
-        runtime.run();
-        println!("{:#?}, {}", program.instructions, program.pc_start);
+        prove(program.clone());
     }
 }

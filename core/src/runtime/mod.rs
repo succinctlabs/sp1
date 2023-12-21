@@ -494,7 +494,9 @@ impl Runtime {
                 let syscall = Syscall::from_u32(syscall_id);
                 match syscall {
                     Syscall::HALT => {
-                        panic!("halt")
+                        (a, b, c) = (0, self.rr(t0), 0);
+                        next_pc = 0;
+                        self.rw(a0, a);
                     }
                     Syscall::LWA => {
                         let witness = self.witness.pop().expect("witness stream is empty");

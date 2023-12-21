@@ -314,7 +314,14 @@ impl InstructionProcessor for InstructionTranspiler {
     }
 
     fn process_ecall(&mut self) -> Self::InstructionResult {
-        Instruction::new(Opcode::ECALL, 0, 0, 0, false, false)
+        Instruction::new(
+            Opcode::ECALL,
+            Register::X10 as u32,
+            Register::X5 as u32,
+            0,
+            false,
+            true,
+        )
     }
 
     fn process_ebreak(&mut self) -> Self::InstructionResult {

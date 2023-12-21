@@ -202,7 +202,6 @@ pub mod tests {
 
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
-    use crate::runtime::Instruction;
     use crate::runtime::Program;
     use crate::runtime::Runtime;
     use p3_baby_bear::BabyBear;
@@ -267,6 +266,7 @@ pub mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[1, 2]);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }

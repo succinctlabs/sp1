@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 /// An opcode specifies which operation to execute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
@@ -55,6 +57,12 @@ pub enum Opcode {
 
     // Miscellaneaous instructions.
     UNIMP = 39,
+}
+
+impl Display for Opcode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.mnemonic())
+    }
 }
 
 impl Opcode {
