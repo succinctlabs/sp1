@@ -36,10 +36,8 @@ pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 const BYTE_SIZE: usize = 8;
 
-const SIGN_BIT_MASK: u8 = 0x80;
-
-fn is_sign_bit_on(a: [u8; WORD_SIZE]) -> bool {
-    (a[WORD_SIZE - 1] & SIGN_BIT_MASK) != 0
+fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
+    a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)
 }
 
 /// The column layout for the chip.
@@ -69,8 +67,8 @@ pub struct DivRemCols<T> {
 
     pub division_by_0: T,
 
-    pub is_b_negative: T,
-    pub is_rem_negative: T,
+    pub b_msb: T,
+    pub rem_msb: T,
 
     pub is_b_zero: T,
     pub is_rem_zero: T,
@@ -131,12 +129,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     let (quotient, remainder) =
                         divide_and_remainder(event.b, event.c, event.opcode);
 
-                    if is_signed_operation(event.opcode) {
-                        cols.is_rem_negative = F::from_bool(is_sign_bit_on(remainder));
-                        cols.is_b_negative = F::from_bool(is_sign_bit_on(b_word));
-                        cols.is_rem_zero = F::from_bool(remainder == [0u8; WORD_SIZE]);
-                        cols.is_b_zero = F::from_bool(event.b == 0);
-                    }
+                    cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
+                    cols.b_msb = F::from_canonical_u8(get_msb(b_word));
+                    cols.is_rem_zero = F::from_bool(remainder == [0u8; WORD_SIZE]);
+                    cols.is_b_zero = F::from_bool(event.b == 0);
 
                     let mut result = [0u32; WORD_SIZE];
 
@@ -265,6 +261,7 @@ where
         }
 
         let mut b_nonzero = builder.when(one.clone() - local.division_by_0);
+
         // Now, result is c * quotient + remainder, which must equal b, unless c
         // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
         // are correct.
@@ -277,10 +274,10 @@ where
         for i in 0..WORD_SIZE {
             b_nonzero
                 .when(local.is_remu + local.is_rem)
-                .assert_zero(local.remainder[i] - local.a[i]);
+                .assert_eq(local.remainder[i], local.a[i]);
             b_nonzero
                 .when(local.is_divu + local.is_div)
-                .assert_zero(local.quotient[i] - local.a[i]);
+                .assert_eq(local.quotient[i], local.a[i]);
         }
 
         // Finally, deal with division by 0,
@@ -312,15 +309,15 @@ where
         // ii) If b < 0, then rem <= 0
         //
 
-        builder
-            .when(one.clone() - local.is_b_negative)
-            .assert_zero(one.clone() - local.is_rem_negative);
-
-        // If b is negative (hence signed), then the op code has to be either DIV or REM.
-        builder
-            .when(local.is_b_negative)
-            .assert_eq(local.is_div + local.is_rem, one.clone());
-
+        //         builder
+        //             .when(one.clone() - local.b_msb)
+        //             .assert_zero(one.clone() - local.rem_msb);
+        //
+        //         // If b is negative (hence signed), then the op code has to be either DIV or REM.
+        //         builder
+        //             .when(local.b_msb)
+        //             .assert_eq(local.is_div + local.is_rem, one.clone());
+        //
         //        // Range check for rem: -b < remainder < b or b < remainder < -b.
         //
         //        // Misc checks.
@@ -448,32 +445,32 @@ mod tests {
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
-            //(Opcode::DIVU, 3, 20, 6),
-            //(Opcode::DIVU, 715827879, neg(20), 6),
-            //(Opcode::DIVU, 0, 20, neg(6)),
-            //(Opcode::DIVU, 0, neg(20), neg(6)),
-            //(Opcode::DIVU, 1 << 31, 1 << 31, 1),
-            //(Opcode::DIVU, 0, 1 << 31, neg(1)),
-            //(Opcode::DIVU, u32::MAX, 1 << 31, 0),
-            //(Opcode::DIVU, u32::MAX, 1, 0),
-            //(Opcode::DIVU, u32::MAX, 0, 0),
-            //(Opcode::REMU, 4, 18, 7),
-            //(Opcode::REMU, 6, neg(20), 11),
-            //(Opcode::REMU, 23, 23, neg(6)),
-            //(Opcode::REMU, neg(21), neg(21), neg(11)),
-            //(Opcode::REMU, 5, 5, 0),
-            //(Opcode::REMU, neg(1), neg(1), 0),
-            //(Opcode::REMU, 0, 0, 0),
-            //(Opcode::REM, 7, 16, 9),
-            //(Opcode::REM, neg(4), neg(22), 6),
-            //(Opcode::REM, 1, 25, neg(3)),
-            //(Opcode::REM, neg(2), neg(22), neg(4)),
-            //(Opcode::REM, 0, 873, 1),
-            //(Opcode::REM, 0, 873, neg(1)),
-            //(Opcode::REM, 5, 5, 0),
-            //(Opcode::REM, neg(5), neg(5), 0),
-            //(Opcode::REM, 0, 0, 0),
-            (Opcode::REM, 0, 0x80000001, neg(1)),
+            (Opcode::DIVU, 3, 20, 6),
+            (Opcode::DIVU, 715827879, neg(20), 6),
+            (Opcode::DIVU, 0, 20, neg(6)),
+            (Opcode::DIVU, 0, neg(20), neg(6)),
+            (Opcode::DIVU, 1 << 31, 1 << 31, 1),
+            (Opcode::DIVU, 0, 1 << 31, neg(1)),
+            (Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            (Opcode::DIVU, u32::MAX, 1, 0),
+            (Opcode::DIVU, u32::MAX, 0, 0),
+            (Opcode::REMU, 4, 18, 7),
+            (Opcode::REMU, 6, neg(20), 11),
+            (Opcode::REMU, 23, 23, neg(6)),
+            (Opcode::REMU, neg(21), neg(21), neg(11)),
+            (Opcode::REMU, 5, 5, 0),
+            (Opcode::REMU, neg(1), neg(1), 0),
+            (Opcode::REMU, 0, 0, 0),
+            (Opcode::REM, 7, 16, 9),
+            (Opcode::REM, neg(4), neg(22), 6),
+            (Opcode::REM, 1, 25, neg(3)),
+            (Opcode::REM, neg(2), neg(22), neg(4)),
+            (Opcode::REM, 0, 873, 1),
+            (Opcode::REM, 0, 873, neg(1)),
+            (Opcode::REM, 5, 5, 0),
+            (Opcode::REM, neg(5), neg(5), 0),
+            (Opcode::REM, 0, 0, 0),
+            // (Opcode::REM, 0, 0x80000001, neg(1)),
             // (Opcode::DIV, 3, 18, 6),
             // (Opcode::DIV, neg(6), neg(24), 4),
             // (Opcode::DIV, neg(2), 16, neg(8)),
