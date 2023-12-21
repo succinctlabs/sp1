@@ -46,7 +46,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci() {
-        let (instructions, pc) = disassemble_from_elf("/Users/jtguibas/Desktop/search_json_v5");
+        let (instructions, pc) = disassemble_from_elf("../programs/fib.s");
         let mut runtime = Runtime::new(instructions.clone(), pc);
         runtime.write_witness(&[1, 2]);
         runtime.run();

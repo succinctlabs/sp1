@@ -161,7 +161,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::runtime::{Opcode, Runtime};
+    use crate::runtime::{Opcode, Segment};
     use crate::{alu::AluEvent, utils::Chip};
     use p3_commit::ExtensionMmcs;
 

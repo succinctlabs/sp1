@@ -163,7 +163,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        runtime::{tests::simple_program, Instruction},
+        runtime::{tests::simple_program, Instruction, Runtime, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;

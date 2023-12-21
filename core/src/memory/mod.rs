@@ -121,9 +121,9 @@ mod tests {
         let (program, pc) = simple_program();
         let mut runtime = Runtime::new(program, pc);
         runtime.run();
-        let events = runtime.memory_events;
 
-        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
+        let trace: RowMajorMatrix<BabyBear> =
+            MemoryChip::generate_trace(&runtime.segment.memory_events);
         let air = MemoryChip::new();
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
