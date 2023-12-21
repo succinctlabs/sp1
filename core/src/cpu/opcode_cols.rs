@@ -97,9 +97,21 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 Opcode::LW => {
                     self.is_word = F::one();
                 }
-                _ => {
-                    panic!("unexpected opcode in load instruction table processing.")
+                _ => unreachable!(),
+            }
+        } else if instruction.is_store_instruction() {
+            self.is_store = F::one();
+            match instruction.opcode {
+                Opcode::SB => {
+                    self.is_byte = F::one();
                 }
+                Opcode::SH => {
+                    self.is_half = F::one();
+                }
+                Opcode::SW => {
+                    self.is_word = F::one();
+                }
+                _ => unreachable!(),
             }
         } else if instruction.is_branch_instruction() {
             self.branch_op = F::one();

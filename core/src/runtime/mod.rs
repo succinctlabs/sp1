@@ -224,6 +224,9 @@ impl Runtime {
             Opcode::SLT | Opcode::SLTU => {
                 self.lt_events.push(event);
             }
+            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
+                self.add_events.push(event);
+            }
             _ => {}
         }
     }
