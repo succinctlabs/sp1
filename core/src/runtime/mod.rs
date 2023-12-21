@@ -1279,6 +1279,12 @@ pub mod tests {
         simple_op_code_test(Opcode::REM, 5, 5, 0);
         simple_op_code_test(Opcode::REM, neg(5), neg(5), 0);
         simple_op_code_test(Opcode::REM, 0, 0, 0);
+
+        simple_op_code_test(Opcode::REMU, 4, 18, 7);
+        simple_op_code_test(Opcode::REMU, 6, neg(20), 11);
+        simple_op_code_test(Opcode::REMU, 23, 23, neg(6));
+        simple_op_code_test(Opcode::REMU, neg(21), neg(21), neg(11));
+        simple_op_code_test(Opcode::REMU, 5, 5, 0);
         simple_op_code_test(Opcode::REMU, neg(1), neg(1), 0);
         simple_op_code_test(Opcode::REMU, 0, 0, 0);
     }
