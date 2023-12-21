@@ -280,17 +280,18 @@ where
         builder.assert_bool(local.division_by_0);
 
         let byte_mask = AB::F::from_canonical_u32(0xFF);
+        let mut b_when_div_by_0 = builder.when(local.division_by_0.clone());
         for i in 0..WORD_SIZE {
             // If the division_by_0 flag is set, then c better be 0.
-            builder.assert_zero(local.division_by_0.clone() * local.c[i]);
+            b_when_div_by_0.assert_zero(local.c[i]);
 
             // division by 0 => DIVU returns 2^32 - 1 and REMU returns b.
-            builder.assert_zero(
-                local.division_by_0.clone() * local.is_divu * (local.a[i] - byte_mask),
-            );
-            builder.assert_zero(
-                local.division_by_0.clone() * local.is_remu * (local.a[i] - local.b[i]),
-            );
+            b_when_div_by_0
+                .when(local.is_divu)
+                .assert_eq(local.a[i], byte_mask);
+            b_when_div_by_0
+                .when(local.is_remu)
+                .assert_eq(local.a[i], local.b[i]);
         }
 
         // Check the sign cases. RISC-V requires that b and remainder have the
@@ -316,8 +317,8 @@ where
             - is_unsigned_type.clone() * (one.clone() - local.rem_msb);
 
         // TODO: Polynoimal of degree 4?
-        builder.when(b_le_0).assert_one(rem_le_0);
-        builder.when(b_ge_0).assert_one(rem_ge_0);
+        // builder.when(b_le_0).assert_one(rem_le_0);
+        // builder.when(b_ge_0).assert_one(rem_ge_0);
 
         // TODO: Check if is_{b,rem}_0 is correct
         // TODO: Use lookup to constraint the MSBs.
