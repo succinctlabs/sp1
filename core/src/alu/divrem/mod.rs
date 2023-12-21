@@ -297,7 +297,11 @@ where
                 .when(rem_op.clone())
                 .assert_eq(local.a[i], local.b[i]);
         }
-        // TODO: If c is 0, then the division_by_0 flag must be set.
+
+        // It's unnecessary to constrain that if c is 0, then the division_by_0
+        // flag must be set. This is because if c = 0 and division_by_0 = false
+        // then we would perform 0 <= abs(remainder) < abs(c) = 0, which
+        // always fails.
 
         // Check the sign cases. RISC-V requires that b and remainder have the
         // same sign. There are exactly two cases that are forbidden:
@@ -352,7 +356,7 @@ where
 
         // TODO: Use lookup to constrain the MSBs.
         // TODO: Range check the carry column.
-        // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when c != 0)
+        // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
         // TODO: Range check all the bytes.
 
         // There are 10 bool member variables, so check them all here.
