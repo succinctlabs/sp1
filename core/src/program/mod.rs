@@ -39,6 +39,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         // Generate the trace rows for each event.
         let rows = runtime
             .program
+            .instructions
             .clone()
             .into_par_iter()
             .enumerate()
@@ -87,7 +88,7 @@ mod tests {
 
     use crate::{
         program::ProgramChip,
-        runtime::{Instruction, Opcode, Runtime},
+        runtime::{Instruction, Opcode, Program, Runtime},
         utils::Chip,
     };
 
@@ -97,12 +98,13 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
         println!("{:?}", trace.values)

@@ -12,6 +12,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+
 use crate::runtime::{Opcode, Runtime};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -61,12 +62,9 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                cols.is_xor =
-                    F::from_bool(event.opcode == Opcode::XOR || event.opcode == Opcode::XORI);
-                cols.is_or =
-                    F::from_bool(event.opcode == Opcode::OR || event.opcode == Opcode::ORI);
-                cols.is_and =
-                    F::from_bool(event.opcode == Opcode::AND || event.opcode == Opcode::ANDI);
+                cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
+                cols.is_or = F::from_bool(event.opcode == Opcode::OR);
+                cols.is_and = F::from_bool(event.opcode == Opcode::AND);
 
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
@@ -163,7 +161,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::runtime::{Opcode, Runtime};
+    use crate::runtime::{Opcode, Program, Runtime};
     use crate::{alu::AluEvent, utils::Chip};
     use p3_commit::ExtensionMmcs;
 
@@ -171,8 +169,9 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -221,8 +220,9 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.bitwise_events = vec![
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),

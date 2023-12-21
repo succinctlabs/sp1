@@ -1,36 +1,22 @@
 mod instruction;
 mod opcode;
+mod program;
 mod register;
+mod syscall;
 
 pub use instruction::*;
 pub use opcode::*;
-
-use crate::bytes::{ByteChip, ByteLookupEvent};
-use crate::prover::{debug_cumulative_sums, quotient_values};
-use crate::utils::AirChip;
-use p3_challenger::{CanObserve, FieldChallenger};
-use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_uni_stark::decompose_and_flatten;
-use p3_util::log2_ceil_usize;
+pub use program::*;
 pub use register::*;
+pub use syscall::*;
+
+use crate::{bytes::ByteLookupEvent, cpu::CpuEvent};
+
+use crate::alu::AluEvent;
+
 use std::collections::BTreeMap;
 
-use crate::alu::lt::LtChip;
-use crate::alu::shift::ShiftChip;
-use crate::memory::MemoryChip;
-use crate::prover::debug_constraints;
-use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
-use p3_matrix::Matrix;
-use p3_uni_stark::StarkConfig;
-use p3_util::log2_strict_usize;
-
-use crate::prover::generate_permutation_trace;
-use crate::{
-    alu::{add::AddChip, bitwise::BitwiseChip, sub::SubChip, AluEvent},
-    cpu::{trace::CpuChip, CpuEvent},
-    memory::{MemOp, MemoryEvent},
-    program::ProgramChip,
-};
+use crate::memory::{MemOp, MemoryEvent};
 
 /// An implementation of a runtime for the Curta VM.
 ///
@@ -43,11 +29,11 @@ pub struct Runtime {
     /// The clock keeps track of how many instructions have been executed.
     pub clk: u32,
 
-    /// The program counter keeps track of the next instruction.
+    /// The program counter.
     pub pc: u32,
 
-    /// The prgram used during execution.
-    pub program: Vec<Instruction>,
+    /// The program.
+    pub program: Program,
 
     /// The memory which instructions operate over.
     pub memory: BTreeMap<u32, u32>,
@@ -78,16 +64,19 @@ pub struct Runtime {
 
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+
+    /// A stream of witnessed values.
+    pub witness: Vec<u32>,
 }
 
 impl Runtime {
     // Create a new runtime
-    pub fn new(program: Vec<Instruction>, init_pc: u32) -> Self {
+    pub fn new(program: Program) -> Self {
         Self {
             clk: 0,
-            pc: init_pc,
-            memory: BTreeMap::new(),
+            pc: program.pc_start,
             program,
+            memory: BTreeMap::new(),
             cpu_events: Vec::new(),
             memory_events: Vec::new(),
             add_events: Vec::new(),
@@ -97,6 +86,34 @@ impl Runtime {
             shift_events: Vec::new(),
             lt_events: Vec::new(),
             byte_lookups: BTreeMap::new(),
+            witness: Vec::new(),
+        }
+    }
+
+    /// Write to the witness stream.
+    pub fn write_witness(&mut self, witness: &[u32]) {
+        self.witness.extend(witness);
+    }
+
+    /// Get the current values of the registers.
+    pub fn registers(&self) -> [u32; 32] {
+        let mut registers = [0; 32];
+        for i in 0..32 {
+            let addr = self.r2m(Register::from_u32(i as u32));
+            registers[i] = match self.memory.get(&addr) {
+                Some(value) => *value,
+                None => 0,
+            };
+        }
+        return registers;
+    }
+
+    /// Get the current value of a register.
+    pub fn register(&self, register: Register) -> u32 {
+        let addr = self.r2m(register);
+        match self.memory.get(&addr) {
+            Some(value) => *value,
+            None => 0,
         }
     }
 
@@ -139,25 +156,6 @@ impl Runtime {
         }
         let addr = self.r2m(register);
         self.mw(addr, value);
-    }
-
-    /// Get the current values of the registers.
-    pub fn registers(&self) -> [u32; 32] {
-        let mut registers = [0; 32];
-        for i in 0..32 {
-            let addr = self.r2m(Register::from_u32(i as u32));
-            registers[i] = match self.memory.get(&addr) {
-                Some(value) => *value,
-                None => 0,
-            };
-        }
-        return registers;
-    }
-
-    /// Fetch the instruction at the current program counter.
-    fn fetch(&self) -> Instruction {
-        let idx = (self.pc / 4) as usize;
-        return self.program[idx];
     }
 
     /// Emit a CPU event.
@@ -204,282 +202,223 @@ impl Runtime {
             c,
         };
         match opcode {
-            Opcode::ADD | Opcode::ADDI => {
+            Opcode::ADD => {
                 self.add_events.push(event);
             }
             Opcode::SUB => {
                 self.sub_events.push(event);
             }
-            Opcode::XOR | Opcode::XORI | Opcode::OR | Opcode::ORI | Opcode::AND | Opcode::ANDI => {
+            Opcode::XOR | Opcode::OR | Opcode::AND => {
                 self.bitwise_events.push(event);
             }
-            Opcode::SLL
-            | Opcode::SLLI
-            | Opcode::SRL
-            | Opcode::SRLI
-            | Opcode::SRA
-            | Opcode::SRAI => {
+            Opcode::SLL | Opcode::SRL | Opcode::SRA => {
                 self.shift_events.push(event);
             }
-            Opcode::SLT | Opcode::SLTU | Opcode::SLTI | Opcode::SLTIU => {
+            Opcode::SLT | Opcode::SLTU => {
                 self.lt_events.push(event);
+            }
+            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
+                self.add_events.push(event);
             }
             _ => {}
         }
     }
 
+    /// Fetch the destination register and input operand values for an ALU instruction.
+    #[inline]
+    fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
+        if !instruction.imm_c {
+            let (rd, rs1, rs2) = instruction.r_type();
+            let (b, c) = (self.rr(rs1), self.rr(rs2));
+            (rd, b, c)
+        } else if !instruction.imm_b && instruction.imm_c {
+            let (rd, rs1, imm) = instruction.i_type();
+            let (b, c) = (self.rr(rs1), imm);
+            (rd, b, c)
+        } else {
+            let (rd, b, c) = (
+                Register::from_u32(instruction.op_a),
+                instruction.op_b,
+                instruction.op_c,
+            );
+            (rd, b, c)
+        }
+    }
+
+    /// Set the destination register with the result and emit an ALU event.
+    #[inline]
+    fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
+        self.rw(rd, a);
+        self.emit_alu(self.clk, instruction.opcode, a, b, c);
+    }
+
+    /// Fetch the input operand values for a load instruction.
+    #[inline]
+    fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, Option<u32>) {
+        let (rd, rs1, imm) = instruction.i_type();
+        let (b, c) = (self.rr(rs1), imm);
+        let addr = b.wrapping_add(c);
+        let memory_read_value = Some(self.mr(addr));
+        (rd, b, c, addr, memory_read_value)
+    }
+
+    /// Fetch the input operand values for a store instruction.
+    #[inline]
+    fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, Option<u32>) {
+        let (rs1, rs2, imm) = instruction.s_type();
+        let (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+        let addr = b.wrapping_add(c);
+        let memory_value = Some(self.mr(addr));
+        (a, b, c, addr, memory_value)
+    }
+
+    /// Fetch the input operand values for a branch instruction.
+    #[inline]
+    fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
+        let (rs1, rs2, imm) = instruction.b_type();
+        let (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+        (a, b, c)
+    }
+
+    /// Fetch the instruction at the current program counter.
+    fn fetch(&self) -> Instruction {
+        let idx = ((self.pc - self.program.pc_base) / 4) as usize;
+        return self.program.instructions[idx];
+    }
+
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
-        let (mut a, mut b, mut c, mut memory_value, mut memory_store_value): (
-            u32,
-            u32,
-            u32,
-            Option<u32>,
-            Option<u32>,
-        ) = (u32::MAX, u32::MAX, u32::MAX, None, None);
-
-        // By default, we add 4 to the next PC. However, some instructions (e.g., JAL) will modify
-        // this value.
         let mut next_pc = self.pc.wrapping_add(4);
+
+        let rd: Register;
+        let (a, b, c): (u32, u32, u32);
+        let addr: u32;
+        let (mut memory_read_value, mut memory_store_value): (Option<u32>, Option<u32>) =
+            (None, None);
+
         match instruction.opcode {
-            // R-type instructions.
+            // Arithmetic instructions.
             Opcode::ADD => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_add(c);
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SUB => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_sub(c);
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::XOR => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b ^ c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::OR => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b | c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::AND => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b & c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLL => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b << c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRL => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b >> c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRA => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = (b as i32 >> c) as u32;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLT => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLTU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
+                self.alu_rw(instruction, rd, a, b, c);
             }
 
-            // I-type instructions.
-            Opcode::ADDI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b.wrapping_add(c);
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::XORI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b ^ c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::ORI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b | c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::ANDI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b & c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SLLI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b << c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SRLI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = b >> c;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SRAI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = (b as i32 >> c) as u32;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SLTI => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-            Opcode::SLTIU => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                a = if b < c { 1 } else { 0 };
-                self.rw(rd, a);
-                self.emit_alu(self.clk, instruction.opcode, a, b, c);
-            }
-
-            // Load instructions
+            // Load instructions.
             Opcode::LB => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                memory_value = Some(self.mr(addr));
-                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                let value = (memory_read_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = ((value as i8) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LH => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 2, 0, "LH");
-                memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    memory_value.unwrap() & 0x0000FFFF
-                } else {
-                    memory_value.unwrap() & 0xFFFF0000
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                assert_eq!(addr % 2, 0, "addr is not aligned");
+                let value = match addr % 4 {
+                    0 => memory_read_value.unwrap() & 0x0000FFFF,
+                    1 => memory_read_value.unwrap() & 0xFFFF0000,
+                    _ => unreachable!(),
                 };
                 a = ((value as i16) as i32) as u32;
                 self.rw(rd, a);
             }
             Opcode::LW => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 4, 0, "LW");
-                memory_value = Some(self.mr(addr));
-                a = memory_value.unwrap();
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                assert_eq!(addr % 4, 0, "addr is not aligned");
+                a = memory_read_value.unwrap();
                 self.rw(rd, a);
             }
             Opcode::LBU => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                memory_value = Some(self.mr(addr));
-                let value = (memory_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                let value = (memory_read_value.unwrap()).to_le_bytes()[(addr % 4) as usize];
                 a = (value as u8) as u32;
                 self.rw(rd, a);
             }
             Opcode::LHU => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 2, 0, "LHU");
-                memory_value = Some(self.mr(addr));
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    memory_value.unwrap() & 0x0000FFFF
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                assert_eq!(addr % 2, 0, "addr is not aligned");
+                let value = if addr % 4 == 0 {
+                    memory_read_value.unwrap() & 0x0000FFFF
                 } else {
-                    memory_value.unwrap() & 0xFFFF0000
+                    memory_read_value.unwrap() & 0xFFFF0000
                 };
                 a = (value as u16) as u32;
                 self.rw(rd, a);
             }
 
-            // S-type instructions.
+            // Store instructions.
             Opcode::SB => {
-                let (rs1, rs2, imm) = instruction.s_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = b.wrapping_add(c);
-                memory_value = Some(self.mr(addr)); // Get current memory_value to
-                let offset = addr % 4;
-                let value = if offset == 0 {
-                    (a & 0x000000FF) + (memory_value.unwrap() & 0xFFFFFF00)
-                } else if offset == 1 {
-                    (a & 0x000000FF) << 8 + (memory_value.unwrap() & 0xFFFF00FF)
-                } else if offset == 2 {
-                    (a & 0x000000FF) << 16 + (memory_value.unwrap() & 0xFF00FFFF)
-                } else {
-                    (a & 0x000000FF) << 24 + (memory_value.unwrap() & 0x00FFFFFF)
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                let value = match addr % 4 {
+                    0 => (a & 0x000000FF) + (memory_read_value.unwrap() & 0xFFFFFF00),
+                    1 => (a & 0x000000FF) << 8 + (memory_read_value.unwrap() & 0xFFFF00FF),
+                    2 => (a & 0x000000FF) << 16 + (memory_read_value.unwrap() & 0xFF00FFFF),
+                    3 => (a & 0x000000FF) << 24 + (memory_read_value.unwrap() & 0x00FFFFFF),
+                    _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SH => {
-                let (rs1, rs2, imm) = instruction.s_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 2, 0, "SH");
-                memory_value = Some(self.mr(addr)); // We read the current memory value.
-                let offset = addr % 2;
-                let value = if offset == 0 {
-                    // If offset == 0, then change the first two bytes.
-                    (memory_value.unwrap() & 0xFFFF0000) + (a & 0x0000FFFF)
-                } else {
-                    (memory_value.unwrap() & 0x0000FFFF) + (a & 0x0000FFFF) << 16
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                assert_eq!(addr % 2, 0, "addr is not aligned");
+                let value = match addr % 2 {
+                    0 => (memory_read_value.unwrap() & 0xFFFF0000) + (a & 0x0000FFFF),
+                    1 => (memory_read_value.unwrap() & 0x0000FFFF) + (a & 0x0000FFFF) << 16,
+                    _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
                 self.mw(addr, value);
             }
             Opcode::SW => {
-                let (rs1, rs2, imm) = instruction.s_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
-                let addr = b.wrapping_add(c);
-                assert_eq!(addr % 4, 0, "SW");
-                memory_value = Some(self.mr(addr)); // We read the address even though we will overwrite it fully.
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
                 self.mw(addr, value);
@@ -487,45 +426,39 @@ impl Runtime {
 
             // B-type instructions.
             Opcode::BEQ => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a == b {
                     next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BNE => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a != b {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BLT => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) < (b as i32) {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BGE => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) >= (b as i32) {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BLTU => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a < b {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
             Opcode::BGEU => {
-                let (rs1, rs2, imm) = instruction.b_type();
-                (a, b, c) = (self.rr(rs1), self.rr(rs2), imm);
+                (a, b, c) = self.branch_rr(instruction);
                 if a >= b {
-                    next_pc = self.pc.wrapping_add(imm);
+                    next_pc = self.pc.wrapping_add(c);
                 }
             }
 
@@ -546,26 +479,31 @@ impl Runtime {
             }
 
             // Upper immediate instructions.
-            Opcode::LUI => {
-                let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, 12); // Note that we'll special-case this in the CPU table
-                a = b << 12;
-                self.rw(rd, a);
-                self.emit_alu(self.clk, Opcode::SLL, a, b, c);
-            }
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, imm << 12); // Note that we'll special-case this in the CPU table
-                a = self.pc.wrapping_add(b << 12);
+                (b, c) = (imm, imm);
+                a = self.pc.wrapping_add(b);
                 self.rw(rd, a);
             }
 
             // System instructions.
             Opcode::ECALL => {
-                // While not all ECALLs obviously halt the CPU, we will for now halt. We need to
-                // come back to this and figure out how to handle this properly.
-                println!("ECALL encountered! Halting!");
-                next_pc = self.program.len() as u32 * 4;
+                let t0 = Register::X5;
+                let a0 = Register::X10;
+                let syscall_id = self.register(Register::X5);
+                let syscall = Syscall::from_u32(syscall_id);
+                match syscall {
+                    Syscall::HALT => {
+                        (a, b, c) = (0, self.rr(t0), 0);
+                        next_pc = 0;
+                        self.rw(a0, a);
+                    }
+                    Syscall::LWA => {
+                        let witness = self.witness.pop().expect("witness stream is empty");
+                        (a, b, c) = (witness, self.rr(t0), 0);
+                        self.rw(a0, a);
+                    }
+                }
             }
 
             Opcode::EBREAK => {
@@ -574,82 +512,69 @@ impl Runtime {
 
             // Multiply instructions.
             Opcode::MUL => {
-                // MUL performs an 32-bit×32-bit multiplication and places the
-                // lower 32 bits in the destination register.
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = b.wrapping_mul(c);
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULH => {
-                // MULH performs the same multiplication, but returns the upper
-                // 32 bits of the product. (signed x signed)
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHU => {
-                // MULH performs the same multiplication, but returns the upper
-                // 32 bits of the product. (unsigned x unsigned)
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::MULHSU => {
-                // MULH performs the same multiplication, but returns the upper
-                // 32 bits of the product. (signed x unsigned)
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIV => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = u32::MAX;
                 } else {
                     a = (b as i32).wrapping_div(c as i32) as u32;
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::DIVU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = u32::MAX;
                 } else {
                     a = b.wrapping_div(c);
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REM => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = b;
                 } else {
                     a = (b as i32).wrapping_rem(c as i32) as u32;
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::REMU => {
-                let (rd, rs1, rs2) = instruction.r_type();
-                (b, c) = (self.rr(rs1), self.rr(rs2));
+                (rd, b, c) = self.alu_rr(instruction);
                 if c == 0 {
                     a = b;
                 } else {
                     a = b.wrapping_rem(c);
                 }
-                self.rw(rd, a);
+                self.alu_rw(instruction, rd, a, b, c);
             }
+
             Opcode::UNIMP => {
                 // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
                 panic!("UNIMP encountered, we should never get here.");
             }
         }
+
+        // Update the program counter.
         self.pc = next_pc;
 
         // Emit the CPU event for this cycle.
@@ -660,23 +585,36 @@ impl Runtime {
             a,
             b,
             c,
-            memory_value,
+            memory_read_value,
             memory_store_value,
         );
     }
 
     /// Execute the program.
     pub fn run(&mut self) {
-        // Set %x2 to the size of memory when the CPU is initialized.
-        self.rw(Register::X2, 1024 * 1024 * 8);
-
-        // Set the return address to the end of the program.
-        self.rw(Register::X1, (self.program.len() * 4) as u32);
-
         self.clk += 1;
-        while self.pc < (self.program.len() * 4) as u32 {
+        while self.pc - self.program.pc_base < (self.program.instructions.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
+
+            let width = 12;
+            log::debug!(
+                "[pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                self.pc,
+                instruction,
+                self.register(Register::X0),
+                self.register(Register::X1),
+                self.register(Register::X2),
+                self.register(Register::X3),
+                self.register(Register::X4),
+                self.register(Register::X5),
+                self.register(Register::X6),
+                self.register(Register::X7),
+                self.register(Register::X8),
+                self.register(Register::X9),
+                self.register(Register::X10),
+                self.register(Register::X11)
+            );
 
             // Execute the instruction.
             self.execute(instruction);
@@ -685,673 +623,368 @@ impl Runtime {
             self.clk += 1;
         }
     }
-
-    /// Prove the program.
-    #[allow(unused)]
-    pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
-    {
-        const NUM_CHIPS: usize = 9;
-        // Initialize chips.
-        let program = ProgramChip::new();
-        let cpu = CpuChip::new();
-        let memory = MemoryChip::new();
-        let add = AddChip::new();
-        let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
-        let shift = ShiftChip::new();
-        let lt = LtChip::new();
-        let bytes = ByteChip::<F>::new();
-        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(memory),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(shift),
-            Box::new(lt),
-            Box::new(bytes),
-        ];
-
-        // Compute some statistics.
-        let mut main_cols = 0usize;
-        let mut perm_cols = 0usize;
-        for chip in chips.iter() {
-            main_cols += chip.air_width();
-            perm_cols += (chip.all_interactions().len() + 1) * 5;
-        }
-        println!("MAIN_COLS: {}", main_cols);
-        println!("PERM_COLS: {}", perm_cols);
-
-        // For each chip, generate the trace.
-        let traces = chips
-            .iter()
-            .map(|chip| chip.generate_trace(self))
-            .collect::<Vec<_>>();
-        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
-
-        // For each trace, compute the degree.
-        let degrees: [usize; NUM_CHIPS] = traces
-            .iter()
-            .map(|trace| trace.height())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        let log_degrees = degrees.map(|d| log2_strict_usize(d));
-        let max_constraint_degree = 3;
-        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
-
-        // Commit to the batch of traces.
-        let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        challenger.observe(main_commit);
-
-        // Obtain the challenges used for the permutation argument.
-        let mut permutation_challenges: Vec<EF> = Vec::new();
-        for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
-        }
-
-        // Generate the permutation traces.
-        let permutation_traces = chips
-            .iter()
-            .enumerate()
-            .map(|(i, chip)| {
-                generate_permutation_trace(
-                    chip.as_ref(),
-                    &traces[i],
-                    permutation_challenges.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // Commit to the permutation traces.
-        let flattened_permutation_traces = permutation_traces
-            .iter()
-            .map(|trace| trace.flatten_to_base())
-            .collect::<Vec<_>>();
-        let (permutation_commit, permutation_data) =
-            config.pcs().commit_batches(flattened_permutation_traces);
-        challenger.observe(permutation_commit);
-
-        // For each chip, compute the quotient polynomial.
-        let main_ldes = config.pcs().get_ldes(&main_data);
-        let permutation_ldes = config.pcs().get_ldes(&permutation_data);
-        let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-
-        // Compute the quotient values.
-        let quotient_values = (0..chips.len()).map(|i| {
-            quotient_values(
-                config,
-                &*chips[i],
-                log_degrees[i],
-                log_quotient_degree,
-                &main_ldes[i],
-                alpha,
-            )
-        });
-
-        // Compute the quotient chunks.
-        let quotient_chunks = quotient_values
-            .map(|values| {
-                decompose_and_flatten::<SC>(
-                    values,
-                    SC::Challenge::from_base(config.pcs().coset_shift()),
-                    log_quotient_degree,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // Commit to the quotient chunks.
-        let (quotient_commit, quotient_commit_data): (Vec<_>, Vec<_>) = (0..chips.len())
-            .map(|i| {
-                config.pcs().commit_shifted_batch(
-                    quotient_chunks[i].clone(),
-                    config
-                        .pcs()
-                        .coset_shift()
-                        .exp_power_of_2(log_quotient_degree),
-                )
-            })
-            .into_iter()
-            .unzip();
-
-        // Observe the quotient commitments.
-        for commit in quotient_commit {
-            challenger.observe(commit);
-        }
-
-        // Compute the quotient argument.
-        let zeta: SC::Challenge = challenger.sample_ext_element();
-        let zeta_and_next = [zeta, zeta * g_subgroups[0]];
-        let prover_data_and_points = [
-            (&main_data, zeta_and_next.as_slice()),
-            (&permutation_data, zeta_and_next.as_slice()),
-        ];
-        let (openings, opening_proof) = config
-            .pcs()
-            .open_multi_batches(&prover_data_and_points, challenger);
-        let (openings, opening_proofs): (Vec<_>, Vec<_>) = (0..chips.len())
-            .map(|i| {
-                let prover_data_and_points = [(&quotient_commit_data[i], zeta_and_next.as_slice())];
-                config
-                    .pcs()
-                    .open_multi_batches(&prover_data_and_points, challenger)
-            })
-            .into_iter()
-            .unzip();
-
-        // Check that the table-specific constraints are correct for each chip.
-        for i in 0..chips.len() {
-            debug_constraints(
-                &*chips[i],
-                &traces[i],
-                &permutation_traces[i],
-                &permutation_challenges,
-            );
-        }
-
-        // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
-    }
 }
 
 #[cfg(test)]
-#[allow(non_snake_case)]
 pub mod tests {
-    use super::Opcode;
-    use super::Register;
-    use super::Runtime;
-    use crate::disassembler::parse_elf;
-    use crate::runtime::instruction::Instruction;
-    use p3_baby_bear::BabyBear;
-    use p3_challenger::DuplexChallenger;
-    use p3_commit::ExtensionMmcs;
-    use p3_dft::Radix2DitParallel;
-    use p3_field::extension::BinomialExtensionField;
-    use p3_field::Field;
-    use p3_fri::FriBasedPcs;
-    use p3_fri::FriConfigImpl;
-    use p3_fri::FriLdt;
-    use p3_keccak::Keccak256Hash;
-    use p3_ldt::QuotientMmcs;
-    use p3_mds::coset_mds::CosetMds;
-    use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::DiffusionMatrixBabybear;
-    use p3_poseidon2::Poseidon2;
-    use p3_symmetric::CompressionFunctionFromHasher;
-    use p3_symmetric::SerializingHasher32;
-    use p3_uni_stark::StarkConfigImpl;
-    use rand::thread_rng;
-    use std::io::Read;
-    use std::path::Path;
+    use crate::runtime::Register;
 
-    pub fn get_simple_program() -> Vec<Instruction> {
-        // int main() {
-        //     int a = 5;
-        //     int b = 8;
-        //     int result = a + b;
-        //     return 0;
-        //   }
-        // main:
-        // addi    sp,sp,-32
-        // sw      s0,28(sp)
-        // addi    s0,sp,32
-        // li      a5,5
-        // sw      a5,-20(s0)
-        // li      a5,8
-        // sw      a5,-24(s0)
-        // lw      a4,-20(s0)
-        // lw      a5,-24(s0)
-        // add     a5,a4,a5
-        // sw      a5,-28(s0)
-        // lw      a5,-28(s0)
-        // mv      a0,a5
-        // lw      s0,28(sp)
-        // addi    sp,sp,32
-        // jr      ra
-        // Mapping taken from here: https://en.wikichip.org/wiki/risc-v/registers
-        let SP = Register::X2 as u32;
-        let X0 = Register::X0 as u32;
-        let S0 = Register::X8 as u32;
-        let A0 = Register::X10 as u32;
-        let A5 = Register::X15 as u32;
-        let A4 = Register::X14 as u32;
-        let _RA = Register::X1 as u32;
-        let code = vec![
-            Instruction::new(Opcode::ADDI, SP, SP, (-32i32) as u32),
-            Instruction::new(Opcode::SW, S0, SP, 28),
-            Instruction::new(Opcode::ADDI, S0, SP, 32),
-            Instruction::new(Opcode::ADDI, A5, X0, 5),
-            Instruction::new(Opcode::SW, A5, S0, (-20i32) as u32),
-            Instruction::new(Opcode::ADDI, A5, X0, 8),
-            Instruction::new(Opcode::SW, A5, S0, (-24i32) as u32),
-            Instruction::new(Opcode::LW, A4, S0, (-20i32) as u32),
-            Instruction::new(Opcode::LW, A5, S0, (-24i32) as u32),
-            Instruction::new(Opcode::ADD, A5, A4, A5),
-            Instruction::new(Opcode::SW, A5, S0, (-28i32) as u32),
-            Instruction::new(Opcode::LW, A5, S0, (-28i32) as u32),
-            Instruction::new(Opcode::ADDI, A0, A5, 0),
-            Instruction::new(Opcode::LW, S0, SP, 28),
-            Instruction::new(Opcode::ADDI, SP, SP, 32),
-            // Instruction::new(Opcode::JALR, X0, RA, 0), // Commented this out because JAL is not working properly right now.
+    use super::{Instruction, Opcode, Program, Runtime};
+
+    pub fn simple_program() -> Program {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        code
+        Program::new(instructions, 0, 0)
     }
 
-    fn get_fibonacci_program() -> (Vec<Instruction>, u32) {
-        let mut elf_code = Vec::new();
-        let path = Path::new("").join("../programs/fib").with_extension("s");
-        std::fs::File::open(path)
-            .expect("Failed to open input file")
-            .read_to_end(&mut elf_code)
-            .expect("Failed to read from input file");
-
-        // Parse ELF code.
-        parse_elf(&elf_code).expect("Failed to assemble code")
+    pub fn fibonacci_program() -> Program {
+        Program::from_elf("../programs/fib.s")
     }
 
     #[test]
-    fn SIMPLE_PROGRAM() {
-        let code = get_simple_program();
-        let mut runtime = Runtime::new(code, 0);
+    fn test_simple_program_run() {
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
+        assert_eq!(runtime.register(Register::X31), 42);
     }
 
     #[test]
-    fn fibonacci_program() {
-        let (code, pc) = get_fibonacci_program();
-        let mut runtime: Runtime = Runtime::new(code, pc);
+    fn test_fibonacci_run() {
+        let program = fibonacci_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
+        assert_eq!(runtime.registers()[Register::X10 as usize], 55);
     }
 
     #[test]
-    fn basic_pogram() {
+    fn test_add() {
         // main:
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut runtime: Runtime = Runtime::new(program, 0);
-        runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
-    }
-
-    #[test]
-    fn prove_fibonacci() {
-        let (program, pc) = get_fibonacci_program();
-        prove(program, pc);
-    }
-
-    #[test]
-    fn prove_simple() {
-        let program = get_simple_program();
-        prove(program, 0);
-    }
-
-    #[test]
-    fn prove_basic() {
-        // main:
-        //     addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
-        ];
-        prove(program, 0);
-    }
-
-    fn prove(program: Vec<Instruction>, init_pc: u32) {
-        type Val = BabyBear;
-        type Domain = Val;
-        type Challenge = BinomialExtensionField<Val, 4>;
-        type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-
-        type MyMds = CosetMds<Val, 16>;
-        let mds = MyMds::default();
-
-        type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
-
-        type MyHash = SerializingHasher32<Keccak256Hash>;
-        let hash = MyHash::new(Keccak256Hash {});
-
-        type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
-        let compress = MyCompress::new(hash);
-
-        type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
-        let val_mmcs = ValMmcs::new(hash, compress);
-
-        type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-        let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
-
-        type Dft = Radix2DitParallel;
-        let dft = Dft {};
-
-        type Challenger = DuplexChallenger<Val, Perm, 16>;
-
-        type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-        type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
-        let ldt = FriLdt { config: fri_config };
-
-        type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
-        type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
-
-        let pcs = Pcs::new(dft, val_mmcs, ldt);
-        let config = StarkConfigImpl::new(pcs);
-        let mut challenger = Challenger::new(perm.clone());
-
-        let mut runtime = Runtime::new(program, init_pc);
-        runtime.run();
-        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
-    }
-
-    #[test]
-    fn ADD() {
-        // main:
-        //     addi x29, x0, 5
-        //     addi x30, x0, 37
-        //     add x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::ADD, 31, 30, 29),
-        ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
 
-        assert_eq!(runtime.registers()[Register::X31 as usize], 42);
+        assert_eq!(runtime.register(Register::X31), 42);
     }
 
     #[test]
-    fn SUB() {
+    fn test_sub() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sub x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::SUB, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 32);
+        assert_eq!(runtime.register(Register::X31), 32);
     }
 
     #[test]
-    fn XOR() {
+    fn test_xor() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     xor x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::XOR, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::XOR, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 32);
+        assert_eq!(runtime.register(Register::X31), 32);
     }
 
     #[test]
-    fn OR() {
+    fn test_or() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     or x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::OR, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::OR, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
+
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 37);
+        assert_eq!(runtime.register(Register::X31), 37);
     }
 
     #[test]
-    fn AND() {
+    fn test_and() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     and x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::AND, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::AND, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 5);
+        assert_eq!(runtime.register(Register::X31), 5);
     }
 
     #[test]
-    fn SLL() {
+    fn test_sll() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sll x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::SLL, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::SLL, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 1184);
+        assert_eq!(runtime.register(Register::X31), 1184);
     }
 
     #[test]
-    fn SRL() {
+    fn test_srl() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     srl x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::SRL, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::SRL, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 1);
+        assert_eq!(runtime.register(Register::X31), 1);
     }
 
     #[test]
-    fn SRA() {
+    fn test_sra() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sra x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::SRA, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::SRA, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 1);
+        assert_eq!(runtime.register(Register::X31), 1);
     }
 
     #[test]
-    fn SLT() {
+    fn test_slt() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     slt x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::SLT, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::SLT, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+        assert_eq!(runtime.register(Register::X31), 0);
     }
 
     #[test]
-    fn SLTU() {
+    fn test_sltu() {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     sltu x31, x30, x29
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 0, 37),
-            Instruction::new(Opcode::SLTU, 31, 30, 29),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
+            Instruction::new(Opcode::SLTU, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+        assert_eq!(runtime.register(Register::X31), 0);
     }
 
     #[test]
-    fn ADDI() {
+    fn test_addi() {
         //     addi x29, x0, 5
         //     addi x30, x29, 37
         //     addi x31, x30, 42
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 29, 37),
-            Instruction::new(Opcode::ADDI, 31, 30, 42),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 29, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 84);
+        assert_eq!(runtime.register(Register::X31), 84);
     }
 
     #[test]
-    fn ADDI_NEGATIVE() {
+    fn test_addi_negative() {
         //     addi x29, x0, 5
         //     addi x30, x29, -1
         //     addi x31, x30, 4
-        let code = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ADDI, 30, 29, 0xffffffff),
-            Instruction::new(Opcode::ADDI, 31, 30, 4),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 29, 0xffffffff, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 4, false, true),
         ];
-        let mut runtime = Runtime::new(code, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 5 - 1 + 4);
+        assert_eq!(runtime.register(Register::X31), 5 - 1 + 4);
     }
 
     #[test]
-    fn XORI() {
+    fn test_xori() {
         //     addi x29, x0, 5
         //     xori x30, x29, 37
         //     xori x31, x30, 42
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::XORI, 30, 29, 37),
-            Instruction::new(Opcode::XORI, 31, 30, 42),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::XOR, 30, 29, 37, false, true),
+            Instruction::new(Opcode::XOR, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-
-        assert_eq!(runtime.registers()[Register::X31 as usize], 10);
+        assert_eq!(runtime.register(Register::X31), 10);
     }
 
     #[test]
-    fn ORI() {
+    fn test_ori() {
         //     addi x29, x0, 5
         //     ori x30, x29, 37
         //     ori x31, x30, 42
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ORI, 30, 29, 37),
-            Instruction::new(Opcode::ORI, 31, 30, 42),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::OR, 30, 29, 37, false, true),
+            Instruction::new(Opcode::OR, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-
-        assert_eq!(runtime.registers()[Register::X31 as usize], 47);
+        assert_eq!(runtime.register(Register::X31), 47);
     }
 
     #[test]
-    fn ANDI() {
+    fn test_andi() {
         //     addi x29, x0, 5
         //     andi x30, x29, 37
         //     andi x31, x30, 42
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::ANDI, 30, 29, 37),
-            Instruction::new(Opcode::ANDI, 31, 30, 42),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::AND, 30, 29, 37, false, true),
+            Instruction::new(Opcode::AND, 31, 30, 42, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-
-        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+        assert_eq!(runtime.register(Register::X31), 0);
     }
 
     #[test]
-    fn SLLI() {
+    fn test_slli() {
         //     addi x29, x0, 5
         //     slli x31, x29, 37
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 5),
-            Instruction::new(Opcode::SLLI, 31, 29, 4),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::SLL, 31, 29, 4, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 80);
+        assert_eq!(runtime.register(Register::X31), 80);
     }
 
     #[test]
-    fn SRLI() {
+    fn test_srli() {
         //    addi x29, x0, 5
         //    srli x31, x29, 37
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 42),
-            Instruction::new(Opcode::SRLI, 31, 29, 4),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
+            Instruction::new(Opcode::SRL, 31, 29, 4, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 2);
+        assert_eq!(runtime.register(Register::X31), 2);
     }
 
     #[test]
-    fn SRAI() {
+    fn test_srai() {
         //   addi x29, x0, 5
         //   srai x31, x29, 37
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 42),
-            Instruction::new(Opcode::SRAI, 31, 29, 4),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
+            Instruction::new(Opcode::SRA, 31, 29, 4, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 2);
+        assert_eq!(runtime.register(Register::X31), 2);
     }
 
     #[test]
-    fn SLTI() {
+    fn test_slti() {
         //   addi x29, x0, 5
         //   slti x31, x29, 37
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 42),
-            Instruction::new(Opcode::SLTI, 31, 29, 37),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
+            Instruction::new(Opcode::SLT, 31, 29, 37, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+        assert_eq!(runtime.register(Register::X31), 0);
     }
 
     #[test]
-    fn SLTIU() {
+    fn test_sltiu() {
         //   addi x29, x0, 5
         //   sltiu x31, x29, 37
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 29, 0, 42),
-            Instruction::new(Opcode::SLTIU, 31, 29, 37),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 42, false, true),
+            Instruction::new(Opcode::SLTU, 31, 29, 37, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X31 as usize], 0);
+        assert_eq!(runtime.register(Register::X31), 0);
     }
 
     #[test]
-    fn JALR() {
+    fn test_jalr() {
         //   addi x11, x11, 100
         //   jalr x5, x11, 8
         //
@@ -1359,11 +992,12 @@ pub mod tests {
         // destination address. It then stores the address of the next instruction in rd in case
         // we'd want to come back here.
 
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 11, 11, 100),
-            Instruction::new(Opcode::JALR, 5, 11, 8),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 11, 11, 100, false, true),
+            Instruction::new(Opcode::JALR, 5, 11, 8, false, true),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
@@ -1371,12 +1005,13 @@ pub mod tests {
     }
 
     fn simple_op_code_test(opcode: Opcode, expected: u32, a: u32, b: u32) {
-        let program = vec![
-            Instruction::new(Opcode::ADDI, 10, 0, a),
-            Instruction::new(Opcode::ADDI, 11, 0, b),
-            Instruction::new(opcode, 12, 10, 11),
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 10, 0, a, false, true),
+            Instruction::new(Opcode::ADD, 11, 0, b, false, true),
+            Instruction::new(opcode, 12, 10, 11, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
     }

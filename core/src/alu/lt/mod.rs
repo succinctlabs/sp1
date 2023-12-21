@@ -64,7 +64,7 @@ impl LtCols<u32> {
     }
 }
 
-/// A chip that implements bitwise operations for the opcodes SLT, SLTI, SLTU, and SLTIU.
+/// A chip that implements bitwise operations for the opcodes SLT and SLTU.
 pub struct LtChip;
 
 impl LtChip {
@@ -87,7 +87,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 let mut c = event.c.to_le_bytes();
 
                 // If the operands are signed, get and then mask the MSB of b & c.
-                if event.opcode == Opcode::SLT || event.opcode == Opcode::SLTI {
+                if event.opcode == Opcode::SLT {
                     cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
                     cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
 
@@ -278,8 +278,8 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        alu::{lt::LtCols, AluEvent},
-        runtime::{Opcode, Runtime},
+        alu::{AluEvent, LtCols},
+        runtime::{Opcode, Program, Runtime},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -288,9 +288,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 3)];
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
+        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
 
@@ -361,8 +362,9 @@ mod tests {
 
     #[test]
     fn prove_babybear_slt() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
 
         const NEG_3: u32 = 0b11111111111111111111111111111101;
         const NEG_4: u32 = 0b11111111111111111111111111111100;
@@ -389,38 +391,10 @@ mod tests {
     }
 
     #[test]
-    fn prove_babybear_slti() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-
-        const NEG_3: u32 = 0b11111111111111111111111111111101;
-        const NEG_4: u32 = 0b11111111111111111111111111111100;
-        runtime.lt_events = vec![
-            // 0 == 3 < 2
-            AluEvent::new(0, Opcode::SLTI, 0, 3, 2),
-            // 1 == 2 < 3
-            AluEvent::new(1, Opcode::SLTI, 1, 2, 3),
-            // 0 == 5 < -3
-            AluEvent::new(3, Opcode::SLTI, 0, 5, NEG_3),
-            // 1 == -3 < 5
-            AluEvent::new(2, Opcode::SLTI, 1, NEG_3, 5),
-            // 0 == -3 < -4
-            AluEvent::new(4, Opcode::SLTI, 0, NEG_3, NEG_4),
-            // 1 == -4 < -3
-            AluEvent::new(4, Opcode::SLTI, 1, NEG_4, NEG_3),
-            // 0 == 3 < 3
-            AluEvent::new(5, Opcode::SLTI, 0, 3, 3),
-            // 0 == -3 < -3
-            AluEvent::new(5, Opcode::SLTI, 0, NEG_3, NEG_3),
-        ];
-
-        prove_babybear_template(&mut runtime);
-    }
-
-    #[test]
     fn prove_babybear_sltu() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
 
         const LARGE: u32 = 0b11111111111111111111111111111101;
         runtime.lt_events = vec![
@@ -436,30 +410,6 @@ mod tests {
             AluEvent::new(5, Opcode::SLTU, 0, 0, 0),
             // 0 == LARGE < LARGE
             AluEvent::new(5, Opcode::SLTU, 0, LARGE, LARGE),
-        ];
-
-        prove_babybear_template(&mut runtime);
-    }
-
-    #[test]
-    fn prove_babybear_sltiu() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-
-        const LARGE: u32 = 0b11111111111111111111111111111101;
-        runtime.lt_events = vec![
-            // 0 == 3 < 2
-            AluEvent::new(0, Opcode::SLTIU, 0, 3, 2),
-            // 1 == 2 < 3
-            AluEvent::new(1, Opcode::SLTIU, 1, 2, 3),
-            // 0 == LARGE < 5
-            AluEvent::new(2, Opcode::SLTIU, 1, LARGE, 5),
-            // 1 == 5 < LARGE
-            AluEvent::new(3, Opcode::SLTIU, 1, 5, LARGE),
-            // 0 == 0 < 0
-            AluEvent::new(5, Opcode::SLTIU, 0, 0, 0),
-            // 0 == LARGE < LARGE
-            AluEvent::new(5, Opcode::SLTIU, 0, LARGE, LARGE),
         ];
 
         prove_babybear_template(&mut runtime);
