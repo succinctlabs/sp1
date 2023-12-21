@@ -481,7 +481,7 @@ impl Runtime {
             // Upper immediate instructions.
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, imm << 12);
+                (b, c) = (imm, imm);
                 a = self.pc.wrapping_add(b);
                 self.rw(rd, a);
             }
@@ -598,7 +598,7 @@ impl Runtime {
             let instruction = self.fetch();
 
             let width = 12;
-            println!(
+            log::debug!(
                 "[pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
                 self.pc,
                 instruction,

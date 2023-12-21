@@ -307,7 +307,7 @@ impl InstructionProcessor for InstructionTranspiler {
             Opcode::AUIPC,
             dec_insn.rd as u32,
             dec_insn.imm as u32,
-            (dec_insn.imm << 12) as u32,
+            dec_insn.imm as u32,
             true,
             true,
         )
