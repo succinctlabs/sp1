@@ -321,20 +321,41 @@ where
         // of RISC-V. So, we need to check these two statements:
         //
         // 1. If rem > 0, then b > 0.
-        // 1. If rem < 0, then b < 0.
+        // 2. If rem < 0, then b < 0.
+        //
+        // 1'. If b > 0, then rem >= 0.
+        // 2'. If b < 0, then rem <= 0.
+        //
+        //   rem_is_negative := is_signed_type * rem_msb
+        //   b_is_negative := is_signed_type * b_msb
+        //
+        //   rem_is_zero := 1 - (local.rem[0] + local.rem[1] + local.rem[2] + local.rem[3]) * rem_is_zero_inv
+        //      rem_is_zero * (local.rem[0] + local.rem[1] + local.rem[2] + local.rem[3]) === 0
+        //   b_is_zero := ...
+        //
+        //   rem_is_positive := 1 - (rem_is_negative + rem_is_zero)
+        //   b_is_positive := 1 - (b_is_negative + b_is_zero)
+        //   builder.when(rem_is_positive).assert_eq(b_is_positive, 1)
+        //   ...
 
         let is_signed_type = local.is_div + local.is_rem;
         let is_unsigned_type = local.is_divu + local.is_remu;
 
         // is_signed_type AND (local.b_msb == 1);
         let b_neg = is_signed_type.clone() * local.b_msb;
+
+        // If b_neg => b_sgn = -1.
         builder
             .when(b_neg.clone())
             .assert_zero(local.b_sgn + one.clone());
-        //        let b_le_0 = b_neg.clone() + local.b_eq_0 - b_neg.clone() * local.b_eq_0;
-        //        // is_unsigned_type OR (local.b_msb == 0);
-        //        let b_ge_0 = is_unsigned_type.clone() + (one.clone() - local.b_msb)
-        //            - is_unsigned_type.clone() * (one.clone() - local.b_msb);
+        // is_unsigned_type OR (local.b_msb == 0);
+        let b_ge_0 = is_unsigned_type.clone() + (one.clone() - local.b_msb)
+            - is_unsigned_type.clone() * (one.clone() - local.b_msb);
+
+        //
+        builder
+            .when(b_ge_0.clone())
+            .assert_zero(local.b_sgn * (local.b_sgn - one.clone()));
         //
         //        builder.when(local.is_real).assert_eq(b_le_0, local.b_le_0);
         //        // builder.assert_eq(b_ge_0, local.b_ge_0);
