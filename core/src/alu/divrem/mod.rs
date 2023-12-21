@@ -3,27 +3,18 @@
 //! The trace contains quotient, remainder, and carry columns where
 //! b = c * quotient + remainder.
 //!
-//! Given (a, b, c, quotient, remainder, carry) in the trace,
-//! (quotient, remainder, carry) are correct if and only if
+//! RISC-V's definition of division and remainder is equivalent to:
 //!
-//! 1) b = c * quotient + remainder
-//! 2) sgn(b) = sgn(remainder)
-//! 3) 0 <= abs(remainder) < abs(b)
+//! 1) b = c * quotient + remainder (mod 2^{32})
+//! 2) sgn(b) * sgn(remainder) != -1,
+//! 3) 0 <= abs(remainder) < abs(c) if c != 0.
 //!
-//! There is no need to take care of the overflow case separately. If
-//! b = -2^{31}, c = -1, then quotient = 0x800....000, c = 0xff...ff.
+//! The set of (a, b, c) uniquely identifies a pair (quotient, remainder).
+//! Therefore, we can verify the correctness of the division and remainder
+//! by simply checking each of those three conditions.
 //!
-//! So the product of those would simply become 0x80..00, which is
-//! exactly b, and the remainder would be 0.
-//!
-//! We also perform a fairly nontrivial check to see if a byte-decomposed
-//! number is 0.
-//!
-//! Given a, we compute sum = a[0] + a[1] + ... + a[3] and its inverse.
-//! (1 - sum * sum_inv) * sum is 0 if and only if a is indeed 0 even if
-//! sum_inv is incorrect. This is because if a is 0, then sum is 0, and
-//! the whole expression is 0 regardless. if a is not 0, then sum is not 0
-//! and sum_inv is correct, so the whole expression is nonzero.
+//! There is no need to take care of the overflow case separately as the
+//! overflow just gets removed through the modulo operation.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -44,8 +35,6 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 const BYTE_SIZE: usize = 8;
-// The product of two numbers of size WORD_SIZE is at most 2 * WORD_SIZE.
-const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
 
 fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
     a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)
@@ -221,8 +210,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 (cols.b_is_zero_negative_assertion, cols.b_is_zero_inv) =
                     nonzero_verifier::<F>(b_word);
 
-                println!("{:#?}", cols);
-
                 row
             })
             .collect::<Vec<_>>();
@@ -258,23 +245,23 @@ where
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
 
-        // This result is of size PRODUCT_SIZE to detect any overflow that
-        // might occur from the multiplication and addition.
-        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
 
         // Multiply the quotient by c. After this for loop, we have
-        // \sigma_{i=0}^{PRODUCT_SIZE - 1} result[i] * base^i = quotient * c.
+        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
         //
         // For simplicity, we will write F(result) =
         // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i.
         for i in 0..WORD_SIZE {
             for j in 0..WORD_SIZE {
-                result[i + j] += local.quotient[i].clone() * local.c[j].clone();
+                if i + j < WORD_SIZE {
+                    result[i + j] += local.quotient[i].clone() * local.c[j].clone();
+                }
             }
         }
 
         // Add remainder to product. After this for loop, we have
-        // F(result) = quotient * c + remainder.
+        // F(result) = quotient * c + remainder (mod 2^{32})
         for i in 0..WORD_SIZE {
             result[i] += local.remainder[i].into();
         }
@@ -288,9 +275,11 @@ where
             // F(result) by carry * base^{i + 1}.
             result[i] -= carry.clone() * base.clone();
 
-            // Adding carry to result[i + 1] increases
-            // F(result) by carry * base^{i + 1}.
-            result[i + 1] += carry.into();
+            if i + 1 < WORD_SIZE {
+                // Adding carry to result[i + 1] increases
+                // F(result) by carry * base^{i + 1}.
+                result[i + 1] += carry.into();
+            }
 
             // We added and subtracted carry * base^{i + 1} to F(result), so
             // F(result) remains the same.
@@ -300,17 +289,10 @@ where
 
         // Now, result is c * quotient + remainder, which must equal b, unless c
         // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
-        // are correct. Note that this doesn't just confirm that they are equal
-        // mod 64, they are actually equal.
-        for i in 0..PRODUCT_SIZE {
-            if i < WORD_SIZE {
-                division_by_non_zero.assert_eq(result[i].clone(), local.b[i].clone());
-            } else {
-                // TODO: Wait, do I need this or no?
-                // division_by_non_zero.assert_zero(result[i].clone());
-            }
+        // are correct.
+        for i in 0..WORD_SIZE {
+            division_by_non_zero.assert_eq(result[i].clone(), local.b[i].clone());
         }
-        // TODO: Must take care of the overflow case separately.
 
         let div_op = local.is_divu + local.is_div;
         let rem_op = local.is_remu + local.is_rem;
@@ -341,6 +323,7 @@ where
                 .when(rem_op.clone())
                 .assert_eq(local.a[i], local.b[i]);
         }
+        // TODO: If c is 0, then the division_by_0 flag must be set.
 
         // Check the sign cases. RISC-V requires that b and remainder have the
         // same sign. There are exactly two cases that are forbidden:
@@ -395,9 +378,8 @@ where
             .assert_zero(local.b_neg); // b is not negative.
 
         // TODO: Use lookup to constrain the MSBs.
-        // TODO: Range check for rem: -b < remainder < b or b < remainder < -b.
         // TODO: Range check the carry column.
-        // TODO: Range check remainder. (i.e., 0 <= remainder < c when c != 0)
+        // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when c != 0)
         // TODO: Range check all the bytes.
 
         // There are 10 bool member variables, so check them all here.
