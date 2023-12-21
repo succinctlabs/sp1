@@ -44,6 +44,8 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 const BYTE_SIZE: usize = 8;
+// The product of two numbers of size WORD_SIZE is at most 2 * WORD_SIZE.
+const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
 
 fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
     a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)
@@ -256,18 +258,18 @@ where
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
 
-        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
+        // This result is of size PRODUCT_SIZE to detect any overflow that
+        // might occur from the multiplication and addition.
+        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
 
         // Multiply the quotient by c. After this for loop, we have
-        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
+        // \sigma_{i=0}^{PRODUCT_SIZE - 1} result[i] * base^i = quotient * c.
         //
         // For simplicity, we will write F(result) =
         // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i.
         for i in 0..WORD_SIZE {
             for j in 0..WORD_SIZE {
-                if i + j < WORD_SIZE {
-                    result[i + j] += local.quotient[i].clone() * local.c[j].clone();
-                }
+                result[i + j] += local.quotient[i].clone() * local.c[j].clone();
             }
         }
 
@@ -286,11 +288,9 @@ where
             // F(result) by carry * base^{i + 1}.
             result[i] -= carry.clone() * base.clone();
 
-            if i + 1 < WORD_SIZE {
-                // Adding carry to result[i + 1] increases
-                // F(result) by carry * base^{i + 1}.
-                result[i + 1] += carry.into();
-            }
+            // Adding carry to result[i + 1] increases
+            // F(result) by carry * base^{i + 1}.
+            result[i + 1] += carry.into();
 
             // We added and subtracted carry * base^{i + 1} to F(result), so
             // F(result) remains the same.
@@ -300,10 +300,17 @@ where
 
         // Now, result is c * quotient + remainder, which must equal b, unless c
         // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
-        // are correct.
-        for i in 0..WORD_SIZE {
-            division_by_non_zero.assert_eq(result[i].clone(), local.b[i].clone());
+        // are correct. Note that this doesn't just confirm that they are equal
+        // mod 64, they are actually equal.
+        for i in 0..PRODUCT_SIZE {
+            if i < WORD_SIZE {
+                division_by_non_zero.assert_eq(result[i].clone(), local.b[i].clone());
+            } else {
+                // TODO: Wait, do I need this or no?
+                // division_by_non_zero.assert_zero(result[i].clone());
+            }
         }
+        // TODO: Must take care of the overflow case separately.
 
         let div_op = local.is_divu + local.is_div;
         let rem_op = local.is_remu + local.is_rem;
@@ -336,11 +343,24 @@ where
         }
 
         // Check the sign cases. RISC-V requires that b and remainder have the
-        // same sign. The twist here is 0 is both positive and negative in the eye
-        // of RISC-V. So, we need to check these two statements:
+        // same sign. There are exactly two cases that are forbidden:
         //
-        // 1. If rem > 0, then b > 0.
-        // 2. If rem < 0, then b < 0.
+        // 1. remainder < 0 and b > 0.
+        // 2. remainder > 0 and b < 0.
+        //
+        // Therefore, it suffices to check:
+        //
+        // 1. If remainder < 0, then b <= 0.
+        // 2. If remainder > 0, then b >= 0.
+        //
+        // As it is a bit tricky to check b <= 0, we will check a slightly
+        // stronger condition:
+        //
+        // 1'. If remainder < 0, then b < 0.
+        // 2'. If remainder > 0, then b >= 0.
+        //
+        // This is fine since we have verified about that b = c * quotient +
+        // remainder, so if remainder < 0, then b can't be 0 anyway.
 
         let is_signed_type = local.is_div + local.is_rem;
         let is_unsigned_type = local.is_divu + local.is_remu;
@@ -360,37 +380,19 @@ where
             b_byte_sum += local.b[i].into();
         }
 
-        // This is 0 if remainder is 0 regardless of whether rem_is_zero_inv is correct.
-        // let rem_is_zero_negative_assertion =
-        //     (one.clone() - rem_byte_sum.clone() * local.rem_is_zero_inv) * rem_byte_sum.clone();
-        // let b_is_zero_negative_assertion =
-        //     (one.clone() - b_byte_sum.clone() * local.b_is_zero_inv) * b_byte_sum.clone();
+        // Due to the size constraint of each byte (i.e., 0 <= byte < 2^8),
+        // {rem, b}_byte_sum is 0 if and only if {remainder, b} is 0.
 
-        // builder.assert_eq(
-        //     rem_is_zero_negative_assertion.clone(),
-        //     local.rem_is_zero_negative_assertion,
-        // );
-        // builder.assert_eq(
-        //     b_is_zero_negative_assertion.clone(),
-        //     local.b_is_zero_negative_assertion,
-        // );
-
-        // When the remainder is positive, b must be positive.
-        //
-        // rem_byte_sum * (one.clone() - rem_neg) is non-zero if and only if
-        // 1. rem_byte_sum != 0 <=> remainder != 0, AND
-        // 2. one.clone() - rem_neg != 0 <=> rem_neg != 1 <=> remainder >= 0.
-        //
-        // Thus this `when` clause says "when the remainder is positive".
-        // builder
-        //     .when(local.rem_byte_sum) // <=> remainder is nonzero
-        //     .when(one.clone() - local.rem_neg) // rem is not negative
-        //     .assert_zero(local.b_neg);
-
-        // Similarly, when the remainder is negative, b must be negative.
+        // 1'. If remainder < 0, then b < 0.
         builder
-            .when(local.rem_neg) // rem is not negative
-            .assert_one(local.b_neg);
+            .when(local.rem_neg) // rem is not negative.
+            .assert_one(local.b_neg); // b is negative.
+
+        // 2'. If remainder > 0, then b >= 0.
+        builder
+            .when(rem_byte_sum.clone()) // remainder is nonzero.
+            .when(one.clone() - local.rem_neg) // rem is not negative.
+            .assert_zero(local.b_neg); // b is not negative.
 
         // TODO: Use lookup to constrain the MSBs.
         // TODO: Range check for rem: -b < remainder < b or b < remainder < -b.
@@ -557,7 +559,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            // divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         runtime.divrem_events = divrem_events;
