@@ -48,6 +48,7 @@ pub mod tests {
     fn test_fibonacci() {
         let (instructions, pc) = disassemble_from_elf("../programs/fib.s");
         let mut runtime = Runtime::new(instructions.clone(), pc);
+        runtime.write_witness(&[1, 2]);
         runtime.run();
         println!("{:#?}, {}", instructions, pc);
     }

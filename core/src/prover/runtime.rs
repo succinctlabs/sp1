@@ -191,7 +191,7 @@ impl Runtime {
             );
         }
 
-        // // Check the permutation argument between all tables.
+        // Check the permutation argument between all tables.
         debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
