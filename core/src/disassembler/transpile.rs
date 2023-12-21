@@ -44,7 +44,7 @@ pub fn ecall_analysis_pass(instructions: &[Instruction]) -> Vec<Instruction> {
         let prev_instruction = instructions[i - 1];
         if prev_instruction.opcode != Opcode::ADD
             || prev_instruction.op_a != Register::X5 as u32
-            || prev_instruction.imm_c
+            || !prev_instruction.imm_c
         {
             instructions_new.push(instruction);
             continue;
