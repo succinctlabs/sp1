@@ -6,7 +6,7 @@ use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 use crate::{
     lookup::{Interaction, InteractionBuilder},
     prover::DebugConstraintBuilder,
-    runtime::Runtime,
+    runtime::Segment,
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
@@ -14,7 +14,7 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         "".to_string()
     }
 
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F>;
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>;
 
     fn receives(&self) -> Vec<Interaction<F>> {
         let mut builder = InteractionBuilder::new(self.width());

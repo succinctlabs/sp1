@@ -16,7 +16,7 @@ use crate::memory::air::MemoryCols;
 use crate::memory::air::NUM_MEMORY_COLS;
 use crate::memory::MemOp;
 
-use crate::runtime::Runtime;
+use crate::runtime::Segment;
 use crate::utils::Chip;
 
 use super::{MemoryChip, MemoryEvent};
@@ -40,9 +40,8 @@ const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
 
 impl<F: PrimeField> Chip<F> for MemoryChip {
     // TODO: missing STLU events.
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        let Runtime { memory_events, .. } = runtime;
-        Self::generate_trace(memory_events)
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        Self::generate_trace(&segment.memory_events)
     }
 }
 
@@ -66,6 +65,7 @@ impl MemoryChip {
             last_event = Some(event);
         }
 
+        // TODO: maybe we should remove this since this was a hack from back when we were debugging interactions.
         unique_events = events.clone();
         multiplicities = vec![1; unique_events.len()];
 

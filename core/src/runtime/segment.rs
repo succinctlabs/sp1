@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::instruction::Instruction;
+use crate::alu::AluEvent;
+use crate::bytes::ByteLookupEvent;
+use crate::cpu::CpuEvent;
 use crate::memory::{MemOp, MemoryEvent};
 
 #[derive(Default, Clone, Debug)]
@@ -129,17 +132,42 @@ impl SegmentMemory {
 }
 #[derive(Default, Clone)]
 pub struct Segment {
-    pub start_clk: u32,
-    pub end_clk: u32,
-    pub start_pc: u32,
-    pub end_pc: u32,
     pub program: Vec<Instruction>,
-    pub witness: Vec<u32>,
     pub memory: SegmentMemory,
+
+    /// All events that happen in this segment.
+
+    /// A trace of the CPU events which get emitted during execution.
+    pub cpu_events: Vec<CpuEvent>,
+
+    /// A trace of the memory events which get emitted during execution.
+    pub memory_events: Vec<MemoryEvent>,
+
+    /// A trace of the ADD, and ADDI events.
+    pub add_events: Vec<AluEvent>,
+
+    /// A trace of the MUL events.
+    pub mul_events: Vec<AluEvent>,
+
+    /// A trace of the SUB events.
+    pub sub_events: Vec<AluEvent>,
+
+    /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
+    pub bitwise_events: Vec<AluEvent>,
+
+    /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
+    pub shift_events: Vec<AluEvent>,
+
+    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
+    pub lt_events: Vec<AluEvent>,
+
+    /// A trace of the byte lookups needed.
+    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 }
 
 impl Segment {
     pub fn emit_memory(&mut self, event: &MemoryEvent) {
+        self.memory_events.push(*event);
         self.memory.add_event(event.clone());
     }
 

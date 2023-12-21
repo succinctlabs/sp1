@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::runtime::{Opcode, Runtime};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -43,9 +43,9 @@ impl LtChip {
 }
 
 impl<F: PrimeField> Chip<F> for LtChip {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = runtime
+        let rows = segment
             .lt_events
             .par_iter()
             .map(|event| {
@@ -134,11 +134,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        let mut segment = Segment::default();
+        segment.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 
@@ -184,11 +183,10 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
+        let mut segment = Segment::default();
+        segment.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)].repeat(1000);
         let chip = LtChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

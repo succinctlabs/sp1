@@ -1,7 +1,7 @@
 use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::CpuEvent;
 
-use crate::runtime::{Opcode, Runtime};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -22,8 +22,8 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         "CPU".to_string()
     }
 
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        let rows = runtime
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
             .map(|op| self.event_to_row(*op))
@@ -171,9 +171,8 @@ mod tests {
     use super::*;
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.cpu_events = vec![CpuEvent {
+        let mut segment = Segment::default();
+        segment.cpu_events = vec![CpuEvent {
             clk: 6,
             pc: 1,
             instruction: Instruction {
@@ -191,12 +190,8 @@ mod tests {
             memory_store_value: None,
         }];
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values);
-        // println!(
-        //     "{:?} {:?} {:?} {:?} {:?}",
-        //     cols.clk, cols.pc, cols.op_a_val, cols.op_b_val, cols.op_c_val
-        // );
     }
 
     #[test]
@@ -205,7 +200,7 @@ mod tests {
         let mut runtime = Runtime::new(program, pc);
         runtime.run();
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
         println!("{:?}", trace.values)
     }
 
@@ -255,7 +250,7 @@ mod tests {
         let mut runtime = Runtime::new(program, pc);
         runtime.run();
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);

@@ -6,13 +6,12 @@ mod segment;
 pub use instruction::*;
 pub use opcode::*;
 pub use register::*;
-use segment::Segment;
+pub use segment::*;
 
 use crate::alu::AluEvent;
-use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 use crate::memory::{MemOp, MemoryEvent};
 
@@ -24,7 +23,10 @@ use crate::memory::{MemOp, MemoryEvent};
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
 pub struct Runtime {
-    /// The clock keeps track of how many instructions have been executed.
+    /// The global clock keeps track of how many instrutions have been executed through all segments.
+    pub global_clk: u32,
+
+    /// The clock keeps track of how many instructions have been executed in this segment.
     pub clk: u32,
 
     /// The program counter keeps track of the next instruction.
@@ -36,62 +38,32 @@ pub struct Runtime {
     /// The memory which instructions operate over.
     pub memory: BTreeMap<u32, u32>,
 
-    /// A trace of the CPU events which get emitted during execution.
-    pub cpu_events: Vec<CpuEvent>,
-
-    /// A trace of the memory events which get emitted during execution.
-    pub memory_events: Vec<MemoryEvent>,
-
-    /// A trace of the ADD, and ADDI events.
-    pub add_events: Vec<AluEvent>,
-
-    /// A trace of the MUL events.
-    pub mul_events: Vec<AluEvent>,
-
-    /// A trace of the SUB events.
-    pub sub_events: Vec<AluEvent>,
-
-    /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
-    pub bitwise_events: Vec<AluEvent>,
-
-    /// A trace of the SLL, SLLI, SRL, SRLI, SRA, and SRAI events.
-    pub shift_events: Vec<AluEvent>,
-
-    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
-    pub lt_events: Vec<AluEvent>,
-
-    /// A trace of the byte lookups needed.
-    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
-
-    /// A stream of witnessed values.
+    /// A stream of witnessed values (global to the entire program).
     pub witness: Vec<u32>,
 
     /// Segments
     pub segments: Vec<Segment>,
 
-    pub current_segment: Segment,
+    /// The current segment for this section of the program.
+    pub segment: Segment,
+
+    #[allow(non_snake_case)]
+    pub SEGMENT_SIZE: u32,
 }
 
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Vec<Instruction>, pc: u32) -> Self {
         Self {
+            global_clk: 0,
             clk: 0,
             pc,
             memory: BTreeMap::new(),
             program,
-            cpu_events: Vec::new(),
-            memory_events: Vec::new(),
-            add_events: Vec::new(),
-            mul_events: Vec::new(),
-            sub_events: Vec::new(),
-            bitwise_events: Vec::new(),
-            shift_events: Vec::new(),
-            lt_events: Vec::new(),
-            byte_lookups: BTreeMap::new(),
             witness: Vec::new(),
             segments: Vec::new(),
-            current_segment: Segment::default(),
+            segment: Segment::default(),
+            SEGMENT_SIZE: 1000,
         }
     }
 
@@ -175,7 +147,7 @@ impl Runtime {
         memory_value: Option<u32>,
         memory_store_value: Option<u32>,
     ) {
-        self.cpu_events.push(CpuEvent {
+        self.segment.cpu_events.push(CpuEvent {
             clk: clk,
             pc: pc,
             instruction,
@@ -189,14 +161,12 @@ impl Runtime {
 
     /// Emit a memory event.
     fn emit_memory(&mut self, clk: u32, addr: u32, op: MemOp, value: u32) {
-        self.memory_events.push(MemoryEvent {
+        self.segment.emit_memory(&MemoryEvent {
             clk,
             addr,
             op,
             value,
         });
-        self.current_segment
-            .emit_memory(self.memory_events.last().unwrap());
     }
 
     /// Emit an ALU event.
@@ -210,22 +180,22 @@ impl Runtime {
         };
         match opcode {
             Opcode::ADD => {
-                self.add_events.push(event);
+                self.segment.add_events.push(event);
             }
             Opcode::SUB => {
-                self.sub_events.push(event);
+                self.segment.sub_events.push(event);
             }
             Opcode::XOR | Opcode::OR | Opcode::AND => {
-                self.bitwise_events.push(event);
+                self.segment.bitwise_events.push(event);
             }
             Opcode::SLL | Opcode::SRL | Opcode::SRA => {
-                self.shift_events.push(event);
+                self.segment.shift_events.push(event);
             }
             Opcode::SLT | Opcode::SLTU => {
-                self.lt_events.push(event);
+                self.segment.lt_events.push(event);
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.add_events.push(event);
+                self.segment.add_events.push(event);
             }
             _ => {}
         }
@@ -571,7 +541,7 @@ impl Runtime {
                 println!("lwa");
                 let t0 = Register::X5;
                 let a0 = Register::X10;
-                let a1 = Register::X11;
+                let _a1 = Register::X11;
                 let _ = self.register(a0);
                 let witness = self.witness.pop().expect("witness stream is empty");
                 (a, b, c) = (witness, self.rr(t0), 0);
@@ -611,6 +581,7 @@ impl Runtime {
         // Set the return address to the end of the program.
         self.rw(Register::X1, (self.program.len() * 4) as u32);
 
+        self.global_clk += 1;
         self.clk += 1;
         while self.pc < (self.program.len() * 4) as u32 {
             // Fetch the instruction at the current program counter.
@@ -618,24 +589,23 @@ impl Runtime {
 
             println!("{:?}", instruction);
 
-            self.current_segment.end_clk = self.clk;
-            self.current_segment.end_pc = self.pc;
             // Execute the instruction.
             self.execute(instruction);
 
             // Increment the clock.
+            self.global_clk += 1;
             self.clk += 1;
 
-            if self.clk % 100 == 0 {
-                self.segments.push(self.current_segment.clone());
-                self.current_segment = Segment::default();
-                self.current_segment.program = self.program.clone();
-                self.current_segment.start_clk = self.clk;
-                self.current_segment.start_pc = self.pc;
+            if self.clk % self.SEGMENT_SIZE == 0 {
+                self.segments.push(self.segment.clone());
+                // Set up new segment
+                self.segment = Segment::default();
+                self.segment.program = self.program.clone();
+                self.clk = 1;
             }
         }
 
-        self.segments.push(self.current_segment.clone());
+        self.segments.push(self.segment.clone());
         Segment::finalize_all(&mut self.segments);
     }
 }

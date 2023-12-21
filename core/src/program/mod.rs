@@ -8,7 +8,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 use valida_derive::AlignedBorrow;
 
 use crate::cpu::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
-use crate::runtime::Runtime;
+use crate::runtime::Segment;
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
@@ -35,9 +35,9 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         "program".to_string()
     }
 
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = runtime
+        let rows = segment
             .program
             .clone()
             .into_par_iter()
@@ -102,9 +102,10 @@ mod tests {
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut runtime = Runtime::new(program, 0);
+        let mut segment = Segment::default();
+        segment.program = program;
         let chip = ProgramChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 }

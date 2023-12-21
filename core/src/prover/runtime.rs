@@ -1,10 +1,10 @@
 use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
-use crate::runtime::Runtime;
 
 use crate::program::ProgramChip;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
+use crate::runtime::Segment;
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -21,7 +21,7 @@ use p3_util::log2_strict_usize;
 
 use crate::prover::debug_cumulative_sums;
 
-impl Runtime {
+impl Segment {
     /// Prove the program.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
@@ -267,7 +267,9 @@ pub mod tests {
 
         let mut runtime = Runtime::new(program, pc);
         runtime.run();
-        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        runtime
+            .segment
+            .prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 
     #[test]

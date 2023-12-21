@@ -37,7 +37,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{Opcode, Runtime};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -96,9 +96,9 @@ fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
 }
 
 impl<F: PrimeField> Chip<F> for MulChip {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = runtime
+        let rows = segment
             .mul_events
             .par_iter()
             .map(|event| {
@@ -354,9 +354,8 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
-        runtime.mul_events = vec![AluEvent::new(
+        let mut segment = Segment::default();
+        segment.mul_events = vec![AluEvent::new(
             0,
             Opcode::MULHSU,
             0x80004000,
@@ -364,7 +363,7 @@ mod tests {
             0xffff8000,
         )];
         let chip = MulChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 
@@ -410,8 +409,7 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let mut segment = Segment::default();
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
@@ -475,9 +473,9 @@ mod tests {
             mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
         }
 
-        runtime.mul_events = mul_events;
+        segment.mul_events = mul_events;
         let chip = MulChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);
