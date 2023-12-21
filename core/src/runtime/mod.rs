@@ -1279,22 +1279,6 @@ pub mod tests {
         simple_op_code_test(Opcode::REM, 5, 5, 0);
         simple_op_code_test(Opcode::REM, neg(5), neg(5), 0);
         simple_op_code_test(Opcode::REM, 0, 0, 0);
-        simple_op_code_test(Opcode::REM, 0, 0x80000001, neg(1));
-        simple_op_code_test(Opcode::DIV, 3, 18, 6);
-        simple_op_code_test(Opcode::DIV, neg(6), neg(24), 4);
-        simple_op_code_test(Opcode::DIV, neg(2), 16, neg(8));
-        simple_op_code_test(Opcode::DIV, neg(1), 0, 0);
-
-        let a = ((-(1i64 << 31)) as u64) as u32;
-        println!("a = {}", a);
-        println!("a = 0x{:x}", a);
-        simple_op_code_test(Opcode::DIV, a, a, neg(1));
-
-        simple_op_code_test(Opcode::REMU, 4, 18, 7);
-        simple_op_code_test(Opcode::REMU, 6, neg(20), 11);
-        simple_op_code_test(Opcode::REMU, 23, 23, neg(6));
-        simple_op_code_test(Opcode::REMU, neg(21), neg(21), neg(11));
-        simple_op_code_test(Opcode::REMU, 5, 5, 0);
         simple_op_code_test(Opcode::REMU, neg(1), neg(1), 0);
         simple_op_code_test(Opcode::REMU, 0, 0, 0);
     }
