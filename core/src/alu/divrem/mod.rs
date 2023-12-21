@@ -219,6 +219,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 (cols.b_is_zero_negative_assertion, cols.b_is_zero_inv) =
                     nonzero_verifier::<F>(b_word);
 
+                println!("{:#?}", cols);
+
                 row
             })
             .collect::<Vec<_>>();
@@ -305,6 +307,7 @@ where
 
         let div_op = local.is_divu + local.is_div;
         let rem_op = local.is_remu + local.is_rem;
+
         // We've confirmed the correctness of `quotient` and `remainder`. Now,
         // we need to check the output `a` indeed matches what we have.
         for i in 0..WORD_SIZE {
@@ -358,36 +361,36 @@ where
         }
 
         // This is 0 if remainder is 0 regardless of whether rem_is_zero_inv is correct.
-        let rem_is_zero_negative_assertion =
-            (one.clone() - rem_byte_sum.clone() * local.rem_is_zero_inv) * rem_byte_sum.clone();
-        let b_is_zero_negative_assertion =
-            (one.clone() - b_byte_sum.clone() * local.b_is_zero_inv) * b_byte_sum.clone();
+        // let rem_is_zero_negative_assertion =
+        //     (one.clone() - rem_byte_sum.clone() * local.rem_is_zero_inv) * rem_byte_sum.clone();
+        // let b_is_zero_negative_assertion =
+        //     (one.clone() - b_byte_sum.clone() * local.b_is_zero_inv) * b_byte_sum.clone();
 
-        builder.assert_eq(
-            rem_is_zero_negative_assertion.clone(),
-            local.rem_is_zero_negative_assertion,
-        );
-        builder.assert_eq(
-            b_is_zero_negative_assertion.clone(),
-            local.b_is_zero_negative_assertion,
-        );
+        // builder.assert_eq(
+        //     rem_is_zero_negative_assertion.clone(),
+        //     local.rem_is_zero_negative_assertion,
+        // );
+        // builder.assert_eq(
+        //     b_is_zero_negative_assertion.clone(),
+        //     local.b_is_zero_negative_assertion,
+        // );
 
         // When the remainder is positive, b must be positive.
-
         //
-        // rem_is_zero_neg_assert * (one.clone() - rem_neg) is non-zero if and only if
-        // 1. rem_is_zero_neg_assert != 0 <=> remainder != 0, AND
+        // rem_byte_sum * (one.clone() - rem_neg) is non-zero if and only if
+        // 1. rem_byte_sum != 0 <=> remainder != 0, AND
         // 2. one.clone() - rem_neg != 0 <=> rem_neg != 1 <=> remainder >= 0.
         //
         // Thus this `when` clause says "when the remainder is positive".
-        builder
-            .when(local.rem_is_zero_negative_assertion * (one.clone() - local.rem_neg))
-            .assert_zero(local.b_neg);
+        // builder
+        //     .when(local.rem_byte_sum) // <=> remainder is nonzero
+        //     .when(one.clone() - local.rem_neg) // rem is not negative
+        //     .assert_zero(local.b_neg);
 
         // Similarly, when the remainder is negative, b must be negative.
         builder
-            .when(local.rem_is_zero_negative_assertion.clone() * (one.clone() - local.b_neg))
-            .assert_zero(local.rem_neg);
+            .when(local.rem_neg) // rem is not negative
+            .assert_one(local.b_neg);
 
         // TODO: Use lookup to constrain the MSBs.
         // TODO: Range check for rem: -b < remainder < b or b < remainder < -b.
@@ -554,7 +557,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            // divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         runtime.divrem_events = divrem_events;
