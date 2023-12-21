@@ -66,9 +66,10 @@ pub struct DivRemCols<T> {
     pub is_rem: T,
     pub is_div: T,
 
-    // sgn(b) = 0, 1, -1 based on b's sign.
-    pub b_sgn: T,
-    pub rem_sgn: T,
+    /// The inverse of \sum_{i=0..WORD_SIZE} local.rem[i] in F. Used to find out
+    /// whether remainder is 0.
+    pub rem_is_zero_inv: T,
+    pub b_is_zero_inv: T,
 
     pub division_by_0: T,
 
@@ -106,17 +107,11 @@ fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8
     }
 }
 
-fn sgn<F: PrimeField>(n: u32, opcode: Opcode) -> F {
-    if is_signed_operation(opcode) {
-        let ni32 = n as i32;
-        if ni32 >= 0 {
-            F::from_bool((n as i32) >= 0)
-        } else {
-            -F::one()
-        }
-    } else {
-        F::from_bool(n >= 0)
-    }
+fn inv_or_0<F: PrimeField>(a: [u8; WORD_SIZE]) -> F {
+    a.iter()
+        .fold(F::zero(), |acc, x| acc + F::from_canonical_u8(*x))
+        .try_inverse()
+        .unwrap_or(F::zero())
 }
 
 impl<F: PrimeField> Chip<F> for DivRemChip {
@@ -137,16 +132,12 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let a_word = event.a.to_le_bytes();
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
-                cols.b_sgn = sgn(event.b, event.opcode);
 
                 if event.c == 0 {
                     cols.division_by_0 = F::one();
-                    // When c is 0, the specification says remainder = b.
-                    cols.rem_sgn = cols.b_sgn;
                 } else {
                     let (quotient, remainder) =
                         divide_and_remainder(event.b, event.c, event.opcode);
-                    cols.rem_sgn = sgn(u32::from_le_bytes(remainder), event.opcode);
 
                     cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                     cols.b_msb = F::from_canonical_u8(get_msb(b_word));
@@ -190,6 +181,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     result.iter().zip(b_word.iter()).for_each(|(r, b)| {
                         assert_eq!(*r, *b as u32);
                     });
+
+                    cols.rem_is_zero_inv = inv_or_0::<F>(remainder);
+
                     cols.quotient = quotient.map(F::from_canonical_u8);
                     cols.remainder = remainder.map(F::from_canonical_u8);
                 }
@@ -237,6 +231,7 @@ where
         let local: &DivRemCols<AB::Var> = main.row_slice(0).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
+        let zero: AB::Expr = AB::F::zero().into();
 
         let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
 
@@ -343,19 +338,33 @@ where
 
         // is_signed_type AND (local.b_msb == 1);
         let b_neg = is_signed_type.clone() * local.b_msb;
+        let rem_neg = is_signed_type.clone() * local.rem_msb;
 
-        // If b_neg => b_sgn = -1.
-        builder
-            .when(b_neg.clone())
-            .assert_zero(local.b_sgn + one.clone());
-        // is_unsigned_type OR (local.b_msb == 0);
-        let b_ge_0 = is_unsigned_type.clone() + (one.clone() - local.b_msb)
-            - is_unsigned_type.clone() * (one.clone() - local.b_msb);
+        let mut rem_byte_sum = zero.clone();
+        let mut b_byte_sum = zero.clone();
 
-        //
+        for i in 0..WORD_SIZE {
+            rem_byte_sum += local.remainder[i].into();
+            b_byte_sum += local.b[i].into();
+        }
+
+        // This is 0 if remainder is 0 regardless of whether rem_is_zero_inv is correct.
+        let rem_is_zero =
+            (one.clone() - rem_byte_sum.clone() * local.rem_is_zero_inv) * rem_byte_sum.clone();
+        let b_is_zero =
+            (one.clone() - b_byte_sum.clone() * local.b_is_zero_inv) * b_byte_sum.clone();
+
+        // When the remainder is positive, b must be positive.
+        // rem_is_zero * (one.clone() - rem_neg) is non-zero if and only if
+        // 1. rem_is_zero != 0 <=> remainder != 0
+        // 1. one.clone() - rem_neg != 0 <=> rem_neg != 1 <=> remainder >= 0.
         builder
-            .when(b_ge_0.clone())
-            .assert_zero(local.b_sgn * (local.b_sgn - one.clone()));
+            .when(rem_is_zero.clone() * (one.clone() - rem_neg.clone()))
+            .assert_zero(b_neg.clone());
+        builder
+            .when(b_is_zero.clone() * (one.clone() - b_neg.clone()))
+            .assert_zero(rem_neg.clone());
+
         //
         //        builder.when(local.is_real).assert_eq(b_le_0, local.b_le_0);
         //        // builder.assert_eq(b_ge_0, local.b_ge_0);
@@ -406,7 +415,8 @@ where
         builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
 
         // TODO: Range check the carry column.
-        // TODO: Range check remainder. (i.e., 0 <= remainder < c)
+        // TODO: Range check remainder. (i.e., 0 <= remainder < c when c != 0)
+        // TODO: Range check all the bytes.
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(
