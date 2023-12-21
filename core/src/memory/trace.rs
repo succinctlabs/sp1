@@ -67,7 +67,6 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
         assert_eq!(unique_events.len(), multiplicities.len());
         assert_eq!(unique_events.len(), next_events.len() + 1);
 
-        // // Pad to a power of two.
         let pad_len = unique_events.len().next_power_of_two();
         if pad_len > unique_events.len() {
             let (write_dummy, read_dummy) = dummy_events(unique_events.last().unwrap().clk + 1);

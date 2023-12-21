@@ -1,3 +1,4 @@
+use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
 use crate::memory::state::MemoryStateChip;
 use crate::runtime::Runtime;
@@ -29,8 +30,7 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 9;
-
+        const NUM_CHIPS: usize = 10;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -41,6 +41,7 @@ impl Runtime {
         let bitwise = BitwiseChip::new();
         let shift = ShiftChip::new();
         let lt = LtChip::new();
+        let bytes = ByteChip::<F>::new();
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
@@ -51,6 +52,7 @@ impl Runtime {
             Box::new(bitwise),
             Box::new(shift),
             Box::new(lt),
+            Box::new(bytes),
         ];
 
         // Compute some statistics.
