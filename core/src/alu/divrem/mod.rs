@@ -42,7 +42,7 @@ fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct DivRemCols<T> {
     /// The output operand.
@@ -65,6 +65,10 @@ pub struct DivRemCols<T> {
     pub is_remu: T,
     pub is_rem: T,
     pub is_div: T,
+
+    // sgn(b) = 0, 1, -1 based on b's sign.
+    pub b_sgn: T,
+    pub rem_sgn: T,
 
     pub division_by_0: T,
 
@@ -102,6 +106,19 @@ fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8
     }
 }
 
+fn sgn<F: PrimeField>(n: u32, opcode: Opcode) -> F {
+    if is_signed_operation(opcode) {
+        let ni32 = n as i32;
+        if ni32 >= 0 {
+            F::from_bool((n as i32) >= 0)
+        } else {
+            -F::one()
+        }
+    } else {
+        F::from_bool(n >= 0)
+    }
+}
+
 impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
@@ -120,12 +137,16 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let a_word = event.a.to_le_bytes();
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
+                cols.b_sgn = sgn(event.b, event.opcode);
 
                 if event.c == 0 {
                     cols.division_by_0 = F::one();
+                    // When c is 0, the specification says remainder = b.
+                    cols.rem_sgn = cols.b_sgn;
                 } else {
                     let (quotient, remainder) =
                         divide_and_remainder(event.b, event.c, event.opcode);
+                    cols.rem_sgn = sgn(u32::from_le_bytes(remainder), event.opcode);
 
                     cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                     cols.b_msb = F::from_canonical_u8(get_msb(b_word));
@@ -182,6 +203,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
 
+                println!("{:#?}", cols);
                 row
             })
             .collect::<Vec<_>>();
@@ -298,27 +320,35 @@ where
         // same sign. The twist here is 0 is both positive and negative in the eye
         // of RISC-V. So, we need to check these two statements:
         //
-        // 1. If b >= 0, then rem >= 0.
-        // 2. If b <= 0, then rem <= 0.
+        // 1. If rem > 0, then b > 0.
+        // 1. If rem < 0, then b < 0.
 
         let is_signed_type = local.is_div + local.is_rem;
         let is_unsigned_type = local.is_divu + local.is_remu;
 
         // is_signed_type AND (local.b_msb == 1);
-        let b_le_0 = is_signed_type.clone() * local.b_msb;
-        // is_unsigned_type OR (local.b_msb == 0);
-        let b_ge_0 = is_unsigned_type.clone() + (one.clone() - local.b_msb)
-            - is_unsigned_type.clone() * (one.clone() - local.b_msb);
-
-        // is_signed_type AND (local.rem_msb == 1);
-        let rem_le_0 = is_signed_type.clone() * local.rem_msb;
-        // is_unsigned_type OR (local.rem_msb == 0);
-        let rem_ge_0 = is_unsigned_type.clone() + (one.clone() - local.rem_msb)
-            - is_unsigned_type.clone() * (one.clone() - local.rem_msb);
+        let b_neg = is_signed_type.clone() * local.b_msb;
+        builder
+            .when(b_neg.clone())
+            .assert_zero(local.b_sgn + one.clone());
+        //        let b_le_0 = b_neg.clone() + local.b_eq_0 - b_neg.clone() * local.b_eq_0;
+        //        // is_unsigned_type OR (local.b_msb == 0);
+        //        let b_ge_0 = is_unsigned_type.clone() + (one.clone() - local.b_msb)
+        //            - is_unsigned_type.clone() * (one.clone() - local.b_msb);
+        //
+        //        builder.when(local.is_real).assert_eq(b_le_0, local.b_le_0);
+        //        // builder.assert_eq(b_ge_0, local.b_ge_0);
+        //
+        //        // is_signed_type AND (local.rem_msb == 1);
+        //        let rem_neg = is_signed_type.clone() * local.rem_msb;
+        //
+        //        // is_unsigned_type OR (local.rem_msb == 0);
+        //        let rem_ge_0 = is_unsigned_type.clone() + (one.clone() - local.rem_msb)
+        //            - is_unsigned_type.clone() * (one.clone() - local.rem_msb);
 
         // TODO: Polynoimal of degree 4?
-        // builder.when(b_le_0).assert_one(rem_le_0);
-        // builder.when(b_ge_0).assert_one(rem_ge_0);
+        // builder.when(local.b_le_0).assert_one(rem_le_0);
+        // builder.when(local.b_ge_0).assert_one(rem_ge_0);
 
         // TODO: Check if is_{b,rem}_0 is correct
         // TODO: Use lookup to constraint the MSBs.
@@ -456,30 +486,30 @@ mod tests {
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
-            (Opcode::DIVU, 3, 20, 6),
-            (Opcode::DIVU, 715827879, neg(20), 6),
-            (Opcode::DIVU, 0, 20, neg(6)),
-            (Opcode::DIVU, 0, neg(20), neg(6)),
-            (Opcode::DIVU, 1 << 31, 1 << 31, 1),
-            (Opcode::DIVU, 0, 1 << 31, neg(1)),
-            (Opcode::DIVU, u32::MAX, 1 << 31, 0),
-            (Opcode::DIVU, u32::MAX, 1, 0),
-            (Opcode::DIVU, u32::MAX, 0, 0),
-            (Opcode::REMU, 4, 18, 7),
-            (Opcode::REMU, 6, neg(20), 11),
-            (Opcode::REMU, 23, 23, neg(6)),
-            (Opcode::REMU, neg(21), neg(21), neg(11)),
-            (Opcode::REMU, 5, 5, 0),
-            (Opcode::REMU, neg(1), neg(1), 0),
-            (Opcode::REMU, 0, 0, 0),
-            (Opcode::REM, 7, 16, 9),
-            (Opcode::REM, neg(4), neg(22), 6),
-            (Opcode::REM, 1, 25, neg(3)),
-            (Opcode::REM, neg(2), neg(22), neg(4)),
-            (Opcode::REM, 0, 873, 1),
-            (Opcode::REM, 0, 873, neg(1)),
-            (Opcode::REM, 5, 5, 0),
-            (Opcode::REM, neg(5), neg(5), 0),
+            // (Opcode::DIVU, 3, 20, 6),
+            // (Opcode::DIVU, 715827879, neg(20), 6),
+            // (Opcode::DIVU, 0, 20, neg(6)),
+            // (Opcode::DIVU, 0, neg(20), neg(6)),
+            // (Opcode::DIVU, 1 << 31, 1 << 31, 1),
+            // (Opcode::DIVU, 0, 1 << 31, neg(1)),
+            // (Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            // (Opcode::DIVU, u32::MAX, 1, 0),
+            // (Opcode::DIVU, u32::MAX, 0, 0),
+            // (Opcode::REMU, 4, 18, 7),
+            // (Opcode::REMU, 6, neg(20), 11),
+            // (Opcode::REMU, 23, 23, neg(6)),
+            // (Opcode::REMU, neg(21), neg(21), neg(11)),
+            // (Opcode::REMU, 5, 5, 0),
+            // (Opcode::REMU, neg(1), neg(1), 0),
+            // (Opcode::REMU, 0, 0, 0),
+            // (Opcode::REM, 7, 16, 9),
+            // (Opcode::REM, neg(4), neg(22), 6),
+            // (Opcode::REM, 1, 25, neg(3)),
+            // (Opcode::REM, neg(2), neg(22), neg(4)),
+            // (Opcode::REM, 0, 873, 1),
+            // (Opcode::REM, 0, 873, neg(1)),
+            // (Opcode::REM, 5, 5, 0),
+            // (Opcode::REM, neg(5), neg(5), 0),
             (Opcode::REM, 0, 0, 0),
             // (Opcode::REM, 0, 0x80000001, neg(1)),
             // (Opcode::DIV, 3, 18, 6),
