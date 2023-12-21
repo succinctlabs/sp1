@@ -635,19 +635,6 @@ impl Runtime {
         self.segments.push(self.current_segment.clone());
         Segment::finalize_all(&mut self.segments);
     }
-
-    /*
-
-
-    w  2
-    r  2   last_value_carry=true
-    r  1   last_value_carry=true   first_value_in=true
-    r  5   last_value_carry=true   first_value_in=true
-
-
-     */
-
-    //    2 write
 }
 
 #[cfg(test)]
