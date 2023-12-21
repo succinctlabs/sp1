@@ -320,8 +320,7 @@ where
         // 1'. If remainder < 0, then b < 0.
         // 2'. If remainder > 0, then b >= 0.
         //
-        // This is fine since we have verified about that b = c * quotient +
-        // remainder, so if remainder < 0, then b can't be 0 anyway.
+        // This is fine since remainder < 0 & b = 0 is not valid anyway.
 
         let is_signed_type = local.is_div + local.is_rem;
 
