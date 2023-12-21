@@ -19,6 +19,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -69,9 +70,6 @@ pub struct DivRemCols<T> {
 
     pub b_msb: T,
     pub rem_msb: T,
-
-    pub is_b_zero: T,
-    pub is_rem_zero: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -131,8 +129,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                     cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                     cols.b_msb = F::from_canonical_u8(get_msb(b_word));
-                    cols.is_rem_zero = F::from_bool(remainder == [0u8; WORD_SIZE]);
-                    cols.is_b_zero = F::from_bool(event.b == 0);
 
                     let mut result = [0u32; WORD_SIZE];
 
@@ -299,19 +295,33 @@ where
 
         // Check the sign cases. RISC-V requires that b and remainder have the
         // same sign. The twist here is 0 is both positive and negative in the eye
-        // of RISC-V. Thus what we need is:
+        // of RISC-V. So, we need to check these two statements:
         //
         // 1. If b >= 0, then rem >= 0.
         // 2. If b <= 0, then rem <= 0.
-        //
-        // 2 can be decomposed into:
-        // i)  If b = 0, then rem <= 0.
-        // ii) If b < 0, then rem <= 0
-        //
 
-        //         builder
-        //             .when(one.clone() - local.b_msb)
-        //             .assert_zero(one.clone() - local.rem_msb);
+        let is_signed_type = local.is_div + local.is_rem;
+        let is_unsigned_type = local.is_divu + local.is_remu;
+
+        // is_signed_type AND (local.b_msb == 1);
+        let b_le_0 = is_signed_type.clone() * local.b_msb;
+        // is_unsigned_type OR (local.b_msb == 0);
+        let b_ge_0 = is_unsigned_type.clone() + (one.clone() - local.b_msb)
+            - is_unsigned_type.clone() * (one.clone() - local.b_msb);
+
+        // is_signed_type AND (local.rem_msb == 1);
+        let rem_le_0 = is_signed_type.clone() * local.rem_msb;
+        // is_unsigned_type OR (local.rem_msb == 0);
+        let rem_ge_0 = is_unsigned_type.clone() + (one.clone() - local.rem_msb)
+            - is_unsigned_type.clone() * (one.clone() - local.rem_msb);
+
+        // TODO: Polynoimal of degree 4?
+        builder.when(b_le_0).assert_one(rem_le_0);
+        builder.when(b_ge_0).assert_one(rem_ge_0);
+
+        // TODO: Check if is_{b,rem}_0 is correct
+        // TODO: Use lookup to constraint the MSBs.
+
         //
         //         // If b is negative (hence signed), then the op code has to be either DIV or REM.
         //         builder
