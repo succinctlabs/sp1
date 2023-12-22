@@ -204,17 +204,21 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
         //   + `is_changed` is equal to `is_new_write` whenever the current address is new.
         //   +  When the address is the same as the previous one, `is_changed` is equal to the
         //      OR of `is_changed` from the last row and `is_new_write`.
-        // builder
-        //     .when(local.is_addr_eq.0 - AB::F::one())
-        //     .assert_eq(next.is_changed.0, local.is_new_write.0);
-        // builder.when_transition().when(next.is_addr_eq.0).assert_eq(
-        //     next.is_changed.0,
-        //     local.is_changed.0 + next.is_new_write.0 - local.is_changed.0 * next.is_new_write.0,
-        // );
+        builder
+            .when(local.is_addr_eq.0 - AB::F::one())
+            .assert_eq(local.is_changed.0, local.is_new_write.0);
+        builder
+            .when_transition()
+            .when(next.multiplicity)
+            .when(next.is_addr_eq.0)
+            .assert_eq(
+                next.is_changed.0,
+                local.is_changed.0 + next.is_new_write.0 - local.is_changed.0 * next.is_new_write.0,
+            );
 
         // // Constrain the `out_page_mult` flag. This flag is set to the AND of `is_changed` and
-        // // `is_last`, so that we send the last event of an address if the data was mutated.
-        // builder.assert_eq(local.out_page_mult, local.is_last.0 * local.is_changed.0);
+        // // `is_last`, so that we send the last event of an address if the data was mutated
+        // builder.when(local.multiplicity).assert_eq(local.out_page_mult, local.is_last.0 * local.is_changed.0);
 
         // At every row, record the memory interaction.
         builder.recieve_memory(

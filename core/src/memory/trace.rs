@@ -1,9 +1,12 @@
 use core::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use rayon::vec;
+use std::sync::atomic::AtomicBool;
 
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
 
@@ -85,11 +88,30 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
         };
         unique_events.insert(0, first_event);
 
+        let mut is_changed_vec = vec![false; multiplicities.len()];
+
+        let mut is_changed = false;
+        for (i, event) in unique_events.iter().enumerate().skip(1) {
+            let prev_address = unique_events[i - 1].addr;
+            let addr = event.addr;
+
+            let is_new_write = event.op == MemOp::Write && event.clk != 0;
+
+            if prev_address != addr {
+                is_changed = is_new_write;
+            } else {
+                is_changed = is_changed || is_new_write;
+            }
+
+            is_changed_vec[i - 1] = is_changed;
+        }
+
         // Create the trace.
         let mut rows = unique_events
             .par_windows(2)
             .zip_eq(multiplicities.par_iter())
-            .flat_map(|(window, mult)| {
+            .zip_eq(is_changed_vec.par_iter())
+            .flat_map(|((window, mult), is_changed)| {
                 let (prev, curr) = (window[0], window[1]);
                 let mut row = [F::zero(); NUM_MEMORY_COLS];
                 let cols: &mut MemoryCols<F> = row.as_mut_slice().borrow_mut();
@@ -106,7 +128,9 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                 if curr.clk == 0 {
                     cols.multiplicity = F::from_canonical_u32(0);
                 }
-                cols.is_new_write = Bool::from(curr.op == MemOp::Write && curr.clk != 0);
+
+                let is_new_write = curr.op == MemOp::Write && curr.clk != 0;
+                cols.is_new_write = Bool::from(is_new_write);
 
                 cols.prev_addr = Word::from(prev.addr);
                 cols.prev_clk_word = Word::from(prev.clk);
@@ -116,6 +140,8 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                 cols.is_clk_eq = Bool::from(prev.clk == curr.clk);
                 cols.is_clk_lt = Bool::from(prev.clk < curr.clk);
                 cols.is_checked = Bool::from(curr.op == MemOp::Read && curr.addr == prev.addr);
+
+                cols.is_changed = Bool::from(*is_changed);
 
                 row
             })
@@ -138,8 +164,6 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                     .last_memory_events
                     .push(unique_events[i + 1].clone());
             }
-
-            // cols.out_page_mult = F::from_bool(addr != next_addr && );
         }
 
         // Convert the trace to a row major matrix.
