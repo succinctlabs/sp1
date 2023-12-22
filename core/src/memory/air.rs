@@ -216,9 +216,15 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
                 local.is_changed.0 + next.is_new_write.0 - local.is_changed.0 * next.is_new_write.0,
             );
 
-        // // Constrain the `out_page_mult` flag. This flag is set to the AND of `is_changed` and
-        // // `is_last`, so that we send the last event of an address if the data was mutated
-        // builder.when(local.multiplicity).assert_eq(local.out_page_mult, local.is_last.0 * local.is_changed.0);
+        // Constrain the `out_page_mult` flag. This flag is set to the AND of `is_changed` and
+        // `is_last`, so that we send the last event of an address if the data was mutated. These
+        // hold while the event is not padding (i.e. the multiplicity is non-zero).
+        builder
+            .when(local.multiplicity)
+            .assert_eq(local.out_page_mult, local.is_last.0 * local.is_changed.0);
+        builder
+            .when(local.multiplicity - AB::F::one())
+            .assert_zero(local.out_page_mult);
 
         // At every row, record the memory interaction.
         builder.recieve_memory(

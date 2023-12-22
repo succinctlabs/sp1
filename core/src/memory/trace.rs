@@ -164,6 +164,8 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                     .last_memory_events
                     .push(unique_events[i + 1].clone());
             }
+
+            cols.out_page_mult = cols.is_last.0 * cols.is_changed.0;
         }
 
         // Convert the trace to a row major matrix.
