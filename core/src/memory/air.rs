@@ -36,7 +36,6 @@ pub struct MemoryCols<T> {
     pub is_read: Bool<T>,
     /// The multiplicity of this memory access.
     pub multiplicity: T,
-
     /// The previous address of the table. Needed for the bus argument access of "less_than"
     pub prev_addr: Word<T>,
     /// A decoding of the clk to a 32-bit word.
@@ -55,6 +54,12 @@ pub struct MemoryCols<T> {
     pub is_checked: Bool<T>,
     /// A flag to indicate whether this is the last operation for the current address.
     pub is_last: Bool<T>,
+    /// A flag to indicate whether we have a new write event (a write with a non-zero clock cycle)
+    pub is_new_write: Bool<T>,
+    /// A flag to inidcate whether we mutated this address in the program execution.
+    pub is_changed: Bool<T>,
+    /// Oouput page multiplicity. We send a last event to the page if the data was mutated.
+    pub out_page_mult: T,
 }
 
 const fn make_col_map() -> MemoryCols<usize> {
@@ -183,13 +188,41 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
         //     .when(local.multiplicity)
         //     .assert_eq(local.is_last.0, AB::F::one());
 
+        // Constrain the `is_new_write` flag.
+        //
+        // The `is_new_write` flag is set to `1` if the current operation is a write event with a
+        // a non-zero `clk` (so that's not a write from the initial memory state).
+        builder
+            .when(local.clk)
+            .when(local.is_read.0 - AB::F::one())
+            .assert_eq(local.is_new_write.0, AB::F::one());
+
+        // Constrain the `is_changed` flag.
+        //
+        // The `is_changed` flag is set to `1` if the `is_new_write` flag is set to `1` at any point
+        // in the memory operation for the current address. This can be constrained as follows:
+        //   + `is_changed` is equal to `is_new_write` whenever the current address is new.
+        //   +  When the address is the same as the previous one, `is_changed` is equal to the
+        //      OR of `is_changed` from the last row and `is_new_write`.
+        // builder
+        //     .when(local.is_addr_eq.0 - AB::F::one())
+        //     .assert_eq(next.is_changed.0, local.is_new_write.0);
+        // builder.when_transition().when(next.is_addr_eq.0).assert_eq(
+        //     next.is_changed.0,
+        //     local.is_changed.0 + next.is_new_write.0 - local.is_changed.0 * next.is_new_write.0,
+        // );
+
+        // // Constrain the `out_page_mult` flag. This flag is set to the AND of `is_changed` and
+        // // `is_last`, so that we send the last event of an address if the data was mutated.
+        // builder.assert_eq(local.out_page_mult, local.is_last.0 * local.is_changed.0);
+
         // At every row, record the memory interaction.
         builder.recieve_memory(
             local.clk,
             local.addr,
             local.value,
             local.is_read.0,
-            local.multiplicity,
+            local.multiplicity, //+ local.out_page_mult,
         );
     }
 }

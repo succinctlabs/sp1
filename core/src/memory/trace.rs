@@ -106,6 +106,7 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                 if curr.clk == 0 {
                     cols.multiplicity = F::from_canonical_u32(0);
                 }
+                cols.is_new_write = Bool::from(curr.op == MemOp::Write && curr.clk != 0);
 
                 cols.prev_addr = Word::from(prev.addr);
                 cols.prev_clk_word = Word::from(prev.clk);
@@ -137,6 +138,8 @@ impl<F: PrimeField> Chip<F> for MemoryChip {
                     .last_memory_events
                     .push(unique_events[i + 1].clone());
             }
+
+            // cols.out_page_mult = F::from_bool(addr != next_addr && );
         }
 
         // Convert the trace to a row major matrix.
