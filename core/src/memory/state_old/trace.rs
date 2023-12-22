@@ -5,7 +5,7 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     air::{Bool, Word},
-    memory::{state::air::NUM_MEMORY_STATE_COLS, MemOp},
+    memory::{state_old::air::NUM_MEMORY_STATE_COLS, MemOp},
     runtime::Runtime,
 };
 

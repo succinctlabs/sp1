@@ -189,7 +189,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for MemoryChip {
             local.addr,
             local.value,
             local.is_read.0,
-            local.multiplicity + local.is_last.0,
+            local.multiplicity,
         );
     }
 }
