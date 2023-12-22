@@ -4,7 +4,6 @@ use core::mem::size_of;
 
 use crate::air::{Bool, CurtaAirBuilder, Word};
 use p3_air::Air;
-use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 
