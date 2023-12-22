@@ -41,7 +41,7 @@ const fn dummy_events(clk: u32) -> (MemoryEvent, MemoryEvent) {
 impl<F: PrimeField> Chip<F> for MemoryChip {
     // TODO: missing STLU events.
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        Self::generate_trace(&segment.memory_events)
+        Self::generate_trace(&segment.memory.get_memory_events())
     }
 }
 

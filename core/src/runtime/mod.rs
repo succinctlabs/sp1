@@ -161,7 +161,7 @@ impl Runtime {
 
     /// Emit a memory event.
     fn emit_memory(&mut self, clk: u32, addr: u32, op: MemOp, value: u32) {
-        self.segment.emit_memory(&MemoryEvent {
+        self.segment.memory.add_event(MemoryEvent {
             clk,
             addr,
             op,
@@ -614,7 +614,7 @@ impl Runtime {
 pub mod tests {
     use crate::{disassembler::disassemble_from_elf, runtime::Register};
 
-    use super::{Instruction, Opcode, Runtime};
+    use super::{Instruction, Opcode, Runtime, Segment};
 
     pub fn simple_program() -> (Vec<Instruction>, u32) {
         let program = vec![
@@ -628,6 +628,17 @@ pub mod tests {
     pub fn fibonacci_program() -> (Vec<Instruction>, u32) {
         let (program, pc) = disassemble_from_elf("../programs/fib.s");
         (program, pc)
+    }
+
+    #[test]
+    fn test_segmenting() {
+        let (program, pc) = fibonacci_program();
+        let mut runtime = Runtime::new(program, pc);
+        runtime.SEGMENT_SIZE = 100;
+        runtime.run();
+        Segment::sanity_check(&runtime.segments);
+        // assert_eq!(runtime.segments[0].cpu_events.len(), 1000);
+        // assert_eq!(runtime.segments[1].cpu_events.len(), 55);
     }
 
     #[test]

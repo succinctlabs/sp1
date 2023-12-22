@@ -123,7 +123,7 @@ mod tests {
         runtime.run();
 
         let trace: RowMajorMatrix<BabyBear> =
-            MemoryChip::generate_trace(&runtime.segment.memory_events);
+            MemoryChip::generate_trace(&runtime.segment.memory.get_memory_events());
         let air = MemoryChip::new();
         let proof = prove::<MyConfig, _>(&config, &air, &mut challenger, trace);
 
