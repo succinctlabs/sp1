@@ -196,8 +196,8 @@ mod tests {
 
     #[test]
     fn generate_trace_simple_program() {
-        let (program, pc) = simple_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
@@ -246,8 +246,8 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let (program, pc) = simple_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);

@@ -202,7 +202,7 @@ pub mod tests {
 
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
-    use crate::runtime::Instruction;
+    use crate::runtime::Program;
     use crate::runtime::Runtime;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
@@ -224,7 +224,7 @@ pub mod tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
-    pub fn prove(program: Vec<Instruction>, pc: u32) {
+    pub fn prove(program: Program) {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -265,7 +265,8 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let mut runtime = Runtime::new(program, pc);
+        let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[1, 2]);
         runtime.run();
         runtime
             .segment
@@ -274,13 +275,13 @@ pub mod tests {
 
     #[test]
     fn test_simple_prove() {
-        let (program, pc) = simple_program();
-        prove(program, pc);
+        let program = simple_program();
+        prove(program);
     }
 
     #[test]
     fn test_fibonnaci_prove() {
-        let (program, pc) = fibonacci_program();
-        prove(program, pc);
+        let program = fibonacci_program();
+        prove(program);
     }
 }

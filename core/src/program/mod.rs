@@ -39,6 +39,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         // Generate the trace rows for each event.
         let rows = segment
             .program
+            .instructions
             .clone()
             .into_par_iter()
             .enumerate()
@@ -97,7 +98,7 @@ mod tests {
         //     addi x29, x0, 5
         //     addi x30, x0, 37
         //     add x31, x30, x29
-        let program = vec![
+        let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),

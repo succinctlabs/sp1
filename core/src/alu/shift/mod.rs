@@ -59,6 +59,9 @@ impl<F: PrimeField> Chip<F> for ShiftChip {
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
+                cols.is_sll = F::from_bool(event.opcode == Opcode::SLL);
+                cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
+                cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
                 row
             })
             .collect::<Vec<_>>();

@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use elf::segment;
 
 use super::instruction::Instruction;
+use super::program::Program;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
@@ -119,7 +120,7 @@ impl SegmentMemory {
 }
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
-    pub program: Vec<Instruction>,
+    pub program: Program,
 
     /// Keeps track of the memory events and additional information during execution of this segment.
     pub memory: SegmentMemory,

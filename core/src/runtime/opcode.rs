@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 /// An opcode specifies which operation to execute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
@@ -53,13 +55,14 @@ pub enum Opcode {
     REM = 36,
     REMU = 37,
 
-    // Precompile instructions.
-    HALT = 38,
-    LWA = 39,
-    PRECOMPILE = 40,
-
     // Miscellaneaous instructions.
-    UNIMP = 41,
+    UNIMP = 39,
+}
+
+impl Display for Opcode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.mnemonic())
+    }
 }
 
 impl Opcode {
@@ -102,9 +105,6 @@ impl Opcode {
             Opcode::DIVU => "divu",
             Opcode::REM => "rem",
             Opcode::REMU => "remu",
-            Opcode::HALT => "halt",
-            Opcode::LWA => "lwa",
-            Opcode::PRECOMPILE => "???",
             Opcode::UNIMP => "unimp",
         }
     }
