@@ -13,8 +13,9 @@ use valida_derive::AlignedBorrow;
 use super::instruction_cols::InstructionCols;
 use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
+use crate::runtime::AccessPosition;
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
@@ -28,6 +29,8 @@ pub struct MemoryAccessCols<T> {
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct CpuCols<T> {
+    /// The current segment.
+    pub segment: T,
     /// The clock cycle value.
     pub clk: T,
     // /// The program counter value.
@@ -123,9 +126,10 @@ where
 
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
-        builder
-            .when_transition()
-            .assert_eq(local.clk + AB::Expr::one(), next.clk);
+        builder.when_transition().assert_eq(
+            local.clk + AB::Expr::one() * AB::F::from_canonical_u32(4),
+            next.clk,
+        );
 
         // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
 
@@ -138,6 +142,51 @@ where
             .when(local.selectors.imm_c)
             .assert_word_eq(*local.op_c_val(), local.instruction.op_c);
 
+        // We always write to the first register unless we are doing a branch_op or a store_op.
+        // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
+            local.instruction.op_a[0],
+            local.op_a_access,
+            AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
+        );
+
+        // When we're doing a branch_op or a store op, we want to constraint it to be a read.
+        builder
+            .when(local.selectors.branch_op + local.selectors.is_store)
+            .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
+
+        // We always read to register b and register c unless the imm_b or imm_c flags are set.
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
+            local.instruction.op_b[0],
+            local.op_b_access,
+            AB::Expr::one() - local.selectors.imm_b,
+        );
+        builder
+            .when(AB::Expr::one() - local.selectors.imm_b)
+            .assert_word_eq(*local.op_b_val(), local.op_b_access.prev_value);
+
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
+            local.instruction.op_c[0],
+            local.op_c_access,
+            AB::Expr::one() - local.selectors.imm_c,
+        );
+        builder
+            .when(AB::Expr::one() - local.selectors.imm_c)
+            .assert_word_eq(*local.op_c_val(), local.op_c_access.prev_value);
+
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk,
+            local.addr_aligned + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
+            local.memory_access,
+            local.selectors.is_load + local.selectors.is_store,
+        );
         // We always write to the first register unless we are doing a branch_op or a store_op.
         // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
         // builder.send_register(
@@ -183,9 +232,6 @@ where
         // );
 
         // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
-
-        //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
-        // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction

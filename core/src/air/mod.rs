@@ -8,6 +8,7 @@ use p3_air::{AirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
+use crate::cpu::air::MemoryAccessCols;
 use crate::lookup::InteractionKind;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
@@ -132,29 +133,44 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         ));
     }
 
-    fn send_memory<EClk, Ea, Eb, Ec, EMult>(
+    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EMult>(
         &mut self,
+        segment: ESegment,
         clk: EClk,
-        addr: Word<Ea>,
-        value: Word<Eb>,
-        is_read: Ec,
+        addr: Ea,
+        memory_access: MemoryAccessCols<Eb>,
         multiplicity: EMult,
     ) where
+        ESegment: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        let values = once(clk.into())
-            .chain(addr.map(Into::into))
-            .chain(value.map(Into::into))
-            .chain(once(is_read.into()))
+        // TODO:
+        // (segment == prev_segment && clk > prev_timestamp) OR segment > prev_segment
+
+        let prev_values = once(memory_access.segment.into())
+            .chain(once(memory_access.timestamp.into()))
+            .chain(memory_access.prev_value.map(Into::into))
+            .collect();
+        let current_values = once(segment.into())
+            .chain(once(clk.into()))
+            .chain(memory_access.value.map(Into::into))
             .collect();
 
+        let multiplicity_expr = multiplicity.into();
+        // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
+            prev_values,
+            multiplicity_expr.clone(),
+            InteractionKind::Memory,
+        ));
+
+        // The current values get sent with multiplicity * -1, for "write".
+        self.send(AirInteraction::new(
+            current_values,
+            Self::Expr::neg_one() * multiplicity_expr.clone(),
             InteractionKind::Memory,
         ));
     }

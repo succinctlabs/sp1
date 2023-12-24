@@ -17,10 +17,10 @@ pub use syscall::*;
 
 #[derive(Copy, Clone)]
 pub enum AccessPosition {
-    A = 0,
-    B = 1,
-    C = 2,
-    Memory = 4,
+    A = 3,
+    B = 2,
+    C = 1,
+    Memory = 0,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
