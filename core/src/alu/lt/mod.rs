@@ -191,20 +191,24 @@ where
             let check_eq = (one.clone() - local.byte_flag[i]) * local.byte_equality_check[i];
             builder.when(check_eq).assert_eq(local.b[i], local.c[i]);
 
+            // In the largest byte, the top bit will be masked if this is an SLT operation.
             if i == 3 {
-                // // If SLT, compare b_masked and c_masked instead of b and c.
-                let b_masked = local.b[i] - (AB::Expr::from_canonical_u32(128) * local.sign[0]);
-                let c_masked = local.c[i] - (AB::Expr::from_canonical_u32(128) * local.sign[1]);
-
-                let byte_flag_and_slt = local.byte_flag[i] * local.is_slt;
-                builder.when(byte_flag_and_slt).assert_eq(
-                    AB::Expr::from_canonical_u32(256) + b_masked - c_masked,
+                // If SLTU, verify bits = 256 + b[i] - c[i].
+                let byte_flag_and_sltu = local.byte_flag[3] * local.is_sltu;
+                builder.when(byte_flag_and_sltu).assert_eq(
+                    AB::Expr::from_canonical_u32(256) + local.b[3] - local.c[3],
                     bit_comp.clone(),
                 );
 
-                let byte_flag_and_not_slt = local.byte_flag[i] * (one.clone() - local.is_slt);
-                builder.when(byte_flag_and_not_slt).assert_eq(
-                    AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+                // If SLT, use b_masked and c_masked instead of b and c.
+                // bits = 256 + b_masked[i] - c_masked[i]
+                // local.b[i] - (128 * local.sign[0]) is equivalent to masking the MSB of b[i].
+                let b_masked = local.b[3] - (AB::Expr::from_canonical_u32(128) * local.sign[0]);
+                let c_masked = local.c[3] - (AB::Expr::from_canonical_u32(128) * local.sign[1]);
+
+                let byte_flag_and_slt = local.byte_flag[3] * local.is_slt;
+                builder.when(byte_flag_and_slt).assert_eq(
+                    AB::Expr::from_canonical_u32(256) + b_masked - c_masked,
                     bit_comp.clone(),
                 );
             } else {
@@ -214,44 +218,45 @@ where
                 );
             }
 
-            // builder.assert_bool(local.byte_flag[i]);
+            builder.assert_bool(local.byte_flag[i]);
+            builder.assert_bool(local.byte_equality_check[i])
         }
         // Verify at most one byte flag is set.
         let flag_sum =
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
-        // SLTU (unsigned)
-        // SLTU = 1 - bits[8]
+        // Compute if b < c. local.bits includes the masking of the MSB of b and c if the operation
+        // is SLT. If this is SLTU, there is no masking, so is_b_less_than_c is the final result.
         // local.bits = 256 + b - c, so if bits[8] is 0, then b < c.
-        let computed_is_sltu = AB::Expr::one() - local.bits[8];
+        let is_b_less_than_c = AB::Expr::one() - local.bits[8];
         builder
             .when(local.is_sltu)
-            .assert_eq(local.a[0], computed_is_sltu.clone());
+            .assert_eq(local.a[0], is_b_less_than_c.clone());
 
-        // SLT (signed)
-        // b_s and c_s are the sign bits.
-        // b_<s, c_<s are b, c after masking the MSB.
-        // SLT = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
+        // SLT (signed) = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
+        // SLTU(b_<s, c_<s) is the result of the operation above on masked inputs, is_b_less_than_c.
         // Source: Jolt 5.3: Set Less Than (https://people.cs.georgetown.edu/jthaler/Jolt-paper.pdf)
+
+        // local.sign[0] (b_s) and local.sign[1] (c_s) are the sign bits of b and c respectively.
         builder.assert_bool(local.sign[0]);
         builder.assert_bool(local.sign[1]);
         let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
 
-        // Assert local.is_neq_sign was computed correctly.
+        // Assert local.sign_xor is the XOR of the sign bits.
         builder.assert_eq(
             local.sign_xor,
             local.sign[0] * (one.clone() - local.sign[1])
                 + local.sign[1] * (one.clone() - local.sign[0]),
         );
-        // SLT = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
-        // Note: EQ(b_s, c_s) = 1 - is_neq_sign
-        let computed_is_slt =
-            only_b_neg.clone() + ((one.clone() - local.sign_xor) * computed_is_sltu.clone());
-        // Assert computed_is_slt matches the output.
+        // Note: EQ(b_s, c_s) = 1 - sign_xor
+        let signed_is_b_less_than_c =
+            only_b_neg.clone() + ((one.clone() - local.sign_xor) * is_b_less_than_c.clone());
+
+        // Assert signed_is_b_less_than_c matches the output.
         builder
             .when(local.is_slt)
-            .assert_eq(local.a[0], computed_is_slt.clone());
+            .assert_eq(local.a[0], signed_is_b_less_than_c.clone());
 
         // Check output bits and bit decomposition are valid.
         builder.assert_bool(local.a[0]);
