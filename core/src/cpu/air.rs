@@ -14,6 +14,16 @@ use super::instruction_cols::InstructionCols;
 use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
 
+#[derive(AlignedBorrow, Default, Debug)]
+#[repr(C)]
+pub struct MemoryAccessCols<T> {
+    pub value: Word<T>,
+    pub prev_value: Word<T>,
+    // The previous segment and timestamp that this memory access is being read from.
+    pub segment: T,
+    pub timestamp: T,
+}
+
 /// An AIR table for memory accesses.
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
@@ -28,18 +38,22 @@ pub struct CpuCols<T> {
     // Selectors for the opcode.
     pub selectors: OpcodeSelectors<T>,
 
-    // // Operand values, either from registers or immediate values.
-    pub op_a_val: Word<T>,
-    pub op_b_val: Word<T>,
-    pub op_c_val: Word<T>,
+    // Operand values, either from registers or immediate values.
+    pub op_a_access: MemoryAccessCols<T>,
+    pub op_b_access: MemoryAccessCols<T>,
+    pub op_c_access: MemoryAccessCols<T>,
 
-    // An addr that we are reading from or writing to.
-    pub addr: Word<T>,
-    // TODO: this can be reduced to 1 element.
-    pub addr_offset: Word<T>,
-    // The associated memory value for `addr`.
-    pub mem_val: Word<T>,
-    // Scratch space for constraining memory operations.
+    // An addr that we are reading from or writing to as a word. We are guaranteed that this does
+    // not overflow the field when reduced.
+    pub addr_word: Word<T>,
+
+    // addr_aligned % 4 == 0, addr_aligned + addr_offset = reduce(addr_word)
+    pub addr_aligned: T,
+    pub addr_offset: T,
+    // The associated memory value for `addr_aligned`.
+    pub memory_access: MemoryAccessCols<T>,
+
+    // Columns for constraining memory operations.
     pub mem_scratch: Word<T>,
     pub mem_bit_decomposition: [T; 8],
     pub mem_mask: [T; 4],
@@ -65,6 +79,24 @@ impl CpuCols<u32> {
             .try_into()
             .unwrap();
         unsafe { transmute::<[u32; NUM_CPU_COLS], CpuCols<u32>>(sized) }
+    }
+}
+
+impl<T> CpuCols<T> {
+    pub fn op_a_val(&self) -> &Word<T> {
+        &self.op_a_access.value
+    }
+
+    pub fn op_b_val(&self) -> &Word<T> {
+        &self.op_b_access.value
+    }
+
+    pub fn op_c_val(&self) -> &Word<T> {
+        &self.op_c_access.value
+    }
+
+    pub fn memory(&self) -> &Word<T> {
+        &self.memory_access.value
     }
 }
 
@@ -101,54 +133,54 @@ where
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
         builder
             .when(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val, local.instruction.op_b);
+            .assert_word_eq(*local.op_b_val(), local.instruction.op_b);
         builder
             .when(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val, local.instruction.op_c);
+            .assert_word_eq(*local.op_c_val(), local.instruction.op_c);
 
         // We always write to the first register unless we are doing a branch_op or a store_op.
         // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
-        builder.send_register(
-            local.clk,
-            local.instruction.op_a[0],
-            local.op_a_val,
-            local.selectors.branch_op + local.selectors.is_store,
-            AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
-        );
+        // builder.send_register(
+        //     local.clk,
+        //     local.instruction.op_a[0],
+        //     local.op_a_val(),
+        //     local.selectors.branch_op + local.selectors.is_store,
+        //     AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
+        // );
 
-        // We always read to register b and register c unless the imm_b or imm_c flags are set.
-        builder.send_register(
-            local.clk,
-            local.instruction.op_c[0],
-            local.op_c_val,
-            AB::Expr::one(),
-            AB::Expr::one() - local.selectors.imm_c,
-        );
-        builder.send_register(
-            local.clk,
-            local.instruction.op_b[0],
-            local.op_b_val,
-            AB::F::one(),
-            AB::Expr::one() - local.selectors.imm_b,
-        );
+        // // We always read to register b and register c unless the imm_b or imm_c flags are set.
+        // builder.send_register(
+        //     local.clk,
+        //     local.instruction.op_c[0],
+        //     local.op_c_val(),
+        //     AB::Expr::one(),
+        //     AB::Expr::one() - local.selectors.imm_c,
+        // );
+        // builder.send_register(
+        //     local.clk,
+        //     local.instruction.op_b[0],
+        //     local.op_b_val(),
+        //     AB::F::one(),
+        //     AB::Expr::one() - local.selectors.imm_b,
+        // );
 
         // We always read to mem_val if is_load or is_store is set.
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.mem_val,
-            AB::F::one(),
-            local.selectors.is_load + local.selectors.is_store,
-        );
+        // builder.send_memory(
+        //     local.clk,
+        //     local.addr_aligned,
+        //     local.memory(),
+        //     AB::F::one(),
+        //     local.selectors.is_load + local.selectors.is_store,
+        // );
 
-        // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.mem_scratch,
-            AB::F::zero(),
-            local.selectors.is_store,
-        );
+        // // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
+        // builder.send_memory(
+        //     local.clk,
+        //     local.addr_aligned,
+        //     local.mem_scratch,
+        //     AB::F::zero(),
+        //     local.selectors.is_store,
+        // );
 
         // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
 
@@ -200,9 +232,9 @@ where
         for op in ops {
             builder.send_alu(
                 local.instruction.opcode,
-                local.op_a_val,
-                local.op_b_val,
-                local.op_c_val,
+                *local.op_a_val(),
+                *local.op_b_val(),
+                *local.op_c_val(),
                 op,
             );
         }

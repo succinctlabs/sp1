@@ -1,5 +1,5 @@
-use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
-use super::CpuEvent;
+use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
+use super::{CpuEvent, MemoryRecord};
 
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
@@ -48,9 +48,12 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        cols.op_a_val = event.a.into();
-        cols.op_b_val = event.b.into();
-        cols.op_c_val = event.c.into();
+        self.populate_access(&mut cols.op_a_access, event.a, event.a_record);
+        self.populate_access(&mut cols.op_b_access, event.b, event.b_record);
+        self.populate_access(&mut cols.op_c_access, event.c, event.c_record);
+        if let Some(memory) = event.memory {
+            self.populate_access(&mut cols.memory_access, memory, event.memory_record)
+        }
 
         self.populate_memory(cols, event);
         self.populate_branch(cols, event);
@@ -58,37 +61,40 @@ impl CpuChip {
         row
     }
 
+    fn populate_access<F: PrimeField>(
+        &self,
+        cols: &mut MemoryAccessCols<F>,
+        value: u32,
+        record: Option<MemoryRecord>,
+    ) {
+        cols.value = value.into();
+        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
+        if let Some(record) = record {
+            cols.prev_value = record.value.into();
+            cols.segment = F::from_canonical_u32(record.segment);
+            cols.timestamp = F::from_canonical_u32(record.timestamp);
+        }
+    }
+
     fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
-        // TODO: have to redo these
-        match event.instruction.opcode {
+        let used_memory = match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                let memory_addr = event.b.wrapping_add(event.c);
-                // cols.mem_val = event.memory.expect("Memory value should be present").into();
-                let memory_offset = memory_addr % 4;
-                let memory_aligned = memory_addr - memory_offset;
-                cols.addr = memory_aligned.into();
-                cols.addr_offset = memory_offset.into();
-                // TODO: we have to populate cols.mem_scratch with cols.mem_val >> cols.addr_offset
-                // TODO: populate cols.mem_bit_decomp depending on which byte of the memory we want to grab the top bit of
+                // TODO: populate memory constraint columns to constraint that
+                // cols.op_a_val() = load_op(cols.memory_access.value)
+                true
             }
             Opcode::SB | Opcode::SH | Opcode::SW => {
-                let memory_addr = event.b.wrapping_add(event.c);
-                // cols.mem_val = event
-                //     .memory_value
-                //     .expect("Memory value should be present")
-                //     .into();
-                let memory_offset = memory_addr % 4;
-                let memory_aligned = memory_addr - memory_offset;
-                cols.addr = memory_aligned.into();
-                cols.addr_offset = memory_offset.into();
-                // But we also have to populate mem_scratch because in this case it's the memory result that we'll connect.
-                // cols.mem_scratch = event
-                //     .memory
-                //     .expect("Memory store value should be present")
-                //     .into();
-                // TODO: populate cols.mem_mask based on is_word, is_half, is_byte, addr_offset
+                // TODO: populate memory constraint columns to constraint that
+                // cols.memory_access.value = store_op(cols.memory_access.prev_value, cols.op_a_val())
+                true
             }
-            _ => {}
+            _ => false,
+        };
+        if used_memory {
+            let memory_addr = event.b.wrapping_add(event.c);
+            cols.addr_word = memory_addr.into();
+            cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % 4);
+            cols.addr_offset = F::from_canonical_u32(memory_addr % 4);
         }
     }
 
