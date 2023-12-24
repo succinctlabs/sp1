@@ -59,13 +59,11 @@ impl CpuChip {
     }
 
     fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
+        // TODO: have to redo these
         match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 let memory_addr = event.b.wrapping_add(event.c);
-                cols.mem_val = event
-                    .memory_value
-                    .expect("Memory value should be present")
-                    .into();
+                // cols.mem_val = event.memory.expect("Memory value should be present").into();
                 let memory_offset = memory_addr % 4;
                 let memory_aligned = memory_addr - memory_offset;
                 cols.addr = memory_aligned.into();
@@ -75,19 +73,19 @@ impl CpuChip {
             }
             Opcode::SB | Opcode::SH | Opcode::SW => {
                 let memory_addr = event.b.wrapping_add(event.c);
-                cols.mem_val = event
-                    .memory_value
-                    .expect("Memory value should be present")
-                    .into();
+                // cols.mem_val = event
+                //     .memory_value
+                //     .expect("Memory value should be present")
+                //     .into();
                 let memory_offset = memory_addr % 4;
                 let memory_aligned = memory_addr - memory_offset;
                 cols.addr = memory_aligned.into();
                 cols.addr_offset = memory_offset.into();
                 // But we also have to populate mem_scratch because in this case it's the memory result that we'll connect.
-                cols.mem_scratch = event
-                    .memory_store_value
-                    .expect("Memory store value should be present")
-                    .into();
+                // cols.mem_scratch = event
+                //     .memory
+                //     .expect("Memory store value should be present")
+                //     .into();
                 // TODO: populate cols.mem_mask based on is_word, is_half, is_byte, addr_offset
             }
             _ => {}
@@ -184,10 +182,13 @@ mod tests {
                 imm_c: false,
             },
             a: 1,
+            a_record: None,
             b: 2,
+            b_record: None,
             c: 3,
-            memory_value: None,
-            memory_store_value: None,
+            c_record: None,
+            memory: None,
+            memory_record: None,
         }];
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

@@ -120,6 +120,9 @@ impl SegmentMemory {
 }
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
+    /// The index of this segment in the program.
+    pub index: u32,
+
     pub program: Program,
 
     /// Keeps track of the memory events and additional information during execution of this segment.
