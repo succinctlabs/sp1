@@ -1,4 +1,4 @@
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{AirInteraction, CurtaAirBuilder, Word};
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};

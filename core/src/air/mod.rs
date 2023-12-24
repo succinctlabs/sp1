@@ -149,13 +149,15 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     {
         // TODO:
         // (segment == prev_segment && clk > prev_timestamp) OR segment > prev_segment
-
+        let addr_expr = addr.into();
         let prev_values = once(memory_access.segment.into())
             .chain(once(memory_access.timestamp.into()))
+            .chain(once(addr_expr.clone()))
             .chain(memory_access.prev_value.map(Into::into))
             .collect();
         let current_values = once(segment.into())
             .chain(once(clk.into()))
+            .chain(once(addr_expr.clone()))
             .chain(memory_access.value.map(Into::into))
             .collect();
 
@@ -167,10 +169,10 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             InteractionKind::Memory,
         ));
 
-        // The current values get sent with multiplicity * -1, for "write".
-        self.send(AirInteraction::new(
+        // The current values get "received", i.e. multiplicity = -1
+        self.receive(AirInteraction::new(
             current_values,
-            Self::Expr::neg_one() * multiplicity_expr.clone(),
+            multiplicity_expr.clone(),
             InteractionKind::Memory,
         ));
     }

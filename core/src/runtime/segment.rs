@@ -129,6 +129,7 @@ pub struct Segment {
     pub(crate) memory: SegmentMemory,
 
     /// All events that happen in this segment.
+    pub memory_access: Vec<(u32, u32)>,
 
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
