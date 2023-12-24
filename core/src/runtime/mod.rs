@@ -683,13 +683,20 @@ impl Runtime {
 
         // Right now we only do 1 segment.
         assert_eq!(self.segments.len(), 0);
-        self.segment.memory_access = self
+        self.segment.last_memory_record = self
             .memory
             .clone()
             .into_iter()
             .map(|(addr, value)| {
                 let (segment, timestamp) = self.memory_access.get(&addr).unwrap();
-                (addr, *segment, *timestamp, value)
+                (
+                    addr,
+                    MemoryRecord {
+                        value,
+                        segment: *segment,
+                        timestamp: *timestamp,
+                    },
+                )
             })
             .collect();
         self.segments.push(self.segment.clone());

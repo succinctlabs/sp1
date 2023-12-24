@@ -38,18 +38,18 @@ impl<F: PrimeField> Chip<F> for MemoryInitChip {
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let rows = segment
-            .memory_access
+            .last_memory_record
             .iter() // TODO: change this back to par_iter
-            .map(|(addr, segment, timestamp, val)| {
+            .map(|(addr, record)| {
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = unsafe { transmute(&mut row) };
                 cols.addr = F::from_canonical_u32(*addr);
                 cols.value = if self.init {
                     0u32.into()
                 } else {
-                    cols.segment = F::from_canonical_u32(*segment);
-                    cols.timestamp = F::from_canonical_u32(*timestamp);
-                    (*val).into()
+                    cols.segment = F::from_canonical_u32(record.segment);
+                    cols.timestamp = F::from_canonical_u32(record.timestamp);
+                    record.value.into()
                 };
                 cols.is_real = F::one();
                 row
@@ -143,6 +143,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
     use rand::thread_rng;
 
+    use crate::cpu::MemoryRecord;
     use crate::lookup::InteractionBuilder;
     use crate::memory::MemoryInitChip;
 
@@ -154,22 +155,11 @@ mod tests {
 
     #[test]
     fn test_memory_generate_trace() {
-        // let events = vec![
-        //     MemoryEvent {
-        //         clk: 0,
-        //         addr: 0,
-        //         op: MemOp::Write,
-        //         value: 0,
-        //     },
-        //     MemoryEvent {
-        //         clk: 1,
-        //         addr: 0,
-        //         op: MemOp::Read,
-        //         value: 0,
-        //     },
-        // ];
-        // let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&events);
-        // println!("{:?}", trace.values)
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&runtime.segment);
+        println!("{:?}", trace.values)
     }
 
     #[test]

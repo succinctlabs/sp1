@@ -4,6 +4,7 @@ use super::program::Program;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
+use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
@@ -12,8 +13,8 @@ pub struct Segment {
 
     pub program: Program,
 
-    /// All events that happen in this segment.
-    pub memory_access: Vec<(u32, u32, u32, u32)>,
+    /// The last memory record for each address.
+    pub last_memory_record: Vec<(u32, MemoryRecord)>,
 
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
