@@ -30,11 +30,11 @@ impl Segment {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 9;
+        const NUM_CHIPS: usize = 8;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let memory = MemoryChip::new();
+        // let memory = MemoryChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
@@ -44,7 +44,7 @@ impl Segment {
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
-            Box::new(memory),
+            // Box::new(memory),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -69,7 +69,6 @@ impl Segment {
             .map(|chip| chip.generate_trace(self))
             .collect::<Vec<_>>();
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
-
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
             .iter()

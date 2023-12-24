@@ -276,6 +276,7 @@ where
             local.selectors.lt_op,
         ];
         for op in ops {
+            // TODO: change this to 1 send interaction.
             builder.send_alu(
                 local.instruction.opcode,
                 *local.op_a_val(),

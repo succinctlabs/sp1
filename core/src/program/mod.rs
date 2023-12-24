@@ -88,7 +88,7 @@ mod tests {
 
     use crate::{
         program::ProgramChip,
-        runtime::{Instruction, Opcode, Segment},
+        runtime::{Instruction, Opcode, Program, Segment},
         utils::Chip,
     };
 
@@ -104,7 +104,11 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let mut segment = Segment::default();
-        segment.program = program;
+        segment.program = Program {
+            instructions,
+            pc_start: 0,
+            pc_base: 0,
+        };
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)

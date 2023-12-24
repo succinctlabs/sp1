@@ -42,6 +42,7 @@ impl CpuChip {
     fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
+        cols.segment = F::from_canonical_u32(event.segment);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
 
@@ -177,6 +178,7 @@ mod tests {
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.cpu_events = vec![CpuEvent {
+            segment: 1,
             clk: 6,
             pc: 1,
             instruction: Instruction {
@@ -208,6 +210,9 @@ mod tests {
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
+        for cpu_event in runtime.segment.cpu_events {
+            println!("{:?}", cpu_event);
+        }
         println!("{:?}", trace.values)
     }
 

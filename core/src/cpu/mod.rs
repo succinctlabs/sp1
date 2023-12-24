@@ -7,6 +7,7 @@ pub mod trace;
 
 #[derive(Debug, Copy, Clone)]
 pub struct CpuEvent {
+    pub segment: u32,
     pub clk: u32,
     pub pc: u32,
     pub instruction: Instruction,

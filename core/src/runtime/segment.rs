@@ -126,7 +126,7 @@ pub struct Segment {
     pub program: Program,
 
     /// Keeps track of the memory events and additional information during execution of this segment.
-    pub memory: SegmentMemory,
+    pub(crate) memory: SegmentMemory,
 
     /// All events that happen in this segment.
 
