@@ -140,14 +140,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                     }
                 }
 
-
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-
-                println!(
-                    "a: {:?}, b: {:?}, c: {:?}, byte_flag: {:?}, sign: {:?}, sign_xor: {:?}, byte_equality_check: {:?}, bits: {:?}, is_slt: {:?}, is_sltu: {:?}",
-                    cols.a, cols.b, cols.c, cols.byte_flag, cols.sign, cols.sign_xor, cols.byte_equality_check, cols.bits, cols.is_slt, cols.is_sltu
-                );
 
                 row
             })
