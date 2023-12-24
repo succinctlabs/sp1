@@ -22,7 +22,13 @@ use crate::runtime::Segment;
 const SEGMENT_MAX: u32 = 100_000;
 
 pub struct MemoryInitChip {
-    init: bool,
+    pub init: bool,
+}
+
+impl MemoryInitChip {
+    pub fn new(init: bool) -> Self {
+        Self { init }
+    }
 }
 
 impl<F: PrimeField> Chip<F> for MemoryInitChip {
@@ -34,13 +40,15 @@ impl<F: PrimeField> Chip<F> for MemoryInitChip {
         let rows = segment
             .memory_access
             .iter() // TODO: change this back to par_iter
-            .map(|(addr, val)| {
+            .map(|(addr, segment, timestamp, val)| {
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = unsafe { transmute(&mut row) };
                 cols.addr = F::from_canonical_u32(*addr);
                 cols.value = if self.init {
                     0u32.into()
                 } else {
+                    cols.segment = F::from_canonical_u32(*segment);
+                    cols.timestamp = F::from_canonical_u32(*timestamp);
                     (*val).into()
                 };
                 cols.is_real = F::one();
@@ -62,6 +70,8 @@ impl<F: PrimeField> Chip<F> for MemoryInitChip {
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct MemoryInitCols<T> {
+    pub segment: T,
+    pub timestamp: T,
     pub addr: T,
     pub value: Word<T>,
     pub is_real: T,
@@ -105,8 +115,8 @@ where
             ));
         } else {
             let mut values: Vec<<AB as AirBuilder>::Expr> = vec![
-                AB::Expr::from_canonical_u32(SEGMENT_MAX),
-                AB::Expr::zero(),
+                local.segment.into(),
+                local.timestamp.into(),
                 local.addr.into(),
             ];
             values.extend(local.value.map(Into::into));

@@ -93,7 +93,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            SEGMENT_SIZE: 1000,
+            SEGMENT_SIZE: 10000,
         }
     }
 
@@ -106,7 +106,7 @@ impl Runtime {
     pub fn registers(&self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
-            let addr = self.r2m(Register::from_u32(i as u32));
+            let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.memory.get(&addr) {
                 Some(value) => *value,
                 None => 0,
@@ -117,7 +117,7 @@ impl Runtime {
 
     /// Get the current value of a register.
     pub fn register(&self, register: Register) -> u32 {
-        let addr = self.r2m(register);
+        let addr = register as u32;
         match self.memory.get(&addr) {
             Some(value) => *value,
             None => 0,
@@ -132,18 +132,18 @@ impl Runtime {
         self.segment.index
     }
 
-    /// Read from memory.
+    fn align(&self, addr: u32) -> u32 {
+        addr - addr % 4
+    }
+
+    /// Read from memory, assuming that all addresses are aligned.
     fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
-        let addr_word_aligned = addr - addr % 4;
-        let value = self.memory.get(&addr_word_aligned).unwrap_or(&0);
-        let (prev_segment, prev_timestamp) = self
-            .memory_access
-            .get(&addr_word_aligned)
-            .cloned()
-            .unwrap_or((0, 0));
+        let value = self.memory.get(&addr).unwrap_or(&0);
+        let (prev_segment, prev_timestamp) =
+            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
         self.memory_access.insert(
-            addr_word_aligned,
+            addr,
             (self.current_segment(), self.clk_from_position(&position)),
         );
 
@@ -165,9 +165,8 @@ impl Runtime {
     /// Write to memory.
     /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
     fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
-        let addr_word_aligned = addr - addr % 4;
         // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
-        self.memory.insert(addr_word_aligned, value);
+        self.memory.insert(addr, value);
 
         // Make sure that we have updated the memory records appropriately.
         match position {
@@ -178,16 +177,9 @@ impl Runtime {
         }
     }
 
-    /// Convert a register to a memory address.
-    fn r2m(&self, register: Register) -> u32 {
-        // We have to word-align the register memory address.
-        u32::from_be_bytes([0xFF, 0xFF, 0xFF, (register as u8) * 4])
-    }
-
     /// Read from register.
     fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
-        let addr = self.r2m(register);
-        self.mr(addr, position)
+        self.mr(register as u32, position)
     }
 
     /// Write to register.
@@ -198,11 +190,10 @@ impl Runtime {
             // P.18 of the RISC-V spec.
             return;
         }
-        let addr = self.r2m(register);
         // Only for register writes, do we not read it before, so we put in the read here.
-        self.mr(addr, AccessPosition::A);
+        self.mr(register as u32, AccessPosition::A);
         // The only time we are writing to a register is when it is register A.
-        self.mw(addr, value, AccessPosition::A)
+        self.mw(register as u32, value, AccessPosition::A)
     }
 
     /// Emit a CPU event.
@@ -306,7 +297,7 @@ impl Runtime {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr(addr, AccessPosition::Memory);
+        let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
         (rd, b, c, addr, memory_value)
     }
 
@@ -320,7 +311,7 @@ impl Runtime {
             imm,
         );
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr(addr, AccessPosition::Memory);
+        let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
         (a, b, c, addr, memory_value)
     }
 
@@ -691,8 +682,18 @@ impl Runtime {
             }
         }
 
+        // Right now we only do 1 segment.
+        assert_eq!(self.segments.len(), 0);
+        self.segment.memory_access = self
+            .memory
+            .clone()
+            .into_iter()
+            .map(|(addr, value)| {
+                let (segment, timestamp) = self.memory_access.get(&addr).unwrap();
+                (addr, *segment, *timestamp, value)
+            })
+            .collect();
         self.segments.push(self.segment.clone());
-        // Segment::finalize_all(&mut self.segments);
     }
 }
 

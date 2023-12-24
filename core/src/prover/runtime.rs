@@ -1,4 +1,5 @@
 use crate::bytes::ByteChip;
+use crate::cpu::memory_init::MemoryInitChip;
 use crate::cpu::trace::CpuChip;
 
 use crate::program::ProgramChip;
@@ -21,6 +22,28 @@ use p3_util::log2_strict_usize;
 
 use crate::prover::debug_cumulative_sums;
 
+// impl Runtime {
+//     /// Prove the program.
+//     #[allow(unused)]
+//     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+//     where
+//         F: PrimeField + TwoAdicField + PrimeField32,
+//         EF: ExtensionField<F>,
+//         SC: StarkConfig<Val = F, Challenge = EF>,
+//     {
+//         let bus_sum = vec![];
+//         for segment in self.segments {
+//             // For each segment in segments, prove the segment and add up the buses.
+//             bus_sum.push(segment.prove(config, challenger));
+//         }
+
+//         let cumulative_bus_sum = bus_sum.sum();
+
+//         let init_chip = MemoryInitChip { init: true };
+//         let finalize_chip = MemoryInitChip { init: false };
+//     }
+// }
+
 impl Segment {
     /// Prove the program.
     #[allow(unused)]
@@ -30,7 +53,7 @@ impl Segment {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 8;
+        const NUM_CHIPS: usize = 10;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -41,6 +64,8 @@ impl Segment {
         let shift = ShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
+        let memory_init = MemoryInitChip::new(true);
+        let memory_finalize = MemoryInitChip::new(false);
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
@@ -51,6 +76,8 @@ impl Segment {
             Box::new(shift),
             Box::new(lt),
             Box::new(bytes),
+            Box::new(memory_init),
+            Box::new(memory_finalize),
         ];
 
         // Compute some statistics.
