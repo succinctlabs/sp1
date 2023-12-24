@@ -122,7 +122,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
                         }
                         cols.byte_flag[i] = F::one();
 
-                        for j in 0..i {
+                        for j in (i + 1)..4 {
                             cols.byte_equality_check[j] = F::one();
                         }
                         break;
@@ -140,12 +140,14 @@ impl<F: PrimeField> Chip<F> for LtChip {
                     }
                 }
 
-                // Reverse cols.byte_flag from BE to match the LE byte order of a, b and c.
-                cols.byte_flag.reverse();
-                cols.byte_equality_check.reverse();
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
+
+                println!(
+                    "a: {:?}, b: {:?}, c: {:?}, byte_flag: {:?}, sign: {:?}, sign_xor: {:?}, byte_equality_check: {:?}, bits: {:?}, is_slt: {:?}, is_sltu: {:?}",
+                    cols.a, cols.b, cols.c, cols.byte_flag, cols.sign, cols.sign_xor, cols.byte_equality_check, cols.bits, cols.is_slt, cols.is_sltu
+                );
 
                 row
             })
@@ -195,35 +197,35 @@ where
             let check_eq = (one.clone() - local.byte_flag[i]) * local.byte_equality_check[i];
             builder.when(check_eq).assert_eq(local.b[i], local.c[i]);
 
-            // if i == 3 {
-            //     // If SLT, compare b_masked and c_masked instead of b and c.
-            //     let b_masked = local.b[i] - (AB::Expr::from_canonical_u32(128) * local.sign[0]);
-            //     let c_masked = local.c[i] - (AB::Expr::from_canonical_u32(128) * local.sign[1]);
+            if i == 3 {
+                // // If SLT, compare b_masked and c_masked instead of b and c.
+                let b_masked = local.b[i] - (AB::Expr::from_canonical_u32(128) * local.sign[0]);
+                let c_masked = local.c[i] - (AB::Expr::from_canonical_u32(128) * local.sign[1]);
 
-            //     let byte_flag_and_slt = local.byte_flag[i] * local.is_slt;
-            //     builder.when(byte_flag_and_slt).assert_eq(
-            //         AB::Expr::from_canonical_u32(256) + b_masked - c_masked,
-            //         bit_comp.clone(),
-            //     );
+                let byte_flag_and_slt = local.byte_flag[i] * local.is_slt;
+                builder.when(byte_flag_and_slt).assert_eq(
+                    AB::Expr::from_canonical_u32(256) + b_masked - c_masked,
+                    bit_comp.clone(),
+                );
 
-            //     let byte_flag_and_not_slt = local.byte_flag[i] * (one.clone() - local.is_slt);
-            //     builder.when(byte_flag_and_not_slt).assert_eq(
-            //         AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
-            //         bit_comp.clone(),
-            //     );
-            // } else {
-            //     builder.when(local.byte_flag[i]).assert_eq(
-            //         AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
-            //         bit_comp.clone(),
-            //     );
-            // }
+                let byte_flag_and_not_slt = local.byte_flag[i] * (one.clone() - local.is_slt);
+                builder.when(byte_flag_and_not_slt).assert_eq(
+                    AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+                    bit_comp.clone(),
+                );
+            } else {
+                builder.when(local.byte_flag[i]).assert_eq(
+                    AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+                    bit_comp.clone(),
+                );
+            }
 
-            builder.assert_bool(local.byte_flag[i]);
+            // builder.assert_bool(local.byte_flag[i]);
         }
         // Verify at most one byte flag is set.
-        // let flag_sum =
-        //     local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
-        // builder.assert_bool(flag_sum.clone());
+        let flag_sum =
+            local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
+        builder.assert_bool(flag_sum.clone());
 
         // SLTU (unsigned)
         // SLTU = 1 - bits[8]
