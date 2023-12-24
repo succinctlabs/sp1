@@ -2,7 +2,6 @@ use crate::runtime::Instruction;
 
 pub mod air;
 pub mod instruction_cols;
-pub mod memory_init;
 pub mod opcode_cols;
 pub mod trace;
 

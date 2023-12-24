@@ -1,6 +1,6 @@
 use crate::bytes::ByteChip;
-use crate::cpu::memory_init::MemoryInitChip;
 use crate::cpu::trace::CpuChip;
+use crate::memory::MemoryInitChip;
 
 use crate::program::ProgramChip;
 use crate::prover::generate_permutation_trace;
@@ -13,7 +13,6 @@ use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftChip, SubChip};
-use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
@@ -57,7 +56,6 @@ impl Segment {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        // let memory = MemoryChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();

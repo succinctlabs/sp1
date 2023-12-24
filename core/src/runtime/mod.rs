@@ -6,7 +6,6 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::memory::{MemOp, MemoryEvent};
 use crate::{alu::AluEvent, bytes::ByteLookupEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -465,7 +464,7 @@ impl Runtime {
                 self.mw(addr, value, AccessPosition::Memory);
             }
             Opcode::SW => {
-                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                (a, b, c, addr, _) = self.store_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
