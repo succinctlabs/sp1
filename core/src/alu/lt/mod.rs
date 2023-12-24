@@ -36,7 +36,7 @@ pub struct LtCols<T> {
     pub sign: [T; 2],
 
     // Boolean flag to indicate whether the sign bits of b and c are equal.
-    pub is_neq_sign: T,
+    pub sign_xor: T,
 
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
     /// true for all bytes smaller than the first byte pair that differs. With LE bytes, this is all
@@ -44,7 +44,7 @@ pub struct LtCols<T> {
     pub byte_equality_check: [T; 4],
 
     // Bit decomposition of 256 + b[i] - c[i], where i is the index of the largest byte pair that
-    // differs.
+    // differs. This value is at most 2^9 - 1, so it can be represented as 10 bits.
     pub bits: [T; 10],
 
     /// Selector flags for the operation to perform.
@@ -83,49 +83,51 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 let mut row = [F::zero(); NUM_LT_COLS];
                 let cols: &mut LtCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
-                let mut b = event.b.to_le_bytes();
-                let mut c = event.c.to_le_bytes();
-
-                // If the operands are signed, get and then mask the MSB of b & c.
-                if event.opcode == Opcode::SLT {
-                    cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
-                    cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
-
-                    b[3] = b[3] & (0b0111_1111);
-                    c[3] = c[3] & (0b0111_1111);
-                }
-
-                // neq is the same as xor.
-                cols.is_neq_sign = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
-                    + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
+                let b = event.b.to_le_bytes();
+                let c = event.c.to_le_bytes();
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                // Now, b and c are big-endian.
-                b.reverse();
-                c.reverse();
+                // If this is SLT, we'll need to mask the MSB of b & c when computing cols.bits
+                let mut masked_b = b.clone();
+                let mut masked_c = c.clone();
+                masked_b[3] &= 0x7f;
+                masked_c[3] &= 0x7f;
+
+                if event.opcode == Opcode::SLT {
+                    cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
+                    cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
+                }
+
+                cols.sign_xor = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
+                    + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
 
                 // Find the first byte pair, index i, that differs, and set the byte flag as well as
                 // the bits for 256 + b[i] - c[i].
-                if let Some(n) = b
-                    .into_iter()
-                    .zip(c.into_iter())
-                    .enumerate()
-                    .find_map(|(n, (x, y))| if x != y { Some(n) } else { None })
-                {
-                    let z = 256u16 + b[n] as u16 - c[n] as u16;
-                    for i in 0..10 {
-                        cols.bits[i] = F::from_canonical_u16(z >> i & 1);
-                    }
-                    cols.byte_flag[n] = F::one();
 
-                    for i in 0..n {
-                        cols.byte_equality_check[i] = F::one();
+                for i in (0..4).rev() {
+                    if b[i] != c[i] {
+                        if event.opcode == Opcode::SLT {
+                            let z = 256u16 + masked_b[i] as u16 - masked_c[i] as u16;
+                            for j in 0..10 {
+                                cols.bits[j] = F::from_canonical_u16(z >> j & 1);
+                            }
+                        } else {
+                            let z = 256u16 + b[i] as u16 - c[i] as u16;
+                            for j in 0..10 {
+                                cols.bits[j] = F::from_canonical_u16(z >> j & 1);
+                            }
+                        }
+                        cols.byte_flag[i] = F::one();
+
+                        for j in 0..i {
+                            cols.byte_equality_check[j] = F::one();
+                        }
+                        break;
                     }
                 }
-
                 if b == c {
                     let z = 256u16 + b[3] as u16 - c[3] as u16;
                     for i in 0..10 {
@@ -176,7 +178,7 @@ where
 
         let one = AB::Expr::one();
 
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        // Dummy degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
@@ -193,17 +195,35 @@ where
             let check_eq = (one.clone() - local.byte_flag[i]) * local.byte_equality_check[i];
             builder.when(check_eq).assert_eq(local.b[i], local.c[i]);
 
-            builder.when(local.byte_flag[i]).assert_eq(
-                AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
-                bit_comp.clone(),
-            );
+            // if i == 3 {
+            //     // If SLT, compare b_masked and c_masked instead of b and c.
+            //     let b_masked = local.b[i] - (AB::Expr::from_canonical_u32(128) * local.sign[0]);
+            //     let c_masked = local.c[i] - (AB::Expr::from_canonical_u32(128) * local.sign[1]);
+
+            //     let byte_flag_and_slt = local.byte_flag[i] * local.is_slt;
+            //     builder.when(byte_flag_and_slt).assert_eq(
+            //         AB::Expr::from_canonical_u32(256) + b_masked - c_masked,
+            //         bit_comp.clone(),
+            //     );
+
+            //     let byte_flag_and_not_slt = local.byte_flag[i] * (one.clone() - local.is_slt);
+            //     builder.when(byte_flag_and_not_slt).assert_eq(
+            //         AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+            //         bit_comp.clone(),
+            //     );
+            // } else {
+            //     builder.when(local.byte_flag[i]).assert_eq(
+            //         AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
+            //         bit_comp.clone(),
+            //     );
+            // }
 
             builder.assert_bool(local.byte_flag[i]);
         }
         // Verify at most one byte flag is set.
-        let flag_sum =
-            local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
-        builder.assert_bool(flag_sum.clone());
+        // let flag_sum =
+        //     local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
+        // builder.assert_bool(flag_sum.clone());
 
         // SLTU (unsigned)
         // SLTU = 1 - bits[8]
@@ -222,16 +242,16 @@ where
         builder.assert_bool(local.sign[1]);
         let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
 
-        // Assert local.is_neq_sign was computed correctly. is_neq_sign is equivalent to xor.
+        // Assert local.is_neq_sign was computed correctly.
         builder.assert_eq(
-            local.is_neq_sign,
+            local.sign_xor,
             local.sign[0] * (one.clone() - local.sign[1])
                 + local.sign[1] * (one.clone() - local.sign[0]),
         );
         // SLT = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
         // Note: EQ(b_s, c_s) = 1 - is_neq_sign
         let computed_is_slt =
-            only_b_neg.clone() + ((one.clone() - local.is_neq_sign) * computed_is_sltu.clone());
+            only_b_neg.clone() + ((one.clone() - local.sign_xor) * computed_is_sltu.clone());
         // Assert computed_is_slt matches the output.
         builder
             .when(local.is_slt)
@@ -299,15 +319,9 @@ mod tests {
         for i in 0..num_rows {
             let cols = LtCols::<u32>::from_trace_row(trace.row_slice(i));
             let only_b_neg = cols.sign[0] * (1 - cols.sign[1]);
-            println!("{}", only_b_neg);
             let equal_sign = cols.sign[0] * cols.sign[1] + (1 - cols.sign[0]) * (1 - cols.sign[1]);
             let computed_is_lt = only_b_neg + (equal_sign * (1 - cols.bits[8]));
-            println!("{} {} {}", cols.is_slt, cols.a[0], computed_is_lt);
-            println!(
-                "{} {}",
-                cols.is_slt * cols.a[0],
-                cols.is_slt * computed_is_lt
-            );
+            assert_eq!(cols.a[0], computed_is_lt);
         }
     }
 

@@ -1,6 +1,6 @@
 use clap::Parser;
 use curta::Args;
-use curta_core::disassembler::parse_elf;
+use curta_core::runtime::Program;
 use curta_core::runtime::Runtime;
 
 use std::{io::Read, path::Path};
@@ -23,7 +23,8 @@ fn main() {
     for instruction in instructions.0.iter() {
         println!("{:?}", instruction);
     }
-    let mut runtime = Runtime::new(instructions.0, instructions.1);
+    let program = Program::new(instructions.0, instructions.1, 0);
+    let mut runtime = Runtime::new(program);
     println!("initial pc: {:?}", instructions.1);
     runtime.run();
 
