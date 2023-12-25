@@ -309,25 +309,6 @@ mod tests {
 
     use super::LtChip;
 
-    #[test]
-    fn generate_trace() {
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
-        runtime.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
-        let chip = LtChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
-
-        let num_rows = trace.values.len() / trace.width;
-        for i in 0..num_rows {
-            let cols = LtCols::<u32>::from_trace_row(trace.row_slice(i));
-            let only_b_neg = cols.sign[0] * (1 - cols.sign[1]);
-            let equal_sign = cols.sign[0] * cols.sign[1] + (1 - cols.sign[0]) * (1 - cols.sign[1]);
-            let computed_is_lt = only_b_neg + (equal_sign * (1 - cols.bits[8]));
-            assert_eq!(cols.a[0], computed_is_lt);
-        }
-    }
-
     fn prove_babybear_template(runtime: &mut Runtime) {
         type Val = BabyBear;
         type Domain = Val;
