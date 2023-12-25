@@ -159,6 +159,8 @@ where
             .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
 
         // // We always read to register b and register c unless the imm_b or imm_c flags are set.
+        // TODO: for these, we could save the "op_b_access.prev_value" column because it's always
+        // a read and never a write.
         builder.constraint_memory_access(
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
