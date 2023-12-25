@@ -24,7 +24,7 @@ impl<F: Field> Debug for Interaction<F> {
 }
 
 /// The type of interaction for a lookup argument.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
     Memory = 1,

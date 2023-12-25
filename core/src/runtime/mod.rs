@@ -14,7 +14,7 @@ pub use register::*;
 pub use segment::*;
 pub use syscall::*;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum AccessPosition {
     A = 3,
     B = 2,
@@ -137,7 +137,7 @@ impl Runtime {
 
     /// Read from memory, assuming that all addresses are aligned.
     fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
-        let value = self.memory.get(&addr).unwrap_or(&0);
+        let value = self.memory.entry(addr).or_insert(0).clone();
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
@@ -147,7 +147,7 @@ impl Runtime {
         );
 
         let record = MemoryRecord {
-            value: *value,
+            value: value,
             segment: prev_segment,
             timestamp: prev_timestamp,
         };
@@ -158,7 +158,7 @@ impl Runtime {
             AccessPosition::C => self.record.c = Some(record),
             AccessPosition::Memory => self.record.memory = Some(record),
         }
-        *value
+        value
     }
 
     /// Write to memory.

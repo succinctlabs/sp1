@@ -5,13 +5,14 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
+use itertools::Itertools;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
-use valida_derive::AlignedBorrow;
+use valida_derive::AlignedBorrow; // Import Itertools
 
 use crate::runtime::Segment;
 
@@ -108,7 +109,7 @@ where
                 crate::lookup::InteractionKind::Memory,
             ));
         } else {
-            let mut values: Vec<<AB as AirBuilder>::Expr> = vec![
+            let mut values = vec![
                 local.segment.into(),
                 local.timestamp.into(),
                 local.addr.into(),
@@ -130,22 +131,25 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
+    use crate::cpu::air::NUM_CPU_COLS;
+    use crate::cpu::trace::CpuChip;
+    use crate::cpu::MemoryRecord;
+    use crate::lookup::{InteractionBuilder, InteractionKind};
+    use crate::memory::{MemoryInitChip, NUM_MEMORY_INIT_COLS};
+    use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
     use p3_matrix::dense::RowMajorMatrix;
+    use p3_matrix::Matrix;
     use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
     use rand::thread_rng;
-
-    use crate::cpu::MemoryRecord;
-    use crate::lookup::InteractionBuilder;
-    use crate::memory::MemoryInitChip;
 
     use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
@@ -158,8 +162,20 @@ mod tests {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let trace: RowMajorMatrix<BabyBear> = MemoryChip::generate_trace(&runtime.segment);
-        println!("{:?}", trace.values)
+        let mut segment = runtime.segment.clone();
+
+        let chip: MemoryInitChip = MemoryInitChip::new(true);
+
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        println!("{:?}", trace.values);
+
+        let chip: MemoryInitChip = MemoryInitChip::new(false);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        println!("{:?}", trace.values);
+
+        for (addr, record) in segment.last_memory_record {
+            println!("{:?} {:?}", addr, record);
+        }
     }
 
     #[test]
@@ -217,27 +233,63 @@ mod tests {
         verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 
+    fn print_interactions<F: Field, C: Chip<F>>(chip: C, runtime: &mut Runtime) {
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&mut runtime.segment);
+        let width = chip.width();
+        let mut builder = InteractionBuilder::<F>::new(width);
+        chip.eval(&mut builder);
+        let mut main = trace.clone();
+        let all_interactions = chip.all_interactions();
+        let nb_send_interactions = chip.sends().len();
+        let height = trace.clone().height();
+        for row in (0..height) {
+            println!("Row {}", row);
+            for (m, interaction) in all_interactions.iter().enumerate() {
+                if interaction.kind != InteractionKind::Memory {
+                    continue;
+                }
+                let is_send = if m < nb_send_interactions {
+                    "send"
+                } else {
+                    "receive"
+                };
+                let multiplicity = interaction
+                    .multiplicity
+                    .apply::<SymbolicExpression<F>, F>(&[], &main.row_mut(row));
+                let multiplicity_eval = interaction
+                    .multiplicity
+                    .apply::<F, F>(&[], &main.row_mut(row));
+
+                if !multiplicity_eval.is_zero() {
+                    print!("Interaction {} type={}: ", m, is_send);
+                    for value in &interaction.values {
+                        let expr = value.apply::<F, F>(&[], &main.row_mut(row));
+                        print!("{}, ", expr);
+                    }
+                    println!("Multiplicity: {}", multiplicity_eval);
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_memory_lookup_interactions() {
-        // let air = MemoryChip::new();
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        println!("{:?}", runtime.memory);
+        println!("{:?}", runtime.segment.last_memory_record);
 
-        // let mut builder = InteractionBuilder::<BabyBear>::new(NUM_MEMORY_COLS);
+        let memory_init_chip: MemoryInitChip = MemoryInitChip::new(true);
+        println!("Memory init chip interactions");
+        print_interactions::<BabyBear, _>(memory_init_chip, &mut runtime);
 
-        // air.eval(&mut builder);
+        println!("Memory finalize chip interactions");
+        let memory_finalize_chip = MemoryInitChip::new(false);
+        print_interactions::<BabyBear, _>(memory_finalize_chip, &mut runtime);
 
-        // let mut main = builder.main();
-        // let (sends, receives) = builder.interactions();
-
-        // for interaction in receives {
-        //     for value in interaction.values {
-        //         let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
-        //             &[],
-        //             &main.row_mut(0),
-        //         );
-        //         println!("{}", expr);
-        //     }
-        // }
-
-        // assert!(sends.is_empty());
+        println!("CPU interactions");
+        let cpu_chip = CpuChip::new();
+        print_interactions::<BabyBear, _>(cpu_chip, &mut runtime);
     }
 }
