@@ -107,14 +107,13 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 // Starting from the largest byte, find the first byte pair, index i that differs.
                 let equal_bytes = b == c;
+                // Defaults to the first byte in BE if the bytes are equal.
                 let mut idx_to_check = 3;
-                if !equal_bytes {
-                    for i in (0..4).rev() {
-                        if b[i] != c[i] {
-                            idx_to_check = i;
-                            // Terminate after finding the first byte pair that differs.
-                            break;
-                        }
+                // Find the first byte pair that differs in BE.
+                for i in (0..4).rev() {
+                    if b[i] != c[i] {
+                        idx_to_check = i;
+                        break;
                     }
                 }
 
