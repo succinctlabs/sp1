@@ -90,12 +90,13 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                // If this is SLT, we'll need to mask the MSB of b & c when computing cols.bits
+                // If this is SLT, mask the MSB of b & c before computing cols.bits.
                 let mut masked_b = b.clone();
                 let mut masked_c = c.clone();
                 masked_b[3] &= 0x7f;
                 masked_c[3] &= 0x7f;
 
+                // If this is SLT, set the sign bits of b and c.
                 if event.opcode == Opcode::SLT {
                     cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
                     cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
@@ -104,38 +105,40 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.sign_xor = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
                     + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
 
-                // Find the first byte pair, index i, that differs, and set the byte flag as well as
-                // the bits for 256 + b[i] - c[i].
-
-                for i in (0..4).rev() {
-                    if b[i] != c[i] {
-                        if event.opcode == Opcode::SLT {
-                            let z = 256u16 + masked_b[i] as u16 - masked_c[i] as u16;
-                            for j in 0..10 {
-                                cols.bits[j] = F::from_canonical_u16(z >> j & 1);
-                            }
-                        } else {
-                            let z = 256u16 + b[i] as u16 - c[i] as u16;
-                            for j in 0..10 {
-                                cols.bits[j] = F::from_canonical_u16(z >> j & 1);
-                            }
+                // Starting from the largest byte, find the first byte pair, index i that differs.
+                let equal_bytes = b == c;
+                let mut idx_to_check = 3;
+                if !equal_bytes {
+                    for i in (0..4).rev() {
+                        if b[i] != c[i] {
+                            idx_to_check = i;
+                            // Terminate after finding the first byte pair that differs.
+                            break;
                         }
-                        cols.byte_flag[i] = F::one();
-
-                        for j in (i + 1)..4 {
-                            cols.byte_equality_check[j] = F::one();
-                        }
-                        break;
                     }
                 }
-                if b == c {
-                    let z = 256u16 + b[3] as u16 - c[3] as u16;
-                    for i in 0..10 {
-                        cols.bits[i] = F::from_canonical_u16(z >> i & 1);
-                    }
-                    cols.byte_flag[3] = F::one();
 
-                    for i in 0..3 {
+                // If this is SLT, masked_b and masked_c are used for cols.bits instead of b
+                // and c.
+                if event.opcode == Opcode::SLT {
+                    let z = 256u16 + masked_b[idx_to_check] as u16 - masked_c[idx_to_check] as u16;
+                    for j in 0..10 {
+                        cols.bits[j] = F::from_canonical_u16(z >> j & 1);
+                    }
+                } else {
+                    let z = 256u16 + b[idx_to_check] as u16 - c[idx_to_check] as u16;
+                    for j in 0..10 {
+                        cols.bits[j] = F::from_canonical_u16(z >> j & 1);
+                    }
+                }
+                // byte_flag marks the byte which cols.bits is computed from.
+                cols.byte_flag[idx_to_check] = F::one();
+
+                // byte_equality_check marks the bytes that should be checked for equality (i.e.
+                // all bytes after the first byte pair that differs in BE).
+                // Note: If b and c are equal, set byte_equality_check to true for all bytes.
+                for i in 0..4 {
+                    if i > idx_to_check || equal_bytes {
                         cols.byte_equality_check[i] = F::one();
                     }
                 }
