@@ -743,6 +743,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_run() {
+        env_logger::init();
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
