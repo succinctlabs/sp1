@@ -425,7 +425,6 @@ impl Runtime {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 a = memory_read_value;
-                println!("rd {} a {}", rd as u32, a);
                 self.rw(rd, a);
             }
             Opcode::LBU => {
@@ -648,7 +647,9 @@ impl Runtime {
     /// Execute the program.
     pub fn run(&mut self) {
         self.clk += 1;
-        while self.pc - self.program.pc_base < (self.program.instructions.len() * 4) as u32 {
+        while self.pc.wrapping_sub(self.program.pc_base)
+            < (self.program.instructions.len() * 4) as u32
+        {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
@@ -688,8 +689,6 @@ impl Runtime {
                 self.clk = 1;
             }
 
-            println!("{} {}", self.pc, self.program.pc_base);
-
             if self.global_clk > 4000 {
                 break;
             }
@@ -702,7 +701,6 @@ impl Runtime {
             .clone()
             .into_iter()
             .map(|(addr, value)| {
-                println!("addr={:?} value={:?}", addr, value);
                 let (segment, timestamp) = self.memory_access.get(&addr).unwrap();
                 (
                     addr,
