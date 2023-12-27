@@ -164,9 +164,15 @@ impl Runtime {
     /// Write to memory.
     /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
     fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
+        // Either the address is aligned OR it is a valid register.
+        // TODO: turn this off in debug mode.
+        if addr % 4 != 0 {
+            Register::from_u32(addr);
+        }
         // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
         self.memory.insert(addr, value);
 
+        assert!(self.memory_access.contains_key(&addr));
         // Make sure that we have updated the memory records appropriately.
         match position {
             AccessPosition::A => assert!(self.record.a.is_some()),
@@ -419,6 +425,7 @@ impl Runtime {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 a = memory_read_value;
+                println!("rd {} a {}", rd as u32, a);
                 self.rw(rd, a);
             }
             Opcode::LBU => {
@@ -450,7 +457,7 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw(addr, value, AccessPosition::Memory);
+                self.mw(self.align(addr), value, AccessPosition::Memory);
             }
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
@@ -461,14 +468,14 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw(addr, value, AccessPosition::Memory);
+                self.mw(self.align(addr), value, AccessPosition::Memory);
             }
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
-                self.mw(addr, value, AccessPosition::Memory);
+                self.mw(self.align(addr), value, AccessPosition::Memory);
             }
 
             // B-type instructions.
@@ -647,7 +654,8 @@ impl Runtime {
 
             let width = 12;
             log::debug!(
-                "[pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                self.global_clk / 4,
                 self.pc,
                 instruction,
                 self.register(Register::X0),
@@ -679,6 +687,12 @@ impl Runtime {
                 self.segment.program = self.program.clone();
                 self.clk = 1;
             }
+
+            println!("{} {}", self.pc, self.program.pc_base);
+
+            if self.global_clk > 4000 {
+                break;
+            }
         }
 
         // Right now we only do 1 segment.
@@ -688,6 +702,7 @@ impl Runtime {
             .clone()
             .into_iter()
             .map(|(addr, value)| {
+                println!("addr={:?} value={:?}", addr, value);
                 let (segment, timestamp) = self.memory_access.get(&addr).unwrap();
                 (
                     addr,

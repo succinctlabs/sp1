@@ -1,4 +1,4 @@
-use crate::air::{AirInteraction, CurtaAirBuilder, Word};
+use crate::air::{reduce, AirInteraction, CurtaAirBuilder, Word};
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -13,7 +13,7 @@ use valida_derive::AlignedBorrow;
 use super::instruction_cols::InstructionCols;
 use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
-use crate::runtime::AccessPosition;
+use crate::runtime::{AccessPosition, Opcode};
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -193,51 +193,22 @@ where
 
         //////////////////////////////////////////
 
-        // We always write to the first register unless we are doing a branch_op or a store_op.
-        // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
-        // builder.send_register(
-        //     local.clk,
-        //     local.instruction.op_a[0],
-        //     local.op_a_val(),
-        //     local.selectors.branch_op + local.selectors.is_store,
-        //     AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
-        // );
+        // We constraint reduce(addr_word) = addr_aligned + addr_offset
+        // builder
+        //     .when(local.selectors.is_load + local.selectors.is_store)
+        //     .assert_eq(
+        //         (local.addr_aligned + local.addr_offset).into(),
+        //         reduce(local.addr_word),
+        //     );
 
-        // // We always read to register b and register c unless the imm_b or imm_c flags are set.
-        // builder.send_register(
-        //     local.clk,
-        //     local.instruction.op_c[0],
-        //     local.op_c_val(),
-        //     AB::Expr::one(),
-        //     AB::Expr::one() - local.selectors.imm_c,
-        // );
-        // builder.send_register(
-        //     local.clk,
-        //     local.instruction.op_b[0],
-        //     local.op_b_val(),
-        //     AB::F::one(),
-        //     AB::Expr::one() - local.selectors.imm_b,
-        // );
-
-        // We always read to mem_val if is_load or is_store is set.
-        // builder.send_memory(
-        //     local.clk,
-        //     local.addr_aligned,
-        //     local.memory(),
-        //     AB::F::one(),
+        // // TODO: put an ALU event in the trace for this constraint.
+        // builder.send_alu(
+        //     AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+        //     local.addr_word,
+        //     *local.op_b_val(),
+        //     *local.op_c_val(),
         //     local.selectors.is_load + local.selectors.is_store,
         // );
-
-        // // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
-        // builder.send_memory(
-        //     local.clk,
-        //     local.addr_aligned,
-        //     local.mem_scratch,
-        //     AB::F::zero(),
-        //     local.selectors.is_store,
-        // );
-
-        // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
