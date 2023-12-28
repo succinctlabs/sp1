@@ -67,7 +67,6 @@ impl Segment {
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
-            // Box::new(memory),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -93,7 +92,7 @@ impl Segment {
             .iter()
             .map(|chip| chip.generate_trace(self))
             .collect::<Vec<_>>();
-        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
+
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
             .iter()

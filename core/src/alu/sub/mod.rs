@@ -171,7 +171,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Runtime, Segment},
+        runtime::{Opcode, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;

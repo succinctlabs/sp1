@@ -5,9 +5,8 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::alu::add;
 use crate::cpu::MemoryRecord;
-use crate::{alu::AluEvent, bytes::ByteLookupEvent, cpu::CpuEvent};
+use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
@@ -143,7 +142,7 @@ impl Runtime {
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
             let _ = BabyBear::from_canonical_u32(addr);
-            assert!(addr > 100);
+            assert!(addr > 40); // Assert that the address is > the max register.
         } else {
             let _ = Register::from_u32(addr);
         }
@@ -201,7 +200,6 @@ impl Runtime {
 
     /// Write to register.
     fn rw(&mut self, register: Register, value: u32) {
-        // TODO: figure out what to do about this.
         if register == Register::X0 {
             // We don't write to %x0. See 2.6 Load and Store Instruction on
             // P.18 of the RISC-V spec.
@@ -560,11 +558,12 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
-                let syscall_id = self.register(Register::X5);
+                let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
                 match syscall {
                     Syscall::HALT => {
-                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
+                        a = self.register(a0);
+                        (b, c) = (self.rr(t0, AccessPosition::B), 0);
                         next_pc = 0;
                         self.rw(a0, a);
                     }
@@ -711,10 +710,6 @@ impl Runtime {
                 self.segment.program = self.program.clone();
                 self.clk = 1;
             }
-
-            if self.global_clk > 4000 {
-                break;
-            }
         }
 
         // Right now we only do 1 segment.
@@ -724,7 +719,7 @@ impl Runtime {
 
         for (addr, value) in &self.memory {
             let (segment, timestamp) = self.memory_access.get(&addr).unwrap().clone();
-            if (segment == 0 && timestamp == 0) {
+            if segment == 0 && timestamp == 0 {
                 continue;
             }
             let initial_value = self.program.memory_image.get(&addr).unwrap_or(&0);
@@ -754,11 +749,10 @@ impl Runtime {
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::BTreeMap;
 
     use crate::runtime::Register;
 
-    use super::{Instruction, Opcode, Program, Runtime, Segment};
+    use super::{Instruction, Opcode, Program, Runtime};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -770,18 +764,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("/Users/umaroy/Documents/risc0/examples/target/riscv-guest/riscv32im-risc0-zkvm-elf/release/search_json")
-    }
-
-    #[test]
-    fn test_segmenting() {
-        let program = fibonacci_program();
-        let mut runtime = Runtime::new(program);
-        runtime.SEGMENT_SIZE = 100;
-        runtime.run();
-        // Segment::sanity_check(&runtime.segments);
-        // assert_eq!(runtime.segments[0].cpu_events.len(), 1000);
-        // assert_eq!(runtime.segments[1].cpu_events.len(), 55);
+        Program::from_elf("../programs/fib_malloc.s")
     }
 
     #[test]
@@ -798,7 +781,7 @@ pub mod tests {
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X10 as usize], 55);
+        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
     }
 
     #[test]

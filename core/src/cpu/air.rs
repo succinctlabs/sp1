@@ -1,4 +1,4 @@
-use crate::air::{reduce, AirInteraction, CurtaAirBuilder, Word};
+use crate::air::{CurtaAirBuilder, Word};
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -13,7 +13,7 @@ use valida_derive::AlignedBorrow;
 use super::instruction_cols::InstructionCols;
 use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
-use crate::runtime::{AccessPosition, Opcode};
+use crate::runtime::AccessPosition;
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]

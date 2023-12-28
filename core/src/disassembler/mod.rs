@@ -53,7 +53,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci() {
-        let program = Program::from_elf("../programs/fib.s");
+        let program = Program::from_elf("../programs/fib_malloc.s");
         prove(program.clone());
     }
 

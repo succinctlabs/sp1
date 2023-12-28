@@ -114,7 +114,7 @@ impl Elf {
 
             // If the virtual address is less than the first memory address, then update the first
             // memory address.
-            if ((segment.p_flags & PF_X) != 0) {
+            if (segment.p_flags & PF_X) != 0 {
                 if base_address > vaddr {
                     base_address = vaddr;
                 }
@@ -148,7 +148,7 @@ impl Elf {
                     word |= (*byte as u32) << (j * 8);
                 }
                 image.insert(addr, word);
-                if ((segment.p_flags & PF_X) != 0) {
+                if (segment.p_flags & PF_X) != 0 {
                     instructions.push(word);
                 }
             }

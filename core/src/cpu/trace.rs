@@ -1,6 +1,7 @@
 use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuEvent, MemoryRecord};
 
+use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
@@ -53,7 +54,8 @@ impl CpuChip {
         self.populate_access(&mut cols.op_b_access, event.b, event.b_record);
         self.populate_access(&mut cols.op_c_access, event.c, event.c_record);
 
-        // TODO: here we shoul assert that if event.memory_record is some then, event.memory is also some.
+        // If there is a memory record, then event.memory should be set and vice-versa.
+        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
         if let Some(memory) = event.memory {
             self.populate_access(&mut cols.memory_access, memory, event.memory_record)
         }
@@ -96,8 +98,8 @@ impl CpuChip {
         if used_memory {
             let memory_addr = event.b.wrapping_add(event.c);
             cols.addr_word = memory_addr.into();
-            cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % 4);
-            cols.addr_offset = F::from_canonical_u32(memory_addr % 4);
+            cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
+            cols.addr_offset = F::from_canonical_u32(memory_addr % WORD_SIZE as u32);
         }
     }
 
