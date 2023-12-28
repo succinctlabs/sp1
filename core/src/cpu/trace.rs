@@ -52,6 +52,8 @@ impl CpuChip {
         self.populate_access(&mut cols.op_a_access, event.a, event.a_record);
         self.populate_access(&mut cols.op_b_access, event.b, event.b_record);
         self.populate_access(&mut cols.op_c_access, event.c, event.c_record);
+
+        // TODO: here we shoul assert that if event.memory_record is some then, event.memory is also some.
         if let Some(memory) = event.memory {
             self.populate_access(&mut cols.memory_access, memory, event.memory_record)
         }

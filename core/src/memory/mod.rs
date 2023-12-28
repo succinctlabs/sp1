@@ -1,4 +1,5 @@
 use crate::air::{AirInteraction, CurtaAirBuilder, Word};
+use crate::lookup::InteractionKind;
 use crate::utils::{pad_to_power_of_two, Chip};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -38,20 +39,24 @@ impl<F: PrimeField> Chip<F> for MemoryInitChip {
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        let rows = segment
-            .last_memory_record
-            .iter() // TODO: change this back to par_iter
-            .map(|(addr, record)| {
+        assert_eq!(
+            segment.first_memory_record.len(),
+            segment.last_memory_record.len()
+        );
+        let len = segment.first_memory_record.len();
+        let rows = (0..len) // TODO: change this back to par_iter
+            .map(|i| {
+                let (addr, record) = if self.init {
+                    segment.first_memory_record[i]
+                } else {
+                    segment.last_memory_record[i]
+                };
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = unsafe { transmute(&mut row) };
-                cols.addr = F::from_canonical_u32(*addr);
-                cols.value = if self.init {
-                    0u32.into()
-                } else {
-                    cols.segment = F::from_canonical_u32(record.segment);
-                    cols.timestamp = F::from_canonical_u32(record.timestamp);
-                    record.value.into()
-                };
+                cols.addr = F::from_canonical_u32(addr);
+                cols.segment = F::from_canonical_u32(record.segment);
+                cols.timestamp = F::from_canonical_u32(record.timestamp);
+                cols.value = record.value.into();
                 cols.is_real = F::one();
                 row
             })
@@ -126,10 +131,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use p3_air::{Air, AirBuilder};
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
-    use p3_field::Field;
+    use p3_field::{AbstractField, Field};
 
     use crate::cpu::air::NUM_CPU_COLS;
     use crate::cpu::trace::CpuChip;
@@ -151,11 +158,21 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl, SymbolicExpression, SymbolicVariable};
     use rand::thread_rng;
 
-    use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::{fibonacci_program, simple_program};
     use crate::runtime::Runtime;
     use crate::utils::Chip;
 
     use p3_commit::ExtensionMmcs;
+
+    #[derive(Debug)]
+    pub struct InteractionData<F: Field> {
+        chip_name: String,
+        kind: InteractionKind,
+        row: usize,
+        interaction_number: usize,
+        is_send: bool,
+        multiplicity: F,
+    }
 
     #[test]
     fn test_memory_generate_trace() {
@@ -233,7 +250,28 @@ mod tests {
         verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 
-    fn print_interactions<F: Field, C: Chip<F>>(chip: C, runtime: &mut Runtime) {
+    fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
+        let mut result = String::from("(");
+        for (i, value) in vec.iter().enumerate() {
+            if i != 0 {
+                result.push_str(", ");
+            }
+            result.push_str(&value.to_string());
+        }
+        result.push(')');
+        result
+    }
+
+    fn print_interactions<F: Field, C: Chip<F>>(
+        chip: C,
+        runtime: &mut Runtime,
+    ) -> (
+        BTreeMap<String, Vec<InteractionData<F>>>,
+        BTreeMap<String, F>,
+    ) {
+        let mut key_to_vec_data = BTreeMap::new();
+        let mut key_to_count = BTreeMap::new();
+
         let trace: RowMajorMatrix<F> = chip.generate_trace(&mut runtime.segment);
         let width = chip.width();
         let mut builder = InteractionBuilder::<F>::new(width);
@@ -243,53 +281,82 @@ mod tests {
         let nb_send_interactions = chip.sends().len();
         let height = trace.clone().height();
         for row in (0..height) {
-            println!("Row {}", row);
             for (m, interaction) in all_interactions.iter().enumerate() {
                 if interaction.kind != InteractionKind::Memory {
                     continue;
                 }
-                let is_send = if m < nb_send_interactions {
-                    "send"
-                } else {
-                    "receive"
-                };
-                let multiplicity = interaction
-                    .multiplicity
-                    .apply::<SymbolicExpression<F>, F>(&[], &main.row_mut(row));
+                let is_send = m < nb_send_interactions;
                 let multiplicity_eval = interaction
                     .multiplicity
                     .apply::<F, F>(&[], &main.row_mut(row));
 
                 if !multiplicity_eval.is_zero() {
-                    print!("Interaction {} type={}: ", m, is_send);
+                    let mut values = vec![];
                     for value in &interaction.values {
                         let expr = value.apply::<F, F>(&[], &main.row_mut(row));
-                        print!("{}, ", expr);
+                        values.push(expr);
                     }
-                    println!("Multiplicity: {}", multiplicity_eval);
+                    let key = vec_to_string(values);
+                    key_to_vec_data
+                        .entry(key.clone())
+                        .or_insert_with(Vec::new)
+                        .push(InteractionData {
+                            chip_name: chip.name(),
+                            kind: interaction.kind,
+                            row,
+                            interaction_number: m,
+                            is_send,
+                            multiplicity: multiplicity_eval,
+                        });
+                    let current = key_to_count.entry(key.clone()).or_insert(F::zero());
+                    if is_send {
+                        *current += multiplicity_eval;
+                    } else {
+                        *current -= multiplicity_eval;
+                    }
                 }
             }
         }
+
+        (key_to_vec_data, key_to_count)
     }
 
     #[test]
     fn test_memory_lookup_interactions() {
-        let program = simple_program();
+        env_logger::init();
+        let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        println!("{:?}", runtime.memory);
-        println!("{:?}", runtime.segment.last_memory_record);
 
         let memory_init_chip: MemoryInitChip = MemoryInitChip::new(true);
         println!("Memory init chip interactions");
-        print_interactions::<BabyBear, _>(memory_init_chip, &mut runtime);
+        let (_, init_count) = print_interactions::<BabyBear, _>(memory_init_chip, &mut runtime);
 
         println!("Memory finalize chip interactions");
         let memory_finalize_chip = MemoryInitChip::new(false);
-        print_interactions::<BabyBear, _>(memory_finalize_chip, &mut runtime);
+        let (_, finalize_count) =
+            print_interactions::<BabyBear, _>(memory_finalize_chip, &mut runtime);
 
         println!("CPU interactions");
         let cpu_chip = CpuChip::new();
-        print_interactions::<BabyBear, _>(cpu_chip, &mut runtime);
+        let (_, cpu_count) = print_interactions::<BabyBear, _>(cpu_chip, &mut runtime);
+
+        let mut final_map = BTreeMap::new();
+
+        for (key, value) in init_count
+            .iter()
+            .chain(finalize_count.iter())
+            .chain(cpu_count.iter())
+        {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+
+        println!("FINAL MAP");
+
+        for (key, value) in final_map {
+            if !value.is_zero() {
+                println!("Key {} Value {}", key, value);
+            }
+        }
     }
 }

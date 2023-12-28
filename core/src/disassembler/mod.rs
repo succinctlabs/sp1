@@ -6,7 +6,7 @@ pub use instruction::*;
 
 use crate::runtime::{Instruction, Program};
 
-use std::{fs::File, io::Read};
+use std::{collections::BTreeMap, fs::File, io::Read};
 
 impl Program {
     /// Create a new program.
@@ -15,6 +15,7 @@ impl Program {
             instructions,
             pc_start,
             pc_base,
+            memory_image: BTreeMap::new(),
         }
     }
 
@@ -27,7 +28,12 @@ impl Program {
         let instructions = transpile(&elf.instructions);
 
         // Return the program.
-        Program::new(instructions, elf.pc_start, elf.pc_base)
+        Program {
+            instructions,
+            pc_start: elf.pc_start,
+            pc_base: elf.pc_base,
+            memory_image: elf.memory_image,
+        }
     }
 
     /// Disassemble a RV32IM ELF to a program that be executed by the VM from a file path.

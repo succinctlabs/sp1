@@ -185,8 +185,8 @@ where
 
         builder.constraint_memory_access(
             local.segment,
-            local.clk,
-            local.addr_aligned + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
+            local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
+            local.addr_aligned,
             local.memory_access,
             local.selectors.is_load + local.selectors.is_store,
         );

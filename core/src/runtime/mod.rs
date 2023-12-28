@@ -5,6 +5,7 @@ mod register;
 mod segment;
 mod syscall;
 
+use crate::alu::add;
 use crate::cpu::MemoryRecord;
 use crate::{alu::AluEvent, bytes::ByteLookupEvent, cpu::CpuEvent};
 pub use instruction::*;
@@ -14,7 +15,10 @@ pub use register::*;
 pub use segment::*;
 pub use syscall::*;
 
-#[derive(Copy, Clone, Debug)]
+use p3_baby_bear::BabyBear;
+use p3_field::AbstractField;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AccessPosition {
     A = 3,
     B = 2,
@@ -135,8 +139,20 @@ impl Runtime {
         addr - addr % 4
     }
 
+    fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
+        if position == AccessPosition::Memory {
+            assert_eq!(addr % 4, 0, "addr is not aligned");
+            let _ = BabyBear::from_canonical_u32(addr);
+            assert!(addr > 100);
+        } else {
+            let _ = Register::from_u32(addr);
+        }
+    }
+
     /// Read from memory, assuming that all addresses are aligned.
     fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+        self.validate_memory_access(addr, position);
+
         let value = self.memory.entry(addr).or_insert(0).clone();
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
@@ -164,11 +180,7 @@ impl Runtime {
     /// Write to memory.
     /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
     fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
-        // Either the address is aligned OR it is a valid register.
-        // TODO: turn this off in debug mode.
-        if addr % 4 != 0 {
-            Register::from_u32(addr);
-        }
+        self.validate_memory_access(addr, position);
         // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
         self.memory.insert(addr, value);
 
@@ -408,6 +420,7 @@ impl Runtime {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
                 a = ((value as i8) as i32) as u32;
+                memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
             Opcode::LH => {
@@ -419,18 +432,21 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 a = ((value as i16) as i32) as u32;
+                memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
             Opcode::LW => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 a = memory_read_value;
+                memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
                 a = (value as u8) as u32;
+                memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
             Opcode::LHU => {
@@ -442,6 +458,7 @@ impl Runtime {
                     memory_read_value & 0xFFFF0000
                 };
                 a = (value as u16) as u32;
+                memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
 
@@ -646,6 +663,12 @@ impl Runtime {
 
     /// Execute the program.
     pub fn run(&mut self) {
+        // First load the memory image into the memory table.
+        for (addr, value) in self.program.memory_image.iter() {
+            self.memory.insert(*addr, *value);
+            self.memory_access.insert(*addr, (0, 0));
+        }
+
         self.clk += 1;
         while self.pc.wrapping_sub(self.program.pc_base)
             < (self.program.instructions.len() * 4) as u32
@@ -696,28 +719,43 @@ impl Runtime {
 
         // Right now we only do 1 segment.
         assert_eq!(self.segments.len(), 0);
-        self.segment.last_memory_record = self
-            .memory
-            .clone()
-            .into_iter()
-            .map(|(addr, value)| {
-                let (segment, timestamp) = self.memory_access.get(&addr).unwrap();
-                (
-                    addr,
-                    MemoryRecord {
-                        value,
-                        segment: *segment,
-                        timestamp: *timestamp,
-                    },
-                )
-            })
-            .collect();
+        let mut first_memory_record = Vec::new();
+        let mut last_memory_record = Vec::new();
+
+        for (addr, value) in &self.memory {
+            let (segment, timestamp) = self.memory_access.get(&addr).unwrap().clone();
+            if (segment == 0 && timestamp == 0) {
+                continue;
+            }
+            let initial_value = self.program.memory_image.get(&addr).unwrap_or(&0);
+            first_memory_record.push((
+                *addr,
+                MemoryRecord {
+                    value: *initial_value,
+                    segment: 0,
+                    timestamp: 0,
+                },
+            ));
+            last_memory_record.push((
+                *addr,
+                MemoryRecord {
+                    value: *value,
+                    segment,
+                    timestamp,
+                },
+            ))
+        }
+
+        self.segment.first_memory_record = first_memory_record;
+        self.segment.last_memory_record = last_memory_record;
         self.segments.push(self.segment.clone());
     }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use std::collections::BTreeMap;
+
     use crate::runtime::Register;
 
     use super::{Instruction, Opcode, Program, Runtime, Segment};
@@ -732,7 +770,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fib.s")
+        Program::from_elf("/Users/umaroy/Documents/risc0/examples/target/riscv-guest/riscv32im-risc0-zkvm-elf/release/search_json")
     }
 
     #[test]

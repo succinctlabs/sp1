@@ -13,6 +13,9 @@ pub struct Segment {
 
     pub program: Program,
 
+    /// The first memory record for each address.
+    pub first_memory_record: Vec<(u32, MemoryRecord)>,
+
     /// The last memory record for each address.
     pub last_memory_record: Vec<(u32, MemoryRecord)>,
 

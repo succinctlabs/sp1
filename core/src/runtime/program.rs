@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use super::Instruction;
 
 /// A program that can be executed by the VM.
@@ -11,4 +13,7 @@ pub struct Program {
 
     /// The base address of the program.
     pub pc_base: u32,
+
+    /// The initial memory image, useful for global constants.
+    pub memory_image: BTreeMap<u32, u32>,
 }

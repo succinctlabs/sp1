@@ -82,6 +82,8 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
     use p3_baby_bear::BabyBear;
 
     use p3_matrix::dense::RowMajorMatrix;
@@ -108,6 +110,7 @@ mod tests {
             instructions,
             pc_start: 0,
             pc_base: 0,
+            memory_image: BTreeMap::new(),
         };
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

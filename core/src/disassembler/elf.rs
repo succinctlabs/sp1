@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::collections::BTreeMap;
 
 use elf::ElfBytes;
 
@@ -23,15 +24,24 @@ pub struct Elf {
 
     /// The base address of the program.
     pub pc_base: u32,
+
+    /// The initial memory image, useful for global constants.
+    pub memory_image: BTreeMap<u32, u32>,
 }
 
 impl Elf {
     /// Create a new ELF file.
-    pub fn new(instructions: Vec<u32>, pc_start: u32, pc_base: u32) -> Self {
+    pub fn new(
+        instructions: Vec<u32>,
+        pc_start: u32,
+        pc_base: u32,
+        memory_image: BTreeMap<u32, u32>,
+    ) -> Self {
         Self {
             instructions,
             pc_start,
             pc_base,
+            memory_image,
         }
     }
 
@@ -39,6 +49,7 @@ impl Elf {
     ///
     /// Reference: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
     pub fn decode(input: &[u8]) -> Self {
+        let mut image: BTreeMap<u32, u32> = BTreeMap::new();
         // Parse the ELF file assuming that it is little-endian..
         let elf = ElfBytes::<LittleEndian>::minimal_parse(input).expect("failed to parse elf");
 
@@ -73,10 +84,7 @@ impl Elf {
         let mut base_address = u32::MAX;
 
         // Only read segments that are executable instructions that are also PT_LOAD.
-        for segment in segments
-            .iter()
-            .filter(|x| x.p_type == PT_LOAD && ((x.p_flags & PF_X) != 0))
-        {
+        for segment in segments.iter().filter(|x| x.p_type == PT_LOAD) {
             // Get the file size of the segment as an u32.
             let file_size: u32 = segment
                 .p_filesz
@@ -106,8 +114,10 @@ impl Elf {
 
             // If the virtual address is less than the first memory address, then update the first
             // memory address.
-            if base_address > vaddr {
-                base_address = vaddr;
+            if ((segment.p_flags & PF_X) != 0) {
+                if base_address > vaddr {
+                    base_address = vaddr;
+                }
             }
 
             // Get the offset to the segment.
@@ -125,6 +135,7 @@ impl Elf {
 
                 // If we are reading past the end of the file, then break.
                 if i >= file_size {
+                    image.insert(addr, 0);
                     continue;
                 }
 
@@ -136,10 +147,13 @@ impl Elf {
                     let byte = input.get(offset).expect("invalid segment offset");
                     word |= (*byte as u32) << (j * 8);
                 }
-                instructions.push(word);
+                image.insert(addr, word);
+                if ((segment.p_flags & PF_X) != 0) {
+                    instructions.push(word);
+                }
             }
         }
 
-        Elf::new(instructions, entry, base_address)
+        Elf::new(instructions, entry, base_address, image)
     }
 }
