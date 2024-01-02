@@ -12,9 +12,13 @@ use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 use p3_util::log2_strict_usize;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-mod debug;
-mod runtime;
+pub mod debug;
+pub mod runtime;
+
 pub use debug::*;
+
+#[cfg(test)]
+pub use runtime::tests;
 
 use crate::utils::Chip;
 

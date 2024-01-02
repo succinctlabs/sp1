@@ -1,3 +1,4 @@
+use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
 use crate::runtime::Runtime;
 
@@ -29,6 +30,7 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
+        const NUM_CHIPS: usize = 9;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -38,7 +40,8 @@ impl Runtime {
         let bitwise = BitwiseChip::new();
         let shift = ShiftChip::new();
         let lt = LtChip::new();
-        let chips: [Box<dyn AirChip<SC>>; 8] = [
+        let bytes = ByteChip::<F>::new();
+        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
             Box::new(memory),
@@ -47,6 +50,7 @@ impl Runtime {
             Box::new(bitwise),
             Box::new(shift),
             Box::new(lt),
+            Box::new(bytes),
         ];
 
         // Compute some statistics.
@@ -67,7 +71,7 @@ impl Runtime {
         // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
-        let degrees: [usize; 8] = traces
+        let degrees: [usize; NUM_CHIPS] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -187,7 +191,7 @@ impl Runtime {
             );
         }
 
-        // // Check the permutation argument between all tables.
+        // Check the permutation argument between all tables.
         debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
 }
@@ -198,7 +202,7 @@ pub mod tests {
 
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
-    use crate::runtime::Instruction;
+    use crate::runtime::Program;
     use crate::runtime::Runtime;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
@@ -220,7 +224,7 @@ pub mod tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
-    pub fn prove(program: Vec<Instruction>, pc: u32) {
+    pub fn prove(program: Program) {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -261,20 +265,21 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let mut runtime = Runtime::new(program, pc);
+        let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[1, 2]);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 
     #[test]
     fn test_simple_prove() {
-        let (program, pc) = simple_program();
-        prove(program, pc);
+        let program = simple_program();
+        prove(program);
     }
 
     #[test]
     fn test_fibonnaci_prove() {
-        let (program, pc) = fibonacci_program();
-        prove(program, pc);
+        let program = fibonacci_program();
+        prove(program);
     }
 }

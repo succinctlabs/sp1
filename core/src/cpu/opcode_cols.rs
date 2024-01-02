@@ -44,16 +44,8 @@ pub struct OpcodeSelectors<T> {
 
 impl<F: PrimeField> OpcodeSelectors<F> {
     pub fn populate(&mut self, instruction: Instruction) {
-        self.imm_b = if instruction.imm_b {
-            F::one()
-        } else {
-            F::zero()
-        };
-        self.imm_c = if instruction.imm_c {
-            F::one()
-        } else {
-            F::zero()
-        };
+        self.imm_b = F::from_bool(instruction.imm_b);
+        self.imm_c = F::from_bool(instruction.imm_c);
 
         if instruction.is_alu_instruction() {
             match instruction.opcode {
@@ -72,9 +64,12 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 Opcode::SLT | Opcode::SLTU => {
                     self.lt_op = F::one();
                 }
-
+                Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {}
                 _ => {
-                    panic!("unexpected opcode in register instruction table processing.")
+                    panic!(
+                        "unexpected opcode {} in register instruction table processing",
+                        instruction.opcode
+                    )
                 }
             }
         } else if instruction.is_load_instruction() {
@@ -97,9 +92,21 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 Opcode::LW => {
                     self.is_word = F::one();
                 }
-                _ => {
-                    panic!("unexpected opcode in load instruction table processing.")
+                _ => unreachable!(),
+            }
+        } else if instruction.is_store_instruction() {
+            self.is_store = F::one();
+            match instruction.opcode {
+                Opcode::SB => {
+                    self.is_byte = F::one();
                 }
+                Opcode::SH => {
+                    self.is_half = F::one();
+                }
+                Opcode::SW => {
+                    self.is_word = F::one();
+                }
+                _ => unreachable!(),
             }
         } else if instruction.is_branch_instruction() {
             self.branch_op = F::one();

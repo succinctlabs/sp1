@@ -167,7 +167,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        runtime::{tests::simple_program, Instruction},
+        runtime::{tests::simple_program, Instruction, Program},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -175,8 +175,9 @@ mod tests {
     use super::*;
     #[test]
     fn generate_trace() {
-        let program = vec![];
-        let mut runtime = Runtime::new(program, 0);
+        let instructions = vec![];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
         runtime.cpu_events = vec![CpuEvent {
             clk: 6,
             pc: 1,
@@ -205,8 +206,8 @@ mod tests {
 
     #[test]
     fn generate_trace_simple_program() {
-        let (program, pc) = simple_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
@@ -255,8 +256,8 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let (program, pc) = simple_program();
-        let mut runtime = Runtime::new(program, pc);
+        let program = simple_program();
+        let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
