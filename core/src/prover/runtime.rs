@@ -1,10 +1,11 @@
 use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
-use crate::runtime::Runtime;
+use crate::memory::MemoryInitChip;
 
 use crate::program::ProgramChip;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
+use crate::runtime::Segment;
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -12,7 +13,6 @@ use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftChip, SubChip};
-use crate::memory::MemoryChip;
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
@@ -21,7 +21,29 @@ use p3_util::log2_strict_usize;
 
 use crate::prover::debug_cumulative_sums;
 
-impl Runtime {
+// impl Runtime {
+//     /// Prove the program.
+//     #[allow(unused)]
+//     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+//     where
+//         F: PrimeField + TwoAdicField + PrimeField32,
+//         EF: ExtensionField<F>,
+//         SC: StarkConfig<Val = F, Challenge = EF>,
+//     {
+//         let bus_sum = vec![];
+//         for segment in self.segments {
+//             // For each segment in segments, prove the segment and add up the buses.
+//             bus_sum.push(segment.prove(config, challenger));
+//         }
+
+//         let cumulative_bus_sum = bus_sum.sum();
+
+//         let init_chip = MemoryInitChip { init: true };
+//         let finalize_chip = MemoryInitChip { init: false };
+//     }
+// }
+
+impl Segment {
     /// Prove the program.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
@@ -30,27 +52,29 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 9;
+        const NUM_CHIPS: usize = 10;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let memory = MemoryChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
         let shift = ShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
+        let memory_init = MemoryInitChip::new(true);
+        let memory_finalize = MemoryInitChip::new(false);
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
-            Box::new(memory),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
             Box::new(shift),
             Box::new(lt),
             Box::new(bytes),
+            Box::new(memory_init),
+            Box::new(memory_finalize),
         ];
 
         // Compute some statistics.
@@ -68,7 +92,6 @@ impl Runtime {
             .iter()
             .map(|chip| chip.generate_trace(self))
             .collect::<Vec<_>>();
-        // NOTE(Uma): to debug the CPU & Memory interactions, you can use something like this: https://gist.github.com/puma314/1318b2805acce922604e1457e0211c8f
 
         // For each trace, compute the degree.
         let degrees: [usize; NUM_CHIPS] = traces
@@ -268,7 +291,9 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
-        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        runtime
+            .segment
+            .prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 
     #[test]
@@ -279,6 +304,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonnaci_prove() {
+        env_logger::init();
         let program = fibonacci_program();
         prove(program);
     }

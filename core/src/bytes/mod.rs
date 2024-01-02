@@ -16,7 +16,7 @@ use crate::{
         air::{ByteCols, NUM_BYTE_COLS},
         trace::NUM_ROWS,
     },
-    runtime::{Opcode, Runtime},
+    runtime::{Opcode, Segment},
     utils::Chip,
 };
 
@@ -134,8 +134,8 @@ impl<F: Field> ByteChip<F> {
 }
 
 impl<F: Field> Chip<F> for ByteChip<F> {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        self.generate_trace_from_events(&runtime.byte_lookups)
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        self.generate_trace_from_events(&segment.byte_lookups)
     }
 }
 

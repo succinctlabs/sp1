@@ -8,6 +8,7 @@ use p3_air::{AirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
+use crate::cpu::air::MemoryAccessCols;
 use crate::lookup::InteractionKind;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
@@ -95,93 +96,46 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         ));
     }
 
-    fn send_register<EClk, EReg, EVal, ERead, EMult>(
+    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EMult>(
         &mut self,
+        segment: ESegment,
         clk: EClk,
-        register: EReg,
-        value: Word<EVal>,
-        is_read: ERead,
+        addr: Ea,
+        memory_access: MemoryAccessCols<Eb>,
         multiplicity: EMult,
     ) where
-        EClk: Into<Self::Expr>,
-        EReg: Into<Self::Expr>,
-        EVal: Into<Self::Expr>,
-        ERead: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
-    {
-        let register_aligned = register.into() * Self::Expr::from_canonical_u32(4);
-        let values = once(clk.into())
-            .chain(once(register_aligned.into()))
-            .chain(
-                vec![
-                    Self::F::from_canonical_u32(0xFF),
-                    Self::F::from_canonical_u32(0xFF),
-                    Self::F::from_canonical_u32(0xFF),
-                ]
-                .into_iter()
-                .map(Into::into),
-            )
-            .chain(value.map(Into::into))
-            .chain(once(is_read.into()))
-            .collect();
-
-        self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
-            InteractionKind::Memory,
-        ));
-    }
-
-    fn send_memory<EClk, Ea, Eb, Ec, EMult>(
-        &mut self,
-        clk: EClk,
-        addr: Word<Ea>,
-        value: Word<Eb>,
-        is_read: Ec,
-        multiplicity: EMult,
-    ) where
+        ESegment: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        let values = once(clk.into())
-            .chain(addr.map(Into::into))
-            .chain(value.map(Into::into))
-            .chain(once(is_read.into()))
+        // TODO:
+        // (segment == prev_segment && clk > prev_timestamp) OR segment > prev_segment
+        let addr_expr = addr.into();
+        let prev_values = once(memory_access.segment.into())
+            .chain(once(memory_access.timestamp.into()))
+            .chain(once(addr_expr.clone()))
+            .chain(memory_access.prev_value.map(Into::into))
+            .collect();
+        let current_values = once(segment.into())
+            .chain(once(clk.into()))
+            .chain(once(addr_expr.clone()))
+            .chain(memory_access.value.map(Into::into))
             .collect();
 
+        let multiplicity_expr = multiplicity.into();
+        // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
-            values,
-            multiplicity.into(),
+            prev_values,
+            multiplicity_expr.clone(),
             InteractionKind::Memory,
         ));
-    }
 
-    fn recieve_memory<EClk, Ea, Eb, Ec, EMult>(
-        &mut self,
-        clk: EClk,
-        addr: Word<Ea>,
-        value: Word<Eb>,
-        is_read: Ec,
-        multiplicity: EMult,
-    ) where
-        EClk: Into<Self::Expr>,
-        Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
-    {
-        let values = once(clk.into())
-            .chain(addr.map(Into::into))
-            .chain(value.map(Into::into))
-            .chain(once(is_read.into()))
-            .collect();
-
+        // The current values get "received", i.e. multiplicity = -1
         self.receive(AirInteraction::new(
-            values,
-            multiplicity.into(),
+            current_values,
+            multiplicity_expr.clone(),
             InteractionKind::Memory,
         ));
     }

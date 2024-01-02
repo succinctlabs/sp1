@@ -12,7 +12,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::runtime::{Opcode, Runtime};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_SHIFT_COLS: usize = size_of::<ShiftCols<u8>>();
@@ -45,9 +45,9 @@ impl ShiftChip {
 }
 
 impl<F: PrimeField> Chip<F> for ShiftChip {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = runtime
+        let rows = segment
             .shift_events
             .par_iter()
             .map(|event| {
@@ -131,7 +131,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Program, Runtime},
+        runtime::{Opcode, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -140,12 +140,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
-        runtime.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)];
+        let mut segment = Segment::default();
+        segment.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)];
         let chip = ShiftChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 
@@ -191,12 +189,10 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
-        runtime.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)].repeat(1000);
+        let mut segment = Segment::default();
+        segment.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)].repeat(1000);
         let chip = ShiftChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);
