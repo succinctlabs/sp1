@@ -58,17 +58,17 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let values = once(opcode.into())
-        //     .chain(a.0.into_iter().map(Into::into))
-        //     .chain(b.0.into_iter().map(Into::into))
-        //     .chain(c.0.into_iter().map(Into::into))
-        //     .collect();
+        let values = once(opcode.into())
+            .chain(a.0.into_iter().map(Into::into))
+            .chain(b.0.into_iter().map(Into::into))
+            .chain(c.0.into_iter().map(Into::into))
+            .collect();
 
-        // self.send(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Alu,
-        // ));
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Alu,
+        ));
     }
 
     fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
@@ -85,17 +85,17 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let values = once(opcode.into())
-        //     .chain(a.0.into_iter().map(Into::into))
-        //     .chain(b.0.into_iter().map(Into::into))
-        //     .chain(c.0.into_iter().map(Into::into))
-        //     .collect();
+        let values = once(opcode.into())
+            .chain(a.0.into_iter().map(Into::into))
+            .chain(b.0.into_iter().map(Into::into))
+            .chain(c.0.into_iter().map(Into::into))
+            .collect();
 
-        // self.receive(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Alu,
-        // ));
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Alu,
+        ));
     }
 
     fn send_register<EClk, EReg, EVal, ERead, EMult>(
@@ -112,27 +112,27 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         ERead: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let register_aligned = register.into() * Self::Expr::from_canonical_u32(4);
-        // let values = once(clk.into())
-        //     .chain(once(register_aligned.into()))
-        //     .chain(
-        //         vec![
-        //             Self::F::from_canonical_u32(0xFF),
-        //             Self::F::from_canonical_u32(0xFF),
-        //             Self::F::from_canonical_u32(0xFF),
-        //         ]
-        //         .into_iter()
-        //         .map(Into::into),
-        //     )
-        //     .chain(value.map(Into::into))
-        //     .chain(once(is_read.into()))
-        //     .collect();
+        let register_aligned = register.into() * Self::Expr::from_canonical_u32(4);
+        let values = once(clk.into())
+            .chain(once(register_aligned.into()))
+            .chain(
+                vec![
+                    Self::F::from_canonical_u32(0xFF),
+                    Self::F::from_canonical_u32(0xFF),
+                    Self::F::from_canonical_u32(0xFF),
+                ]
+                .into_iter()
+                .map(Into::into),
+            )
+            .chain(value.map(Into::into))
+            .chain(once(is_read.into()))
+            .collect();
 
-        // self.send(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Memory,
-        // ));
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Memory,
+        ));
     }
 
     fn send_memory<EClk, Ea, Eb, Ec, EMult>(
@@ -149,17 +149,17 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let values = once(clk.into())
-        //     .chain(addr.map(Into::into))
-        //     .chain(value.map(Into::into))
-        //     .chain(once(is_read.into()))
-        //     .collect();
+        let values = once(clk.into())
+            .chain(addr.map(Into::into))
+            .chain(value.map(Into::into))
+            .chain(once(is_read.into()))
+            .collect();
 
-        // self.send(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Memory,
-        // ));
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Memory,
+        ));
     }
 
     fn receive_memory<EClk, Ea, Eb, Ec, EMult>(
@@ -176,17 +176,17 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // let values = once(clk.into())
-        //     .chain(addr.map(Into::into))
-        //     .chain(value.map(Into::into))
-        //     .chain(once(is_read.into()))
-        //     .collect();
+        let values = once(clk.into())
+            .chain(addr.map(Into::into))
+            .chain(value.map(Into::into))
+            .chain(once(is_read.into()))
+            .collect();
 
-        // self.receive(AirInteraction::new(
-        //     values,
-        //     multiplicity.into(),
-        //     InteractionKind::Memory,
-        // ));
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Memory,
+        ));
     }
 
     fn send_program<EPc, EInst, ESel, EMult>(
@@ -297,11 +297,11 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // self.send(AirInteraction::new(
-        //     vec![opcode.into(), a.into(), b.into(), c.into()],
-        //     multiplicity.into(),
-        //     InteractionKind::Byte,
-        // ));
+        self.send(AirInteraction::new(
+            vec![opcode.into(), a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Byte,
+        ));
     }
 
     fn receive_byte_lookup<EOp, Ea, Eb, Ec, EMult>(
@@ -318,11 +318,11 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // self.receive(AirInteraction::new(
-        //     vec![opcode.into(), a.into(), b.into(), c.into()],
-        //     multiplicity.into(),
-        //     InteractionKind::Byte,
-        // ));
+        self.receive(AirInteraction::new(
+            vec![opcode.into(), a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Byte,
+        ));
     }
 }
 
