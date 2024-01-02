@@ -12,7 +12,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::cpu::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
-use crate::runtime::Runtime;
+use crate::runtime::Segment;
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
@@ -40,13 +40,13 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         "program".to_string()
     }
 
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.
         let mut instruction_counts = HashMap::new();
-        runtime.cpu_events.clone().into_iter().for_each(|event| {
+        segment.cpu_events.clone().into_iter().for_each(|event| {
             let pc = event.pc;
             instruction_counts
                 .entry(pc)
@@ -54,7 +54,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = runtime
+        let rows = segment
             .program
             .instructions
             .clone()
@@ -107,13 +107,15 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
     use p3_baby_bear::BabyBear;
 
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
         program::ProgramChip,
-        runtime::{Instruction, Opcode, Program, Runtime},
+        runtime::{Instruction, Opcode, Program, Segment},
         utils::Chip,
     };
 
@@ -128,10 +130,15 @@ mod tests {
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut segment = Segment::default();
+        segment.program = Program {
+            instructions,
+            pc_start: 0,
+            pc_base: 0,
+            memory_image: BTreeMap::new(),
+        };
         let chip = ProgramChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 }

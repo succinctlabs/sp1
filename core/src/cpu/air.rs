@@ -13,11 +13,24 @@ use valida_derive::AlignedBorrow;
 use super::instruction_cols::InstructionCols;
 use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
+use crate::runtime::AccessPosition;
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryAccessCols<T> {
+    pub value: Word<T>,
+    pub prev_value: Word<T>,
+    // The previous segment and timestamp that this memory access is being read from.
+    pub segment: T,
+    pub timestamp: T,
+}
 
 /// An AIR table for memory accesses.
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct CpuCols<T> {
+    /// The current segment.
+    pub segment: T,
     /// The clock cycle value.
     pub clk: T,
     // /// The program counter value.
@@ -28,18 +41,22 @@ pub struct CpuCols<T> {
     // Selectors for the opcode.
     pub selectors: OpcodeSelectors<T>,
 
-    // // Operand values, either from registers or immediate values.
-    pub op_a_val: Word<T>,
-    pub op_b_val: Word<T>,
-    pub op_c_val: Word<T>,
+    // Operand values, either from registers or immediate values.
+    pub op_a_access: MemoryAccessCols<T>,
+    pub op_b_access: MemoryAccessCols<T>,
+    pub op_c_access: MemoryAccessCols<T>,
 
-    // An addr that we are reading from or writing to.
-    pub addr: Word<T>,
-    // TODO: this can be reduced to 1 element.
-    pub addr_offset: Word<T>,
-    // The associated memory value for `addr`.
-    pub mem_val: Word<T>,
-    // Scratch space for constraining memory operations.
+    // An addr that we are reading from or writing to as a word. We are guaranteed that this does
+    // not overflow the field when reduced.
+    pub addr_word: Word<T>,
+
+    // addr_aligned % 4 == 0, addr_aligned + addr_offset = reduce(addr_word)
+    pub addr_aligned: T,
+    pub addr_offset: T,
+    // The associated memory value for `addr_aligned`.
+    pub memory_access: MemoryAccessCols<T>,
+
+    // Columns for constraining memory operations.
     pub mem_scratch: Word<T>,
     pub mem_bit_decomposition: [T; 8],
     pub mem_mask: [T; 4],
@@ -71,6 +88,24 @@ impl CpuCols<u32> {
     }
 }
 
+impl<T> CpuCols<T> {
+    pub fn op_a_val(&self) -> &Word<T> {
+        &self.op_a_access.value
+    }
+
+    pub fn op_b_val(&self) -> &Word<T> {
+        &self.op_b_access.value
+    }
+
+    pub fn op_c_val(&self) -> &Word<T> {
+        &self.op_c_access.value
+    }
+
+    pub fn memory(&self) -> &Word<T> {
+        &self.memory_access.value
+    }
+}
+
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {
         NUM_CPU_COLS
@@ -96,7 +131,7 @@ where
         builder.when_first_row().assert_one(local.clk);
         builder
             .when_transition()
-            .assert_eq(local.clk + AB::Expr::one(), next.clk);
+            .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         builder.send_program(
             local.pc,
@@ -105,63 +140,83 @@ where
             AB::Expr::one() * local.is_real,
         );
 
-        //// Constraint op_a_val, op_b_val, op_c_val
+        //////////////////////////////////////////
+
+        // Constraint op_a_val, op_b_val, op_c_val
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
         builder
             .when(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val, local.instruction.op_b);
+            .assert_word_eq(*local.op_b_val(), local.instruction.op_b);
         builder
             .when(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val, local.instruction.op_c);
+            .assert_word_eq(*local.op_c_val(), local.instruction.op_c);
 
-        // We always write to the first register unless we are doing a branch_op or a store_op.
-        // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
-        builder.send_register(
-            local.clk,
+        // // We always write to the first register unless we are doing a branch_op or a store_op.
+        // // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
             local.instruction.op_a[0],
-            local.op_a_val,
-            local.selectors.branch_op + local.selectors.is_store,
+            local.op_a_access,
             AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
         );
 
-        // We always read to register b and register c unless the imm_b or imm_c flags are set.
-        builder.send_register(
-            local.clk,
-            local.instruction.op_c[0],
-            local.op_c_val,
-            AB::Expr::one(),
-            AB::Expr::one() - local.selectors.imm_c,
-        );
-        builder.send_register(
-            local.clk,
+        // // When we're doing a branch_op or a store op, we want to constraint it to be a read.
+        builder
+            .when(local.selectors.branch_op + local.selectors.is_store)
+            .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
+
+        // // We always read to register b and register c unless the imm_b or imm_c flags are set.
+        // TODO: for these, we could save the "op_b_access.prev_value" column because it's always
+        // a read and never a write.
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
             local.instruction.op_b[0],
-            local.op_b_val,
-            AB::F::one(),
+            local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
+        builder
+            .when(AB::Expr::one() - local.selectors.imm_b)
+            .assert_word_eq(*local.op_b_val(), local.op_b_access.prev_value);
 
-        // We always read to mem_val if is_load or is_store is set.
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.mem_val,
-            AB::F::one(),
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
+            local.instruction.op_c[0],
+            local.op_c_access,
+            AB::Expr::one() - local.selectors.imm_c,
+        );
+        builder
+            .when(AB::Expr::one() - local.selectors.imm_c)
+            .assert_word_eq(*local.op_c_val(), local.op_c_access.prev_value);
+
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
+            local.addr_aligned,
+            local.memory_access,
             local.selectors.is_load + local.selectors.is_store,
         );
 
-        // For store ops, cols.mem_scratch is set to the value of memory that we want to write.
-        builder.send_memory(
-            local.clk,
-            local.addr,
-            local.mem_scratch,
-            AB::F::zero(),
-            local.selectors.is_store,
-        );
+        //////////////////////////////////////////
 
-        // TODO: for memory ops, we should constraint op_b_val + op_c_val = addr + addr_offset
+        // We constraint reduce(addr_word) = addr_aligned + addr_offset
+        // builder
+        //     .when(local.selectors.is_load + local.selectors.is_store)
+        //     .assert_eq(
+        //         (local.addr_aligned + local.addr_offset).into(),
+        //         reduce(local.addr_word),
+        //     );
 
-        //// For r-type, i-type and multiply instructions, we must constraint by an "opcode-oracle" table
-        // TODO: lookup (clk, op_a_val, op_b_val, op_c_val) in the "opcode-oracle" table with multiplicity (register_instruction + immediate_instruction + multiply_instruction)
+        // // TODO: put an ALU event in the trace for this constraint.
+        // builder.send_alu(
+        //     AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+        //     local.addr_word,
+        //     *local.op_b_val(),
+        //     *local.op_c_val(),
+        //     local.selectors.is_load + local.selectors.is_store,
+        // );
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
@@ -206,11 +261,12 @@ where
             local.selectors.lt_op,
         ];
         for op in ops {
+            // TODO: change this to 1 send interaction.
             builder.send_alu(
                 local.instruction.opcode,
-                local.op_a_val,
-                local.op_b_val,
-                local.op_c_val,
+                *local.op_a_val(),
+                *local.op_b_val(),
+                *local.op_c_val(),
                 op,
             );
         }
