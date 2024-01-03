@@ -65,8 +65,6 @@ impl CpuChip {
 
         cols.is_real = F::one();
 
-        println!("cpu row is {:?}", row);
-
         row
     }
 

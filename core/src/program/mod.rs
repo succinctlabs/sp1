@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
@@ -18,7 +18,8 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
+#[repr(C)]
 pub struct ProgramCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
@@ -68,7 +69,6 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);
                 cols.mult = F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
-                println!("program row is {:?}", row);
                 row
             })
             .collect::<Vec<_>>();
@@ -99,6 +99,12 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ProgramCols<AB::Var> = main.row_slice(0).borrow();
+
+        // Dummy constraint of degree 3.
+        builder.assert_eq(
+            local.pc * local.pc * local.pc,
+            local.pc * local.pc * local.pc,
+        );
 
         builder.receive_program(local.pc, local.instruction, local.selectors, local.mult);
     }

@@ -201,7 +201,7 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         ESel: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        let values = once(pc.into())
+        let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
             .chain(once(instruction.opcode.into()))
             .chain(instruction.op_a.into_iter().map(Into::into))
             .chain(instruction.op_b.into_iter().map(Into::into))
