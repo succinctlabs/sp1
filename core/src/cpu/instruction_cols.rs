@@ -4,7 +4,7 @@ use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
 use valida_derive::AlignedBorrow;
 
-#[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct InstructionCols<T> {
     /// The opcode for this cycle.

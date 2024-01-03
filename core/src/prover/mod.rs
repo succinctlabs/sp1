@@ -20,7 +20,7 @@ pub use debug::*;
 #[cfg(test)]
 pub use runtime::tests;
 
-use crate::{lookup::InteractionKind, utils::Chip};
+use crate::utils::Chip;
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
