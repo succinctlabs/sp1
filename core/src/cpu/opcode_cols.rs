@@ -1,13 +1,14 @@
+use core::borrow::{Borrow, BorrowMut};
 use p3_air::AirBuilder;
 use p3_field::PrimeField;
-use std::iter::{self, once, Once};
+use valida_derive::AlignedBorrow;
 
 use crate::{
     runtime::{Instruction, Opcode},
     utils::IntoIteratorCurtaVM,
 };
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectors<T> {
     // // Whether op_b is an immediate value.
