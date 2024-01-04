@@ -1,8 +1,11 @@
 use std::ops::{Index, IndexMut};
 
 use core::borrow::{Borrow, BorrowMut};
+use p3_air::AirBuilder;
 use p3_field::Field;
 use valida_derive::AlignedBorrow;
+
+use crate::utils::IntoIteratorCurtaVM;
 
 /// Using a 32-bit word size, we use four field elements to represent a 32-bit word.
 const WORD_LEN: usize = 4;
@@ -53,5 +56,11 @@ impl<T> IntoIterator for Word<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<AB: AirBuilder, T: Into<AB::Expr> + Copy> IntoIteratorCurtaVM<AB, T> for Word<T> {
+    fn into_iter(&self) -> <std::vec::Vec<AB::Expr> as std::iter::IntoIterator>::IntoIter {
+        self.0.map(|v| v.into()).to_vec().into_iter()
     }
 }

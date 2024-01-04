@@ -12,6 +12,7 @@ use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::instruction_cols::InstructionCols;
 use crate::cpu::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
+use crate::utils::IntoIteratorCurtaVM;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
     let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);
@@ -151,7 +152,7 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     ) where
         EPc: Into<Self::Expr>,
         EInst: Into<Self::Expr>,
-        ESel: Into<Self::Expr>,
+        ESel: Into<Self::Expr> + Copy,
         EMult: Into<Self::Expr>,
     {
         let values = once(pc.into())
@@ -159,27 +160,9 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             .chain(instruction.op_a.into_iter().map(Into::into))
             .chain(instruction.op_b.into_iter().map(Into::into))
             .chain(instruction.op_c.into_iter().map(Into::into))
-            .chain(once(selectors.imm_b.into()))
-            .chain(once(selectors.imm_c.into()))
-            .chain(once(selectors.add_op.into()))
-            .chain(once(selectors.sub_op.into()))
-            .chain(once(selectors.mul_op.into()))
-            .chain(once(selectors.div_op.into()))
-            .chain(once(selectors.shift_op.into()))
-            .chain(once(selectors.bitwise_op.into()))
-            .chain(once(selectors.lt_op.into()))
-            .chain(once(selectors.is_load.into()))
-            .chain(once(selectors.is_store.into()))
-            .chain(once(selectors.is_word.into()))
-            .chain(once(selectors.is_half.into()))
-            .chain(once(selectors.is_byte.into()))
-            .chain(once(selectors.is_signed.into()))
-            .chain(once(selectors.jalr.into()))
-            .chain(once(selectors.jal.into()))
-            .chain(once(selectors.auipc.into()))
-            .chain(once(selectors.branch_op.into()))
-            .chain(once(selectors.noop.into()))
-            .chain(once(selectors.reg_0_write.into()))
+            .chain(
+                <OpcodeSelectors<ESel> as IntoIteratorCurtaVM<Self, ESel>>::into_iter(&selectors),
+            )
             .collect();
 
         self.send(AirInteraction::new(
@@ -198,7 +181,7 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     ) where
         EPc: Into<Self::Expr>,
         EInst: Into<Self::Expr>,
-        ESel: Into<Self::Expr>,
+        ESel: Into<Self::Expr> + Copy,
         EMult: Into<Self::Expr>,
     {
         let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
@@ -206,27 +189,9 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             .chain(instruction.op_a.into_iter().map(Into::into))
             .chain(instruction.op_b.into_iter().map(Into::into))
             .chain(instruction.op_c.into_iter().map(Into::into))
-            .chain(once(selectors.imm_b.into()))
-            .chain(once(selectors.imm_c.into()))
-            .chain(once(selectors.add_op.into()))
-            .chain(once(selectors.sub_op.into()))
-            .chain(once(selectors.mul_op.into()))
-            .chain(once(selectors.div_op.into()))
-            .chain(once(selectors.shift_op.into()))
-            .chain(once(selectors.bitwise_op.into()))
-            .chain(once(selectors.lt_op.into()))
-            .chain(once(selectors.is_load.into()))
-            .chain(once(selectors.is_store.into()))
-            .chain(once(selectors.is_word.into()))
-            .chain(once(selectors.is_half.into()))
-            .chain(once(selectors.is_byte.into()))
-            .chain(once(selectors.is_signed.into()))
-            .chain(once(selectors.jalr.into()))
-            .chain(once(selectors.jal.into()))
-            .chain(once(selectors.auipc.into()))
-            .chain(once(selectors.branch_op.into()))
-            .chain(once(selectors.noop.into()))
-            .chain(once(selectors.reg_0_write.into()))
+            .chain(
+                <OpcodeSelectors<ESel> as IntoIteratorCurtaVM<Self, ESel>>::into_iter(&selectors),
+            )
             .collect();
 
         self.receive(AirInteraction::new(

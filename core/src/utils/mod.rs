@@ -1,4 +1,4 @@
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
@@ -75,4 +75,8 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
         n_real_rows = 8;
     }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
+}
+
+pub trait IntoIteratorCurtaVM<AB: AirBuilder, T: Into<AB::Expr> + Copy> {
+    fn into_iter(&self) -> <std::vec::Vec<AB::Expr> as std::iter::IntoIterator>::IntoIter;
 }

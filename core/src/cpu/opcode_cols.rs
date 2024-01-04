@@ -1,10 +1,13 @@
-use core::borrow::{Borrow, BorrowMut};
+use p3_air::AirBuilder;
 use p3_field::PrimeField;
-use valida_derive::AlignedBorrow;
+use std::iter::{self, once, Once};
 
-use crate::runtime::{Instruction, Opcode};
+use crate::{
+    runtime::{Instruction, Opcode},
+    utils::IntoIteratorCurtaVM,
+};
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectors<T> {
     // // Whether op_b is an immediate value.
@@ -125,5 +128,34 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 self.reg_0_write = F::one();
             }
         }
+    }
+}
+
+impl<AB: AirBuilder, T: Into<AB::Expr> + Copy> IntoIteratorCurtaVM<AB, T> for OpcodeSelectors<T> {
+    fn into_iter(&self) -> <std::vec::Vec<AB::Expr> as std::iter::IntoIterator>::IntoIter {
+        vec![
+            self.imm_b.into(),
+            self.imm_c.into(),
+            self.add_op.into(),
+            self.sub_op.into(),
+            self.mul_op.into(),
+            self.div_op.into(),
+            self.shift_op.into(),
+            self.bitwise_op.into(),
+            self.lt_op.into(),
+            self.is_load.into(),
+            self.is_store.into(),
+            self.is_word.into(),
+            self.is_half.into(),
+            self.is_byte.into(),
+            self.is_signed.into(),
+            self.jalr.into(),
+            self.jal.into(),
+            self.auipc.into(),
+            self.branch_op.into(),
+            self.noop.into(),
+            self.reg_0_write.into(),
+        ]
+        .into_iter()
     }
 }

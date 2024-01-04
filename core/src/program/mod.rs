@@ -18,7 +18,7 @@ use crate::utils::{pad_to_power_of_two, Chip};
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct ProgramCols<T> {
     pub pc: T,
