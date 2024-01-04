@@ -64,7 +64,7 @@ pub struct CpuCols<T> {
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,
 
-    /// Selector to know whether this row is enabled.
+    /// Selector to label whether this row is a non padded row.
     pub is_real: T,
 }
 
@@ -127,12 +127,15 @@ where
             local.pc * local.pc * local.pc,
         );
 
+        builder.assert_bool(local.is_real);
+
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
         builder
             .when_transition()
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
+        // Contrain the interaction with program table
         builder.send_program(
             local.pc,
             local.instruction,

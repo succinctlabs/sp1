@@ -25,6 +25,9 @@ pub struct ProgramCols<T> {
     pub instruction: InstructionCols<T>,
     pub selectors: OpcodeSelectors<T>,
     pub mult: T,
+
+    /// Selector to label whether this row is a non padded row.
+    pub is_real: T,
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
@@ -69,6 +72,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);
                 cols.mult = F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+                cols.is_real = F::one();
                 row
             })
             .collect::<Vec<_>>();
@@ -99,6 +103,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ProgramCols<AB::Var> = main.row_slice(0).borrow();
+        let next: &ProgramCols<AB::Var> = main.row_slice(1).borrow();
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
@@ -106,6 +111,16 @@ where
             local.pc * local.pc * local.pc,
         );
 
+        builder.assert_bool(local.is_real);
+
+        // Constrain the PC values
+        builder.when_first_row().assert_zero(local.pc);
+        builder.when_transition().assert_eq(
+            next.is_real * (local.pc + AB::F::from_canonical_u32(4)),
+            local.is_real * next.pc,
+        );
+
+        // Contrain the interaction with CPU table
         builder.receive_program(local.pc, local.instruction, local.selectors, local.mult);
     }
 }
