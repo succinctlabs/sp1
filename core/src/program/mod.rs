@@ -24,7 +24,7 @@ pub struct ProgramCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
     pub selectors: OpcodeSelectors<T>,
-    pub mult: T,
+    pub multiplicity: T,
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
@@ -68,7 +68,8 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
                 cols.pc = F::from_canonical_u32(pc);
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);
-                cols.mult = F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+                cols.multiplicity =
+                    F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
                 row
             })
             .collect::<Vec<_>>();
@@ -107,7 +108,12 @@ where
         );
 
         // Contrain the interaction with CPU table
-        builder.receive_program(local.pc, local.instruction, local.selectors, local.mult);
+        builder.receive_program(
+            local.pc,
+            local.instruction,
+            local.selectors,
+            local.multiplicity,
+        );
     }
 }
 
