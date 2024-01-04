@@ -151,15 +151,16 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         multiplicity: EMult,
     ) where
         EPc: Into<Self::Expr>,
-        EInst: Into<Self::Expr>,
+        EInst: Into<Self::Expr> + Copy,
         ESel: Into<Self::Expr> + Copy,
         EMult: Into<Self::Expr>,
     {
         let values = once(pc.into())
             .chain(once(instruction.opcode.into()))
-            .chain(instruction.op_a.into_iter().map(Into::into))
-            .chain(instruction.op_b.into_iter().map(Into::into))
-            .chain(instruction.op_c.into_iter().map(Into::into))
+            .chain(<InstructionCols<EInst> as IntoIteratorCurtaVM<
+                Self,
+                EInst,
+            >>::into_iter(&instruction))
             .chain(
                 <OpcodeSelectors<ESel> as IntoIteratorCurtaVM<Self, ESel>>::into_iter(&selectors),
             )
@@ -180,15 +181,16 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         multiplicity: EMult,
     ) where
         EPc: Into<Self::Expr>,
-        EInst: Into<Self::Expr>,
+        EInst: Into<Self::Expr> + Copy,
         ESel: Into<Self::Expr> + Copy,
         EMult: Into<Self::Expr>,
     {
         let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
             .chain(once(instruction.opcode.into()))
-            .chain(instruction.op_a.into_iter().map(Into::into))
-            .chain(instruction.op_b.into_iter().map(Into::into))
-            .chain(instruction.op_c.into_iter().map(Into::into))
+            .chain(<InstructionCols<EInst> as IntoIteratorCurtaVM<
+                Self,
+                EInst,
+            >>::into_iter(&instruction))
             .chain(
                 <OpcodeSelectors<ESel> as IntoIteratorCurtaVM<Self, ESel>>::into_iter(&selectors),
             )
