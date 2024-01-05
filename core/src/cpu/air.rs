@@ -1,4 +1,5 @@
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{range_check_word, reduce, CurtaAirBuilder, Word};
+use crate::bytes::ByteOpcode;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -193,29 +194,31 @@ where
 
         //////////////////////////////////////////
 
-        // We constraint reduce(addr_word) = addr_aligned + addr_offset
-        // TODO: Need to range check that the elements of local.addr_word are u8.
-        // Will do this once the range checker is implemented.
+        // Check that local.addr_offset \in [0, WORD_SIZE) by byte range checking local_offset << 6
+        builder.send_byte_lookup(
+            AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.addr_offset * AB::F::from_canonical_u8(64),
+            local.selectors.is_load + local.selectors.is_store,
+        );
 
-        // Check that local.addr_offset \in [0, WORD_SIZE)
+        // Check that reduce(addr_word) == addr_aligned + addr_offset
         builder
             .when(local.selectors.is_load + local.selectors.is_store)
-            .assert_zero(
-                local.addr_offset
-                    * (local.addr_offset - AB::F::from_canonical_u8(1))
-                    * (local.addr_offset - AB::F::from_canonical_u8(2))
-                    * (local.addr_offset - AB::F::from_canonical_u8(3)),
-            );
-        builder
-            .when(local.selectors.is_load + local.selectors.is_store)
-            .assert_eq(
+            .assert_eq::<AB::Expr, AB::Expr>(
                 local.addr_aligned + local.addr_offset,
-                local.addr_word[0]
-                    + local.addr_word[1] * AB::Expr::from_canonical_u32(256)
-                    + local.addr_word[2] * AB::Expr::from_canonical_u32(256 * 256)
-                    + local.addr_word[3] * AB::Expr::from_canonical_u32(256 * 256 * 256),
+                reduce::<AB>(local.addr_word),
             );
 
+        // Check that each addr_word element is a byte
+        range_check_word(
+            builder,
+            local.addr_word,
+            local.selectors.is_load + local.selectors.is_store,
+        );
+
+        // Send to the ALU table to verify correct calculation of addr_word
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.addr_word,
@@ -223,6 +226,8 @@ where
             *local.op_c_val(),
             local.selectors.is_load + local.selectors.is_store,
         );
+
+        //////////////////////////////////////////
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction

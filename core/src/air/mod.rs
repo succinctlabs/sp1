@@ -1,5 +1,6 @@
 mod bool;
 mod word;
+use crate::bytes::ByteOpcode;
 
 use std::iter::once;
 
@@ -20,6 +21,28 @@ pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
         .enumerate()
         .map(|(i, x)| base[i].clone() * x)
         .sum()
+}
+
+pub fn range_check_word<AB: CurtaAirBuilder>(
+    builder: &mut AB,
+    input: Word<AB::Var>,
+    mult: AB::Expr,
+) {
+    builder.send_byte_lookup(
+        AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+        AB::Expr::zero(),
+        input[0],
+        input[1],
+        mult.clone(),
+    );
+
+    builder.send_byte_lookup(
+        AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+        AB::Expr::zero(),
+        input[2],
+        input[3],
+        mult.clone(),
+    );
 }
 
 pub struct AirInteraction<E> {
