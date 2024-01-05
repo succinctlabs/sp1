@@ -197,7 +197,7 @@ where
         // TODO: Need to range check that the elements of local.addr_word are u8.
         // Will do this once the range checker is implemented.
 
-        // Check that local.addr_offset is \in [0, 4]
+        // Check that local.addr_offset \in [0, WORD_SIZE)
         builder
             .when(local.selectors.is_load + local.selectors.is_store)
             .assert_zero(
@@ -216,14 +216,13 @@ where
                     + local.addr_word[3] * AB::Expr::from_canonical_u32(256 * 256 * 256),
             );
 
-        // // TODO: put an ALU event in the trace for this constraint.
-        // builder.send_alu(
-        //     AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-        //     local.addr_word,
-        //     *local.op_b_val(),
-        //     *local.op_c_val(),
-        //     local.selectors.is_load + local.selectors.is_store,
-        // );
+        builder.send_alu(
+            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+            local.addr_word,
+            *local.op_b_val(),
+            *local.op_c_val(),
+            local.selectors.is_load + local.selectors.is_store,
+        );
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
