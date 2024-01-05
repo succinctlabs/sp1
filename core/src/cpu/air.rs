@@ -199,16 +199,8 @@ where
         builder.send_byte_lookup(
             AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
             AB::Expr::zero(),
-            AB::Expr::zero(),
-            local.addr_offset * AB::F::from_canonical_u8(64),
-            local.selectors.is_load + local.selectors.is_store,
-        );
-
-        builder.send_byte_lookup(
-            AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
             local.addr_offset,
+            local.addr_offset * AB::F::from_canonical_u8(64),
             local.selectors.is_load + local.selectors.is_store,
         );
 

@@ -312,7 +312,6 @@ impl Runtime {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        self.emit_alu(self.clk, Opcode::ADD, addr, b, c);
         let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
         (rd, b, c, addr, memory_value)
     }
@@ -327,7 +326,6 @@ impl Runtime {
             imm,
         );
         let addr = b.wrapping_add(c);
-        self.emit_alu(self.clk, Opcode::ADD, addr, b, c);
         let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
         (a, b, c, addr, memory_value)
     }

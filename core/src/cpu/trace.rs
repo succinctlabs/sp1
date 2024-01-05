@@ -1,6 +1,8 @@
 use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuEvent, MemoryRecord};
 
+use crate::alu::AluEvent;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
@@ -24,10 +26,11 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        let rows = segment
-            .cpu_events
+        let cpu_events = segment.cpu_events.clone();
+
+        let rows = cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op))
+            .map(|op| self.event_to_row(*op, segment))
             .collect::<Vec<_>>();
 
         let mut trace =
@@ -40,7 +43,11 @@ impl<F: PrimeField> Chip<F> for CpuChip {
 }
 
 impl CpuChip {
-    fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
+    fn event_to_row<F: PrimeField>(
+        &self,
+        event: CpuEvent,
+        segment: &mut Segment,
+    ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.segment = F::from_canonical_u32(event.segment);
@@ -60,7 +67,7 @@ impl CpuChip {
             self.populate_access(&mut cols.memory_access, memory, event.memory_record)
         }
 
-        self.populate_memory(cols, event);
+        self.populate_memory(cols, event, segment);
         self.populate_branch(cols, event);
 
         row
@@ -81,7 +88,12 @@ impl CpuChip {
         }
     }
 
-    fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
+    fn populate_memory<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        segment: &mut Segment,
+    ) {
         let used_memory = match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 // TODO: populate memory constraint columns to constraint that
@@ -99,7 +111,47 @@ impl CpuChip {
             let memory_addr = event.b.wrapping_add(event.c);
             cols.addr_word = memory_addr.into();
             cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
-            cols.addr_offset = F::from_canonical_u32(memory_addr % WORD_SIZE as u32);
+            let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
+            cols.addr_offset = F::from_canonical_u8(addr_offset);
+
+            // Add event to ALU check to check that addr == b + c
+            let event = AluEvent {
+                clk: event.clk,
+                opcode: Opcode::ADD,
+                a: memory_addr,
+                b: event.b,
+                c: event.c,
+            };
+            segment.add_events.push(event);
+
+            let mut blu_events = Vec::new();
+
+            // Add event to byte lookup for byte range checking each byte in the memory addr
+            let addr_bytes = memory_addr.to_le_bytes();
+            for byte_pair in addr_bytes.chunks_exact(2) {
+                blu_events.push(ByteLookupEvent {
+                    opcode: ByteOpcode::Range,
+                    a: 0,
+                    b: byte_pair[0],
+                    c: byte_pair[1],
+                });
+            }
+
+            // Byte range check addr_offset and addr_offset << 6
+            blu_events.push(ByteLookupEvent {
+                opcode: ByteOpcode::Range,
+                a: 0,
+                b: addr_offset,
+                c: addr_offset << 6,
+            });
+
+            for blu_event in blu_events.iter() {
+                segment
+                    .byte_lookups
+                    .entry(*blu_event)
+                    .and_modify(|i| *i += 1)
+                    .or_insert(1);
+            }
         }
     }
 
