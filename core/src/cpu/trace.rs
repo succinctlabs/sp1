@@ -1,13 +1,14 @@
 use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuEvent, MemoryRecord};
 
-use crate::alu::AluEvent;
+use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
+use std::ops::Add;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -26,12 +27,24 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        let cpu_events = segment.cpu_events.clone();
+        let mut add_events = Vec::new();
+        let mut blu_events = Vec::new();
 
-        let rows = cpu_events
+        let rows = segment
+            .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op, segment))
+            .map(|op| self.event_to_row(*op, &mut add_events, &mut blu_events))
             .collect::<Vec<_>>();
+
+        segment.add_events.extend(add_events);
+
+        for blu_event in blu_events.iter() {
+            segment
+                .byte_lookups
+                .entry(*blu_event)
+                .and_modify(|i| *i += 1)
+                .or_insert(1);
+        }
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
@@ -46,7 +59,8 @@ impl CpuChip {
     fn event_to_row<F: PrimeField>(
         &self,
         event: CpuEvent,
-        segment: &mut Segment,
+        add_events: &mut Vec<alu::AluEvent>,
+        blu_events: &mut Vec<ByteLookupEvent>,
     ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
@@ -67,7 +81,7 @@ impl CpuChip {
             self.populate_access(&mut cols.memory_access, memory, event.memory_record)
         }
 
-        self.populate_memory(cols, event, segment);
+        self.populate_memory(cols, event, add_events, blu_events);
         self.populate_branch(cols, event);
 
         row
@@ -92,7 +106,8 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: CpuEvent,
-        segment: &mut Segment,
+        add_events: &mut Vec<alu::AluEvent>,
+        blu_events: &mut Vec<ByteLookupEvent>,
     ) {
         let used_memory = match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
@@ -122,9 +137,7 @@ impl CpuChip {
                 b: event.b,
                 c: event.c,
             };
-            segment.add_events.push(event);
-
-            let mut blu_events = Vec::new();
+            add_events.push(event);
 
             // Add event to byte lookup for byte range checking each byte in the memory addr
             let addr_bytes = memory_addr.to_le_bytes();
@@ -144,14 +157,6 @@ impl CpuChip {
                 b: addr_offset,
                 c: addr_offset << 6,
             });
-
-            for blu_event in blu_events.iter() {
-                segment
-                    .byte_lookups
-                    .entry(*blu_event)
-                    .and_modify(|i| *i += 1)
-                    .or_insert(1);
-            }
         }
     }
 
