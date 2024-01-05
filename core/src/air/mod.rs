@@ -28,21 +28,15 @@ pub fn range_check_word<AB: CurtaAirBuilder>(
     input: Word<AB::Var>,
     mult: AB::Expr,
 ) {
-    builder.send_byte_lookup(
-        AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
-        AB::Expr::zero(),
-        input[0],
-        input[1],
-        mult.clone(),
-    );
-
-    builder.send_byte_lookup(
-        AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
-        AB::Expr::zero(),
-        input[2],
-        input[3],
-        mult.clone(),
-    );
+    for byte_pair in input.0.chunks_exact(2) {
+        builder.send_byte_lookup(
+            AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+            AB::Expr::zero(),
+            byte_pair[0],
+            byte_pair[1],
+            mult.clone(),
+        );
+    }
 }
 
 pub struct AirInteraction<E> {
