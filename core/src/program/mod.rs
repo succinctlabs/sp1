@@ -62,7 +62,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
             .into_iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = i as u32 * 4;
+                let pc = segment.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_COLS];
                 let cols: &mut ProgramCols<F> = unsafe { transmute(&mut row) };
                 cols.pc = F::from_canonical_u32(pc);
