@@ -750,6 +750,8 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
+    use log::debug;
+
     use crate::runtime::Register;
 
     use super::{Instruction, Opcode, Program, Runtime};
@@ -777,7 +779,9 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_run() {
-        env_logger::init();
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();

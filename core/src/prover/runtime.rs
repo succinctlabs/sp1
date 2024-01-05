@@ -227,6 +227,7 @@ pub mod tests {
     use crate::runtime::tests::simple_program;
     use crate::runtime::Program;
     use crate::runtime::Runtime;
+    use log::debug;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -304,7 +305,9 @@ pub mod tests {
 
     #[test]
     fn test_fibonnaci_prove() {
-        env_logger::init();
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
         let program = fibonacci_program();
         prove(program);
     }
