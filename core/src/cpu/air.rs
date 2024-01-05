@@ -13,7 +13,7 @@ use valida_derive::AlignedBorrow;
 use super::instruction_cols::InstructionCols;
 use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
-use crate::runtime::AccessPosition;
+use crate::runtime::{AccessPosition, Opcode};
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -194,12 +194,27 @@ where
         //////////////////////////////////////////
 
         // We constraint reduce(addr_word) = addr_aligned + addr_offset
-        // builder
-        //     .when(local.selectors.is_load + local.selectors.is_store)
-        //     .assert_eq(
-        //         (local.addr_aligned + local.addr_offset).into(),
-        //         reduce(local.addr_word),
-        //     );
+        // TODO: Need to range check that the elements of local.addr_word are u8.
+        // Will do this once the range checker is implemented.
+
+        // Check that local.addr_offset is \in [0, 4]
+        builder
+            .when(local.selectors.is_load + local.selectors.is_store)
+            .assert_zero(
+                local.addr_offset
+                    * (local.addr_offset - AB::F::from_canonical_u8(1))
+                    * (local.addr_offset - AB::F::from_canonical_u8(2))
+                    * (local.addr_offset - AB::F::from_canonical_u8(3)),
+            );
+        builder
+            .when(local.selectors.is_load + local.selectors.is_store)
+            .assert_eq(
+                local.addr_aligned + local.addr_offset,
+                local.addr_word[0]
+                    + local.addr_word[1] * AB::Expr::from_canonical_u32(256)
+                    + local.addr_word[2] * AB::Expr::from_canonical_u32(256 * 256)
+                    + local.addr_word[3] * AB::Expr::from_canonical_u32(256 * 256 * 256),
+            );
 
         // // TODO: put an ALU event in the trace for this constraint.
         // builder.send_alu(
