@@ -1,4 +1,4 @@
-use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
+use super::air::{CpuCols, MemoryAccessCols, MemoryColumns, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuEvent, MemoryRecord};
 
 use crate::disassembler::WORD_SIZE;
@@ -56,8 +56,15 @@ impl CpuChip {
 
         // If there is a memory record, then event.memory should be set and vice-versa.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
+
+        let memory_columns: &mut MemoryColumns<F> =
+            unsafe { transmute(&mut cols.opcode_specific_columns) };
         if let Some(memory) = event.memory {
-            self.populate_access(&mut cols.memory_access, memory, event.memory_record)
+            self.populate_access(
+                &mut memory_columns.memory_access,
+                memory,
+                event.memory_record,
+            )
         }
 
         self.populate_memory(cols, event);
@@ -97,9 +104,13 @@ impl CpuChip {
         };
         if used_memory {
             let memory_addr = event.b.wrapping_add(event.c);
-            cols.addr_word = memory_addr.into();
-            cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
-            cols.addr_offset = F::from_canonical_u32(memory_addr % WORD_SIZE as u32);
+            let memory_columns: &mut MemoryColumns<F> =
+                unsafe { transmute(&mut cols.opcode_specific_columns) };
+
+            memory_columns.addr_word = memory_addr.into();
+            memory_columns.addr_aligned =
+                F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
+            memory_columns.addr_offset = F::from_canonical_u32(memory_addr % WORD_SIZE as u32);
         }
     }
 

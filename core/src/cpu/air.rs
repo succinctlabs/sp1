@@ -1,13 +1,15 @@
 use crate::air::{CurtaAirBuilder, Word};
 
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
+use core::mem::transmute;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
+use std::mem::transmute_copy;
 use valida_derive::AlignedBorrow;
 
 use super::instruction_cols::InstructionCols;
@@ -23,6 +25,17 @@ pub struct MemoryAccessCols<T> {
     // The previous segment and timestamp that this memory access is being read from.
     pub segment: T,
     pub timestamp: T,
+}
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryColumns<T> {
+    // An addr that we are reading from or writing to as a word. We are guaranteed that this does
+    // not overflow the field when reduced.
+    pub addr_word: Word<T>,
+    pub addr_aligned: T,
+    pub addr_offset: T,
+    pub memory_access: MemoryAccessCols<T>,
 }
 
 /// An AIR table for memory accesses.
@@ -46,20 +59,8 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryAccessCols<T>,
     pub op_c_access: MemoryAccessCols<T>,
 
-    // An addr that we are reading from or writing to as a word. We are guaranteed that this does
-    // not overflow the field when reduced.
-    pub addr_word: Word<T>,
-
-    // addr_aligned % 4 == 0, addr_aligned + addr_offset = reduce(addr_word)
-    pub addr_aligned: T,
-    pub addr_offset: T,
-    // The associated memory value for `addr_aligned`.
-    pub memory_access: MemoryAccessCols<T>,
-
-    // Columns for constraining memory operations.
-    pub mem_scratch: Word<T>,
-    pub mem_bit_decomposition: [T; 8],
-    pub mem_mask: [T; 4],
+    // This is transmuted to MemoryColumns.
+    pub opcode_specific_columns: [T; WORKSPACE_SIZE],
 
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,
@@ -67,6 +68,8 @@ pub struct CpuCols<T> {
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
+
+pub(crate) const WORKSPACE_SIZE: usize = size_of::<MemoryColumns<u8>>();
 
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
@@ -96,10 +99,6 @@ impl<T> CpuCols<T> {
 
     pub fn op_c_val(&self) -> &Word<T> {
         &self.op_c_access.value
-    }
-
-    pub fn memory(&self) -> &Word<T> {
-        &self.memory_access.value
     }
 }
 
@@ -183,11 +182,14 @@ where
             .when(AB::Expr::one() - local.selectors.imm_c)
             .assert_word_eq(*local.op_c_val(), local.op_c_access.prev_value);
 
+        let memory_columns: MemoryColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
         builder.constraint_memory_access(
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
-            local.addr_aligned,
-            local.memory_access,
+            memory_columns.addr_aligned,
+            memory_columns.memory_access,
             local.selectors.is_load + local.selectors.is_store,
         );
 
