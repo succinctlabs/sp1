@@ -1,7 +1,8 @@
-use super::air::{CpuCols, CPU_COL_MAP, NUM_CPU_COLS};
-use super::CpuEvent;
+use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
+use super::{CpuEvent, MemoryRecord};
 
-use crate::runtime::{Opcode, Runtime};
+use crate::disassembler::WORD_SIZE;
+use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -22,8 +23,8 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         "CPU".to_string()
     }
 
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
-        let rows = runtime
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
             .map(|op| self.event_to_row(*op))
@@ -42,15 +43,22 @@ impl CpuChip {
     fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
+        cols.segment = F::from_canonical_u32(event.segment);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
 
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        cols.op_a_val = event.a.into();
-        cols.op_b_val = event.b.into();
-        cols.op_c_val = event.c.into();
+        self.populate_access(&mut cols.op_a_access, event.a, event.a_record);
+        self.populate_access(&mut cols.op_b_access, event.b, event.b_record);
+        self.populate_access(&mut cols.op_c_access, event.c, event.c_record);
+
+        // If there is a memory record, then event.memory should be set and vice-versa.
+        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
+        if let Some(memory) = event.memory {
+            self.populate_access(&mut cols.memory_access, memory, event.memory_record)
+        }
 
         self.populate_memory(cols, event);
         self.populate_branch(cols, event);
@@ -58,39 +66,40 @@ impl CpuChip {
         row
     }
 
+    fn populate_access<F: PrimeField>(
+        &self,
+        cols: &mut MemoryAccessCols<F>,
+        value: u32,
+        record: Option<MemoryRecord>,
+    ) {
+        cols.value = value.into();
+        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
+        if let Some(record) = record {
+            cols.prev_value = record.value.into();
+            cols.segment = F::from_canonical_u32(record.segment);
+            cols.timestamp = F::from_canonical_u32(record.timestamp);
+        }
+    }
+
     fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
-        match event.instruction.opcode {
+        let used_memory = match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                let memory_addr = event.b.wrapping_add(event.c);
-                cols.mem_val = event
-                    .memory_value
-                    .expect("Memory value should be present")
-                    .into();
-                let memory_offset = memory_addr % 4;
-                let memory_aligned = memory_addr - memory_offset;
-                cols.addr = memory_aligned.into();
-                cols.addr_offset = memory_offset.into();
-                // TODO: we have to populate cols.mem_scratch with cols.mem_val >> cols.addr_offset
-                // TODO: populate cols.mem_bit_decomp depending on which byte of the memory we want to grab the top bit of
+                // TODO: populate memory constraint columns to constraint that
+                // cols.op_a_val() = load_op(cols.memory_access.value)
+                true
             }
             Opcode::SB | Opcode::SH | Opcode::SW => {
-                let memory_addr = event.b.wrapping_add(event.c);
-                cols.mem_val = event
-                    .memory_value
-                    .expect("Memory value should be present")
-                    .into();
-                let memory_offset = memory_addr % 4;
-                let memory_aligned = memory_addr - memory_offset;
-                cols.addr = memory_aligned.into();
-                cols.addr_offset = memory_offset.into();
-                // But we also have to populate mem_scratch because in this case it's the memory result that we'll connect.
-                cols.mem_scratch = event
-                    .memory_store_value
-                    .expect("Memory store value should be present")
-                    .into();
-                // TODO: populate cols.mem_mask based on is_word, is_half, is_byte, addr_offset
+                // TODO: populate memory constraint columns to constraint that
+                // cols.memory_access.value = store_op(cols.memory_access.prev_value, cols.op_a_val())
+                true
             }
-            _ => {}
+            _ => false,
+        };
+        if used_memory {
+            let memory_addr = event.b.wrapping_add(event.c);
+            cols.addr_word = memory_addr.into();
+            cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
+            cols.addr_offset = F::from_canonical_u32(memory_addr % WORD_SIZE as u32);
         }
     }
 
@@ -132,7 +141,7 @@ impl CpuChip {
             .enumerate()
             .for_each(|(n, padded_row)| {
                 padded_row[CPU_COL_MAP.pc] = pc;
-                padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32(n as u32 + 1);
+                padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32((n as u32 + 1) * 4);
                 padded_row[CPU_COL_MAP.selectors.noop] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
@@ -163,7 +172,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        runtime::{tests::simple_program, Instruction, Program},
+        runtime::{tests::simple_program, Instruction, Runtime, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -171,10 +180,9 @@ mod tests {
     use super::*;
     #[test]
     fn generate_trace() {
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
-        runtime.cpu_events = vec![CpuEvent {
+        let mut segment = Segment::default();
+        segment.cpu_events = vec![CpuEvent {
+            segment: 1,
             clk: 6,
             pc: 1,
             instruction: Instruction {
@@ -186,18 +194,17 @@ mod tests {
                 imm_c: false,
             },
             a: 1,
+            a_record: None,
             b: 2,
+            b_record: None,
             c: 3,
-            memory_value: None,
-            memory_store_value: None,
+            c_record: None,
+            memory: None,
+            memory_record: None,
         }];
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values);
-        // println!(
-        //     "{:?} {:?} {:?} {:?} {:?}",
-        //     cols.clk, cols.pc, cols.op_a_val, cols.op_b_val, cols.op_c_val
-        // );
     }
 
     #[test]
@@ -206,7 +213,10 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
+        for cpu_event in runtime.segment.cpu_events {
+            println!("{:?}", cpu_event);
+        }
         println!("{:?}", trace.values)
     }
 
@@ -256,7 +266,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);

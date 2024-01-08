@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::runtime::{Opcode, Runtime};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -74,9 +74,9 @@ impl LtChip {
 }
 
 impl<F: PrimeField> Chip<F> for LtChip {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = runtime
+        let rows = segment
             .lt_events
             .par_iter()
             .map(|event| {
@@ -301,15 +301,24 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        alu::{AluEvent, LtCols},
-        runtime::{Opcode, Program, Runtime},
+        alu::AluEvent,
+        runtime::{Opcode, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
 
     use super::LtChip;
 
-    fn prove_babybear_template(runtime: &mut Runtime) {
+    #[test]
+    fn generate_trace() {
+        let mut segment = Segment::default();
+        segment.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        let chip = LtChip::new();
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        println!("{:?}", trace.values)
+    }
+
+    fn prove_babybear_template(segment: &mut Segment) {
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -351,7 +360,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let chip = LtChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);
@@ -360,13 +369,11 @@ mod tests {
 
     #[test]
     fn prove_babybear_slt() {
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut segment = Segment::default();
 
         const NEG_3: u32 = 0b11111111111111111111111111111101;
         const NEG_4: u32 = 0b11111111111111111111111111111100;
-        runtime.lt_events = vec![
+        segment.lt_events = vec![
             // 0 == 3 < 2
             AluEvent::new(0, Opcode::SLT, 0, 3, 2),
             // 1 == 2 < 3
@@ -385,17 +392,15 @@ mod tests {
             AluEvent::new(5, Opcode::SLT, 0, NEG_3, NEG_3),
         ];
 
-        prove_babybear_template(&mut runtime);
+        prove_babybear_template(&mut segment);
     }
 
     #[test]
     fn prove_babybear_sltu() {
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut segment = Segment::default();
 
         const LARGE: u32 = 0b11111111111111111111111111111101;
-        runtime.lt_events = vec![
+        segment.lt_events = vec![
             // 0 == 3 < 2
             AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
             // 1 == 2 < 3
@@ -410,6 +415,6 @@ mod tests {
             AluEvent::new(5, Opcode::SLTU, 0, LARGE, LARGE),
         ];
 
-        prove_babybear_template(&mut runtime);
+        prove_babybear_template(&mut segment);
     }
 }
