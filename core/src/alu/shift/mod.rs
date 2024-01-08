@@ -61,7 +61,7 @@ pub struct ShiftCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// The least significant byte of `c`. Used to verify `shift_by_n_bits`` and `shift_by_n_bytes`.
+    /// The least significant byte of `c`. Used to verify `shift_by_n_bits` and `shift_by_n_bytes`.
     pub c_least_sig_byte: [T; BYTE_SIZE],
 
     /// A boolean array whose `i`th element indicates whether `num_bits_to_shift = i`.
@@ -249,8 +249,8 @@ where
 
         // Step 2: Verify all the variables for "byte shift".
 
-        // Verify that num_bytes_to_shift = [c's 5 least significant bits] divided by 8 = 3rd and
-        // 4th least significant bits of c.
+        // The two-bit number represented by the 3rd and 4th least significant bits of c is the
+        // number of bytes to shift.
         let num_bytes_to_shift =
             local.c_least_sig_byte[3] + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
 
@@ -263,8 +263,8 @@ where
 
         // Step 3: Verify that the result matches a.
 
-        // a's bytes should match bit_shift_result's bytes modulo shifting as we're simply copying
-        // bytes to the appropriate positions.
+        // The bytes of a must match those of bit_shift_result, taking into account the byte
+        // shifting.
         for num_bytes_to_shift in 0..WORD_SIZE {
             let mut shifting = builder.when(local.shift_by_n_bytes[num_bytes_to_shift]);
             for i in 0..WORD_SIZE {
