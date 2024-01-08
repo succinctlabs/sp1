@@ -205,8 +205,9 @@ where
         // We first "bit shift" and next we "byte shift". Then we compare the results with a.
         // Finally, we perform some misc checks.
 
-        // Step 1: Verify all the variables for "bit shifting". Ensure that c_least_sig_byte is
-        // correct by using c.
+        // Step 1: Verify all the variables for "bit shifting".
+
+        // Check the sum of c_least_sig_byte[i] * 2^i equals c[0].
         let mut c_byte_sum = zero.clone();
         for i in 0..BYTE_SIZE {
             let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
@@ -214,8 +215,10 @@ where
         }
         builder.assert_eq(c_byte_sum, local.c[0]);
 
-        // Ensure that shift_by_n_bits are correct using c_least_sig_byte.
+        // Check shift_by_n_bits[i] is 1 iff i = num_bits_to_shift.
         let mut num_bits_to_shift = zero.clone();
+        // 3 is the maximum number of bits necessary to represent num_bits_to_shift as
+        // num_bits_to_shift is in [0, 7].
         for i in 0..3 {
             num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
         }
@@ -225,7 +228,7 @@ where
                 .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
         }
 
-        // Ensure that bit_shift_multiplier is correct using shift_by_n_bits.
+        // Check bit_shift_multiplier = 2^num_bits_to_shift by using shift_by_n_bits.
         for i in 0..BYTE_SIZE {
             builder.when(local.shift_by_n_bits[i]).assert_eq(
                 local.bit_shift_multiplier.clone(),
@@ -233,8 +236,8 @@ where
             );
         }
 
-        // Ensure that bit_shift_result and bit_shift_result_carry is correct using
-        // bit_shift_multiplier.
+        // Check bit_shift_result = b * bit_shift_multiplier by using bit_shift_result_carry to
+        // carry-propagate.
         for i in 0..WORD_SIZE {
             let mut v = local.b[i] * local.bit_shift_multiplier
                 - local.bit_shift_result_carry[i].clone() * base.clone();
@@ -246,19 +249,22 @@ where
 
         // Step 2: Verify all the variables for "byte shift".
 
-        // Verify that num_bytes_to_shift is correct using c_least_sig_byte.
+        // Verify that num_bytes_to_shift = [c's 5 least significant bits] divided by 8 = 3rd and
+        // 4th least significant bits of c.
         let num_bytes_to_shift =
             local.c_least_sig_byte[3] + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
 
-        // Verify that shift_by_n_bytes is correct using num_bytes_to_shift.
+        // Verify that shift_by_n_bytes[i] = 1 if and only if i = num_bytes_to_shift.
         for i in 0..WORD_SIZE {
             builder
                 .when(local.shift_by_n_bytes[i])
                 .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
         }
+
         // Step 3: Verify that the result matches a.
 
-        // Verify that local.a is indeed correct using shift_by_n_bytes and bit_shift_result.
+        // a's bytes should match bit_shift_result's bytes modulo shifting as we're simply copying
+        // bytes to the appropriate positions.
         for num_bytes_to_shift in 0..WORD_SIZE {
             let mut shifting = builder.when(local.shift_by_n_bytes[num_bytes_to_shift]);
             for i in 0..WORD_SIZE {
@@ -274,8 +280,7 @@ where
             }
         }
 
-        // Step 4: Perform misc checks such as range checks & bool checks. Finally, perform all the
-        // range checks.
+        // Step 4: Perform misc checks such as range checks & bool checks.
         for bit in local.c_least_sig_byte.iter() {
             builder.assert_bool(*bit);
         }
