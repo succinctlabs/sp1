@@ -1,16 +1,19 @@
 //! Verifies left shift.
 //!
-//! We calculate b << c by splitting it into "byte shift" and "bit shift":
+//! b << c = b << (8 * num_bytes_to_shift + num_bits_to_shift) = (b << num_bits_to_shift) <<
+//! num_bits_to_shift = (b * pow(2, num_bits_to_shift)) << num_bytes_to_shift where
+//! num_bits_to_shift = c % 8 and num_bytes_to_shift = c // 8. We will call shifting by
+//! num_bits_to_shift "bit shifting" and shifting by 8 * num_bytes_to_shift "byte shifting".
 //!
-//! c = take the last 5 bits of c
+//! c = take the least significant 5 bits of c
 //! num_bytes_to_shift = c // 8
 //! num_bits_to_shift = c % 8
 //!
-//! # Bit shift. Shift it by num_bits_to_shift.
+//! # "Bit shift"
 //! bit_shift_multiplier = pow(2, num_bits_to_shift)
 //! bit_shift_result = bit_shift_multiplier * b
 //!
-//! # Byte shift. Shift it by 8 * num_bytes_to_shift.
+//! # "Byte shift"
 //! for i in range(WORD_SIZE):
 //!     if i < num_bytes_to_shift:
 //!         assert(a[i] == 0)
@@ -58,21 +61,22 @@ pub struct ShiftCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// c's least significant byte. Used to verify shift_by_n_bits and
-    /// shift_by_n_bytes.
+    /// The least significant byte of `c`. Used to verify `shift_by_n_bits`` and `shift_by_n_bytes`.
     pub c_least_sig_byte: [T; BYTE_SIZE],
 
-    /// shift_by_n_bits[i] = 1 iff num_bits_to_shift = i.
+    /// A boolean array whose `i`th element indicates whether `num_bits_to_shift = i`.
     pub shift_by_n_bits: [T; BYTE_SIZE],
 
-    /// 2^num_bits_to_shift.
+    /// The number to multiply to shift `b` by `num_bits_to_shift`. (i.e., `2^num_bits_to_shift`)
     pub bit_shift_multiplier: T,
 
-    /// b * bit_shift_multiplier.
+    /// The result of multiplying `b` by `bit_shift_multiplier`.
     pub bit_shift_result: [T; WORD_SIZE],
+
+    /// The carry propagated when multiplying `b` by `bit_shift_multiplier`.
     pub bit_shift_result_carry: [T; WORD_SIZE],
 
-    /// shift_by_n_bytes[i] = 1 iff num_bytes_to_shift = i.
+    /// A boolean array whose `i`th element indicates whether `num_bytes_to_shift = i`.
     pub shift_by_n_bytes: [T; WORD_SIZE],
 
     /// Selector flags for the operation to perform.
@@ -160,8 +164,8 @@ impl<F: PrimeField> Chip<F> for ShiftChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_SHIFT_COLS, F>(&mut trace.values);
 
-        // Create the template for the padded rows. These are fake rows that
-        // don't fail on some sanity checks.
+        // Create the template for the padded rows. These are fake rows that don't fail on some
+        // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_SHIFT_COLS];
             let cols: &mut ShiftCols<F> = unsafe { transmute(&mut row) };
@@ -198,11 +202,11 @@ where
         let one: AB::Expr = AB::F::one().into();
         let base: AB::Expr = AB::F::from_canonical_u32(1 << BYTE_SIZE).into();
 
-        // We first "bit shift" and next we "byte shift". Then we compare the
-        // results with a. Finally, we perform some misc checks.
+        // We first "bit shift" and next we "byte shift". Then we compare the results with a.
+        // Finally, we perform some misc checks.
 
-        // Step 1: Verify all the variables for "bit shifting".
-        // Ensure that c_least_sig_byte is correct by using c.
+        // Step 1: Verify all the variables for "bit shifting". Ensure that c_least_sig_byte is
+        // correct by using c.
         let mut c_byte_sum = zero.clone();
         for i in 0..BYTE_SIZE {
             let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
@@ -229,8 +233,8 @@ where
             );
         }
 
-        // Ensure that bit_shift_result and bit_shift_result_carry is correct
-        // using bit_shift_multiplier.
+        // Ensure that bit_shift_result and bit_shift_result_carry is correct using
+        // bit_shift_multiplier.
         for i in 0..WORD_SIZE {
             let mut v = local.b[i] * local.bit_shift_multiplier
                 - local.bit_shift_result_carry[i].clone() * base.clone();
@@ -254,8 +258,7 @@ where
         }
         // Step 3: Verify that the result matches a.
 
-        // Verify that local.a is indeed correct using shift_by_n_bytes and
-        // bit_shift_result.
+        // Verify that local.a is indeed correct using shift_by_n_bytes and bit_shift_result.
         for num_bytes_to_shift in 0..WORD_SIZE {
             let mut shifting = builder.when(local.shift_by_n_bytes[num_bytes_to_shift]);
             for i in 0..WORD_SIZE {
@@ -271,8 +274,8 @@ where
             }
         }
 
-        // Step 4: Perform misc checks such as range checks & bool checks.
-        // Finally, perform all the range checks.
+        // Step 4: Perform misc checks such as range checks & bool checks. Finally, perform all the
+        // range checks.
         for bit in local.c_least_sig_byte.iter() {
             builder.assert_bool(*bit);
         }
