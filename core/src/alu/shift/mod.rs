@@ -209,7 +209,7 @@ where
         // We first "bit shift" and next we "byte shift". Then we compare the results with a.
         // Finally, we perform some misc checks.
 
-        // Step 1: Verify all the variables for "bit shifting".
+        // Step 1: Perform the fine-grained bit shift (i.e., shifting b by c % 8 bits).
 
         // Check the sum of c_least_sig_byte[i] * 2^i equals c[0].
         let mut c_byte_sum = zero.clone();
@@ -251,7 +251,7 @@ where
             builder.assert_eq(local.bit_shift_result[i], v);
         }
 
-        // Step 2: Verify all the variables for "byte shift".
+        // Step 2: Perform the coarser bit shift (i.e., shifting b by c // 8 bits).
 
         // The two-bit number represented by the 3rd and 4th least significant bits of c is the
         // number of bytes to shift.
@@ -264,8 +264,6 @@ where
                 .when(local.shift_by_n_bytes[i])
                 .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
         }
-
-        // Step 3: Verify that the result matches a.
 
         // The bytes of a must match those of bit_shift_result, taking into account the byte
         // shifting.
@@ -284,7 +282,7 @@ where
             }
         }
 
-        // Step 4: Perform misc checks such as range checks & bool checks.
+        // Step 3: Misc checks such as range checks & bool checks.
         for bit in local.c_least_sig_byte.iter() {
             builder.assert_bool(*bit);
         }
