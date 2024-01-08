@@ -198,16 +198,10 @@ where
         let one: AB::Expr = AB::F::one().into();
         let base: AB::Expr = AB::F::from_canonical_u32(1 << BYTE_SIZE).into();
 
-        // Verification dependency path:
-        // c -> c_least_sig_byte
-        //
-        // c_least_sig_byte -> num_bits_to_shift -> shift_by_n_bits ->
-        // bit_shift_multiplier -> (bit_shift_result, bit_shift_result_carry)
-        //
-        // c_least_sig_byte -> num_bytes_to_shift -> shift_by_n_bytes
-        //
-        // (bit_shift_result, shift_by_n_bytes) -> a
+        // We first "bit shift" and next we "byte shift". Then we compare the
+        // results with a. Finally, we perform some misc checks.
 
+        // Step 1: Verify all the variables for "bit shifting".
         // Ensure that c_least_sig_byte is correct by using c.
         let mut c_byte_sum = zero.clone();
         for i in 0..BYTE_SIZE {
@@ -246,7 +240,7 @@ where
             builder.assert_eq(local.bit_shift_result[i], v);
         }
 
-        // We finished "bit shifting." Now we will "byte shift."
+        // Step 2: Verify all the variables for "byte shift".
 
         // Verify that num_bytes_to_shift is correct using c_least_sig_byte.
         let num_bytes_to_shift =
@@ -258,6 +252,7 @@ where
                 .when(local.shift_by_n_bytes[i])
                 .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
         }
+        // Step 3: Verify that the result matches a.
 
         // Verify that local.a is indeed correct using shift_by_n_bytes and
         // bit_shift_result.
@@ -276,22 +271,7 @@ where
             }
         }
 
-        // Receive the arguments.
-        builder.receive_alu(
-            local.is_sll * AB::F::from_canonical_u32(Opcode::SLL as u32)
-                + local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
-                + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
-            local.a,
-            local.b,
-            local.c,
-            local.is_sll + local.is_srl + local.is_sra,
-        );
-
-        // A dummy constraint to keep the degree at least 3.
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
-
+        // Step 4: Perform misc checks such as range checks & bool checks.
         // Finally, perform all the range checks.
         for bit in local.c_least_sig_byte.iter() {
             builder.assert_bool(*bit);
@@ -336,6 +316,22 @@ where
         builder.assert_eq(local.is_sll + local.is_srl + local.is_sra, one.clone());
 
         builder.assert_bool(local.is_real);
+
+        // Receive the arguments.
+        builder.receive_alu(
+            local.is_sll * AB::F::from_canonical_u32(Opcode::SLL as u32)
+                + local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
+                + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
+            local.a,
+            local.b,
+            local.c,
+            local.is_sll + local.is_srl + local.is_sra,
+        );
+
+        // A dummy constraint to keep the degree at least 3.
+        builder.assert_zero(
+            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
     }
 }
 
