@@ -58,8 +58,8 @@ pub struct ShiftCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// c's least significant byte. Used to verify shift_by_*_bits and
-    /// shift_by_*_bytes.
+    /// c's least significant byte. Used to verify shift_by_n_bits and
+    /// shift_by_n_bytes.
     pub c_least_sig_byte: [T; BYTE_SIZE],
 
     /// shift_by_n_bits[i] = 1 iff num_bits_to_shift = i.
