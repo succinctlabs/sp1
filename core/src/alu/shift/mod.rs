@@ -6,11 +6,11 @@
 //! num_bytes_to_shift = c // 8
 //! num_bits_to_shift = c % 8
 //!
-//! # Bit shift
+//! # Bit shift. Shift it by num_bits_to_shift.
 //! bit_shift_multiplier = pow(2, num_bits_to_shift)
 //! bit_shift_result = bit_shift_multiplier * b
 //!
-//! # Byte shift
+//! # Byte shift. Shift it by 8 * num_bytes_to_shift.
 //! for i in range(WORD_SIZE):
 //!     if i < num_bytes_to_shift:
 //!         assert(a[i] == 0)
