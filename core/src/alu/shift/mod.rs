@@ -1,9 +1,14 @@
 //! Verifies left shift.
 //!
-//! b << c = b << (8 * num_bytes_to_shift + num_bits_to_shift) = (b << num_bits_to_shift) <<
-//! (8 * num_bytes_to_shift) = (b * pow(2, num_bits_to_shift)) << (8 * num_bytes_to_shift) where
-//! num_bits_to_shift = c % 8 and num_bytes_to_shift = c // 8. We will call shifting by
-//! num_bits_to_shift "bit shifting" and shifting by 8 * num_bytes_to_shift "byte shifting".
+//! This module implements left shift (b << c) as a combination of bit and byte shifts.
+//!
+//! The shift amount c is decomposed into two components:
+//!
+//! - num_bits_to_shift = c % 8: Represents the fine-grained bit-level shift.
+//! - num_bytes_to_shift = c // 8: Represents the coarser byte-level shift.
+//!
+//! Bit shifting is done by multiplying b by 2^num_bits_to_shift. Byte shifting is done by shifting
+//! words. The logic looks as follows:
 //!
 //! c = take the least significant 5 bits of c
 //! num_bytes_to_shift = c // 8
@@ -21,10 +26,9 @@
 //!         assert(a[i] == bit_shift_result[i - num_bytes_to_shift])
 //!
 //! Notes:
-//! - Ideally, we would simply calculate b * pow(2, c), but pow(2, c) could
-//!   overflow in F. pow(2, num_bits_to_shift) won't.
-//! - Shifting by a multiple of 8 bits is easy (=num_bytes_to_shift) since we
-//!   just shift words.
+//!
+//! - Ideally, we would calculate b * pow(2, c), but pow(2, c) could overflow in F.
+//! - Shifting by a multiple of 8 bits is easy (=num_bytes_to_shift) since we just shift words.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
