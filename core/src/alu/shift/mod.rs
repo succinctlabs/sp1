@@ -1,7 +1,7 @@
 //! Verifies left shift.
 //!
 //! b << c = b << (8 * num_bytes_to_shift + num_bits_to_shift) = (b << num_bits_to_shift) <<
-//! num_bits_to_shift = (b * pow(2, num_bits_to_shift)) << num_bytes_to_shift where
+//! (8 * num_bytes_to_shift) = (b * pow(2, num_bits_to_shift)) << (8 * num_bytes_to_shift) where
 //! num_bits_to_shift = c % 8 and num_bytes_to_shift = c // 8. We will call shifting by
 //! num_bits_to_shift "bit shifting" and shifting by 8 * num_bytes_to_shift "byte shifting".
 //!
