@@ -292,7 +292,7 @@ mod tests {
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
-    use p3_matrix::{dense::RowMajorMatrix, MatrixRowSlices};
+    use p3_matrix::dense::RowMajorMatrix;
     use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
