@@ -17,10 +17,9 @@ use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::air::Word;
+use crate::cpu::air::MemoryAccessCols;
 use crate::precompiles::sha256_extend::flags::populate_flags;
 use crate::runtime::Segment;
-use crate::utils::pad_to_power_of_two;
 use crate::utils::Chip;
 
 use self::flags::eval_flags;
@@ -32,29 +31,38 @@ pub const NUM_SHA_EXTEND_COLS: usize = size_of::<ShaExtendCols<u8>>();
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
 pub struct ShaExtendCols<T> {
+    /// Inputs.
+    pub segment: T,
+    pub clk: T,
+    pub w_ptr: T,
+
+    /// Control flags.
     pub i: T,
     pub cycle_16: T,
+    pub cycle_16_minus_g: T,
+    pub cycle_16_minus_g_inv: T,
+    pub cycle_16_start: T,
     pub cycle_16_minus_one: T,
     pub cycle_16_minus_one_inv: T,
-    pub cycle_16_minus_one_is_zero: T,
-    pub cycle_3: [T; 3],
-    // pub w_i_minus_15: Word<T>,
+    pub cycle_16_end: T,
+    pub cycle_48: [T; 3],
+    pub cycle_48_start: T,
+    pub cycle_48_end: T,
+    // pub w_i_minus_15: MemoryAccessCols<T>,
     // pub w_i_minus_15_rr_7: Word<T>,
     // pub w_i_minus_15_rr_18: Word<T>,
     // pub w_i_minus_15_rs_3: Word<T>,
     // pub w_i_minus_15_rr_7_xor_w_i_minus_15_rr_18: Word<T>,
     // pub s0: Word<T>,
-    // pub w_i_minus_2: Word<T>,
+    // pub w_i_minus_2: MemoryAccessCols<T>,
     // pub w_i_minus_2_rr_17: Word<T>,
     // pub w_i_minus_2_rr_19: Word<T>,
     // pub w_i_minus_2_rs_10: Word<T>,
     // pub w_i_minus_2_rr_17_xor_w_i_minus_2_rr_19: Word<T>,
     // pub s1: Word<T>,
-
-    // pub w_i_minus_16: Word<T>,
+    // pub w_i_minus_16: MemoryAccessCols<T>,
     // pub w_i_minus_16_plus_s0: Word<T>,
-
-    // pub w_i_minus_7: Word<T>,
+    // pub w_i_minus_7: MemoryAccessCols<T>,
     // pub w_i_minus_7_plus_s1: Word<T>,
 
     // pub w_i: Word<T>,
@@ -111,6 +119,29 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         eval_flags(builder);
+
+        let main = builder.main();
+        let local: &ShaExtendCols<AB::Var> = main.row_slice(0).borrow();
+        let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
+
+        let one = AB::Expr::from(AB::F::one());
+
+        // Copy over the inputs until the result has been computed (every 48 rows).
+        builder
+            .when_transition()
+            .when(one.clone() - local.cycle_16_end * local.cycle_48[2])
+            .assert_eq(local.segment, next.segment);
+        builder
+            .when_transition()
+            .when(one.clone() - local.cycle_16_end * local.cycle_48[2])
+            .assert_eq(local.clk, next.clk);
+        builder
+            .when_transition()
+            .when(one.clone() - local.cycle_16_end * local.cycle_48[2])
+            .assert_eq(local.w_ptr, next.w_ptr);
+
+        // Read from memory.
+        // builder.constraint_memory_access(segment, clk, addr, memory_access, multiplicity)
     }
 }
 

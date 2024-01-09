@@ -16,22 +16,31 @@ pub(crate) fn populate_flags<F: PrimeField>(i: usize, cols: &mut ShaExtendCols<F
     // The generator of the multiplicative subgroup.
     let g = F::from_canonical_u32(BabyBear::two_adic_generator(4).as_canonical_u32());
 
-    // Populate the columns needed to keep track of cycles of 16.
+    // Populate the columns needed to keep track of cycles of 16 rows.
     cols.cycle_16 = g.exp_u64((i + 1) as u64);
-    cols.cycle_16_minus_one = cols.cycle_16 - F::one();
-    cols.cycle_16_minus_one_inv = if cols.cycle_16_minus_one == F::zero() {
-        F::one()
-    } else {
-        cols.cycle_16_minus_one.inverse()
-    };
-    cols.cycle_16_minus_one_is_zero = F::from_bool(cols.cycle_16_minus_one == F::zero());
 
-    // Populate the columns needed to keep track of cycles of 13.
+    // Populate the columns needed to track the start of a cycle of 16 rows.
+    cols.cycle_16_minus_g = cols.cycle_16 - g;
+    cols.cycle_16_minus_g_inv = cols
+        .cycle_16_minus_g
+        .try_inverse()
+        .unwrap_or_else(|| F::zero());
+    cols.cycle_16_start = F::from_bool(cols.cycle_16_minus_g == F::zero());
+
+    // Populate the columns needed to track the end of a cycle of 16 rows.
+    cols.cycle_16_minus_one = cols.cycle_16 - F::one();
+    cols.cycle_16_minus_one_inv = cols
+        .cycle_16_minus_one
+        .try_inverse()
+        .unwrap_or_else(|| F::zero());
+    cols.cycle_16_end = F::from_bool(cols.cycle_16_minus_one == F::zero());
+
+    // Populate the columns needed to keep track of cycles of 48 rows.
     let j = i % 48;
     cols.i = F::from_canonical_usize(j);
-    cols.cycle_3[0] = F::from_bool(j < 16);
-    cols.cycle_3[1] = F::from_bool(16 <= j && j < 32);
-    cols.cycle_3[2] = F::from_bool(32 <= j && j < 48);
+    cols.cycle_48[0] = F::from_bool(j < 16);
+    cols.cycle_48[1] = F::from_bool(16 <= j && j < 32);
+    cols.cycle_48[2] = F::from_bool(32 <= j && j < 48);
 }
 
 pub(crate) fn eval_flags<AB: CurtaAirBuilder>(builder: &mut AB) {
@@ -40,47 +49,52 @@ pub(crate) fn eval_flags<AB: CurtaAirBuilder>(builder: &mut AB) {
     let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
 
     let one = AB::Expr::from(AB::F::one());
-    let cycle_16_generator =
-        AB::F::from_canonical_u32(BabyBear::two_adic_generator(4).as_canonical_u32());
+    let g = AB::F::from_canonical_u32(BabyBear::two_adic_generator(4).as_canonical_u32());
 
     // Initialize counter variables on the first row.
-    builder
-        .when_first_row()
-        .assert_eq(local.cycle_16, cycle_16_generator);
+    builder.when_first_row().assert_eq(local.cycle_16, g);
 
     // Multiply the current cycle by the generator of group with order 16.
     builder
         .when_transition()
-        .assert_eq(local.cycle_16 * cycle_16_generator, next.cycle_16);
+        .assert_eq(local.cycle_16 * g, next.cycle_16);
 
-    // Calculate whether 16 cycles have passed.
+    // Calculate whether it's the beggining of the cycle of 16 rows.
+    builder.assert_eq(local.cycle_16 - g, local.cycle_16_minus_g);
+    builder.assert_eq(
+        one.clone() - local.cycle_16_minus_g * local.cycle_16_minus_g_inv,
+        local.cycle_16_start,
+    );
+    builder.assert_zero(local.cycle_16_minus_g * local.cycle_16_start);
+
+    // Calculate whether it's the end of the cycle of 16 rows.
     builder.assert_eq(local.cycle_16 - one.clone(), local.cycle_16_minus_one);
     builder.assert_eq(
         one.clone() - local.cycle_16_minus_one * local.cycle_16_minus_one_inv,
-        local.cycle_16_minus_one_is_zero,
+        local.cycle_16_end,
     );
-    builder.assert_zero(local.cycle_16_minus_one * local.cycle_16_minus_one_is_zero);
+    builder.assert_zero(local.cycle_16_minus_one * local.cycle_16_end);
 
     // Increment the step flags when 16 cycles have passed. Otherwise, keep them the same.
     for i in 0..3 {
         builder
             .when_transition()
-            .when(local.cycle_16_minus_one_is_zero)
-            .assert_eq(local.cycle_3[i], next.cycle_3[(i + 1) % 3]);
+            .when(local.cycle_16_end)
+            .assert_eq(local.cycle_48[i], next.cycle_48[(i + 1) % 3]);
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_16_minus_one_is_zero)
-            .assert_eq(local.cycle_3[i], next.cycle_3[i]);
+            .when(one.clone() - local.cycle_16_end)
+            .assert_eq(local.cycle_48[i], next.cycle_48[i]);
     }
 
     // Increment `i` by one. Once it reaches the end of the cycle, reset it to zero.
     builder
         .when_transition()
-        .when(local.cycle_16_minus_one_is_zero * local.cycle_3[2])
+        .when(local.cycle_16_end * local.cycle_48[2])
         .assert_eq(next.i, AB::F::zero());
     builder
         .when_transition()
-        .when(one.clone() - local.cycle_16_minus_one_is_zero)
+        .when(one.clone() - local.cycle_16_end)
         .assert_eq(local.i + one.clone(), next.i);
 
     builder.assert_eq(
