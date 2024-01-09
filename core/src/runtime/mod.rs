@@ -261,10 +261,10 @@ impl Runtime {
                 self.segment.bitwise_events.push(event);
             }
             Opcode::SLL => {
-                self.segment.left_shift_events.push(event);
+                self.segment.shift_left_events.push(event);
             }
             Opcode::SRL | Opcode::SRA => {
-                self.segment.right_shift_events.push(event);
+                self.segment.shift_right_events.push(event);
             }
             Opcode::SLT | Opcode::SLTU => {
                 self.segment.lt_events.push(event);

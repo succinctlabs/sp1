@@ -47,7 +47,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
-            .right_shift_events
+            .shift_right_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        segment.right_shift_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
+        segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
         let chip = RightShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
@@ -187,7 +187,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut segment = Segment::default();
-        segment.right_shift_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)].repeat(1000);
+        segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)].repeat(1000);
         let chip = RightShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);

@@ -99,7 +99,7 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
-            .left_shift_events
+            .shift_left_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
@@ -171,7 +171,7 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
             row
         };
         debug_assert!(padded_row_template.len() == NUM_SHIFT_LEFT_COLS);
-        for i in segment.left_shift_events.len() * NUM_SHIFT_LEFT_COLS..trace.values.len() {
+        for i in segment.shift_left_events.len() * NUM_SHIFT_LEFT_COLS..trace.values.len() {
             trace.values[i] = padded_row_template[i % NUM_SHIFT_LEFT_COLS];
         }
 
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        segment.left_shift_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
+        segment.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
         let chip = LeftShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
@@ -438,7 +438,7 @@ mod tests {
         }
 
         let mut segment = Segment::default();
-        segment.left_shift_events = shift_events;
+        segment.shift_left_events = shift_events;
         let chip = LeftShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);

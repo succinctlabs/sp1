@@ -35,10 +35,10 @@ pub struct Segment {
     pub bitwise_events: Vec<AluEvent>,
 
     /// A trace of the SLL and SLLI events.
-    pub left_shift_events: Vec<AluEvent>,
+    pub shift_left_events: Vec<AluEvent>,
 
     /// A trace of the SRL, SRLI, SRA, and SRAI events.
-    pub right_shift_events: Vec<AluEvent>,
+    pub shift_right_events: Vec<AluEvent>,
 
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
