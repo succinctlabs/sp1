@@ -48,14 +48,14 @@ use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
-pub const NUM_LEFT_SHIFT_COLS: usize = size_of::<LeftShiftCols<u8>>();
+pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
 
 pub const BYTE_SIZE: usize = 8;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
-pub struct LeftShiftCols<T> {
+pub struct ShiftLeftCols<T> {
     /// The output operand.
     pub a: Word<T>,
 
@@ -102,8 +102,8 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
             .left_shift_events
             .par_iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_LEFT_SHIFT_COLS];
-                let cols: &mut LeftShiftCols<F> = unsafe { transmute(&mut row) };
+                let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
+                let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
@@ -154,25 +154,25 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_LEFT_SHIFT_COLS,
+            NUM_SHIFT_LEFT_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_LEFT_SHIFT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_SHIFT_LEFT_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
         let padded_row_template = {
-            let mut row = [F::zero(); NUM_LEFT_SHIFT_COLS];
-            let cols: &mut LeftShiftCols<F> = unsafe { transmute(&mut row) };
+            let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
+            let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
             cols.shift_by_n_bits[0] = F::one();
             cols.shift_by_n_bytes[0] = F::one();
             cols.bit_shift_multiplier = F::one();
             row
         };
-        debug_assert!(padded_row_template.len() == NUM_LEFT_SHIFT_COLS);
-        for i in segment.left_shift_events.len() * NUM_LEFT_SHIFT_COLS..trace.values.len() {
-            trace.values[i] = padded_row_template[i % NUM_LEFT_SHIFT_COLS];
+        debug_assert!(padded_row_template.len() == NUM_SHIFT_LEFT_COLS);
+        for i in segment.left_shift_events.len() * NUM_SHIFT_LEFT_COLS..trace.values.len() {
+            trace.values[i] = padded_row_template[i % NUM_SHIFT_LEFT_COLS];
         }
 
         trace
@@ -181,7 +181,7 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
 
 impl<F> BaseAir<F> for LeftShiftChip {
     fn width(&self) -> usize {
-        NUM_LEFT_SHIFT_COLS
+        NUM_SHIFT_LEFT_COLS
     }
 }
 
@@ -191,7 +191,7 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &LeftShiftCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &ShiftLeftCols<AB::Var> = main.row_slice(0).borrow();
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();

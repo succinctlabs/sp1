@@ -15,11 +15,11 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
-pub const RIGHT_NUM_SHIFT_COLS: usize = size_of::<RightShiftCols<u8>>();
+pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
-pub struct RightShiftCols<T> {
+pub struct ShiftRightCols<T> {
     /// The output operand.
     pub a: Word<T>,
 
@@ -50,8 +50,8 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
             .right_shift_events
             .par_iter()
             .map(|event| {
-                let mut row = [F::zero(); RIGHT_NUM_SHIFT_COLS];
-                let cols: &mut RightShiftCols<F> = unsafe { transmute(&mut row) };
+                let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
+                let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
@@ -67,11 +67,11 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            RIGHT_NUM_SHIFT_COLS,
+            NUM_SHIFT_RIGHT_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<RIGHT_NUM_SHIFT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
 
         trace
     }
@@ -79,7 +79,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
 
 impl<F> BaseAir<F> for RightShiftChip {
     fn width(&self) -> usize {
-        RIGHT_NUM_SHIFT_COLS
+        NUM_SHIFT_RIGHT_COLS
     }
 }
 
@@ -89,7 +89,7 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &RightShiftCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
 
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
