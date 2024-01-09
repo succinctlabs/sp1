@@ -4,34 +4,29 @@
 //!
 //! Implementation:
 //!
-//! result = 0
+//! # Convert c, quotient, and remainder to 64 bits. Sign extension if opcode is signed.
 //!
-//! is_overflow = b == -pow(2, 31) && c == -1
-//!
-//! # quotient * c.
-//! for i in range(WORD_SIZE):
-//!     for j in range(WORD_SIZE):
-//!         if i + j < WORD_SIZE:
-//!             result[i + j] += quotient[i] * c[j]
-//!
-//! # Carry propagate.
 //! base = pow(2, 8)
+//!
+//! # Use the multiplication ALU table. result is 64 bits.
+//! result = quotient * c.
+//!
+//! # result + remainder
+//! for i in range(8):
+//!     result[i] += remainder[i]
+//!
+//! # Propagate carry
 //! carry = 0
-//! for i in range(WORD_SIZE):
+//! for i in range(8):
 //!     x = result[i] + carry
 //!     result[i] = x % base
 //!     carry = x // base
-//! if not is_overflow:
-//!     assert carry == 0
-//!
-//! # result + remainder
-//! for i in range(WORD_SIZE):
-//!     result[i] += remainder[i]
-//!
-//! # Carry propagate again, exactly like above.
 //!
 //! # Assert the results
-//! assert result[i] == b[i] for each i.
+//! assert result[0..4] == b[0..4]
+//!
+//! # Assert the sign bits. c * quotient + remainder must not overflow beyond 32 bits.
+//! assert results[4..8] == [0, 0, 0, 0] or [0xff, 0xff, 0xff, 0xff]
 //!
 //! # remainder and b must have the same sign.
 //! if remainder < 0:
@@ -44,17 +39,15 @@
 //!    assert c < remainder <= 0
 //! elif c > 0:
 //!    assert 0 <= remainder < c
-//! if c == 0:
-//!    # division by 0
-//!    assert quotient = 0xffffffff
 //!
-//! Corner Cases:
-//! - Division by Zero: Quotient is 0xffffffff, remainder equals b.
-//! - Overflow: For b = -2^31 and c = -1, quotient = -2^31, remainder = 0.
+//! if c == 0:
+//!    # if division by 0, then quotient = 0xffffffff per RISC-V spec.
+//!    assert quotient = 0xffffffff
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -88,13 +81,22 @@ pub struct DivRemCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// b = quotient * c + remainder.
+    /// Results of dividing `b` by `c`.
     pub quotient: [T; WORD_SIZE],
+
+    /// Remainder when dividing `b` by `c`.
     pub remainder: [T; WORD_SIZE],
 
-    /// `carry` stores the carry when "carry-propagating" quotient * c + remainder.
-    pub carry: [T; WORD_SIZE],
+    /// Carry propagated when multiplying `c` by `quotient`.
+    pub carry_mul: [T; WORD_SIZE],
 
+    /// The result of `c * quotient`.
+    pub c_times_quotient: [T; WORD_SIZE],
+
+    /// Carry propagated when adding `remainder` by `c * quotient`.
+    pub carry_add: [T; WORD_SIZE],
+
+    /// Flag to indicate division by 0.
     pub division_by_0: T,
 
     pub is_divu: T,
@@ -102,10 +104,16 @@ pub struct DivRemCols<T> {
     pub is_rem: T,
     pub is_div: T,
 
+    /// The most significant bit of `b`.
     pub b_msb: T,
+
+    /// The most significant bit of remainder.
     pub rem_msb: T,
 
+    /// Flag to indicate whether `b` is negative.
     pub b_neg: T,
+
+    /// Flag to indicate whether `rem_neg` is negative.
     pub rem_neg: T,
 
     /// Selector to know whether this row is enabled.
@@ -125,7 +133,11 @@ fn is_signed_operation(opcode: Opcode) -> bool {
     opcode == Opcode::DIV || opcode == Opcode::REM
 }
 
-fn divide_and_remainder(b: u32, c: u32, opcode: Opcode) -> ([u8; WORD_SIZE], [u8; WORD_SIZE]) {
+fn get_quotient_and_remainder(
+    b: u32,
+    c: u32,
+    opcode: Opcode,
+) -> ([u8; WORD_SIZE], [u8; WORD_SIZE]) {
     if c == 0 {
         // When c is 0, the quotient is 2^32 - 1 and the remainder is b
         // regardless of whether we perform signed or unsigned division.
@@ -161,48 +173,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let a_word = event.a.to_le_bytes();
                 let b_word = event.b.to_le_bytes();
                 let c_word = event.c.to_le_bytes();
-
-                let (quotient, remainder) = divide_and_remainder(event.b, event.c, event.opcode);
-
-                cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
-                cols.b_msb = F::from_canonical_u8(get_msb(b_word));
-
-                let mut result = [0u32; WORD_SIZE];
-
-                // Multiply the quotient by c.
-                for i in 0..quotient.len() {
-                    for j in 0..c_word.len() {
-                        if i + j < result.len() {
-                            result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
-                        }
-                    }
-                }
-
-                // Add remainder to product.
-                for i in 0..WORD_SIZE {
-                    result[i] += remainder[i] as u32;
-                }
-
-                let base = 1 << BYTE_SIZE;
-
-                // "carry-propagate" as some terms are bigger than u8 now.
-                for i in 0..WORD_SIZE {
-                    let carry = result[i] / base;
-                    result[i] %= base;
-                    if i + 1 < result.len() {
-                        result[i + 1] += carry;
-                    }
-                    cols.carry[i] = F::from_canonical_u32(carry);
-                }
-
-                // result is c * quotient + remainder, which must equal b.
-                result.iter().zip(b_word.iter()).for_each(|(r, b)| {
-                    assert_eq!(*r, *b as u32);
-                });
-
-                cols.quotient = quotient.map(F::from_canonical_u8);
-                cols.remainder = remainder.map(F::from_canonical_u8);
-
                 cols.a = Word(a_word.map(F::from_canonical_u8));
                 cols.b = Word(b_word.map(F::from_canonical_u8));
                 cols.c = Word(c_word.map(F::from_canonical_u8));
@@ -211,13 +181,72 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
+                if event.c == 0 {
+                    cols.division_by_0 = F::one();
+                }
+                let (quotient, remainder) =
+                    get_quotient_and_remainder(event.b, event.c, event.opcode);
+
+                cols.quotient = quotient.map(F::from_canonical_u8);
+                cols.remainder = remainder.map(F::from_canonical_u8);
                 if is_signed_operation(event.opcode) {
                     cols.b_neg = F::from_bool((event.b as i32) < 0);
                     cols.rem_neg = F::from_bool(i32::from_le_bytes(remainder) < 0);
                 }
+                cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
+                cols.b_msb = F::from_canonical_u8(get_msb(b_word));
 
-                if event.c == 0 {
-                    cols.division_by_0 = F::one();
+                // b = -2^31, c = -1.
+                let is_overflow = event.b == (1u32 << 31) && event.c == u32::MAX;
+
+                let base = 1 << BYTE_SIZE;
+
+                let mut result = [0u32; WORD_SIZE];
+
+                // Multiply the quotient by c.
+                for i in 0..WORD_SIZE {
+                    for j in 0..WORD_SIZE {
+                        if i + j < WORD_SIZE {
+                            result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
+                        }
+                    }
+                }
+
+                let mut carry = 0u32;
+                for i in 0..WORD_SIZE {
+                    let x = result[i] + carry;
+                    result[i] = x % base;
+                    cols.c_times_quotient[i] = F::from_canonical_u32(result[i]);
+                    carry = x / base;
+                    cols.carry_mul[i] = F::from_canonical_u32(carry);
+                }
+
+                if !is_overflow {
+                    if carry != 0 {
+                        println!(
+                            "carry = {}, {} = {} * {:?} + {:?}",
+                            carry, event.b, event.c, quotient, remainder
+                        );
+                    }
+                    debug_assert_eq!(carry, 0);
+                }
+
+                // Add remainder to product.
+                for i in 0..WORD_SIZE {
+                    result[i] += remainder[i] as u32;
+                }
+
+                carry = 0;
+                for i in 0..WORD_SIZE {
+                    let x = result[i] + carry;
+                    result[i] = x % base;
+                    carry = x / base;
+                    cols.carry_add[i] = F::from_canonical_u32(carry);
+                }
+
+                // result = c * quotient + remainder, so it must equal b.
+                for i in 0..WORD_SIZE {
+                    debug_assert_eq!(b_word[i] as u32, result[i]);
                 }
 
                 row
@@ -257,11 +286,7 @@ where
 
         let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
 
-        // Multiply the quotient by c. After this for loop, we have
-        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i = quotient * c.
-        //
-        // For simplicity, we will write F(result) =
-        // \sigma_{i=0}^{WORD_SIZE - 1} result[i] * base^i.
+        // Multiply the quotient by c.
         for i in 0..WORD_SIZE {
             for j in 0..WORD_SIZE {
                 if i + j < WORD_SIZE {
@@ -270,39 +295,30 @@ where
             }
         }
 
-        // Add remainder to product. After this for loop, we have
-        // F(result) = quotient * c + remainder (mod 2^{32})
+        // Propagate carry
+        for i in 0..WORD_SIZE {
+            let mut v = result[i].clone() - local.carry_mul[i].clone() * base.clone();
+            if i > 0 {
+                v += local.carry_mul[i - 1].into();
+            }
+            builder.assert_eq(v, local.c_times_quotient[i].clone());
+        }
+
+        // Add remainder to product c * quotient.
         for i in 0..WORD_SIZE {
             result[i] += local.remainder[i].into();
         }
 
-        // We will "carry-propagate" the `result` array without changing
-        // F(result).
+        // Propagate carry and compare it with b.
         for i in 0..WORD_SIZE {
-            let carry = local.carry[i].clone();
-
-            // We subtract carry * base from result[i], which reduces
-            // F(result) by carry * base^{i + 1}.
-            result[i] -= carry.clone() * base.clone();
-
-            if i + 1 < WORD_SIZE {
-                // Adding carry to result[i + 1] increases
-                // F(result) by carry * base^{i + 1}.
-                result[i + 1] += carry.into();
+            let mut v = result[i].clone() - local.carry_add[i].clone() * base.clone();
+            if i > 0 {
+                v += local.carry_add[i - 1].into();
             }
-
-            // We added and subtracted carry * base^{i + 1} to F(result), so
-            // F(result) remains the same.
+            builder.assert_eq(v, local.b[i].clone());
         }
 
         let mut division_by_non_zero = builder.when(one.clone() - local.division_by_0);
-
-        // Now, result is c * quotient + remainder, which must equal b, unless c
-        // was 0. Here, we confirm that the `quotient`, `remainder`, and `carry`
-        // are correct.
-        for i in 0..WORD_SIZE {
-            division_by_non_zero.assert_eq(result[i].clone(), local.b[i].clone());
-        }
 
         let div_op = local.is_divu + local.is_div;
         let rem_op = local.is_remu + local.is_rem;
@@ -310,6 +326,7 @@ where
         // We've confirmed the correctness of `quotient` and `remainder`. Now,
         // we need to check the output `a` indeed matches what we have.
         for i in 0..WORD_SIZE {
+            // TODO: Can't it just be builder?
             division_by_non_zero
                 .when(rem_op.clone())
                 .assert_eq(local.remainder[i], local.a[i]);
