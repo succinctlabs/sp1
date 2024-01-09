@@ -41,6 +41,8 @@ pub(crate) fn populate_flags<F: PrimeField>(i: usize, cols: &mut ShaExtendCols<F
     cols.cycle_48[0] = F::from_bool(j < 16);
     cols.cycle_48[1] = F::from_bool(16 <= j && j < 32);
     cols.cycle_48[2] = F::from_bool(32 <= j && j < 48);
+    cols.cycle_48_start = cols.cycle_48[0] * cols.cycle_16_start;
+    cols.cycle_48_end = cols.cycle_48[2] * cols.cycle_16_end;
 }
 
 pub(crate) fn eval_flags<AB: CurtaAirBuilder>(builder: &mut AB) {
@@ -75,7 +77,7 @@ pub(crate) fn eval_flags<AB: CurtaAirBuilder>(builder: &mut AB) {
     );
     builder.assert_zero(local.cycle_16_minus_one * local.cycle_16_end);
 
-    // Increment the step flags when 16 cycles have passed. Otherwise, keep them the same.
+    // Increment the indices of `cycles_48` when 16 rows have passed. Otherwise, keep them the same.
     for i in 0..3 {
         builder
             .when_transition()
@@ -86,6 +88,13 @@ pub(crate) fn eval_flags<AB: CurtaAirBuilder>(builder: &mut AB) {
             .when(one.clone() - local.cycle_16_end)
             .assert_eq(local.cycle_48[i], next.cycle_48[i]);
     }
+
+    // Compute whether it's the start/end of the cycle of 48 rows.
+    builder.assert_eq(
+        local.cycle_16_start * local.cycle_48[0],
+        local.cycle_48_start,
+    );
+    builder.assert_eq(local.cycle_16_end * local.cycle_48[2], local.cycle_48_end);
 
     // Increment `i` by one. Once it reaches the end of the cycle, reset it to zero.
     builder

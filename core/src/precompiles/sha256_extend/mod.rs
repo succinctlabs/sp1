@@ -129,15 +129,15 @@ where
         // Copy over the inputs until the result has been computed (every 48 rows).
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_16_end * local.cycle_48[2])
+            .when(one.clone() - local.cycle_48_end)
             .assert_eq(local.segment, next.segment);
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_16_end * local.cycle_48[2])
+            .when(one.clone() - local.cycle_48_end)
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_16_end * local.cycle_48[2])
+            .when(one.clone() - local.cycle_48_end)
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read from memory.
