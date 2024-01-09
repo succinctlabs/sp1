@@ -1,16 +1,12 @@
-//! Perform the division and remainder verification. b = c * quotient + remainder (mod 2^32) where
-//! the sign of b and remainder are the same.
+//! Division and remainder verification.
 //!
-//! Special cases defined in RISC-V:
-//! 1. Division by 0
-//!     unsigned => quotient = 2^32 - 1, remainder = b
-//!     signed   => quotient = -1, remainder = b
-//! 2. Overflow
-//!     This occurs when dividing -2^31 by -1. Return quotient = -2^31 and remainder = 0 per spec.
+//! b = c * quotient + remainder where the signs of b and remainder match.
 //!
 //! Implementation:
 //!
 //! result = 0
+//!
+//! is_overflow = b == -pow(2, 31) && c == -1
 //!
 //! # quotient * c.
 //! for i in range(WORD_SIZE):
@@ -25,6 +21,8 @@
 //!     x = result[i] + carry
 //!     result[i] = x % base
 //!     carry = x // base
+//! if not is_overflow:
+//!     assert carry == 0
 //!
 //! # result + remainder
 //! for i in range(WORD_SIZE):
@@ -35,13 +33,13 @@
 //! # Assert the results
 //! assert result[i] == b[i] for each i.
 //!
-//! # The remainder and b must have the same sign.
+//! # remainder and b must have the same sign.
 //! if remainder < 0:
 //!     assert b <= 0
 //! if remainder > 0:
 //!     assert b >= 0
 //!
-//! # abs(remainder) < abs(c) when not division by 0.
+//! # abs(remainder) < abs(c)
 //! if c < 0:
 //!    assert c < remainder <= 0
 //! elif c > 0:
@@ -49,6 +47,10 @@
 //! if c == 0:
 //!    # division by 0
 //!    assert quotient = 0xffffffff
+//!
+//! Corner Cases:
+//! - Division by Zero: Quotient is 0xffffffff, remainder equals b.
+//! - Overflow: For b = -2^31 and c = -1, quotient = -2^31, remainder = 0.
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
