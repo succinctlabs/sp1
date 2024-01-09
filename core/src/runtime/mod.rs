@@ -260,8 +260,11 @@ impl Runtime {
             Opcode::XOR | Opcode::OR | Opcode::AND => {
                 self.segment.bitwise_events.push(event);
             }
-            Opcode::SLL | Opcode::SRL | Opcode::SRA => {
-                self.segment.shift_events.push(event);
+            Opcode::SLL => {
+                self.segment.left_shift_events.push(event);
+            }
+            Opcode::SRL | Opcode::SRA => {
+                self.segment.right_shift_events.push(event);
             }
             Opcode::SLT | Opcode::SLTU => {
                 self.segment.lt_events.push(event);
