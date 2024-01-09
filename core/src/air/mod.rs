@@ -9,6 +9,8 @@ use p3_field::AbstractField;
 pub use word::Word;
 
 use crate::cpu::air::MemoryAccessCols;
+use crate::cpu::instruction_cols::InstructionCols;
+use crate::cpu::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
@@ -137,6 +139,56 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             current_values,
             multiplicity_expr.clone(),
             InteractionKind::Memory,
+        ));
+    }
+
+    fn send_program<EPc, EInst, ESel, EMult>(
+        &mut self,
+        pc: EPc,
+        instruction: InstructionCols<EInst>,
+        selectors: OpcodeSelectors<ESel>,
+        multiplicity: EMult,
+    ) where
+        EPc: Into<Self::Expr>,
+        EInst: Into<Self::Expr> + Copy,
+        ESel: Into<Self::Expr> + Copy,
+        EMult: Into<Self::Expr>,
+    {
+        let values = once(pc.into())
+            .chain(once(instruction.opcode.into()))
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .collect();
+
+        self.send(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Program,
+        ));
+    }
+
+    fn receive_program<EPc, EInst, ESel, EMult>(
+        &mut self,
+        pc: EPc,
+        instruction: InstructionCols<EInst>,
+        selectors: OpcodeSelectors<ESel>,
+        multiplicity: EMult,
+    ) where
+        EPc: Into<Self::Expr>,
+        EInst: Into<Self::Expr> + Copy,
+        ESel: Into<Self::Expr> + Copy,
+        EMult: Into<Self::Expr>,
+    {
+        let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
+            .chain(once(instruction.opcode.into()))
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .collect();
+
+        self.receive(AirInteraction::new(
+            values,
+            multiplicity.into(),
+            InteractionKind::Program,
         ));
     }
 
