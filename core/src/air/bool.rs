@@ -1,5 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use p3_field::Field;
+use std::mem::size_of;
 
 use valida_derive::AlignedBorrow;
 
