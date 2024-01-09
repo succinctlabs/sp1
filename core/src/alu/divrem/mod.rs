@@ -1,20 +1,54 @@
-//! Perform the division and remainder verification.
+//! Perform the division and remainder verification. b = c * quotient + remainder (mod 2^32) where
+//! the sign of b and remainder are the same.
 //!
-//! The trace contains quotient, remainder, and carry columns where
-//! b = c * quotient + remainder.
+//! Special cases defined in RISC-V:
+//! 1. Division by 0
+//!     unsigned => quotient = 2^32 - 1, remainder = b
+//!     signed   => quotient = -1, remainder = b
+//! 2. Overflow
+//!     This occurs when dividing -2^31 by -1. Return quotient = -2^31 and remainder = 0 per spec.
 //!
-//! RISC-V's definition of division and remainder is equivalent to:
+//! Implementation:
 //!
-//! 1) b = c * quotient + remainder (mod 2^{32})
-//! 2) sgn(b) * sgn(remainder) != -1,
-//! 3) 0 <= abs(remainder) < abs(c) if c != 0.
+//! result = 0
 //!
-//! The set of (a, b, c) uniquely identifies a pair (quotient, remainder).
-//! Therefore, we can verify the correctness of the division and remainder
-//! by simply checking each of those three conditions.
+//! # quotient * c.
+//! for i in range(WORD_SIZE):
+//!     for j in range(WORD_SIZE):
+//!         if i + j < WORD_SIZE:
+//!             result[i + j] += quotient[i] * c[j]
 //!
-//! There is no need to take care of the overflow case separately as the
-//! overflow just gets removed through the modulo operation.
+//! # Carry propagate.
+//! base = pow(2, 8)
+//! carry = 0
+//! for i in range(WORD_SIZE):
+//!     x = result[i] + carry
+//!     result[i] = x % base
+//!     carry = x // base
+//!
+//! # result + remainder
+//! for i in range(WORD_SIZE):
+//!     result[i] += remainder[i]
+//!
+//! # Carry propagate again, exactly like above.
+//!
+//! # Assert the results
+//! assert result[i] == b[i] for each i.
+//!
+//! # The remainder and b must have the same sign.
+//! if remainder < 0:
+//!     assert b <= 0
+//! if remainder > 0:
+//!     assert b >= 0
+//!
+//! # abs(remainder) < abs(c) when not division by 0.
+//! if c < 0:
+//!    assert c < remainder <= 0
+//! elif c > 0:
+//!    assert 0 <= remainder < c
+//! if c == 0:
+//!    # division by 0
+//!    assert quotient = 0xffffffff
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -510,6 +544,8 @@ mod tests {
             (Opcode::DIV, neg(6), neg(24), 4),
             (Opcode::DIV, neg(2), 16, neg(8)),
             (Opcode::DIV, neg(1), 0, 0),
+            (Opcode::DIV, 1 << 31, neg(1), 1 << 31),
+            (Opcode::REM, 1 << 31, neg(1), 0),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
