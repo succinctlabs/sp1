@@ -15,11 +15,11 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
-pub const NUM_SHIFT_COLS: usize = size_of::<ShiftCols<u8>>();
+pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
-pub struct ShiftCols<T> {
+pub struct ShiftRightCols<T> {
     /// The output operand.
     pub a: Word<T>,
 
@@ -30,36 +30,34 @@ pub struct ShiftCols<T> {
     pub c: Word<T>,
 
     /// Selector flags for the operation to perform.
-    pub is_sll: T,
     pub is_srl: T,
     pub is_sra: T,
 }
 
-/// A chip that implements bitwise operations for the opcodes SLL, SLLI, SRL, SRLI, SRA, and SRAI.
-pub struct ShiftChip;
+/// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
+pub struct RightShiftChip;
 
-impl ShiftChip {
+impl RightShiftChip {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl<F: PrimeField> Chip<F> for ShiftChip {
+impl<F: PrimeField> Chip<F> for RightShiftChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
-            .shift_events
+            .shift_right_events
             .par_iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_SHIFT_COLS];
-                let cols: &mut ShiftCols<F> = unsafe { transmute(&mut row) };
+                let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
+                let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
-                cols.is_sll = F::from_bool(event.opcode == Opcode::SLL);
                 cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
                 cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
                 row
@@ -69,29 +67,29 @@ impl<F: PrimeField> Chip<F> for ShiftChip {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHIFT_COLS,
+            NUM_SHIFT_RIGHT_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
 
         trace
     }
 }
 
-impl<F> BaseAir<F> for ShiftChip {
+impl<F> BaseAir<F> for RightShiftChip {
     fn width(&self) -> usize {
-        NUM_SHIFT_COLS
+        NUM_SHIFT_RIGHT_COLS
     }
 }
 
-impl<AB> Air<AB> for ShiftChip
+impl<AB> Air<AB> for RightShiftChip
 where
     AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ShiftCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
 
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
@@ -99,13 +97,12 @@ where
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_sll * AB::F::from_canonical_u32(Opcode::SLL as u32)
-                + local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
+            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
                 + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
             local.a,
             local.b,
             local.c,
-            local.is_sll + local.is_srl + local.is_sra,
+            local.is_srl + local.is_sra,
         );
     }
 }
@@ -136,13 +133,13 @@ mod tests {
     };
     use p3_commit::ExtensionMmcs;
 
-    use super::ShiftChip;
+    use super::RightShiftChip;
 
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        segment.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)];
-        let chip = ShiftChip::new();
+        segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
+        let chip = RightShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -190,8 +187,8 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut segment = Segment::default();
-        segment.shift_events = vec![AluEvent::new(0, Opcode::SLL, 14, 8, 6)].repeat(1000);
-        let chip = ShiftChip::new();
+        segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)].repeat(1000);
+        let chip = RightShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 

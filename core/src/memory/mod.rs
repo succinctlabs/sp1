@@ -131,6 +131,7 @@ where
 mod tests {
     use std::collections::BTreeMap;
 
+    use log::debug;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::{AbstractField, Field};
@@ -235,7 +236,9 @@ mod tests {
 
     #[test]
     fn test_memory_lookup_interactions() {
-        env_logger::init();
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();

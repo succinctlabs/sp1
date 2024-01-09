@@ -1,11 +1,13 @@
 use core::borrow::{Borrow, BorrowMut};
 use p3_air::AirBuilder;
 use p3_field::PrimeField;
+use std::mem::size_of;
+use std::vec::IntoIter;
 use valida_derive::AlignedBorrow;
 
 use crate::runtime::{Instruction, Opcode};
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectors<T> {
     // // Whether op_b is an immediate value.
@@ -38,13 +40,13 @@ pub struct OpcodeSelectors<T> {
     pub is_bltu: T,
     pub is_bgeu: T,
 
-    // Whether this is a no-op.
-    pub noop: T,
-
     // Specific instruction selectors.
     pub jalr: T,
     pub jal: T,
     pub auipc: T,
+
+    // Whether this is a no-op.
+    pub noop: T,
 
     pub reg_0_write: T,
 }
@@ -186,5 +188,42 @@ impl<AB: AirBuilder> InstructionType<AB> for OpcodeSelectors<AB::Var> {
 
     fn is_memory_instruction(&self) -> AB::Expr {
         self.is_load + self.is_store
+    }
+}
+
+impl<T> IntoIterator for OpcodeSelectors<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        vec![
+            self.imm_b.into(),
+            self.imm_c.into(),
+            self.add_op.into(),
+            self.sub_op.into(),
+            self.mul_op.into(),
+            self.div_op.into(),
+            self.shift_op.into(),
+            self.bitwise_op.into(),
+            self.lt_op.into(),
+            self.is_load.into(),
+            self.is_store.into(),
+            self.is_word.into(),
+            self.is_half.into(),
+            self.is_byte.into(),
+            self.is_signed.into(),
+            self.is_beq.into(),
+            self.is_bne.into(),
+            self.is_blt.into(),
+            self.is_bge.into(),
+            self.is_bltu.into(),
+            self.is_bgeu.into(),
+            self.jalr.into(),
+            self.jal.into(),
+            self.auipc.into(),
+            self.noop.into(),
+            self.reg_0_write.into(),
+        ]
+        .into_iter()
     }
 }

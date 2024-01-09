@@ -1,10 +1,12 @@
 use crate::{air::Word, runtime::Instruction};
+use std::mem::size_of;
 
 use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
+use std::{iter::once, vec::IntoIter};
 use valida_derive::AlignedBorrow;
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct InstructionCols<T> {
     /// The opcode for this cycle.
@@ -23,5 +25,19 @@ impl<F: PrimeField> InstructionCols<F> {
         self.op_a = instruction.op_a.into();
         self.op_b = instruction.op_b.into();
         self.op_c = instruction.op_c.into();
+    }
+}
+
+impl<T> IntoIterator for InstructionCols<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        once(self.opcode.into())
+            .chain(self.op_a.into_iter())
+            .chain(self.op_b.into_iter())
+            .chain(self.op_c.into_iter())
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }

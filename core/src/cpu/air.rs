@@ -1,4 +1,5 @@
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{reduce, CurtaAirBuilder, Word};
+use crate::bytes::ByteOpcode;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -68,6 +69,9 @@ pub struct CpuCols<T> {
 
     // This is transmuted to MemoryColumns or BNEColumns
     pub opcode_specific_columns: [T; WORKSPACE_SIZE],
+
+    /// Selector to label whether this row is a non padded row.
+    pub is_real: T,
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -127,13 +131,21 @@ where
             local.pc * local.pc * local.pc,
         );
 
+        builder.assert_bool(local.is_real);
+
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
         builder
             .when_transition()
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
-        // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
+        // Contrain the interaction with program table
+        builder.send_program(
+            local.pc,
+            local.instruction,
+            local.selectors,
+            AB::Expr::one() * local.is_real,
+        );
 
         let is_memory_instruction =
             <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_memory_instruction(
@@ -213,22 +225,37 @@ where
 
         //////////////////////////////////////////
 
-        // We constraint reduce(addr_word) = addr_aligned + addr_offset
-        // builder
-        //     .when(local.selectors.is_load + local.selectors.is_store)
-        //     .assert_eq(
-        //         (local.addr_aligned + local.addr_offset).into(),
-        //         reduce(local.addr_word),
-        //     );
+        // Check that local.addr_offset \in [0, WORD_SIZE) by byte range checking local.addr_offset << 6
+        // and local.addr_offset.
+        builder.send_byte_lookup(
+            AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+            AB::Expr::zero(),
+            memory_columns.addr_offset,
+            memory_columns.addr_offset * AB::F::from_canonical_u8(64),
+            is_memory_instruction,
+        );
 
-        // // TODO: put an ALU event in the trace for this constraint.
-        // builder.send_alu(
-        //     AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-        //     local.addr_word,
-        //     *local.op_b_val(),
-        //     *local.op_c_val(),
-        //     local.selectors.is_load + local.selectors.is_store,
-        // );
+        // Check that reduce(addr_word) == addr_aligned + addr_offset
+        builder
+            .when(is_memory_instruction)
+            .assert_eq::<AB::Expr, AB::Expr>(
+                memory_columns.addr_aligned + memory_columns.addr_offset,
+                reduce::<AB>(memory_columns.addr_word),
+            );
+
+        // Check that each addr_word element is a byte
+        builder.range_check_word(memory_columns.addr_word, is_memory_instruction);
+
+        // Send to the ALU table to verify correct calculation of addr_word
+        builder.send_alu(
+            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+            memory_columns.addr_word,
+            *local.op_b_val(),
+            *local.op_c_val(),
+            is_memory_instruction,
+        );
+
+        //////////////////////////////////////////
 
         //// For branch instructions
         // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction

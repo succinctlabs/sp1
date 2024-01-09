@@ -12,7 +12,7 @@ use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_uni_stark::decompose_and_flatten;
 use p3_util::log2_ceil_usize;
 
-use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftChip, SubChip};
+use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
 use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
@@ -52,14 +52,15 @@ impl Segment {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 10;
+        const NUM_CHIPS: usize = 11;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
-        let shift = ShiftChip::new();
+        let right_shift = RightShiftChip::new();
+        let left_shift = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
         let memory_init = MemoryInitChip::new(true);
@@ -70,7 +71,8 @@ impl Segment {
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
-            Box::new(shift),
+            Box::new(right_shift),
+            Box::new(left_shift),
             Box::new(lt),
             Box::new(bytes),
             Box::new(memory_init),
@@ -227,6 +229,7 @@ pub mod tests {
     use crate::runtime::tests::simple_program;
     use crate::runtime::Program;
     use crate::runtime::Runtime;
+    use log::debug;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -304,7 +307,9 @@ pub mod tests {
 
     #[test]
     fn test_fibonnaci_prove() {
-        env_logger::init();
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
         let program = fibonacci_program();
         prove(program);
     }
