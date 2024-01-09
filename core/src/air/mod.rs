@@ -12,7 +12,6 @@ use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::instruction_cols::InstructionCols;
 use crate::cpu::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
-use crate::utils::IntoIteratorCurtaVM;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
     let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);
@@ -157,13 +156,8 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     {
         let values = once(pc.into())
             .chain(once(instruction.opcode.into()))
-            .chain(<InstructionCols<EInst> as IntoIteratorCurtaVM<
-                Self,
-                EInst,
-            >>::into_iter(&instruction))
-            .chain(
-                <OpcodeSelectors<ESel> as IntoIteratorCurtaVM<Self, ESel>>::into_iter(&selectors),
-            )
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -187,13 +181,9 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     {
         let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
             .chain(once(instruction.opcode.into()))
-            .chain(<InstructionCols<EInst> as IntoIteratorCurtaVM<
-                Self,
-                EInst,
-            >>::into_iter(&instruction))
-            .chain(
-                <OpcodeSelectors<ESel> as IntoIteratorCurtaVM<Self, ESel>>::into_iter(&selectors),
-            )
+            .chain(once(instruction.opcode.into()))
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
             .collect();
 
         self.receive(AirInteraction::new(

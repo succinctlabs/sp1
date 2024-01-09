@@ -1,12 +1,9 @@
 use core::borrow::{Borrow, BorrowMut};
-use p3_air::AirBuilder;
 use p3_field::PrimeField;
+use std::vec::IntoIter;
 use valida_derive::AlignedBorrow;
 
-use crate::{
-    runtime::{Instruction, Opcode},
-    utils::IntoIteratorCurtaVM,
-};
+use crate::runtime::{Instruction, Opcode};
 
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
@@ -132,8 +129,11 @@ impl<F: PrimeField> OpcodeSelectors<F> {
     }
 }
 
-impl<AB: AirBuilder, T: Into<AB::Expr> + Copy> IntoIteratorCurtaVM<AB, T> for OpcodeSelectors<T> {
-    fn into_iter(&self) -> <std::vec::Vec<AB::Expr> as std::iter::IntoIterator>::IntoIter {
+impl<T> IntoIterator for OpcodeSelectors<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
         vec![
             self.imm_b.into(),
             self.imm_c.into(),

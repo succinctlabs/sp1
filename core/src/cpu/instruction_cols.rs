@@ -1,9 +1,8 @@
-use crate::{air::Word, runtime::Instruction, utils::IntoIteratorCurtaVM};
+use crate::{air::Word, runtime::Instruction};
 
 use core::borrow::{Borrow, BorrowMut};
-use p3_air::AirBuilder;
 use p3_field::PrimeField;
-use std::iter::once;
+use std::{iter::once, vec::IntoIter};
 use valida_derive::AlignedBorrow;
 
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
@@ -28,18 +27,15 @@ impl<F: PrimeField> InstructionCols<F> {
     }
 }
 
-impl<AB: AirBuilder, T: Into<AB::Expr> + Copy> IntoIteratorCurtaVM<AB, T> for InstructionCols<T> {
-    fn into_iter(&self) -> <std::vec::Vec<AB::Expr> as std::iter::IntoIterator>::IntoIter {
+impl<T> IntoIterator for InstructionCols<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
         once(self.opcode.into())
-            .chain(<Word<T> as IntoIteratorCurtaVM<AB, T>>::into_iter(
-                &self.op_a,
-            ))
-            .chain(<Word<T> as IntoIteratorCurtaVM<AB, T>>::into_iter(
-                &self.op_b,
-            ))
-            .chain(<Word<T> as IntoIteratorCurtaVM<AB, T>>::into_iter(
-                &self.op_c,
-            ))
+            .chain(self.op_a.into_iter())
+            .chain(self.op_b.into_iter())
+            .chain(self.op_c.into_iter())
             .collect::<Vec<_>>()
             .into_iter()
     }
