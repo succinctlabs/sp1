@@ -389,17 +389,17 @@ impl Runtime {
             }
             Opcode::SLL => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = b << c;
+                a = b.wrapping_shl(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRL => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = b >> c;
+                a = b.wrapping_shr(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRA => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = (b as i32 >> c) as u32;
+                a = (b as i32).wrapping_shr(c) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLT => {
@@ -750,6 +750,8 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
+    use log::debug;
+
     use crate::runtime::Register;
 
     use super::{Instruction, Opcode, Program, Runtime};
@@ -777,7 +779,9 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_run() {
-        env_logger::init();
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -1240,5 +1244,66 @@ pub mod tests {
         simple_op_code_test(Opcode::REMU, 5, 5, 0);
         simple_op_code_test(Opcode::REMU, neg(1), neg(1), 0);
         simple_op_code_test(Opcode::REMU, 0, 0, 0);
+    }
+
+    #[test]
+    fn shift_tests() {
+        simple_op_code_test(Opcode::SLL, 0x00000001, 0x00000001, 0);
+        simple_op_code_test(Opcode::SLL, 0x00000002, 0x00000001, 1);
+        simple_op_code_test(Opcode::SLL, 0x00000080, 0x00000001, 7);
+        simple_op_code_test(Opcode::SLL, 0x00004000, 0x00000001, 14);
+        simple_op_code_test(Opcode::SLL, 0x80000000, 0x00000001, 31);
+        simple_op_code_test(Opcode::SLL, 0xffffffff, 0xffffffff, 0);
+        simple_op_code_test(Opcode::SLL, 0xfffffffe, 0xffffffff, 1);
+        simple_op_code_test(Opcode::SLL, 0xffffff80, 0xffffffff, 7);
+        simple_op_code_test(Opcode::SLL, 0xffffc000, 0xffffffff, 14);
+        simple_op_code_test(Opcode::SLL, 0x80000000, 0xffffffff, 31);
+        simple_op_code_test(Opcode::SLL, 0x21212121, 0x21212121, 0);
+        simple_op_code_test(Opcode::SLL, 0x42424242, 0x21212121, 1);
+        simple_op_code_test(Opcode::SLL, 0x90909080, 0x21212121, 7);
+        simple_op_code_test(Opcode::SLL, 0x48484000, 0x21212121, 14);
+        simple_op_code_test(Opcode::SLL, 0x80000000, 0x21212121, 31);
+        simple_op_code_test(Opcode::SLL, 0x21212121, 0x21212121, 0xffffffe0);
+        simple_op_code_test(Opcode::SLL, 0x42424242, 0x21212121, 0xffffffe1);
+        simple_op_code_test(Opcode::SLL, 0x90909080, 0x21212121, 0xffffffe7);
+        simple_op_code_test(Opcode::SLL, 0x48484000, 0x21212121, 0xffffffee);
+        simple_op_code_test(Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff);
+
+        simple_op_code_test(Opcode::SRL, 0xffff8000, 0xffff8000, 0);
+        simple_op_code_test(Opcode::SRL, 0x7fffc000, 0xffff8000, 1);
+        simple_op_code_test(Opcode::SRL, 0x01ffff00, 0xffff8000, 7);
+        simple_op_code_test(Opcode::SRL, 0x0003fffe, 0xffff8000, 14);
+        simple_op_code_test(Opcode::SRL, 0x0001ffff, 0xffff8001, 15);
+        simple_op_code_test(Opcode::SRL, 0xffffffff, 0xffffffff, 0);
+        simple_op_code_test(Opcode::SRL, 0x7fffffff, 0xffffffff, 1);
+        simple_op_code_test(Opcode::SRL, 0x01ffffff, 0xffffffff, 7);
+        simple_op_code_test(Opcode::SRL, 0x0003ffff, 0xffffffff, 14);
+        simple_op_code_test(Opcode::SRL, 0x00000001, 0xffffffff, 31);
+        simple_op_code_test(Opcode::SRL, 0x21212121, 0x21212121, 0);
+        simple_op_code_test(Opcode::SRL, 0x10909090, 0x21212121, 1);
+        simple_op_code_test(Opcode::SRL, 0x00424242, 0x21212121, 7);
+        simple_op_code_test(Opcode::SRL, 0x00008484, 0x21212121, 14);
+        simple_op_code_test(Opcode::SRL, 0x00000000, 0x21212121, 31);
+        simple_op_code_test(Opcode::SRL, 0x21212121, 0x21212121, 0xffffffe0);
+        simple_op_code_test(Opcode::SRL, 0x10909090, 0x21212121, 0xffffffe1);
+        simple_op_code_test(Opcode::SRL, 0x00424242, 0x21212121, 0xffffffe7);
+        simple_op_code_test(Opcode::SRL, 0x00008484, 0x21212121, 0xffffffee);
+        simple_op_code_test(Opcode::SRL, 0x00000000, 0x21212121, 0xffffffff);
+
+        simple_op_code_test(Opcode::SRA, 0x00000000, 0x00000000, 0);
+        simple_op_code_test(Opcode::SRA, 0xc0000000, 0x80000000, 1);
+        simple_op_code_test(Opcode::SRA, 0xff000000, 0x80000000, 7);
+        simple_op_code_test(Opcode::SRA, 0xfffe0000, 0x80000000, 14);
+        simple_op_code_test(Opcode::SRA, 0xffffffff, 0x80000001, 31);
+        simple_op_code_test(Opcode::SRA, 0x7fffffff, 0x7fffffff, 0);
+        simple_op_code_test(Opcode::SRA, 0x3fffffff, 0x7fffffff, 1);
+        simple_op_code_test(Opcode::SRA, 0x00ffffff, 0x7fffffff, 7);
+        simple_op_code_test(Opcode::SRA, 0x0001ffff, 0x7fffffff, 14);
+        simple_op_code_test(Opcode::SRA, 0x00000000, 0x7fffffff, 31);
+        simple_op_code_test(Opcode::SRA, 0x81818181, 0x81818181, 0);
+        simple_op_code_test(Opcode::SRA, 0xc0c0c0c0, 0x81818181, 1);
+        simple_op_code_test(Opcode::SRA, 0xff030303, 0x81818181, 7);
+        simple_op_code_test(Opcode::SRA, 0xfffe0606, 0x81818181, 14);
+        simple_op_code_test(Opcode::SRA, 0xffffffff, 0x81818181, 31);
     }
 }
