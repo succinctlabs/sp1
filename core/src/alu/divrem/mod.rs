@@ -4,29 +4,29 @@
 //!
 //! Implementation:
 //!
-//! # Convert c, quotient, and remainder to 64 bits. Sign extension if opcode is signed.
-//!
-//! base = pow(2, 8)
-//!
 //! # Use the multiplication ALU table. result is 64 bits.
 //! result = quotient * c.
 //!
-//! # result + remainder
+//! # Add sign-extended remainder to result.
 //! for i in range(8):
 //!     result[i] += remainder[i]
 //!
-//! # Propagate carry
+//! # Propagate carry to handle overflow within bytes.
+//! base = pow(2, 8)
 //! carry = 0
 //! for i in range(8):
 //!     x = result[i] + carry
 //!     result[i] = x % base
 //!     carry = x // base
 //!
-//! # Assert the results
+//! # c * quotient + remainder must not extend beyond 32 bits.
+//! assert result[4..8] == ([0xff, 0xff, 0xff, 0xff] if b_negative else [0, 0, 0, 0])
+//!
+//! # Assert the lower 32 bits of result match b.
 //! assert result[0..4] == b[0..4]
 //!
-//! # Assert the sign bits. c * quotient + remainder must not overflow beyond 32 bits.
-//! assert results[4..8] == [0, 0, 0, 0] or [0xff, 0xff, 0xff, 0xff]
+//! # Check a = quotient or remainder.
+//! assert a == (quotient if opcode == division else remainder)
 //!
 //! # remainder and b must have the same sign.
 //! if remainder < 0:
@@ -41,13 +41,13 @@
 //!    assert 0 <= remainder < c
 //!
 //! if c == 0:
-//!    # if division by 0, then quotient = 0xffffffff per RISC-V spec.
+//!    # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
+//!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -65,8 +65,10 @@ pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 const BYTE_SIZE: usize = 8;
 
-fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
-    a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)
+const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
+
+fn get_msb(a: u32) -> u8 {
+    ((a >> 31) & 1) as u8
 }
 
 /// The column layout for the chip.
@@ -87,14 +89,11 @@ pub struct DivRemCols<T> {
     /// Remainder when dividing `b` by `c`.
     pub remainder: [T; WORD_SIZE],
 
-    /// Carry propagated when multiplying `c` by `quotient`.
-    pub carry_mul: [T; WORD_SIZE],
-
     /// The result of `c * quotient`.
-    pub c_times_quotient: [T; WORD_SIZE],
+    pub c_times_quotient: [T; LONG_WORD_SIZE],
 
     /// Carry propagated when adding `remainder` by `c * quotient`.
-    pub carry_add: [T; WORD_SIZE],
+    pub carry: [T; LONG_WORD_SIZE],
 
     /// Flag to indicate division by 0.
     pub division_by_0: T,
@@ -133,24 +132,20 @@ fn is_signed_operation(opcode: Opcode) -> bool {
     opcode == Opcode::DIV || opcode == Opcode::REM
 }
 
-fn get_quotient_and_remainder(
-    b: u32,
-    c: u32,
-    opcode: Opcode,
-) -> ([u8; WORD_SIZE], [u8; WORD_SIZE]) {
+fn get_quotient_and_remainder(b: u32, c: u32, opcode: Opcode) -> (u32, u32) {
     if c == 0 {
         // When c is 0, the quotient is 2^32 - 1 and the remainder is b
         // regardless of whether we perform signed or unsigned division.
-        ([0xff; WORD_SIZE], b.to_le_bytes())
+        (0xffff_ffff, b)
     } else if is_signed_operation(opcode) {
         (
-            ((b as i32).wrapping_div(c as i32) as u32).to_le_bytes(),
-            ((b as i32).wrapping_rem(c as i32) as u32).to_le_bytes(),
+            (b as i32).wrapping_div(c as i32) as u32,
+            (b as i32).wrapping_rem(c as i32) as u32,
         )
     } else {
         (
-            ((b as u32).wrapping_div(c as u32) as u32).to_le_bytes(),
-            ((b as u32).wrapping_rem(c as u32) as u32).to_le_bytes(),
+            (b as u32).wrapping_div(c as u32) as u32,
+            (b as u32).wrapping_rem(c as u32) as u32,
         )
     }
 }
@@ -187,61 +182,48 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let (quotient, remainder) =
                     get_quotient_and_remainder(event.b, event.c, event.opcode);
 
-                cols.quotient = quotient.map(F::from_canonical_u8);
-                cols.remainder = remainder.map(F::from_canonical_u8);
-                if is_signed_operation(event.opcode) {
-                    cols.b_neg = F::from_bool((event.b as i32) < 0);
-                    cols.rem_neg = F::from_bool(i32::from_le_bytes(remainder) < 0);
-                }
+                cols.quotient = quotient.to_le_bytes().map(F::from_canonical_u8);
+                cols.remainder = remainder.to_le_bytes().map(F::from_canonical_u8);
                 cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
-                cols.b_msb = F::from_canonical_u8(get_msb(b_word));
-
-                // b = -2^31, c = -1.
-                let is_overflow = event.b == (1u32 << 31) && event.c == u32::MAX;
+                cols.b_msb = F::from_canonical_u8(get_msb(event.b));
+                if is_signed_operation(event.opcode) {
+                    cols.rem_neg = cols.rem_msb;
+                    cols.b_neg = cols.b_msb;
+                }
 
                 let base = 1 << BYTE_SIZE;
 
-                let mut result = [0u32; WORD_SIZE];
+                // print quotient and event.c
+                println!("quotient: {}", quotient);
+                println!("event.c : {}", quotient);
 
-                // Multiply the quotient by c.
-                for i in 0..WORD_SIZE {
-                    for j in 0..WORD_SIZE {
-                        if i + j < WORD_SIZE {
-                            result[i + j] += (quotient[i] as u32) * (c_word[j] as u32);
-                        }
+                let c_times_quotient = {
+                    if is_signed_operation(event.opcode) {
+                        (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
+                    } else {
+                        ((quotient as u64) * (event.c as u64)).to_le_bytes()
                     }
-                }
+                };
 
-                let mut carry = 0u32;
-                for i in 0..WORD_SIZE {
-                    let x = result[i] + carry;
-                    result[i] = x % base;
-                    cols.c_times_quotient[i] = F::from_canonical_u32(result[i]);
-                    carry = x / base;
-                    cols.carry_mul[i] = F::from_canonical_u32(carry);
-                }
+                cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
 
-                if !is_overflow {
-                    if carry != 0 {
-                        println!(
-                            "carry = {}, {} = {} * {:?} + {:?}",
-                            carry, event.b, event.c, quotient, remainder
-                        );
+                let remainder_bytes = {
+                    if is_signed_operation(event.opcode) {
+                        (remainder as i64).to_le_bytes()
+                    } else {
+                        (remainder as u64).to_le_bytes()
                     }
-                    debug_assert_eq!(carry, 0);
-                }
+                };
+
+                let mut result = [0u32; LONG_WORD_SIZE];
 
                 // Add remainder to product.
-                for i in 0..WORD_SIZE {
-                    result[i] += remainder[i] as u32;
-                }
-
-                carry = 0;
-                for i in 0..WORD_SIZE {
-                    let x = result[i] + carry;
+                let mut carry = 0u32;
+                for i in 0..LONG_WORD_SIZE {
+                    let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
                     result[i] = x % base;
                     carry = x / base;
-                    cols.carry_add[i] = F::from_canonical_u32(carry);
+                    cols.carry[i] = F::from_canonical_u32(carry);
                 }
 
                 // result = c * quotient + remainder, so it must equal b.
@@ -284,127 +266,91 @@ where
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
 
-        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
+        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
 
-        // Multiply the quotient by c.
-        for i in 0..WORD_SIZE {
-            for j in 0..WORD_SIZE {
-                if i + j < WORD_SIZE {
-                    result[i + j] += local.quotient[i].clone() * local.c[j].clone();
-                }
-            }
-        }
-
-        // Propagate carry
-        for i in 0..WORD_SIZE {
-            let mut v = result[i].clone() - local.carry_mul[i].clone() * base.clone();
-            if i > 0 {
-                v += local.carry_mul[i - 1].into();
-            }
-            builder.assert_eq(v, local.c_times_quotient[i].clone());
-        }
+        // Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
 
         // Add remainder to product c * quotient.
         for i in 0..WORD_SIZE {
-            result[i] += local.remainder[i].into();
+            result[i] = local.c_times_quotient[i].clone() + local.remainder[i].clone();
+        }
+        let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
+        for i in WORD_SIZE..LONG_WORD_SIZE {
+            // If rem is negative, add 0xff to the upper 4 bytes.
+            result[i] = local.c_times_quotient[i].clone() + sign_extension.clone();
         }
 
-        // Propagate carry and compare it with b.
-        for i in 0..WORD_SIZE {
-            let mut v = result[i].clone() - local.carry_add[i].clone() * base.clone();
+        // Propagate carry.
+        for i in 0..LONG_WORD_SIZE {
+            let mut v = result[i].clone() - local.carry[i].clone() * base.clone();
             if i > 0 {
-                v += local.carry_add[i - 1].into();
+                v += local.carry[i - 1].into();
             }
-            builder.assert_eq(v, local.b[i].clone());
+            if i < WORD_SIZE {
+                // The lower 4 bytes of the result must match the corresponding bytes in b.
+                builder.assert_eq(v, local.b[i].clone());
+            } else {
+                // The upper 4 bytes must reflect the sign of b in two's complement:
+                // - All 1s (0xff) for negative b.
+                // - All 0s for non-negative b.
+                builder
+                    .when(local.b_neg)
+                    .assert_eq(local.c_times_quotient[i], AB::F::from_canonical_u32(0xff));
+                builder
+                    .when(one.clone() - local.b_neg)
+                    .assert_eq(local.c_times_quotient[i], zero.clone());
+            }
         }
 
-        let mut division_by_non_zero = builder.when(one.clone() - local.division_by_0);
-
-        let div_op = local.is_divu + local.is_div;
-        let rem_op = local.is_remu + local.is_rem;
-
-        // We've confirmed the correctness of `quotient` and `remainder`. Now,
-        // we need to check the output `a` indeed matches what we have.
+        // a must equal remainder or quotient depending on the opcode.
         for i in 0..WORD_SIZE {
-            // TODO: Can't it just be builder?
-            division_by_non_zero
-                .when(rem_op.clone())
+            builder
+                .when(local.is_divu + local.is_div)
                 .assert_eq(local.remainder[i], local.a[i]);
-            division_by_non_zero
-                .when(div_op.clone())
+            builder
+                .when(local.is_remu + local.is_rem)
                 .assert_eq(local.quotient[i], local.a[i]);
         }
 
-        // Division by 0
-        let mut division_by_0 = builder.when(local.division_by_0.clone());
-        let byte_mask = AB::F::from_canonical_u32(0xFF);
-        for i in 0..WORD_SIZE {
-            // If the division_by_0 flag is set, then c better be 0.
-            division_by_0.assert_zero(local.c[i]);
-
-            // division by 0 => DIVU returns 2^32 - 1 and REMU returns b.
-            division_by_0
-                .when(div_op.clone())
-                .assert_eq(local.a[i], byte_mask);
-            division_by_0
-                .when(rem_op.clone())
-                .assert_eq(local.a[i], local.b[i]);
-        }
-
-        // It's unnecessary to constrain that if c is 0, then the division_by_0
-        // flag must be set. This is because if c = 0 and division_by_0 = false
-        // then we would perform 0 <= abs(remainder) < abs(c) = 0, which
-        // always fails.
-
-        // Check the sign cases. RISC-V requires that b and remainder have the
-        // same sign. There are exactly two cases that are forbidden:
+        // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
+        // we will check a slightly stronger condition:
         //
-        // 1. remainder < 0 and b > 0.
-        // 2. remainder > 0 and b < 0.
-        //
-        // Therefore, it suffices to check:
-        //
-        // 1. If remainder < 0, then b <= 0.
+        // 1. If remainder < 0, then b < 0.
         // 2. If remainder > 0, then b >= 0.
-        //
-        // As it is a bit tricky to check b <= 0, we will check a slightly
-        // stronger condition:
-        //
-        // 1'. If remainder < 0, then b < 0.
-        // 2'. If remainder > 0, then b >= 0.
-        //
-        // This is fine since remainder < 0 & b = 0 is not valid anyway.
 
+        // Negative if and only if op code is signed & MSB = 1
         let is_signed_type = local.is_div + local.is_rem;
-
-        //  is_signed_type AND (MSB == 1);
         let b_neg = is_signed_type.clone() * local.b_msb;
         let rem_neg = is_signed_type.clone() * local.rem_msb;
-
         builder.assert_eq(b_neg.clone(), local.b_neg);
         builder.assert_eq(rem_neg.clone(), local.rem_neg);
 
+        // A number is 0 if and only if the sum of the 4 limbs equals to 0.
         let mut rem_byte_sum = zero.clone();
         let mut b_byte_sum = zero.clone();
-
         for i in 0..WORD_SIZE {
             rem_byte_sum += local.remainder[i].into();
             b_byte_sum += local.b[i].into();
         }
 
-        // Due to the size constraint of each byte (i.e., 0 <= byte < 2^8),
-        // {rem, b}_byte_sum is 0 if and only if {remainder, b} is 0.
-
-        // 1'. If remainder < 0, then b < 0.
+        // 1. If remainder < 0, then b < 0.
         builder
             .when(local.rem_neg) // rem is negative.
             .assert_one(local.b_neg); // b is negative.
 
-        // 2'. If remainder > 0, then b >= 0.
+        // 2. If remainder > 0, then b >= 0.
         builder
             .when(rem_byte_sum.clone()) // remainder is nonzero.
             .when(one.clone() - local.rem_neg) // rem is not negative.
             .assert_zero(local.b_neg); // b is not negative.
+
+        // When division by 0, RISC-V spec says quotient = 0xffffffff.
+        for i in 0..WORD_SIZE {
+            builder
+                .when(local.division_by_0.clone())
+                .when(local.is_divu.clone() + local.is_div.clone())
+                .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
+        }
 
         // TODO: Use lookup to constrain the MSBs.
         // TODO: Range check the carry column.
