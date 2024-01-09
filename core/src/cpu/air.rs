@@ -63,6 +63,9 @@ pub struct CpuCols<T> {
 
     // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
     pub branch_cond_val: Word<T>,
+
+    /// Selector to label whether this row is a non padded row.
+    pub is_real: T,
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -124,13 +127,21 @@ where
             local.pc * local.pc * local.pc,
         );
 
+        builder.assert_bool(local.is_real);
+
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
         builder
             .when_transition()
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
-        // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
+        // Contrain the interaction with program table
+        builder.send_program(
+            local.pc,
+            local.instruction,
+            local.selectors,
+            AB::Expr::one() * local.is_real,
+        );
 
         //////////////////////////////////////////
 
