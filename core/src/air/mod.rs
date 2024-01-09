@@ -1,5 +1,6 @@
 mod bool;
 mod word;
+use crate::bytes::ByteOpcode;
 
 use std::iter::once;
 
@@ -37,6 +38,22 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
+        }
+    }
+
+    fn range_check_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+        &mut self,
+        input: Word<EWord>,
+        mult: EMult,
+    ) {
+        for byte_pair in input.0.chunks_exact(2) {
+            self.send_byte_lookup(
+                Self::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+                Self::Expr::zero(),
+                byte_pair[0],
+                byte_pair[1],
+                mult.clone(),
+            );
         }
     }
 
