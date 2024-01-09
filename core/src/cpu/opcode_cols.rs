@@ -1,4 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
+use std::mem::size_of;
+
 use p3_field::PrimeField;
 use std::vec::IntoIter;
 use valida_derive::AlignedBorrow;

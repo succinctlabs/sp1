@@ -2,13 +2,15 @@ pub mod add;
 pub mod bitwise;
 pub mod lt;
 pub mod mul;
-pub mod shift;
+pub mod sll;
+pub mod sr;
 pub mod sub;
 
 pub use add::*;
 pub use bitwise::*;
 pub use lt::*;
-pub use shift::*;
+pub use sll::*;
+pub use sr::*;
 pub use sub::*;
 
 use crate::runtime::Opcode;

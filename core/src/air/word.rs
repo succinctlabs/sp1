@@ -1,3 +1,4 @@
+use std::mem::size_of;
 use std::ops::{Index, IndexMut};
 
 use core::borrow::{Borrow, BorrowMut};

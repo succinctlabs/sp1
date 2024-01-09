@@ -1,4 +1,5 @@
 use crate::{air::Word, runtime::Instruction};
+use std::mem::size_of;
 
 use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
