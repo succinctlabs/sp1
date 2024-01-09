@@ -1,4 +1,4 @@
-use crate::air::{range_check_word, reduce, CurtaAirBuilder, Word};
+use crate::air::{reduce, CurtaAirBuilder, Word};
 use crate::bytes::ByteOpcode;
 
 use core::borrow::{Borrow, BorrowMut};
@@ -213,8 +213,7 @@ where
             );
 
         // Check that each addr_word element is a byte
-        range_check_word(
-            builder,
+        builder.range_check_word(
             local.addr_word,
             local.selectors.is_load + local.selectors.is_store,
         );

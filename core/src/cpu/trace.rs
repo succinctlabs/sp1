@@ -37,14 +37,7 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             .collect::<Vec<_>>();
 
         segment.add_events.extend(add_events);
-
-        for blu_event in blu_events.iter() {
-            segment
-                .byte_lookups
-                .entry(*blu_event)
-                .and_modify(|i| *i += 1)
-                .or_insert(1);
-        }
+        segment.add_byte_lookup_events(blu_events);
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
