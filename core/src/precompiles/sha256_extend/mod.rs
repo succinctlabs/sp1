@@ -48,24 +48,25 @@ pub struct ShaExtendCols<T> {
     pub cycle_48: [T; 3],
     pub cycle_48_start: T,
     pub cycle_48_end: T,
-    // pub w_i_minus_15: MemoryAccessCols<T>,
+
+    /// Computation.
+    pub w_i_minus_15: MemoryAccessCols<T>,
     // pub w_i_minus_15_rr_7: Word<T>,
     // pub w_i_minus_15_rr_18: Word<T>,
     // pub w_i_minus_15_rs_3: Word<T>,
     // pub w_i_minus_15_rr_7_xor_w_i_minus_15_rr_18: Word<T>,
     // pub s0: Word<T>,
-    // pub w_i_minus_2: MemoryAccessCols<T>,
+    pub w_i_minus_2: MemoryAccessCols<T>,
     // pub w_i_minus_2_rr_17: Word<T>,
     // pub w_i_minus_2_rr_19: Word<T>,
     // pub w_i_minus_2_rs_10: Word<T>,
     // pub w_i_minus_2_rr_17_xor_w_i_minus_2_rr_19: Word<T>,
     // pub s1: Word<T>,
-    // pub w_i_minus_16: MemoryAccessCols<T>,
+    pub w_i_minus_16: MemoryAccessCols<T>,
     // pub w_i_minus_16_plus_s0: Word<T>,
-    // pub w_i_minus_7: MemoryAccessCols<T>,
+    pub w_i_minus_7: MemoryAccessCols<T>,
     // pub w_i_minus_7_plus_s1: Word<T>,
-
-    // pub w_i: Word<T>,
+    pub w_i: MemoryAccessCols<T>,
 }
 
 pub struct ShaExtendChip;
@@ -141,7 +142,43 @@ where
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read from memory.
-        // builder.constraint_memory_access(segment, clk, addr, memory_access, multiplicity)
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + local.i,
+            local.w_ptr + local.i - AB::F::from_canonical_u32(15),
+            local.w_i_minus_15,
+            AB::F::one(),
+        );
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + local.i,
+            local.w_ptr + local.i - AB::F::from_canonical_u32(2),
+            local.w_i_minus_2,
+            AB::F::one(),
+        );
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + local.i,
+            local.w_ptr + local.i - AB::F::from_canonical_u32(16),
+            local.w_i_minus_16,
+            AB::F::one(),
+        );
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + local.i,
+            local.w_ptr + local.i - AB::F::from_canonical_u32(7),
+            local.w_i_minus_7,
+            AB::F::one(),
+        );
+
+        // Write to memory.
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk + local.i,
+            local.w_ptr + local.i,
+            local.w_i,
+            AB::F::one(),
+        );
     }
 }
 
