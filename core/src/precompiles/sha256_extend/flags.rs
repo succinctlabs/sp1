@@ -36,11 +36,11 @@ pub(crate) fn populate_flags<F: PrimeField>(i: usize, cols: &mut ShaExtendCols<F
     cols.cycle_16_end = F::from_bool(cols.cycle_16_minus_one == F::zero());
 
     // Populate the columns needed to keep track of cycles of 48 rows.
-    let j = i % 48;
+    let j = 16 + (i % 48);
     cols.i = F::from_canonical_usize(j);
-    cols.cycle_48[0] = F::from_bool(j < 16);
-    cols.cycle_48[1] = F::from_bool(16 <= j && j < 32);
-    cols.cycle_48[2] = F::from_bool(32 <= j && j < 48);
+    cols.cycle_48[0] = F::from_bool(16 <= j && j < 32);
+    cols.cycle_48[1] = F::from_bool(32 <= j && j < 48);
+    cols.cycle_48[2] = F::from_bool(48 <= j && j < 64);
     cols.cycle_48_start = cols.cycle_48[0] * cols.cycle_16_start;
     cols.cycle_48_end = cols.cycle_48[2] * cols.cycle_16_end;
 }
@@ -100,7 +100,7 @@ pub(crate) fn eval_flags<AB: CurtaAirBuilder>(builder: &mut AB) {
     builder
         .when_transition()
         .when(local.cycle_16_end * local.cycle_48[2])
-        .assert_eq(next.i, AB::F::zero());
+        .assert_eq(next.i, AB::F::from_canonical_u32(16));
     builder
         .when_transition()
         .when(one.clone() - local.cycle_16_end)

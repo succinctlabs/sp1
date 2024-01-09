@@ -19,6 +19,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::cpu::air::MemoryAccessCols;
 use crate::precompiles::sha256_extend::flags::populate_flags;
+use crate::runtime::Opcode;
 use crate::runtime::Segment;
 use crate::utils::Chip;
 
@@ -82,6 +83,21 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
 
+        let mut w = [0u64; 64];
+
+        for i in 0..96 {
+            let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
+            let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
+            populate_flags(i, cols);
+
+            let j = 16 + (i % 48);
+            let s0 = w[j - 15].rotate_right(7) ^ w[j - 15].rotate_right(18) ^ (w[j - 15] >> 3);
+            let s1 = w[j - 2].rotate_right(17) ^ w[j - 2].rotate_right(19) ^ (w[j - 2] >> 10);
+            let s2 = w[j - 16] + s0 + w[j - 7] + s1;
+
+            // cols.w_i_minus_15.prev_value = w[j - 15];
+        }
+
         for i in 0..96 {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
             let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
@@ -130,15 +146,15 @@ where
         // Copy over the inputs until the result has been computed (every 48 rows).
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_48_end)
+            .when_not(local.cycle_48_end)
             .assert_eq(local.segment, next.segment);
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_48_end)
+            .when_not(local.cycle_48_end)
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_48_end)
+            .when_not(local.cycle_48_end)
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read from memory.
@@ -179,6 +195,9 @@ where
             local.w_i,
             AB::F::one(),
         );
+
+        // Lookup the computation for `s0`.
+        // builder.send_alu(AB::F::from_canonical_u32(Opcode::SRL as u32), local, b, c, one);
     }
 }
 

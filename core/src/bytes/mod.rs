@@ -43,25 +43,26 @@ pub const NUM_BYTE_OPS: usize = 5;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteOpcode {
     /// Bitwise AND.
-    And = 0,
+    AND = 0,
     /// Bitwise OR.
-    Or = 1,
+    OR = 1,
     /// Bitwise XOR.
-    Xor = 2,
+    XOR = 2,
     /// Bit-shift Left.
     ///
     /// This operation shifts by the first three least significant bits of the second byte.
     SLL = 3,
     /// Range check.
     Range = 5,
+    ShrCarry = 6,
 }
 
 impl ByteOpcode {
     pub fn get_all() -> Vec<Self> {
         let opcodes = vec![
-            ByteOpcode::And,
-            ByteOpcode::Or,
-            ByteOpcode::Xor,
+            ByteOpcode::AND,
+            ByteOpcode::OR,
+            ByteOpcode::XOR,
             ByteOpcode::SLL,
             ByteOpcode::Range,
         ];
@@ -100,27 +101,38 @@ impl<F: Field> ByteChip<F> {
             // Iterate over all operations for results and updating the table map.
             for (i, opcode) in opcodes.iter().enumerate() {
                 let event = match opcode {
-                    ByteOpcode::And => {
+                    ByteOpcode::AND => {
                         let and = b & c;
                         col.and = F::from_canonical_u8(and);
-                        ByteLookupEvent::new(*opcode, and, b, c)
+                        ByteLookupEvent::new(*opcode, and, 0, b, c)
                     }
-                    ByteOpcode::Or => {
+                    ByteOpcode::OR => {
                         let or = b | c;
                         col.or = F::from_canonical_u8(or);
-                        ByteLookupEvent::new(*opcode, or, b, c)
+                        ByteLookupEvent::new(*opcode, or, 0, b, c)
                     }
-                    ByteOpcode::Xor => {
+                    ByteOpcode::XOR => {
                         let xor = b ^ c;
                         col.xor = F::from_canonical_u8(xor);
-                        ByteLookupEvent::new(*opcode, xor, b, c)
+                        ByteLookupEvent::new(*opcode, xor, 0, b, c)
                     }
                     ByteOpcode::SLL => {
                         let sll = b << (c & 7);
                         col.sll = F::from_canonical_u8(sll);
-                        ByteLookupEvent::new(*opcode, sll, b, c)
+                        ByteLookupEvent::new(*opcode, sll, 0, b, c)
                     }
-                    ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, b, c),
+                    ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, 0, b, c),
+                    ByteOpcode::ShrCarry => {
+                        let c_mod = c & 0x7;
+                        let (res, carry) = if c_mod != 0 {
+                            let res = b >> c_mod;
+                            let carry = (b << (8 - c_mod)) >> (8 - c_mod);
+                            (res, carry)
+                        } else {
+                            (b, 0u8)
+                        };
+                        ByteLookupEvent::new(*opcode, res, carry, b, c)
+                    }
                 };
                 event_map.insert(event, (row_index, i));
             }
@@ -142,9 +154,9 @@ impl<F: Field> Chip<F> for ByteChip<F> {
 impl From<Opcode> for ByteOpcode {
     fn from(value: Opcode) -> Self {
         match value {
-            Opcode::AND => Self::And,
-            Opcode::OR => Self::Or,
-            Opcode::XOR => Self::Xor,
+            Opcode::AND => Self::AND,
+            Opcode::OR => Self::OR,
+            Opcode::XOR => Self::XOR,
             Opcode::SLL => Self::SLL,
             _ => panic!("Invalid opcode for ByteChip: {:?}", value),
         }

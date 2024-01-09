@@ -69,7 +69,8 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::from(event.opcode),
-                        a: b_a,
+                        a1: b_a,
+                        a2: 0,
                         b: b_b,
                         c: b_c,
                     };
@@ -113,9 +114,9 @@ where
         let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
 
         // Get the opcode for the operation.
-        let opcode = local.is_xor * ByteOpcode::Xor.to_field::<AB::F>()
-            + local.is_or * ByteOpcode::Or.to_field::<AB::F>()
-            + local.is_and * ByteOpcode::And.to_field::<AB::F>();
+        let opcode = local.is_xor * ByteOpcode::XOR.to_field::<AB::F>()
+            + local.is_or * ByteOpcode::OR.to_field::<AB::F>()
+            + local.is_and * ByteOpcode::AND.to_field::<AB::F>();
 
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;

@@ -4,11 +4,13 @@ mod word;
 use std::iter::once;
 
 pub use bool::Bool;
-use p3_air::{AirBuilder, MessageBuilder};
+use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
+use crate::bytes::ByteOpcode;
 use crate::cpu::air::MemoryAccessCols;
+use crate::disassembler::WORD_SIZE;
 use crate::lookup::InteractionKind;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
@@ -32,6 +34,58 @@ pub struct AirInteraction<E> {
 ///
 /// All `AirBuilder` implementations automatically implement this trait.
 pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
+    fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
+        self.when(Self::Expr::from(Self::F::one()) - condition.into())
+    }
+
+    fn rotate_right(
+        &mut self,
+        input: Word<Self::Var>,
+        rotation: usize,
+        output: Word<Self::Var>,
+        shift: Word<Self::Var>,
+        carry: Word<Self::Var>,
+    ) {
+        let rotation = rotation % (WORD_SIZE * 8);
+        let byte_rotation = rotation / 8;
+        let bit_rotation = rotation % 8;
+
+        let mult = Self::F::from_canonical_u32(1 << (8 - bit_rotation));
+
+        let input_bytes_rotated = Word([
+            input[byte_rotation % WORD_SIZE],
+            input[(1 + byte_rotation) % WORD_SIZE],
+            input[(2 + byte_rotation) % WORD_SIZE],
+            input[(3 + byte_rotation) % WORD_SIZE],
+        ]);
+
+        self.send_byte_loookup_pair(
+            Self::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
+            shift[WORD_SIZE - 1],
+            carry[WORD_SIZE - 1],
+            input_bytes_rotated[WORD_SIZE - 1],
+            Self::F::from_canonical_usize(rotation),
+            Self::F::one(),
+        );
+
+        let last_shift = shift[WORD_SIZE - 1];
+        let mut last_carry = carry[WORD_SIZE - 1];
+        for i in (0..WORD_SIZE - 1).rev() {
+            self.send_byte_loookup_pair(
+                Self::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
+                shift[i],
+                carry[i],
+                input_bytes_rotated[i],
+                Self::F::from_canonical_usize(rotation),
+                Self::F::one(),
+            );
+            self.assert_eq(output[i], shift[i] + last_carry * mult);
+            last_carry = carry[i];
+        }
+
+        self.assert_eq(output[WORD_SIZE - 1], last_shift + last_carry * mult);
+    }
+
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
@@ -155,7 +209,36 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         EMult: Into<Self::Expr>,
     {
         self.send(AirInteraction::new(
-            vec![opcode.into(), a.into(), b.into(), c.into()],
+            vec![
+                opcode.into(),
+                a.into(),
+                Self::F::zero().into(),
+                b.into(),
+                c.into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Byte,
+        ));
+    }
+
+    fn send_byte_loookup_pair<EOp, Ea1, Ea2, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a1: Ea1,
+        a2: Ea2,
+        b: Eb,
+        c: Ec,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea1: Into<Self::Expr>,
+        Ea2: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.send(AirInteraction::new(
+            vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
             multiplicity.into(),
             InteractionKind::Byte,
         ));
@@ -176,7 +259,36 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         EMult: Into<Self::Expr>,
     {
         self.receive(AirInteraction::new(
-            vec![opcode.into(), a.into(), b.into(), c.into()],
+            vec![
+                opcode.into(),
+                a.into(),
+                Self::F::zero().into(),
+                b.into(),
+                c.into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Byte,
+        ));
+    }
+
+    fn receive_byte_lookup_pair<EOp, Ea1, Ea2, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a1: Ea1,
+        a2: Ea2,
+        b: Eb,
+        c: Ec,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea1: Into<Self::Expr>,
+        Ea2: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.receive(AirInteraction::new(
+            vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
             multiplicity.into(),
             InteractionKind::Byte,
         ));
