@@ -194,7 +194,7 @@ where
 
         //////////////////////////////////////////
 
-        // Check that local.addr_offset \in [0, WORD_SIZE) by byte range checking local_offset << 6
+        // Check that local.addr_offset \in [0, WORD_SIZE) by byte range checking local.addr_offset << 6
         // and local.addr_offset.
         builder.send_byte_lookup(
             AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
