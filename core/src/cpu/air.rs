@@ -13,9 +13,9 @@ use std::mem::transmute_copy;
 use valida_derive::AlignedBorrow;
 
 use super::instruction_cols::InstructionCols;
-use super::opcode_cols::OpcodeSelectors;
+use super::opcode_cols::{InstructionType, OpcodeSelectors};
 use super::trace::CpuChip;
-use crate::runtime::AccessPosition;
+use crate::runtime::{AccessPosition, Opcode};
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -36,6 +36,13 @@ pub struct MemoryColumns<T> {
     pub addr_aligned: T,
     pub addr_offset: T,
     pub memory_access: MemoryAccessCols<T>,
+}
+
+pub struct BranchColumns<T> {
+    pub branch_cond_val: T,
+
+    pub a_minus_b: Word<T>, // Used for BNE opcode
+    pub a_minus_b_inv: Word<T>,
 }
 
 /// An AIR table for memory accesses.
@@ -59,11 +66,8 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryAccessCols<T>,
     pub op_c_access: MemoryAccessCols<T>,
 
-    // This is transmuted to MemoryColumns.
+    // This is transmuted to MemoryColumns or BNEColumns
     pub opcode_specific_columns: [T; WORKSPACE_SIZE],
-
-    // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
-    pub branch_cond_val: Word<T>,
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -131,6 +135,17 @@ where
 
         // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
 
+        let is_memory_instruction =
+            <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_memory_instruction(
+                &local.selectors,
+            );
+        let is_branch_instruction =
+            <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_branch_instruction(
+                &local.selectors,
+            );
+        let is_alu_instruction =
+            <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_alu_instruction(&local.selectors);
+
         //////////////////////////////////////////
 
         // Constraint op_a_val, op_b_val, op_c_val
@@ -152,9 +167,12 @@ where
             AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
         );
 
-        // // When we're doing a branch_op or a store op, we want to constraint it to be a read.
         builder
-            .when(local.selectors.branch_op + local.selectors.is_store)
+            .when(
+                <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_branch_instruction(
+                    &local.selectors,
+                ) + local.selectors.is_store,
+            )
             .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
 
         // // We always read to register b and register c unless the imm_b or imm_c flags are set.
@@ -190,7 +208,7 @@ where
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             memory_columns.memory_access,
-            local.selectors.is_load + local.selectors.is_store,
+            is_memory_instruction,
         );
 
         //////////////////////////////////////////
@@ -222,6 +240,40 @@ where
         //         + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
         //     next.pc,
         // );
+        let branch_columns: BranchColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        // Check that branch_cond_val is a boolean
+        builder
+            .when(is_branch_instruction)
+            .assert_bool(branch_columns.branch_cond_val);
+
+        // Handle the case when opcode == BEQ
+        builder
+            .when(local.selectors.is_beq * branch_columns.branch_cond_val)
+            .assert_word_eq(*local.op_a_val(), *local.op_b_val());
+
+        // Handle the case when opcode == BNE
+        // Check that (1 - branch_cond_val) * (a_minus_b) == 0
+        let one_minus_branch_cond_val = AB::Expr::one() - branch_columns.branch_cond_val;
+
+        // Check that a_minus_b == a - b
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::SUB as u8),
+            branch_columns.a_minus_b,
+            *local.op_a_val(),
+            *local.op_b_val(),
+            local.selectors.is_bne,
+        );
+
+        // Check that branch_cond_val == 0 < a_minus_b
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::SLT as u8),
+            AB::extend_expr_to_word(one_minus_branch_cond_val),
+            AB::zero_word(),
+            branch_columns.a_minus_b,
+            local.selectors.is_bne,
+        );
 
         // //// For jump instructions
         // builder
@@ -246,23 +298,12 @@ where
         //     reduce::<AB>(local.op_c_val) + local.pc,
         // );
 
-        // Send interactions for all the ALUs.
-        let ops = vec![
-            local.selectors.add_op,
-            local.selectors.sub_op,
-            local.selectors.bitwise_op,
-            local.selectors.shift_op,
-            local.selectors.lt_op,
-        ];
-        for op in ops {
-            // TODO: change this to 1 send interaction.
-            builder.send_alu(
-                local.instruction.opcode,
-                *local.op_a_val(),
-                *local.op_b_val(),
-                *local.op_c_val(),
-                op,
-            );
-        }
+        builder.send_alu(
+            local.instruction.opcode,
+            *local.op_a_val(),
+            *local.op_b_val(),
+            *local.op_c_val(),
+            is_alu_instruction,
+        );
     }
 }

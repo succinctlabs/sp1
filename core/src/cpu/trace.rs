@@ -1,6 +1,9 @@
-use super::air::{CpuCols, MemoryAccessCols, MemoryColumns, CPU_COL_MAP, NUM_CPU_COLS};
+use super::air::{
+    BranchColumns, CpuCols, MemoryAccessCols, MemoryColumns, CPU_COL_MAP, NUM_CPU_COLS,
+};
 use super::{CpuEvent, MemoryRecord};
 
+use crate::alu::{self, AluEvent};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
@@ -24,11 +27,15 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        let mut alu_events = Vec::new();
+
         let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op))
+            .map(|op| self.event_to_row(*op, &mut alu_events))
             .collect::<Vec<_>>();
+
+        segment.add_events.extend(add_events);
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
@@ -40,7 +47,11 @@ impl<F: PrimeField> Chip<F> for CpuChip {
 }
 
 impl CpuChip {
-    fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
+    fn event_to_row<F: PrimeField>(
+        &self,
+        event: CpuEvent,
+        alu_events: &mut Vec<alu::AluEvent>,
+    ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.segment = F::from_canonical_u32(event.segment);
@@ -68,7 +79,7 @@ impl CpuChip {
         }
 
         self.populate_memory(cols, event);
-        self.populate_branch(cols, event);
+        self.populate_branch(cols, event, alu_events);
 
         row
     }
@@ -114,18 +125,52 @@ impl CpuChip {
         }
     }
 
-    fn populate_branch<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
-        let branch_condition = match event.instruction.opcode {
-            Opcode::BEQ => Some(event.a == event.b),
-            Opcode::BNE => Some(event.a != event.b),
-            Opcode::BLT => Some((event.a as i32) < (event.b as i32)),
-            Opcode::BGE => Some((event.a as i32) >= (event.b as i32)),
-            Opcode::BLTU => Some(event.a < event.b),
-            Opcode::BGEU => Some(event.a >= event.b),
-            _ => None,
-        };
-        if let Some(branch_condition) = branch_condition {
-            cols.branch_cond_val = (branch_condition as u32).into();
+    fn populate_branch<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        alu_events: &mut Vec<alu::AluEvent>,
+    ) {
+        if event.instruction.is_branch_instruction() {
+            let branch_columns: &mut BranchColumns<F> =
+                unsafe { transmute(&mut cols.opcode_specific_columns) };
+
+            match event.instruction.opcode {
+                Opcode::BEQ => branch_columns.branch_cond_val = F::from_bool(event.a == event.b),
+                Opcode::BNE => {
+                    let branch_cond_val = event.a != event.b;
+                    branch_columns.branch_cond_val = F::from_bool(branch_cond_val);
+                    let a_minus_b = event.a.wrapping_sub(event.b);
+                    branch_columns.a_minus_b = a_minus_b.into();
+
+                    alu_events.push(AluEvent {
+                        clk: event.clk,
+                        opcode: Opcode::SUB,
+                        a: a_minus_b,
+                        b: event.a,
+                        c: event.b,
+                    });
+
+                    alu_events.push(AluEvent {
+                        clk: event.clk,
+                        opcode: Opcode::SLT,
+                        a: event.a,
+                        b: event.b,
+                        c: event.a,
+                    });
+                }
+                Opcode::BLT => {
+                    branch_columns.branch_cond_val =
+                        F::from_bool((event.a as i32) < (event.b as i32))
+                }
+                Opcode::BGE => {
+                    branch_columns.branch_cond_val =
+                        F::from_bool((event.a as i32) >= (event.b as i32))
+                }
+                Opcode::BLTU => branch_columns.branch_cond_val = F::from_bool(event.a < event.b),
+                Opcode::BGEU => branch_columns.branch_cond_val = F::from_bool(event.a >= event.b),
+                _ => unreachable!(),
+            }
         }
     }
 
@@ -189,6 +234,7 @@ mod tests {
     use p3_commit::ExtensionMmcs;
 
     use super::*;
+
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
