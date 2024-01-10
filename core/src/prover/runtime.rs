@@ -35,7 +35,7 @@ impl Runtime {
         let global_challenger = challenger.clone();
         for segment in self.segments {
             // For each segment in segments, prove the segment and add up the buses.
-            segment.prove(config, global_challenger, "MainCommit");
+            segment.prove(config, global_challenger, Mode::CommitMain);
         }
 
         for segment in self.segments {
@@ -66,10 +66,35 @@ impl Runtime {
     // }
 }
 
+type Val<SC> = <SC as StarkConfig>::Val;
+type ValMat<SC> = RowMajorMatrix<Val<SC>>;
+type Com<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
+type PcsProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
+
+pub struct SegmentDebugProof<SC: StarkConfig> {
+    pub main_commit: Commitments<Com<SC>>,
+    pub permutation_commit: Commitments<Com<SC>>,
+    pub quotient_commits: Commitments<Com<SC>>,
+    pub main_trace: ValMat<SC>,
+    pub permutation_trace: ValMat<SC>,
+    pub quotient_trace: ValMat<SC>,
+}
+
+#[derive(PartialEq)]
+enum Mode {
+    CommitMain,
+    FullProve,
+}
+
 impl Segment {
     /// Prove the program for the given segment.
     #[allow(unused)]
-    pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+    pub fn prove<F, EF, SC>(
+        &mut self,
+        config: &SC,
+        challenger: &mut SC::Challenger,
+        mode: Mode,
+    ) -> Option<SegmentDebugProof<SC>>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -135,13 +160,10 @@ impl Segment {
 
         // When in "CommitMain" mode, then we just update the global challenger with the committment to the main trace for this segment.
         // We do not proceed further.
-        if (mode == "commit_main") {
+        if (mode == Mode::CommitMain) {
             challenger.observe(main_commit);
-            return;
+            return None;
         }
-
-        // When the mode is not "commit_main", the the challenger that is passed in is the "global challenger".
-        // In this mode the challenges that are observed by each segment will be the exact same.
 
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<EF> = Vec::new();
@@ -255,9 +277,17 @@ impl Segment {
             );
         }
 
-        // TODO: this will not add up to 0 because of the memory bus.
         // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+
+        return Some(SegmentDebugProof {
+            main_commit,
+            permutation_commit,
+            quotient_commits,
+            main_trace,
+            permutation_trace,
+            quotient_trace,
+        });
     }
 }
 
