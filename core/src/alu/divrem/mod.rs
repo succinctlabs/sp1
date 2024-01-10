@@ -311,24 +311,24 @@ where
                 // The upper 4 bytes must reflect the sign of b in two's complement:
                 // - All 1s (0xff) for negative b.
                 // - All 0s for non-negative b.
-                // builder
-                //     .when(local.b_neg)
-                //     .assert_eq(local.c_times_quotient[i], AB::F::from_canonical_u32(0xff));
-                // builder
-                //     .when(one.clone() - local.b_neg)
-                //     .assert_eq(local.c_times_quotient[i], zero.clone());
+                builder
+                    .when(local.b_neg)
+                    .assert_eq(local.c_times_quotient[i], AB::F::from_canonical_u32(0xff));
+                builder
+                    .when(one.clone() - local.b_neg)
+                    .assert_eq(local.c_times_quotient[i], zero.clone());
             }
         }
 
         // a must equal remainder or quotient depending on the opcode.
-        // for i in 0..WORD_SIZE {
-        //     builder
-        //         .when(local.is_divu + local.is_div)
-        //         .assert_eq(local.remainder[i], local.a[i]);
-        //     builder
-        //         .when(local.is_remu + local.is_rem)
-        //         .assert_eq(local.quotient[i], local.a[i]);
-        // }
+        for i in 0..WORD_SIZE {
+            builder
+                .when(local.is_divu + local.is_div)
+                .assert_eq(local.quotient[i], local.a[i]);
+            builder
+                .when(local.is_remu + local.is_rem)
+                .assert_eq(local.remainder[i], local.a[i]);
+        }
 
         // // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
         // // we will check a slightly stronger condition:
