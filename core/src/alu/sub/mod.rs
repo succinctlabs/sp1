@@ -76,6 +76,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
                 cols.is_real = F::one();
+
                 row
             })
             .collect::<Vec<_>>();
@@ -182,6 +183,15 @@ mod tests {
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
+        let chip = SubChip {};
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        println!("{:?}", trace.values)
+    }
+
+    #[test]
+    fn generate_trace_overflow() {
+        let mut segment = Segment::default();
+        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 0, 1, 4294967295)];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
