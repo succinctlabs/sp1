@@ -78,7 +78,6 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
                 cols.is_real = F::one();
-
                 row
             })
             .collect::<Vec<_>>();
@@ -128,12 +127,12 @@ where
         builder.assert_zero(local.carry[1] * (overflow_1.clone() + base));
         builder.assert_zero(local.carry[2] * (overflow_2.clone() + base));
 
-        // // If the carry is not one, then the overflow must be zero.
+        // If the carry is not one, then the overflow must be zero.
         builder.assert_zero((local.carry[0] - one) * overflow_0.clone());
         builder.assert_zero((local.carry[1] - one) * overflow_1.clone());
         builder.assert_zero((local.carry[2] - one) * overflow_2.clone());
 
-        // // Assert that the carry is either zero or one.
+        // Assert that the carry is either zero or one.
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
