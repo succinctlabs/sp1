@@ -691,9 +691,6 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
@@ -736,7 +733,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            //            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut segment = Segment::default();
