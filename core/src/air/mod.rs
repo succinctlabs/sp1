@@ -6,7 +6,7 @@ use std::iter::once;
 
 pub use bool::Bool;
 use p3_air::{AirBuilder, MessageBuilder};
-use p3_field::AbstractField;
+use p3_field::{AbstractField, Field};
 pub use word::Word;
 
 use crate::cpu::air::MemoryAccessCols;

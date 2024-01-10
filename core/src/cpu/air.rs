@@ -43,7 +43,9 @@ pub struct BranchColumns<T> {
     pub branch_cond_val: T,
 
     pub a_minus_b: Word<T>, // Used for BNE opcode
-    pub a_minus_b_inv: Word<T>,
+
+    pub a_gt_b: T, // Used for BGE opcode
+    pub a_eq_b: T, // Used for BGE opcode
 }
 
 /// An AIR table for memory accesses.
@@ -302,6 +304,36 @@ where
             *local.op_b_val(),
             local.selectors.is_blt,
         );
+
+        // // Handle the case when opcode == BGE
+
+        // When branch_cond_val == true, verify that either a_gt_b == 1 or a_eq_b == 1
+        builder
+            .when(local.selectors.is_bge * branch_columns.branch_cond_val)
+            .assert_one(branch_columns.a_gt_b + branch_columns.a_eq_b);
+
+        // When branch_cond_val == false, verify that both a_gt_b == 0 and a_eq_b == 0
+        builder
+            .when(local.selectors.is_bge * (AB::Expr::one() - branch_columns.branch_cond_val))
+            .assert_zero(branch_columns.a_gt_b + branch_columns.a_eq_b);
+
+        // Verify correct compution of a_gt_b
+        builder.send_alu(
+            branch_columns.a_gt_b,
+            AB::extend_expr_to_word(branch_columns.branch_cond_val),
+            *local.op_b_val(),
+            *local.op_a_val(),
+            local.selectors.is_bge,
+        );
+
+        // If a_gt_b == false, then a_eq_b must be true
+        builder
+            .when(
+                local.selectors.is_bge
+                    * branch_columns.branch_cond_val
+                    * (AB::Expr::one() - branch_columns.a_gt_b),
+            )
+            .assert_word_eq(*local.op_b_val(), *local.op_a_val());
 
         // //// For jump instructions
         // builder

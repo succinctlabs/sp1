@@ -234,7 +234,23 @@ impl CpuChip {
                 }
                 Opcode::BGE => {
                     branch_columns.branch_cond_val =
-                        F::from_bool((event.a as i32) >= (event.b as i32))
+                        F::from_bool((event.a as i32) >= (event.b as i32));
+                    let a_gt_b = event.a > event.b;
+                    branch_columns.a_gt_b = F::from_bool(a_gt_b);
+                    branch_columns.a_eq_b = F::from_bool(event.a == event.b);
+
+                    let slt_event = AluEvent {
+                        clk: event.clk,
+                        opcode: Opcode::SLT,
+                        a: a_gt_b as u32,
+                        b: event.b,
+                        c: event.a,
+                    };
+
+                    alu_events
+                        .entry(Opcode::SLT)
+                        .and_modify(|op_new_events| op_new_events.push(slt_event))
+                        .or_insert(vec![slt_event]);
                 }
                 Opcode::BLTU => branch_columns.branch_cond_val = F::from_bool(event.a < event.b),
                 Opcode::BGEU => branch_columns.branch_cond_val = F::from_bool(event.a >= event.b),
