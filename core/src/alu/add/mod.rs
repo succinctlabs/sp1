@@ -161,7 +161,7 @@ mod tests {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
-    use rand::thread_rng;
+    use rand::{thread_rng, Rng};
 
     use crate::{
         alu::AluEvent,
@@ -224,6 +224,16 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut segment = Segment::default();
+        for _i in 0..1000 {
+            let operand_1 = thread_rng().gen_range(0..u32::MAX);
+            let operand_2 = thread_rng().gen_range(0..u32::MAX);
+            let result = operand_1.wrapping_add(operand_2);
+
+            segment
+                .sub_events
+                .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
+        }
+
         segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)].repeat(1000);
         let chip = AddChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
