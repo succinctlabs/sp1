@@ -14,6 +14,7 @@ use p3_util::log2_ceil_usize;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
 use crate::prover::debug_constraints;
+use crate::runtime::Runtime;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
 use p3_uni_stark::StarkConfig;
@@ -21,29 +22,7 @@ use p3_util::log2_strict_usize;
 
 use crate::prover::debug_cumulative_sums;
 
-// impl Runtime {
-//     /// Prove the program.
-//     #[allow(unused)]
-//     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
-//     where
-//         F: PrimeField + TwoAdicField + PrimeField32,
-//         EF: ExtensionField<F>,
-//         SC: StarkConfig<Val = F, Challenge = EF>,
-//     {
-//         let bus_sum = vec![];
-//         for segment in self.segments {
-//             // For each segment in segments, prove the segment and add up the buses.
-//             bus_sum.push(segment.prove(config, challenger));
-//         }
-
-//         let cumulative_bus_sum = bus_sum.sum();
-
-//         let init_chip = MemoryInitChip { init: true };
-//         let finalize_chip = MemoryInitChip { init: false };
-//     }
-// }
-
-impl Segment {
+impl Runtime {
     /// Prove the program.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
@@ -52,7 +31,51 @@ impl Segment {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 11;
+        let segment_proofs = vec![];
+        let global_challenger = challenger.clone();
+        for segment in self.segments {
+            // For each segment in segments, prove the segment and add up the buses.
+            segment.prove(config, global_challenger, "MainCommit");
+        }
+
+        for segment in self.segments {
+            // For each segment in segments, prove the segment and add up the buses.
+            segment_proofs.push(segment.prove(config, global_challenger.clone(), "FullProve"));
+        }
+
+        let cumulative_bus_sum = bus_sum.sum();
+
+        // TODO: change MemoryInitChip and MemoryFinalizeChip to take in a "GlobalSegment" information.
+        let program_memory_init = MemoryInitChip { init: true }; // This is the global "program" memory initialization.
+        let init_chip = MemoryInitChip { init: true }; // This is the dynamic init chip for all addresses that are touched.
+        let finalize_chip = MemoryInitChip { init: false };
+
+        // Compute the cumulative bus sum from all segments
+        // Add the program_memory_init (fixed) + init_chip + finalize_chip to the cumulative bus sum.
+        // Make sure that this cumulative bus sum is 0.
+        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+    }
+
+    // pub fn verify(self, config: &SC, challenger: &mut SC::Challenger, proof: Proof) {
+    //     // Take in a bunch of segment proofs
+    //     // Then verify eachv segment proof independently.
+    //     // Then add up the buses and make sure that the cumulative sum is 0.
+    //     // Check that the segment proof has program_committment = fixed_program_committment
+    //     let global_challenger = &mut SC::Challenger::new();
+    //     global_challenger.observe(segment_commit);
+    // }
+}
+
+impl Segment {
+    /// Prove the program for the given segment.
+    #[allow(unused)]
+    pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
+        const NUM_CHIPS: usize = 9;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -63,8 +86,8 @@ impl Segment {
         let left_shift = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
-        let memory_init = MemoryInitChip::new(true);
-        let memory_finalize = MemoryInitChip::new(false);
+        // let memory_init = MemoryInitChip::new(true);
+        // let memory_finalize = MemoryInitChip::new(false);
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
@@ -75,8 +98,8 @@ impl Segment {
             Box::new(left_shift),
             Box::new(lt),
             Box::new(bytes),
-            Box::new(memory_init),
-            Box::new(memory_finalize),
+            // Box::new(memory_init),
+            // Box::new(memory_finalize),
         ];
 
         // Compute some statistics.
@@ -109,7 +132,16 @@ impl Segment {
 
         // Commit to the batch of traces.
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        challenger.observe(main_commit);
+
+        // When in "CommitMain" mode, then we just update the global challenger with the committment to the main trace for this segment.
+        // We do not proceed further.
+        if (mode == "commit_main") {
+            challenger.observe(main_commit);
+            return;
+        }
+
+        // When the mode is not "commit_main", the the challenger that is passed in is the "global challenger".
+        // In this mode the challenges that are observed by each segment will be the exact same.
 
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<EF> = Vec::new();
@@ -141,7 +173,14 @@ impl Segment {
 
         // For each chip, compute the quotient polynomial.
         let main_ldes = config.pcs().get_ldes(&main_data);
-        let permutation_ldes = config.pcs().get_ldes(&permutation_data);
+        let permutation_ldes: Vec<
+            <<SC as StarkConfig>::Pcs as UnivariatePcsWithLde<
+                F,
+                EF,
+                p3_matrix::dense::RowMajorMatrix<F>,
+                <SC as StarkConfig>::Challenger,
+            >>::Lde,
+        > = config.pcs().get_ldes(&permutation_data);
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
@@ -216,6 +255,7 @@ impl Segment {
             );
         }
 
+        // TODO: this will not add up to 0 because of the memory bus.
         // Check the permutation argument between all tables.
         debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
