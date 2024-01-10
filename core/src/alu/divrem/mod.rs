@@ -532,13 +532,13 @@ where
 
         // Receive the arguments.
         {
-            let opcode = {
-                // Exactly one of the opcode flags must be on.
-                builder.when(local.is_real).assert_eq(
-                    one.clone(),
-                    local.is_divu + local.is_remu + local.is_div + local.is_rem,
-                );
+            // Exactly one of the opcode flags must be on.
+            builder.when(local.is_real).assert_eq(
+                one.clone(),
+                local.is_divu + local.is_remu + local.is_div + local.is_rem,
+            );
 
+            let opcode = {
                 let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
                 let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
                 let div: AB::Expr = AB::F::from_canonical_u32(Opcode::DIV as u32).into();
@@ -552,6 +552,7 @@ where
 
             builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
         }
+
         // A dummy constraint to keep the degree 3.
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
