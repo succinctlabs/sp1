@@ -7,23 +7,27 @@
 //! # Use the multiplication ALU table. result is 64 bits.
 //! result = quotient * c.
 //!
-//! # Add sign-extended remainder to result.
-//! for i in range(8):
-//!     result[i] += remainder[i]
-//!
-//! # Propagate carry to handle overflow within bytes.
+//! # Add sign-extended remainder to result. Propagate carry to handle overflow within bytes.
 //! base = pow(2, 8)
 //! carry = 0
 //! for i in range(8):
-//!     x = result[i] + carry
+//!     x = result[i] + remainder[i] + carry
 //!     result[i] = x % base
 //!     carry = x // base
 //!
-//! # c * quotient + remainder must not extend beyond 32 bits.
-//! assert result[4..8] == ([0xff, 0xff, 0xff, 0xff] if b_negative else [0, 0, 0, 0])
+//! # The number represented by c * quotient + remainder in 64 bits must equal b in 32 bits.
 //!
 //! # Assert the lower 32 bits of result match b.
 //! assert result[0..4] == b[0..4]
+//!
+//! # Assert the upper 32 bits of result match the sign of b.
+//! if (b == -2^{31}) and (c == -1):
+//!     # This is the only exception as this is the only case where it overflows.
+//!     assert result[4..8] == [0, 0, 0, 0]
+//! elif b < 0:
+//!     assert result[4..8] == [0xff, 0xff, 0xff, 0xff]
+//! else:
+//!     assert result[4..8] == [0, 0, 0, 0]
 //!
 //! # Check a = quotient or remainder.
 //! assert a == (quotient if opcode == division else remainder)
@@ -196,6 +200,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 }
                 let (quotient, remainder) =
                     get_quotient_and_remainder(event.b, event.c, event.opcode);
+                println!(
+                    "b: {}, c: {}, quotient: {}, remainder: {}",
+                    event.b, event.c, quotient, remainder
+                );
 
                 cols.quotient = quotient.to_le_bytes().map(F::from_canonical_u8);
                 cols.remainder = remainder.to_le_bytes().map(F::from_canonical_u8);
@@ -211,9 +219,26 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 // print quotient and event.c
                 println!("quotient: {}", quotient);
                 println!("event.c : {}", quotient);
+                if is_signed_operation(event.opcode) {
+                    println!(
+                        "b = quotient * c + remainder, {} = {} * {} + {}, => {}",
+                        event.b as i32,
+                        quotient as i32,
+                        event.c as i32,
+                        remainder as i32,
+                        event.b as i32
+                            == (quotient as i32)
+                                .wrapping_mul(event.c as i32)
+                                .wrapping_add(remainder as i32)
+                    );
+                }
 
                 let c_times_quotient = {
                     if is_signed_operation(event.opcode) {
+                        println!("quotient as i32 = {}", quotient as i32);
+                        println!("event.c as i32 = {}", event.c as i32);
+                        println!("quotient as i32 as i64 = {}", (quotient as i32) as i64);
+                        println!("event.c as i32 as i64 = {}", (event.c as i32) as i64);
                         (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
                     } else {
                         ((quotient as u64) * (event.c as u64)).to_le_bytes()
