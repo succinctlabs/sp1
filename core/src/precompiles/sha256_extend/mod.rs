@@ -17,11 +17,11 @@ use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::air::FixedShiftRightCols;
 use crate::air::Word;
 use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::air::MemoryReadCols;
 use crate::operations::FixedRotateRightCols;
+use crate::operations::FixedShiftRightCols;
 use crate::precompiles::sha256_extend::flags::populate_flags;
 use crate::runtime::Opcode;
 use crate::runtime::Segment;
@@ -119,7 +119,10 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
 
-        let mut w = [1u32; 64];
+        let mut w = [11111111u32; 64];
+
+        println!("{:?}", 11111111u32.rotate_right(7).to_le_bytes());
+        println!("{:?}", (11111111u32 >> 3).to_le_bytes());
 
         // [27, 132, 49, 0]
 
@@ -131,6 +134,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             let j = i % 48;
             cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
             cols.w_i_minus_15_rr_7.populate(cols.w_i_minus_15.value, 7);
+            cols.w_i_minus_15_rs_3.populate(cols.w_i_minus_15.value, 3);
             // cols.w_i_minus_15_rr_18
             //     .populate(cols.w_i_minus_15.value, 15);
 
@@ -147,7 +151,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
             populate_flags(i, cols);
             rows.push(row);
-            println!("{:?}", cols);
+            // println!("{:?}", cols);
         }
 
         let nb_rows = rows.len();
@@ -254,6 +258,12 @@ where
             local.w_i_minus_15.value,
             18,
             local.w_i_minus_15_rr_18,
+        );
+        FixedShiftRightCols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_15.value,
+            3,
+            local.w_i_minus_15_rs_3,
         );
     }
 }

@@ -22,11 +22,3 @@ pub struct IsEqualCols<T> {
     pub out: T,
     pub inv: T,
 }
-
-#[derive(AlignedBorrow, Default, Debug)]
-#[repr(C)]
-pub struct FixedShiftRightCols<T> {
-    pub value: Word<T>,
-    pub shift: Word<T>,
-    pub carry: Word<T>,
-}

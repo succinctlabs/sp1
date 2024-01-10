@@ -67,10 +67,10 @@ impl<F: Field> FixedShiftRightCols<F> {
             self.shift[i] = F::from_canonical_u8(shift);
             self.carry[i] = F::from_canonical_u8(carry);
 
-            if i == 0 {
+            if i == WORD_SIZE - 1 {
                 first_shift = self.shift[i];
             } else {
-                self.value[i] = self.shift[i] + self.carry[i] * carry_multiplier;
+                self.value[i] = self.shift[i] + last_carry * carry_multiplier;
             }
 
             last_carry = self.carry[i];
@@ -78,6 +78,8 @@ impl<F: Field> FixedShiftRightCols<F> {
 
         // For the first byte, we don't move over the carry as this is a shift, not a rotate.
         self.value[WORD_SIZE - 1] = first_shift;
+
+        println!("{:?}", self);
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
@@ -114,7 +116,7 @@ impl<F: Field> FixedShiftRightCols<F> {
                 AB::F::one(),
             );
 
-            if i == 0 {
+            if i == WORD_SIZE - 1 {
                 first_shift = cols.shift[i].into();
             } else {
                 builder.assert_eq(cols.value[i], cols.shift[i] + last_carry * carry_multiplier);

@@ -46,6 +46,9 @@ impl<F: Field> FixedRotateRightCols<F> {
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);
         let carry_multiplier = F::from_canonical_u32(Self::carry_multiplier(rotation));
 
+        println!("nb_bytes_to_shift={}", nb_bytes_to_shift);
+        println!("nb_bits_to_shift={}", nb_bits_to_shift);
+
         // Perform the byte shift.
         let input_bytes_rotated = Word([
             input[nb_bytes_to_shift % WORD_SIZE],
@@ -66,10 +69,10 @@ impl<F: Field> FixedRotateRightCols<F> {
             self.shift[i] = F::from_canonical_u8(shift);
             self.carry[i] = F::from_canonical_u8(carry);
 
-            if i == 0 {
+            if WORD_SIZE - 1 == 0 {
                 first_shift = self.shift[i];
             } else {
-                self.value[i] = self.shift[i] + self.carry[i] * carry_multiplier;
+                self.value[i] = self.shift[i] + last_carry * carry_multiplier;
             }
 
             last_carry = self.carry[i];
@@ -112,7 +115,7 @@ impl<F: Field> FixedRotateRightCols<F> {
                 AB::F::one(),
             );
 
-            if i == 0 {
+            if i == WORD_SIZE - 1 {
                 first_shift = cols.shift[i].into();
             } else {
                 builder.assert_eq(cols.value[i], cols.shift[i] + last_carry * carry_multiplier);
