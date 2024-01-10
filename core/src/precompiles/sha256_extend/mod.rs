@@ -17,7 +17,11 @@ use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
+use crate::air::FixedShiftRightCols;
+use crate::air::Word;
 use crate::cpu::air::MemoryAccessCols;
+use crate::cpu::air::MemoryReadCols;
+use crate::operations::FixedRotateRightCols;
 use crate::precompiles::sha256_extend::flags::populate_flags;
 use crate::runtime::Opcode;
 use crate::runtime::Segment;
@@ -50,24 +54,56 @@ pub struct ShaExtendCols<T> {
     pub cycle_48_start: T,
     pub cycle_48_end: T,
 
-    /// Computation.
+    /// w[i-15] read
     pub w_i_minus_15: MemoryAccessCols<T>,
-    // pub w_i_minus_15_rr_7: Word<T>,
+    pub w_i_minus_15_rr_7: FixedRotateRightCols<T>,
+    pub w_i_minus_15_rr_18: FixedRotateRightCols<T>,
+    pub w_i_minus_15_rs_3: FixedShiftRightCols<T>,
+    // w[i-15] rightrotate 18
+    // pub w_i_minus_15_rr_18_shift: Word<T>,
+    // pub w_i_minus_15_rr_18_carry: Word<T>,
     // pub w_i_minus_15_rr_18: Word<T>,
+
+    // /// w[i-15] >> 3
     // pub w_i_minus_15_rs_3: Word<T>,
+
+    // /// (w[i-15] rightrotate 7) ^ (w[i-15] rightrotate 18)
     // pub w_i_minus_15_rr_7_xor_w_i_minus_15_rr_18: Word<T>,
+
+    // /// (w[i-15] rightrotate 7) ^ (w[i-15] rightrotate 18) ^ (w[i-15] >> 3)
     // pub s0: Word<T>,
-    pub w_i_minus_2: MemoryAccessCols<T>,
+
+    // /// w[i-2] read
+    // pub w_i_minus_2: MemoryAccessCols<T>,
+
+    // /// w[i-2] rightrotate 17
+    // pub w_i_minus_2_rr_17_shift: Word<T>,
+    // pub w_i_minus_2_rr_17_carry: Word<T>,
     // pub w_i_minus_2_rr_17: Word<T>,
+
+    // /// w[i-2] rightrotate 19
+    // pub w_i_minus_2_rr_19_shift: Word<T>,
+    // pub w_i_minus_2_rr_19_carry: Word<T>,
     // pub w_i_minus_2_rr_19: Word<T>,
+
+    // /// w[i-2] >> 10
     // pub w_i_minus_2_rs_10: Word<T>,
+
+    // /// (w[i-2] rightrotate 17) ^ (w[i-2] rightrotate 19) ^ (w[i-2] >> 10)
     // pub w_i_minus_2_rr_17_xor_w_i_minus_2_rr_19: Word<T>,
+
+    // /// (w[i-2] rightrotate 17) ^ (w[i-2] rightrotate 19)
     // pub s1: Word<T>,
-    pub w_i_minus_16: MemoryAccessCols<T>,
+
+    // /// w[i-16] read
+    // pub w_i_minus_16: MemoryAccessCols<T>,
     // pub w_i_minus_16_plus_s0: Word<T>,
-    pub w_i_minus_7: MemoryAccessCols<T>,
+
+    // /// w[i-7] read
+    // pub w_i_minus_7: MemoryAccessCols<T>,
     // pub w_i_minus_7_plus_s1: Word<T>,
-    pub w_i: MemoryAccessCols<T>,
+
+    // pub w_i: MemoryAccessCols<T>,
 }
 
 pub struct ShaExtendChip;
@@ -78,22 +114,30 @@ impl ShaExtendChip {
     }
 }
 
-impl<F: PrimeField> Chip<F> for ShaExtendChip {
+impl<F: PrimeField32> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
 
-        let mut w = [0u64; 64];
+        let mut w = [1u32; 64];
+
+        // [27, 132, 49, 0]
 
         for i in 0..96 {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
             let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
             populate_flags(i, cols);
 
-            let j = 16 + (i % 48);
-            let s0 = w[j - 15].rotate_right(7) ^ w[j - 15].rotate_right(18) ^ (w[j - 15] >> 3);
-            let s1 = w[j - 2].rotate_right(17) ^ w[j - 2].rotate_right(19) ^ (w[j - 2] >> 10);
-            let s2 = w[j - 16] + s0 + w[j - 7] + s1;
+            let j = i % 48;
+            cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
+            cols.w_i_minus_15_rr_7.populate(cols.w_i_minus_15.value, 7);
+            // cols.w_i_minus_15_rr_18
+            //     .populate(cols.w_i_minus_15.value, 15);
+
+            // let j = 16 + (i % 48);
+            // let s0 = w[j - 15].rotate_right(7) ^ w[j - 15].rotate_right(18) ^ (w[j - 15] >> 3);
+            // let s1 = w[j - 2].rotate_right(17) ^ w[j - 2].rotate_right(19) ^ (w[j - 2] >> 10);
+            // let s2 = w[j - 16] + s0 + w[j - 7] + s1;
 
             // cols.w_i_minus_15.prev_value = w[j - 15];
         }
@@ -144,60 +188,63 @@ where
         let one = AB::Expr::from(AB::F::one());
 
         // Copy over the inputs until the result has been computed (every 48 rows).
-        builder
-            .when_transition()
-            .when_not(local.cycle_48_end)
-            .assert_eq(local.segment, next.segment);
-        builder
-            .when_transition()
-            .when_not(local.cycle_48_end)
-            .assert_eq(local.clk, next.clk);
-        builder
-            .when_transition()
-            .when_not(local.cycle_48_end)
-            .assert_eq(local.w_ptr, next.w_ptr);
+        // builder
+        //     .when_transition()
+        //     .when_not(local.cycle_48_end)
+        //     .assert_eq(local.segment, next.segment);
+        // builder
+        //     .when_transition()
+        //     .when_not(local.cycle_48_end)
+        //     .assert_eq(local.clk, next.clk);
+        // builder
+        //     .when_transition()
+        //     .when_not(local.cycle_48_end)
+        //     .assert_eq(local.w_ptr, next.w_ptr);
 
-        // Read from memory.
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(15),
-            local.w_i_minus_15,
-            AB::F::one(),
-        );
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(2),
-            local.w_i_minus_2,
-            AB::F::one(),
-        );
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(16),
-            local.w_i_minus_16,
-            AB::F::one(),
-        );
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(7),
-            local.w_i_minus_7,
-            AB::F::one(),
-        );
+        // // Read from memory.
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(15),
+        //     local.w_i_minus_15,
+        //     AB::F::one(),
+        // );
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(2),
+        //     local.w_i_minus_2,
+        //     AB::F::one(),
+        // );
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(16),
+        //     local.w_i_minus_16,
+        //     AB::F::one(),
+        // );
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(7),
+        //     local.w_i_minus_7,
+        //     AB::F::one(),
+        // );
 
         // Write to memory.
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i,
-            local.w_i,
-            AB::F::one(),
-        );
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i,
+        //     local.w_i,
+        //     AB::F::one(),
+        // );
 
         // Lookup the computation for `s0`.
         // builder.send_alu(AB::F::from_canonical_u32(Opcode::SRL as u32), local, b, c, one);
+
+        builder.rotate_right(local.w_i_minus_15.value, local.w_i_minus_15_rr_7, 7);
+        builder.rotate_right(local.w_i_minus_15.value, local.w_i_minus_15_rr_18, 18);
     }
 }
 

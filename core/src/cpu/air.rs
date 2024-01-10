@@ -17,6 +17,14 @@ use crate::runtime::AccessPosition;
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
+pub struct MemoryReadCols<T> {
+    pub value: Word<T>,
+    pub segment: T,
+    pub timestamp: T,
+}
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
     pub prev_value: Word<T>,

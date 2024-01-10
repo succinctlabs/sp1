@@ -1,6 +1,7 @@
 pub mod air;
 mod event;
 mod trace;
+pub mod utils;
 
 use core::borrow::BorrowMut;
 
@@ -19,6 +20,8 @@ use crate::{
     runtime::{Opcode, Segment},
     utils::Chip,
 };
+
+use self::utils::shr_carry;
 
 /// A chip for computing byte operations.
 ///
@@ -123,14 +126,7 @@ impl<F: Field> ByteChip<F> {
                     }
                     ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, 0, b, c),
                     ByteOpcode::ShrCarry => {
-                        let c_mod = c & 0x7;
-                        let (res, carry) = if c_mod != 0 {
-                            let res = b >> c_mod;
-                            let carry = (b << (8 - c_mod)) >> (8 - c_mod);
-                            (res, carry)
-                        } else {
-                            (b, 0u8)
-                        };
+                        let (res, carry) = shr_carry(b, c);
                         ByteLookupEvent::new(*opcode, res, carry, b, c)
                     }
                 };
