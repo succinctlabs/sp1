@@ -112,7 +112,6 @@ where
 
         // For each limb, assert that difference between the carried result and the non-carried
         // result is either zero or the base.
-
         let overflow_0 = local.b[0] - local.c[0] - local.a[0];
         let overflow_1 = local.b[1] - local.c[1] - local.a[1] - local.carry[0];
         let overflow_2 = local.b[2] - local.c[2] - local.a[2] - local.carry[1];
