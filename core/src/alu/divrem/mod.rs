@@ -209,7 +209,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 let remainder_bytes = {
                     if is_signed_operation(event.opcode) {
-                        (remainder as i64).to_le_bytes()
+                        ((remainder as i32) as i64).to_le_bytes()
                     } else {
                         (remainder as u64).to_le_bytes()
                     }
@@ -501,28 +501,28 @@ mod tests {
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
-            (Opcode::DIVU, 3, 20, 6),
-            (Opcode::DIVU, 715827879, neg(20), 6),
-            (Opcode::DIVU, 0, 20, neg(6)),
-            (Opcode::DIVU, 0, neg(20), neg(6)),
-            (Opcode::DIVU, 1 << 31, 1 << 31, 1),
-            (Opcode::DIVU, 0, 1 << 31, neg(1)),
-            (Opcode::DIVU, u32::MAX, 1 << 31, 0),
-            (Opcode::DIVU, u32::MAX, 1, 0),
-            (Opcode::DIVU, u32::MAX, 0, 0),
-            (Opcode::REMU, 4, 18, 7),
-            (Opcode::REMU, 6, neg(20), 11),
-            (Opcode::REMU, 23, 23, neg(6)),
-            (Opcode::REMU, neg(21), neg(21), neg(11)),
-            (Opcode::REMU, 5, 5, 0),
-            (Opcode::REMU, neg(1), neg(1), 0),
-            (Opcode::REMU, 0, 0, 0),
-            (Opcode::REM, 7, 16, 9),
-            // (Opcode::REM, neg(4), neg(22), 6),
-            // (Opcode::REM, 1, 25, neg(3)),
-            // (Opcode::REM, neg(2), neg(22), neg(4)),
-            // (Opcode::REM, 0, 873, 1),
-            // (Opcode::REM, 0, 873, neg(1)),
+            // (Opcode::DIVU, 3, 20, 6),
+            // (Opcode::DIVU, 715827879, neg(20), 6),
+            // (Opcode::DIVU, 0, 20, neg(6)),
+            // (Opcode::DIVU, 0, neg(20), neg(6)),
+            // (Opcode::DIVU, 1 << 31, 1 << 31, 1),
+            // (Opcode::DIVU, 0, 1 << 31, neg(1)),
+            // (Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            // (Opcode::DIVU, u32::MAX, 1, 0),
+            // (Opcode::DIVU, u32::MAX, 0, 0),
+            // (Opcode::REMU, 4, 18, 7),
+            // (Opcode::REMU, 6, neg(20), 11),
+            // (Opcode::REMU, 23, 23, neg(6)),
+            // (Opcode::REMU, neg(21), neg(21), neg(11)),
+            // (Opcode::REMU, 5, 5, 0),
+            // (Opcode::REMU, neg(1), neg(1), 0),
+            // (Opcode::REMU, 0, 0, 0),
+            // (Opcode::REM, 7, 16, 9),
+            (Opcode::REM, neg(4), neg(22), 6),
+            (Opcode::REM, 1, 25, neg(3)),
+            (Opcode::REM, neg(2), neg(22), neg(4)),
+            (Opcode::REM, 0, 873, 1),
+            (Opcode::REM, 0, 873, neg(1)),
             // (Opcode::REM, 5, 5, 0),
             // (Opcode::REM, neg(5), neg(5), 0),
             // (Opcode::REM, 0, 0, 0),
