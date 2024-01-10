@@ -52,6 +52,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -349,30 +350,26 @@ where
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
 
-        let mut result: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
-
         // Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
-
-        // Add remainder to product c * quotient.
-        let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
-        for i in 0..LONG_WORD_SIZE {
-            result[i] = local.c_times_quotient[i].into();
-            if i < WORD_SIZE {
-                result[i] += local.remainder[i].into();
-            } else {
-                // If rem is negative, add 0xff to the upper 4 bytes.
-                result[i] += sign_extension.clone();
-            }
-        }
 
         // TODO: calculate is_overflow
 
-        // Propagate carry.
+        // Add remainder to product c * quotient, and compare it to b.
+        let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
         for i in 0..LONG_WORD_SIZE {
-            let mut v = result[i].clone() - local.carry[i].clone() * base.clone();
+            let mut v = local.c_times_quotient[i].into();
+            if i < WORD_SIZE {
+                v += local.remainder[i].into();
+            } else {
+                // If rem is negative, add 0xff to the upper 4 bytes.
+                v += sign_extension.clone();
+            }
+            // Propagate carry.
+            v -= local.carry[i].clone() * base.clone();
             if i > 0 {
                 v += local.carry[i - 1].into();
             }
+
             if i < WORD_SIZE {
                 // The lower 4 bytes of the result must match the corresponding bytes in b.
                 builder.when(local.is_real).assert_eq(local.b[i].clone(), v);
@@ -389,6 +386,8 @@ where
                     .when(not_overflow.clone())
                     .when(one.clone() - local.b_neg)
                     .assert_eq(v.clone(), zero.clone());
+
+                // The only exception to the upper-4-byte check is the overflow case.
                 builder
                     .when(local.is_overflow.clone())
                     .assert_eq(v.clone(), zero.clone());
