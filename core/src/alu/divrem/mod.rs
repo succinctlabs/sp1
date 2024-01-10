@@ -347,10 +347,10 @@ where
                 // - All 0s for non-negative b.
                 builder
                     .when(local.b_neg)
-                    .assert_eq(local.c_times_quotient[i], AB::F::from_canonical_u32(0xff));
+                    .assert_eq(v.clone(), AB::F::from_canonical_u32(0xff));
                 builder
                     .when(one.clone() - local.b_neg)
-                    .assert_eq(local.c_times_quotient[i], zero.clone());
+                    .assert_eq(v.clone(), zero.clone());
             }
         }
 
@@ -565,7 +565,7 @@ mod tests {
             (Opcode::REM, 0, 873, 1),
             (Opcode::REM, 0, 873, neg(1)),
             (Opcode::REM, 5, 5, 0),
-            // (Opcode::REM, neg(5), neg(5), 0),
+            (Opcode::REM, neg(5), neg(5), 0),
             // (Opcode::REM, 0, 0, 0),
             // (Opcode::REM, 0, 0x80000001, neg(1)),
             // (Opcode::DIV, 3, 18, 6),
