@@ -270,13 +270,12 @@ where
             .when(is_branch_instruction)
             .assert_bool(branch_columns.branch_cond_val);
 
-        // Handle the case when opcode == BEQ
+        // // Handle the case when opcode == BEQ
         builder
             .when(local.selectors.is_beq * branch_columns.branch_cond_val)
             .assert_word_eq(*local.op_a_val(), *local.op_b_val());
 
-        // Handle the case when opcode == BNE
-
+        // // Handle the case when opcode == BNE
         // Check that a_minus_b == a - b
         builder.send_alu(
             AB::Expr::from_canonical_u8(Opcode::SUB as u8),
@@ -286,13 +285,22 @@ where
             local.selectors.is_bne,
         );
 
-        // // Check that branch_cond_val == 0 < a_minus_b
+        // Check that branch_cond_val == 0 < a_minus_b
         builder.send_alu(
             AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
             AB::extend_expr_to_word(branch_columns.branch_cond_val),
             AB::zero_word(),
             branch_columns.a_minus_b,
             local.selectors.is_bne,
+        );
+
+        // // Handle the case when opcode == BLT
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::SLT as u8),
+            AB::extend_expr_to_word(branch_columns.branch_cond_val),
+            *local.op_a_val(),
+            *local.op_b_val(),
+            local.selectors.is_blt,
         );
 
         // //// For jump instructions
