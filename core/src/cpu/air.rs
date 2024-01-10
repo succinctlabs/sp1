@@ -220,7 +220,7 @@ where
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             memory_columns.memory_access,
-            is_memory_instruction,
+            is_memory_instruction.clone(),
         );
 
         //////////////////////////////////////////
@@ -232,19 +232,19 @@ where
             AB::Expr::zero(),
             memory_columns.addr_offset,
             memory_columns.addr_offset * AB::F::from_canonical_u8(64),
-            is_memory_instruction,
+            is_memory_instruction.clone(),
         );
 
         // Check that reduce(addr_word) == addr_aligned + addr_offset
         builder
-            .when(is_memory_instruction)
+            .when(is_memory_instruction.clone())
             .assert_eq::<AB::Expr, AB::Expr>(
                 memory_columns.addr_aligned + memory_columns.addr_offset,
                 reduce::<AB>(memory_columns.addr_word),
             );
 
         // Check that each addr_word element is a byte
-        builder.range_check_word(memory_columns.addr_word, is_memory_instruction);
+        builder.range_check_word(memory_columns.addr_word, is_memory_instruction.clone());
 
         // Send to the ALU table to verify correct calculation of addr_word
         builder.send_alu(
@@ -252,7 +252,7 @@ where
             memory_columns.addr_word,
             *local.op_b_val(),
             *local.op_c_val(),
-            is_memory_instruction,
+            is_memory_instruction.clone(),
         );
 
         //////////////////////////////////////////

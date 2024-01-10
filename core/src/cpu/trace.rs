@@ -10,6 +10,7 @@ use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
+use std::collections::HashMap;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -28,18 +29,17 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        let mut alu_events = Vec::new();
-        let mut add_events = Vec::new();
-        let mut blu_events = Vec::new();
+        let mut new_blu_events = Vec::new();
+        let mut new_alu_events = HashMap::new();
 
         let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op, &mut add_events, &mut blu_events, &mut alu_events))
+            .map(|op| self.event_to_row(*op, &mut new_alu_events, &mut new_blu_events))
             .collect::<Vec<_>>();
 
-        segment.add_events.extend(add_events);
-        segment.add_byte_lookup_events(blu_events);
+        segment.add_alu_events(new_alu_events);
+        segment.add_byte_lookup_events(new_blu_events);
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
@@ -54,9 +54,8 @@ impl CpuChip {
     fn event_to_row<F: PrimeField>(
         &self,
         event: CpuEvent,
-        alu_events: &mut Vec<alu::AluEvent>,
-        add_events: &mut Vec<alu::AluEvent>,
-        blu_events: &mut Vec<ByteLookupEvent>,
+        new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        new_blu_events: &mut Vec<ByteLookupEvent>,
     ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
@@ -84,8 +83,8 @@ impl CpuChip {
             )
         }
 
-        self.populate_memory(cols, event, add_events, blu_events);
-        self.populate_branch(cols, event, alu_events);
+        self.populate_memory(cols, event, new_alu_events, new_blu_events);
+        self.populate_branch(cols, event, new_alu_events);
 
         cols.is_real = F::one();
 
@@ -111,8 +110,8 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: CpuEvent,
-        add_events: &mut Vec<alu::AluEvent>,
-        blu_events: &mut Vec<ByteLookupEvent>,
+        new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+        new_blu_events: &mut Vec<ByteLookupEvent>,
     ) {
         let used_memory = match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
@@ -138,19 +137,23 @@ impl CpuChip {
                 F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
             memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
             // Add event to ALU check to check that addr == b + c
-            let event = AluEvent {
+            let add_event = AluEvent {
                 clk: event.clk,
                 opcode: Opcode::ADD,
                 a: memory_addr,
                 b: event.b,
                 c: event.c,
             };
-            add_events.push(event);
+
+            new_alu_events
+                .entry(Opcode::ADD)
+                .and_modify(|op_new_events| op_new_events.push(add_event))
+                .or_insert(vec![add_event]);
 
             // Add event to byte lookup for byte range checking each byte in the memory addr
             let addr_bytes = memory_addr.to_le_bytes();
             for byte_pair in addr_bytes.chunks_exact(2) {
-                blu_events.push(ByteLookupEvent {
+                new_blu_events.push(ByteLookupEvent {
                     opcode: ByteOpcode::Range,
                     a: 0,
                     b: byte_pair[0],
@@ -159,7 +162,7 @@ impl CpuChip {
             }
 
             // Byte range check addr_offset and addr_offset << 6
-            blu_events.push(ByteLookupEvent {
+            new_blu_events.push(ByteLookupEvent {
                 opcode: ByteOpcode::Range,
                 a: 0,
                 b: addr_offset,
@@ -172,7 +175,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: CpuEvent,
-        alu_events: &mut Vec<alu::AluEvent>,
+        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_branch_instruction() {
             let branch_columns: &mut BranchColumns<F> =
@@ -186,21 +189,31 @@ impl CpuChip {
                     let a_minus_b = event.a.wrapping_sub(event.b);
                     branch_columns.a_minus_b = a_minus_b.into();
 
-                    alu_events.push(AluEvent {
+                    let sub_event = AluEvent {
                         clk: event.clk,
                         opcode: Opcode::SUB,
                         a: a_minus_b,
                         b: event.a,
                         c: event.b,
-                    });
+                    };
 
-                    alu_events.push(AluEvent {
+                    alu_events
+                        .entry(Opcode::SUB)
+                        .and_modify(|op_new_events| op_new_events.push(sub_event))
+                        .or_insert(vec![sub_event]);
+
+                    let slt_event = AluEvent {
                         clk: event.clk,
                         opcode: Opcode::SLT,
                         a: event.a,
                         b: event.b,
                         c: event.a,
-                    });
+                    };
+
+                    alu_events
+                        .entry(Opcode::SLT)
+                        .and_modify(|op_new_events| op_new_events.push(slt_event))
+                        .or_insert(vec![slt_event]);
                 }
                 Opcode::BLT => {
                     branch_columns.branch_cond_val =

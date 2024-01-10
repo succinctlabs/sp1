@@ -56,7 +56,6 @@ impl<F: PrimeField> OpcodeSelectors<F> {
         self.imm_b = F::from_bool(instruction.imm_b);
         self.imm_c = F::from_bool(instruction.imm_c);
 
-        let mut is_store = false;
         if instruction.is_alu_instruction() {
             match instruction.opcode {
                 Opcode::ADD => {

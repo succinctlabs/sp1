@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use super::program::Program;
+use super::Opcode;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
@@ -54,6 +55,39 @@ impl Segment {
                 .entry(*blu_event)
                 .and_modify(|i| *i += 1)
                 .or_insert(1);
+        }
+    }
+
+    pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
+        for opcode in alu_events.keys() {
+            match opcode {
+                Opcode::ADD => {
+                    self.add_events.extend_from_slice(&alu_events[opcode]);
+                }
+                Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {
+                    self.mul_events.extend_from_slice(&alu_events[opcode]);
+                }
+                Opcode::SUB => {
+                    self.sub_events.extend_from_slice(&alu_events[opcode]);
+                }
+                Opcode::XOR | Opcode::OR | Opcode::AND => {
+                    self.bitwise_events.extend_from_slice(&alu_events[opcode]);
+                }
+                Opcode::SLL => {
+                    self.shift_left_events
+                        .extend_from_slice(&alu_events[opcode]);
+                }
+                Opcode::SRL | Opcode::SRA => {
+                    self.shift_right_events
+                        .extend_from_slice(&alu_events[opcode]);
+                }
+                Opcode::SLT | Opcode::SLTU => {
+                    self.lt_events.extend_from_slice(&alu_events[opcode]);
+                }
+                _ => {
+                    panic!("Invalid opcode: {:?}", opcode);
+                }
+            }
         }
     }
 }
