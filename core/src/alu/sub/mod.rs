@@ -58,8 +58,6 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
-                println!("a: {:?}, b: {:?}, c: {:?}", a, b, c);
-
                 let mut carry = [0u8, 0u8, 0u8];
                 if b[0] < c[0] {
                     carry[0] = 1;
@@ -75,8 +73,6 @@ impl<F: PrimeField> Chip<F> for SubChip {
                     carry[2] = 1;
                     cols.carry[2] = F::one();
                 }
-
-                println!("a: {:?}, b: {:?}, c: {:?}, carry: {:?}", a, b, c, carry);
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));

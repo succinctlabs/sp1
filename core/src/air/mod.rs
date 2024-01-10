@@ -63,10 +63,10 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
 
     fn zero_word() -> Word<Self::Expr> {
         Word([
-            Self::Expr::one(),
-            Self::Expr::one(),
-            Self::Expr::one(),
-            Self::Expr::one(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
         ])
     }
 

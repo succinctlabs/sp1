@@ -202,18 +202,18 @@ impl CpuChip {
                         .and_modify(|op_new_events| op_new_events.push(sub_event))
                         .or_insert(vec![sub_event]);
 
-                    let slt_event = AluEvent {
+                    let sltu_event = AluEvent {
                         clk: event.clk,
-                        opcode: Opcode::SLT,
-                        a: (0 < a_minus_b) as u32,
+                        opcode: Opcode::SLTU,
+                        a: branch_cond_val as u32,
                         b: 0,
                         c: a_minus_b,
                     };
 
                     alu_events
-                        .entry(Opcode::SLT)
-                        .and_modify(|op_new_events| op_new_events.push(slt_event))
-                        .or_insert(vec![slt_event]);
+                        .entry(Opcode::SLTU)
+                        .and_modify(|op_new_events| op_new_events.push(sltu_event))
+                        .or_insert(vec![sltu_event]);
                 }
                 Opcode::BLT => {
                     branch_columns.branch_cond_val =
