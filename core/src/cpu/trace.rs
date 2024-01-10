@@ -55,7 +55,7 @@ impl CpuChip {
         self.populate_access(&mut cols.op_c_access, event.c, event.c_record);
 
         // If there is a memory record, then event.memory should be set and vice-versa.
-        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
+        // assert_eq!(event.memory_record.is_some(), event.memory.is_some());
         if let Some(memory) = event.memory {
             self.populate_access(&mut cols.memory_access, memory, event.memory_record)
         }

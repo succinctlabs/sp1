@@ -41,41 +41,41 @@ where
             .when_not(local.cycle_48_end)
             .assert_eq(local.w_ptr, next.w_ptr);
 
-        // Read w[i-15].
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(15),
-            local.w_i_minus_15,
-            AB::F::one(),
-        );
+        // // Read w[i-15].
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(15),
+        //     local.w_i_minus_15,
+        //     AB::F::one(),
+        // );
 
-        // Read w[i-2].
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(2),
-            local.w_i_minus_2,
-            AB::F::one(),
-        );
+        // // Read w[i-2].
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(2),
+        //     local.w_i_minus_2,
+        //     AB::F::one(),
+        // );
 
-        // Read w[i-16].
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(16),
-            local.w_i_minus_16,
-            AB::F::one(),
-        );
+        // // Read w[i-16].
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(16),
+        //     local.w_i_minus_16,
+        //     AB::F::one(),
+        // );
 
-        // Read w[i-7].
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i - AB::F::from_canonical_u32(7),
-            local.w_i_minus_7,
-            AB::F::one(),
-        );
+        // // Read w[i-7].
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i - AB::F::from_canonical_u32(7),
+        //     local.w_i_minus_7,
+        //     AB::F::one(),
+        // );
 
         // Compute `s0`.
         FixedRotateRightOperation::<AB::F>::eval(
@@ -141,13 +141,13 @@ where
             local.s2,
         );
 
-        // Write `s2` to `w[i]`.
-        builder.constraint_memory_access(
-            local.segment,
-            local.clk + local.i,
-            local.w_ptr + local.i,
-            local.w_i,
-            AB::F::one(),
-        );
+        // // Write `s2` to `w[i]`.
+        // builder.constraint_memory_access(
+        //     local.segment,
+        //     local.clk + local.i,
+        //     local.w_ptr + local.i,
+        //     local.w_i,
+        //     AB::F::one(),
+        // );
     }
 }

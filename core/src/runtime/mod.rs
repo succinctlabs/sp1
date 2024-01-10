@@ -126,6 +126,14 @@ impl Runtime {
         }
     }
 
+    /// Get the current value of a word.
+    pub fn word(&self, addr: u32) -> u32 {
+        match self.memory.get(&addr) {
+            Some(value) => *value,
+            None => 0,
+        }
+    }
+
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.clk + *position as u32
     }
@@ -571,6 +579,47 @@ impl Runtime {
                         let witness = self.witness.pop().expect("witness stream is empty");
                         (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
+                    }
+                    Syscall::SHA_EXTEND => {
+                        let w_ptr = self.register(a0);
+                        println!("w_ptr={}", w_ptr);
+
+                        let mut w = Vec::new();
+                        for i in 0..64 {
+                            w.push(self.word(w_ptr + i * 4));
+                        }
+
+                        self.segment.sha_events.push((self.clk, w_ptr, w));
+                        (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
+                        println!("a={}, b={}, c={}", a, b, c);
+
+                        for i in 16..48 {
+                            let w_i_minus_15 =
+                                self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
+                            let s0 = w_i_minus_15.rotate_right(7)
+                                ^ w_i_minus_15.rotate_right(18)
+                                ^ (w_i_minus_15 >> 3);
+                            self.clk += 1;
+
+                            let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
+                            let s1 = w_i_minus_2.rotate_right(17)
+                                ^ w_i_minus_2.rotate_right(19)
+                                ^ (w_i_minus_2 >> 10);
+                            self.clk += 1;
+
+                            let w_i_minus_15 =
+                                self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
+                            self.clk += 1;
+                            let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
+                            self.clk += 1;
+                            let w_i = s1
+                                .wrapping_add(w_i_minus_7)
+                                .wrapping_add(s0)
+                                .wrapping_add(w_i_minus_15);
+
+                            self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
+                            self.clk += 1;
+                        }
                     }
                 }
             }

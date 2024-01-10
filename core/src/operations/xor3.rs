@@ -5,10 +5,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
-use crate::bytes::utils::shr_carry;
-use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
-use p3_field::AbstractField;
 
 /// A set of columns needed to compute the xor of three operands
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

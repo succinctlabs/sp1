@@ -13,63 +13,61 @@ use crate::{
 use super::ShaExtendChip;
 
 impl<F: PrimeField> Chip<F> for ShaExtendChip {
-    fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
-        let mut w = [11111111u32; 64];
-        for i in 0..96 {
-            let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
-            cols.populate_flags(i);
 
-            let j = i % 48;
+        for i in 0..segment.sha_events.len() {
+            let (clk, w_ptr, mut w) = segment.sha_events[i].clone();
+            for j in 0..48usize {
+                let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
+                let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
+                cols.populate_flags(i);
+                cols.clk = F::from_canonical_u32(clk + j as u32);
+                cols.w_ptr = F::from_canonical_u32(w_ptr);
 
-            // Compute `s0`.
-            cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
-            cols.w_i_minus_15_rr_7.populate(cols.w_i_minus_15.value, 7);
-            cols.w_i_minus_15_rr_18
-                .populate(cols.w_i_minus_15.value, 18);
-            cols.w_i_minus_15_rs_3.populate(cols.w_i_minus_15.value, 3);
-            cols.s0.populate(
-                cols.w_i_minus_15_rr_7.value,
-                cols.w_i_minus_15_rr_18.value,
-                cols.w_i_minus_15_rs_3.value,
-            );
+                // Compute `s0`.
+                cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
+                cols.w_i_minus_15_rr_7.populate(cols.w_i_minus_15.value, 7);
+                cols.w_i_minus_15_rr_18
+                    .populate(cols.w_i_minus_15.value, 18);
+                cols.w_i_minus_15_rs_3.populate(cols.w_i_minus_15.value, 3);
+                cols.s0.populate(
+                    cols.w_i_minus_15_rr_7.value,
+                    cols.w_i_minus_15_rr_18.value,
+                    cols.w_i_minus_15_rs_3.value,
+                );
 
-            // Compute `s1`.
-            cols.w_i_minus_2.value = Word::from(w[16 + j - 2]);
-            cols.w_i_minus_2_rr_17.populate(cols.w_i_minus_2.value, 17);
-            cols.w_i_minus_2_rr_19.populate(cols.w_i_minus_2.value, 19);
-            cols.w_i_minus_2_rs_10.populate(cols.w_i_minus_2.value, 10);
-            cols.s1.populate(
-                cols.w_i_minus_2_rr_17.value,
-                cols.w_i_minus_2_rr_19.value,
-                cols.w_i_minus_2_rs_10.value,
-            );
+                // Compute `s1`.
+                cols.w_i_minus_2.value = Word::from(w[16 + j - 2]);
+                cols.w_i_minus_2_rr_17.populate(cols.w_i_minus_2.value, 17);
+                cols.w_i_minus_2_rr_19.populate(cols.w_i_minus_2.value, 19);
+                cols.w_i_minus_2_rs_10.populate(cols.w_i_minus_2.value, 10);
+                cols.s1.populate(
+                    cols.w_i_minus_2_rr_17.value,
+                    cols.w_i_minus_2_rr_19.value,
+                    cols.w_i_minus_2_rs_10.value,
+                );
 
-            // Compute `s2`.
-            cols.w_i_minus_16.value = Word::from(w[16 + j - 16]);
-            cols.w_i_minus_7.value = Word::from(w[16 + j - 7]);
-            cols.s2.populate(
-                cols.w_i_minus_16.value,
-                cols.s0.value,
-                cols.w_i_minus_7.value,
-                cols.s1.value,
-            );
+                // Compute `s2`.
+                cols.w_i_minus_16.value = Word::from(w[16 + j - 16]);
+                cols.w_i_minus_7.value = Word::from(w[16 + j - 7]);
+                cols.s2.populate(
+                    cols.w_i_minus_16.value,
+                    cols.s0.value,
+                    cols.w_i_minus_7.value,
+                    cols.s1.value,
+                );
 
-            // Write `s2` to `w[i]`.
-            w[16 + j] = u32::from_le_bytes(
-                cols.s2
-                    .value
-                    .0
-                    .map(|x| x.to_string().parse::<u8>().unwrap()),
-            );
-        }
+                // Write `s2` to `w[i]`.
+                w[16 + j] = u32::from_le_bytes(
+                    cols.s2
+                        .value
+                        .0
+                        .map(|x| x.to_string().parse::<u8>().unwrap()),
+                );
 
-        for i in 0..96 {
-            let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
-            cols.populate_flags(i);
-            rows.push(row);
+                rows.push(row);
+            }
         }
 
         let nb_rows = rows.len();

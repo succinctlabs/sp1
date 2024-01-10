@@ -42,4 +42,7 @@ pub struct Segment {
 
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+
+    /// (clk, w_ptr)
+    pub sha_events: Vec<(u32, u32, Vec<u32>)>,
 }

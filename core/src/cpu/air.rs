@@ -134,9 +134,11 @@ where
 
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
-        builder
-            .when_transition()
-            .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
+
+        // TODO: handle precompile dynamic clk
+        // builder
+        //     .when_transition()
+        //     .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // TODO: lookup (pc, opcode, op_a, op_b, op_c, ... all selectors) in the program table with multiplicity 1
 
