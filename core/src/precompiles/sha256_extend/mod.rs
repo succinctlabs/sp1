@@ -55,15 +55,19 @@ pub struct ShaExtendCols<T> {
     pub cycle_48_start: T,
     pub cycle_48_end: T,
 
-    /// w[i-15] read
+    /// Computing `s0`.
     pub w_i_minus_15: MemoryAccessCols<T>,
     pub w_i_minus_15_rr_7: FixedRotateRightCols<T>,
     pub w_i_minus_15_rr_18: FixedRotateRightCols<T>,
     pub w_i_minus_15_rs_3: FixedShiftRightCols<T>,
     pub s0: Xor3Cols<T>,
-    // w[i-2] read
-    // pub w_i_minus_2: MemoryAccessCols<T>,
 
+    /// Computing `s1`.
+    pub w_i_minus_2: MemoryAccessCols<T>,
+    pub w_i_minus_2_rr_17: FixedRotateRightCols<T>,
+    pub w_i_minus_2_rr_19: FixedRotateRightCols<T>,
+    pub w_i_minus_2_rs_10: FixedRotateRightCols<T>,
+    pub s1: Xor3Cols<T>,
     // /// w[i-2] rightrotate 17
     // pub w_i_minus_2_rr_17_shift: Word<T>,
     // pub w_i_minus_2_rr_17_carry: Word<T>,
@@ -130,8 +134,16 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.w_i_minus_15_rr_18.value,
                 cols.w_i_minus_15_rs_3.value,
             );
-            // cols.w_i_minus_15_rr_18
-            //     .populate(cols.w_i_minus_15.value, 15);
+
+            cols.w_i_minus_2.value = Word::from(w[16 + j - 2]);
+            cols.w_i_minus_2_rr_17.populate(cols.w_i_minus_2.value, 17);
+            cols.w_i_minus_2_rr_19.populate(cols.w_i_minus_2.value, 19);
+            cols.w_i_minus_2_rs_10.populate(cols.w_i_minus_2.value, 10);
+            cols.s1.populate(
+                cols.w_i_minus_2_rr_17.value,
+                cols.w_i_minus_2_rr_19.value,
+                cols.w_i_minus_2_rs_10.value,
+            );
 
             // let j = 16 + (i % 48);
             // let s0 = w[j - 15].rotate_right(7) ^ w[j - 15].rotate_right(18) ^ (w[j - 15] >> 3);
@@ -266,6 +278,32 @@ where
             local.w_i_minus_15_rr_18.value,
             local.w_i_minus_15_rs_3.value,
             local.s0,
+        );
+
+        FixedRotateRightCols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_2.value,
+            17,
+            local.w_i_minus_2_rr_17,
+        );
+        FixedRotateRightCols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_2.value,
+            19,
+            local.w_i_minus_2_rr_19,
+        );
+        FixedRotateRightCols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_2.value,
+            10,
+            local.w_i_minus_2_rs_10,
+        );
+        Xor3Cols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_2_rr_17.value,
+            local.w_i_minus_2_rr_19.value,
+            local.w_i_minus_2_rs_10.value,
+            local.s1,
         );
     }
 }
