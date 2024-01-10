@@ -23,12 +23,6 @@ use p3_util::log2_strict_usize;
 
 use crate::prover::debug_cumulative_sums;
 
-#[derive(PartialEq)]
-enum Mode {
-    CommitMain,
-    FullProve,
-}
-
 type Val<SC> = <SC as StarkConfig>::Val;
 type Challenge<SC> = <SC as StarkConfig>::Challenge;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
@@ -65,7 +59,7 @@ impl Runtime {
 
         let proofs = segment_main_data
             .iter()
-            .map(|main_data| Segment::prove(config, challenger, &main_data).unwrap())
+            .map(|main_data| Segment::prove(config, challenger, &main_data))
             .collect::<Vec<_>>();
 
         // let cumulative_bus_sum = bus_sum.sum();
@@ -91,23 +85,21 @@ impl Runtime {
     // }
 }
 
-struct MainData<SC: StarkConfig> {
+pub struct MainData<SC: StarkConfig> {
     traces: Vec<ValMat<SC>>,
     main_commit: Com<SC>,
     main_data: PcsProverData<SC>,
 }
 
 impl Segment {
-    pub fn full_prove() {}
+    const NUM_CHIPS: usize = 9;
 
-    pub fn commit_main<F, EF, SC>(&mut self, config: &SC) -> MainData<SC>
+    pub fn chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; Self::NUM_CHIPS]
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        // TODO: reduce copy-pasta below with the "prove" method.
-        const NUM_CHIPS: usize = 9;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -120,7 +112,7 @@ impl Segment {
         let bytes = ByteChip::<F>::new();
         // let memory_init = MemoryInitChip::new(true);
         // let memory_finalize = MemoryInitChip::new(false);
-        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
+        [
             Box::new(program),
             Box::new(cpu),
             Box::new(add),
@@ -132,7 +124,16 @@ impl Segment {
             Box::new(bytes),
             // Box::new(memory_init),
             // Box::new(memory_finalize),
-        ];
+        ]
+    }
+
+    pub fn commit_main<F, EF, SC>(&mut self, config: &SC) -> MainData<SC>
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
+        let chips = Segment::chips::<F, EF, SC>();
 
         // For each chip, generate the trace.
         let traces = chips
@@ -150,44 +151,19 @@ impl Segment {
         }
     }
 
-    /// Prove the program for the given segment.
+    /// Prove the program for the given segment and given a commitment to the main data.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(
         config: &SC,
         challenger: &mut SC::Challenger,
         main_data: &MainData<SC>,
-    ) -> Option<SegmentDebugProof<SC>>
+    ) -> SegmentDebugProof<SC>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 9;
-        // Initialize chips.
-        let program = ProgramChip::new();
-        let cpu = CpuChip::new();
-        let add = AddChip::new();
-        let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
-        let right_shift = RightShiftChip::new();
-        let left_shift = LeftShiftChip::new();
-        let lt = LtChip::new();
-        let bytes = ByteChip::<F>::new();
-        // let memory_init = MemoryInitChip::new(true);
-        // let memory_finalize = MemoryInitChip::new(false);
-        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(right_shift),
-            Box::new(left_shift),
-            Box::new(lt),
-            Box::new(bytes),
-            // Box::new(memory_init),
-            // Box::new(memory_finalize),
-        ];
+        let chips = Segment::chips::<F, EF, SC>();
 
         // Compute some statistics.
         let mut main_cols = 0usize;
@@ -201,12 +177,8 @@ impl Segment {
 
         let traces = &main_data.traces;
 
-        // For each chip, generate the trace.
-        // let (traces, main_commit, main_data) =
-        //     (main_data.traces, main_data.main_commit, main_data.main_data);
-
         // For each trace, compute the degree.
-        let degrees: [usize; NUM_CHIPS] = traces
+        let degrees: [usize; Self::NUM_CHIPS] = traces
             .iter()
             .map(|trace| trace.height())
             .collect::<Vec<_>>()
@@ -325,11 +297,29 @@ impl Segment {
         // Check the permutation argument between all tables.
         // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
 
-        return Some(SegmentDebugProof {
+        SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),
             traces: traces.clone(),
             permutation_traces,
-        });
+        }
+    }
+
+    /// Prove the program for the given segment, including committing to the main trace and proving.
+    #[allow(unused)]
+    pub fn full_prove<F, EF, SC>(
+        &mut self,
+        config: &SC,
+        challenger: &mut SC::Challenger,
+        main_data: &MainData<SC>,
+    ) -> SegmentDebugProof<SC>
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
+        let main_data = self.commit_main(config);
+        challenger.observe(main_data.main_commit.clone());
+        Self::prove(config, challenger, &main_data)
     }
 }
 
