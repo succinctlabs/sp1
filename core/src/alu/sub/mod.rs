@@ -112,7 +112,9 @@ where
         let base = AB::F::from_canonical_u32(1 << 8);
 
         // For each limb, assert that difference between the carried result and the non-carried
-        // result is either zero or the base.
+        // result is either zero or minus the base.
+        // Note that the overflow variables can be have a value of -256 (mod P), so the field
+        // should be big enough to handle that.
         let overflow_0 = local.b[0] - local.c[0] - local.a[0];
         let overflow_1 = local.b[1] - local.c[1] - local.a[1] - local.carry[0];
         let overflow_2 = local.b[2] - local.c[2] - local.a[2] - local.carry[1];
@@ -122,15 +124,15 @@ where
         builder.assert_zero(overflow_2.clone() * (overflow_2.clone() + base));
         builder.assert_zero(overflow_3.clone() * (overflow_3.clone() + base));
 
-        // If the carry is not one, then the overflow must be zero.
-        builder.assert_zero((local.carry[0] - one) * overflow_0.clone());
-        builder.assert_zero((local.carry[1] - one) * overflow_1.clone());
-        builder.assert_zero((local.carry[2] - one) * overflow_2.clone());
-
         // If the carry is one, then the overflow must be the base.
         builder.assert_zero(local.carry[0] * (overflow_0.clone() + base));
         builder.assert_zero(local.carry[1] * (overflow_1.clone() + base));
         builder.assert_zero(local.carry[2] * (overflow_2.clone() + base));
+
+        // If the carry is not one, then the overflow must be zero.
+        builder.assert_zero((local.carry[0] - one) * overflow_0.clone());
+        builder.assert_zero((local.carry[1] - one) * overflow_1.clone());
+        builder.assert_zero((local.carry[2] - one) * overflow_2.clone());
 
         // Assert that the carry is either zero or one.
         builder.assert_bool(local.carry[0]);
@@ -184,22 +186,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        segment.sub_events = vec![AluEvent::new(
-            0,
-            Opcode::SUB,
-            327680u32.wrapping_sub(16975360u32),
-            327680,
-            16975360,
-        )];
-        let chip = SubChip {};
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        println!("{:?}", trace.values)
-    }
-
-    #[test]
-    fn generate_trace_overflow() {
-        let mut segment = Segment::default();
-        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 0u32.wrapping_sub(1u32), 0, 1)];
+        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
