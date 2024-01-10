@@ -59,14 +59,6 @@ pub struct ShaExtendCols<T> {
     pub w_i_minus_15_rr_7: FixedRotateRightCols<T>,
     pub w_i_minus_15_rr_18: FixedRotateRightCols<T>,
     pub w_i_minus_15_rs_3: FixedShiftRightCols<T>,
-    // w[i-15] rightrotate 18
-    // pub w_i_minus_15_rr_18_shift: Word<T>,
-    // pub w_i_minus_15_rr_18_carry: Word<T>,
-    // pub w_i_minus_15_rr_18: Word<T>,
-
-    // /// w[i-15] >> 3
-    // pub w_i_minus_15_rs_3: Word<T>,
-
     // /// (w[i-15] rightrotate 7) ^ (w[i-15] rightrotate 18)
     // pub w_i_minus_15_rr_7_xor_w_i_minus_15_rr_18: Word<T>,
 
