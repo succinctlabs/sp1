@@ -40,14 +40,16 @@
 //! elif c > 0:
 //!    assert 0 <= remainder < c
 //!
-//! if c == 0:
-//!    # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
+//! if division_by_0:
+//!     # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
+//!
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -97,6 +99,9 @@ pub struct DivRemCols<T> {
 
     /// Flag to indicate division by 0.
     pub division_by_0: T,
+
+    /// The inverse of `c[0] + c[1] + c[2] + c[3]``, used to verify `division_by_0`.
+    pub c_limb_sum_inverse: T,
 
     pub is_divu: T,
     pub is_remu: T,
@@ -178,6 +183,15 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
                 if event.c == 0 {
                     cols.division_by_0 = F::one();
+                } else {
+                    let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
+                    cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
+                    println!("c_limb_sum: {}", c_limb_sum);
+                    println!("c_limb_sum_inverse: {}", cols.c_limb_sum_inverse);
+                    println!(
+                        "c_limb_sum * c_limb_sum_inverse: {}",
+                        c_limb_sum * cols.c_limb_sum_inverse
+                    );
                 }
                 let (quotient, remainder) =
                     get_quotient_and_remainder(event.b, event.c, event.opcode);
@@ -219,13 +233,31 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 // Add remainder to product.
                 let mut carry = 0u32;
+                let mut carry_ary = [0u32; LONG_WORD_SIZE];
                 for i in 0..LONG_WORD_SIZE {
                     let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
                     result[i] = x % base;
                     carry = x / base;
                     cols.carry[i] = F::from_canonical_u32(carry);
+                    carry_ary[i] = carry;
                 }
 
+                println!("carry_ary: {:#?}", carry_ary);
+                println!("c_times_quotient: {:#?}", c_times_quotient);
+                println!("remainder_bytes: {:#?}", remainder_bytes);
+
+                for i in 0..LONG_WORD_SIZE {
+                    let mut v = c_times_quotient[i] as u32 + remainder_bytes[i] as u32
+                        - carry_ary[i] * base;
+                    if i > 0 {
+                        v += carry_ary[i - 1];
+                    }
+                    if i < WORD_SIZE {
+                        debug_assert_eq!(v, b_word[i] as u32);
+                    }
+                }
+
+                // The lower 4 bytes of the result must match the corresponding bytes in b.
                 // result = c * quotient + remainder, so it must equal b.
                 for i in 0..WORD_SIZE {
                     debug_assert_eq!(b_word[i] as u32, result[i]);
@@ -252,6 +284,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             // 0 divided by 1. quotient = remainder = 0.
             cols.is_divu = F::one();
             cols.c[0] = F::one();
+            cols.c_limb_sum_inverse = F::one();
 
             row
         };
@@ -363,8 +396,13 @@ where
             .assert_zero(local.b_neg); // b is not negative.
 
         // When division by 0, RISC-V spec says quotient = 0xffffffff.
-        // TODO: Bijection? I feel like this is wrong. a malicious entity can put c = 0 and not set
-        // division_by_0...
+
+        // If c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero.
+        let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
+        builder
+            .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
+            .assert_eq(local.division_by_0, one.clone());
+
         for i in 0..WORD_SIZE {
             builder
                 .when(local.division_by_0.clone())
@@ -503,22 +541,22 @@ mod tests {
         let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
-            // (Opcode::DIVU, 3, 20, 6),
-            // (Opcode::DIVU, 715827879, neg(20), 6),
-            // (Opcode::DIVU, 0, 20, neg(6)),
-            // (Opcode::DIVU, 0, neg(20), neg(6)),
-            // (Opcode::DIVU, 1 << 31, 1 << 31, 1),
-            // (Opcode::DIVU, 0, 1 << 31, neg(1)),
-            // (Opcode::DIVU, u32::MAX, 1 << 31, 0),
-            // (Opcode::DIVU, u32::MAX, 1, 0),
-            // (Opcode::DIVU, u32::MAX, 0, 0),
-            // (Opcode::REMU, 4, 18, 7),
-            // (Opcode::REMU, 6, neg(20), 11),
-            // (Opcode::REMU, 23, 23, neg(6)),
-            // (Opcode::REMU, neg(21), neg(21), neg(11)),
-            // (Opcode::REMU, 5, 5, 0),
-            // (Opcode::REMU, neg(1), neg(1), 0),
-            // (Opcode::REMU, 0, 0, 0),
+            (Opcode::DIVU, 3, 20, 6),
+            (Opcode::DIVU, 715827879, neg(20), 6),
+            (Opcode::DIVU, 0, 20, neg(6)),
+            (Opcode::DIVU, 0, neg(20), neg(6)),
+            (Opcode::DIVU, 1 << 31, 1 << 31, 1),
+            (Opcode::DIVU, 0, 1 << 31, neg(1)),
+            (Opcode::DIVU, u32::MAX, 1 << 31, 0),
+            (Opcode::DIVU, u32::MAX, 1, 0),
+            (Opcode::DIVU, u32::MAX, 0, 0),
+            (Opcode::REMU, 4, 18, 7),
+            (Opcode::REMU, 6, neg(20), 11),
+            (Opcode::REMU, 23, 23, neg(6)),
+            (Opcode::REMU, neg(21), neg(21), neg(11)),
+            (Opcode::REMU, 5, 5, 0),
+            (Opcode::REMU, neg(1), neg(1), 0),
+            (Opcode::REMU, 0, 0, 0),
             // (Opcode::REM, 7, 16, 9),
             // (Opcode::REM, neg(4), neg(22), 6),
             // (Opcode::REM, 1, 25, neg(3)),
@@ -526,7 +564,7 @@ mod tests {
             // (Opcode::REM, 0, 873, 1),
             // (Opcode::REM, 0, 873, neg(1)),
             // (Opcode::REM, 5, 5, 0),
-            (Opcode::REM, neg(5), neg(5), 0),
+            // (Opcode::REM, neg(5), neg(5), 0),
             // (Opcode::REM, 0, 0, 0),
             // (Opcode::REM, 0, 0x80000001, neg(1)),
             // (Opcode::DIV, 3, 18, 6),
