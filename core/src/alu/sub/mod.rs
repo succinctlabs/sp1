@@ -78,7 +78,6 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
                 cols.is_real = F::one();
-
                 row
             })
             .collect::<Vec<_>>();
