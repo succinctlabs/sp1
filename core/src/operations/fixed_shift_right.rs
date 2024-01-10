@@ -15,7 +15,7 @@ use p3_field::AbstractField;
 /// Note that we decompose shifts into a byte shift and a bit shift.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct FixedShiftRightCols<T> {
+pub struct FixedShiftRightOperation<T> {
     /// The output value.
     pub value: Word<T>,
 
@@ -26,7 +26,7 @@ pub struct FixedShiftRightCols<T> {
     pub carry: Word<T>,
 }
 
-impl<F: Field> FixedShiftRightCols<F> {
+impl<F: Field> FixedShiftRightOperation<F> {
     pub fn nb_bytes_to_shift(rotation: usize) -> usize {
         rotation / 8
     }
@@ -86,7 +86,7 @@ impl<F: Field> FixedShiftRightCols<F> {
         builder: &mut AB,
         input: Word<AB::Var>,
         rotation: usize,
-        cols: FixedShiftRightCols<AB::Var>,
+        cols: FixedShiftRightOperation<AB::Var>,
     ) {
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);

@@ -13,7 +13,7 @@ use p3_field::AbstractField;
 /// A set of columns needed to compute the xor of three operands
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Xor3Cols<T> {
+pub struct Xor3Operation<T> {
     /// The result of `a ^ b ^ c`.
     pub value: Word<T>,
 
@@ -21,7 +21,7 @@ pub struct Xor3Cols<T> {
     pub intermeddiate: Word<T>,
 }
 
-impl<F: Field> Xor3Cols<F> {
+impl<F: Field> Xor3Operation<F> {
     pub fn populate(&mut self, a: Word<F>, b: Word<F>, c: Word<F>) {
         for i in 0..WORD_SIZE {
             let element_a = a[i].to_string().parse::<u8>().unwrap();
@@ -37,7 +37,7 @@ impl<F: Field> Xor3Cols<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         c: Word<AB::Var>,
-        cols: Xor3Cols<AB::Var>,
+        cols: Xor3Operation<AB::Var>,
     ) {
         // TODO:
     }

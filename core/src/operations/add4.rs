@@ -13,7 +13,7 @@ use p3_field::AbstractField;
 /// A set of columns needed to compute the xor of three operands
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Add4Cols<T> {
+pub struct Add4Operation<T> {
     /// The result of `a ^ b ^ c`.
     pub value: Word<T>,
 
@@ -21,7 +21,7 @@ pub struct Add4Cols<T> {
     pub carry: [T; 3],
 }
 
-impl<F: Field> Add4Cols<F> {
+impl<F: Field> Add4Operation<F> {
     pub fn populate(&mut self, a: Word<F>, b: Word<F>, c: Word<F>, d: Word<F>) {
         let a = u32::from_le_bytes(a.0.map(|x| x.to_string().parse::<u8>().unwrap()));
         let b = u32::from_le_bytes(b.0.map(|x| x.to_string().parse::<u8>().unwrap()));
@@ -35,7 +35,8 @@ impl<F: Field> Add4Cols<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         c: Word<AB::Var>,
-        cols: Add4Cols<AB::Var>,
+        d: Word<AB::Var>,
+        cols: Add4Operation<AB::Var>,
     ) {
         // TODO:
     }
