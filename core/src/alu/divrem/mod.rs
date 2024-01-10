@@ -92,6 +92,12 @@ pub struct DivRemCols<T> {
     /// Remainder when dividing `b` by `c`.
     pub remainder: Word<T>,
 
+    /// `abs(remainder)`, used to check `abs(remainder) < abs(c)`.
+    pub abs_remainder: Word<T>,
+
+    /// `abs(c)`, used to check `abs(remainder) < abs(c)`.
+    pub abs_c: Word<T>,
+
     /// The result of `c * quotient`.
     pub c_times_quotient: [T; LONG_WORD_SIZE],
 
@@ -99,7 +105,7 @@ pub struct DivRemCols<T> {
     pub carry: [T; LONG_WORD_SIZE],
 
     /// Flag to indicate division by 0.
-    pub division_by_0: T,
+    pub is_c_0: T,
 
     /// The inverse of `c[0] + c[1] + c[2] + c[3]``, used to verify `division_by_0`.
     pub c_limb_sum_inverse: T,
@@ -123,11 +129,17 @@ pub struct DivRemCols<T> {
     /// The most significant bit of remainder.
     pub rem_msb: T,
 
+    /// The most significant bit of `c`.
+    pub c_msb: T,
+
     /// Flag to indicate whether `b` is negative.
     pub b_neg: T,
 
     /// Flag to indicate whether `rem_neg` is negative.
     pub rem_neg: T,
+
+    /// Flag to indicate whether `c` is negative.
+    pub c_neg: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -192,7 +204,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
                 if event.c == 0 {
-                    cols.division_by_0 = F::one();
+                    cols.is_c_0 = F::one();
                 } else {
                     let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
                     cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
@@ -214,11 +226,25 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.remainder = Word(remainder.to_le_bytes().map(F::from_canonical_u8));
                 cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                 cols.b_msb = F::from_canonical_u8(get_msb(event.b));
+                cols.c_msb = F::from_canonical_u8(get_msb(event.c));
                 if is_signed_operation(event.opcode) {
                     cols.rem_neg = cols.rem_msb;
                     cols.b_neg = cols.b_msb;
+                    cols.c_neg = cols.c_msb;
                     cols.is_overflow =
                         F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
+                    cols.abs_remainder = Word(
+                        (remainder as i32)
+                            .abs()
+                            .to_le_bytes()
+                            .map(F::from_canonical_u8),
+                    );
+                    cols.abs_c = Word(
+                        (event.c as i32)
+                            .abs()
+                            .to_le_bytes()
+                            .map(F::from_canonical_u8),
+                    );
                 }
 
                 let base = 1 << BYTE_SIZE;
@@ -352,10 +378,17 @@ where
         {
             // Negative if and only if op code is signed & MSB = 1
             let is_signed_type = local.is_div + local.is_rem;
-            let b_neg = is_signed_type.clone() * local.b_msb;
-            let rem_neg = is_signed_type.clone() * local.rem_msb;
-            builder.assert_eq(b_neg.clone(), local.b_neg);
-            builder.assert_eq(rem_neg.clone(), local.rem_neg);
+            let msb_sign_pairs = [
+                (local.b_msb.clone(), local.b_neg.clone()),
+                (local.rem_msb.clone(), local.rem_neg.clone()),
+                (local.c_msb.clone(), local.c_neg.clone()),
+            ];
+
+            for msb_sign_pair in msb_sign_pairs.iter() {
+                let msb = msb_sign_pair.0.clone();
+                let is_negative = msb_sign_pair.1.clone();
+                builder.assert_eq(msb.clone() * is_signed_type.clone(), is_negative.clone());
+            }
         }
 
         // Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
@@ -496,29 +529,115 @@ where
 
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
-            // If c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero.
+            // Ensure that if c is 0, division_by_0 = true. We utilize the mathematical trick that
+            // if c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero regardless of what
+            // c_limb_sum_inverse is.
             let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
             builder
                 .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
-                .assert_eq(local.division_by_0, one.clone());
+                .assert_eq(local.is_c_0, one.clone());
 
+            // Ensure that if division_by_0 is true, then local.c = 0.
             for i in 0..WORD_SIZE {
                 builder
-                    .when(local.division_by_0.clone())
+                    .when(local.is_c_0.clone())
+                    .assert_zero(local.c[i].clone());
+            }
+
+            // We checked that division_by_0 is true if and only if c = 0.
+
+            // Finally, ensure that if division_by_0 is true, then quotient = 0xffffffff.
+            for i in 0..WORD_SIZE {
+                builder
+                    .when(local.is_c_0.clone())
                     .when(local.is_divu.clone() + local.is_div.clone())
                     .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
             }
         }
 
-        // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
+        // Range check remainder. (i.e., |remainder| < |c| when not division_by_0)
         {
-            // Use the LT ALU table.
+            let is_signed = local.is_div + local.is_rem;
+            let is_unsigned = local.is_divu + local.is_remu;
+
+            // abs(remainder) + remainder = 0 if remainder is negative. We check that by checking
+            // each limb.
+            for i in 0..WORD_SIZE {
+                let exp_sum_if_signed = {
+                    if i == 0 {
+                        AB::Expr::from_canonical_u32(0xff + 1)
+                    } else {
+                        AB::Expr::from_canonical_u32(0xff)
+                    }
+                };
+
+                builder.when(local.rem_neg.clone()).assert_eq(
+                    local.remainder[i].clone() + local.abs_remainder[i].clone(),
+                    exp_sum_if_signed.clone(),
+                );
+
+                builder
+                    .when(one.clone() - local.rem_neg.clone())
+                    .assert_eq(local.remainder[i].clone(), local.abs_remainder[i].clone());
+            }
+
+            // abs(c) + c = 0 if c is negative. We check that by checking each limb.
+            for i in 0..WORD_SIZE {
+                let exp_sum_if_signed = {
+                    if i == 0 {
+                        AB::Expr::from_canonical_u32(0xff + 1)
+                    } else {
+                        AB::Expr::from_canonical_u32(0xff)
+                    }
+                };
+
+                builder.when(local.c_neg.clone()).assert_eq(
+                    local.c[i].clone() + local.abs_c[i].clone(),
+                    exp_sum_if_signed.clone(),
+                );
+
+                builder
+                    .when(one.clone() - local.c_neg.clone())
+                    .assert_eq(local.c[i].clone(), local.abs_c[i].clone());
+            }
+
+            // Calculate max(abs(c), 1).
+            let max_abs_c_or_1: Word<AB::Expr> = {
+                // max(abs(c), 1) = abs(c) * (1 - division_by_0) + 1 * division_by_0
+                let mut v = vec![zero.clone(); WORD_SIZE];
+
+                // Set the least significant byte to 1 if division_by_0 is true.
+                v[0] = local.is_c_0.clone() * one.clone()
+                    + (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
+
+                // Set the remaining bytes to 0 if division_by_0 is true.
+                for i in 1..WORD_SIZE {
+                    v[i] = (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
+                }
+                Word(v.try_into().unwrap_or_else(|_| panic!("Incorrect length")))
+            };
+
+            let opcode = {
+                let slt = AB::Expr::from_canonical_u32(Opcode::SLT as u32);
+                let sltu = AB::Expr::from_canonical_u32(Opcode::SLTU as u32);
+                is_signed * slt + is_unsigned * sltu
+            };
+
+            // Dispatch abs(remainder) < max(abs(c), 1).
+            builder.send_alu(
+                opcode,
+                Word([zero.clone(), zero.clone(), zero.clone(), one.clone()]),
+                local.abs_remainder,
+                max_abs_c_or_1,
+                one.clone(),
+            );
         }
 
         // TODO: Use lookup to constrain the MSBs.
         {
             let msb_pairs = [
                 (local.b_msb.clone(), local.b[WORD_SIZE - 1].clone()),
+                (local.c_msb.clone(), local.c[WORD_SIZE - 1].clone()),
                 (
                     local.rem_msb.clone(),
                     local.remainder[WORD_SIZE - 1].clone(),
@@ -561,7 +680,9 @@ where
                 local.rem_neg,
                 local.b_msb,
                 local.rem_msb,
-                local.division_by_0,
+                local.is_c_0,
+                local.c_neg,
+                local.c_msb,
             ];
 
             for flag in bool_flags.iter() {
