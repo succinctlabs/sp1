@@ -52,7 +52,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -358,18 +357,22 @@ where
         let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
         for i in 0..LONG_WORD_SIZE {
             let mut v = local.c_times_quotient[i].into();
+
+            // Add remainder.
             if i < WORD_SIZE {
                 v += local.remainder[i].into();
             } else {
                 // If rem is negative, add 0xff to the upper 4 bytes.
                 v += sign_extension.clone();
             }
+
             // Propagate carry.
             v -= local.carry[i].clone() * base.clone();
             if i > 0 {
                 v += local.carry[i - 1].into();
             }
 
+            // Compare v to b[i].
             if i < WORD_SIZE {
                 // The lower 4 bytes of the result must match the corresponding bytes in b.
                 builder.when(local.is_real).assert_eq(local.b[i].clone(), v);
@@ -456,17 +459,22 @@ where
         // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
         // TODO: Range check all the bytes.
 
-        // There are 10 bool member variables, so check them all here.
-        builder.assert_bool(local.is_real);
-        builder.assert_bool(local.is_remu);
-        builder.assert_bool(local.is_divu);
-        builder.assert_bool(local.is_rem);
-        builder.assert_bool(local.is_div);
-        builder.assert_bool(local.b_neg);
-        builder.assert_bool(local.rem_neg);
-        builder.assert_bool(local.b_msb);
-        builder.assert_bool(local.rem_msb);
-        builder.assert_bool(local.division_by_0);
+        let bool_flags = [
+            local.is_real,
+            local.is_remu,
+            local.is_divu,
+            local.is_rem,
+            local.is_div,
+            local.b_neg,
+            local.rem_neg,
+            local.b_msb,
+            local.rem_msb,
+            local.division_by_0,
+        ];
+
+        for flag in bool_flags.iter() {
+            builder.assert_bool(flag.clone());
+        }
 
         // Exactly one of the opcode flags must be on.
         builder.when(local.is_real).assert_eq(
