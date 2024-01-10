@@ -56,13 +56,12 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{Opcode, Runtime};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
@@ -166,9 +165,9 @@ fn get_quotient_and_remainder(b: u32, c: u32, opcode: Opcode) -> (u32, u32) {
 }
 
 impl<F: PrimeField> Chip<F> for DivRemChip {
-    fn generate_trace(&self, runtime: &mut Runtime) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = runtime
+        let rows = segment
             .divrem_events
             .par_iter()
             .map(|event| {
@@ -323,7 +322,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             row
         };
         debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for i in runtime.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
+        for i in segment.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
@@ -630,7 +629,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Program, Runtime},
+        runtime::{Opcode, Program, Runtime, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
@@ -639,13 +638,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let instructions = vec![];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
-
-        runtime.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
+        let mut segment = Segment::default();
+        segment.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 
@@ -743,9 +739,10 @@ mod tests {
             //            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
-        runtime.divrem_events = divrem_events;
+        let mut segment = Segment::default();
+        segment.divrem_events = divrem_events;
         let chip = DivRemChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

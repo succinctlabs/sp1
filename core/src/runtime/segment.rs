@@ -40,6 +40,9 @@ pub struct Segment {
     /// A trace of the SRL, SRLI, SRA, and SRAI events.
     pub shift_right_events: Vec<AluEvent>,
 
+    /// A trace of the DIV, DIVU, REM, and REMU events.
+    pub divrem_events: Vec<AluEvent>,
+
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
 

@@ -273,7 +273,7 @@ impl Runtime {
                 self.segment.add_events.push(event);
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                self.divrem_events.push(event);
+                self.segment.divrem_events.push(event);
             }
             _ => {}
         }
