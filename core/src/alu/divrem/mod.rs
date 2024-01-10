@@ -48,12 +48,10 @@
 //!     # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
-//!
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -111,6 +109,14 @@ pub struct DivRemCols<T> {
     pub is_remu: T,
     pub is_rem: T,
     pub is_div: T,
+
+    /// Flag to indicate whether the division operation overflows.
+    ///
+    /// Overflow occurs in a specific case of signed 32-bit integer division: when `b` is the
+    /// minimum representable value (`-2^31`, the smallest negative number) and `c` is `-1`. In this
+    /// case, the division result exceeds the maximum positive value representable by a 32-bit
+    /// signed integer.
+    pub is_overflow: T,
 
     /// The most significant bit of `b`.
     pub b_msb: T,
@@ -212,6 +218,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 if is_signed_operation(event.opcode) {
                     cols.rem_neg = cols.rem_msb;
                     cols.b_neg = cols.b_msb;
+                    cols.is_overflow =
+                        F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
                 }
 
                 let base = 1 << BYTE_SIZE;
@@ -357,6 +365,8 @@ where
             }
         }
 
+        // TODO: calculate is_overflow
+
         // Propagate carry.
         for i in 0..LONG_WORD_SIZE {
             let mut v = result[i].clone() - local.carry[i].clone() * base.clone();
@@ -370,11 +380,17 @@ where
                 // The upper 4 bytes must reflect the sign of b in two's complement:
                 // - All 1s (0xff) for negative b.
                 // - All 0s for non-negative b.
+                let not_overflow = one.clone() - local.is_overflow.clone();
                 builder
+                    .when(not_overflow.clone())
                     .when(local.b_neg)
                     .assert_eq(v.clone(), AB::F::from_canonical_u32(0xff));
                 builder
+                    .when(not_overflow.clone())
                     .when(one.clone() - local.b_neg)
+                    .assert_eq(v.clone(), zero.clone());
+                builder
+                    .when(local.is_overflow.clone())
                     .assert_eq(v.clone(), zero.clone());
             }
         }
@@ -591,14 +607,14 @@ mod tests {
             (Opcode::REM, 0, 873, neg(1)),
             (Opcode::REM, 5, 5, 0),
             (Opcode::REM, neg(5), neg(5), 0),
-            // (Opcode::REM, 0, 0, 0),
-            // (Opcode::REM, 0, 0x80000001, neg(1)),
-            // (Opcode::DIV, 3, 18, 6),
-            // (Opcode::DIV, neg(6), neg(24), 4),
-            // (Opcode::DIV, neg(2), 16, neg(8)),
-            // (Opcode::DIV, neg(1), 0, 0),
-            // (Opcode::DIV, 1 << 31, neg(1), 1 << 31),
-            // (Opcode::REM, 1 << 31, neg(1), 0),
+            (Opcode::REM, 0, 0, 0),
+            (Opcode::REM, 0, 0x80000001, neg(1)),
+            (Opcode::DIV, 3, 18, 6),
+            (Opcode::DIV, neg(6), neg(24), 4),
+            (Opcode::DIV, neg(2), 16, neg(8)),
+            (Opcode::DIV, neg(1), 0, 0),
+            (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
+            (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
