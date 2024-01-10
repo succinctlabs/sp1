@@ -111,7 +111,9 @@ where
         let base = AB::F::from_canonical_u32(1 << 8);
 
         // For each limb, assert that difference between the carried result and the non-carried
-        // result is either zero or the base.
+        // result is either zero or minus the base.
+        // Note that the overflow variables can be have a value of -256 (mod P), so the field
+        // should be big enough to handle that.
         let overflow_0 = local.b[0] - local.c[0] - local.a[0];
         let overflow_1 = local.b[1] - local.c[1] - local.a[1] - local.carry[0];
         let overflow_2 = local.b[2] - local.c[2] - local.a[2] - local.carry[1];
