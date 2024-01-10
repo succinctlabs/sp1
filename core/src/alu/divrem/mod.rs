@@ -88,10 +88,10 @@ pub struct DivRemCols<T> {
     pub c: Word<T>,
 
     /// Results of dividing `b` by `c`.
-    pub quotient: [T; WORD_SIZE],
+    pub quotient: Word<T>,
 
     /// Remainder when dividing `b` by `c`.
-    pub remainder: [T; WORD_SIZE],
+    pub remainder: Word<T>,
 
     /// The result of `c * quotient`.
     pub c_times_quotient: [T; LONG_WORD_SIZE],
@@ -211,8 +211,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     event.b, event.c, quotient, remainder
                 );
 
-                cols.quotient = quotient.to_le_bytes().map(F::from_canonical_u8);
-                cols.remainder = remainder.to_le_bytes().map(F::from_canonical_u8);
+                cols.quotient = Word(quotient.to_le_bytes().map(F::from_canonical_u8));
+                cols.remainder = Word(remainder.to_le_bytes().map(F::from_canonical_u8));
                 cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                 cols.b_msb = F::from_canonical_u8(get_msb(event.b));
                 if is_signed_operation(event.opcode) {
@@ -471,10 +471,44 @@ where
             }
         }
 
-        // TODO: Use lookup to constrain the MSBs.
-        // TODO: Range check the carry column.
         // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
+        {
+            // Use the LT ALU table.
+        }
+
+        // TODO: Use lookup to constrain the MSBs.
+        {
+            let msb_pairs = [
+                (local.b_msb.clone(), local.b[WORD_SIZE - 1].clone()),
+                (
+                    local.rem_msb.clone(),
+                    local.remainder[WORD_SIZE - 1].clone(),
+                ),
+            ];
+            for msb_pair in msb_pairs.iter() {
+                let _msb = msb_pair.0.clone();
+                let _byte = msb_pair.1.clone();
+                // _msb must match _byte's msb.
+            }
+        }
+
         // TODO: Range check all the bytes.
+        {
+            let words = [local.a, local.b, local.c, local.quotient, local.remainder];
+            let long_words = [local.c_times_quotient, local.carry];
+
+            for word in words.iter() {
+                for _byte in word.0.iter() {
+                    // byte must be in [0, 255].
+                }
+            }
+
+            for long_word in long_words.iter() {
+                for _byte in long_word.iter() {
+                    // byte must be in [0, 255].
+                }
+            }
+        }
 
         // Check that the flags are boolean.
         {
