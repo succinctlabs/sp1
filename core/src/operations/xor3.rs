@@ -39,6 +39,6 @@ impl<F: Field> Xor3Cols<F> {
         c: Word<AB::Var>,
         cols: Xor3Cols<AB::Var>,
     ) {
-        todo!()
+        // TODO:
     }
 }

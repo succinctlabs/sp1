@@ -22,6 +22,7 @@ use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::air::MemoryReadCols;
 use crate::operations::FixedRotateRightCols;
 use crate::operations::FixedShiftRightCols;
+use crate::operations::Xor3Cols;
 use crate::precompiles::sha256_extend::flags::populate_flags;
 use crate::runtime::Opcode;
 use crate::runtime::Segment;
@@ -59,13 +60,8 @@ pub struct ShaExtendCols<T> {
     pub w_i_minus_15_rr_7: FixedRotateRightCols<T>,
     pub w_i_minus_15_rr_18: FixedRotateRightCols<T>,
     pub w_i_minus_15_rs_3: FixedShiftRightCols<T>,
-    // /// (w[i-15] rightrotate 7) ^ (w[i-15] rightrotate 18)
-    // pub w_i_minus_15_rr_7_xor_w_i_minus_15_rr_18: Word<T>,
-
-    // /// (w[i-15] rightrotate 7) ^ (w[i-15] rightrotate 18) ^ (w[i-15] >> 3)
-    // pub s0: Word<T>,
-
-    // /// w[i-2] read
+    pub s0: Xor3Cols<T>,
+    // w[i-2] read
     // pub w_i_minus_2: MemoryAccessCols<T>,
 
     // /// w[i-2] rightrotate 17
@@ -126,7 +122,14 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             let j = i % 48;
             cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
             cols.w_i_minus_15_rr_7.populate(cols.w_i_minus_15.value, 7);
+            cols.w_i_minus_15_rr_18
+                .populate(cols.w_i_minus_15.value, 18);
             cols.w_i_minus_15_rs_3.populate(cols.w_i_minus_15.value, 3);
+            cols.s0.populate(
+                cols.w_i_minus_15_rr_7.value,
+                cols.w_i_minus_15_rr_18.value,
+                cols.w_i_minus_15_rs_3.value,
+            );
             // cols.w_i_minus_15_rr_18
             //     .populate(cols.w_i_minus_15.value, 15);
 
@@ -256,6 +259,13 @@ where
             local.w_i_minus_15.value,
             3,
             local.w_i_minus_15_rs_3,
+        );
+        Xor3Cols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_15_rr_7.value,
+            local.w_i_minus_15_rr_18.value,
+            local.w_i_minus_15_rs_3.value,
+            local.s0,
         );
     }
 }
