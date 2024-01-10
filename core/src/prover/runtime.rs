@@ -59,9 +59,9 @@ impl Runtime {
             .collect::<Vec<_>>();
 
         // TODO: Observe the challenges in a tree-like structure for better reconstruction.
-        for main_data in segment_main_data {
-            challenger.observe(main_data.main_commit);
-        }
+        segment_main_data.iter().map(|main_data| {
+            challenger.observe(main_data.main_commit.clone());
+        });
 
         let proofs = segment_main_data
             .iter()
