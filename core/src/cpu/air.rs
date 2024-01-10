@@ -337,8 +337,7 @@ where
         builder
             .when(
                 (local.selectors.is_bge + local.selectors.is_bgeu)
-                    * branch_columns.branch_cond_val
-                    * (AB::Expr::one() - branch_columns.a_gt_b),
+                    * (branch_columns.branch_cond_val - branch_columns.a_gt_b),
             )
             .assert_word_eq(*local.op_b_val(), *local.op_a_val());
 
