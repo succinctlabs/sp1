@@ -376,15 +376,6 @@ where
                 one.clone(),
             );
 
-            // 1 = 0 * 0, which should fail.
-            builder.send_alu(
-                AB::Expr::from_canonical_u32(Opcode::MUL as u32),
-                Word([zero.clone(), zero.clone(), zero.clone(), one.clone()]),
-                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
-                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
-                one.clone(),
-            );
-
             let opcode_for_upper_half = {
                 let mulh = AB::Expr::from_canonical_u32(Opcode::MULH as u32);
                 let mulhu = AB::Expr::from_canonical_u32(Opcode::MULHU as u32);
