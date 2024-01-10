@@ -30,7 +30,7 @@ pub struct SubCols<T> {
     pub c: Word<T>,
 
     /// Trace.
-    pub carry: [T; 4],
+    pub carry: [T; 3],
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -58,28 +58,21 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
-                let mut carry = [0u8, 0u8, 0u8, 0u8];
+                let mut carry = [0u8, 0u8, 0u8];
                 if b[0] < c[0] {
                     carry[0] = 1;
                     cols.carry[0] = F::one();
                 }
 
-                if b[1] < c[1] + carry[0] {
+                if (b[1] as u16) < c[1] as u16 + carry[0] as u16 {
                     carry[1] = 1;
                     cols.carry[1] = F::one();
                 }
 
-                if b[2] < c[2] + carry[1] {
+                if (b[2] as u16) < c[2] as u16 + carry[1] as u16 {
                     carry[2] = 1;
                     cols.carry[2] = F::one();
                 }
-
-                if b[3] < c[3] + carry[2] {
-                    carry[3] = 1;
-                    cols.carry[3] = F::one();
-                }
-
-                println!("a: {:?}, b: {:?}, c: {:?}, carry: {:?}", a, b, c, carry);
 
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
@@ -114,27 +107,33 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &SubCols<AB::Var> = main.row_slice(0).borrow();
-        let base = AB::Expr::from_canonical_u32(1 << 8);
+
+        let one = AB::F::one();
+        let base = AB::F::from_canonical_u32(1 << 8);
 
         // For each limb, assert that difference between the carried result and the non-carried
         // result is either zero or the base.
 
-        let overflow_a_0 = base.clone() - local.a[0];
-        let overflow_a_1 = base.clone() - local.a[1];
-        let overflow_a_2 = base.clone() - local.a[2];
-        let overflow_a_3 = base.clone() - local.a[3];
+        let overflow_0 = local.b[0] - local.c[0] - local.a[0];
+        let overflow_1 = local.b[1] - local.c[1] - local.a[1] - local.carry[0];
+        let overflow_2 = local.b[2] - local.c[2] - local.a[2] - local.carry[1];
+        let overflow_3 = local.b[3] - local.c[3] - local.a[3] - local.carry[2];
+        builder.assert_zero(overflow_0.clone() * (overflow_0.clone() + base));
+        builder.assert_zero(overflow_1.clone() * (overflow_1.clone() + base));
+        builder.assert_zero(overflow_2.clone() * (overflow_2.clone() + base));
+        builder.assert_zero(overflow_3.clone() * (overflow_3.clone() + base));
 
-        let expected_a_0 = local.a[0] + local.carry[0] * (-overflow_a_0 - local.a[0]);
-        let expected_a_1 = local.a[1] + local.carry[1] * (-overflow_a_1 - local.a[1]);
-        let expected_a_2 = local.a[2] + local.carry[2] * (-overflow_a_2 - local.a[2]);
-        let expected_a_3 = local.a[3] + local.carry[3] * (-overflow_a_3 - local.a[3]);
+        // If the carry is one, then the overflow must be the base.
+        builder.assert_zero(local.carry[0] * (overflow_0.clone() + base));
+        builder.assert_zero(local.carry[1] * (overflow_1.clone() + base));
+        builder.assert_zero(local.carry[2] * (overflow_2.clone() + base));
 
-        builder.assert_zero(local.b[0] - local.c[0] - expected_a_0);
-        builder.assert_zero(local.b[1] - local.c[1] - local.carry[0] - expected_a_1);
-        builder.assert_zero(local.b[2] - local.c[2] - local.carry[1] - expected_a_2);
-        builder.assert_zero(local.b[3] - local.c[3] - local.carry[2] - expected_a_3);
+        // // If the carry is not one, then the overflow must be zero.
+        builder.assert_zero((local.carry[0] - one) * overflow_0.clone());
+        builder.assert_zero((local.carry[1] - one) * overflow_1.clone());
+        builder.assert_zero((local.carry[2] - one) * overflow_2.clone());
 
-        // Assert that the carry is either zero or one.
+        // // Assert that the carry is either zero or one.
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
@@ -186,22 +185,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        segment.sub_events = vec![AluEvent::new(
-            0,
-            Opcode::SUB,
-            327680u32.wrapping_sub(16975360u32),
-            327680,
-            16975360,
-        )];
-        let chip = SubChip {};
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        println!("{:?}", trace.values)
-    }
-
-    #[test]
-    fn generate_trace_overflow() {
-        let mut segment = Segment::default();
-        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 0u32.wrapping_sub(1u32), 0, 1)];
+        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
@@ -251,17 +235,14 @@ mod tests {
 
         let mut segment = Segment::default();
 
-        for i in 0..1 {
-            let operand_1 = thread_rng().gen_range(0..u8::MAX);
-            let operand_2 = thread_rng().gen_range(0..u8::MAX);
+        for _i in 0..1000 {
+            let operand_1 = thread_rng().gen_range(0..u32::MAX);
+            let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
-            segment.sub_events.push(AluEvent::new(
-                0,
-                Opcode::SUB,
-                result as u32,
-                operand_1 as u32,
-                operand_2 as u32,
-            ));
+
+            segment
+                .sub_events
+                .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
         }
         let chip = SubChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
