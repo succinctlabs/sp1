@@ -330,68 +330,68 @@ where
                 .assert_eq(local.remainder[i], local.a[i]);
         }
 
-        // // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
-        // // we will check a slightly stronger condition:
-        // //
-        // // 1. If remainder < 0, then b < 0.
-        // // 2. If remainder > 0, then b >= 0.
+        // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
+        // we will check a slightly stronger condition:
+        //
+        // 1. If remainder < 0, then b < 0.
+        // 2. If remainder > 0, then b >= 0.
 
-        // // Negative if and only if op code is signed & MSB = 1
-        // let is_signed_type = local.is_div + local.is_rem;
-        // let b_neg = is_signed_type.clone() * local.b_msb;
-        // let rem_neg = is_signed_type.clone() * local.rem_msb;
-        // builder.assert_eq(b_neg.clone(), local.b_neg);
-        // builder.assert_eq(rem_neg.clone(), local.rem_neg);
+        // Negative if and only if op code is signed & MSB = 1
+        let is_signed_type = local.is_div + local.is_rem;
+        let b_neg = is_signed_type.clone() * local.b_msb;
+        let rem_neg = is_signed_type.clone() * local.rem_msb;
+        builder.assert_eq(b_neg.clone(), local.b_neg);
+        builder.assert_eq(rem_neg.clone(), local.rem_neg);
 
-        // // A number is 0 if and only if the sum of the 4 limbs equals to 0.
-        // let mut rem_byte_sum = zero.clone();
-        // let mut b_byte_sum = zero.clone();
-        // for i in 0..WORD_SIZE {
-        //     rem_byte_sum += local.remainder[i].into();
-        //     b_byte_sum += local.b[i].into();
-        // }
+        // A number is 0 if and only if the sum of the 4 limbs equals to 0.
+        let mut rem_byte_sum = zero.clone();
+        let mut b_byte_sum = zero.clone();
+        for i in 0..WORD_SIZE {
+            rem_byte_sum += local.remainder[i].into();
+            b_byte_sum += local.b[i].into();
+        }
 
-        // // 1. If remainder < 0, then b < 0.
-        // builder
-        //     .when(local.rem_neg) // rem is negative.
-        //     .assert_one(local.b_neg); // b is negative.
+        // 1. If remainder < 0, then b < 0.
+        builder
+            .when(local.rem_neg) // rem is negative.
+            .assert_one(local.b_neg); // b is negative.
 
-        // // 2. If remainder > 0, then b >= 0.
-        // builder
-        //     .when(rem_byte_sum.clone()) // remainder is nonzero.
-        //     .when(one.clone() - local.rem_neg) // rem is not negative.
-        //     .assert_zero(local.b_neg); // b is not negative.
+        // 2. If remainder > 0, then b >= 0.
+        builder
+            .when(rem_byte_sum.clone()) // remainder is nonzero.
+            .when(one.clone() - local.rem_neg) // rem is not negative.
+            .assert_zero(local.b_neg); // b is not negative.
 
-        // // When division by 0, RISC-V spec says quotient = 0xffffffff.
-        // for i in 0..WORD_SIZE {
-        //     builder
-        //         .when(local.division_by_0.clone())
-        //         .when(local.is_divu.clone() + local.is_div.clone())
-        //         .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
-        // }
+        // When division by 0, RISC-V spec says quotient = 0xffffffff.
+        for i in 0..WORD_SIZE {
+            builder
+                .when(local.division_by_0.clone())
+                .when(local.is_divu.clone() + local.is_div.clone())
+                .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
+        }
 
-        // // TODO: Use lookup to constrain the MSBs.
-        // // TODO: Range check the carry column.
-        // // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
-        // // TODO: Range check all the bytes.
+        // TODO: Use lookup to constrain the MSBs.
+        // TODO: Range check the carry column.
+        // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
+        // TODO: Range check all the bytes.
 
-        // // There are 10 bool member variables, so check them all here.
-        // builder.assert_bool(local.is_real);
-        // builder.assert_bool(local.is_remu);
-        // builder.assert_bool(local.is_divu);
-        // builder.assert_bool(local.is_rem);
-        // builder.assert_bool(local.is_div);
-        // builder.assert_bool(local.b_neg);
-        // builder.assert_bool(local.rem_neg);
-        // builder.assert_bool(local.b_msb);
-        // builder.assert_bool(local.rem_msb);
-        // builder.assert_bool(local.division_by_0);
+        // There are 10 bool member variables, so check them all here.
+        builder.assert_bool(local.is_real);
+        builder.assert_bool(local.is_remu);
+        builder.assert_bool(local.is_divu);
+        builder.assert_bool(local.is_rem);
+        builder.assert_bool(local.is_div);
+        builder.assert_bool(local.b_neg);
+        builder.assert_bool(local.rem_neg);
+        builder.assert_bool(local.b_msb);
+        builder.assert_bool(local.rem_msb);
+        builder.assert_bool(local.division_by_0);
 
         // Exactly one of the opcode flags must be on.
-        // builder.when(local.is_real).assert_eq(
-        //     one.clone(),
-        //     local.is_divu + local.is_remu + local.is_div + local.is_rem,
-        // );
+        builder.when(local.is_real).assert_eq(
+            one.clone(),
+            local.is_divu + local.is_remu + local.is_div + local.is_rem,
+        );
 
         let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
         let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
