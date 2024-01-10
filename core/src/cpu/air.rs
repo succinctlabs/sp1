@@ -140,12 +140,7 @@ where
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // Contrain the interaction with program table
-        builder.send_program(
-            local.pc,
-            local.instruction,
-            local.selectors,
-            AB::Expr::one() * local.is_real,
-        );
+        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         let is_memory_instruction =
             <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_memory_instruction(

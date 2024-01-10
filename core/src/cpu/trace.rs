@@ -205,9 +205,9 @@ impl CpuChip {
                     let slt_event = AluEvent {
                         clk: event.clk,
                         opcode: Opcode::SLT,
-                        a: event.a,
-                        b: event.b,
-                        c: event.a,
+                        a: (0 < a_minus_b) as u32,
+                        b: 0,
+                        c: a_minus_b,
                     };
 
                     alu_events
