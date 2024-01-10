@@ -306,31 +306,37 @@ where
             local.selectors.is_blt + local.selectors.is_bltu,
         );
 
-        // // Handle the case when opcode == BGE
+        // // Handle the case when opcode == BGE or opcode == BGEU
 
         // When branch_cond_val == true, verify that either a_gt_b == 1 or a_eq_b == 1
         builder
-            .when(local.selectors.is_bge * branch_columns.branch_cond_val)
+            .when(
+                (local.selectors.is_bge + local.selectors.is_bgeu) * branch_columns.branch_cond_val,
+            )
             .assert_one(branch_columns.a_gt_b + branch_columns.a_eq_b);
 
         // When branch_cond_val == false, verify that both a_gt_b == 0 and a_eq_b == 0
         builder
-            .when(local.selectors.is_bge * (AB::Expr::one() - branch_columns.branch_cond_val))
+            .when(
+                (local.selectors.is_bge + local.selectors.is_bgeu)
+                    * (AB::Expr::one() - branch_columns.branch_cond_val),
+            )
             .assert_zero(branch_columns.a_gt_b + branch_columns.a_eq_b);
 
         // Verify correct compution of a_gt_b
         builder.send_alu(
-            branch_columns.a_gt_b,
-            AB::extend_expr_to_word(branch_columns.branch_cond_val),
+            local.selectors.is_bge * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
+                + local.selectors.is_bgeu * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            AB::extend_expr_to_word(branch_columns.a_gt_b),
             *local.op_b_val(),
             *local.op_a_val(),
-            local.selectors.is_bge,
+            local.selectors.is_bge + local.selectors.is_bgeu,
         );
 
         // If a_gt_b == false, then a_eq_b must be true
         builder
             .when(
-                local.selectors.is_bge
+                (local.selectors.is_bge + local.selectors.is_bgeu)
                     * branch_columns.branch_cond_val
                     * (AB::Expr::one() - branch_columns.a_gt_b),
             )

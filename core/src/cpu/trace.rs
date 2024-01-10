@@ -32,11 +32,18 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         let mut new_blu_events = Vec::new();
         let mut new_alu_events = HashMap::new();
 
+        let mut opcode_histogram = HashMap::new();
+
         let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op, &mut new_alu_events, &mut new_blu_events))
+            .map(|op| {
+                *opcode_histogram.entry(op.instruction.opcode).or_insert(0) += 1;
+                self.event_to_row(*op, &mut new_alu_events, &mut new_blu_events)
+            })
             .collect::<Vec<_>>();
+
+        println!("Opcode histogram: {:?}", opcode_histogram);
 
         segment.add_alu_events(new_alu_events);
         segment.add_byte_lookup_events(new_blu_events);
@@ -222,6 +229,7 @@ impl CpuChip {
                         branch_cond_val = (event.a as i32) < (event.b as i32);
                         alu_opcode = Opcode::SLT;
                     } else {
+                        // Opcode::BLTU case
                         branch_cond_val = event.a < event.b;
                         alu_opcode = Opcode::SLTU;
                     };
@@ -240,16 +248,28 @@ impl CpuChip {
                         .and_modify(|op_new_events| op_new_events.push(slt_event))
                         .or_insert(vec![slt_event]);
                 }
-                Opcode::BGE => {
-                    branch_columns.branch_cond_val =
-                        F::from_bool((event.a as i32) >= (event.b as i32));
-                    let a_gt_b = event.a > event.b;
+                Opcode::BGE | Opcode::BGEU => {
+                    let a_gt_b: bool;
+                    let alu_opcode: Opcode;
+
+                    if event.instruction.opcode == Opcode::BGE {
+                        branch_columns.branch_cond_val =
+                            F::from_bool((event.a as i32) >= (event.b as i32));
+                        a_gt_b = (event.a as i32) > (event.b as i32);
+                        alu_opcode = Opcode::SLT;
+                    } else {
+                        // Opcode::BGEU case
+                        branch_columns.branch_cond_val = F::from_bool(event.a >= event.b);
+                        a_gt_b = event.a > event.b;
+                        alu_opcode = Opcode::SLTU;
+                    };
+
                     branch_columns.a_gt_b = F::from_bool(a_gt_b);
                     branch_columns.a_eq_b = F::from_bool(event.a == event.b);
 
                     let slt_event = AluEvent {
                         clk: event.clk,
-                        opcode: Opcode::SLT,
+                        opcode: alu_opcode,
                         a: a_gt_b as u32,
                         b: event.b,
                         c: event.a,
@@ -260,8 +280,6 @@ impl CpuChip {
                         .and_modify(|op_new_events| op_new_events.push(slt_event))
                         .or_insert(vec![slt_event]);
                 }
-                Opcode::BLTU => branch_columns.branch_cond_val = F::from_bool(event.a < event.b),
-                Opcode::BGEU => branch_columns.branch_cond_val = F::from_bool(event.a >= event.b),
                 _ => unreachable!(),
             }
         }
