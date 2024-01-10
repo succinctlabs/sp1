@@ -349,9 +349,19 @@ where
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
 
-        // Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
+        // Calculate whether b, remainder, and c are negative.
+        {
+            // Negative if and only if op code is signed & MSB = 1
+            let is_signed_type = local.is_div + local.is_rem;
+            let b_neg = is_signed_type.clone() * local.b_msb;
+            let rem_neg = is_signed_type.clone() * local.rem_msb;
+            builder.assert_eq(b_neg.clone(), local.b_neg);
+            builder.assert_eq(rem_neg.clone(), local.rem_neg);
+        }
 
-        // TODO: calculate is_overflow
+        // TODO: Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
+
+        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1)
 
         // Add remainder to product c * quotient, and compare it to b.
         let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
@@ -412,13 +422,6 @@ where
         //
         // 1. If remainder < 0, then b < 0.
         // 2. If remainder > 0, then b >= 0.
-
-        // Negative if and only if op code is signed & MSB = 1
-        let is_signed_type = local.is_div + local.is_rem;
-        let b_neg = is_signed_type.clone() * local.b_msb;
-        let rem_neg = is_signed_type.clone() * local.rem_msb;
-        builder.assert_eq(b_neg.clone(), local.b_neg);
-        builder.assert_eq(rem_neg.clone(), local.rem_neg);
 
         // A number is 0 if and only if the sum of the 4 limbs equals to 0.
         let mut rem_byte_sum = zero.clone();
