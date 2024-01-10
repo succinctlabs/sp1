@@ -58,6 +58,8 @@ impl<F: PrimeField> Chip<F> for SubChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                println!("a: {:?}, b: {:?}, c: {:?}", a, b, c);
+
                 let mut carry = [0u8, 0u8, 0u8];
                 if (b[0] as i32) - (c[0] as i32) < 0 {
                     carry[0] = 1;
@@ -191,7 +193,7 @@ mod tests {
     #[test]
     fn generate_trace_overflow() {
         let mut segment = Segment::default();
-        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 0, 1, 4294967295)];
+        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 0, 1, 0u32.wrapping_sub(1u32))];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
