@@ -366,27 +366,34 @@ where
         // Add remainder to product c * quotient, and compare it to b.
         {
             let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
+            let mut c_times_quotient_plus_remainder: Vec<AB::Expr> =
+                vec![AB::F::zero().into(); LONG_WORD_SIZE];
             for i in 0..LONG_WORD_SIZE {
-                let mut v = local.c_times_quotient[i].into();
+                c_times_quotient_plus_remainder[i] = local.c_times_quotient[i].into();
 
                 // Add remainder.
                 if i < WORD_SIZE {
-                    v += local.remainder[i].into();
+                    c_times_quotient_plus_remainder[i] += local.remainder[i].into();
                 } else {
                     // If rem is negative, add 0xff to the upper 4 bytes.
-                    v += sign_extension.clone();
+                    c_times_quotient_plus_remainder[i] += sign_extension.clone();
                 }
 
                 // Propagate carry.
-                v -= local.carry[i].clone() * base.clone();
+                c_times_quotient_plus_remainder[i] -= local.carry[i].clone() * base.clone();
                 if i > 0 {
-                    v += local.carry[i - 1].into();
+                    c_times_quotient_plus_remainder[i] += local.carry[i - 1].into();
                 }
+            }
 
+            for i in 0..LONG_WORD_SIZE {
                 // Compare v to b[i].
                 if i < WORD_SIZE {
                     // The lower 4 bytes of the result must match the corresponding bytes in b.
-                    builder.when(local.is_real).assert_eq(local.b[i].clone(), v);
+                    builder.when(local.is_real).assert_eq(
+                        local.b[i].clone(),
+                        c_times_quotient_plus_remainder[i].clone(),
+                    );
                 } else {
                     // The upper 4 bytes must reflect the sign of b in two's complement:
                     // - All 1s (0xff) for negative b.
@@ -395,16 +402,19 @@ where
                     builder
                         .when(not_overflow.clone())
                         .when(local.b_neg)
-                        .assert_eq(v.clone(), AB::F::from_canonical_u32(0xff));
+                        .assert_eq(
+                            c_times_quotient_plus_remainder[i].clone(),
+                            AB::F::from_canonical_u32(0xff),
+                        );
                     builder
                         .when(not_overflow.clone())
                         .when(one.clone() - local.b_neg)
-                        .assert_eq(v.clone(), zero.clone());
+                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
 
                     // The only exception to the upper-4-byte check is the overflow case.
                     builder
                         .when(local.is_overflow.clone())
-                        .assert_eq(v.clone(), zero.clone());
+                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
                 }
             }
         }
