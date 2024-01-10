@@ -368,6 +368,7 @@ where
                 local.c_times_quotient[3].into(),
             ];
 
+            // The lower 4 bytes of c_times_quotient must match the lower 4 bytes of (c * quotient)
             builder.send_alu(
                 AB::Expr::from_canonical_u32(Opcode::MUL as u32),
                 Word(lower_half),
