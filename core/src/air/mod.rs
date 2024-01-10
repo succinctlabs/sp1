@@ -14,7 +14,7 @@ use crate::bytes::ByteOpcode;
 use crate::cpu::air::MemoryAccessCols;
 use crate::disassembler::WORD_SIZE;
 use crate::lookup::InteractionKind;
-use crate::operations::RotateRightFixedCols;
+use crate::operations::FixedRotateRightCols;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
     let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);

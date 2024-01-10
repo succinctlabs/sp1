@@ -47,12 +47,13 @@ impl<F: Field> FixedShiftRightCols<F> {
         let carry_multiplier = F::from_canonical_u32(Self::carry_multiplier(rotation));
 
         // Perform the byte shift.
-        let input_bytes_rotated = Word([
-            input[nb_bytes_to_shift % WORD_SIZE],
-            input[(1 + nb_bytes_to_shift) % WORD_SIZE],
-            input[(2 + nb_bytes_to_shift) % WORD_SIZE],
-            input[(3 + nb_bytes_to_shift) % WORD_SIZE],
-        ]);
+        let mut word = [F::zero(); WORD_SIZE];
+        for i in 0..WORD_SIZE {
+            if nb_bytes_to_shift <= i && i + nb_bytes_to_shift < WORD_SIZE {
+                word[i] = input[(i + nb_bytes_to_shift) % WORD_SIZE];
+            }
+        }
+        let input_bytes_rotated = Word(word);
 
         // For each byte, calculate the shift and carry. If it's not the first byte, calculate the
         // new byte value using the current shifted byte and the last carry.
@@ -75,8 +76,8 @@ impl<F: Field> FixedShiftRightCols<F> {
             last_carry = self.carry[i];
         }
 
-        // For the first byte, we didn't know the last carry so compute the rotated byte here.
-        self.value[WORD_SIZE - 1] = first_shift + last_carry * carry_multiplier;
+        // For the first byte, we don't move over the carry as this is a shift, not a rotate.
+        self.value[WORD_SIZE - 1] = first_shift;
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
@@ -91,12 +92,13 @@ impl<F: Field> FixedShiftRightCols<F> {
         let carry_multiplier = AB::F::from_canonical_u32(Self::carry_multiplier(rotation));
 
         // Perform the byte shift.
-        let input_bytes_rotated = Word([
-            input[nb_bytes_to_shift % WORD_SIZE],
-            input[(1 + nb_bytes_to_shift) % WORD_SIZE],
-            input[(2 + nb_bytes_to_shift) % WORD_SIZE],
-            input[(3 + nb_bytes_to_shift) % WORD_SIZE],
-        ]);
+        let mut word = vec![AB::Expr::zero(); WORD_SIZE];
+        for i in 0..WORD_SIZE {
+            if nb_bytes_to_shift <= i && i + nb_bytes_to_shift < WORD_SIZE {
+                word[i] = input[(i + nb_bytes_to_shift) % WORD_SIZE].into();
+            }
+        }
+        let input_bytes_rotated = Word(word.try_into().unwrap());
 
         // For each byte, calculate the shift and carry. If it's not the first byte, calculate the
         // new byte value using the current shifted byte and the last carry.
@@ -107,7 +109,7 @@ impl<F: Field> FixedShiftRightCols<F> {
                 AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
                 cols.shift[i],
                 cols.carry[i],
-                input_bytes_rotated[i],
+                input_bytes_rotated[i].clone(),
                 AB::F::from_canonical_usize(nb_bits_to_shift),
                 AB::F::one(),
             );
@@ -121,10 +123,7 @@ impl<F: Field> FixedShiftRightCols<F> {
             last_carry = cols.carry[i].into();
         }
 
-        // For the first byte, we didn't know the last carry so compute the rotated byte here.
-        builder.assert_eq(
-            cols.value[WORD_SIZE - 1],
-            first_shift + last_carry * carry_multiplier,
-        );
+        // For the first byte, we don't move over the carry as this is a shift, not a rotate.
+        builder.assert_eq(cols.value[WORD_SIZE - 1], first_shift);
     }
 }
