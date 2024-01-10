@@ -168,6 +168,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         || event.opcode == Opcode::REM
                         || event.opcode == Opcode::DIV
                 );
+                // **TODO** Remove all the printf statements & asserts for debugging purposes.
                 let mut row = [F::zero(); NUM_DIVREM_COLS];
                 let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
                 let a_word = event.a.to_le_bytes();
@@ -557,13 +558,13 @@ mod tests {
             (Opcode::REMU, 5, 5, 0),
             (Opcode::REMU, neg(1), neg(1), 0),
             (Opcode::REMU, 0, 0, 0),
-            // (Opcode::REM, 7, 16, 9),
-            // (Opcode::REM, neg(4), neg(22), 6),
-            // (Opcode::REM, 1, 25, neg(3)),
-            // (Opcode::REM, neg(2), neg(22), neg(4)),
-            // (Opcode::REM, 0, 873, 1),
-            // (Opcode::REM, 0, 873, neg(1)),
-            // (Opcode::REM, 5, 5, 0),
+            (Opcode::REM, 7, 16, 9),
+            (Opcode::REM, neg(4), neg(22), 6),
+            (Opcode::REM, 1, 25, neg(3)),
+            (Opcode::REM, neg(2), neg(22), neg(4)),
+            (Opcode::REM, 0, 873, 1),
+            (Opcode::REM, 0, 873, neg(1)),
+            (Opcode::REM, 5, 5, 0),
             // (Opcode::REM, neg(5), neg(5), 0),
             // (Opcode::REM, 0, 0, 0),
             // (Opcode::REM, 0, 0x80000001, neg(1)),
