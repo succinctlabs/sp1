@@ -296,13 +296,14 @@ where
             local.selectors.is_bne,
         );
 
-        // // Handle the case when opcode == BLT
+        // // Handle the case when opcode == BLT or opcode == BLTU
         builder.send_alu(
-            AB::Expr::from_canonical_u8(Opcode::SLT as u8),
+            local.selectors.is_blt * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
+                + local.selectors.is_bltu * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
             AB::extend_expr_to_word(branch_columns.branch_cond_val),
             *local.op_a_val(),
             *local.op_b_val(),
-            local.selectors.is_blt,
+            local.selectors.is_blt + local.selectors.is_bltu,
         );
 
         // // Handle the case when opcode == BGE
