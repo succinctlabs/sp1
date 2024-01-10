@@ -364,46 +364,48 @@ where
         // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1)
 
         // Add remainder to product c * quotient, and compare it to b.
-        let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
-        for i in 0..LONG_WORD_SIZE {
-            let mut v = local.c_times_quotient[i].into();
+        {
+            let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
+            for i in 0..LONG_WORD_SIZE {
+                let mut v = local.c_times_quotient[i].into();
 
-            // Add remainder.
-            if i < WORD_SIZE {
-                v += local.remainder[i].into();
-            } else {
-                // If rem is negative, add 0xff to the upper 4 bytes.
-                v += sign_extension.clone();
-            }
+                // Add remainder.
+                if i < WORD_SIZE {
+                    v += local.remainder[i].into();
+                } else {
+                    // If rem is negative, add 0xff to the upper 4 bytes.
+                    v += sign_extension.clone();
+                }
 
-            // Propagate carry.
-            v -= local.carry[i].clone() * base.clone();
-            if i > 0 {
-                v += local.carry[i - 1].into();
-            }
+                // Propagate carry.
+                v -= local.carry[i].clone() * base.clone();
+                if i > 0 {
+                    v += local.carry[i - 1].into();
+                }
 
-            // Compare v to b[i].
-            if i < WORD_SIZE {
-                // The lower 4 bytes of the result must match the corresponding bytes in b.
-                builder.when(local.is_real).assert_eq(local.b[i].clone(), v);
-            } else {
-                // The upper 4 bytes must reflect the sign of b in two's complement:
-                // - All 1s (0xff) for negative b.
-                // - All 0s for non-negative b.
-                let not_overflow = one.clone() - local.is_overflow.clone();
-                builder
-                    .when(not_overflow.clone())
-                    .when(local.b_neg)
-                    .assert_eq(v.clone(), AB::F::from_canonical_u32(0xff));
-                builder
-                    .when(not_overflow.clone())
-                    .when(one.clone() - local.b_neg)
-                    .assert_eq(v.clone(), zero.clone());
+                // Compare v to b[i].
+                if i < WORD_SIZE {
+                    // The lower 4 bytes of the result must match the corresponding bytes in b.
+                    builder.when(local.is_real).assert_eq(local.b[i].clone(), v);
+                } else {
+                    // The upper 4 bytes must reflect the sign of b in two's complement:
+                    // - All 1s (0xff) for negative b.
+                    // - All 0s for non-negative b.
+                    let not_overflow = one.clone() - local.is_overflow.clone();
+                    builder
+                        .when(not_overflow.clone())
+                        .when(local.b_neg)
+                        .assert_eq(v.clone(), AB::F::from_canonical_u32(0xff));
+                    builder
+                        .when(not_overflow.clone())
+                        .when(one.clone() - local.b_neg)
+                        .assert_eq(v.clone(), zero.clone());
 
-                // The only exception to the upper-4-byte check is the overflow case.
-                builder
-                    .when(local.is_overflow.clone())
-                    .assert_eq(v.clone(), zero.clone());
+                    // The only exception to the upper-4-byte check is the overflow case.
+                    builder
+                        .when(local.is_overflow.clone())
+                        .assert_eq(v.clone(), zero.clone());
+                }
             }
         }
 
@@ -422,39 +424,41 @@ where
         //
         // 1. If remainder < 0, then b < 0.
         // 2. If remainder > 0, then b >= 0.
+        {
+            // A number is 0 if and only if the sum of the 4 limbs equals to 0.
+            let mut rem_byte_sum = zero.clone();
+            let mut b_byte_sum = zero.clone();
+            for i in 0..WORD_SIZE {
+                rem_byte_sum += local.remainder[i].into();
+                b_byte_sum += local.b[i].into();
+            }
 
-        // A number is 0 if and only if the sum of the 4 limbs equals to 0.
-        let mut rem_byte_sum = zero.clone();
-        let mut b_byte_sum = zero.clone();
-        for i in 0..WORD_SIZE {
-            rem_byte_sum += local.remainder[i].into();
-            b_byte_sum += local.b[i].into();
+            // 1. If remainder < 0, then b < 0.
+            builder
+                .when(local.rem_neg) // rem is negative.
+                .assert_one(local.b_neg); // b is negative.
+
+            // 2. If remainder > 0, then b >= 0.
+            builder
+                .when(rem_byte_sum.clone()) // remainder is nonzero.
+                .when(one.clone() - local.rem_neg) // rem is not negative.
+                .assert_zero(local.b_neg); // b is not negative.
         }
 
-        // 1. If remainder < 0, then b < 0.
-        builder
-            .when(local.rem_neg) // rem is negative.
-            .assert_one(local.b_neg); // b is negative.
-
-        // 2. If remainder > 0, then b >= 0.
-        builder
-            .when(rem_byte_sum.clone()) // remainder is nonzero.
-            .when(one.clone() - local.rem_neg) // rem is not negative.
-            .assert_zero(local.b_neg); // b is not negative.
-
-        // When division by 0, RISC-V spec says quotient = 0xffffffff.
-
-        // If c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero.
-        let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
-        builder
-            .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
-            .assert_eq(local.division_by_0, one.clone());
-
-        for i in 0..WORD_SIZE {
+        // When division by 0, quotient must be 0xffffffff per RISC-V spec.
+        {
+            // If c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero.
+            let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
             builder
-                .when(local.division_by_0.clone())
-                .when(local.is_divu.clone() + local.is_div.clone())
-                .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
+                .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
+                .assert_eq(local.division_by_0, one.clone());
+
+            for i in 0..WORD_SIZE {
+                builder
+                    .when(local.division_by_0.clone())
+                    .when(local.is_divu.clone() + local.is_div.clone())
+                    .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
+            }
         }
 
         // TODO: Use lookup to constrain the MSBs.
@@ -462,38 +466,48 @@ where
         // TODO: Range check remainder. (i.e., 0 <= |remainder| < |c| when not division_by_0)
         // TODO: Range check all the bytes.
 
-        let bool_flags = [
-            local.is_real,
-            local.is_remu,
-            local.is_divu,
-            local.is_rem,
-            local.is_div,
-            local.b_neg,
-            local.rem_neg,
-            local.b_msb,
-            local.rem_msb,
-            local.division_by_0,
-        ];
+        // Check that the flags are boolean.
+        {
+            let bool_flags = [
+                local.is_real,
+                local.is_remu,
+                local.is_divu,
+                local.is_rem,
+                local.is_div,
+                local.b_neg,
+                local.rem_neg,
+                local.b_msb,
+                local.rem_msb,
+                local.division_by_0,
+            ];
 
-        for flag in bool_flags.iter() {
-            builder.assert_bool(flag.clone());
+            for flag in bool_flags.iter() {
+                builder.assert_bool(flag.clone());
+            }
         }
 
-        // Exactly one of the opcode flags must be on.
-        builder.when(local.is_real).assert_eq(
-            one.clone(),
-            local.is_divu + local.is_remu + local.is_div + local.is_rem,
-        );
-
-        let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
-        let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
-        let div: AB::Expr = AB::F::from_canonical_u32(Opcode::DIV as u32).into();
-        let rem: AB::Expr = AB::F::from_canonical_u32(Opcode::REM as u32).into();
-        let opcode =
-            local.is_divu * divu + local.is_remu * remu + local.is_div * div + local.is_rem * rem;
-
         // Receive the arguments.
-        builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+        {
+            let opcode = {
+                // Exactly one of the opcode flags must be on.
+                builder.when(local.is_real).assert_eq(
+                    one.clone(),
+                    local.is_divu + local.is_remu + local.is_div + local.is_rem,
+                );
+
+                let divu: AB::Expr = AB::F::from_canonical_u32(Opcode::DIVU as u32).into();
+                let remu: AB::Expr = AB::F::from_canonical_u32(Opcode::REMU as u32).into();
+                let div: AB::Expr = AB::F::from_canonical_u32(Opcode::DIV as u32).into();
+                let rem: AB::Expr = AB::F::from_canonical_u32(Opcode::REM as u32).into();
+
+                local.is_divu * divu
+                    + local.is_remu * remu
+                    + local.is_div * div
+                    + local.is_rem * rem
+            };
+
+            builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+        }
         // A dummy constraint to keep the degree 3.
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
