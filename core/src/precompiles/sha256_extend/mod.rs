@@ -20,6 +20,7 @@ use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::air::MemoryReadCols;
+use crate::operations::Add4Cols;
 use crate::operations::FixedRotateRightCols;
 use crate::operations::FixedShiftRightCols;
 use crate::operations::Xor3Cols;
@@ -68,34 +69,14 @@ pub struct ShaExtendCols<T> {
     pub w_i_minus_2_rr_19: FixedRotateRightCols<T>,
     pub w_i_minus_2_rs_10: FixedRotateRightCols<T>,
     pub s1: Xor3Cols<T>,
-    // /// w[i-2] rightrotate 17
-    // pub w_i_minus_2_rr_17_shift: Word<T>,
-    // pub w_i_minus_2_rr_17_carry: Word<T>,
-    // pub w_i_minus_2_rr_17: Word<T>,
 
-    // /// w[i-2] rightrotate 19
-    // pub w_i_minus_2_rr_19_shift: Word<T>,
-    // pub w_i_minus_2_rr_19_carry: Word<T>,
-    // pub w_i_minus_2_rr_19: Word<T>,
+    /// Computing `s2`.
+    pub w_i_minus_16: MemoryAccessCols<T>,
+    pub w_i_minus_7: MemoryAccessCols<T>,
+    pub s2: Add4Cols<T>,
 
-    // /// w[i-2] >> 10
-    // pub w_i_minus_2_rs_10: Word<T>,
-
-    // /// (w[i-2] rightrotate 17) ^ (w[i-2] rightrotate 19) ^ (w[i-2] >> 10)
-    // pub w_i_minus_2_rr_17_xor_w_i_minus_2_rr_19: Word<T>,
-
-    // /// (w[i-2] rightrotate 17) ^ (w[i-2] rightrotate 19)
-    // pub s1: Word<T>,
-
-    // /// w[i-16] read
-    // pub w_i_minus_16: MemoryAccessCols<T>,
-    // pub w_i_minus_16_plus_s0: Word<T>,
-
-    // /// w[i-7] read
-    // pub w_i_minus_7: MemoryAccessCols<T>,
-    // pub w_i_minus_7_plus_s1: Word<T>,
-
-    // pub w_i: MemoryAccessCols<T>,
+    /// Result.
+    pub w_i: MemoryAccessCols<T>,
 }
 
 pub struct ShaExtendChip;
