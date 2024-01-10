@@ -14,7 +14,7 @@ use crate::bytes::ByteOpcode;
 use crate::cpu::air::MemoryAccessCols;
 use crate::disassembler::WORD_SIZE;
 use crate::lookup::InteractionKind;
-use crate::operations::FixedRotateRightCols;
+use crate::operations::RotateRightFixedCols;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
     let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);
@@ -39,15 +39,6 @@ pub struct AirInteraction<E> {
 pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
-    }
-
-    fn rotate_right(
-        &mut self,
-        input: Word<Self::Var>,
-        cols: FixedRotateRightCols<Self::Var>,
-        rotation: usize,
-    ) {
- 
     }
 
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {

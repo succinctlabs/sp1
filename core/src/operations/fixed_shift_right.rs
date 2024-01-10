@@ -10,12 +10,12 @@ use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 
-/// A set of columns needed to compute `rotateright` with a fixed offset R.
+/// A set of columns needed to compute `>>` with a fixed offset R.
 ///
 /// Note that we decompose shifts into a byte shift and a bit shift.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct FixedRotateRightCols<T> {
+pub struct FixedShiftRightCols<T> {
     /// The output value.
     pub value: Word<T>,
 
@@ -26,7 +26,7 @@ pub struct FixedRotateRightCols<T> {
     pub carry: Word<T>,
 }
 
-impl<F: Field> FixedRotateRightCols<F> {
+impl<F: Field> FixedShiftRightCols<F> {
     pub fn nb_bytes_to_shift(rotation: usize) -> usize {
         rotation / 8
     }
@@ -83,7 +83,7 @@ impl<F: Field> FixedRotateRightCols<F> {
         builder: &mut AB,
         input: Word<AB::Var>,
         rotation: usize,
-        cols: FixedRotateRightCols<AB::Var>,
+        cols: FixedShiftRightCols<AB::Var>,
     ) {
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);

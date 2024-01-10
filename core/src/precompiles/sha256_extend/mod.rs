@@ -114,7 +114,7 @@ impl ShaExtendChip {
     }
 }
 
-impl<F: PrimeField32> Chip<F> for ShaExtendChip {
+impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
@@ -243,8 +243,18 @@ where
         // Lookup the computation for `s0`.
         // builder.send_alu(AB::F::from_canonical_u32(Opcode::SRL as u32), local, b, c, one);
 
-        builder.rotate_right(local.w_i_minus_15.value, local.w_i_minus_15_rr_7, 7);
-        builder.rotate_right(local.w_i_minus_15.value, local.w_i_minus_15_rr_18, 18);
+        FixedRotateRightCols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_15.value,
+            7,
+            local.w_i_minus_15_rr_7,
+        );
+        FixedRotateRightCols::<AB::F>::eval(
+            builder,
+            local.w_i_minus_15.value,
+            18,
+            local.w_i_minus_15_rr_18,
+        );
     }
 }
 
