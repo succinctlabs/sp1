@@ -359,7 +359,55 @@ where
             builder.assert_eq(rem_neg.clone(), local.rem_neg);
         }
 
-        // TODO: Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
+        // Use the mul table to compute c * quotient and compare it to local.c_times_quotient.
+        {
+            let lower_half: [AB::Expr; 4] = [
+                local.c_times_quotient[0].into(),
+                local.c_times_quotient[1].into(),
+                local.c_times_quotient[2].into(),
+                local.c_times_quotient[3].into(),
+            ];
+
+            builder.send_alu(
+                AB::Expr::from_canonical_u32(Opcode::MUL as u32),
+                Word(lower_half),
+                local.quotient.clone(),
+                local.c.clone(),
+                one.clone(),
+            );
+
+            // 1 = 0 * 0, which should fail.
+            builder.send_alu(
+                AB::Expr::from_canonical_u32(Opcode::MUL as u32),
+                Word([zero.clone(), zero.clone(), zero.clone(), one.clone()]),
+                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+                Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+                one.clone(),
+            );
+
+            let opcode_for_upper_half = {
+                let mulh = AB::Expr::from_canonical_u32(Opcode::MULH as u32);
+                let mulhu = AB::Expr::from_canonical_u32(Opcode::MULHU as u32);
+                let is_signed = local.is_div + local.is_rem;
+                let is_unsigned = local.is_divu + local.is_remu;
+                is_signed * mulh + is_unsigned * mulhu
+            };
+
+            let upper_half: [AB::Expr; 4] = [
+                local.c_times_quotient[4].into(),
+                local.c_times_quotient[5].into(),
+                local.c_times_quotient[6].into(),
+                local.c_times_quotient[7].into(),
+            ];
+
+            builder.send_alu(
+                opcode_for_upper_half,
+                Word(upper_half),
+                local.quotient.clone(),
+                local.c.clone(),
+                one.clone(),
+            );
+        }
 
         // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1)
 
