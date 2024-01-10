@@ -15,12 +15,7 @@ use super::ShaExtendChip;
 impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
-
-        let w = [11111111u32; 64];
-
-        println!("{:?}", 11111111u32.rotate_right(7).to_le_bytes());
-        println!("{:?}", (11111111u32 >> 3).to_le_bytes());
-
+        let mut w = [11111111u32; 64];
         for i in 0..96 {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
             let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
@@ -60,6 +55,14 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.w_i_minus_7.value,
                 cols.s1.value,
             );
+
+            // Write `s2` to `w[i]`.
+            w[16 + j] = u32::from_le_bytes(
+                cols.s2
+                    .value
+                    .0
+                    .map(|x| x.to_string().parse::<u8>().unwrap()),
+            );
         }
 
         for i in 0..96 {
@@ -67,7 +70,6 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
             cols.populate_flags(i);
             rows.push(row);
-            // println!("{:?}", cols);
         }
 
         let nb_rows = rows.len();
