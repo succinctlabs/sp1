@@ -6,7 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256_extend::ShaExtendEvent;
+use crate::precompiles::sha256::ShaExtendEvent;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;

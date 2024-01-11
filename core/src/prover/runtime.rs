@@ -4,7 +4,7 @@ use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
 use crate::memory::MemoryChipKind;
-use crate::precompiles::sha256_extend::ShaExtendChip;
+use crate::precompiles::sha256::ShaExtendChip;
 use crate::program::ProgramChip;
 use crate::prover::debug_constraints;
 use crate::prover::generate_permutation_trace;

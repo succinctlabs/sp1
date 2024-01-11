@@ -4,6 +4,7 @@
 //! method is used to populate the columns with values, while the `eval` method is used to evaluate
 //! the constraints.
 
+mod add;
 mod add4;
 mod and;
 mod fixed_rotate_right;
@@ -12,6 +13,7 @@ mod not;
 mod or;
 mod xor;
 
+pub use add::*;
 pub use add4::*;
 pub use and::*;
 pub use fixed_rotate_right::*;

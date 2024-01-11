@@ -3,14 +3,9 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    air::Word,
-    precompiles::sha256_extend::{ShaExtendCols, NUM_SHA_EXTEND_COLS},
-    runtime::Segment,
-    utils::Chip,
-};
+use crate::{air::Word, runtime::Segment, utils::Chip};
 
-use super::ShaExtendChip;
+use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
