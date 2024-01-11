@@ -9,6 +9,7 @@ use p3_air::BaseAir;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
+use std::mem::transmute_copy;
 use valida_derive::AlignedBorrow;
 
 use super::instruction_cols::InstructionCols;
@@ -33,6 +34,27 @@ pub struct MemoryAccessCols<T> {
     pub segment: T,
     pub timestamp: T,
 }
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryColumns<T> {
+    // An addr that we are reading from or writing to as a word. We are guaranteed that this does
+    // not overflow the field when reduced.
+    pub addr_word: Word<T>,
+    pub addr_aligned: T,
+    pub addr_offset: T,
+    pub memory_access: MemoryAccessCols<T>,
+}
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BranchColumns<T> {
+    pub pc: Word<T>,
+    pub next_pc: Word<T>,
+
+    pub a_eq_b: T,
+    pub a_gt_b: T,
+    pub a_lt_b: T,
+}
 
 /// An AIR table for memory accesses.
 #[derive(AlignedBorrow, Default, Debug)]
@@ -55,34 +77,41 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryAccessCols<T>,
     pub op_c_access: MemoryAccessCols<T>,
 
-    // An addr that we are reading from or writing to as a word. We are guaranteed that this does
-    // not overflow the field when reduced.
-    pub addr_word: Word<T>,
+    // This is transmuted to MemoryColumns or BNEColumns
+    pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
 
-    // addr_aligned % 4 == 0, addr_aligned + addr_offset = reduce(addr_word)
-    pub addr_aligned: T,
-    pub addr_offset: T,
-    // The associated memory value for `addr_aligned`.
-    pub memory_access: MemoryAccessCols<T>,
+    // This column is set by the trace generator to indicate that the row's opcode is branch related
+    // AND branch condition is true.
+    // It is an opcode_specific_column, but it is needed for a multiplicity condition, which must be
+    // a degree of 1, so can't be embedded within the opcode_specific_columns.
+    pub branching: T,
 
-    // Columns for constraining memory operations.
-    pub mem_scratch: Word<T>,
-    pub mem_bit_decomposition: [T; 8],
-    pub mem_mask: [T; 4],
-
-    // NOTE: This is actually a Bool<T>, but it might be easier to bus as a word for consistency with the register bus.
-    pub branch_cond_val: Word<T>,
-
-    /// Selector to label whether this row is a non padded row.
+    // Selector to label whether this row is a non padded row.
     pub is_real: T,
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
-pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
+pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_columns_offset();
+// This is a constant function, so we can't have it dynamically return the largest opcode specific
+// struct size.
+const fn get_opcode_specific_columns_offset() -> usize {
+    let memory_columns_size = size_of::<MemoryColumns<u8>>();
+    let branch_columns_size = size_of::<BranchColumns<u8>>();
+
+    let return_val = memory_columns_size;
+
+    if branch_columns_size > return_val {
+        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    return_val
 }
 
 impl CpuCols<u32> {
@@ -108,10 +137,6 @@ impl<T> CpuCols<T> {
 
     pub fn op_c_val(&self) -> &Word<T> {
         &self.op_c_access.value
-    }
-
-    pub fn memory(&self) -> &Word<T> {
-        &self.memory_access.value
     }
 }
 
@@ -147,12 +172,11 @@ where
         //     .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // Contrain the interaction with program table
-        builder.send_program(
-            local.pc,
-            local.instruction,
-            local.selectors,
-            AB::Expr::one() * local.is_real,
-        );
+        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+
+        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
+        let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
+        let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         //////////////////////////////////////////
 
@@ -175,9 +199,8 @@ where
             AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
         );
 
-        // // When we're doing a branch_op or a store op, we want to constraint it to be a read.
         builder
-            .when(local.selectors.branch_op + local.selectors.is_store)
+            .when(is_branch_instruction.clone() + local.selectors.is_store)
             .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
 
         // // We always read to register b and register c unless the imm_b or imm_c flags are set.
@@ -205,12 +228,15 @@ where
             .when(AB::Expr::one() - local.selectors.imm_c)
             .assert_word_eq(*local.op_c_val(), local.op_c_access.prev_value);
 
+        let memory_columns: MemoryColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
         builder.constraint_memory_access(
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
-            local.addr_aligned,
-            local.memory_access,
-            local.selectors.is_load + local.selectors.is_store,
+            memory_columns.addr_aligned,
+            memory_columns.memory_access,
+            is_memory_instruction.clone(),
         );
 
         //////////////////////////////////////////
@@ -220,46 +246,35 @@ where
         builder.send_byte_lookup(
             AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
             AB::Expr::zero(),
-            local.addr_offset,
-            local.addr_offset * AB::F::from_canonical_u8(64),
-            local.selectors.is_load + local.selectors.is_store,
+            memory_columns.addr_offset,
+            memory_columns.addr_offset * AB::F::from_canonical_u8(64),
+            is_memory_instruction.clone(),
         );
 
         // Check that reduce(addr_word) == addr_aligned + addr_offset
         builder
-            .when(local.selectors.is_load + local.selectors.is_store)
+            .when(is_memory_instruction.clone())
             .assert_eq::<AB::Expr, AB::Expr>(
-                local.addr_aligned + local.addr_offset,
-                reduce::<AB>(local.addr_word),
+                memory_columns.addr_aligned + memory_columns.addr_offset,
+                reduce::<AB>(memory_columns.addr_word),
             );
 
         // Check that each addr_word element is a byte
-        builder.range_check_word(
-            local.addr_word,
-            local.selectors.is_load + local.selectors.is_store,
-        );
+        builder.range_check_word(memory_columns.addr_word, is_memory_instruction.clone());
 
         // Send to the ALU table to verify correct calculation of addr_word
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            local.addr_word,
+            memory_columns.addr_word,
             *local.op_b_val(),
             *local.op_c_val(),
-            local.selectors.is_load + local.selectors.is_store,
+            is_memory_instruction.clone(),
         );
 
         //////////////////////////////////////////
 
         //// For branch instructions
-        // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
-        // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
-
-        // builder.when(local.selectors.branch_op).assert_eq(
-        //     local.pc
-        //         + AB::F::from_canonical_u8(4)
-        //         + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
-        //     next.pc,
-        // );
+        self.branch_ops_eval::<AB>(builder, is_branch_instruction, local, next);
 
         // //// For jump instructions
         // builder
@@ -284,23 +299,166 @@ where
         //     reduce::<AB>(local.op_c_val) + local.pc,
         // );
 
-        // Send interactions for all the ALUs.
-        let ops = vec![
-            local.selectors.add_op,
-            local.selectors.sub_op,
-            local.selectors.bitwise_op,
-            local.selectors.shift_op,
-            local.selectors.lt_op,
-        ];
-        for op in ops {
-            // TODO: change this to 1 send interaction.
-            builder.send_alu(
-                local.instruction.opcode,
-                *local.op_a_val(),
-                *local.op_b_val(),
-                *local.op_c_val(),
-                op,
-            );
-        }
+        builder.send_alu(
+            local.instruction.opcode,
+            *local.op_a_val(),
+            *local.op_b_val(),
+            *local.op_c_val(),
+            is_alu_instruction,
+        );
+    }
+}
+
+impl CpuChip {
+    fn is_alu_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectors<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.add_op
+            + opcode_selectors.sub_op
+            + opcode_selectors.mul_op
+            + opcode_selectors.div_op
+            + opcode_selectors.shift_op
+            + opcode_selectors.bitwise_op
+            + opcode_selectors.lt_op
+    }
+
+    fn is_memory_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectors<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_load + opcode_selectors.is_store
+    }
+
+    fn is_branch_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectors<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_beq
+            + opcode_selectors.is_bne
+            + opcode_selectors.is_blt
+            + opcode_selectors.is_bge
+            + opcode_selectors.is_bltu
+            + opcode_selectors.is_bgeu
+    }
+
+    fn branch_ops_eval<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        is_branch_instruction: AB::Expr,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) {
+        //// This function will verify all the branching related columns.
+        // It does this in few parts.
+        // 1. It verifies that the next pc is correct based on the branching column.  That column
+        //    is a boolean that indicates whether the branch condition is true.
+        // 2. It verifies the correct value of branching based on the helper bool columns (a_eq_b,
+        //    a_gt_b, a_lt_b).
+        // 3. It verifier the correct values of the helper bool columns based on op_a and op_b.
+
+        // Get the branch specific columns
+        let branch_columns: BranchColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        //// Check that the new pc is calculated correctly.
+        // First handle the case when local.branching == true
+
+        // Verify that branch_columns.pc is correct.  That is local.pc in WORD form.
+        // Note that when local.branching == True, then is_branch_instruction == True.
+        builder
+            .when(local.branching)
+            .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
+
+        // Verify that branch_columns.next_pc is correct.  That is next.pc in WORD form.
+        builder
+            .when(local.branching)
+            .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
+
+        // Calculate the new pc via the ADD chip if local.branching == true
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::ADD as u8),
+            branch_columns.next_pc,
+            branch_columns.pc,
+            *local.op_c_val(),
+            local.branching,
+            // Note that if local.branching == 1 => is_branch_instruction == 1
+            // We can't have an ADD clause of condition/selector columns here, since that would
+            // require a multiply which would have a degree of > 1 (the max degree allowable for
+            // 'multiplicity').
+        );
+
+        // Check that pc + 4 == next_pc if local.branching == false
+        builder
+            .when(is_branch_instruction.clone())
+            .when_not(local.branching)
+            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+        //// Check that the branching value is correct
+
+        // Boolean range check local.branching
+        builder
+            .when(is_branch_instruction.clone())
+            .assert_bool(local.branching);
+
+        // Check that branching value is correct based on the opcode and the helper bools.
+        builder
+            .when(local.selectors.is_beq * local.branching)
+            .assert_one(branch_columns.a_eq_b);
+        builder
+            .when(local.selectors.is_beq)
+            .when_not(local.branching)
+            .assert_one(branch_columns.a_gt_b + branch_columns.a_lt_b);
+
+        builder
+            .when(local.selectors.is_bne * local.branching)
+            .assert_one(branch_columns.a_gt_b + branch_columns.a_lt_b);
+        builder
+            .when(local.selectors.is_bne)
+            .when_not(local.branching)
+            .assert_one(branch_columns.a_eq_b);
+
+        builder
+            .when((local.selectors.is_blt + local.selectors.is_bltu) * local.branching)
+            .assert_one(branch_columns.a_lt_b);
+        builder
+            .when(local.selectors.is_blt + local.selectors.is_bltu)
+            .when_not(local.branching)
+            .assert_one(branch_columns.a_eq_b + branch_columns.a_gt_b);
+
+        builder
+            .when((local.selectors.is_bge + local.selectors.is_bgeu) * local.branching)
+            .assert_one(branch_columns.a_gt_b);
+
+        builder
+            .when(local.selectors.is_bge + local.selectors.is_bgeu)
+            .when_not(local.branching)
+            .assert_one(branch_columns.a_eq_b + branch_columns.a_lt_b);
+
+        //// Check that the helper bools' value is correct.
+        builder
+            .when(is_branch_instruction.clone() * branch_columns.a_eq_b)
+            .assert_word_eq(*local.op_a_val(), *local.op_b_val());
+
+        let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
+        builder.send_alu(
+            use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
+                + (AB::Expr::one() - use_signed_comparison.clone())
+                    * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            AB::extend_expr_to_word(branch_columns.a_lt_b),
+            *local.op_a_val(),
+            *local.op_b_val(),
+            is_branch_instruction.clone(),
+        );
+
+        builder.send_alu(
+            use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
+                + (AB::Expr::one() - use_signed_comparison)
+                    * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            AB::extend_expr_to_word(branch_columns.a_gt_b),
+            *local.op_b_val(),
+            *local.op_a_val(),
+            is_branch_instruction.clone(),
+        );
     }
 }
