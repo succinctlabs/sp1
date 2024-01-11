@@ -42,6 +42,7 @@ use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, BaseAir};
 
+use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -56,6 +57,12 @@ use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 
+/// The number of bytes necessary to represent a 64-bit integer.
+const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
+
+/// The number of bits in a byte.
+const BYTE_SIZE: usize = 8;
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
 pub struct ShiftRightCols<T> {
@@ -68,9 +75,31 @@ pub struct ShiftRightCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// A boolean array whose `i`th element indicates whether `num_bits_to_shift = i`.
+    pub shift_by_n_bits: [T; BYTE_SIZE],
+
+    /// A boolean array whose `i`th element indicates whether `num_bytes_to_shift = i`.
+    pub shift_by_n_bytes: [T; WORD_SIZE],
+
+    /// The result of "byte-shifting" the input operand `b` by `num_bytes_to_shift`.
+    pub byte_shift_result: [T; LONG_WORD_SIZE],
+
+    /// An array whose `i`th element is the bits that carried when shifting the `i`th byte of
+    /// `byte_shift_result` by `num_bits_to_shift`.
+    pub carry: [T; LONG_WORD_SIZE],
+
+    /// The most significant bit of `b`.
+    pub b_msb: T,
+
+    /// Flag to indicate whether `b` is negative.
+    pub b_neg: T,
+
     /// Selector flags for the operation to perform.
     pub is_srl: T,
     pub is_sra: T,
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 /// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
@@ -92,14 +121,15 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                 assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
                 let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
                 let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
-                cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
-                cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
+                // Initialize cols with basic operands and flags derived from the current event.
+                {
+                    cols.a = Word::from(event.a);
+                    cols.b = Word::from(event.b);
+                    cols.c = Word::from(event.c);
+
+                    cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
+                    cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
+                }
                 row
             })
             .collect::<Vec<_>>();
