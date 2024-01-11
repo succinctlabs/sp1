@@ -133,6 +133,11 @@ where
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
 
+        // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(
+            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
+        );
+
         // Receive the arguments.
         builder.receive_alu(
             AB::F::from_canonical_u32(Opcode::ADD as u32),
@@ -230,11 +235,10 @@ mod tests {
             let result = operand_1.wrapping_add(operand_2);
 
             segment
-                .sub_events
-                .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
+                .add_events
+                .push(AluEvent::new(0, Opcode::ADD, result, operand_1, operand_2));
         }
 
-        segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)].repeat(1000);
         let chip = AddChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
