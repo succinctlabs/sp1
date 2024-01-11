@@ -377,7 +377,7 @@ where
 
         // Calculate whether b, remainder, and c are negative.
         {
-            // Negative if and only if op code is signed & MSB = 1
+            // Negative if and only if op code is signed & MSB = 1.
             let is_signed_type = local.is_div + local.is_rem;
             let msb_sign_pairs = [
                 (local.b_msb.clone(), local.b_neg.clone()),
