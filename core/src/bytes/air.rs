@@ -27,16 +27,26 @@ const fn make_col_map() -> ByteCols<usize> {
 pub struct ByteCols<T> {
     /// The first byte operand.
     pub b: T,
+
     /// The second byte operand.
     pub c: T,
+
     /// The result of the `AND` operation on `a` and `b`
     pub and: T,
+
     /// The result of the `OR` operation on `a` and `b`
     pub or: T,
+
     /// The result of the `XOR` operation on `a` and `b`
     pub xor: T,
+
     /// The result of the `SLL` operation on `a` and `b`
     pub sll: T,
+
+    /// The result of the `ShrCarry` operation on `a` and `b`.
+    pub shr: T,
+    pub shr_carry: T,
+
     pub multiplicities: [T; NUM_BYTE_OPS],
 }
 
@@ -59,13 +69,13 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
             let field_op = opcode.to_field::<AB::F>();
             let mult = local.multiplicities[i];
             match opcode {
-                ByteOpcode::And => {
+                ByteOpcode::AND => {
                     builder.receive_byte_lookup(field_op, local.and, local.b, local.c, mult)
                 }
-                ByteOpcode::Or => {
+                ByteOpcode::OR => {
                     builder.receive_byte_lookup(field_op, local.or, local.b, local.c, mult)
                 }
-                ByteOpcode::Xor => {
+                ByteOpcode::XOR => {
                     builder.receive_byte_lookup(field_op, local.xor, local.b, local.c, mult)
                 }
                 ByteOpcode::SLL => {
@@ -74,6 +84,14 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
                 ByteOpcode::Range => {
                     builder.receive_byte_lookup(field_op, AB::F::zero(), local.b, local.c, mult)
                 }
+                ByteOpcode::ShrCarry => builder.receive_byte_lookup_pair(
+                    field_op,
+                    local.shr,
+                    local.shr_carry,
+                    local.b,
+                    local.c,
+                    mult,
+                ),
             }
         }
     }

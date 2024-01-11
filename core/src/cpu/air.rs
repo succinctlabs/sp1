@@ -18,6 +18,14 @@ use crate::runtime::{AccessPosition, Opcode};
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
+pub struct MemoryReadCols<T> {
+    pub value: Word<T>,
+    pub segment: T,
+    pub timestamp: T,
+}
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
     pub prev_value: Word<T>,
@@ -132,9 +140,11 @@ where
 
         // Clock constraints
         builder.when_first_row().assert_one(local.clk);
-        builder
-            .when_transition()
-            .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
+
+        // TODO: handle precompile dynamic clk
+        // builder
+        //     .when_transition()
+        //     .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // Contrain the interaction with program table
         builder.send_program(

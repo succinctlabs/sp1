@@ -138,9 +138,12 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::{AbstractField, Field};
 
+    use crate::bytes::ByteChip;
     use crate::cpu::trace::CpuChip;
     use crate::lookup::{debug_interactions, InteractionKind};
     use crate::memory::MemoryGlobalChip;
+    use crate::precompiles::sha256_extend::tests::sha_extend_program;
+    use crate::precompiles::sha256_extend::ShaExtendChip;
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
@@ -155,7 +158,7 @@ mod tests {
     use rand::thread_rng;
 
     use super::*;
-    use crate::runtime::tests::{fibonacci_program, simple_program};
+    use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
     use crate::utils::Chip;
 
@@ -242,8 +245,9 @@ mod tests {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
         }
-        let program = fibonacci_program();
+        let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[999]);
         runtime.run();
 
         let memory_init_chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
@@ -270,13 +274,63 @@ mod tests {
             InteractionKind::Memory,
         );
 
+        println!("SHA interactions");
+        let sha256_extend = ShaExtendChip::new();
+        let (_, sha_extend_count) = debug_interactions::<BabyBear, _>(
+            sha256_extend,
+            &mut runtime.segment,
+            InteractionKind::Memory,
+        );
+
         let mut final_map = BTreeMap::new();
 
         for (key, value) in init_count
             .iter()
             .chain(finalize_count.iter())
             .chain(cpu_count.iter())
+            .chain(sha_extend_count.iter())
         {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+
+        println!("Final counts");
+
+        for (key, value) in final_map {
+            if !value.is_zero() {
+                println!("Key {} Value {}", key, value);
+            }
+        }
+    }
+
+    #[test]
+    fn test_byte_lookup_interactions() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
+        let program = sha_extend_program();
+        let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[999]);
+        runtime.run();
+
+        println!("SHA interactions");
+        let sha256_extend = ShaExtendChip::new();
+        let (_, sha_extend_count) = debug_interactions::<BabyBear, _>(
+            sha256_extend,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        let byte_chip = ByteChip::new();
+        println!("Byte chip interactions");
+        let (_, byte_count) = debug_interactions::<BabyBear, _>(
+            byte_chip,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        let mut final_map = BTreeMap::new();
+
+        for (key, value) in byte_count.iter().chain(sha_extend_count.iter()) {
             *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
         }
 

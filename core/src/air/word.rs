@@ -21,6 +21,12 @@ impl<T> Word<T> {
     }
 }
 
+impl<F: Field> Word<F> {
+    pub fn to_u32(&self) -> u32 {
+        u32::from_le_bytes(self.0.map(|x| x.to_string().parse::<u8>().unwrap()))
+    }
+}
+
 impl<T> Index<usize> for Word<T> {
     type Output = T;
 
