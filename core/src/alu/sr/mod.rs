@@ -5,30 +5,37 @@
 //! 1. num_bits_to_shift = c % 8: Bit-level shift, achieved by multiplying b by 2^num_bits_to_shift.
 //! 2. num_bytes_to_shift = c // 8: Byte-level shift, shifting entire bytes or words in b.
 //!
-//! The right shift is verified by reformulating it as (a << c) + x = b, where x is the "shift
-//! remainder" that accounts for bits shifted out. This approach validates that the combination of
-//! bit-level and byte-level shifts in a and the shift remainder x correctly reconstructs b.
-//! Finally, we verify leading bits a are all 1 if signed and b is negative, 0 otherwise.
+//! The right shift is verified by reformulating it as (b >> c) = (b >> (num_bytes_to_shift * 8)) >>
+//! num_bits_to_shift.
+//!
+//! By byte shifting is done by shifting each byte, and bit-shifting is done by ShrCarry lookups.
+//!
+//! The correct leading bits of logical and arithmetic right shifts are verified
+//! by sign extending b to 64 bits.
 //!
 //! c = take the least significant 5 bits of c
 //! num_bytes_to_shift = c // 8
 //! num_bits_to_shift = c % 8
 //!
-//! # "Bit shift"
-//! bit_shift_multiplier = pow(2, num_bits_to_shift)
-//! result = bit_shift_multiplier * a
+//! # Sign extend b to 64 bits.
 //!
-//! # Add shift residue
-//! result += residue
+//! # Byte shift.
+//! result = [0; LONG_WORD_SIZE]
+//! for i in range(LONG_WORD_SIZE - num_bytes_to_shift):
+//!     result[i] = b[i + num_bytes_to_shift]
 //!
-//! # "Byte shift"
-//! for i in range(WORD_SIZE):
-//!     if i < num_bytes_to_shift:
-//!         assert(a[i] == 0)
-//!     else:
-//!         assert(a[i] == result[i + num_bytes_to_shift])
+//! # Bit shift.
+//! carry_multiplier = 1 << (8 - num_bits_to_shift)
+//! last_carry = 0
+//! for i in reversed(range(LONG_WORD_SIZE)):
+//!     # Shifts a byte to the right and returns both the shifted byte and the bits that carried.
+//!     (result[i], carry) = shr_carry(result[i], num_bits_to_shift)
+//!     result[i] += last_carry * carry_multiplier
+//!     last_carry = carry
 //!
-//!
+//! # The 4 least significant bytes must match a. The 4 most significant bytes of result may be
+//! # inaccurate.
+//! assert a = result[0..WORD_SIZE]
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -82,6 +89,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
             .shift_right_events
             .par_iter()
             .map(|event| {
+                assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
                 let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
                 let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
                 let a = event.a.to_le_bytes();
