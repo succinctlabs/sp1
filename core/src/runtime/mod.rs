@@ -718,14 +718,15 @@ impl Runtime {
                         let saved_clk = self.clk;
                         let saved_w_ptr = w_ptr;
                         let saved_w = w.clone();
-                        // let mut h_read_records = Vec::new();
-                        // let mut h_write_records = Vec::new();
-                        // let mut w_i_read_records = Vec::new();
+                        let mut h_read_records = Vec::new();
+                        let mut w_i_read_records = Vec::new();
+                        let mut h_write_records = Vec::new();
 
                         const H_START_IDX: u32 = 64;
                         let mut hx = [0u32; 8];
                         for i in 0..8 {
                             hx[i] = self.mr(w_ptr + H_START_IDX * 4, AccessPosition::Memory);
+                            h_read_records.push(self.record.memory);
                             self.clk += 4;
                         }
 
@@ -740,11 +741,13 @@ impl Runtime {
                         for i in 0..64 {
                             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
                             let ch = (e & f) ^ (!e & g);
+                            let w_i = self.mr(w_ptr + i * 4, AccessPosition::Memory);
+                            w_i_read_records.push(self.record.memory);
                             let temp1 = h
                                 .wrapping_add(s1)
                                 .wrapping_add(ch)
-                                .wrapping_add(SHA_COMPRESS_K[i])
-                                .wrapping_add(w[i]);
+                                .wrapping_add(SHA_COMPRESS_K[i as usize])
+                                .wrapping_add(w_i);
                             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
                             let maj = (a & b) ^ (a & c) ^ (b & c);
                             let temp2 = s0.wrapping_add(maj);
@@ -769,10 +772,9 @@ impl Runtime {
                                 hx[0] + v[i],
                                 AccessPosition::Memory,
                             );
+                            h_write_records.push(self.record.memory);
                             self.clk += 4;
                         }
-
-                        todo!()
                     }
                 }
             }
