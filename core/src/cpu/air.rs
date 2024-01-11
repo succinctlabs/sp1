@@ -361,7 +361,7 @@ impl CpuChip {
         let branch_columns: BranchColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
-        //// Check that the new pc is calculated correctly
+        //// Check that the new pc is calculated correctly.
         // First handle the case when local.branching == true
 
         // Verify that branch_columns.pc is correct.  That is local.pc in WORD form.
@@ -390,7 +390,8 @@ impl CpuChip {
 
         // Check that pc + 4 == next_pc if local.branching == false
         builder
-            .when(is_branch_instruction.clone() * (AB::Expr::one() - local.branching))
+            .when(is_branch_instruction.clone())
+            .when_not(local.branching)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         //// Check that the branching value is correct
@@ -416,24 +417,24 @@ impl CpuChip {
             .when(local.selectors.is_beq * local.branching)
             .assert_one(branch_columns.a_eq_b);
         builder
-            .when(local.selectors.is_beq * (AB::Expr::one() - local.branching))
+            .when(local.selectors.is_beq)
+            .when_not(local.branching)
             .assert_one(branch_columns.a_gt_b + branch_columns.a_lt_b);
 
         builder
             .when(local.selectors.is_bne * local.branching)
             .assert_one(branch_columns.a_gt_b + branch_columns.a_lt_b);
         builder
-            .when(local.selectors.is_bne * (AB::Expr::one() - local.branching))
+            .when(local.selectors.is_bne)
+            .when_not(local.branching)
             .assert_one(branch_columns.a_eq_b);
 
         builder
             .when((local.selectors.is_blt + local.selectors.is_bltu) * local.branching)
             .assert_one(branch_columns.a_lt_b);
         builder
-            .when(
-                (local.selectors.is_blt + local.selectors.is_bltu)
-                    * (AB::Expr::one() - local.branching),
-            )
+            .when(local.selectors.is_blt + local.selectors.is_bltu)
+            .when_not(local.branching)
             .assert_one(branch_columns.a_eq_b + branch_columns.a_gt_b);
 
         builder
@@ -441,13 +442,11 @@ impl CpuChip {
             .assert_one(branch_columns.a_gt_b);
 
         builder
-            .when(
-                (local.selectors.is_bge + local.selectors.is_bgeu)
-                    * (AB::Expr::one() - local.branching),
-            )
+            .when(local.selectors.is_bge + local.selectors.is_bgeu)
+            .when_not(local.branching)
             .assert_one(branch_columns.a_eq_b + branch_columns.a_lt_b);
 
-        // Check that the helper bools' value is correct.
+        //// Check that the helper bools' value is correct.
         builder
             .when(is_branch_instruction.clone() * branch_columns.a_eq_b)
             .assert_word_eq(*local.op_a_val(), *local.op_b_val());
