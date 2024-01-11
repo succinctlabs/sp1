@@ -41,7 +41,7 @@ pub struct ByteChip<F> {
     initial_trace: RowMajorMatrix<F>,
 }
 
-pub const NUM_BYTE_OPS: usize = 5;
+pub const NUM_BYTE_OPS: usize = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteOpcode {
@@ -56,8 +56,8 @@ pub enum ByteOpcode {
     /// This operation shifts by the first three least significant bits of the second byte.
     SLL = 3,
     /// Range check.
-    Range = 5,
-    ShrCarry = 6,
+    Range = 4,
+    ShrCarry = 5,
 }
 
 impl ByteOpcode {
@@ -68,6 +68,7 @@ impl ByteOpcode {
             ByteOpcode::XOR,
             ByteOpcode::SLL,
             ByteOpcode::Range,
+            ByteOpcode::ShrCarry,
         ];
         // Make sure we included all the enum variants.
         assert_eq!(opcodes.len(), NUM_BYTE_OPS);
@@ -94,7 +95,9 @@ impl<F: Field> ByteChip<F> {
         let opcodes = ByteOpcode::get_all();
 
         // Iterate over all options for pairs of bytes `a` and `b`.
-        for (row_index, (b, c)) in (0..u8::MAX).cartesian_product(0..u8::MAX).enumerate() {
+        for (row_index, (b, c)) in (0..256u32).cartesian_product(0..256u32).enumerate() {
+            let b = b as u8;
+            let c = c as u8;
             let col: &mut ByteCols<F> = initial_trace.row_mut(row_index).borrow_mut();
 
             // Set the values of `a` and `b`.
@@ -127,6 +130,8 @@ impl<F: Field> ByteChip<F> {
                     ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, 0, b, c),
                     ByteOpcode::ShrCarry => {
                         let (res, carry) = shr_carry(b, c);
+                        col.shr = F::from_canonical_u8(res);
+                        col.shr_carry = F::from_canonical_u8(carry);
                         ByteLookupEvent::new(*opcode, res, carry, b, c)
                     }
                 };

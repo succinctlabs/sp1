@@ -1,20 +1,15 @@
 mod bool;
-mod operations;
 mod word;
 
 use std::iter::once;
 
 pub use bool::Bool;
-pub use operations::*;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
-use crate::bytes::ByteOpcode;
 use crate::cpu::air::MemoryAccessCols;
-use crate::disassembler::WORD_SIZE;
 use crate::lookup::InteractionKind;
-use crate::operations::FixedRotateRightOperation;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {
     let base = [1, 1 << 8, 1 << 16, 1 << 24].map(AB::Expr::from_canonical_u32);

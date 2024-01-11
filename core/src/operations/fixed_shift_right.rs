@@ -6,8 +6,10 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::bytes::utils::shr_carry;
+use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
+use crate::runtime::Segment;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute `>>` with a fixed offset R.
@@ -40,7 +42,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(&mut self, input: Word<F>, rotation: usize) {
+    pub fn populate(&mut self, segment: &mut Segment, input: Word<F>, rotation: usize) {
         let input_u32 = input.to_u32();
         let expected_u32 = input_u32 >> rotation;
 
@@ -63,10 +65,22 @@ impl<F: Field> FixedShiftRightOperation<F> {
         let mut first_shift = F::zero();
         let mut last_carry = F::zero();
         for i in (0..WORD_SIZE).rev() {
-            let (shift, carry) = shr_carry(
-                input_bytes_rotated[i].to_string().parse::<u8>().unwrap(),
-                nb_bits_to_shift as u8,
-            );
+            let b = input_bytes_rotated[i].to_string().parse::<u8>().unwrap();
+            let c = nb_bits_to_shift as u8;
+            let (shift, carry) = shr_carry(b, c);
+            let byte_event = ByteLookupEvent {
+                opcode: ByteOpcode::ShrCarry,
+                a1: shift,
+                a2: carry,
+                b,
+                c,
+            };
+            segment
+                .byte_lookups
+                .entry(byte_event)
+                .and_modify(|j| *j += 1)
+                .or_insert(1);
+
             self.shift[i] = F::from_canonical_u8(shift);
             self.carry[i] = F::from_canonical_u8(carry);
 
@@ -91,6 +105,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         input: Word<AB::Var>,
         rotation: usize,
         cols: FixedShiftRightOperation<AB::Var>,
+        is_real: AB::Var,
     ) {
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);
@@ -100,7 +115,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         // Perform the byte shift.
         let mut word = vec![AB::Expr::zero(); WORD_SIZE];
         for i in 0..WORD_SIZE {
-            if nb_bytes_to_shift <= i && i + nb_bytes_to_shift < WORD_SIZE {
+            if i + nb_bytes_to_shift < WORD_SIZE {
                 word[i] = input[(i + nb_bytes_to_shift) % WORD_SIZE].into();
             }
         }
@@ -117,7 +132,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
                 cols.carry[i],
                 input_bytes_rotated[i].clone(),
                 AB::F::from_canonical_usize(nb_bits_to_shift),
-                AB::F::one(),
+                is_real,
             );
 
             if i == WORD_SIZE - 1 {

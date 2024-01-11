@@ -41,15 +41,12 @@ pub fn sha_extend(w: &mut [u32]) {
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::BTreeMap;
-
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
-    use p3_field::AbstractField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
@@ -84,7 +81,7 @@ pub mod tests {
         instructions.extend(vec![
             Instruction::new(Opcode::ADD, 5, 0, 102, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
-            // Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
         Program::new(instructions, 0, 0)
     }
@@ -142,44 +139,11 @@ pub mod tests {
 
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[10]);
+        runtime.write_witness(&[999]);
         runtime.run();
-        // let mut segment = runtime.segment;
-
-        // let cpu_chip = CpuChip::new();
-        // let (_, cpu_count) = debug_interactions::<BabyBear, _>(
-        //     cpu_chip,
-        //     &mut runtime.segment,
-        //     InteractionKind::Memory,
-        // );
-        // let (_, precompile_count) = debug_interactions::<BabyBear, _>(
-        //     ShaExtendChip::new(),
-        //     &mut runtime.segment,
-        //     InteractionKind::Memory,
-        // );
-
-        // let mut final_map = BTreeMap::new();
-
-        // for (key, value) in precompile_count.iter() {
-        //     *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        // }
-
-        // println!("Final counts");
-
-        // for (key, value) in final_map {
-        //     if !value.is_zero() {
-        //         println!("Key {} Value {}", key, value);
-        //     }
-        // }
 
         runtime
             .segment
             .prove::<_, _, MyConfig>(&config, &mut challenger);
-        // let chip = ShaExtendChip::new();
-        // let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        // let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
-
-        // let mut challenger = Challenger::new(perm);
-        // verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

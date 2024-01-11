@@ -5,13 +5,14 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::{self, MemoryRecord};
+use crate::cpu::MemoryRecord;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
+use std::collections::BTreeMap;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -19,10 +20,10 @@ use p3_field::AbstractField;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AccessPosition {
-    A = 3,
-    B = 2,
-    C = 1,
     Memory = 0,
+    C = 1,
+    B = 2,
+    A = 3,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -32,8 +33,6 @@ pub struct Record {
     c: Option<MemoryRecord>,
     memory: Option<MemoryRecord>,
 }
-
-use std::collections::BTreeMap;
 
 /// An implementation of a runtime for the Curta VM.
 ///
@@ -73,8 +72,8 @@ pub struct Runtime {
     /// The current record for the CPU event,
     pub record: Record,
 
-    #[allow(non_snake_case)]
-    pub SEGMENT_SIZE: u32,
+    /// The maximum size of each segment.
+    pub segment_size: u32,
 }
 
 impl Runtime {
@@ -95,7 +94,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            SEGMENT_SIZE: 10000,
+            segment_size: 10000,
         }
     }
 
@@ -585,7 +584,6 @@ impl Runtime {
                         self.clk += 48 * 20;
 
                         let w_ptr = self.register(a0);
-                        println!("w_ptr={}", w_ptr);
 
                         let mut w = Vec::new();
                         for i in 0..64 {
@@ -597,10 +595,7 @@ impl Runtime {
 
                         let t = self.record;
 
-                        println!("a={}, b={}, c={}", a, b, c);
                         self.clk -= 48 * 20;
-
-                        println!("MY CLOCK = {}", self.clk);
 
                         let sclk = self.clk;
                         let sw_ptr = w_ptr;
@@ -612,7 +607,6 @@ impl Runtime {
                         let mut w_i_records = Vec::new();
 
                         for i in 16..64 {
-                            println!("{}", self.clk);
                             let w_i_minus_15 =
                                 self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
                             w_i_minus_15_records.push(self.record.memory.unwrap());
@@ -646,17 +640,17 @@ impl Runtime {
                             w_i_records.push(self.record.memory.unwrap());
                             self.clk += 4;
 
-                            println!("RUNTIME");
-                            println!(
-                                "i={} w_i_minus_15={:?} w_i_minus_2={:?} w_i_minus_16={:?} w_i_minus_7={:?} s0={:?}, s1={:?}",
-                                i,
-                                w_i_minus_15.to_le_bytes(),
-                                w_i_minus_2.to_le_bytes(),
-                                w_i_minus_16.to_le_bytes(),
-                                w_i_minus_7.to_le_bytes(),
-                                s0.to_le_bytes(),
-                                s1.to_le_bytes(),
-                            );
+                            // println!("RUNTIME");
+                            // println!(
+                            //     "i={} w_i_minus_15={:?} w_i_minus_2={:?} w_i_minus_16={:?} w_i_minus_7={:?} s0={:?}, s1={:?}",
+                            //     i,
+                            //     w_i_minus_15.to_le_bytes(),
+                            //     w_i_minus_2.to_le_bytes(),
+                            //     w_i_minus_16.to_le_bytes(),
+                            //     w_i_minus_7.to_le_bytes(),
+                            //     s0.to_le_bytes(),
+                            //     s1.to_le_bytes(),
+                            // );
                         }
                         self.segment.sha_events.push((
                             sclk,
@@ -800,7 +794,7 @@ impl Runtime {
             self.global_clk += 4;
             self.clk += 4;
 
-            if self.clk % self.SEGMENT_SIZE == 0 {
+            if self.clk % self.segment_size == 0 {
                 self.segments.push(self.segment.clone());
                 // Set up new segment
                 self.segment = Segment::default();

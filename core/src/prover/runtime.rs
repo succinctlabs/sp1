@@ -74,10 +74,10 @@ impl Segment {
             Box::new(bitwise),
             Box::new(shift),
             Box::new(lt),
+            Box::new(sha_extend),
             Box::new(bytes),
             Box::new(memory_init),
             Box::new(memory_finalize),
-            Box::new(sha_extend),
         ];
 
         // Compute some statistics.

@@ -89,18 +89,21 @@ where
             local.w_i_minus_15.value,
             7,
             local.w_i_minus_15_rr_7,
+            local.is_real,
         );
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_15.value,
             18,
             local.w_i_minus_15_rr_18,
+            local.is_real,
         );
         FixedShiftRightOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_15.value,
             3,
             local.w_i_minus_15_rs_3,
+            local.is_real,
         );
         Xor3Operation::<AB::F>::eval(
             builder,
@@ -116,18 +119,21 @@ where
             local.w_i_minus_2.value,
             17,
             local.w_i_minus_2_rr_17,
+            local.is_real,
         );
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_2.value,
             19,
             local.w_i_minus_2_rr_19,
+            local.is_real,
         );
         FixedShiftRightOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_2.value,
             10,
             local.w_i_minus_2_rs_10,
+            local.is_real,
         );
         Xor3Operation::<AB::F>::eval(
             builder,
