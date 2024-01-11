@@ -208,9 +208,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
                 // Initialize cols with basic operands and flags derived from the current event.
                 {
-                    cols.a = Word(event.a.to_le_bytes().map(F::from_canonical_u8));
-                    cols.b = Word(event.b.to_le_bytes().map(F::from_canonical_u8));
-                    cols.c = Word(event.c.to_le_bytes().map(F::from_canonical_u8));
+                    cols.a = Word::from(event.a);
+                    cols.b = Word::from(event.b);
+                    cols.c = Word::from(event.c);
                     cols.is_real = F::one();
                     cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                     cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -227,8 +227,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 let (quotient, remainder) =
                     get_quotient_and_remainder(event.b, event.c, event.opcode);
 
-                cols.quotient = Word(quotient.to_le_bytes().map(F::from_canonical_u8));
-                cols.remainder = Word(remainder.to_le_bytes().map(F::from_canonical_u8));
+                cols.quotient = Word::from(quotient);
+                cols.remainder = Word::from(remainder);
 
                 // Calculate flags for sign detection.
                 {
@@ -241,18 +241,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         cols.c_neg = cols.c_msb;
                         cols.is_overflow =
                             F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
-                        cols.abs_remainder = Word(
-                            (remainder as i32)
-                                .abs()
-                                .to_le_bytes()
-                                .map(F::from_canonical_u8),
-                        );
-                        cols.abs_c = Word(
-                            (event.c as i32)
-                                .abs()
-                                .to_le_bytes()
-                                .map(F::from_canonical_u8),
-                        );
+                        cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
+                        cols.abs_c = Word::from((event.c as i32).abs() as u32);
                     } else {
                         cols.abs_remainder = cols.remainder;
                         cols.abs_c = cols.c;
