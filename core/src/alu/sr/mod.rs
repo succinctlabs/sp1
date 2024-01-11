@@ -172,7 +172,7 @@ where
             local.a,
             local.b,
             local.c,
-            local.is_srl + local.is_sra,
+            local.is_real,
         );
     }
 }
