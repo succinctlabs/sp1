@@ -60,10 +60,10 @@ impl Runtime {
         });
 
         // We clone the challenger so that each segment can observe the same "global" challenges.
-        let proofs = segment_main_data
+        let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| Segment::prove(config, &mut challenger.clone(), &main_data))
-            .collect::<Vec<_>>();
+            .collect();
 
         // TODO: clean up this duplicated code.
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
@@ -85,10 +85,15 @@ impl Runtime {
         };
         let global_proof = Segment::prove(config, &mut challenger.clone(), &global_data);
 
+        let mut all_permutation_traces = proofs
+            .iter()
+            .flat_map(|proof| proof.permutation_traces.clone())
+            .collect::<Vec<_>>();
+        all_permutation_traces.extend(global_proof.permutation_traces.clone());
         // TODO: from the global_proof, make sure that the cumulative sum is 0.
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
-        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        debug_cumulative_sums::<F, EF>(&all_permutation_traces);
     }
 
     // pub fn verify(self, config: &SC, challenger: &mut SC::Challenger, proof: Proof) {
