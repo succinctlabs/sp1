@@ -65,6 +65,24 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         self.assert_bool(value.0);
     }
 
+    fn zero_word() -> Word<Self::Expr> {
+        Word([
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+        ])
+    }
+
+    fn extend_expr_to_word<I: Into<Self::Expr>>(expr: I) -> Word<Self::Expr> {
+        Word([
+            expr.into(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+        ])
+    }
+
     fn send_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,

@@ -32,13 +32,18 @@ pub struct OpcodeSelectors<T> {
     pub is_byte: T,
     pub is_signed: T,
 
+    // Branch operation selectors.
+    pub is_beq: T,
+    pub is_bne: T,
+    pub is_blt: T,
+    pub is_bge: T,
+    pub is_bltu: T,
+    pub is_bgeu: T,
+
     // Specific instruction selectors.
     pub jalr: T,
     pub jal: T,
     pub auipc: T,
-
-    // Whether this is a branch op.
-    pub branch_op: T,
 
     // Whether this is a no-op.
     pub noop: T,
@@ -112,7 +117,27 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 _ => unreachable!(),
             }
         } else if instruction.is_branch_instruction() {
-            self.branch_op = F::one();
+            match instruction.opcode {
+                Opcode::BEQ => {
+                    self.is_beq = F::one();
+                }
+                Opcode::BNE => {
+                    self.is_bne = F::one();
+                }
+                Opcode::BLT => {
+                    self.is_blt = F::one();
+                }
+                Opcode::BGE => {
+                    self.is_bge = F::one();
+                }
+                Opcode::BLTU => {
+                    self.is_bltu = F::one();
+                }
+                Opcode::BGEU => {
+                    self.is_bgeu = F::one();
+                }
+                _ => unreachable!(),
+            }
         } else if instruction.opcode == Opcode::JAL {
             self.jal = F::one();
         } else if instruction.opcode == Opcode::JALR {
@@ -124,7 +149,10 @@ impl<F: PrimeField> OpcodeSelectors<F> {
         if instruction.op_a == 0 {
             // If op_a is 0 and we're writing to the register, then we don't do a write.
             // We are always writing to the first register UNLESS it is a branch, is_store.
-            if !(self.branch_op == F::one() || self.is_store == F::one() || self.noop == F::one()) {
+            if !(instruction.is_branch_instruction()
+                || self.is_store == F::one()
+                || self.noop == F::one())
+            {
                 self.reg_0_write = F::one();
             }
         }
@@ -137,27 +165,32 @@ impl<T> IntoIterator for OpcodeSelectors<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         vec![
-            self.imm_b.into(),
-            self.imm_c.into(),
-            self.add_op.into(),
-            self.sub_op.into(),
-            self.mul_op.into(),
-            self.div_op.into(),
-            self.shift_op.into(),
-            self.bitwise_op.into(),
-            self.lt_op.into(),
-            self.is_load.into(),
-            self.is_store.into(),
-            self.is_word.into(),
-            self.is_half.into(),
-            self.is_byte.into(),
-            self.is_signed.into(),
-            self.jalr.into(),
-            self.jal.into(),
-            self.auipc.into(),
-            self.branch_op.into(),
-            self.noop.into(),
-            self.reg_0_write.into(),
+            self.imm_b,
+            self.imm_c,
+            self.add_op,
+            self.sub_op,
+            self.mul_op,
+            self.div_op,
+            self.shift_op,
+            self.bitwise_op,
+            self.lt_op,
+            self.is_load,
+            self.is_store,
+            self.is_word,
+            self.is_half,
+            self.is_byte,
+            self.is_signed,
+            self.is_beq,
+            self.is_bne,
+            self.is_blt,
+            self.is_bge,
+            self.is_bltu,
+            self.is_bgeu,
+            self.jalr,
+            self.jal,
+            self.auipc,
+            self.noop,
+            self.reg_0_write,
         ]
         .into_iter()
     }
