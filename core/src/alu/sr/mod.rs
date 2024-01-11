@@ -41,7 +41,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 
 use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
@@ -173,6 +173,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHIFT_RIGHT_COLS,
         );
+        // TODO: Add fake padding.
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
@@ -194,6 +195,47 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
+
+        // TODO: Calculate the MSB of b using byte lookup.
+        // TODO: Check shift_by_n_bytes and shift_by_n_bits match c by looking at the SLL example.
+
+        // Byte shift the sign-extended b.
+        {
+            // The leading byte of b should be 0 if b's MSB is 0, and 0xff if b's MSB is 1.
+            let leading_byte = { local.b_msb.clone() * AB::Expr::from_canonical_u8(0xff) };
+            let mut sign_extended_b: Vec<AB::Expr> = vec![];
+            for i in 0..WORD_SIZE {
+                sign_extended_b.push(local.b[i].into());
+            }
+            for _ in 0..WORD_SIZE {
+                sign_extended_b.push(leading_byte.clone());
+            }
+
+            for num_bytes_to_shift in 0..WORD_SIZE {
+                for i in 0..(LONG_WORD_SIZE - num_bytes_to_shift) {
+                    builder
+                        .when(local.shift_by_n_bytes[num_bytes_to_shift].clone())
+                        .assert_eq(
+                            local.byte_shift_result[i].clone(),
+                            sign_extended_b[i + num_bytes_to_shift].clone(),
+                        );
+                }
+            }
+        }
+
+        // Check that the flags are indeed boolean.
+        {
+            let flags = [local.is_srl, local.is_sra, local.is_real];
+            for flag in flags.iter() {
+                builder.assert_bool(*flag);
+            }
+            for shift_by_n_byte in local.shift_by_n_bytes.iter() {
+                builder.assert_bool(*shift_by_n_byte);
+            }
+            for shift_by_n_bit in local.shift_by_n_bits.iter() {
+                builder.assert_bool(*shift_by_n_bit);
+            }
+        }
 
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
