@@ -1,6 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
-use p3_field::PrimeField;
 use std::mem::size_of;
+
+use p3_field::PrimeField;
 use std::vec::IntoIter;
 use valida_derive::AlignedBorrow;
 
@@ -14,7 +15,7 @@ pub struct OpcodeSelectors<T> {
     // Whether op_c is an immediate value.
     pub imm_c: T,
 
-    // ALU ops
+    // Table selectors for opcodes.
     pub add_op: T,
     pub sub_op: T,
     pub mul_op: T,
@@ -23,7 +24,7 @@ pub struct OpcodeSelectors<T> {
     pub bitwise_op: T,
     pub lt_op: T,
 
-    // Memory ops
+    // Memory operation selectors.
     pub is_load: T,
     pub is_store: T,
     pub is_word: T,
@@ -31,7 +32,7 @@ pub struct OpcodeSelectors<T> {
     pub is_byte: T,
     pub is_signed: T,
 
-    // Branch ops
+    // Branch operation selectors.
     pub is_beq: T,
     pub is_bne: T,
     pub is_blt: T,
@@ -46,7 +47,6 @@ pub struct OpcodeSelectors<T> {
 
     // Whether this is a no-op.
     pub noop: T,
-
     pub reg_0_write: T,
 }
 
@@ -82,7 +82,6 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             }
         } else if instruction.is_load_instruction() {
             self.is_load = F::one();
-
             match instruction.opcode {
                 Opcode::LB => {
                     self.is_byte = F::one();
@@ -105,7 +104,6 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             }
         } else if instruction.is_store_instruction() {
             self.is_store = F::one();
-
             match instruction.opcode {
                 Opcode::SB => {
                     self.is_byte = F::one();

@@ -2,8 +2,7 @@ use crate::air::{reduce, CurtaAirBuilder, Word};
 use crate::bytes::ByteOpcode;
 
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use core::mem::transmute;
+use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
@@ -27,7 +26,6 @@ pub struct MemoryAccessCols<T> {
     pub segment: T,
     pub timestamp: T,
 }
-
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryColumns<T> {
@@ -72,11 +70,13 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryAccessCols<T>,
     pub op_c_access: MemoryAccessCols<T>,
 
-    // This is transmuted to MemoryColumns or BNEColumns
+    // // This is transmuted to MemoryColumns or BNEColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
 
-    // This is an opcode_specific_column (used for branch ops), but it is needed for a multiplicity
-    // condition, which must be a degree of 1, so can't be embedded within the opcode_specific_columns.
+    // This column is set by the trace generator to indicate whether the instruction is a branch
+    // instruction and the branch condition is true.  It is an opcode_specific_column, but it is
+    // needed for a multiplicity condition, which must be a degree of 1, so can't be embedded within
+    // the opcode_specific_columns.
     pub branching: T,
 
     // Selector to label whether this row is a non padded row.
@@ -84,13 +84,27 @@ pub struct CpuCols<T> {
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
+
 pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
-
-pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = size_of::<MemoryColumns<u8>>();
-
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_columns_offset();
+// This is a constant function, so we can't have it dynamically return the largest opcode specific
+// struct size.
+const fn get_opcode_specific_columns_offset() -> usize {
+    let memory_columns_size = size_of::<MemoryColumns<u8>>();
+    let branch_columns_size = size_of::<BranchColumns<u8>>();
+
+    let return_val = memory_columns_size;
+
+    if branch_columns_size > return_val {
+        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    return_val
 }
 
 impl CpuCols<u32> {
@@ -326,17 +340,25 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
     ) {
+        //// This function will verify all the branching related columns.
+        // It does this in two parts.
+        // 1. It verifies that the next pc is correct based on the branching column.  That column
+        //    is a boolean that indicates whether the branch condition is true.
+        // 2. It verifies the correct value of branching based on the opcode (which specifies the
+        //    branching condition operator), op_a_val, and op_b_val.
         // Get the branch specific columns
         let branch_columns: BranchColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
-        // // Check that the new pc is calculated correctly if local.branch == true
-        // Verify that branch_columns.pc is correct
+        //// Check that the new pc is calculated correctly
+        // First handle the case when local.branching == true
+
+        // Verify that branch_columns.pc is correct.  That is local.pc in WORD form.
         builder
             .when(local.branching)
             .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
 
-        // // Verify that branch_columns.next_pc is correct
+        // Verify that branch_columns.next_pc is correct.  That is next.pc in WORD form.
         builder
             .when(local.branching)
             .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
@@ -348,6 +370,10 @@ impl CpuChip {
             branch_columns.pc,
             *local.op_c_val(),
             local.branching,
+            // Note that if local.branching == 1 => is_branch_instruction == 1
+            // We can't have an ADD clause of condition/selector columns here, since that would
+            // require a multiply which would have a degree of > 1 (the max degree allowable for
+            // 'multiplicity').
         );
 
         // Check that pc + 4 == next_pc if local.branching == false
@@ -355,7 +381,7 @@ impl CpuChip {
             .when(is_branch_instruction.clone() * (AB::Expr::one() - local.branching))
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // // Check that the branch condition is correct
+        //// Check that the branching value is correct
         // Verify that local.branching is a boolean
         builder
             .when(is_branch_instruction.clone())
