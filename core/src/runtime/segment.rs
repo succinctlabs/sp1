@@ -4,7 +4,7 @@ use super::program::Program;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
-use crate::precompiles::sha256_extend::ShaExtendEvent;
+use crate::precompiles::sha256::ShaExtendEvent;
 use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]

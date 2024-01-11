@@ -689,6 +689,9 @@ impl Runtime {
                         // Restore the original record.
                         self.record = t;
                     }
+                    Syscall::SHA_COMPRESS => {
+                        todo!()
+                    }
                 }
             }
 

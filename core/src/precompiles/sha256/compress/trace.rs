@@ -24,7 +24,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
         for i in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
             let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
-            cols.populate_flags(i);
+            // cols.populate_flags(i);
             rows.push(row);
         }
 
