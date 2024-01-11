@@ -582,7 +582,7 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::SHA_EXTEND => {
-                        self.clk += 48 * 4;
+                        self.clk += 48 * 20;
 
                         let w_ptr = self.register(a0);
                         println!("w_ptr={}", w_ptr);
@@ -598,7 +598,7 @@ impl Runtime {
                         let t = self.record;
 
                         println!("a={}, b={}, c={}", a, b, c);
-                        self.clk -= 48 * 4;
+                        self.clk -= 48 * 20;
 
                         println!("MY CLOCK = {}", self.clk);
 
@@ -612,6 +612,7 @@ impl Runtime {
                         let mut w_i_records = Vec::new();
 
                         for i in 16..64 {
+                            println!("{}", self.clk);
                             let w_i_minus_15 =
                                 self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
                             w_i_minus_15_records.push(self.record.memory.unwrap());
@@ -640,9 +641,22 @@ impl Runtime {
                                 .wrapping_add(w_i_minus_16)
                                 .wrapping_add(s0)
                                 .wrapping_add(w_i_minus_7);
+                            self.mr(w_ptr + i * 4, AccessPosition::Memory);
                             self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
                             w_i_records.push(self.record.memory.unwrap());
                             self.clk += 4;
+
+                            println!("RUNTIME");
+                            println!(
+                                "i={} w_i_minus_15={:?} w_i_minus_2={:?} w_i_minus_16={:?} w_i_minus_7={:?} s0={:?}, s1={:?}",
+                                i,
+                                w_i_minus_15.to_le_bytes(),
+                                w_i_minus_2.to_le_bytes(),
+                                w_i_minus_16.to_le_bytes(),
+                                w_i_minus_7.to_le_bytes(),
+                                s0.to_le_bytes(),
+                                s1.to_le_bytes(),
+                            );
                         }
                         self.segment.sha_events.push((
                             sclk,

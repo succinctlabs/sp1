@@ -41,6 +41,9 @@ impl<F: Field> FixedRotateRightOperation<F> {
     }
 
     pub fn populate(&mut self, input: Word<F>, rotation: usize) {
+        let input_u32 = input.to_u32();
+        let expected_u32 = input_u32.rotate_right(rotation as u32);
+
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);
@@ -66,7 +69,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
             self.shift[i] = F::from_canonical_u8(shift);
             self.carry[i] = F::from_canonical_u8(carry);
 
-            if WORD_SIZE - 1 == 0 {
+            if i == WORD_SIZE - 1 {
                 first_shift = self.shift[i];
             } else {
                 self.value[i] = self.shift[i] + last_carry * carry_multiplier;
@@ -77,6 +80,9 @@ impl<F: Field> FixedRotateRightOperation<F> {
 
         // For the first byte, we didn't know the last carry so compute the rotated byte here.
         self.value[WORD_SIZE - 1] = first_shift + last_carry * carry_multiplier;
+
+        // Check that the value is correct.
+        assert_eq!(self.value.to_u32(), expected_u32);
     }
 
     pub fn eval<AB: CurtaAirBuilder>(

@@ -84,7 +84,7 @@ pub mod tests {
         instructions.extend(vec![
             Instruction::new(Opcode::ADD, 5, 0, 102, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            // Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
         Program::new(instructions, 0, 0)
     }

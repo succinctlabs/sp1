@@ -100,6 +100,18 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 );
                 self.populate_access(&mut cols.w_i, w[16 + j], Some(w_i_records[j]));
 
+                println!("SHA256_EXTEND_CHIP");
+                println!(
+                    "i={} w_i_minus_15={:?} w_i_minus_2={:?} w_i_minus_16={:?} w_i_minus_7={:?} s0={:?}, s1={:?}",
+                    j + 16,
+                    cols.w_i_minus_15.value.0,
+                    cols.w_i_minus_2.value.0,
+                    cols.w_i_minus_16.value.0,
+                    cols.w_i_minus_7.value.0,
+                    cols.s0.value.0,
+                    cols.s1.value.0,
+                );
+
                 cols.is_real = F::one();
                 rows.push(row);
             }
