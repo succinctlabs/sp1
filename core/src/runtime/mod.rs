@@ -6,7 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256::{ShaExtendEvent, SHA_COMPRESS_K};
+use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent, SHA_COMPRESS_K};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -775,6 +775,20 @@ impl Runtime {
                             h_write_records.push(self.record.memory);
                             self.clk += 4;
                         }
+
+                        // Push the SHA extend event.
+                        self.segment.sha_compress_events.push(ShaCompressEvent {
+                            clk: saved_clk,
+                            w_and_h_ptr: saved_w_ptr,
+                            w: saved_w.try_into().unwrap(),
+                            h: hx,
+                            h_read_records: h_read_records.try_into().unwrap(),
+                            w_i_read_records: w_i_read_records.try_into().unwrap(),
+                            h_write_records: h_write_records.try_into().unwrap(),
+                        });
+
+                        // Restore the original record.
+                        self.record = t;
                     }
                 }
             }

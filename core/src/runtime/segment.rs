@@ -4,7 +4,7 @@ use super::program::Program;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
-use crate::precompiles::sha256::ShaExtendEvent;
+use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
@@ -44,8 +44,9 @@ pub struct Segment {
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 
-    /// TODO: cleanup
     pub sha_extend_events: Vec<ShaExtendEvent>,
+
+    pub sha_compress_events: Vec<ShaCompressEvent>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.
