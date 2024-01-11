@@ -76,11 +76,11 @@ impl<F: Field> FixedRotateRightOperation<F> {
                 b,
                 c,
             };
-            // segment
-            //     .byte_lookups
-            //     .entry(byte_event)
-            //     .and_modify(|j| *j += 1)
-            //     .or_insert(1);
+            segment
+                .byte_lookups
+                .entry(byte_event)
+                .and_modify(|j| *j += 1)
+                .or_insert(1);
 
             self.shift[i] = F::from_canonical_u8(shift);
             self.carry[i] = F::from_canonical_u8(carry);
@@ -126,14 +126,14 @@ impl<F: Field> FixedRotateRightOperation<F> {
         let mut first_shift = AB::Expr::zero();
         let mut last_carry = AB::Expr::zero();
         for i in (0..WORD_SIZE).rev() {
-            // builder.send_byte_loookup_pair(
-            //     AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
-            //     cols.shift[i],
-            //     cols.carry[i],
-            //     input_bytes_rotated[i],
-            //     AB::F::from_canonical_usize(nb_bits_to_shift),
-            //     is_real,
-            // );
+            builder.send_byte_loookup_pair(
+                AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
+                cols.shift[i],
+                cols.carry[i],
+                input_bytes_rotated[i],
+                AB::F::from_canonical_usize(nb_bits_to_shift),
+                is_real,
+            );
 
             if i == WORD_SIZE - 1 {
                 first_shift = cols.shift[i].into();

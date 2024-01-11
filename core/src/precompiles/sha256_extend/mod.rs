@@ -55,13 +55,11 @@ pub mod tests {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
-    use p3_uni_stark::{prove, verify, StarkConfigImpl};
+    use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
     use crate::{
         alu::AluEvent,
-        cpu::trace::CpuChip,
-        lookup::{debug_interactions, InteractionKind},
         runtime::{Instruction, Opcode, Program, Runtime, Segment},
         utils::Chip,
     };
