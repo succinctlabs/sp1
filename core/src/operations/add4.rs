@@ -26,6 +26,7 @@ impl<F: Field> Add4Operation<F> {
         self.value = Word::from(a + b + c + d);
     }
 
+    #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,

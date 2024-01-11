@@ -10,8 +10,9 @@ pub fn shr_carry(input: u8, rotation: u8) -> (u8, u8) {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use super::shr_carry;
+    use super::*;
 
     /// Tests the `shr_carry` function.
     #[test]

@@ -29,6 +29,7 @@ impl<F: Field> Xor3Operation<F> {
         }
     }
 
+    #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,

@@ -141,7 +141,7 @@ mod tests {
     use crate::lookup::{debug_interactions, InteractionKind};
     use crate::memory::MemoryInitChip;
     use crate::precompiles::sha256_extend::tests::sha_extend_program;
-    use crate::precompiles::sha256_extend::{self, ShaExtendChip};
+    use crate::precompiles::sha256_extend::ShaExtendChip;
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
@@ -155,7 +155,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::runtime::tests::{ecall_lwa_program, fibonacci_program, simple_program};
+    use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
     use crate::utils::Chip;
 

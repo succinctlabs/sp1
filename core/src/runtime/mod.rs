@@ -581,22 +581,31 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::SHA_EXTEND => {
-                        self.clk += 48 * 20;
+                        // The number of cycles it takes to perform this precompile.
+                        const NB_SHA_EXTEND_CYCLES: u32 = 48 * 20;
 
+                        // Temporarily set the clock to the number of cycles it takes to perform
+                        // this precompile as reading `w_ptr` happens on this clock.
+                        self.clk += NB_SHA_EXTEND_CYCLES;
+
+                        // Read `w_ptr` from register a0 or x5.
                         let w_ptr = self.register(a0);
-
                         let mut w = Vec::new();
                         for i in 0..64 {
                             w.push(self.word(w_ptr + i * 4));
                         }
 
+                        // Set the CPU table values with some dummy values.
                         (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
 
+                        // We'll save the current record and restore it later so that the CPU
+                        // event gets emitted correctly.
                         let t = self.record;
 
+                        // Set the clock back to the original value and begin executing the
+                        // precompile.
                         self.clk -= 48 * 20;
-
                         let sclk = self.clk;
                         let sw_ptr = w_ptr;
                         let sw = w.clone();
@@ -605,53 +614,53 @@ impl Runtime {
                         let mut w_i_minus_16_records = Vec::new();
                         let mut w_i_minus_7_records = Vec::new();
                         let mut w_i_records = Vec::new();
-
                         for i in 16..64 {
+                            // Read w[i-15].
                             let w_i_minus_15 =
                                 self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
                             w_i_minus_15_records.push(self.record.memory.unwrap());
+                            self.clk += 4;
+
+                            // Compute `s0`.
                             let s0 = w_i_minus_15.rotate_right(7)
                                 ^ w_i_minus_15.rotate_right(18)
                                 ^ (w_i_minus_15 >> 3);
-                            self.clk += 4;
 
+                            // Read w[i-2].
                             let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
                             w_i_minus_2_records.push(self.record.memory.unwrap());
+                            self.clk += 4;
+
+                            // Compute `s1`.
                             let s1 = w_i_minus_2.rotate_right(17)
                                 ^ w_i_minus_2.rotate_right(19)
                                 ^ (w_i_minus_2 >> 10);
-                            self.clk += 4;
 
+                            // Read w[i-16].
                             let w_i_minus_16 =
                                 self.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
                             w_i_minus_16_records.push(self.record.memory.unwrap());
                             self.clk += 4;
 
+                            // Read w[i-7].
                             let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
                             w_i_minus_7_records.push(self.record.memory.unwrap());
                             self.clk += 4;
 
+                            // Compute `w_i`.
                             let w_i = s1
                                 .wrapping_add(w_i_minus_16)
                                 .wrapping_add(s0)
                                 .wrapping_add(w_i_minus_7);
+
+                            // Write w[i].
                             self.mr(w_ptr + i * 4, AccessPosition::Memory);
                             self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
                             w_i_records.push(self.record.memory.unwrap());
                             self.clk += 4;
-
-                            // println!("RUNTIME");
-                            // println!(
-                            //     "i={} w_i_minus_15={:?} w_i_minus_2={:?} w_i_minus_16={:?} w_i_minus_7={:?} s0={:?}, s1={:?}",
-                            //     i,
-                            //     w_i_minus_15.to_le_bytes(),
-                            //     w_i_minus_2.to_le_bytes(),
-                            //     w_i_minus_16.to_le_bytes(),
-                            //     w_i_minus_7.to_le_bytes(),
-                            //     s0.to_le_bytes(),
-                            //     s1.to_le_bytes(),
-                            // );
                         }
+
+                        // Push the SHA extend event.
                         self.segment.sha_events.push((
                             sclk,
                             sw_ptr,
