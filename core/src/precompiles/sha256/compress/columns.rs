@@ -6,7 +6,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 use crate::cpu::air::MemoryAccessCols;
-use crate::operations::Add4Operation;
+use crate::operations::Add5Operation;
 use crate::operations::AddOperation;
 use crate::operations::AndOperation;
 use crate::operations::FixedRotateRightOperation;
@@ -24,55 +24,55 @@ pub struct ShaCompressCols<T> {
     pub w_and_h_ptr: T,
 
     /// The counter for the main loop.
-    i: T,
+    pub i: T,
 
     /// The counter for initialization / finalization loops (i.e., reading / writing h0..h7).
-    j: T,
+    pub octet: [T; 8],
 
     /// This flag is turned on when it's time to initialize the working variables.
-    is_start: T,
+    pub is_start: T,
 
     /// This flag is turned on when it's time to add the compressed chunk to the current hash value.
-    is_end: T,
+    pub is_end: T,
 
-    rw: MemoryAccessCols<T>,
+    pub mem: MemoryAccessCols<T>,
 
-    a: Word<T>,
-    b: Word<T>,
-    c: Word<T>,
-    d: Word<T>,
-    e: Word<T>,
-    f: Word<T>,
-    g: Word<T>,
-    h: Word<T>,
+    pub a: Word<T>,
+    pub b: Word<T>,
+    pub c: Word<T>,
+    pub d: Word<T>,
+    pub e: Word<T>,
+    pub f: Word<T>,
+    pub g: Word<T>,
+    pub h: Word<T>,
 
-    e_rr_6: FixedRotateRightOperation<T>,
-    e_rr_11: FixedRotateRightOperation<T>,
-    e_rr_25: FixedRotateRightOperation<T>,
-    s1_intermediate: XorOperation<T>,
-    s1: XorOperation<T>,
+    pub e_rr_6: FixedRotateRightOperation<T>,
+    pub e_rr_11: FixedRotateRightOperation<T>,
+    pub e_rr_25: FixedRotateRightOperation<T>,
+    pub s1_intermediate: XorOperation<T>,
+    pub s1: XorOperation<T>,
 
-    e_and_f: AndOperation<T>,
-    e_not: NotOperation<T>,
-    e_not_and_g: AndOperation<T>,
-    ch: XorOperation<T>,
+    pub e_and_f: AndOperation<T>,
+    pub e_not: NotOperation<T>,
+    pub e_not_and_g: AndOperation<T>,
+    pub ch: XorOperation<T>,
 
-    temp1: Add4Operation<T>,
+    pub temp1: Add5Operation<T>,
 
-    a_rr_2: FixedRotateRightOperation<T>,
-    a_rr_13: FixedRotateRightOperation<T>,
-    a_rr_22: FixedRotateRightOperation<T>,
-    s0_intermediate: XorOperation<T>,
-    s0: XorOperation<T>,
+    pub a_rr_2: FixedRotateRightOperation<T>,
+    pub a_rr_13: FixedRotateRightOperation<T>,
+    pub a_rr_22: FixedRotateRightOperation<T>,
+    pub s0_intermediate: XorOperation<T>,
+    pub s0: XorOperation<T>,
 
-    a_and_b: AndOperation<T>,
-    a_and_c: AndOperation<T>,
-    b_and_c: AndOperation<T>,
-    maj_intermediate: XorOperation<T>,
-    maj: XorOperation<T>,
+    pub a_and_b: AndOperation<T>,
+    pub a_and_c: AndOperation<T>,
+    pub b_and_c: AndOperation<T>,
+    pub maj_intermediate: XorOperation<T>,
+    pub maj: XorOperation<T>,
 
-    temp2: AddOperation<T>,
+    pub temp2: AddOperation<T>,
 
-    d_add_temp1: AddOperation<T>,
-    temp1_add_temp2: AddOperation<T>,
+    pub d_add_temp1: AddOperation<T>,
+    pub temp1_add_temp2: AddOperation<T>,
 }
