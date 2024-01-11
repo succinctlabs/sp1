@@ -5,11 +5,15 @@
 //! the constraints.
 
 mod add4;
+mod and;
 mod fixed_rotate_right;
 mod fixed_shift_right;
-mod xor3;
+mod or;
+mod xor;
 
 pub use add4::*;
+pub use and::*;
 pub use fixed_rotate_right::*;
 pub use fixed_shift_right::*;
-pub use xor3::*;
+pub use or::*;
+pub use xor::*;
