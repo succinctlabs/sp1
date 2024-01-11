@@ -829,22 +829,22 @@ mod tests {
             (Opcode::REMU, 5, 5, 0),
             (Opcode::REMU, neg(1), neg(1), 0),
             (Opcode::REMU, 0, 0, 0),
-            // (Opcode::REM, 7, 16, 9),
-            // (Opcode::REM, neg(4), neg(22), 6),
-            // (Opcode::REM, 1, 25, neg(3)),
-            // (Opcode::REM, neg(2), neg(22), neg(4)),
-            // (Opcode::REM, 0, 873, 1),
-            // (Opcode::REM, 0, 873, neg(1)),
-            // (Opcode::REM, 5, 5, 0),
-            // (Opcode::REM, neg(5), neg(5), 0),
-            // (Opcode::REM, 0, 0, 0),
-            // (Opcode::REM, 0, 0x80000001, neg(1)),
-            // (Opcode::DIV, 3, 18, 6),
-            // (Opcode::DIV, neg(6), neg(24), 4),
-            // (Opcode::DIV, neg(2), 16, neg(8)),
-            // (Opcode::DIV, neg(1), 0, 0),
-            // (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
-            // (Opcode::REM, 0, 1 << 31, neg(1)),
+            (Opcode::REM, 7, 16, 9),
+            (Opcode::REM, neg(4), neg(22), 6),
+            (Opcode::REM, 1, 25, neg(3)),
+            (Opcode::REM, neg(2), neg(22), neg(4)),
+            (Opcode::REM, 0, 873, 1),
+            (Opcode::REM, 0, 873, neg(1)),
+            (Opcode::REM, 5, 5, 0),
+            (Opcode::REM, neg(5), neg(5), 0),
+            (Opcode::REM, 0, 0, 0),
+            (Opcode::REM, 0, 0x80000001, neg(1)),
+            (Opcode::DIV, 3, 18, 6),
+            (Opcode::DIV, neg(6), neg(24), 4),
+            (Opcode::DIV, neg(2), 16, neg(8)),
+            (Opcode::DIV, neg(1), 0, 0),
+            (Opcode::DIV, 1 << 31, 1 << 31, neg(1)),
+            (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
             divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
@@ -852,7 +852,7 @@ mod tests {
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            // divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut segment = Segment::default();
