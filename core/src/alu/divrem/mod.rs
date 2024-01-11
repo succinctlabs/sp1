@@ -189,7 +189,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         || event.opcode == Opcode::REM
                         || event.opcode == Opcode::DIV
                 );
-                // **TODO** Remove all the printf statements & asserts for debugging purposes.
                 let mut row = [F::zero(); NUM_DIVREM_COLS];
                 let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
                 let a_word = event.a.to_le_bytes();
@@ -208,19 +207,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 } else {
                     let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
                     cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
-                    println!("c_limb_sum: {}", c_limb_sum);
-                    println!("c_limb_sum_inverse: {}", cols.c_limb_sum_inverse);
-                    println!(
-                        "c_limb_sum * c_limb_sum_inverse: {}",
-                        c_limb_sum * cols.c_limb_sum_inverse
-                    );
                 }
                 let (quotient, remainder) =
                     get_quotient_and_remainder(event.b, event.c, event.opcode);
-                println!(
-                    "b: {}, c: {}, quotient: {}, remainder: {}",
-                    event.b, event.c, quotient, remainder
-                );
 
                 cols.quotient = Word(quotient.to_le_bytes().map(F::from_canonical_u8));
                 cols.remainder = Word(remainder.to_le_bytes().map(F::from_canonical_u8));
@@ -252,35 +241,13 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 let base = 1 << BYTE_SIZE;
 
-                // print quotient and event.c
-                println!("quotient: {}", quotient);
-                println!("event.c : {}", quotient);
-                if is_signed_operation(event.opcode) {
-                    println!(
-                        "b = quotient * c + remainder, {} = {} * {} + {}, => {}",
-                        event.b as i32,
-                        quotient as i32,
-                        event.c as i32,
-                        remainder as i32,
-                        event.b as i32
-                            == (quotient as i32)
-                                .wrapping_mul(event.c as i32)
-                                .wrapping_add(remainder as i32)
-                    );
-                }
-
                 let c_times_quotient = {
                     if is_signed_operation(event.opcode) {
-                        println!("quotient as i32 = {}", quotient as i32);
-                        println!("event.c as i32 = {}", event.c as i32);
-                        println!("quotient as i32 as i64 = {}", (quotient as i32) as i64);
-                        println!("event.c as i32 as i64 = {}", (event.c as i32) as i64);
                         (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
                     } else {
                         ((quotient as u64) * (event.c as u64)).to_le_bytes()
                     }
                 };
-
                 cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
 
                 let remainder_bytes = {
@@ -304,18 +271,11 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     carry_ary[i] = carry;
                 }
 
-                println!("carry_ary: {:#?}", carry_ary);
-                println!("c_times_quotient: {:#?}", c_times_quotient);
-                println!("remainder_bytes: {:#?}", remainder_bytes);
-
                 for i in 0..LONG_WORD_SIZE {
                     let mut v = c_times_quotient[i] as u32 + remainder_bytes[i] as u32
                         - carry_ary[i] * base;
                     if i > 0 {
                         v += carry_ary[i - 1];
-                    }
-                    if i < WORD_SIZE {
-                        debug_assert_eq!(v, b_word[i] as u32);
                     }
                 }
 
@@ -325,7 +285,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     debug_assert_eq!(b_word[i] as u32, result[i]);
                 }
 
-                println!("{:#?}", cols);
                 row
             })
             .collect::<Vec<_>>();
@@ -357,7 +316,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
-        println!("{:?}", trace.values);
         trace
     }
 }
