@@ -1,0 +1,7 @@
+[package]
+name = "hello_world"
+
+[workspace]
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
