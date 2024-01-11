@@ -52,7 +52,8 @@ impl Runtime {
             .map(|segment| segment.commit_main(config))
             .collect::<Vec<_>>();
 
-        // TODO: Observe the challenges in a tree-like structure for better reconstruction.
+        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
+        // in a map-reduce recursion setting.
         segment_main_data.iter().map(|main_data| {
             challenger.observe(main_data.main_commit.clone());
         });
