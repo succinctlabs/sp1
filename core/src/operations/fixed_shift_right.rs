@@ -78,8 +78,6 @@ impl<F: Field> FixedShiftRightOperation<F> {
 
         // For the first byte, we don't move over the carry as this is a shift, not a rotate.
         self.value[WORD_SIZE - 1] = first_shift;
-
-        println!("{:?}", self);
     }
 
     pub fn eval<AB: CurtaAirBuilder>(

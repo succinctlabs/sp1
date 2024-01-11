@@ -46,9 +46,6 @@ impl<F: Field> FixedRotateRightOperation<F> {
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);
         let carry_multiplier = F::from_canonical_u32(Self::carry_multiplier(rotation));
 
-        println!("nb_bytes_to_shift={}", nb_bytes_to_shift);
-        println!("nb_bits_to_shift={}", nb_bits_to_shift);
-
         // Perform the byte shift.
         let input_bytes_rotated = Word([
             input[nb_bytes_to_shift % WORD_SIZE],

@@ -44,5 +44,14 @@ pub struct Segment {
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 
     /// (clk, w_ptr)
-    pub sha_events: Vec<(u32, u32, Vec<u32>)>,
+    pub sha_events: Vec<(
+        u32,
+        u32,
+        Vec<u32>,
+        Vec<MemoryRecord>,
+        Vec<MemoryRecord>,
+        Vec<MemoryRecord>,
+        Vec<MemoryRecord>,
+        Vec<MemoryRecord>,
+    )>,
 }

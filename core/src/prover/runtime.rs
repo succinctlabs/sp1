@@ -2,6 +2,7 @@ use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
 use crate::memory::MemoryInitChip;
 
+use crate::precompiles::sha256_extend::ShaExtendChip;
 use crate::program::ProgramChip;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
@@ -52,7 +53,7 @@ impl Segment {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        const NUM_CHIPS: usize = 10;
+        const NUM_CHIPS: usize = 11;
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -64,6 +65,7 @@ impl Segment {
         let bytes = ByteChip::<F>::new();
         let memory_init = MemoryInitChip::new(true);
         let memory_finalize = MemoryInitChip::new(false);
+        let sha_extend = ShaExtendChip::new();
         let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
             Box::new(program),
             Box::new(cpu),
@@ -75,6 +77,7 @@ impl Segment {
             Box::new(bytes),
             Box::new(memory_init),
             Box::new(memory_finalize),
+            Box::new(sha_extend),
         ];
 
         // Compute some statistics.
@@ -223,6 +226,7 @@ impl Segment {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Program;
@@ -300,6 +304,12 @@ pub mod tests {
     #[test]
     fn test_simple_prove() {
         let program = simple_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_ecall_lwa_prove() {
+        let program = ecall_lwa_program();
         prove(program);
     }
 

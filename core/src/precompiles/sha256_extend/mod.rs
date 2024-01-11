@@ -4,12 +4,30 @@ mod flags;
 mod trace;
 
 pub use columns::*;
+use p3_field::PrimeField;
+
+use crate::cpu::{air::MemoryAccessCols, MemoryRecord};
 
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {
     pub fn new() -> Self {
         Self {}
+    }
+
+    fn populate_access<F: PrimeField>(
+        &self,
+        cols: &mut MemoryAccessCols<F>,
+        value: u32,
+        record: Option<MemoryRecord>,
+    ) {
+        cols.value = value.into();
+        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
+        if let Some(record) = record {
+            cols.prev_value = record.value.into();
+            cols.segment = F::from_canonical_u32(record.segment);
+            cols.timestamp = F::from_canonical_u32(record.timestamp);
+        }
     }
 }
 
@@ -22,7 +40,7 @@ pub fn sha_extend(w: &mut [u32]) {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::collections::BTreeMap;
 
     use p3_challenger::DuplexChallenger;
@@ -53,6 +71,23 @@ mod tests {
     use p3_commit::ExtensionMmcs;
 
     use super::ShaExtendChip;
+
+    pub fn sha_extend_program() -> Program {
+        let w_ptr = 100;
+        let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
+        for i in 0..64 {
+            instructions.extend(vec![
+                Instruction::new(Opcode::ADD, 30, 0, w_ptr + i * 4, false, true),
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true),
+            ]);
+        }
+        instructions.extend(vec![
+            Instruction::new(Opcode::ADD, 5, 0, 102, false, true),
+            Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
+            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+        ]);
+        Program::new(instructions, 0, 0)
+    }
 
     #[test]
     fn generate_trace() {
@@ -105,21 +140,9 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let w_ptr = 100;
-        let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
-        for i in 0..64 {
-            instructions.extend(vec![
-                Instruction::new(Opcode::ADD, 30, 0, w_ptr + i * 4, false, true),
-                Instruction::new(Opcode::SW, 29, 30, 0, false, true),
-            ]);
-        }
-        instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 102, false, true),
-            Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 0, 0, 0, false, false),
-        ]);
-        let program = Program::new(instructions, 0, 0);
+        let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[10]);
         runtime.run();
         // let mut segment = runtime.segment;
 

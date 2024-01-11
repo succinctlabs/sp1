@@ -17,16 +17,49 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         let mut rows = Vec::new();
 
         for i in 0..segment.sha_events.len() {
-            let (clk, w_ptr, mut w) = segment.sha_events[i].clone();
+            let (
+                clk,
+                w_ptr,
+                mut w,
+                w_i_minus_15_records,
+                w_i_minus_2_records,
+                w_i_minus_16_records,
+                w_i_minus_7_records,
+                w_i_records,
+            ) = segment.sha_events[i].clone();
+            println!("INIT CLK = {}", clk);
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
-                cols.populate_flags(i);
-                cols.clk = F::from_canonical_u32(clk + j as u32);
+
+                cols.populate_flags(j);
+                cols.segment = F::one();
+                cols.clk = F::from_canonical_u32(clk);
                 cols.w_ptr = F::from_canonical_u32(w_ptr);
 
+                self.populate_access(
+                    &mut cols.w_i_minus_15,
+                    w[16 + j - 15],
+                    Some(w_i_minus_15_records[j]),
+                );
+                self.populate_access(
+                    &mut cols.w_i_minus_2,
+                    w[16 + j - 2],
+                    Some(w_i_minus_2_records[j]),
+                );
+                self.populate_access(
+                    &mut cols.w_i_minus_16,
+                    w[16 + j - 16],
+                    Some(w_i_minus_16_records[j]),
+                );
+                self.populate_access(
+                    &mut cols.w_i_minus_7,
+                    w[16 + j - 7],
+                    Some(w_i_minus_7_records[j]),
+                );
+
                 // Compute `s0`.
-                cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
+                // cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
                 cols.w_i_minus_15_rr_7.populate(cols.w_i_minus_15.value, 7);
                 cols.w_i_minus_15_rr_18
                     .populate(cols.w_i_minus_15.value, 18);
@@ -65,7 +98,9 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                         .0
                         .map(|x| x.to_string().parse::<u8>().unwrap()),
                 );
+                self.populate_access(&mut cols.w_i, w[16 + j], Some(w_i_records[j]));
 
+                cols.is_real = F::one();
                 rows.push(row);
             }
         }
@@ -77,6 +112,8 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             cols.populate_flags(i);
             rows.push(row);
         }
+
+        println!("nb_rows={}", nb_rows);
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(

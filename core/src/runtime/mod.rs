@@ -5,7 +5,7 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::MemoryRecord;
+use crate::cpu::{self, MemoryRecord};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -577,10 +577,13 @@ impl Runtime {
                     }
                     Syscall::LWA => {
                         let witness = self.witness.pop().expect("witness stream is empty");
+                        println!("witness {}", witness);
                         (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
                     }
                     Syscall::SHA_EXTEND => {
+                        self.clk += 48 * 4;
+
                         let w_ptr = self.register(a0);
                         println!("w_ptr={}", w_ptr);
 
@@ -589,37 +592,69 @@ impl Runtime {
                             w.push(self.word(w_ptr + i * 4));
                         }
 
-                        self.segment.sha_events.push((self.clk, w_ptr, w));
                         (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
-                        println!("a={}, b={}, c={}", a, b, c);
+                        self.rw(a0, a);
 
-                        for i in 16..48 {
+                        let t = self.record;
+
+                        println!("a={}, b={}, c={}", a, b, c);
+                        self.clk -= 48 * 4;
+
+                        println!("MY CLOCK = {}", self.clk);
+
+                        let sclk = self.clk;
+                        let sw_ptr = w_ptr;
+                        let sw = w.clone();
+                        let mut w_i_minus_15_records = Vec::new();
+                        let mut w_i_minus_2_records = Vec::new();
+                        let mut w_i_minus_16_records = Vec::new();
+                        let mut w_i_minus_7_records = Vec::new();
+                        let mut w_i_records = Vec::new();
+
+                        for i in 16..64 {
                             let w_i_minus_15 =
                                 self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
+                            w_i_minus_15_records.push(self.record.memory.unwrap());
                             let s0 = w_i_minus_15.rotate_right(7)
                                 ^ w_i_minus_15.rotate_right(18)
                                 ^ (w_i_minus_15 >> 3);
-                            self.clk += 1;
+                            self.clk += 4;
 
                             let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
+                            w_i_minus_2_records.push(self.record.memory.unwrap());
                             let s1 = w_i_minus_2.rotate_right(17)
                                 ^ w_i_minus_2.rotate_right(19)
                                 ^ (w_i_minus_2 >> 10);
-                            self.clk += 1;
+                            self.clk += 4;
 
-                            let w_i_minus_15 =
-                                self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
-                            self.clk += 1;
+                            let w_i_minus_16 =
+                                self.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
+                            w_i_minus_16_records.push(self.record.memory.unwrap());
+                            self.clk += 4;
+
                             let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
-                            self.clk += 1;
-                            let w_i = s1
-                                .wrapping_add(w_i_minus_7)
-                                .wrapping_add(s0)
-                                .wrapping_add(w_i_minus_15);
+                            w_i_minus_7_records.push(self.record.memory.unwrap());
+                            self.clk += 4;
 
+                            let w_i = s1
+                                .wrapping_add(w_i_minus_16)
+                                .wrapping_add(s0)
+                                .wrapping_add(w_i_minus_7);
                             self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
-                            self.clk += 1;
+                            w_i_records.push(self.record.memory.unwrap());
+                            self.clk += 4;
                         }
+                        self.segment.sha_events.push((
+                            sclk,
+                            sw_ptr,
+                            sw,
+                            w_i_minus_15_records,
+                            w_i_minus_2_records,
+                            w_i_minus_16_records,
+                            w_i_minus_7_records,
+                            w_i_records,
+                        ));
+                        self.record = t;
                     }
                 }
             }
@@ -816,6 +851,14 @@ pub mod tests {
 
     pub fn fibonacci_program() -> Program {
         Program::from_elf("../programs/fib_malloc.s")
+    }
+
+    pub fn ecall_lwa_program() -> Program {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 5, 0, 101, false, true),
+            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+        ];
+        Program::new(instructions, 0, 0)
     }
 
     #[test]

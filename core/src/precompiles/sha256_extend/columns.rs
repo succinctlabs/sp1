@@ -54,4 +54,7 @@ pub struct ShaExtendCols<T> {
 
     /// Result.
     pub w_i: MemoryAccessCols<T>,
+
+    /// Selector.
+    pub is_real: T,
 }
