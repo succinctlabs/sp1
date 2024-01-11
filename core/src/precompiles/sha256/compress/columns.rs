@@ -23,6 +23,9 @@ pub struct ShaCompressCols<T> {
     pub clk: T,
     pub w_and_h_ptr: T,
 
+    /// Control flags.
+    pub i: T,
+
     rw: MemoryAccessCols<T>,
 
     a: Word<T>,
