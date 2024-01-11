@@ -11,7 +11,6 @@ use crate::prover::quotient_values;
 use crate::runtime::Runtime;
 use crate::runtime::Segment;
 use crate::utils::AirChip;
-use crate::utils::Chip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
@@ -82,7 +81,7 @@ impl Runtime {
             .flat_map(|proof| proof.permutation_traces.clone())
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces.clone());
-        // TODO: from the global_proof, make sure that the cumulative sum is 0.
+
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);

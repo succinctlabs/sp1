@@ -8,7 +8,6 @@ use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
-use std::ops::Add;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;

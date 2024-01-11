@@ -3,14 +3,13 @@ use crate::utils::{pad_to_power_of_two, Chip};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::Runtime;
 use crate::runtime::Segment;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
-use p3_matrix::{mul, MatrixRowSlices};
+use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
