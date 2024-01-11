@@ -50,12 +50,12 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
                 // Compute `s0`.
                 cols.w_i_minus_15_rr_7
-                    .populate(segment, cols.w_i_minus_15.value, 7);
+                    .populate(segment, event.w[16 + j - 15], 7);
                 cols.w_i_minus_15_rr_18
-                    .populate(segment, cols.w_i_minus_15.value, 18);
+                    .populate(segment, event.w[16 + j - 15], 18);
                 cols.w_i_minus_15_rs_3
-                    .populate(segment, cols.w_i_minus_15.value, 3);
-                cols.s0.populate(
+                    .populate(segment, event.w[16 + j - 15], 3);
+                let s0 = cols.s0.populate(
                     cols.w_i_minus_15_rr_7.value,
                     cols.w_i_minus_15_rr_18.value,
                     cols.w_i_minus_15_rs_3.value,
@@ -64,12 +64,12 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 // Compute `s1`.
                 cols.w_i_minus_2.value = Word::from(event.w[16 + j - 2]);
                 cols.w_i_minus_2_rr_17
-                    .populate(segment, cols.w_i_minus_2.value, 17);
+                    .populate(segment, event.w[16 + j - 2], 17);
                 cols.w_i_minus_2_rr_19
-                    .populate(segment, cols.w_i_minus_2.value, 19);
+                    .populate(segment, event.w[16 + j - 2], 19);
                 cols.w_i_minus_2_rs_10
-                    .populate(segment, cols.w_i_minus_2.value, 10);
-                cols.s1.populate(
+                    .populate(segment, event.w[16 + j - 2], 10);
+                let s1 = cols.s1.populate(
                     cols.w_i_minus_2_rr_17.value,
                     cols.w_i_minus_2_rr_19.value,
                     cols.w_i_minus_2_rs_10.value,
@@ -78,12 +78,8 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 // Compute `s2`.
                 cols.w_i_minus_16.value = Word::from(event.w[16 + j - 16]);
                 cols.w_i_minus_7.value = Word::from(event.w[16 + j - 7]);
-                cols.s2.populate(
-                    cols.w_i_minus_16.value,
-                    cols.s0.value,
-                    cols.w_i_minus_7.value,
-                    cols.s1.value,
-                );
+                cols.s2
+                    .populate(event.w[16 + j - 16], s0, event.w[16 + j - 7], s1);
 
                 // Write `s2` to `w[i]`.
                 event.w[16 + j] = u32::from_le_bytes(

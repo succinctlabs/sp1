@@ -18,12 +18,10 @@ pub struct Add4Operation<T> {
 }
 
 impl<F: Field> Add4Operation<F> {
-    pub fn populate(&mut self, a: Word<F>, b: Word<F>, c: Word<F>, d: Word<F>) {
-        let a = u32::from_le_bytes(a.0.map(|x| x.to_string().parse::<u8>().unwrap()));
-        let b = u32::from_le_bytes(b.0.map(|x| x.to_string().parse::<u8>().unwrap()));
-        let c = u32::from_le_bytes(c.0.map(|x| x.to_string().parse::<u8>().unwrap()));
-        let d = u32::from_le_bytes(d.0.map(|x| x.to_string().parse::<u8>().unwrap()));
-        self.value = Word::from(a + b + c + d);
+    pub fn populate(&mut self, a: u32, b: u32, c: u32, d: u32) -> u32 {
+        let expected = a.wrapping_add(b).wrapping_add(c).wrapping_add(d);
+        self.value = Word::from(expected);
+        expected
     }
 
     #[allow(unused_variables)]

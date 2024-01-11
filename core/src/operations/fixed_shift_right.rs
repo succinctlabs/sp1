@@ -42,9 +42,9 @@ impl<F: Field> FixedShiftRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(&mut self, segment: &mut Segment, input: Word<F>, rotation: usize) {
-        let input_u32 = input.to_u32();
-        let expected_u32 = input_u32 >> rotation;
+    pub fn populate(&mut self, segment: &mut Segment, input: u32, rotation: usize) -> u32 {
+        let input_bytes = input.to_le_bytes().map(F::from_canonical_u8);
+        let expected = input >> rotation;
 
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);
@@ -55,7 +55,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         let mut word = [F::zero(); WORD_SIZE];
         for i in 0..WORD_SIZE {
             if i + nb_bytes_to_shift < WORD_SIZE {
-                word[i] = input[(i + nb_bytes_to_shift) % WORD_SIZE];
+                word[i] = input_bytes[(i + nb_bytes_to_shift) % WORD_SIZE];
             }
         }
         let input_bytes_rotated = Word(word);
@@ -97,7 +97,9 @@ impl<F: Field> FixedShiftRightOperation<F> {
         self.value[WORD_SIZE - 1] = first_shift;
 
         // Assert the answer is correct.
-        assert_eq!(self.value.to_u32(), expected_u32);
+        assert_eq!(self.value.to_u32(), expected);
+
+        expected
     }
 
     pub fn eval<AB: CurtaAirBuilder>(

@@ -42,9 +42,9 @@ impl<F: Field> FixedRotateRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(&mut self, segment: &mut Segment, input: Word<F>, rotation: usize) {
-        let input_u32 = input.to_u32();
-        let expected_u32 = input_u32.rotate_right(rotation as u32);
+    pub fn populate(&mut self, segment: &mut Segment, input: u32, rotation: usize) -> u32 {
+        let input_bytes = input.to_le_bytes().map(F::from_canonical_u8);
+        let expected = input.rotate_right(rotation as u32);
 
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);
@@ -53,10 +53,10 @@ impl<F: Field> FixedRotateRightOperation<F> {
 
         // Perform the byte shift.
         let input_bytes_rotated = Word([
-            input[nb_bytes_to_shift % WORD_SIZE],
-            input[(1 + nb_bytes_to_shift) % WORD_SIZE],
-            input[(2 + nb_bytes_to_shift) % WORD_SIZE],
-            input[(3 + nb_bytes_to_shift) % WORD_SIZE],
+            input_bytes[nb_bytes_to_shift % WORD_SIZE],
+            input_bytes[(1 + nb_bytes_to_shift) % WORD_SIZE],
+            input_bytes[(2 + nb_bytes_to_shift) % WORD_SIZE],
+            input_bytes[(3 + nb_bytes_to_shift) % WORD_SIZE],
         ]);
 
         // For each byte, calculate the shift and carry. If it's not the first byte, calculate the
@@ -98,7 +98,9 @@ impl<F: Field> FixedRotateRightOperation<F> {
         self.value[WORD_SIZE - 1] = first_shift + last_carry * carry_multiplier;
 
         // Check that the value is correct.
-        assert_eq!(self.value.to_u32(), expected_u32);
+        assert_eq!(self.value.to_u32(), expected);
+
+        expected
     }
 
     pub fn eval<AB: CurtaAirBuilder>(

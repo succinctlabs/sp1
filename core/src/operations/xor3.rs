@@ -19,14 +19,16 @@ pub struct Xor3Operation<T> {
 }
 
 impl<F: Field> Xor3Operation<F> {
-    pub fn populate(&mut self, a: Word<F>, b: Word<F>, c: Word<F>) {
+    pub fn populate(&mut self, a: u32, b: u32, c: u32) -> u32 {
+        let expected = a ^ b ^ c;
+        let a_bytes = a.to_le_bytes();
+        let b_bytes = b.to_le_bytes();
+        let c_bytes = c.to_le_bytes();
         for i in 0..WORD_SIZE {
-            let element_a = a[i].to_string().parse::<u8>().unwrap();
-            let element_b = b[i].to_string().parse::<u8>().unwrap();
-            let element_c = c[i].to_string().parse::<u8>().unwrap();
-            self.intermeddiate[i] = F::from_canonical_u8(element_a ^ element_b);
-            self.value[i] = F::from_canonical_u8(element_a ^ element_b ^ element_c);
+            self.intermeddiate[i] = F::from_canonical_u8(a_bytes[i] ^ b_bytes[i]);
+            self.value[i] = F::from_canonical_u8(a_bytes[i] ^ b_bytes[i] ^ c_bytes[i]);
         }
+        expected
     }
 
     #[allow(unused_variables)]
