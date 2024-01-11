@@ -1,6 +1,17 @@
 //! Division and remainder verification.
 //!
-//! b = c * quotient + remainder where the signs of b and remainder match.
+//! This module implements the verification logic for division and remainder operations. It ensures
+//! that for any given inputs b and c and outputs quotient and remainder, the equation
+//!
+//! b = c * quotient + remainder
+//!
+//! holds true, while also ensuring that the signs of `b` and `remainder` match.
+//!
+//! A critical aspect of this implementation is the use of 64-bit arithmetic for result calculation.
+//! This choice is driven by the need to make the solution unique: in 32-bit arithmetic,
+//! `c * quotient + remainder` could overflow, leading to results that are congruent modulo 2^{32}
+//! and thus not uniquely defined. The 64-bit approach avoids this overflow, ensuring that each
+//! valid input combination maps to a unique result.
 //!
 //! Implementation:
 //!
