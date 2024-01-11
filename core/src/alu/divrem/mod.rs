@@ -44,7 +44,7 @@
 //! elif c > 0:
 //!    assert 0 <= remainder < c
 //!
-//! if division_by_0:
+//! if is_c_0:
 //!     # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
@@ -107,7 +107,7 @@ pub struct DivRemCols<T> {
     /// Flag to indicate division by 0.
     pub is_c_0: T,
 
-    /// The inverse of `c[0] + c[1] + c[2] + c[3]``, used to verify `division_by_0`.
+    /// The inverse of `c[0] + c[1] + c[2] + c[3]``, used to verify `is_c_0`.
     pub c_limb_sum_inverse: T,
 
     pub is_divu: T,
@@ -338,6 +338,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
+
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
         let padded_row_template = {
@@ -364,6 +365,51 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 impl<F> BaseAir<F> for DivRemChip {
     fn width(&self) -> usize {
         NUM_DIVREM_COLS
+    }
+}
+
+/// Verifies that `abs_value = abs(value)` using `is_negative` as a flag.
+///
+/// `abs(value) + value = 0` if `value` is negative. `abs(value) = value` otherwise.
+///
+/// In two's complement arithmetic, the negation involves flipping its bits and adding 1. Therefore,
+/// for a negative number, `abs(value) + value` equals 0. This is because `abs(value)` is the two's
+/// complement (negation) of `value`. For a positive number, `abs(value)` is the same as `value`.
+///
+/// The function iterates over each limb of the `value` and `abs_value`, checking the following
+/// conditions:
+///
+/// 1. If `value` is non-negative, it checks that each limb in `value` and `abs_value` is identical.
+/// 2. If `value` is negative, it checks that the sum of each corresponding limb in `value` and
+///    `abs_value` equals the expected sum for a two's complement representation. The least
+///     significant limb (first limb) should add up to `0xff + 1` (to account for the +1 in two's
+///     complement negation), and other limbs should add up to `0xff` (as the rest of the limbs just
+///     have their bits flipped).
+fn calculate_abs_value<AB>(
+    builder: &mut AB,
+    value: &Word<AB::Var>,
+    abs_value: &Word<AB::Var>,
+    is_negative: &AB::Var,
+) where
+    AB: CurtaAirBuilder,
+{
+    for i in 0..WORD_SIZE {
+        let exp_sum_if_negative = {
+            if i == 0 {
+                AB::Expr::from_canonical_u32(0xff + 1)
+            } else {
+                AB::Expr::from_canonical_u32(0xff)
+            }
+        };
+
+        builder.when(is_negative.clone()).assert_eq(
+            value[i].clone() + abs_value[i].clone(),
+            exp_sum_if_negative.clone(),
+        );
+
+        builder
+            .when(AB::Expr::one() - is_negative.clone())
+            .assert_eq(value[i].clone(), abs_value[i].clone());
     }
 }
 
@@ -535,7 +581,7 @@ where
 
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
-            // Ensure that if c is 0, division_by_0 = true. We utilize the mathematical trick that
+            // Ensure that if c is 0, is_c_0 = true. We utilize the mathematical trick that
             // if c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero regardless of what
             // c_limb_sum_inverse is.
             let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
@@ -543,16 +589,16 @@ where
                 .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
                 .assert_eq(local.is_c_0, one.clone());
 
-            // Ensure that if division_by_0 is true, then local.c = 0.
+            // Ensure that if is_c_0 is true, then local.c = 0.
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.is_c_0.clone())
                     .assert_zero(local.c[i].clone());
             }
 
-            // We checked that division_by_0 is true if and only if c = 0.
+            // We checked that is_c_0 is true if and only if c = 0.
 
-            // Finally, ensure that if division_by_0 is true, then quotient = 0xffffffff.
+            // Finally, ensure that if is_c_0 is true, then quotient = 0xffffffff.
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.is_c_0.clone())
@@ -561,62 +607,31 @@ where
             }
         }
 
-        // Range check remainder. (i.e., |remainder| < |c| when not division_by_0)
+        // Range check remainder. (i.e., |remainder| < |c| when not is_c_0)
         {
-            let is_signed = local.is_div + local.is_rem;
-            let is_unsigned = local.is_divu + local.is_remu;
+            calculate_abs_value(
+                builder,
+                local.remainder.borrow(),
+                local.abs_remainder.borrow(),
+                local.rem_neg.borrow(),
+            );
 
-            // abs(remainder) + remainder = 0 if remainder is negative. We check that by checking
-            // each limb. abs(remainder) = remainder if remainder is not negative.
-            for i in 0..WORD_SIZE {
-                let exp_sum_if_signed = {
-                    if i == 0 {
-                        AB::Expr::from_canonical_u32(0xff + 1)
-                    } else {
-                        AB::Expr::from_canonical_u32(0xff)
-                    }
-                };
+            calculate_abs_value(
+                builder,
+                local.c.borrow(),
+                local.abs_c.borrow(),
+                local.c_neg.borrow(),
+            );
 
-                builder.when(local.rem_neg.clone()).assert_eq(
-                    local.remainder[i].clone() + local.abs_remainder[i].clone(),
-                    exp_sum_if_signed.clone(),
-                );
-
-                builder
-                    .when(one.clone() - local.rem_neg.clone())
-                    .assert_eq(local.remainder[i].clone(), local.abs_remainder[i].clone());
-            }
-
-            // abs(c) + c = 0 if c is negative. We check that by checking each limb. abs(c) = c if c
-            // is not negative.
-            for i in 0..WORD_SIZE {
-                let exp_sum_if_signed = {
-                    if i == 0 {
-                        AB::Expr::from_canonical_u32(0xff + 1)
-                    } else {
-                        AB::Expr::from_canonical_u32(0xff)
-                    }
-                };
-
-                builder.when(local.c_neg.clone()).assert_eq(
-                    local.c[i].clone() + local.abs_c[i].clone(),
-                    exp_sum_if_signed.clone(),
-                );
-
-                builder
-                    .when(one.clone() - local.c_neg.clone())
-                    .assert_eq(local.c[i].clone(), local.abs_c[i].clone());
-            }
-
-            // max(abs(c), 1) = abs(c) * (1 - division_by_0) + 1 * division_by_0
+            // max(abs(c), 1) = abs(c) * (1 - is_c_0) + 1 * is_c_0
             let max_abs_c_or_1: Word<AB::Expr> = {
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
-                // Set the least significant byte to 1 if division_by_0 is true.
+                // Set the least significant byte to 1 if is_c_0 is true.
                 v[0] = local.is_c_0.clone() * one.clone()
                     + (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
 
-                // Set the remaining bytes to 0 if division_by_0 is true.
+                // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
                     v[i] = (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
                 }
@@ -624,6 +639,8 @@ where
             };
 
             let opcode = {
+                let is_signed = local.is_div + local.is_rem;
+                let is_unsigned = local.is_divu + local.is_remu;
                 let slt = AB::Expr::from_canonical_u32(Opcode::SLT as u32);
                 let sltu = AB::Expr::from_canonical_u32(Opcode::SLTU as u32);
                 is_signed * slt + is_unsigned * sltu
@@ -748,7 +765,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Program, Runtime, Segment},
+        runtime::{Opcode, Segment},
         utils::Chip,
     };
     use p3_commit::ExtensionMmcs;
