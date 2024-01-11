@@ -186,11 +186,11 @@ impl CpuChip {
             let branch_columns: &mut BranchColumns<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
+            let branching;
             match event.instruction.opcode {
-                Opcode::BEQ => branch_columns.branch_cond_val = F::from_bool(event.a == event.b),
+                Opcode::BEQ => branching = event.a == event.b,
                 Opcode::BNE => {
-                    let branch_cond_val = event.a != event.b;
-                    branch_columns.branch_cond_val = F::from_bool(branch_cond_val);
+                    branching = event.a != event.b;
                     let a_minus_b = event.a.wrapping_sub(event.b);
                     branch_columns.a_minus_b = a_minus_b.into();
 
@@ -210,7 +210,7 @@ impl CpuChip {
                     let sltu_event = AluEvent {
                         clk: event.clk,
                         opcode: Opcode::SLTU,
-                        a: branch_cond_val as u32,
+                        a: branching as u32,
                         b: 0,
                         c: a_minus_b,
                     };
@@ -221,22 +221,20 @@ impl CpuChip {
                         .or_insert(vec![sltu_event]);
                 }
                 Opcode::BLT | Opcode::BLTU => {
-                    let branch_cond_val: bool;
                     let alu_opcode: Opcode;
                     if event.instruction.opcode == Opcode::BLT {
-                        branch_cond_val = (event.a as i32) < (event.b as i32);
+                        branching = (event.a as i32) < (event.b as i32);
                         alu_opcode = Opcode::SLT;
                     } else {
                         // Opcode::BLTU case
-                        branch_cond_val = event.a < event.b;
+                        branching = event.a < event.b;
                         alu_opcode = Opcode::SLTU;
                     };
-                    branch_columns.branch_cond_val = F::from_bool(branch_cond_val);
 
                     let slt_event = AluEvent {
                         clk: event.clk,
                         opcode: alu_opcode,
-                        a: branch_cond_val as u32,
+                        a: branching as u32,
                         b: event.a,
                         c: event.b,
                     };
@@ -251,13 +249,12 @@ impl CpuChip {
                     let alu_opcode: Opcode;
 
                     if event.instruction.opcode == Opcode::BGE {
-                        branch_columns.branch_cond_val =
-                            F::from_bool((event.a as i32) >= (event.b as i32));
+                        branching = (event.a as i32) >= (event.b as i32);
                         a_gt_b = (event.a as i32) > (event.b as i32);
                         alu_opcode = Opcode::SLT;
                     } else {
                         // Opcode::BGEU case
-                        branch_columns.branch_cond_val = F::from_bool(event.a >= event.b);
+                        branching = event.a >= event.b;
                         a_gt_b = event.a > event.b;
                         alu_opcode = Opcode::SLTU;
                     };
@@ -281,10 +278,10 @@ impl CpuChip {
                 _ => unreachable!(),
             }
 
-            if branch_columns.branch_cond_val == F::one() {
+            if branching {
                 let next_pc = event.pc.wrapping_add(event.c);
 
-                cols.branch = F::one();
+                cols.branching = F::one();
                 branch_columns.pc = event.pc.into();
                 branch_columns.next_pc = next_pc.into();
 

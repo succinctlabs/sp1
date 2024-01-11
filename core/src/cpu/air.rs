@@ -39,9 +39,9 @@ pub struct MemoryColumns<T> {
     pub memory_access: MemoryAccessCols<T>,
 }
 
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
 pub struct BranchColumns<T> {
-    pub branch_cond_val: T,
-
     pub pc: Word<T>,
     pub next_pc: Word<T>,
 
@@ -73,17 +73,17 @@ pub struct CpuCols<T> {
     pub op_c_access: MemoryAccessCols<T>,
 
     // This is transmuted to MemoryColumns or BNEColumns
-    pub opcode_specific_columns: [T; WORKSPACE_SIZE],
-    pub branch: T,
+    pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
+    pub branching: T,
 
-    /// Selector to label whether this row is a non padded row.
+    // Selector to label whether this row is a non padded row.
     pub is_real: T,
 }
 
 pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
-pub(crate) const WORKSPACE_SIZE: usize = size_of::<MemoryColumns<u8>>();
+pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = size_of::<MemoryColumns<u8>>();
 
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
@@ -248,110 +248,7 @@ where
         //////////////////////////////////////////
 
         //// For branch instructions
-        // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
-        let branch_columns: BranchColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
-
-        builder
-            .when(local.branch)
-            .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
-
-        builder
-            .when(local.branch)
-            .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
-
-        builder.assert_eq(
-            is_branch_instruction.clone() * branch_columns.branch_cond_val,
-            local.branch,
-        );
-
-        builder.send_alu(
-            AB::Expr::from_canonical_u8(Opcode::ADD as u8),
-            branch_columns.next_pc,
-            branch_columns.pc,
-            *local.op_c_val(),
-            local.branch,
-        );
-
-        builder
-            .when(
-                is_branch_instruction.clone() * (AB::Expr::one() - branch_columns.branch_cond_val),
-            )
-            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
-
-        // Check that branch_cond_val is a boolean
-        builder
-            .when(is_branch_instruction)
-            .assert_bool(branch_columns.branch_cond_val);
-
-        // // Handle the case when opcode == BEQ
-        builder
-            .when(local.selectors.is_beq * branch_columns.branch_cond_val)
-            .assert_word_eq(*local.op_a_val(), *local.op_b_val());
-
-        // // Handle the case when opcode == BNE
-        // Check that a_minus_b == a - b
-        builder.send_alu(
-            AB::Expr::from_canonical_u8(Opcode::SUB as u8),
-            branch_columns.a_minus_b,
-            *local.op_a_val(),
-            *local.op_b_val(),
-            local.selectors.is_bne,
-        );
-
-        // Check that branch_cond_val == 0 < a_minus_b
-        builder.send_alu(
-            AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.branch_cond_val),
-            AB::zero_word(),
-            branch_columns.a_minus_b,
-            local.selectors.is_bne,
-        );
-
-        // // Handle the case when opcode == BLT or opcode == BLTU
-        builder.send_alu(
-            local.selectors.is_blt * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
-                + local.selectors.is_bltu * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.branch_cond_val),
-            *local.op_a_val(),
-            *local.op_b_val(),
-            local.selectors.is_blt + local.selectors.is_bltu,
-        );
-
-        // // Handle the case when opcode == BGE or opcode == BGEU
-
-        // When branch_cond_val == true, verify that either a_gt_b == 1 or a_eq_b == 1
-        builder
-            .when(
-                (local.selectors.is_bge + local.selectors.is_bgeu) * branch_columns.branch_cond_val,
-            )
-            .assert_one(branch_columns.a_gt_b + branch_columns.a_eq_b);
-
-        // When branch_cond_val == false, verify that both a_gt_b == 0 and a_eq_b == 0
-        builder
-            .when(
-                (local.selectors.is_bge + local.selectors.is_bgeu)
-                    * (AB::Expr::one() - branch_columns.branch_cond_val),
-            )
-            .assert_zero(branch_columns.a_gt_b + branch_columns.a_eq_b);
-
-        // Verify correct compution of a_gt_b
-        builder.send_alu(
-            local.selectors.is_bge * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
-                + local.selectors.is_bgeu * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.a_gt_b),
-            *local.op_b_val(),
-            *local.op_a_val(),
-            local.selectors.is_bge + local.selectors.is_bgeu,
-        );
-
-        // If a_gt_b == false, then a_eq_b must be true
-        builder
-            .when(
-                (local.selectors.is_bge + local.selectors.is_bgeu)
-                    * (branch_columns.branch_cond_val - branch_columns.a_gt_b),
-            )
-            .assert_word_eq(*local.op_b_val(), *local.op_a_val());
+        self.branch_ops_eval::<AB>(builder, is_branch_instruction, local, next);
 
         // //// For jump instructions
         // builder
@@ -417,5 +314,115 @@ impl CpuChip {
             + opcode_selectors.is_bge
             + opcode_selectors.is_bltu
             + opcode_selectors.is_bgeu
+    }
+
+    fn branch_ops_eval<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        is_branch_instruction: AB::Expr,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) {
+        // Get the branch specific columns
+        let branch_columns: BranchColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        // // Check that the new pc is calculated correctly if local.branch == true
+        // Verify that branch_columns.pc is correct
+        builder
+            .when(local.branching)
+            .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
+
+        // // Verify that branch_columns.next_pc is correct
+        builder
+            .when(local.branching)
+            .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
+
+        // Calculate the new pc via the ADD chip if local.branching == true
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::ADD as u8),
+            branch_columns.next_pc,
+            branch_columns.pc,
+            *local.op_c_val(),
+            local.branching,
+        );
+
+        // Check that pc + 4 == next_pc if local.branching == false
+        builder
+            .when(is_branch_instruction.clone() * (AB::Expr::one() - local.branching))
+            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+        // // Check that the branch condition is correct
+        // Verify that local.branching is a boolean
+        builder
+            .when(is_branch_instruction.clone())
+            .assert_bool(local.branching);
+
+        // Handle the case when opcode == BEQ
+        builder
+            .when(local.selectors.is_beq * local.branching)
+            .assert_word_eq(*local.op_a_val(), *local.op_b_val());
+
+        // // Handle the case when opcode == BNE
+        // Check that a_minus_b == a - b
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::SUB as u8),
+            branch_columns.a_minus_b,
+            *local.op_a_val(),
+            *local.op_b_val(),
+            local.selectors.is_bne,
+        );
+
+        // Check that branch_cond_val == 0 < a_minus_b
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            AB::extend_expr_to_word(local.branching),
+            AB::zero_word(),
+            branch_columns.a_minus_b,
+            local.selectors.is_bne,
+        );
+
+        // // Handle the case when opcode == BLT or opcode == BLTU
+        builder.send_alu(
+            local.selectors.is_blt * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
+                + local.selectors.is_bltu * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            AB::extend_expr_to_word(local.branching),
+            *local.op_a_val(),
+            *local.op_b_val(),
+            local.selectors.is_blt + local.selectors.is_bltu,
+        );
+
+        // // Handle the case when opcode == BGE or opcode == BGEU
+
+        // When branch_cond_val == true, verify that either a_gt_b == 1 or a_eq_b == 1
+        builder
+            .when((local.selectors.is_bge + local.selectors.is_bgeu) * local.branching)
+            .assert_one(branch_columns.a_gt_b + branch_columns.a_eq_b);
+
+        // When branch_cond_val == false, verify that both a_gt_b == 0 and a_eq_b == 0
+        builder
+            .when(
+                (local.selectors.is_bge + local.selectors.is_bgeu)
+                    * (AB::Expr::one() - local.branching),
+            )
+            .assert_zero(branch_columns.a_gt_b + branch_columns.a_eq_b);
+
+        // Verify correct compution of a_gt_b
+        builder.send_alu(
+            local.selectors.is_bge * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
+                + local.selectors.is_bgeu * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            AB::extend_expr_to_word(branch_columns.a_gt_b),
+            *local.op_b_val(),
+            *local.op_a_val(),
+            local.selectors.is_bge + local.selectors.is_bgeu,
+        );
+
+        // If a_gt_b == false, then a_eq_b must be true
+        builder
+            .when(
+                (local.selectors.is_bge + local.selectors.is_bgeu)
+                    * (local.branching - branch_columns.a_gt_b),
+            )
+            .assert_word_eq(*local.op_b_val(), *local.op_a_val());
     }
 }
