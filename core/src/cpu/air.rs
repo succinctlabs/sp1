@@ -14,7 +14,7 @@ use std::mem::transmute_copy;
 use valida_derive::AlignedBorrow;
 
 use super::instruction_cols::InstructionCols;
-use super::opcode_cols::{InstructionType, OpcodeSelectors};
+use super::opcode_cols::OpcodeSelectors;
 use super::trace::CpuChip;
 use crate::runtime::{AccessPosition, Opcode};
 
@@ -44,8 +44,8 @@ pub struct BranchColumns<T> {
 
     pub a_minus_b: Word<T>, // Used for BNE opcode
 
-    pub a_gt_b: T, // Used for BGE opcode
-    pub a_eq_b: T, // Used for BGE opcode
+    pub a_gt_b: T, // Used for BGE/BGEU opcode
+    pub a_eq_b: T, // Used for BGE/BGEU opcode
 }
 
 /// An AIR table for memory accesses.
@@ -144,16 +144,9 @@ where
         // Contrain the interaction with program table
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
-        let is_memory_instruction =
-            <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_memory_instruction(
-                &local.selectors,
-            );
-        let is_branch_instruction =
-            <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_branch_instruction(
-                &local.selectors,
-            );
-        let is_alu_instruction =
-            <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_alu_instruction(&local.selectors);
+        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
+        let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
+        let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         //////////////////////////////////////////
 
@@ -177,11 +170,7 @@ where
         );
 
         builder
-            .when(
-                <OpcodeSelectors<AB::Var> as InstructionType<AB>>::is_branch_instruction(
-                    &local.selectors,
-                ) + local.selectors.is_store,
-            )
+            .when(is_branch_instruction.clone() + local.selectors.is_store)
             .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
 
         // // We always read to register b and register c unless the imm_b or imm_c flags are set.
@@ -255,17 +244,15 @@ where
         //////////////////////////////////////////
 
         //// For branch instructions
-        // TODO: lookup (clk, branch_cond_val, op_a_val, op_b_val) in the "branch" table with multiplicity branch_instruction
         // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
-
-        // builder.when(local.selectors.branch_op).assert_eq(
-        //     local.pc
-        //         + AB::F::from_canonical_u8(4)
-        //         + reduce::<AB>(local.op_c_val) * local.branch_cond_val.0[0],
-        //     next.pc,
-        // );
         let branch_columns: BranchColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        builder
+            .when(
+                is_branch_instruction.clone() * (AB::Expr::one() - branch_columns.branch_cond_val),
+            )
+            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         // Check that branch_cond_val is a boolean
         builder
@@ -371,5 +358,39 @@ where
             *local.op_c_val(),
             is_alu_instruction,
         );
+    }
+}
+
+impl CpuChip {
+    fn is_alu_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectors<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.add_op
+            + opcode_selectors.sub_op
+            + opcode_selectors.mul_op
+            + opcode_selectors.div_op
+            + opcode_selectors.shift_op
+            + opcode_selectors.bitwise_op
+            + opcode_selectors.lt_op
+    }
+
+    fn is_memory_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectors<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_load + opcode_selectors.is_store
+    }
+
+    fn is_branch_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectors<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_beq
+            + opcode_selectors.is_bne
+            + opcode_selectors.is_blt
+            + opcode_selectors.is_bge
+            + opcode_selectors.is_bltu
+            + opcode_selectors.is_bgeu
     }
 }

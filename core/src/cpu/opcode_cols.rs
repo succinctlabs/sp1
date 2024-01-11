@@ -1,5 +1,4 @@
 use core::borrow::{Borrow, BorrowMut};
-use p3_air::AirBuilder;
 use p3_field::PrimeField;
 use std::mem::size_of;
 use std::vec::IntoIter;
@@ -159,34 +158,6 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 self.reg_0_write = F::one();
             }
         }
-    }
-}
-
-pub trait InstructionType<AB: AirBuilder> {
-    fn is_branch_instruction(&self) -> AB::Expr;
-
-    fn is_alu_instruction(&self) -> AB::Expr;
-
-    fn is_memory_instruction(&self) -> AB::Expr;
-}
-
-impl<AB: AirBuilder> InstructionType<AB> for OpcodeSelectors<AB::Var> {
-    fn is_branch_instruction(&self) -> AB::Expr {
-        self.is_beq + self.is_bne + self.is_blt + self.is_bge + self.is_bltu + self.is_bgeu
-    }
-
-    fn is_alu_instruction(&self) -> AB::Expr {
-        self.add_op
-            + self.sub_op
-            + self.mul_op
-            + self.div_op
-            + self.shift_op
-            + self.bitwise_op
-            + self.lt_op
-    }
-
-    fn is_memory_instruction(&self) -> AB::Expr {
-        self.is_load + self.is_store
     }
 }
 
