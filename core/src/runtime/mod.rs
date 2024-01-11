@@ -42,6 +42,7 @@ use std::collections::BTreeMap;
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
+#[allow(non_snake_case)]
 pub struct Runtime {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
@@ -73,7 +74,12 @@ pub struct Runtime {
     /// The current record for the CPU event,
     pub record: Record,
 
-    #[allow(non_snake_case)]
+    /// Global information needed for "global" chips, like the memory argument. It's a bit
+    /// semantically incorrect to have this as a "Segment", since it's not really a segment
+    /// in the traditional sense.
+    pub global_segment: Segment,
+
+    // The segment size for each segment.
     pub SEGMENT_SIZE: u32,
 }
 
@@ -96,6 +102,7 @@ impl Runtime {
             segment,
             record: Record::default(),
             SEGMENT_SIZE: 10000,
+            global_segment: Segment::default(),
         }
     }
 
@@ -715,25 +722,52 @@ impl Runtime {
             }
         }
 
+        // Push the last segment.
+        // TODO: edge case where the last segment is empty.
+        self.segments.push(self.segment.clone());
+
         // Right now we only do 1 segment.
-        assert_eq!(self.segments.len(), 0);
+        assert_eq!(self.segments.len(), 1);
+
+        // Call postprocess to set up all variables needed for global accounts, like memory
+        // argument or any other deferred tables.
+        self.postprocess();
+    }
+
+    fn postprocess(&mut self) {
+        let mut program_memory_used = BTreeMap::new();
+        for (key, value) in &self.program.memory_image {
+            // By default we assume that the program_memory is used.
+            program_memory_used.insert((*key, *value), 1);
+        }
+
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
         for (addr, value) in &self.memory {
             let (segment, timestamp) = self.memory_access.get(&addr).unwrap().clone();
             if segment == 0 && timestamp == 0 {
+                // This means that we never accessed this memory location throughout our entire program.
+                // The only way this can happen is if this was in the program memory image.
+                // We mark this (addr, value) as not used in the `program_memory_used` map.
+                program_memory_used.insert((*addr, *value), 0);
                 continue;
             }
-            let initial_value = self.program.memory_image.get(&addr).unwrap_or(&0);
-            first_memory_record.push((
-                *addr,
-                MemoryRecord {
-                    value: *initial_value,
-                    segment: 0,
-                    timestamp: 0,
-                },
-            ));
+            // If the memory addr was accessed, we only add it to "first_memory_record" if it was
+            // not in the program_memory_image, otherwise we'll add to the memory argument from
+            // the program_memory_image table.
+            if !self.program.memory_image.contains_key(addr) {
+                first_memory_record.push((
+                    *addr,
+                    MemoryRecord {
+                        value: 0,
+                        segment: 0,
+                        timestamp: 0,
+                    },
+                    1,
+                ));
+            }
+
             last_memory_record.push((
                 *addr,
                 MemoryRecord {
@@ -741,12 +775,29 @@ impl Runtime {
                     segment,
                     timestamp,
                 },
+                1,
             ))
         }
 
-        self.segment.first_memory_record = first_memory_record;
-        self.segment.last_memory_record = last_memory_record;
-        self.segments.push(self.segment.clone());
+        let mut program_memory_record = program_memory_used
+            .iter()
+            .map(|(&(addr, value), &used)| {
+                (
+                    addr,
+                    MemoryRecord {
+                        value: value,
+                        segment: 0,
+                        timestamp: 0,
+                    },
+                    used,
+                )
+            })
+            .collect::<Vec<(u32, MemoryRecord, u32)>>();
+        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
+
+        self.global_segment.first_memory_record = first_memory_record;
+        self.global_segment.last_memory_record = last_memory_record;
+        self.global_segment.program_memory_record = program_memory_record;
     }
 }
 

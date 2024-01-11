@@ -1,13 +1,11 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::collections::HashMap;
 
-use p3_field::AbstractField;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
