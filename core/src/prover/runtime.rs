@@ -1,49 +1,29 @@
 use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
-use crate::memory::MemoryInitChip;
+use crate::memory::MemoryGlobalChip;
 
+use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::memory::MemoryChipKind;
 use crate::program::ProgramChip;
+use crate::prover::debug_constraints;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
+use crate::runtime::Runtime;
 use crate::runtime::Segment;
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_uni_stark::decompose_and_flatten;
-use p3_util::log2_ceil_usize;
-
-use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
-use crate::prover::debug_constraints;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
+use p3_uni_stark::decompose_and_flatten;
 use p3_uni_stark::StarkConfig;
+use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
+use super::types::*;
 use crate::prover::debug_cumulative_sums;
 
-// impl Runtime {
-//     /// Prove the program.
-//     #[allow(unused)]
-//     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
-//     where
-//         F: PrimeField + TwoAdicField + PrimeField32,
-//         EF: ExtensionField<F>,
-//         SC: StarkConfig<Val = F, Challenge = EF>,
-//     {
-//         let bus_sum = vec![];
-//         for segment in self.segments {
-//             // For each segment in segments, prove the segment and add up the buses.
-//             bus_sum.push(segment.prove(config, challenger));
-//         }
-
-//         let cumulative_bus_sum = bus_sum.sum();
-
-//         let init_chip = MemoryInitChip { init: true };
-//         let finalize_chip = MemoryInitChip { init: false };
-//     }
-// }
-
-impl Segment {
+impl Runtime {
     /// Prove the program.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
@@ -51,8 +31,59 @@ impl Segment {
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
+        SC::Challenger: Clone,
     {
-        const NUM_CHIPS: usize = 11;
+        let segment_chips = Prover::segment_chips::<F, EF, SC>();
+        let segment_main_data = self
+            .segments
+            .iter_mut()
+            .map(|segment| Prover::commit_main(config, &segment_chips, segment))
+            .collect::<Vec<_>>();
+
+        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
+        // in a map-reduce recursion setting.
+        segment_main_data.iter().map(|main_data| {
+            challenger.observe(main_data.main_commit.clone());
+        });
+
+        // We clone the challenger so that each segment can observe the same "global" challenges.
+        let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
+            .iter()
+            .map(|main_data| {
+                Prover::prove(config, &mut challenger.clone(), &segment_chips, &main_data)
+            })
+            .collect();
+
+        let global_chips = Prover::global_chips::<F, EF, SC>();
+        let global_main_data = Prover::commit_main(config, &global_chips, &mut self.global_segment);
+        let global_proof = Prover::prove(
+            config,
+            &mut challenger.clone(),
+            &global_chips,
+            &global_main_data,
+        );
+
+        let mut all_permutation_traces = proofs
+            .iter()
+            .flat_map(|proof| proof.permutation_traces.clone())
+            .collect::<Vec<_>>();
+        all_permutation_traces.extend(global_proof.permutation_traces.clone());
+
+        // Compute the cumulative bus sum from all segments
+        // Make sure that this cumulative bus sum is 0.
+        debug_cumulative_sums::<F, EF>(&all_permutation_traces);
+    }
+}
+
+struct Prover {}
+
+impl Prover {
+    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 9]
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -63,9 +94,7 @@ impl Segment {
         let left_shift = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
-        let memory_init = MemoryInitChip::new(true);
-        let memory_finalize = MemoryInitChip::new(false);
-        let chips: [Box<dyn AirChip<SC>>; NUM_CHIPS] = [
+        [
             Box::new(program),
             Box::new(cpu),
             Box::new(add),
@@ -75,10 +104,65 @@ impl Segment {
             Box::new(left_shift),
             Box::new(lt),
             Box::new(bytes),
+        ]
+    }
+
+    pub fn global_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 3]
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
+        // Initialize chips.
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        [
             Box::new(memory_init),
             Box::new(memory_finalize),
-        ];
+            Box::new(program_memory_init),
+        ]
+    }
 
+    pub fn commit_main<F, EF, SC>(
+        config: &SC,
+        chips: &[Box<dyn AirChip<SC>>],
+        segment: &mut Segment,
+    ) -> MainData<SC>
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
+        // For each chip, generate the trace.
+        let traces = chips
+            .iter()
+            .map(|chip| chip.generate_trace(segment))
+            .collect::<Vec<_>>();
+
+        // Commit to the batch of traces.
+        let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+
+        MainData {
+            traces,
+            main_commit,
+            main_data,
+        }
+    }
+
+    /// Prove the program for the given segment and given a commitment to the main data.
+    #[allow(unused)]
+    pub fn prove<F, EF, SC>(
+        config: &SC,
+        challenger: &mut SC::Challenger,
+        chips: &[Box<dyn AirChip<SC>>],
+        main_data: &MainData<SC>,
+    ) -> SegmentDebugProof<SC>
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
         // Compute some statistics.
         let mut main_cols = 0usize;
         let mut perm_cols = 0usize;
@@ -89,27 +173,23 @@ impl Segment {
         println!("MAIN_COLS: {}", main_cols);
         println!("PERM_COLS: {}", perm_cols);
 
-        // For each chip, generate the trace.
-        let traces = chips
-            .iter()
-            .map(|chip| chip.generate_trace(self))
-            .collect::<Vec<_>>();
+        let traces = &main_data.traces;
 
         // For each trace, compute the degree.
-        let degrees: [usize; NUM_CHIPS] = traces
+        let degrees = traces
             .iter()
             .map(|trace| trace.height())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        let log_degrees = degrees.map(|d| log2_strict_usize(d));
+            .collect::<Vec<_>>();
+        let log_degrees = degrees
+            .iter()
+            .map(|d| log2_strict_usize(*d))
+            .collect::<Vec<_>>();
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
-
-        // Commit to the batch of traces.
-        let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        challenger.observe(main_commit);
+        let g_subgroups = log_degrees
+            .iter()
+            .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
+            .collect::<Vec<_>>();
 
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<EF> = Vec::new();
@@ -140,7 +220,7 @@ impl Segment {
         challenger.observe(permutation_commit);
 
         // For each chip, compute the quotient polynomial.
-        let main_ldes = config.pcs().get_ldes(&main_data);
+        let main_ldes = config.pcs().get_ldes(&main_data.main_data);
         let permutation_ldes = config.pcs().get_ldes(&permutation_data);
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
@@ -190,7 +270,7 @@ impl Segment {
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let zeta_and_next = [zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
-            (&main_data, zeta_and_next.as_slice()),
+            (&main_data.main_data, zeta_and_next.as_slice()),
             (&permutation_data, zeta_and_next.as_slice()),
         ];
         let (openings, opening_proof) = config
@@ -216,8 +296,11 @@ impl Segment {
             );
         }
 
-        // Check the permutation argument between all tables.
-        debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
+        SegmentDebugProof {
+            main_commit: main_data.main_commit.clone(),
+            traces: traces.clone(),
+            permutation_traces,
+        }
     }
 }
 
@@ -294,9 +377,7 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
-        runtime
-            .segment
-            .prove::<_, _, MyConfig>(&config, &mut challenger);
+        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 
     #[test]
@@ -306,7 +387,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_fibonnaci_prove() {
+    fn test_fibonacci_prove() {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
         }

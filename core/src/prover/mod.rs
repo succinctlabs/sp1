@@ -14,6 +14,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 pub mod debug;
 pub mod runtime;
+pub mod types;
 
 pub use debug::*;
 
