@@ -1,3 +1,35 @@
+//! Logical And Arithmetic Right Shift Verification.
+//!
+//! Implements verification for a = b >> c, decomposing the shift into bit and byte components:
+//!
+//! 1. num_bits_to_shift = c % 8: Bit-level shift, achieved by multiplying b by 2^num_bits_to_shift.
+//! 2. num_bytes_to_shift = c // 8: Byte-level shift, shifting entire bytes or words in b.
+//!
+//! The right shift is verified by reformulating it as (a << c) + x = b, where x is the "shift
+//! remainder" that accounts for bits shifted out. This approach validates that the combination of
+//! bit-level and byte-level shifts in a and the shift remainder x correctly reconstructs b.
+//! Finally, we verify leading bits a are all 1 if signed and b is negative, 0 otherwise.
+//!
+//! c = take the least significant 5 bits of c
+//! num_bytes_to_shift = c // 8
+//! num_bits_to_shift = c % 8
+//!
+//! # "Bit shift"
+//! bit_shift_multiplier = pow(2, num_bits_to_shift)
+//! result = bit_shift_multiplier * a
+//!
+//! # Add shift residue
+//! result += residue
+//!
+//! # "Byte shift"
+//! for i in range(WORD_SIZE):
+//!     if i < num_bytes_to_shift:
+//!         assert(a[i] == 0)
+//!     else:
+//!         assert(a[i] == result[i + num_bytes_to_shift])
+//!
+//!
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
