@@ -191,12 +191,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 );
                 let mut row = [F::zero(); NUM_DIVREM_COLS];
                 let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
-                let a_word = event.a.to_le_bytes();
-                let b_word = event.b.to_le_bytes();
-                let c_word = event.c.to_le_bytes();
-                cols.a = Word(a_word.map(F::from_canonical_u8));
-                cols.b = Word(b_word.map(F::from_canonical_u8));
-                cols.c = Word(c_word.map(F::from_canonical_u8));
+                cols.a = Word(event.a.to_le_bytes().map(F::from_canonical_u8));
+                cols.b = Word(event.b.to_le_bytes().map(F::from_canonical_u8));
+                cols.c = Word(event.c.to_le_bytes().map(F::from_canonical_u8));
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -258,31 +255,12 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     }
                 };
 
-                let mut result = [0u32; LONG_WORD_SIZE];
-
                 // Add remainder to product.
                 let mut carry = 0u32;
-                let mut carry_ary = [0u32; LONG_WORD_SIZE];
                 for i in 0..LONG_WORD_SIZE {
                     let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
-                    result[i] = x % base;
                     carry = x / base;
                     cols.carry[i] = F::from_canonical_u32(carry);
-                    carry_ary[i] = carry;
-                }
-
-                for i in 0..LONG_WORD_SIZE {
-                    let mut v = c_times_quotient[i] as u32 + remainder_bytes[i] as u32
-                        - carry_ary[i] * base;
-                    if i > 0 {
-                        v += carry_ary[i - 1];
-                    }
-                }
-
-                // The lower 4 bytes of the result must match the corresponding bytes in b.
-                // result = c * quotient + remainder, so it must equal b.
-                for i in 0..WORD_SIZE {
-                    debug_assert_eq!(b_word[i] as u32, result[i]);
                 }
 
                 row
