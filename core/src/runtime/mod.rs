@@ -75,9 +75,7 @@ pub struct Runtime {
 
     /// Global information needed for "global" chips, like memory argument. It's a bit wrong
     /// to call this a segment, but oh well.
-    pub first_memory_record: Vec<(u32, MemoryRecord)>,
-    pub last_memory_record: Vec<(u32, MemoryRecord)>,
-    pub program_memory_used: BTreeMap<(u32, u32), u32>,
+    pub global_segment: Segment,
 
     #[allow(non_snake_case)]
     pub SEGMENT_SIZE: u32,
@@ -102,9 +100,7 @@ impl Runtime {
             segment,
             record: Record::default(),
             SEGMENT_SIZE: 10000,
-            first_memory_record: Vec::new(),
-            last_memory_record: Vec::new(),
-            program_memory_used: BTreeMap::new(),
+            global_segment: Segment::default(),
         }
     }
 
@@ -766,6 +762,7 @@ impl Runtime {
                         segment: 0,
                         timestamp: 0,
                     },
+                    1,
                 ));
             }
 
@@ -776,12 +773,29 @@ impl Runtime {
                     segment,
                     timestamp,
                 },
+                1,
             ))
         }
 
-        self.first_memory_record = first_memory_record;
-        self.last_memory_record = last_memory_record;
-        self.program_memory_used = program_memory_used;
+        let mut program_memory_record = program_memory_used
+            .iter()
+            .map(|(&(addr, value), &used)| {
+                (
+                    addr,
+                    MemoryRecord {
+                        value: value,
+                        segment: 0,
+                        timestamp: 0,
+                    },
+                    used,
+                )
+            })
+            .collect::<Vec<(u32, MemoryRecord, u32)>>();
+        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
+
+        self.global_segment.first_memory_record = first_memory_record;
+        self.global_segment.last_memory_record = last_memory_record;
+        self.global_segment.program_memory_record = program_memory_record;
     }
 }
 

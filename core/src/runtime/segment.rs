@@ -13,12 +13,6 @@ pub struct Segment {
 
     pub program: Program,
 
-    /// The first memory record for each address.
-    pub first_memory_record: Vec<(u32, MemoryRecord)>,
-
-    /// The last memory record for each address.
-    pub last_memory_record: Vec<(u32, MemoryRecord)>,
-
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
 
@@ -45,6 +39,12 @@ pub struct Segment {
 
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+
+    /// Information needed for global chips.
+    /// This shouldn't really be in a "Segment"...
+    pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 }
 
 impl Segment {

@@ -1,24 +1,25 @@
 use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
-use crate::memory::MemoryInitChip;
-
-use crate::program::ProgramChip;
-use crate::prover::generate_permutation_trace;
-use crate::prover::quotient_values;
-use crate::runtime::Segment;
-use crate::utils::AirChip;
-use p3_challenger::{CanObserve, FieldChallenger};
-use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_uni_stark::decompose_and_flatten;
-use p3_util::log2_ceil_usize;
+use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::memory::MemoryChipKind;
+use crate::program::ProgramChip;
 use crate::prover::debug_constraints;
+use crate::prover::generate_permutation_trace;
+use crate::prover::quotient_values;
 use crate::runtime::Runtime;
+use crate::runtime::Segment;
+use crate::utils::AirChip;
+use crate::utils::Chip;
+use p3_challenger::{CanObserve, FieldChallenger};
+use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use p3_uni_stark::decompose_and_flatten;
 use p3_uni_stark::StarkConfig;
+use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
 use crate::prover::debug_cumulative_sums;
@@ -58,20 +59,34 @@ impl Runtime {
             challenger.observe(main_data.main_commit.clone());
         });
 
+        // We clone the challenger so that each segment can observe the same "global" challenges.
         let proofs = segment_main_data
             .iter()
-            .map(|main_data| Segment::prove(config, challenger, &main_data))
+            .map(|main_data| Segment::prove(config, &mut challenger.clone(), &main_data))
             .collect::<Vec<_>>();
 
-        // let cumulative_bus_sum = bus_sum.sum();
+        // TODO: clean up this duplicated code.
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        let init_chip = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let finalize_chip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
 
-        // TODO: change MemoryInitChip and MemoryFinalizeChip to take in a "GlobalSegment" information.
-        let program_memory_init = MemoryInitChip { init: true }; // This is the global "program" memory initialization.
-        let init_chip = MemoryInitChip { init: true }; // This is the dynamic init chip for all addresses that are touched.
-        let finalize_chip = MemoryInitChip { init: false };
+        let traces = [
+            program_memory_init.generate_trace(&mut self.global_segment),
+            init_chip.generate_trace(&mut self.global_segment),
+            finalize_chip.generate_trace(&mut self.global_segment),
+        ]
+        .to_vec();
 
+        let (main_commit, main_data) = config.pcs().commit_batches(traces.clone());
+        let global_data = MainData {
+            traces,
+            main_commit,
+            main_data,
+        };
+        let global_proof = Segment::prove(config, &mut challenger.clone(), &global_data);
+
+        // TODO: from the global_proof, make sure that the cumulative sum is 0.
         // Compute the cumulative bus sum from all segments
-        // Add the program_memory_init (fixed) + init_chip + finalize_chip to the cumulative bus sum.
         // Make sure that this cumulative bus sum is 0.
         // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
     }
