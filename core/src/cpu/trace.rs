@@ -32,15 +32,10 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         let mut new_blu_events = Vec::new();
         let mut new_alu_events = HashMap::new();
 
-        let mut opcode_histogram = HashMap::new();
-
         let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| {
-                *opcode_histogram.entry(op.instruction.opcode).or_insert(0) += 1;
-                self.event_to_row(*op, &mut new_alu_events, &mut new_blu_events)
-            })
+            .map(|op| self.event_to_row(*op, &mut new_alu_events, &mut new_blu_events))
             .collect::<Vec<_>>();
 
         segment.add_alu_events(new_alu_events);
