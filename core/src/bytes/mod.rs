@@ -1,6 +1,7 @@
 pub mod air;
 mod event;
 mod trace;
+pub mod utils;
 
 use core::borrow::BorrowMut;
 
@@ -20,6 +21,8 @@ use crate::{
     utils::Chip,
 };
 
+use self::utils::shr_carry;
+
 /// A chip for computing byte operations.
 ///
 /// The chip contains a preprocessed table of all possible byte operations. Other chips can then
@@ -38,32 +41,34 @@ pub struct ByteChip<F> {
     initial_trace: RowMajorMatrix<F>,
 }
 
-pub const NUM_BYTE_OPS: usize = 5;
+pub const NUM_BYTE_OPS: usize = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteOpcode {
     /// Bitwise AND.
-    And = 0,
+    AND = 0,
     /// Bitwise OR.
-    Or = 1,
+    OR = 1,
     /// Bitwise XOR.
-    Xor = 2,
+    XOR = 2,
     /// Bit-shift Left.
     ///
     /// This operation shifts by the first three least significant bits of the second byte.
     SLL = 3,
     /// Range check.
-    Range = 5,
+    Range = 4,
+    ShrCarry = 5,
 }
 
 impl ByteOpcode {
     pub fn get_all() -> Vec<Self> {
         let opcodes = vec![
-            ByteOpcode::And,
-            ByteOpcode::Or,
-            ByteOpcode::Xor,
+            ByteOpcode::AND,
+            ByteOpcode::OR,
+            ByteOpcode::XOR,
             ByteOpcode::SLL,
             ByteOpcode::Range,
+            ByteOpcode::ShrCarry,
         ];
         // Make sure we included all the enum variants.
         assert_eq!(opcodes.len(), NUM_BYTE_OPS);
@@ -90,7 +95,9 @@ impl<F: Field> ByteChip<F> {
         let opcodes = ByteOpcode::get_all();
 
         // Iterate over all options for pairs of bytes `a` and `b`.
-        for (row_index, (b, c)) in (0..u8::MAX).cartesian_product(0..u8::MAX).enumerate() {
+        for (row_index, (b, c)) in (0..=u8::MAX).cartesian_product(0..=u8::MAX).enumerate() {
+            let b = b as u8;
+            let c = c as u8;
             let col: &mut ByteCols<F> = initial_trace.row_mut(row_index).borrow_mut();
 
             // Set the values of `a` and `b`.
@@ -100,27 +107,33 @@ impl<F: Field> ByteChip<F> {
             // Iterate over all operations for results and updating the table map.
             for (i, opcode) in opcodes.iter().enumerate() {
                 let event = match opcode {
-                    ByteOpcode::And => {
+                    ByteOpcode::AND => {
                         let and = b & c;
                         col.and = F::from_canonical_u8(and);
-                        ByteLookupEvent::new(*opcode, and, b, c)
+                        ByteLookupEvent::new(*opcode, and, 0, b, c)
                     }
-                    ByteOpcode::Or => {
+                    ByteOpcode::OR => {
                         let or = b | c;
                         col.or = F::from_canonical_u8(or);
-                        ByteLookupEvent::new(*opcode, or, b, c)
+                        ByteLookupEvent::new(*opcode, or, 0, b, c)
                     }
-                    ByteOpcode::Xor => {
+                    ByteOpcode::XOR => {
                         let xor = b ^ c;
                         col.xor = F::from_canonical_u8(xor);
-                        ByteLookupEvent::new(*opcode, xor, b, c)
+                        ByteLookupEvent::new(*opcode, xor, 0, b, c)
                     }
                     ByteOpcode::SLL => {
                         let sll = b << (c & 7);
                         col.sll = F::from_canonical_u8(sll);
-                        ByteLookupEvent::new(*opcode, sll, b, c)
+                        ByteLookupEvent::new(*opcode, sll, 0, b, c)
                     }
-                    ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, b, c),
+                    ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, 0, b, c),
+                    ByteOpcode::ShrCarry => {
+                        let (res, carry) = shr_carry(b, c);
+                        col.shr = F::from_canonical_u8(res);
+                        col.shr_carry = F::from_canonical_u8(carry);
+                        ByteLookupEvent::new(*opcode, res, carry, b, c)
+                    }
                 };
                 event_map.insert(event, (row_index, i));
             }
@@ -142,9 +155,9 @@ impl<F: Field> Chip<F> for ByteChip<F> {
 impl From<Opcode> for ByteOpcode {
     fn from(value: Opcode) -> Self {
         match value {
-            Opcode::AND => Self::And,
-            Opcode::OR => Self::Or,
-            Opcode::XOR => Self::Xor,
+            Opcode::AND => Self::AND,
+            Opcode::OR => Self::OR,
+            Opcode::XOR => Self::XOR,
             Opcode::SLL => Self::SLL,
             _ => panic!("Invalid opcode for ByteChip: {:?}", value),
         }

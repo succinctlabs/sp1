@@ -4,6 +4,7 @@ use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
 use crate::memory::MemoryChipKind;
+use crate::precompiles::sha256_extend::ShaExtendChip;
 use crate::program::ProgramChip;
 use crate::prover::debug_constraints;
 use crate::prover::generate_permutation_trace;
@@ -78,7 +79,7 @@ impl Runtime {
 struct Prover {}
 
 impl Prover {
-    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 9]
+    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 10]
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -94,6 +95,7 @@ impl Prover {
         let left_shift = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
+        let sha_extend = ShaExtendChip::new();
         [
             Box::new(program),
             Box::new(cpu),
@@ -103,6 +105,7 @@ impl Prover {
             Box::new(right_shift),
             Box::new(left_shift),
             Box::new(lt),
+            Box::new(sha_extend),
             Box::new(bytes),
         ]
     }
@@ -308,6 +311,7 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Program;
@@ -383,6 +387,12 @@ pub mod tests {
     #[test]
     fn test_simple_prove() {
         let program = simple_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_ecall_lwa_prove() {
+        let program = ecall_lwa_program();
         prove(program);
     }
 
