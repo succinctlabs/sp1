@@ -6,7 +6,7 @@ use std::iter::once;
 
 pub use bool::Bool;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
-use p3_field::{AbstractField, Field};
+use p3_field::AbstractField;
 pub use word::Word;
 
 use crate::cpu::air::MemoryAccessCols;
@@ -37,6 +37,11 @@ pub struct AirInteraction<E> {
 pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
+    }
+
+    // Warning: This function doesn't do a boolean range check on the input.
+    fn not<I: Into<Self::Expr>>(&mut self, value: I) -> Self::Expr {
+        Self::Expr::from(Self::F::one()) - value.into()
     }
 
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {

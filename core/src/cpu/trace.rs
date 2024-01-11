@@ -183,97 +183,67 @@ impl CpuChip {
             let branch_columns: &mut BranchColumns<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
-            let branching;
-            match event.instruction.opcode {
-                Opcode::BEQ => branching = event.a == event.b,
-                Opcode::BNE => {
-                    branching = event.a != event.b;
-                    let a_minus_b = event.a.wrapping_sub(event.b);
-                    branch_columns.a_minus_b = a_minus_b.into();
+            let a_eq_b = event.a == event.b;
 
-                    let sub_event = AluEvent {
-                        clk: event.clk,
-                        opcode: Opcode::SUB,
-                        a: a_minus_b,
-                        b: event.a,
-                        c: event.b,
-                    };
+            let use_signed_comparison = match event.instruction.opcode {
+                Opcode::BLT | Opcode::BGE => true,
+                _ => false,
+            };
 
-                    alu_events
-                        .entry(Opcode::SUB)
-                        .and_modify(|op_new_events| op_new_events.push(sub_event))
-                        .or_insert(vec![sub_event]);
+            let a_lt_b = if use_signed_comparison {
+                (event.a as i32) < (event.b as i32)
+            } else {
+                event.a < event.b
+            };
+            let a_gt_b = if use_signed_comparison {
+                (event.a as i32) > (event.b as i32)
+            } else {
+                event.a > event.b
+            };
 
-                    let sltu_event = AluEvent {
-                        clk: event.clk,
-                        opcode: Opcode::SLTU,
-                        a: branching as u32,
-                        b: 0,
-                        c: a_minus_b,
-                    };
+            let alu_op_code = if use_signed_comparison {
+                Opcode::SLT
+            } else {
+                Opcode::SLTU
+            };
+            // Add the ALU events for the comparisons
+            let lt_comp_event = AluEvent {
+                clk: event.clk,
+                opcode: alu_op_code,
+                a: a_lt_b as u32,
+                b: event.a,
+                c: event.b,
+            };
 
-                    alu_events
-                        .entry(Opcode::SLTU)
-                        .and_modify(|op_new_events| op_new_events.push(sltu_event))
-                        .or_insert(vec![sltu_event]);
-                }
-                Opcode::BLT | Opcode::BLTU => {
-                    let alu_opcode: Opcode;
-                    if event.instruction.opcode == Opcode::BLT {
-                        branching = (event.a as i32) < (event.b as i32);
-                        alu_opcode = Opcode::SLT;
-                    } else {
-                        // Opcode::BLTU case
-                        branching = event.a < event.b;
-                        alu_opcode = Opcode::SLTU;
-                    };
+            alu_events
+                .entry(alu_op_code)
+                .and_modify(|op_new_events| op_new_events.push(lt_comp_event))
+                .or_insert(vec![lt_comp_event]);
 
-                    let slt_event = AluEvent {
-                        clk: event.clk,
-                        opcode: alu_opcode,
-                        a: branching as u32,
-                        b: event.a,
-                        c: event.b,
-                    };
+            let gt_comp_event = AluEvent {
+                clk: event.clk,
+                opcode: alu_op_code,
+                a: a_gt_b as u32,
+                b: event.b,
+                c: event.a,
+            };
 
-                    alu_events
-                        .entry(alu_opcode)
-                        .and_modify(|op_new_events| op_new_events.push(slt_event))
-                        .or_insert(vec![slt_event]);
-                }
-                Opcode::BGE | Opcode::BGEU => {
-                    let a_gt_b: bool;
-                    let alu_opcode: Opcode;
+            alu_events
+                .entry(alu_op_code)
+                .and_modify(|op_new_events| op_new_events.push(gt_comp_event))
+                .or_insert(vec![gt_comp_event]);
 
-                    if event.instruction.opcode == Opcode::BGE {
-                        branching = (event.a as i32) >= (event.b as i32);
-                        a_gt_b = (event.a as i32) > (event.b as i32);
-                        alu_opcode = Opcode::SLT;
-                    } else {
-                        // Opcode::BGEU case
-                        branching = event.a >= event.b;
-                        a_gt_b = event.a > event.b;
-                        alu_opcode = Opcode::SLTU;
-                    };
+            branch_columns.a_eq_b = F::from_bool(a_eq_b);
+            branch_columns.a_lt_b = F::from_bool(a_lt_b);
+            branch_columns.a_gt_b = F::from_bool(a_gt_b);
 
-                    branch_columns.a_gt_b = F::from_bool(a_gt_b);
-                    branch_columns.a_eq_b = F::from_bool(event.a == event.b);
-
-                    let slt_event = AluEvent {
-                        clk: event.clk,
-                        opcode: alu_opcode,
-                        a: a_gt_b as u32,
-                        b: event.b,
-                        c: event.a,
-                    };
-
-                    alu_events
-                        .entry(Opcode::SLT)
-                        .and_modify(|op_new_events| op_new_events.push(slt_event))
-                        .or_insert(vec![slt_event]);
-                }
+            let branching = match event.instruction.opcode {
+                Opcode::BEQ => a_eq_b,
+                Opcode::BNE => !a_eq_b,
+                Opcode::BLT | Opcode::BLTU => a_lt_b,
+                Opcode::BGE | Opcode::BGEU => a_gt_b,
                 _ => unreachable!(),
-            }
+            };
 
             if branching {
                 let next_pc = event.pc.wrapping_add(event.c);
