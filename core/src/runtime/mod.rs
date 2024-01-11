@@ -42,6 +42,7 @@ pub struct Record {
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
+#[allow(non_snake_case)]
 pub struct Runtime {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
@@ -73,6 +74,11 @@ pub struct Runtime {
     /// The current record for the CPU event,
     pub record: Record,
 
+    /// Global information needed for "global" chips, like the memory argument. It's a bit
+    /// semantically incorrect to have this as a "Segment", since it's not really a segment
+    /// in the traditional sense.
+    pub global_segment: Segment,
+
     /// The maximum size of each segment.
     pub segment_size: u32,
 }
@@ -96,6 +102,7 @@ impl Runtime {
             segment,
             record: Record::default(),
             segment_size: 10000,
+            global_segment: Segment::default(),
         }
     }
 
@@ -268,8 +275,11 @@ impl Runtime {
             Opcode::XOR | Opcode::OR | Opcode::AND => {
                 self.segment.bitwise_events.push(event);
             }
-            Opcode::SLL | Opcode::SRL | Opcode::SRA => {
-                self.segment.shift_events.push(event);
+            Opcode::SLL => {
+                self.segment.shift_left_events.push(event);
+            }
+            Opcode::SRL | Opcode::SRA => {
+                self.segment.shift_right_events.push(event);
             }
             Opcode::SLT | Opcode::SLTU => {
                 self.segment.lt_events.push(event);
@@ -397,17 +407,17 @@ impl Runtime {
             }
             Opcode::SLL => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = b << c;
+                a = b.wrapping_shl(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRL => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = b >> c;
+                a = b.wrapping_shr(c);
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SRA => {
                 (rd, b, c) = self.alu_rr(instruction);
-                a = (b as i32 >> c) as u32;
+                a = (b as i32).wrapping_shr(c) as u32;
                 self.alu_rw(instruction, rd, a, b, c);
             }
             Opcode::SLT => {
@@ -816,25 +826,52 @@ impl Runtime {
             }
         }
 
+        // Push the last segment.
+        // TODO: edge case where the last segment is empty.
+        self.segments.push(self.segment.clone());
+
         // Right now we only do 1 segment.
-        assert_eq!(self.segments.len(), 0);
+        assert_eq!(self.segments.len(), 1);
+
+        // Call postprocess to set up all variables needed for global accounts, like memory
+        // argument or any other deferred tables.
+        self.postprocess();
+    }
+
+    fn postprocess(&mut self) {
+        let mut program_memory_used = BTreeMap::new();
+        for (key, value) in &self.program.memory_image {
+            // By default we assume that the program_memory is used.
+            program_memory_used.insert((*key, *value), 1);
+        }
+
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
         for (addr, value) in &self.memory {
             let (segment, timestamp) = self.memory_access.get(&addr).unwrap().clone();
             if segment == 0 && timestamp == 0 {
+                // This means that we never accessed this memory location throughout our entire program.
+                // The only way this can happen is if this was in the program memory image.
+                // We mark this (addr, value) as not used in the `program_memory_used` map.
+                program_memory_used.insert((*addr, *value), 0);
                 continue;
             }
-            let initial_value = self.program.memory_image.get(&addr).unwrap_or(&0);
-            first_memory_record.push((
-                *addr,
-                MemoryRecord {
-                    value: *initial_value,
-                    segment: 0,
-                    timestamp: 0,
-                },
-            ));
+            // If the memory addr was accessed, we only add it to "first_memory_record" if it was
+            // not in the program_memory_image, otherwise we'll add to the memory argument from
+            // the program_memory_image table.
+            if !self.program.memory_image.contains_key(addr) {
+                first_memory_record.push((
+                    *addr,
+                    MemoryRecord {
+                        value: 0,
+                        segment: 0,
+                        timestamp: 0,
+                    },
+                    1,
+                ));
+            }
+
             last_memory_record.push((
                 *addr,
                 MemoryRecord {
@@ -842,12 +879,29 @@ impl Runtime {
                     segment,
                     timestamp,
                 },
+                1,
             ))
         }
 
-        self.segment.first_memory_record = first_memory_record;
-        self.segment.last_memory_record = last_memory_record;
-        self.segments.push(self.segment.clone());
+        let mut program_memory_record = program_memory_used
+            .iter()
+            .map(|(&(addr, value), &used)| {
+                (
+                    addr,
+                    MemoryRecord {
+                        value: value,
+                        segment: 0,
+                        timestamp: 0,
+                    },
+                    used,
+                )
+            })
+            .collect::<Vec<(u32, MemoryRecord, u32)>>();
+        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
+
+        self.global_segment.first_memory_record = first_memory_record;
+        self.global_segment.last_memory_record = last_memory_record;
+        self.global_segment.program_memory_record = program_memory_record;
     }
 }
 
@@ -1356,5 +1410,66 @@ pub mod tests {
         simple_op_code_test(Opcode::REMU, 5, 5, 0);
         simple_op_code_test(Opcode::REMU, neg(1), neg(1), 0);
         simple_op_code_test(Opcode::REMU, 0, 0, 0);
+    }
+
+    #[test]
+    fn shift_tests() {
+        simple_op_code_test(Opcode::SLL, 0x00000001, 0x00000001, 0);
+        simple_op_code_test(Opcode::SLL, 0x00000002, 0x00000001, 1);
+        simple_op_code_test(Opcode::SLL, 0x00000080, 0x00000001, 7);
+        simple_op_code_test(Opcode::SLL, 0x00004000, 0x00000001, 14);
+        simple_op_code_test(Opcode::SLL, 0x80000000, 0x00000001, 31);
+        simple_op_code_test(Opcode::SLL, 0xffffffff, 0xffffffff, 0);
+        simple_op_code_test(Opcode::SLL, 0xfffffffe, 0xffffffff, 1);
+        simple_op_code_test(Opcode::SLL, 0xffffff80, 0xffffffff, 7);
+        simple_op_code_test(Opcode::SLL, 0xffffc000, 0xffffffff, 14);
+        simple_op_code_test(Opcode::SLL, 0x80000000, 0xffffffff, 31);
+        simple_op_code_test(Opcode::SLL, 0x21212121, 0x21212121, 0);
+        simple_op_code_test(Opcode::SLL, 0x42424242, 0x21212121, 1);
+        simple_op_code_test(Opcode::SLL, 0x90909080, 0x21212121, 7);
+        simple_op_code_test(Opcode::SLL, 0x48484000, 0x21212121, 14);
+        simple_op_code_test(Opcode::SLL, 0x80000000, 0x21212121, 31);
+        simple_op_code_test(Opcode::SLL, 0x21212121, 0x21212121, 0xffffffe0);
+        simple_op_code_test(Opcode::SLL, 0x42424242, 0x21212121, 0xffffffe1);
+        simple_op_code_test(Opcode::SLL, 0x90909080, 0x21212121, 0xffffffe7);
+        simple_op_code_test(Opcode::SLL, 0x48484000, 0x21212121, 0xffffffee);
+        simple_op_code_test(Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff);
+
+        simple_op_code_test(Opcode::SRL, 0xffff8000, 0xffff8000, 0);
+        simple_op_code_test(Opcode::SRL, 0x7fffc000, 0xffff8000, 1);
+        simple_op_code_test(Opcode::SRL, 0x01ffff00, 0xffff8000, 7);
+        simple_op_code_test(Opcode::SRL, 0x0003fffe, 0xffff8000, 14);
+        simple_op_code_test(Opcode::SRL, 0x0001ffff, 0xffff8001, 15);
+        simple_op_code_test(Opcode::SRL, 0xffffffff, 0xffffffff, 0);
+        simple_op_code_test(Opcode::SRL, 0x7fffffff, 0xffffffff, 1);
+        simple_op_code_test(Opcode::SRL, 0x01ffffff, 0xffffffff, 7);
+        simple_op_code_test(Opcode::SRL, 0x0003ffff, 0xffffffff, 14);
+        simple_op_code_test(Opcode::SRL, 0x00000001, 0xffffffff, 31);
+        simple_op_code_test(Opcode::SRL, 0x21212121, 0x21212121, 0);
+        simple_op_code_test(Opcode::SRL, 0x10909090, 0x21212121, 1);
+        simple_op_code_test(Opcode::SRL, 0x00424242, 0x21212121, 7);
+        simple_op_code_test(Opcode::SRL, 0x00008484, 0x21212121, 14);
+        simple_op_code_test(Opcode::SRL, 0x00000000, 0x21212121, 31);
+        simple_op_code_test(Opcode::SRL, 0x21212121, 0x21212121, 0xffffffe0);
+        simple_op_code_test(Opcode::SRL, 0x10909090, 0x21212121, 0xffffffe1);
+        simple_op_code_test(Opcode::SRL, 0x00424242, 0x21212121, 0xffffffe7);
+        simple_op_code_test(Opcode::SRL, 0x00008484, 0x21212121, 0xffffffee);
+        simple_op_code_test(Opcode::SRL, 0x00000000, 0x21212121, 0xffffffff);
+
+        simple_op_code_test(Opcode::SRA, 0x00000000, 0x00000000, 0);
+        simple_op_code_test(Opcode::SRA, 0xc0000000, 0x80000000, 1);
+        simple_op_code_test(Opcode::SRA, 0xff000000, 0x80000000, 7);
+        simple_op_code_test(Opcode::SRA, 0xfffe0000, 0x80000000, 14);
+        simple_op_code_test(Opcode::SRA, 0xffffffff, 0x80000001, 31);
+        simple_op_code_test(Opcode::SRA, 0x7fffffff, 0x7fffffff, 0);
+        simple_op_code_test(Opcode::SRA, 0x3fffffff, 0x7fffffff, 1);
+        simple_op_code_test(Opcode::SRA, 0x00ffffff, 0x7fffffff, 7);
+        simple_op_code_test(Opcode::SRA, 0x0001ffff, 0x7fffffff, 14);
+        simple_op_code_test(Opcode::SRA, 0x00000000, 0x7fffffff, 31);
+        simple_op_code_test(Opcode::SRA, 0x81818181, 0x81818181, 0);
+        simple_op_code_test(Opcode::SRA, 0xc0c0c0c0, 0x81818181, 1);
+        simple_op_code_test(Opcode::SRA, 0xff030303, 0x81818181, 7);
+        simple_op_code_test(Opcode::SRA, 0xfffe0606, 0x81818181, 14);
+        simple_op_code_test(Opcode::SRA, 0xffffffff, 0x81818181, 31);
     }
 }

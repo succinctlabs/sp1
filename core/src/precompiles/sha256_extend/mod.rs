@@ -152,8 +152,6 @@ pub mod tests {
         runtime.write_witness(&[999]);
         runtime.run();
 
-        runtime
-            .segment
-            .prove::<_, _, MyConfig>(&config, &mut challenger);
+        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 }

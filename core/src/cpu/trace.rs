@@ -1,6 +1,8 @@
 use super::air::{CpuCols, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuEvent, MemoryRecord};
 
+use crate::alu::{self, AluEvent};
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
@@ -24,11 +26,17 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        let mut add_events = Vec::new();
+        let mut blu_events = Vec::new();
+
         let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op))
+            .map(|op| self.event_to_row(*op, &mut add_events, &mut blu_events))
             .collect::<Vec<_>>();
+
+        segment.add_events.extend(add_events);
+        segment.add_byte_lookup_events(blu_events);
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
@@ -40,7 +48,12 @@ impl<F: PrimeField> Chip<F> for CpuChip {
 }
 
 impl CpuChip {
-    fn event_to_row<F: PrimeField>(&self, event: CpuEvent) -> [F; NUM_CPU_COLS] {
+    fn event_to_row<F: PrimeField>(
+        &self,
+        event: CpuEvent,
+        add_events: &mut Vec<alu::AluEvent>,
+        blu_events: &mut Vec<ByteLookupEvent>,
+    ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
         cols.segment = F::from_canonical_u32(event.segment);
@@ -60,8 +73,10 @@ impl CpuChip {
             self.populate_access(&mut cols.memory_access, memory, event.memory_record)
         }
 
-        self.populate_memory(cols, event);
+        self.populate_memory(cols, event, add_events, blu_events);
         self.populate_branch(cols, event);
+
+        cols.is_real = F::one();
 
         row
     }
@@ -81,7 +96,13 @@ impl CpuChip {
         }
     }
 
-    fn populate_memory<F: PrimeField>(&self, cols: &mut CpuCols<F>, event: CpuEvent) {
+    fn populate_memory<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        add_events: &mut Vec<alu::AluEvent>,
+        blu_events: &mut Vec<ByteLookupEvent>,
+    ) {
         let used_memory = match event.instruction.opcode {
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 // TODO: populate memory constraint columns to constraint that
@@ -99,7 +120,39 @@ impl CpuChip {
             let memory_addr = event.b.wrapping_add(event.c);
             cols.addr_word = memory_addr.into();
             cols.addr_aligned = F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
-            cols.addr_offset = F::from_canonical_u32(memory_addr % WORD_SIZE as u32);
+            let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
+            cols.addr_offset = F::from_canonical_u8(addr_offset);
+
+            // Add event to ALU check to check that addr == b + c
+            let event = AluEvent {
+                clk: event.clk,
+                opcode: Opcode::ADD,
+                a: memory_addr,
+                b: event.b,
+                c: event.c,
+            };
+            add_events.push(event);
+
+            // Add event to byte lookup for byte range checking each byte in the memory addr
+            let addr_bytes = memory_addr.to_le_bytes();
+            for byte_pair in addr_bytes.chunks_exact(2) {
+                blu_events.push(ByteLookupEvent {
+                    opcode: ByteOpcode::Range,
+                    a1: 0,
+                    a2: 0,
+                    b: byte_pair[0],
+                    c: byte_pair[1],
+                });
+            }
+
+            // Byte range check addr_offset and addr_offset << 6
+            blu_events.push(ByteLookupEvent {
+                opcode: ByteOpcode::Range,
+                a1: 0,
+                a2: 0,
+                b: addr_offset,
+                c: addr_offset << 6,
+            });
         }
     }
 
