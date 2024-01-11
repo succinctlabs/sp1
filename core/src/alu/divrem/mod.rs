@@ -56,7 +56,7 @@
 //!    assert 0 <= remainder < c
 //!
 //! if is_c_0:
-//!     # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
+//!    # if division by 0, then quotient = 0xffffffff per RISC-V spec. This needs special care since
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
 
