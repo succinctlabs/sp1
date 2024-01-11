@@ -18,6 +18,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
         for i in 0..segment.sha_extend_events.len() {
             let mut event = segment.sha_extend_events[i].clone();
+            let w = &mut event.w;
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
@@ -29,66 +30,50 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
                 self.populate_access(
                     &mut cols.w_i_minus_15,
-                    event.w[16 + j - 15],
+                    w[16 + j - 15],
                     event.w_i_minus_15_records[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_2,
-                    event.w[16 + j - 2],
+                    w[16 + j - 2],
                     event.w_i_minus_2_records[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_16,
-                    event.w[16 + j - 16],
+                    w[16 + j - 16],
                     event.w_i_minus_16_records[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_7,
-                    event.w[16 + j - 7],
+                    w[16 + j - 7],
                     event.w_i_minus_7_records[j],
                 );
 
                 // Compute `s0`.
-                cols.w_i_minus_15_rr_7
-                    .populate(segment, event.w[16 + j - 15], 7);
-                cols.w_i_minus_15_rr_18
-                    .populate(segment, event.w[16 + j - 15], 18);
-                cols.w_i_minus_15_rs_3
-                    .populate(segment, event.w[16 + j - 15], 3);
-                let s0 = cols.s0.populate(
-                    cols.w_i_minus_15_rr_7.value,
-                    cols.w_i_minus_15_rr_18.value,
-                    cols.w_i_minus_15_rs_3.value,
-                );
+                let w_i_minus_15_rr_7 = cols.w_i_minus_15_rr_7.populate(segment, w[16 + j - 15], 7);
+                let w_i_minus_15_rr_18 =
+                    cols.w_i_minus_15_rr_18
+                        .populate(segment, w[16 + j - 15], 18);
+                let w_i_minus_15_rs_3 = cols.w_i_minus_15_rs_3.populate(segment, w[16 + j - 15], 3);
+                let s0 = cols
+                    .s0
+                    .populate(w_i_minus_15_rr_7, w_i_minus_15_rr_18, w_i_minus_15_rs_3);
 
                 // Compute `s1`.
-                cols.w_i_minus_2.value = Word::from(event.w[16 + j - 2]);
-                cols.w_i_minus_2_rr_17
-                    .populate(segment, event.w[16 + j - 2], 17);
-                cols.w_i_minus_2_rr_19
-                    .populate(segment, event.w[16 + j - 2], 19);
-                cols.w_i_minus_2_rs_10
-                    .populate(segment, event.w[16 + j - 2], 10);
-                let s1 = cols.s1.populate(
-                    cols.w_i_minus_2_rr_17.value,
-                    cols.w_i_minus_2_rr_19.value,
-                    cols.w_i_minus_2_rs_10.value,
-                );
+                cols.w_i_minus_2.value = Word::from(w[16 + j - 2]);
+                let w_i_minus_2_rr_17 = cols.w_i_minus_2_rr_17.populate(segment, w[16 + j - 2], 17);
+                let w_i_minus_2_rr_19 = cols.w_i_minus_2_rr_19.populate(segment, w[16 + j - 2], 19);
+                let w_i_minus_2_rs_10 = cols.w_i_minus_2_rs_10.populate(segment, w[16 + j - 2], 10);
+                let s1 = cols
+                    .s1
+                    .populate(w_i_minus_2_rr_17, w_i_minus_2_rr_19, w_i_minus_2_rs_10);
 
                 // Compute `s2`.
-                cols.w_i_minus_16.value = Word::from(event.w[16 + j - 16]);
-                cols.w_i_minus_7.value = Word::from(event.w[16 + j - 7]);
-                cols.s2
-                    .populate(event.w[16 + j - 16], s0, event.w[16 + j - 7], s1);
+                let s2 = cols.s2.populate(w[16 + j - 16], s0, w[16 + j - 7], s1);
 
                 // Write `s2` to `w[i]`.
-                event.w[16 + j] = u32::from_le_bytes(
-                    cols.s2
-                        .value
-                        .0
-                        .map(|x| x.to_string().parse::<u8>().unwrap()),
-                );
-                self.populate_access(&mut cols.w_i, event.w[16 + j], event.w_i_records[j]);
+                w[16 + j] = s2;
+                self.populate_access(&mut cols.w_i, w[16 + j], event.w_i_records[j]);
 
                 cols.is_real = F::one();
                 rows.push(row);
