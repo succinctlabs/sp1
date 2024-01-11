@@ -154,15 +154,17 @@ impl DivRemChip {
     }
 }
 
+/// Returns `true` if the given `opcode` is a signed operation.
 fn is_signed_operation(opcode: Opcode) -> bool {
     opcode == Opcode::DIV || opcode == Opcode::REM
 }
 
+/// Calculate the correct `quotient` and `remainder` for the given `b` and `c` per RISC-V spec.
 fn get_quotient_and_remainder(b: u32, c: u32, opcode: Opcode) -> (u32, u32) {
     if c == 0 {
-        // When c is 0, the quotient is 2^32 - 1 and the remainder is b
-        // regardless of whether we perform signed or unsigned division.
-        (0xffff_ffff, b)
+        // When c is 0, the quotient is 2^32 - 1 and the remainder is b regardless of whether we
+        // perform signed or unsigned division.
+        (u32::MAX, b)
     } else if is_signed_operation(opcode) {
         (
             (b as i32).wrapping_div(c as i32) as u32,
@@ -433,7 +435,7 @@ where
 
         // Add remainder to product c * quotient, and compare it to b.
         {
-            let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
+            let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u8(u8::MAX);
             let mut c_times_quotient_plus_remainder: Vec<AB::Expr> =
                 vec![AB::F::zero().into(); LONG_WORD_SIZE];
 
@@ -474,7 +476,7 @@ where
                         .when(local.b_neg)
                         .assert_eq(
                             c_times_quotient_plus_remainder[i].clone(),
-                            AB::F::from_canonical_u32(0xff),
+                            AB::F::from_canonical_u8(u8::MAX),
                         );
                     builder
                         .when(not_overflow.clone())
@@ -544,12 +546,12 @@ where
 
             // We checked that is_c_0 is true if and only if c = 0.
 
-            // Finally, ensure that if is_c_0 is true, then quotient = 0xffffffff.
+            // Finally, ensure that if is_c_0 is true, then quotient = 0xffffffff = u32::MAX.
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.is_c_0.clone())
                     .when(local.is_divu.clone() + local.is_div.clone())
-                    .assert_eq(local.quotient[i], AB::F::from_canonical_u32(0xff));
+                    .assert_eq(local.quotient[i], AB::F::from_canonical_u8(u8::MAX));
             }
         }
 
