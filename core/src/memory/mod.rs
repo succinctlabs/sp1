@@ -241,7 +241,7 @@ mod tests {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
         }
-        let program = sha_extend_program();
+        let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();

@@ -118,7 +118,11 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         }
 
         let nb_rows = rows.len();
-        for i in nb_rows..nb_rows.next_power_of_two() {
+        let mut padded_nb_rows = nb_rows.next_power_of_two();
+        if padded_nb_rows == 2 {
+            padded_nb_rows = 4;
+        }
+        for i in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
             let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
             cols.populate_flags(i);

@@ -58,7 +58,7 @@ where
                 + AB::F::from_canonical_u32(4),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * AB::F::from_canonical_u32(4),
             local.w_i_minus_2,
-            AB::F::one(),
+            local.is_real,
         );
 
         // Read w[i-16].
@@ -69,7 +69,7 @@ where
                 + AB::F::from_canonical_u32(8),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * AB::F::from_canonical_u32(4),
             local.w_i_minus_16,
-            AB::F::one(),
+            local.is_real,
         );
 
         // Read w[i-7].
@@ -80,7 +80,7 @@ where
                 + AB::F::from_canonical_u32(12),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * AB::F::from_canonical_u32(4),
             local.w_i_minus_7,
-            AB::F::one(),
+            local.is_real,
         );
 
         // Compute `s0`.
@@ -155,7 +155,7 @@ where
                 + AB::F::from_canonical_u32(16),
             local.w_ptr + local.i * AB::F::from_canonical_u32(4),
             local.w_i,
-            AB::F::one(),
+            local.is_real,
         );
     }
 }
