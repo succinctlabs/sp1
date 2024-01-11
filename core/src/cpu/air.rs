@@ -74,6 +74,9 @@ pub struct CpuCols<T> {
 
     // This is transmuted to MemoryColumns or BNEColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
+
+    // This is an opcode_specific_column (used for branch ops), but it is needed for a multiplicity
+    // condition, which must be a degree of 1, so can't be embedded within the opcode_specific_columns.
     pub branching: T,
 
     // Selector to label whether this row is a non padded row.
