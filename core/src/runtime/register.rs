@@ -70,7 +70,7 @@ impl Register {
             29 => Register::X29,
             30 => Register::X30,
             31 => Register::X31,
-            _ => panic!("Invalid register"),
+            _ => panic!("invalid register {}", value),
         }
     }
 }

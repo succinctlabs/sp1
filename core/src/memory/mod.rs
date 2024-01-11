@@ -3,6 +3,7 @@ use crate::utils::{pad_to_power_of_two, Chip};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
+use crate::runtime::Segment;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::Air;
@@ -12,49 +13,50 @@ use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
-use crate::runtime::Segment;
-
-pub struct MemoryInitChip {
-    pub init: bool,
+#[derive(PartialEq)]
+pub enum MemoryChipKind {
+    Init,
+    Finalize,
+    Program,
 }
 
-impl MemoryInitChip {
-    pub fn new(init: bool) -> Self {
-        Self { init }
+pub struct MemoryGlobalChip {
+    pub kind: MemoryChipKind,
+}
+
+impl MemoryGlobalChip {
+    pub fn new(kind: MemoryChipKind) -> Self {
+        Self { kind }
     }
 }
 
-impl<F> BaseAir<F> for MemoryInitChip {
+impl<F> BaseAir<F> for MemoryGlobalChip {
     fn width(&self) -> usize {
         NUM_MEMORY_INIT_COLS
     }
 }
 
-impl<F: PrimeField> Chip<F> for MemoryInitChip {
+impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
     fn name(&self) -> String {
         "MemoryInit".to_string()
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        assert_eq!(
-            segment.first_memory_record.len(),
-            segment.last_memory_record.len()
-        );
-        let len = segment.first_memory_record.len();
-        let rows = (0..len) // TODO: change this back to par_iter
+        let memory_record = match self.kind {
+            MemoryChipKind::Init => &segment.first_memory_record,
+            MemoryChipKind::Finalize => &segment.last_memory_record,
+            MemoryChipKind::Program => &segment.program_memory_record,
+        };
+        let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
             .map(|i| {
-                let (addr, record) = if self.init {
-                    segment.first_memory_record[i]
-                } else {
-                    segment.last_memory_record[i]
-                };
+                let (addr, record, multiplicity) = memory_record[i];
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = unsafe { transmute(&mut row) };
                 cols.addr = F::from_canonical_u32(addr);
                 cols.segment = F::from_canonical_u32(record.segment);
                 cols.timestamp = F::from_canonical_u32(record.timestamp);
                 cols.value = record.value.into();
-                cols.is_real = F::one();
+                cols.is_real = F::from_canonical_u32(multiplicity);
                 row
             })
             .collect::<Vec<_>>();
@@ -89,7 +91,7 @@ const fn make_col_map() -> MemoryInitCols<usize> {
     unsafe { transmute::<[usize; NUM_MEMORY_INIT_COLS], MemoryInitCols<usize>>(indices_arr) }
 }
 
-impl<AB> Air<AB> for MemoryInitChip
+impl<AB> Air<AB> for MemoryGlobalChip
 where
     AB: CurtaAirBuilder,
 {
@@ -103,7 +105,7 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        if self.init {
+        if self.kind == MemoryChipKind::Init || self.kind == MemoryChipKind::Program {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));
             builder.receive(AirInteraction::new(
@@ -136,9 +138,12 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::{AbstractField, Field};
 
+    use crate::bytes::ByteChip;
     use crate::cpu::trace::CpuChip;
     use crate::lookup::{debug_interactions, InteractionKind};
-    use crate::memory::MemoryInitChip;
+    use crate::memory::MemoryGlobalChip;
+    use crate::precompiles::sha256_extend::tests::sha_extend_program;
+    use crate::precompiles::sha256_extend::ShaExtendChip;
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
@@ -152,7 +157,8 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
 
-    use crate::runtime::tests::{fibonacci_program, simple_program};
+    use super::*;
+    use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
     use crate::utils::Chip;
 
@@ -163,18 +169,18 @@ mod tests {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let mut segment = runtime.segment.clone();
+        let mut segment = runtime.global_segment.clone();
 
-        let chip: MemoryInitChip = MemoryInitChip::new(true);
+        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values);
 
-        let chip: MemoryInitChip = MemoryInitChip::new(false);
+        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values);
 
-        for (addr, record) in segment.last_memory_record {
+        for (addr, record, _) in segment.last_memory_record {
             println!("{:?} {:?}", addr, record);
         }
     }
@@ -225,7 +231,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let chip = MemoryInitChip::new(true);
+        let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
@@ -239,11 +245,12 @@ mod tests {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
         }
-        let program = fibonacci_program();
+        let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[999]);
         runtime.run();
 
-        let memory_init_chip: MemoryInitChip = MemoryInitChip::new(true);
+        let memory_init_chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
         println!("Memory init chip interactions");
         let (_, init_count) = debug_interactions::<BabyBear, _>(
             memory_init_chip,
@@ -252,7 +259,7 @@ mod tests {
         );
 
         println!("Memory finalize chip interactions");
-        let memory_finalize_chip = MemoryInitChip::new(false);
+        let memory_finalize_chip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let (_, finalize_count) = debug_interactions::<BabyBear, _>(
             memory_finalize_chip,
             &mut runtime.segment,
@@ -267,13 +274,63 @@ mod tests {
             InteractionKind::Memory,
         );
 
+        println!("SHA interactions");
+        let sha256_extend = ShaExtendChip::new();
+        let (_, sha_extend_count) = debug_interactions::<BabyBear, _>(
+            sha256_extend,
+            &mut runtime.segment,
+            InteractionKind::Memory,
+        );
+
         let mut final_map = BTreeMap::new();
 
         for (key, value) in init_count
             .iter()
             .chain(finalize_count.iter())
             .chain(cpu_count.iter())
+            .chain(sha_extend_count.iter())
         {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+
+        println!("Final counts");
+
+        for (key, value) in final_map {
+            if !value.is_zero() {
+                println!("Key {} Value {}", key, value);
+            }
+        }
+    }
+
+    #[test]
+    fn test_byte_lookup_interactions() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
+        let program = sha_extend_program();
+        let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[999]);
+        runtime.run();
+
+        println!("SHA interactions");
+        let sha256_extend = ShaExtendChip::new();
+        let (_, sha_extend_count) = debug_interactions::<BabyBear, _>(
+            sha256_extend,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        let byte_chip = ByteChip::new();
+        println!("Byte chip interactions");
+        let (_, byte_count) = debug_interactions::<BabyBear, _>(
+            byte_chip,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        let mut final_map = BTreeMap::new();
+
+        for (key, value) in byte_count.iter().chain(sha_extend_count.iter()) {
             *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
         }
 

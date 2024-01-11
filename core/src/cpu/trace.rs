@@ -155,7 +155,8 @@ impl CpuChip {
             for byte_pair in addr_bytes.chunks_exact(2) {
                 new_blu_events.push(ByteLookupEvent {
                     opcode: ByteOpcode::Range,
-                    a: 0,
+                    a1: 0,
+                    a2: 0,
                     b: byte_pair[0],
                     c: byte_pair[1],
                 });
@@ -164,7 +165,8 @@ impl CpuChip {
             // Byte range check addr_offset and addr_offset << 6
             new_blu_events.push(ByteLookupEvent {
                 opcode: ByteOpcode::Range,
-                a: 0,
+                a1: 0,
+                a2: 0,
                 b: addr_offset,
                 c: addr_offset << 6,
             });
