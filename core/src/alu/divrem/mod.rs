@@ -433,13 +433,15 @@ where
             );
         }
 
-        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1)
+        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1).
 
         // Add remainder to product c * quotient, and compare it to b.
         {
             let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u32(0xff);
             let mut c_times_quotient_plus_remainder: Vec<AB::Expr> =
                 vec![AB::F::zero().into(); LONG_WORD_SIZE];
+
+            // Add remainder to c_times_quotient and propagate carry.
             for i in 0..LONG_WORD_SIZE {
                 c_times_quotient_plus_remainder[i] = local.c_times_quotient[i].into();
 
@@ -458,8 +460,8 @@ where
                 }
             }
 
+            // Compare c_times_quotient_plus_remainder to b by checking each limb.
             for i in 0..LONG_WORD_SIZE {
-                // Compare v to b[i].
                 if i < WORD_SIZE {
                     // The lower 4 bytes of the result must match the corresponding bytes in b.
                     builder.when(local.is_real).assert_eq(
@@ -561,7 +563,7 @@ where
             let is_unsigned = local.is_divu + local.is_remu;
 
             // abs(remainder) + remainder = 0 if remainder is negative. We check that by checking
-            // each limb.
+            // each limb. abs(remainder) = remainder if remainder is not negative.
             for i in 0..WORD_SIZE {
                 let exp_sum_if_signed = {
                     if i == 0 {
@@ -581,7 +583,8 @@ where
                     .assert_eq(local.remainder[i].clone(), local.abs_remainder[i].clone());
             }
 
-            // abs(c) + c = 0 if c is negative. We check that by checking each limb.
+            // abs(c) + c = 0 if c is negative. We check that by checking each limb. abs(c) = c if c
+            // is not negative.
             for i in 0..WORD_SIZE {
                 let exp_sum_if_signed = {
                     if i == 0 {
@@ -601,9 +604,8 @@ where
                     .assert_eq(local.c[i].clone(), local.abs_c[i].clone());
             }
 
-            // Calculate max(abs(c), 1).
+            // max(abs(c), 1) = abs(c) * (1 - division_by_0) + 1 * division_by_0
             let max_abs_c_or_1: Word<AB::Expr> = {
-                // max(abs(c), 1) = abs(c) * (1 - division_by_0) + 1 * division_by_0
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
                 // Set the least significant byte to 1 if division_by_0 is true.
@@ -623,7 +625,8 @@ where
                 is_signed * slt + is_unsigned * sltu
             };
 
-            // Dispatch abs(remainder) < max(abs(c), 1).
+            // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
+            // abs(c) if not division by 0.
             builder.send_alu(
                 opcode,
                 Word([zero.clone(), zero.clone(), zero.clone(), one.clone()]),
