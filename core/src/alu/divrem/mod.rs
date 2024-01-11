@@ -91,6 +91,7 @@ fn get_msb(a: u32) -> u8 {
 pub struct DivRemCols<T> {
     /// The output operand.
     pub a: Word<T>,
+
     /// The first input operand.
     pub b: Word<T>,
 
