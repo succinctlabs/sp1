@@ -401,17 +401,6 @@ impl CpuChip {
             .when(is_branch_instruction.clone())
             .assert_bool(local.branching);
 
-        // Boolean range check the helper bools
-        builder
-            .when(is_branch_instruction.clone())
-            .assert_bool(branch_columns.a_eq_b);
-        builder
-            .when(is_branch_instruction.clone())
-            .assert_bool(branch_columns.a_gt_b);
-        builder
-            .when(is_branch_instruction.clone())
-            .assert_bool(branch_columns.a_lt_b);
-
         // Check that branching value is correct based on the opcode and the helper bools.
         builder
             .when(local.selectors.is_beq * local.branching)
