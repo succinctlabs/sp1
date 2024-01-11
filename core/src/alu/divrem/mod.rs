@@ -345,13 +345,13 @@ fn eval_abs_value<AB>(
     AB: CurtaAirBuilder,
 {
     for i in 0..WORD_SIZE {
-        let exp_sum_if_negative = {
+        let exp_sum_if_negative = AB::Expr::from_canonical_u32({
             if i == 0 {
-                AB::Expr::from_canonical_u32(0xff + 1)
+                0xff + 1
             } else {
-                AB::Expr::from_canonical_u32(0xff)
+                0xff
             }
-        };
+        });
 
         builder.when(is_negative.clone()).assert_eq(
             value[i].clone() + abs_value[i].clone(),
