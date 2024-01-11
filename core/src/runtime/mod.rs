@@ -74,8 +74,9 @@ pub struct Runtime {
     /// The current record for the CPU event,
     pub record: Record,
 
-    /// Global information needed for "global" chips, like memory argument. It's a bit wrong
-    /// to call this a segment, but oh well.
+    /// Global information needed for "global" chips, like the memory argument. It's a bit
+    /// semantically incorrect to have this as a "Segment", since it's not really a segment
+    /// in the traditional sense.
     pub global_segment: Segment,
 
     // The segment size for each segment.

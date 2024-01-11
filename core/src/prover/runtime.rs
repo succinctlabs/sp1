@@ -94,8 +94,6 @@ impl Prover {
         let left_shift = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
-        // let memory_init = MemoryInitChip::new(true);
-        // let memory_finalize = MemoryInitChip::new(false);
         [
             Box::new(program),
             Box::new(cpu),
@@ -106,8 +104,6 @@ impl Prover {
             Box::new(left_shift),
             Box::new(lt),
             Box::new(bytes),
-            // Box::new(memory_init),
-            // Box::new(memory_finalize),
         ]
     }
 

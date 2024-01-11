@@ -40,8 +40,8 @@ pub struct Segment {
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 
-    /// Information needed for global chips.
-    /// This shouldn't really be in a "Segment"...
+    /// Information needed for global chips. This shouldn't really be in "Segment" but for
+    /// legacy reasons, we keep this information in this struct for now.
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
