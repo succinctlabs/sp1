@@ -4,6 +4,7 @@ use super::program::Program;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
 use crate::cpu::CpuEvent;
+use crate::precompiles::sha256_extend::ShaExtendEvent;
 use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
@@ -44,14 +45,5 @@ pub struct Segment {
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 
     /// TODO: cleanup
-    pub sha_events: Vec<(
-        u32,
-        u32,
-        Vec<u32>,
-        Vec<MemoryRecord>,
-        Vec<MemoryRecord>,
-        Vec<MemoryRecord>,
-        Vec<MemoryRecord>,
-        Vec<MemoryRecord>,
-    )>,
+    pub sha_extend_events: Vec<ShaExtendEvent>,
 }

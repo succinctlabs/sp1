@@ -16,49 +16,39 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for i in 0..segment.sha_events.len() {
-            let (
-                clk,
-                w_ptr,
-                mut w,
-                w_i_minus_15_records,
-                w_i_minus_2_records,
-                w_i_minus_16_records,
-                w_i_minus_7_records,
-                w_i_records,
-            ) = segment.sha_events[i].clone();
+        for i in 0..segment.sha_extend_events.len() {
+            let mut event = segment.sha_extend_events[i].clone();
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
 
                 cols.populate_flags(j);
                 cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(clk);
-                cols.w_ptr = F::from_canonical_u32(w_ptr);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 
                 self.populate_access(
                     &mut cols.w_i_minus_15,
-                    w[16 + j - 15],
-                    Some(w_i_minus_15_records[j]),
+                    event.w[16 + j - 15],
+                    event.w_i_minus_15_records[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_2,
-                    w[16 + j - 2],
-                    Some(w_i_minus_2_records[j]),
+                    event.w[16 + j - 2],
+                    event.w_i_minus_2_records[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_16,
-                    w[16 + j - 16],
-                    Some(w_i_minus_16_records[j]),
+                    event.w[16 + j - 16],
+                    event.w_i_minus_16_records[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_7,
-                    w[16 + j - 7],
-                    Some(w_i_minus_7_records[j]),
+                    event.w[16 + j - 7],
+                    event.w_i_minus_7_records[j],
                 );
 
                 // Compute `s0`.
-                // cols.w_i_minus_15.value = Word::from(w[16 + j - 15]);
                 cols.w_i_minus_15_rr_7
                     .populate(segment, cols.w_i_minus_15.value, 7);
                 cols.w_i_minus_15_rr_18
@@ -72,7 +62,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 );
 
                 // Compute `s1`.
-                cols.w_i_minus_2.value = Word::from(w[16 + j - 2]);
+                cols.w_i_minus_2.value = Word::from(event.w[16 + j - 2]);
                 cols.w_i_minus_2_rr_17
                     .populate(segment, cols.w_i_minus_2.value, 17);
                 cols.w_i_minus_2_rr_19
@@ -86,8 +76,8 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 );
 
                 // Compute `s2`.
-                cols.w_i_minus_16.value = Word::from(w[16 + j - 16]);
-                cols.w_i_minus_7.value = Word::from(w[16 + j - 7]);
+                cols.w_i_minus_16.value = Word::from(event.w[16 + j - 16]);
+                cols.w_i_minus_7.value = Word::from(event.w[16 + j - 7]);
                 cols.s2.populate(
                     cols.w_i_minus_16.value,
                     cols.s0.value,
@@ -96,25 +86,13 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 );
 
                 // Write `s2` to `w[i]`.
-                w[16 + j] = u32::from_le_bytes(
+                event.w[16 + j] = u32::from_le_bytes(
                     cols.s2
                         .value
                         .0
                         .map(|x| x.to_string().parse::<u8>().unwrap()),
                 );
-                self.populate_access(&mut cols.w_i, w[16 + j], Some(w_i_records[j]));
-
-                // println!("SHA256_EXTEND_CHIP");
-                // println!(
-                //     "i={} w_i_minus_15={:?} w_i_minus_2={:?} w_i_minus_16={:?} w_i_minus_7={:?} s0={:?}, s1={:?}",
-                //     j + 16,
-                //     cols.w_i_minus_15.value.0,
-                //     cols.w_i_minus_2.value.0,
-                //     cols.w_i_minus_16.value.0,
-                //     cols.w_i_minus_7.value.0,
-                //     cols.s0.value.0,
-                //     cols.s1.value.0,
-                // );
+                self.populate_access(&mut cols.w_i, event.w[16 + j], event.w_i_records[j]);
 
                 cols.is_real = F::one();
                 rows.push(row);

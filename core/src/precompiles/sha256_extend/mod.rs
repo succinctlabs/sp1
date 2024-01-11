@@ -8,6 +8,18 @@ use p3_field::PrimeField;
 
 use crate::cpu::{air::MemoryAccessCols, MemoryRecord};
 
+#[derive(Debug, Clone, Copy)]
+pub struct ShaExtendEvent {
+    pub clk: u32,
+    pub w_ptr: u32,
+    pub w: [u32; 64],
+    pub w_i_minus_15_records: [Option<MemoryRecord>; 48],
+    pub w_i_minus_2_records: [Option<MemoryRecord>; 48],
+    pub w_i_minus_16_records: [Option<MemoryRecord>; 48],
+    pub w_i_minus_7_records: [Option<MemoryRecord>; 48],
+    pub w_i_records: [Option<MemoryRecord>; 48],
+}
+
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {

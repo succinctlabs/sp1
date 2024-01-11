@@ -6,6 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
+use crate::precompiles::sha256_extend::ShaExtendEvent;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -606,9 +607,9 @@ impl Runtime {
                         // Set the clock back to the original value and begin executing the
                         // precompile.
                         self.clk -= 48 * 20;
-                        let sclk = self.clk;
-                        let sw_ptr = w_ptr;
-                        let sw = w.clone();
+                        let saved_clk = self.clk;
+                        let saved_w_ptr = w_ptr;
+                        let saved_w = w.clone();
                         let mut w_i_minus_15_records = Vec::new();
                         let mut w_i_minus_2_records = Vec::new();
                         let mut w_i_minus_16_records = Vec::new();
@@ -618,7 +619,7 @@ impl Runtime {
                             // Read w[i-15].
                             let w_i_minus_15 =
                                 self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
-                            w_i_minus_15_records.push(self.record.memory.unwrap());
+                            w_i_minus_15_records.push(self.record.memory);
                             self.clk += 4;
 
                             // Compute `s0`.
@@ -628,7 +629,7 @@ impl Runtime {
 
                             // Read w[i-2].
                             let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
-                            w_i_minus_2_records.push(self.record.memory.unwrap());
+                            w_i_minus_2_records.push(self.record.memory);
                             self.clk += 4;
 
                             // Compute `s1`.
@@ -639,12 +640,12 @@ impl Runtime {
                             // Read w[i-16].
                             let w_i_minus_16 =
                                 self.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
-                            w_i_minus_16_records.push(self.record.memory.unwrap());
+                            w_i_minus_16_records.push(self.record.memory);
                             self.clk += 4;
 
                             // Read w[i-7].
                             let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
-                            w_i_minus_7_records.push(self.record.memory.unwrap());
+                            w_i_minus_7_records.push(self.record.memory);
                             self.clk += 4;
 
                             // Compute `w_i`.
@@ -656,21 +657,23 @@ impl Runtime {
                             // Write w[i].
                             self.mr(w_ptr + i * 4, AccessPosition::Memory);
                             self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
-                            w_i_records.push(self.record.memory.unwrap());
+                            w_i_records.push(self.record.memory);
                             self.clk += 4;
                         }
 
                         // Push the SHA extend event.
-                        self.segment.sha_events.push((
-                            sclk,
-                            sw_ptr,
-                            sw,
-                            w_i_minus_15_records,
-                            w_i_minus_2_records,
-                            w_i_minus_16_records,
-                            w_i_minus_7_records,
-                            w_i_records,
-                        ));
+                        self.segment.sha_extend_events.push(ShaExtendEvent {
+                            clk: saved_clk,
+                            w_ptr: saved_w_ptr,
+                            w: saved_w.try_into().unwrap(),
+                            w_i_minus_15_records: w_i_minus_15_records.try_into().unwrap(),
+                            w_i_minus_2_records: w_i_minus_2_records.try_into().unwrap(),
+                            w_i_minus_16_records: w_i_minus_16_records.try_into().unwrap(),
+                            w_i_minus_7_records: w_i_minus_7_records.try_into().unwrap(),
+                            w_i_records: w_i_records.try_into().unwrap(),
+                        });
+
+                        // Restore the original record.
                         self.record = t;
                     }
                 }
