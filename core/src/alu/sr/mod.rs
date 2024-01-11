@@ -19,7 +19,8 @@
 //!
 //! # Sign extend b to 64 bits.
 //!
-//! # Byte shift.
+//! # Byte shift. Leave the num_bytes_to_shift most significant bytes of b 0 for simplicity as it
+//! # doesn't affect the correctness of the result.
 //! result = [0; LONG_WORD_SIZE]
 //! for i in range(LONG_WORD_SIZE - num_bytes_to_shift):
 //!     result[i] = b[i + num_bytes_to_shift]
@@ -91,15 +92,21 @@ pub struct ShiftRightCols<T> {
     /// The most significant bit of `b`.
     pub b_msb: T,
 
-    /// Flag to indicate whether `b` is negative.
-    pub b_neg: T,
-
     /// Selector flags for the operation to perform.
     pub is_srl: T,
     pub is_sra: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
+}
+
+/// Calculate the number of bytes and bits to shift by. Note that we take the least significant 5
+/// bits per the RISC-V spec.
+fn decompose_shift_into_byte_and_bit_shifting(shift_amount: u32) -> (usize, usize) {
+    let n = (shift_amount % 32) as usize;
+    let num_bytes_to_shift = n / BYTE_SIZE;
+    let num_bits_to_shift = n % BYTE_SIZE;
+    (num_bytes_to_shift, num_bits_to_shift)
 }
 
 /// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
@@ -127,9 +134,36 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     cols.b = Word::from(event.b);
                     cols.c = Word::from(event.c);
 
+                    cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
+
                     cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
                     cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
                 }
+
+                let (num_bytes_to_shift, num_bits_to_shift) =
+                    decompose_shift_into_byte_and_bit_shifting(event.c);
+
+                // Byte shift.
+                {
+                    for i in 0..WORD_SIZE {
+                        cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
+                    }
+                    let sign_extended_b = ((event.b as i32) as i64).to_le_bytes();
+                    for i in 0..LONG_WORD_SIZE {
+                        if i + num_bytes_to_shift < LONG_WORD_SIZE {
+                            cols.byte_shift_result[i] =
+                                F::from_canonical_u8(sign_extended_b[i + num_bytes_to_shift]);
+                        }
+                    }
+                }
+
+                // bit shifting
+                {
+                    for i in 0..BYTE_SIZE {
+                        cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
+                    }
+                }
+
                 row
             })
             .collect::<Vec<_>>();
