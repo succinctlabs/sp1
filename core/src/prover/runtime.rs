@@ -47,10 +47,11 @@ impl Runtime {
         SC: StarkConfig<Val = F, Challenge = EF>,
         SC::Challenger: Clone,
     {
+        let segment_chips = Prover::segment_chips::<F, EF, SC>();
         let segment_main_data = self
             .segments
             .iter_mut()
-            .map(|segment| segment.commit_main(config))
+            .map(|segment| Prover::commit_main(config, &segment_chips, segment))
             .collect::<Vec<_>>();
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
@@ -62,28 +63,19 @@ impl Runtime {
         // We clone the challenger so that each segment can observe the same "global" challenges.
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
-            .map(|main_data| Segment::prove(config, &mut challenger.clone(), &main_data))
+            .map(|main_data| {
+                Prover::prove(config, &mut challenger.clone(), &segment_chips, &main_data)
+            })
             .collect();
 
-        // TODO: clean up this duplicated code.
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        let init_chip = MemoryGlobalChip::new(MemoryChipKind::Init);
-        let finalize_chip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-
-        let traces = [
-            program_memory_init.generate_trace(&mut self.global_segment),
-            init_chip.generate_trace(&mut self.global_segment),
-            finalize_chip.generate_trace(&mut self.global_segment),
-        ]
-        .to_vec();
-
-        let (main_commit, main_data) = config.pcs().commit_batches(traces.clone());
-        let global_data = MainData {
-            traces,
-            main_commit,
-            main_data,
-        };
-        let global_proof = Segment::prove(config, &mut challenger.clone(), &global_data);
+        let global_chips = Prover::global_chips::<F, EF, SC>();
+        let global_main_data = Prover::commit_main(config, &global_chips, &mut self.global_segment);
+        let global_proof = Prover::prove(
+            config,
+            &mut challenger.clone(),
+            &global_chips,
+            &global_main_data,
+        );
 
         let mut all_permutation_traces = proofs
             .iter()
@@ -112,10 +104,10 @@ pub struct MainData<SC: StarkConfig> {
     main_data: PcsProverData<SC>,
 }
 
-impl Segment {
-    const NUM_CHIPS: usize = 9;
+struct Prover {}
 
-    pub fn chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; Self::NUM_CHIPS]
+impl Prover {
+    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 9]
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -148,18 +140,37 @@ impl Segment {
         ]
     }
 
-    pub fn commit_main<F, EF, SC>(&mut self, config: &SC) -> MainData<SC>
+    pub fn global_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 3]
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        let chips = Segment::chips::<F, EF, SC>();
+        // Initialize chips.
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        [
+            Box::new(memory_init),
+            Box::new(memory_finalize),
+            Box::new(program_memory_init),
+        ]
+    }
 
+    pub fn commit_main<F, EF, SC>(
+        config: &SC,
+        chips: &[Box<dyn AirChip<SC>>],
+        segment: &mut Segment,
+    ) -> MainData<SC>
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF>,
+    {
         // For each chip, generate the trace.
         let traces = chips
             .iter()
-            .map(|chip| chip.generate_trace(self))
+            .map(|chip| chip.generate_trace(segment))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
@@ -177,6 +188,7 @@ impl Segment {
     pub fn prove<F, EF, SC>(
         config: &SC,
         challenger: &mut SC::Challenger,
+        chips: &[Box<dyn AirChip<SC>>],
         main_data: &MainData<SC>,
     ) -> SegmentDebugProof<SC>
     where
@@ -184,8 +196,6 @@ impl Segment {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF>,
     {
-        let chips = Segment::chips::<F, EF, SC>();
-
         // Compute some statistics.
         let mut main_cols = 0usize;
         let mut perm_cols = 0usize;
@@ -199,16 +209,20 @@ impl Segment {
         let traces = &main_data.traces;
 
         // For each trace, compute the degree.
-        let degrees: [usize; Self::NUM_CHIPS] = traces
+        let degrees = traces
             .iter()
             .map(|trace| trace.height())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        let log_degrees = degrees.map(|d| log2_strict_usize(d));
+            .collect::<Vec<_>>();
+        let log_degrees = degrees
+            .iter()
+            .map(|d| log2_strict_usize(*d))
+            .collect::<Vec<_>>();
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        let g_subgroups = log_degrees.map(|log_deg| SC::Val::two_adic_generator(log_deg));
+        let g_subgroups = log_degrees
+            .iter()
+            .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
+            .collect::<Vec<_>>();
 
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<EF> = Vec::new();
@@ -315,32 +329,11 @@ impl Segment {
             );
         }
 
-        // Check the permutation argument between all tables.
-        // debug_cumulative_sums::<F, EF>(&permutation_traces[..]);
-
         SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),
             traces: traces.clone(),
             permutation_traces,
         }
-    }
-
-    /// Prove the program for the given segment, including committing to the main trace and proving.
-    #[allow(unused)]
-    pub fn full_prove<F, EF, SC>(
-        &mut self,
-        config: &SC,
-        challenger: &mut SC::Challenger,
-        main_data: &MainData<SC>,
-    ) -> SegmentDebugProof<SC>
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
-    {
-        let main_data = self.commit_main(config);
-        challenger.observe(main_data.main_commit.clone());
-        Self::prove(config, challenger, &main_data)
     }
 }
 
@@ -417,9 +410,7 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
-        runtime
-            .segment
-            .prove::<_, _, MyConfig>(&config, &mut challenger);
+        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 
     #[test]
@@ -429,7 +420,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_fibonnaci_prove() {
+    fn test_fibonacci_prove() {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
         }
