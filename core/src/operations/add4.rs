@@ -7,7 +7,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 
-/// A set of columns needed to compute the xor of three operands
+/// A set of columns needed to compute the add of four words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Add4Operation<T> {
