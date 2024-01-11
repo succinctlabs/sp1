@@ -10,7 +10,7 @@ use crate::air::Word;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Add4Operation<T> {
-    /// The result of `a ^ b ^ c`.
+    /// The result of `a + b + c + d`.
     pub value: Word<T>,
 
     /// Trace.
