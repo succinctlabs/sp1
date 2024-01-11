@@ -43,8 +43,6 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        println!("Opcode histogram: {:?}", opcode_histogram);
-
         segment.add_alu_events(new_alu_events);
         segment.add_byte_lookup_events(new_blu_events);
 
@@ -281,6 +279,27 @@ impl CpuChip {
                         .or_insert(vec![slt_event]);
                 }
                 _ => unreachable!(),
+            }
+
+            if branch_columns.branch_cond_val == F::one() {
+                let next_pc = event.pc.wrapping_add(event.c);
+
+                cols.branch = F::one();
+                branch_columns.pc = event.pc.into();
+                branch_columns.next_pc = next_pc.into();
+
+                let add_event = AluEvent {
+                    clk: event.clk,
+                    opcode: Opcode::ADD,
+                    a: next_pc,
+                    b: event.pc,
+                    c: event.c,
+                };
+
+                alu_events
+                    .entry(Opcode::ADD)
+                    .and_modify(|op_new_events| op_new_events.push(add_event))
+                    .or_insert(vec![add_event]);
             }
         }
     }

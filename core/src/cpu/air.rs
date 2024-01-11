@@ -42,6 +42,9 @@ pub struct MemoryColumns<T> {
 pub struct BranchColumns<T> {
     pub branch_cond_val: T,
 
+    pub pc: Word<T>,
+    pub next_pc: Word<T>,
+
     pub a_minus_b: Word<T>, // Used for BNE opcode
 
     pub a_gt_b: T, // Used for BGE/BGEU opcode
@@ -71,6 +74,7 @@ pub struct CpuCols<T> {
 
     // This is transmuted to MemoryColumns or BNEColumns
     pub opcode_specific_columns: [T; WORKSPACE_SIZE],
+    pub branch: T,
 
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
@@ -247,6 +251,27 @@ where
         // Increment the pc by 4 + op_c_val * branch_cond_val where we interpret the first result as a bool that it is.
         let branch_columns: BranchColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        builder
+            .when(local.branch)
+            .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
+
+        builder
+            .when(local.branch)
+            .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
+
+        builder.assert_eq(
+            is_branch_instruction.clone() * branch_columns.branch_cond_val,
+            local.branch,
+        );
+
+        builder.send_alu(
+            AB::Expr::from_canonical_u8(Opcode::ADD as u8),
+            branch_columns.next_pc,
+            branch_columns.pc,
+            *local.op_c_val(),
+            local.branch,
+        );
 
         builder
             .when(
