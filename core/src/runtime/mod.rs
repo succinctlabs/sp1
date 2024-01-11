@@ -6,7 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256::ShaExtendEvent;
+use crate::precompiles::sha256::{ShaExtendEvent, SHA_COMPRESS_K};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -690,6 +690,88 @@ impl Runtime {
                         self.record = t;
                     }
                     Syscall::SHA_COMPRESS => {
+                        // The number of cycles it takes to perform this precompile.
+                        const NB_SHA_COMPRESS_CYCLES: u32 = 72 * 4;
+
+                        // Temporarily set the clock to the number of cycles it takes to perform
+                        // this precompile as reading `w_ptr` happens on this clock.
+                        self.clk += NB_SHA_COMPRESS_CYCLES;
+
+                        // Read `w_ptr` from register a0 or x5.
+                        let w_ptr = self.register(a0);
+                        let mut w = Vec::new();
+                        for i in 0..64 {
+                            w.push(self.word(w_ptr + i * 4));
+                        }
+
+                        // Set the CPU table values with some dummy values.
+                        (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
+                        self.rw(a0, a);
+
+                        // We'll save the current record and restore it later so that the CPU
+                        // event gets emitted correctly.
+                        let t = self.record;
+
+                        // Set the clock back to the original value and begin executing the
+                        // precompile.
+                        self.clk -= 48 * 20;
+                        let saved_clk = self.clk;
+                        let saved_w_ptr = w_ptr;
+                        let saved_w = w.clone();
+                        // let mut h_read_records = Vec::new();
+                        // let mut h_write_records = Vec::new();
+                        // let mut w_i_read_records = Vec::new();
+
+                        const H_START_IDX: u32 = 64;
+                        let mut hx = [0u32; 8];
+                        for i in 0..8 {
+                            hx[i] = self.mr(w_ptr + H_START_IDX * 4, AccessPosition::Memory);
+                            self.clk += 4;
+                        }
+
+                        let mut a = hx[0];
+                        let mut b = hx[1];
+                        let mut c = hx[2];
+                        let mut d = hx[3];
+                        let mut e = hx[4];
+                        let mut f = hx[5];
+                        let mut g = hx[6];
+                        let mut h = hx[7];
+                        for i in 0..64 {
+                            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+                            let ch = (e & f) ^ (!e & g);
+                            let temp1 = h
+                                .wrapping_add(s1)
+                                .wrapping_add(ch)
+                                .wrapping_add(SHA_COMPRESS_K[i])
+                                .wrapping_add(w[i]);
+                            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+                            let maj = (a & b) ^ (a & c) ^ (b & c);
+                            let temp2 = s0.wrapping_add(maj);
+
+                            h = g;
+                            g = f;
+                            f = e;
+                            e = d + temp1;
+                            d = c;
+                            c = b;
+                            b = a;
+                            a = temp1 + temp2;
+
+                            self.clk += 4;
+                        }
+
+                        let v = [a, b, c, d, e, f, g, h];
+                        for i in 0..8 {
+                            self.mr(w_ptr + H_START_IDX * 4, AccessPosition::Memory);
+                            self.mw(
+                                w_ptr + H_START_IDX * 4,
+                                hx[0] + v[i],
+                                AccessPosition::Memory,
+                            );
+                            self.clk += 4;
+                        }
+
                         todo!()
                     }
                 }
