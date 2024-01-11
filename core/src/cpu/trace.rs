@@ -328,7 +328,6 @@ mod tests {
     use p3_commit::ExtensionMmcs;
 
     use super::*;
-
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();

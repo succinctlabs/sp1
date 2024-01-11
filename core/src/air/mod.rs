@@ -39,11 +39,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
     }
 
-    // Warning: This function doesn't do a boolean range check on the input.
-    fn not<I: Into<Self::Expr>>(&mut self, value: I) -> Self::Expr {
-        Self::Expr::from(Self::F::one()) - value.into()
-    }
-
     fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);

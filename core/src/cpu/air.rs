@@ -77,13 +77,13 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryAccessCols<T>,
     pub op_c_access: MemoryAccessCols<T>,
 
-    // // This is transmuted to MemoryColumns or BNEColumns
+    // This is transmuted to MemoryColumns or BNEColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
 
-    // This column is set by the trace generator to indicate whether the instruction is a branch
-    // instruction and the branch condition is true.  It is an opcode_specific_column, but it is
-    // needed for a multiplicity condition, which must be a degree of 1, so can't be embedded within
-    // the opcode_specific_columns.
+    // This column is set by the trace generator to indicate that the row's opcode is branch related
+    // AND branch condition is true.
+    // It is an opcode_specific_column, but it is needed for a multiplicity condition, which must be
+    // a degree of 1, so can't be embedded within the opcode_specific_columns.
     pub branching: T,
 
     // Selector to label whether this row is a non padded row.
@@ -365,6 +365,7 @@ impl CpuChip {
         // First handle the case when local.branching == true
 
         // Verify that branch_columns.pc is correct.  That is local.pc in WORD form.
+        // Note that when local.branching == True, then is_branch_instruction == True.
         builder
             .when(local.branching)
             .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
