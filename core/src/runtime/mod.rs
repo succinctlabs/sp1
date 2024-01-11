@@ -279,6 +279,9 @@ impl Runtime {
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
                 self.segment.add_events.push(event);
             }
+            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
+                self.segment.divrem_events.push(event);
+            }
             _ => {}
         }
     }
@@ -1277,6 +1280,10 @@ pub mod tests {
         simple_op_code_test(Opcode::DIV, neg(6), neg(24), 4);
         simple_op_code_test(Opcode::DIV, neg(2), 16, neg(8));
         simple_op_code_test(Opcode::DIV, neg(1), 0, 0);
+
+        // Overflow cases
+        simple_op_code_test(Opcode::DIV, 1 << 31, 1 << 31, neg(1));
+        simple_op_code_test(Opcode::REM, 0, 1 << 31, neg(1));
     }
 
     #[test]
