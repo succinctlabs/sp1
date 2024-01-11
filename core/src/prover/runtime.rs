@@ -14,27 +14,14 @@ use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
-use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_uni_stark::decompose_and_flatten;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
+use super::types::*;
 use crate::prover::debug_cumulative_sums;
-
-type Val<SC> = <SC as StarkConfig>::Val;
-type Challenge<SC> = <SC as StarkConfig>::Challenge;
-type ValMat<SC> = RowMajorMatrix<Val<SC>>;
-type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
-type Com<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
-type PcsProverData<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
-
-pub struct SegmentDebugProof<SC: StarkConfig> {
-    pub main_commit: Com<SC>,
-    pub traces: Vec<ValMat<SC>>,
-    pub permutation_traces: Vec<ChallengeMat<SC>>,
-}
 
 impl Runtime {
     /// Prove the program.
@@ -86,21 +73,6 @@ impl Runtime {
         // Make sure that this cumulative bus sum is 0.
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
     }
-
-    // pub fn verify(self, config: &SC, challenger: &mut SC::Challenger, proof: Proof) {
-    //     // Take in a bunch of segment proofs
-    //     // Then verify eachv segment proof independently.
-    //     // Then add up the buses and make sure that the cumulative sum is 0.
-    //     // Check that the segment proof has program_committment = fixed_program_committment
-    //     let global_challenger = &mut SC::Challenger::new();
-    //     global_challenger.observe(segment_commit);
-    // }
-}
-
-pub struct MainData<SC: StarkConfig> {
-    traces: Vec<ValMat<SC>>,
-    main_commit: Com<SC>,
-    main_data: PcsProverData<SC>,
 }
 
 struct Prover {}
