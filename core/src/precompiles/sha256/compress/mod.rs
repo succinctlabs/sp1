@@ -6,6 +6,17 @@ mod air;
 mod columns;
 mod trace;
 
+#[derive(Debug, Clone, Copy)]
+pub struct ShaCompressEvent {
+    pub clk: u32,
+    pub w_and_h_ptr: u32,
+    pub w: [u32; 64],
+    pub h: [u32; 8],
+    pub h_read_records: [Option<MemoryRecord>; 8],
+    pub h_write_records: [Option<MemoryRecord>; 8],
+    pub w_i_records: [Option<MemoryRecord>; 64],
+}
+
 pub struct ShaCompressChip;
 
 impl ShaCompressChip {

@@ -23,8 +23,17 @@ pub struct ShaCompressCols<T> {
     pub clk: T,
     pub w_and_h_ptr: T,
 
-    /// Control flags.
-    pub i: T,
+    /// The counter for the main loop.
+    i: T,
+
+    /// The counter for initialization / finalization loops (i.e., reading / writing h0..h7).
+    j: T,
+
+    /// This flag is turned on when it's time to initialize the working variables.
+    is_start: T,
+
+    /// This flag is turned on when it's time to add the compressed chunk to the current hash value.
+    is_end: T,
 
     rw: MemoryAccessCols<T>,
 
