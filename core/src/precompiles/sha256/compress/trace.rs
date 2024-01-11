@@ -25,13 +25,14 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
                 cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(event.clk);
+                cols.clk = F::from_canonical_u32(event.clk + (j * 4) as u32);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
                 cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
 
-                cols.mem.value = Word::from(event.h[j]);
+                self.populate_access(&mut cols.mem, event.h[j], event.h_read_records[j]);
+                cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
 
                 cols.a = v[0];
                 cols.b = v[1];
@@ -61,6 +62,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 v[5] = cols.f;
                 v[6] = cols.g;
                 v[7] = cols.h;
+
+                cols.is_real = F::one();
             }
 
             // Peforms the compress operation.
@@ -69,8 +72,11 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
                 cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(event.clk);
+                cols.clk = F::from_canonical_u32(event.clk + (8 * 4 + j * 4) as u32);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+
+                self.populate_access(&mut cols.mem, event.w[j], event.w_i_read_records[j]);
+                cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (j * 4) as u32);
 
                 let a = event.h[0];
                 let b = event.h[1];
@@ -126,6 +132,42 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 event.h[2] = b;
                 event.h[1] = a;
                 event.h[0] = temp1 + temp2;
+
+                cols.is_real = F::one();
+            }
+
+            let mut v: [u32; 8] = (0..8)
+                .map(|i| event.h[i])
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+
+            // Store a, b, c, d, e, f, g, h.
+            for j in 0..8usize {
+                let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
+                let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
+
+                cols.segment = F::one();
+                cols.clk = F::from_canonical_u32(event.clk + (j * 4) as u32);
+                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+
+                cols.i = F::from_canonical_usize(j);
+                cols.octet[j] = F::one();
+
+                self.populate_access(&mut cols.mem, event.h[j], event.h_write_records[j]);
+                cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
+
+                v[j] = event.h[j];
+                cols.a = Word::from(v[0]);
+                cols.b = Word::from(v[1]);
+                cols.c = Word::from(v[2]);
+                cols.d = Word::from(v[3]);
+                cols.e = Word::from(v[4]);
+                cols.f = Word::from(v[5]);
+                cols.g = Word::from(v[6]);
+                cols.h = Word::from(v[7]);
+
+                cols.is_real = F::one();
             }
         }
 

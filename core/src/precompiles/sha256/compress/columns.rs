@@ -36,6 +36,7 @@ pub struct ShaCompressCols<T> {
     pub is_end: T,
 
     pub mem: MemoryAccessCols<T>,
+    pub mem_addr: T,
 
     pub a: Word<T>,
     pub b: Word<T>,
@@ -75,4 +76,6 @@ pub struct ShaCompressCols<T> {
 
     pub d_add_temp1: AddOperation<T>,
     pub temp1_add_temp2: AddOperation<T>,
+
+    pub is_real: T,
 }

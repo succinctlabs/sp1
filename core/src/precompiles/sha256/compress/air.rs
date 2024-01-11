@@ -21,6 +21,12 @@ where
         let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
 
-        // TODO:
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk,
+            local.mem_addr,
+            local.mem,
+            local.is_real,
+        );
     }
 }

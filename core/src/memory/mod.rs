@@ -142,7 +142,7 @@ mod tests {
     use crate::cpu::trace::CpuChip;
     use crate::lookup::{debug_interactions, InteractionKind};
     use crate::memory::MemoryGlobalChip;
-    use crate::precompiles::sha256::tests::sha_extend_program;
+    use crate::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::precompiles::sha256::ShaExtendChip;
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
