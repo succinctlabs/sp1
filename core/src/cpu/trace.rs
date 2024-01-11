@@ -185,10 +185,8 @@ impl CpuChip {
 
             let a_eq_b = event.a == event.b;
 
-            let use_signed_comparison = match event.instruction.opcode {
-                Opcode::BLT | Opcode::BGE => true,
-                _ => false,
-            };
+            let use_signed_comparison =
+                matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
 
             let a_lt_b = if use_signed_comparison {
                 (event.a as i32) < (event.b as i32)
