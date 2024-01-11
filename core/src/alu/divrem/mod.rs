@@ -336,7 +336,7 @@ impl<F> BaseAir<F> for DivRemChip {
 ///     significant limb (first limb) should add up to `0xff + 1` (to account for the +1 in two's
 ///     complement negation), and other limbs should add up to `0xff` (as the rest of the limbs just
 ///     have their bits flipped).
-fn calculate_abs_value<AB>(
+fn eval_abs_value<AB>(
     builder: &mut AB,
     value: &Word<AB::Var>,
     abs_value: &Word<AB::Var>,
@@ -560,14 +560,14 @@ where
 
         // Range check remainder. (i.e., |remainder| < |c| when not is_c_0)
         {
-            calculate_abs_value(
+            eval_abs_value(
                 builder,
                 local.remainder.borrow(),
                 local.abs_remainder.borrow(),
                 local.rem_neg.borrow(),
             );
 
-            calculate_abs_value(
+            eval_abs_value(
                 builder,
                 local.c.borrow(),
                 local.abs_c.borrow(),
