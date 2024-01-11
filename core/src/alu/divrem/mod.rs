@@ -81,10 +81,6 @@ const BYTE_SIZE: usize = 8;
 
 const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
-fn get_msb(a: u32) -> u8 {
-    ((a >> 31) & 1) as u8
-}
-
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
@@ -188,6 +184,11 @@ fn get_quotient_and_remainder(b: u32, c: u32, opcode: Opcode) -> (u32, u32) {
             (b as u32).wrapping_rem(c as u32) as u32,
         )
     }
+}
+
+/// Calculate the most significant bit of the given 32-bit integer `a`, and returns it as a u8.
+fn get_msb(a: u32) -> u8 {
+    ((a >> 31) & 1) as u8
 }
 
 impl<F: PrimeField> Chip<F> for DivRemChip {
