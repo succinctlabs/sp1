@@ -1,0 +1,8 @@
+[package]
+version = "0.1.0"
+name = "hello_world"
+
+[workspace]
+
+[dependencies]
+curta-zkvm = { path = "../../zkvm" }
