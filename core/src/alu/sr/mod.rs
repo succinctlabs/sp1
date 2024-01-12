@@ -90,9 +90,11 @@ pub struct ShiftRightCols<T> {
     /// The result of "bit-shifting" the byte-shifted input by `num_bits_to_shift`.
     pub bit_shift_result: [T; LONG_WORD_SIZE],
 
-    /// An array whose `i`th element is the bits that carried when shifting the `i`th byte of
-    /// `byte_shift_result` by `num_bits_to_shift`.
-    pub carry: [T; LONG_WORD_SIZE],
+    /// The carry output of `shrcarry` on each byte of `byte_shift_result`.
+    pub shr_carry_output_carry: [T; LONG_WORD_SIZE],
+
+    /// The shift byte output of `shrcarry` on each byte of `byte_shift_result`.
+    pub shr_carry_output_shifted_byte: [T; LONG_WORD_SIZE],
 
     /// The most significant bit of `b`.
     pub b_msb: T,
@@ -191,7 +193,8 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     for i in (0..LONG_WORD_SIZE).rev() {
                         let (shifted_byte, carry) =
                             shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
-                        cols.carry[i] = F::from_canonical_u8(carry);
+                        cols.shr_carry_output_carry[i] = F::from_canonical_u8(carry);
+                        cols.shr_carry_output_shifted_byte[i] = F::from_canonical_u8(shifted_byte);
                         cols.bit_shift_result[i] = F::from_canonical_u32(
                             shifted_byte as u32 + last_carry * carry_multiplier,
                         );
@@ -354,18 +357,14 @@ where
                     * local.shift_by_n_bits[i].clone();
             }
             for i in (0..LONG_WORD_SIZE).rev() {
-                // TODO: ShrCarry (bit_shift_result[i], num_bits_to_shift, carry[i])
+                // TODO: ShrCarry (bit_shift_result[i], shr_carry_output_shifted_byte,
+                // shr_carry_output_carry, num_bits_to_shift, carry[i]).
 
-                let mut v: AB::Expr = local.byte_shift_result[i].into();
+                let mut v: AB::Expr = local.shr_carry_output_shifted_byte[i].into();
                 if i + 1 < LONG_WORD_SIZE {
-                    v += local.carry[i + 1].clone() * carry_multiplier.clone();
+                    v += local.shr_carry_output_carry[i + 1].clone() * carry_multiplier.clone();
                 }
-                // TODO: I'm not sure why, but is_real seems necessary here... carry and
-                // byte_shift_result bit_shift_result are always 0 in padded rows, so I'm not sure
-                // why this won't work though...
-                builder
-                    .when(local.is_real)
-                    .assert_eq(v, local.bit_shift_result[i].clone());
+                builder.assert_eq(v, local.bit_shift_result[i].clone());
             }
         }
 
@@ -394,7 +393,12 @@ where
         // Range check bytes
         {
             let words = [local.a, local.b, local.c];
-            let long_words = [local.byte_shift_result, local.bit_shift_result, local.carry];
+            let long_words = [
+                local.byte_shift_result,
+                local.bit_shift_result,
+                local.shr_carry_output_carry,
+                local.shr_carry_output_shifted_byte,
+            ];
 
             for word in words.iter() {
                 for _byte in word.0.iter() {
