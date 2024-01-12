@@ -43,6 +43,7 @@ use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 
+use crate::bytes::utils::shr_carry;
 use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -65,7 +66,8 @@ const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 const BYTE_SIZE: usize = 8;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
+#[repr(C)]
 pub struct ShiftRightCols<T> {
     /// The output operand.
     pub a: Word<T>,
@@ -84,6 +86,9 @@ pub struct ShiftRightCols<T> {
 
     /// The result of "byte-shifting" the input operand `b` by `num_bytes_to_shift`.
     pub byte_shift_result: [T; LONG_WORD_SIZE],
+
+    /// The result of "bit-shifting" the byte-shifted input by `num_bits_to_shift`.
+    pub bit_shift_result: [T; LONG_WORD_SIZE],
 
     /// An array whose `i`th element is the bits that carried when shifting the `i`th byte of
     /// `byte_shift_result` by `num_bits_to_shift`.
@@ -143,6 +148,8 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                 let (num_bytes_to_shift, num_bits_to_shift) =
                     decompose_shift_into_byte_and_bit_shifting(event.c);
 
+                let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
+
                 // Byte shift.
                 {
                     for i in 0..WORD_SIZE {
@@ -151,10 +158,10 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     let sign_extended_b = ((event.b as i32) as i64).to_le_bytes();
                     for i in 0..LONG_WORD_SIZE {
                         if i + num_bytes_to_shift < LONG_WORD_SIZE {
-                            cols.byte_shift_result[i] =
-                                F::from_canonical_u8(sign_extended_b[i + num_bytes_to_shift]);
+                            byte_shift_result[i] = sign_extended_b[i + num_bytes_to_shift];
                         }
                     }
+                    cols.byte_shift_result = byte_shift_result.map(F::from_canonical_u8);
                 }
 
                 // bit shifting
@@ -162,7 +169,18 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     for i in 0..BYTE_SIZE {
                         cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
                     }
+                    let carry_multiplier = 1 << (8 - num_bits_to_shift);
+                    let mut last_carry = 0u32;
+                    for i in (0..LONG_WORD_SIZE).rev() {
+                        let (res, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
+                        cols.carry[i] = F::from_canonical_u8(carry);
+                        cols.bit_shift_result[i] =
+                            F::from_canonical_u32(res as u32 + last_carry * carry_multiplier);
+                        last_carry = carry as u32;
+                    }
                 }
+
+                println!("cols: {:#?}", cols);
 
                 row
             })
@@ -173,10 +191,23 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHIFT_RIGHT_COLS,
         );
-        // TODO: Add fake padding.
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
+
+        // Create the template for the padded rows. These are fake rows that don't fail on some
+        // sanity checks.
+        let padded_row_template = {
+            let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
+            let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            cols.shift_by_n_bits[0] = F::one();
+            cols.shift_by_n_bytes[0] = F::one();
+            row
+        };
+        debug_assert!(padded_row_template.len() == NUM_SHIFT_RIGHT_COLS);
+        for i in segment.shift_left_events.len() * NUM_SHIFT_RIGHT_COLS..trace.values.len() {
+            trace.values[i] = padded_row_template[i % NUM_SHIFT_RIGHT_COLS];
+        }
 
         trace
     }
@@ -198,7 +229,6 @@ where
 
         // TODO: Calculate the MSB of b using byte lookup.
         // TODO: Check shift_by_n_bytes and shift_by_n_bits match c by looking at the SLL example.
-
         // Byte shift the sign-extended b.
         {
             // The leading byte of b should be 0 if b's MSB is 0, and 0xff if b's MSB is 1.
@@ -220,6 +250,27 @@ where
                             sign_extended_b[i + num_bytes_to_shift].clone(),
                         );
                 }
+            }
+        }
+
+        // Bit shift the byte_shift_result using ShrCarry, and compare the result to a.
+        {
+            // The carry multiplier is 2^(8 - num_bits_to_shift).
+            let mut carry_multiplier = AB::Expr::from_canonical_u8(0);
+            for i in 0..BYTE_SIZE {
+                carry_multiplier += AB::Expr::from_canonical_u32(1u32 << (8 - i))
+                    * local.shift_by_n_bits[i].clone();
+            }
+            for i in (0..LONG_WORD_SIZE).rev() {
+                // TODO: ShrCarry (bit_shift_result[i], num_bits_to_shift, carry[i])
+
+                let mut v: AB::Expr = local.byte_shift_result[i].into();
+                if i + 1 < LONG_WORD_SIZE {
+                    v += local.carry[i + 1].clone() * carry_multiplier.clone();
+                }
+                builder
+                    .when(local.is_real)
+                    .assert_eq(v, local.bit_shift_result[i].clone());
             }
         }
 
