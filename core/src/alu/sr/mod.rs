@@ -2,7 +2,7 @@
 //!
 //! Implements verification for a = b >> c, decomposing the shift into bit and byte components:
 //!
-//! 1. num_bits_to_shift = c % 8: Bit-level shift, achieved by multiplying b by 2^num_bits_to_shift.
+//! 1. num_bits_to_shift = c % 8: Bit-level shift, achieved by using ShrCarry.
 //! 2. num_bytes_to_shift = c // 8: Byte-level shift, shifting entire bytes or words in b.
 //!
 //! The right shift is verified by reformulating it as (b >> c) = (b >> (num_bytes_to_shift * 8)) >>
