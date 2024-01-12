@@ -485,6 +485,7 @@ impl CpuChip {
         let jump_columns: JumpColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
+        // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(
@@ -492,14 +493,17 @@ impl CpuChip {
                 local.pc + AB::F::from_canonical_u8(4),
             );
 
+        // Verify that the word form of local.pc is correct for JAL instructions.
         builder
             .when(local.selectors.is_jal)
             .assert_eq(reduce::<AB>(jump_columns.pc), local.pc);
 
+        // Verify that the word form of next.pc is correct for both jump instructions.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(reduce::<AB>(jump_columns.next_pc), next.pc);
 
+        // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
@@ -508,6 +512,7 @@ impl CpuChip {
             local.selectors.is_jal,
         );
 
+        // Verify that the new pc is calculated correctly for JALR instructions.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
@@ -522,10 +527,12 @@ impl CpuChip {
         let auipc_columns: AUIPCColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
+        // Verify that the word form of local.pc is correct.
         builder
             .when(local.selectors.is_auipc)
             .assert_eq(reduce::<AB>(auipc_columns.pc), local.pc);
 
+        // Verify that op_a == pc + op_b.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             *local.op_a_val(),
