@@ -6,5 +6,9 @@
     },
     "editor.rulers": [
         100
-    ], 
+    ],
+    "rust-analyzer.linkedProjects": [
+        "./cargo-succinct/Cargo.toml"
+    ],
+    
 }

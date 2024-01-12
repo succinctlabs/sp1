@@ -1,19 +1,19 @@
-succinct_zkvm::entrypoint!(main);
+#![no_main]
+
+extern crate curta_zkvm;
+use curta_zkvm::syscall::syscall_halt;
+
+curta_zkvm::entry!(main);
 
 pub fn main() {
     let mut a = 1;
     let mut b = 1;
 
-    let fibonacci_results = Vec::new();
-
-    for _ in 0..10 {
+    for _ in 0..100 {
         let c = a + b;
-        fibonacci_results.push(c);
         a = b;
         b = c;
     }
 
-    let final_result = fibonacci_results[9];
-
-    // TODO: HALT using our HALT syscall
+    syscall_halt();
 }

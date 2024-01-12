@@ -1,0 +1,11 @@
+[package]
+name = "cargo-succinct"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.79", features = ["backtrace"] }
+cargo_metadata = "0.18.1"
+clap = { version = "4.4.15", features = ["derive"] }

@@ -1,7 +1,8 @@
 [package]
+version = "0.1.0"
 name = "hello_world"
 
 [workspace]
 
 [dependencies]
-succinct-zkvm = { path = "../../zkvm" }
+curta-zkvm = { path = "../../zkvm" }
