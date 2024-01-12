@@ -1,5 +1,6 @@
 mod air;
 mod columns;
+mod execute;
 mod flags;
 mod trace;
 
