@@ -16,6 +16,11 @@
 //! num_bits_to_shift = c % 8
 //!
 //! # Sign extend b to 64 bits if SRA.
+//! if opcode == SRA:
+//!    b = sign_extend_32_bits_to_64_bits(b)
+//! else:
+//!    b = zero_extend_32_bits_to_64_bits(b)
+//!
 //!
 //! # Byte shift. Leave the num_bytes_to_shift most significant bytes of b 0 for simplicity as it
 //! # doesn't affect the correctness of the result.
