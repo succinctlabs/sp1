@@ -401,7 +401,7 @@ where
             }
         }
 
-        // Range check bytes
+        // Range check bytes.
         {
             let words = [local.a, local.b, local.c];
             let long_words = [
