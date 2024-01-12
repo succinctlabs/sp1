@@ -36,6 +36,7 @@ impl<F: Field> Add5Operation<F> {
         b: Word<AB::Var>,
         c: Word<AB::Var>,
         d: Word<AB::Var>,
+        e: Word<AB::Var>,
         cols: Add5Operation<AB::Var>,
     ) {
         // TODO
