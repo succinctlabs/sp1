@@ -5,9 +5,9 @@
 //! the constraints.
 
 mod add4;
+mod field;
 mod fixed_rotate_right;
 mod fixed_shift_right;
-mod fp_add;
 mod xor3;
 
 pub use add4::*;
