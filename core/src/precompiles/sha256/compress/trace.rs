@@ -188,10 +188,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
         if padded_nb_rows == 2 || padded_nb_rows == 1 {
             padded_nb_rows = 4;
         }
-        for i in nb_rows..padded_nb_rows {
-            let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-            let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
-            // cols.populate_flags(i);
+
+        for _ in nb_rows..padded_nb_rows {
+            let row = [F::zero(); NUM_SHA_COMPRESS_COLS];
             rows.push(row);
         }
 
