@@ -274,7 +274,7 @@ where
 
         // Check that the flags are indeed boolean.
         {
-            let flags = [local.is_srl, local.is_sra, local.is_real];
+            let flags = [local.is_srl, local.is_sra, local.is_real, local.b_msb];
             for flag in flags.iter() {
                 builder.assert_bool(*flag);
             }
