@@ -1,4 +1,3 @@
-use criterion::{criterion_group, criterion_main, Criterion};
 use curta_core::runtime::Program;
 
 use curta_core::runtime::Runtime;
@@ -21,8 +20,9 @@ use p3_symmetric::CompressionFunctionFromHasher;
 use p3_symmetric::SerializingHasher32;
 use p3_uni_stark::StarkConfigImpl;
 use rand::thread_rng;
+use std::time::Duration;
 
-pub fn prove(program: Program) {
+pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&mut Runtime)) {
     type Val = BabyBear;
     type Domain = Val;
     type Challenge = BinomialExtensionField<Val, 4>;
@@ -63,30 +63,47 @@ pub fn prove(program: Program) {
     let config = StarkConfigImpl::new(pcs);
     let mut challenger = Challenger::new(perm.clone());
 
-    let mut runtime = Runtime::new(program);
+    let mut runtime = Runtime::new(program.clone());
     runtime.write_witness(&[1, 2]);
     runtime.run();
-    runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+    let cycle_count = runtime.segment.cpu_events.len();
+    (
+        cycle_count,
+        {
+            let program = program.clone();
+            move || {
+                let mut runtime = Runtime::new(program.clone());
+                runtime.write_witness(&[1, 2]);
+                runtime.run();
+                runtime
+            }
+        },
+        {
+            let config = config;
+            move |r: &mut Runtime| {
+                let mut c = challenger.clone();
+                r.prove::<_, _, MyConfig>(&config, &mut c)
+            }
+        },
+    )
 }
 
-pub fn criterion_benchmark(c: &mut Criterion) {
-    for program_name in &["fibonacci", "fib_malloc"] {
-        let program = Program::from_elf(format!("../programs/{}.s", program_name).as_str());
-        let mut group = c.benchmark_group(program_name.to_string());
+fn bench_program(program_name: &str, b: divan::Bencher) {
+    let program = Program::from_elf(format!("../programs/{}", program_name).as_str());
+    let (cycle_count, prepare, prove) = load_program(program);
 
-        let mut runtime = Runtime::new(program.clone());
-        runtime.write_witness(&[1, 2]);
-        runtime.run();
+    println!("cycle count: {}", cycle_count);
 
-        let cycles = runtime.segment.cpu_events.len();
-        println!("{} cycles", cycles);
-
-        group.throughput(criterion::Throughput::Elements(cycles as u64));
-        group.sample_size(10);
-        group.sampling_mode(criterion::SamplingMode::Flat);
-        group.bench_function("prove", |b| b.iter(|| prove(program.clone())));
-    }
+    b.counter(divan::counter::ItemsCount::new(cycle_count as u64))
+        .with_inputs(prepare)
+        .bench_refs(prove);
 }
 
-criterion_group!(benches, criterion_benchmark);
-criterion_main!(benches);
+#[divan::bench(max_time = Duration::from_secs(20))]
+pub fn fibonacci(b: divan::Bencher) {
+    bench_program("fibonacci", b);
+}
+
+fn main() {
+    divan::main();
+}

@@ -11,8 +11,11 @@ curta_zkvm::entry!(main);
 pub fn main() {
     let mut nums = vec![1, 1];
 
-    for _ in 0..25 {
-        let c = nums[nums.len() - 1] + nums[nums.len() - 2];
+    for _ in 0..5000 {
+        let mut c = nums[nums.len() - 1] + nums[nums.len() - 2];
+        if c > 7919 {
+            c -= 7919;
+        }
         nums.push(c);
     }
 
