@@ -10,7 +10,7 @@ use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
-use crate::air::polynomial::{Polynomial, PolynomialBuilder};
+use crate::air::polynomial::Polynomial;
 use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::instruction_cols::InstructionCols;
 use crate::cpu::opcode_cols::OpcodeSelectors;

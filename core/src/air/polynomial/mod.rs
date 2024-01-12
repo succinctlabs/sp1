@@ -1,4 +1,3 @@
-pub mod builder;
 pub mod ops;
 // pub mod parser;
 
@@ -11,7 +10,6 @@ use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub};
 use num::BigUint;
 
 use self::ops::PolynomialOps;
-pub use builder::PolynomialBuilder;
 // use crate::math::prelude::*;
 use crate::utils::field::{bigint_into_u16_digits, biguint_to_16_digits_field};
 

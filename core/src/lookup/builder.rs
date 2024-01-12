@@ -1,4 +1,3 @@
-use crate::air::polynomial::PolynomialBuilder;
 use crate::air::AirInteraction;
 use p3_air::{AirBuilder, MessageBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
@@ -61,8 +60,6 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, _x: I) {}
 }
-
-impl<F: Field> PolynomialBuilder for InteractionBuilder<F> {}
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
     fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
