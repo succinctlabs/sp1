@@ -3,7 +3,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::air::CurtaAirBuilder;
 use crate::operations::{
-    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, Xor3Operation,
+    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
 };
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
@@ -105,10 +105,15 @@ where
             local.w_i_minus_15_rs_3,
             local.is_real,
         );
-        Xor3Operation::<AB::F>::eval(
+        XorOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_15_rr_7.value,
             local.w_i_minus_15_rr_18.value,
+            local.s0_intermediate,
+        );
+        XorOperation::<AB::F>::eval(
+            builder,
+            local.s0_intermediate.value,
             local.w_i_minus_15_rs_3.value,
             local.s0,
         );
@@ -135,10 +140,15 @@ where
             local.w_i_minus_2_rs_10,
             local.is_real,
         );
-        Xor3Operation::<AB::F>::eval(
+        XorOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_2_rr_17.value,
             local.w_i_minus_2_rr_19.value,
+            local.s1_intermediate,
+        );
+        XorOperation::<AB::F>::eval(
+            builder,
+            local.s1_intermediate.value,
             local.w_i_minus_2_rs_10.value,
             local.s1,
         );

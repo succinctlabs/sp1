@@ -13,7 +13,7 @@ use crate::disassembler::WORD_SIZE;
 use crate::runtime::Segment;
 use p3_field::AbstractField;
 
-/// A set of columns needed to compute `>>` with a fixed offset R.
+/// A set of columns needed to compute `>>` of a word with a fixed offset R.
 ///
 /// Note that we decompose shifts into a byte shift and a bit shift.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

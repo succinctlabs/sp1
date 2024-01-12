@@ -52,7 +52,7 @@ pub fn sha_extend(w: &mut [u32]) {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod extend_tests {
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;

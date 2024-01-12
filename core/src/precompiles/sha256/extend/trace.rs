@@ -3,14 +3,9 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    air::Word,
-    precompiles::sha256_extend::{ShaExtendCols, NUM_SHA_EXTEND_COLS},
-    runtime::Segment,
-    utils::Chip,
-};
+use crate::{air::Word, runtime::Segment, utils::Chip};
 
-use super::ShaExtendChip;
+use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
@@ -55,18 +50,20 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                     cols.w_i_minus_15_rr_18
                         .populate(segment, w[16 + j - 15], 18);
                 let w_i_minus_15_rs_3 = cols.w_i_minus_15_rs_3.populate(segment, w[16 + j - 15], 3);
-                let s0 = cols
-                    .s0
-                    .populate(w_i_minus_15_rr_7, w_i_minus_15_rr_18, w_i_minus_15_rs_3);
+                let s0_intermediate = cols
+                    .s0_intermediate
+                    .populate(w_i_minus_15_rr_7, w_i_minus_15_rr_18);
+                let s0 = cols.s0.populate(s0_intermediate, w_i_minus_15_rs_3);
 
                 // Compute `s1`.
                 cols.w_i_minus_2.value = Word::from(w[16 + j - 2]);
                 let w_i_minus_2_rr_17 = cols.w_i_minus_2_rr_17.populate(segment, w[16 + j - 2], 17);
                 let w_i_minus_2_rr_19 = cols.w_i_minus_2_rr_19.populate(segment, w[16 + j - 2], 19);
                 let w_i_minus_2_rs_10 = cols.w_i_minus_2_rs_10.populate(segment, w[16 + j - 2], 10);
-                let s1 = cols
-                    .s1
-                    .populate(w_i_minus_2_rr_17, w_i_minus_2_rr_19, w_i_minus_2_rs_10);
+                let s1_intermediate = cols
+                    .s1_intermediate
+                    .populate(w_i_minus_2_rr_17, w_i_minus_2_rr_19);
+                let s1 = cols.s1.populate(s1_intermediate, w_i_minus_2_rs_10);
 
                 // Compute `s2`.
                 let s2 = cols.s2.populate(w[16 + j - 16], s0, w[16 + j - 7], s1);

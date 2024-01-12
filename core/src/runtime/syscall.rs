@@ -10,6 +10,9 @@ pub enum Syscall {
 
     /// Executes the `SHA_EXTEND` precompile.
     SHA_EXTEND = 102,
+
+    /// Executes the `SHA_COMPRESS` precompile.
+    SHA_COMPRESS = 103,
 }
 
 impl Syscall {
@@ -19,6 +22,7 @@ impl Syscall {
             100 => Syscall::HALT,
             101 => Syscall::LWA,
             102 => Syscall::SHA_EXTEND,
+            103 => Syscall::SHA_COMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
