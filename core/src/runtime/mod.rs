@@ -619,7 +619,7 @@ impl Runtime {
 
                         // Set the clock back to the original value and begin executing the
                         // precompile.
-                        self.clk -= 48 * 20;
+                        self.clk -= NB_SHA_EXTEND_CYCLES;
                         let saved_clk = self.clk;
                         let saved_w_ptr = w_ptr;
                         let saved_w = w.clone();
@@ -691,7 +691,7 @@ impl Runtime {
                     }
                     Syscall::SHA_COMPRESS => {
                         // The number of cycles it takes to perform this precompile.
-                        const NB_SHA_COMPRESS_CYCLES: u32 = 72 * 4;
+                        const NB_SHA_COMPRESS_CYCLES: u32 = 8 * 4 + 64 * 4 + 8 * 4;
 
                         // Temporarily set the clock to the number of cycles it takes to perform
                         // this precompile as reading `w_ptr` happens on this clock.
@@ -714,7 +714,7 @@ impl Runtime {
 
                         // Set the clock back to the original value and begin executing the
                         // precompile.
-                        self.clk -= 48 * 20;
+                        self.clk -= NB_SHA_COMPRESS_CYCLES;
                         let saved_clk = self.clk;
                         let saved_w_ptr = w_ptr;
                         let saved_w = w.clone();
@@ -725,7 +725,8 @@ impl Runtime {
                         const H_START_IDX: u32 = 64;
                         let mut hx = [0u32; 8];
                         for i in 0..8 {
-                            hx[i] = self.mr(w_ptr + H_START_IDX * 4, AccessPosition::Memory);
+                            hx[i] = self
+                                .mr(w_ptr + (H_START_IDX + i as u32) * 4, AccessPosition::Memory);
                             h_read_records.push(self.record.memory);
                             self.clk += 4;
                         }
@@ -766,10 +767,10 @@ impl Runtime {
 
                         let v = [a, b, c, d, e, f, g, h];
                         for i in 0..8 {
-                            self.mr(w_ptr + H_START_IDX * 4, AccessPosition::Memory);
+                            self.mr(w_ptr + (H_START_IDX + i as u32) * 4, AccessPosition::Memory);
                             self.mw(
-                                w_ptr + H_START_IDX * 4,
-                                hx[0] + v[i],
+                                w_ptr + (H_START_IDX + i as u32) * 4,
+                                hx[i] + v[i],
                                 AccessPosition::Memory,
                             );
                             h_write_records.push(self.record.memory);

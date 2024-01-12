@@ -30,7 +30,6 @@ impl<F: Field> NotOperation<F> {
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
-        b: Word<AB::Var>,
         cols: NotOperation<AB::Var>,
     ) {
         // TODO:
