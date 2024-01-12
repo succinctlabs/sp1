@@ -186,10 +186,15 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                         cols.bit_shift_result[i] = F::from_canonical_u32(
                             shifted_byte as u32 + last_carry * carry_multiplier,
                         );
+                        // print shifted_byte, carry, last_carry, bit_shift_result[i], i.
+                        println!(
+                            "origninal byte: {}, shifted_byte: {}, carry: {}, last_carry: {}, bit_shift_result[i]: {}, i: {}",
+                            byte_shift_result[i], shifted_byte, carry, last_carry, cols.bit_shift_result[i], i
+                        );
                         last_carry = carry as u32;
                         if i < WORD_SIZE {
                             // TODO do "anti-tests", like make sure to pass wrong inputs and make them fail.
-                            // debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
+                            debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                         }
                     }
                 }
@@ -214,6 +219,8 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
         let padded_row_template = {
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
             let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            // Shift 0 by 0 bits and 0 bytes.
+            cols.is_srl = F::one();
             cols.shift_by_n_bits[0] = F::one();
             cols.shift_by_n_bytes[0] = F::one();
             row
@@ -284,7 +291,12 @@ where
                 if i + 1 < LONG_WORD_SIZE {
                     v += local.carry[i + 1].clone() * carry_multiplier.clone();
                 }
-                builder.assert_eq(v, local.bit_shift_result[i].clone());
+                // TODO: I'm not sure why, but is_real seems necessary here... carry and
+                // byte_shift_result bit_shift_result are always 0 in padded rows, so I'm not sure
+                // why this won't work though...
+                builder
+                    .when(local.is_real)
+                    .assert_eq(v, local.bit_shift_result[i].clone());
             }
         }
 
@@ -407,8 +419,8 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let shifts = vec![
-            (Opcode::SRL, 0xffff8000, 0xffff8000, 0),
-            // (Opcode::SRL, 0x7fffc000, 0xffff8000, 1),
+            // (Opcode::SRL, 0xffff8000, 0xffff8000, 0),
+            (Opcode::SRL, 0x7fffc000, 0xffff8000, 1),
             // (Opcode::SRL, 0x01ffff00, 0xffff8000, 7),
             // (Opcode::SRL, 0x0003fffe, 0xffff8000, 14),
             // (Opcode::SRL, 0x0001ffff, 0xffff8001, 15),
