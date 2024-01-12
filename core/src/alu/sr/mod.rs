@@ -291,13 +291,11 @@ where
                 one.clone(),
             );
 
-            // Number of bytes to shift.
-
             // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
             // number of bytes to shift.
             let num_bytes_to_shift = local.c_least_sig_byte[3]
                 + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
-            // Verify that shift_by_n_bytes[i] = 1 if and only if i = num_bytes_to_shift.
+            // If shift_by_n_bytes[i] = 1, then i = num_bytes_to_shift.
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.shift_by_n_bytes[i])
@@ -326,6 +324,7 @@ where
                 sign_extended_b.push(leading_byte.clone());
             }
 
+            // Shift the bytes of sign_extended_b by num_bytes_to_shift.
             for num_bytes_to_shift in 0..WORD_SIZE {
                 for i in 0..(LONG_WORD_SIZE - num_bytes_to_shift) {
                     builder
