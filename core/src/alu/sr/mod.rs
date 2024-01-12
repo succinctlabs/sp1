@@ -272,6 +272,14 @@ where
             }
         }
 
+        // The 4 least significant bytes must match a. The 4 most significant bytes of result may be
+        // inaccurate.
+        {
+            for i in 0..WORD_SIZE {
+                builder.assert_eq(local.a[i].clone(), local.bit_shift_result[i].clone());
+            }
+        }
+
         // Check that the flags are indeed boolean.
         {
             let flags = [local.is_srl, local.is_sra, local.is_real, local.b_msb];
