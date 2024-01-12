@@ -146,6 +146,10 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
 
                     cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
                     cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
+
+                    for i in 0..BYTE_SIZE {
+                        cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
+                    }
                 }
 
                 let (num_bytes_to_shift, num_bits_to_shift) =
