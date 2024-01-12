@@ -1,4 +1,5 @@
 mod bool;
+pub mod polynomial;
 mod word;
 use crate::bytes::ByteOpcode;
 

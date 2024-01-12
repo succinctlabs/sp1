@@ -9,6 +9,8 @@ use crate::{
     runtime::Segment,
 };
 
+pub mod field;
+
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String {
         "".to_string()
