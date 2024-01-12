@@ -168,9 +168,8 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                 let num_bytes_to_shift = nb_bytes_to_shift(event.c);
                 let num_bits_to_shift = nb_bits_to_shift(event.c);
 
-                let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
-
                 // Byte shifting.
+                let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
                 {
                     for i in 0..WORD_SIZE {
                         cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
