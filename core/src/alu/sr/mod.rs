@@ -44,6 +44,7 @@ use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 
 use crate::bytes::utils::shr_carry;
+use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -315,6 +316,7 @@ where
                 one.clone(),
             );
         }
+
         // Byte shift the sign-extended b.
         {
             // The leading bytes of b should be 0xff if b's MSB is 1 & opcode = SRA, 0 otherwise.
@@ -348,10 +350,27 @@ where
                 carry_multiplier += AB::Expr::from_canonical_u32(1u32 << (8 - i))
                     * local.shift_by_n_bits[i].clone();
             }
-            for i in (0..LONG_WORD_SIZE).rev() {
-                // TODO: ShrCarry (bit_shift_result[i], shr_carry_output_shifted_byte,
-                // shr_carry_output_carry, num_bits_to_shift, carry[i]).
+            // The 3-bit number represented by the 3 least significant bits of c equals the number
+            // of bits to shift.
+            let mut num_bits_to_shift = AB::Expr::zero();
+            for i in 0..3 {
+                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+            }
 
+            // Calculate ShrCarry.
+            for i in (0..LONG_WORD_SIZE).rev() {
+                builder.send_byte_loookup_pair(
+                    AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
+                    local.shr_carry_output_shifted_byte[i].clone(),
+                    local.shr_carry_output_carry[i].clone(),
+                    local.byte_shift_result[i].clone(),
+                    num_bits_to_shift.clone(),
+                    local.is_real.clone(),
+                );
+            }
+
+            // Use the results of ShrCarry to calculate the bit shift result.
+            for i in (0..LONG_WORD_SIZE).rev() {
                 let mut v: AB::Expr = local.shr_carry_output_shifted_byte[i].into();
                 if i + 1 < LONG_WORD_SIZE {
                     v += local.shr_carry_output_carry[i + 1].clone() * carry_multiplier.clone();
