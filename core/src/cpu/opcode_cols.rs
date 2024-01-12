@@ -40,9 +40,10 @@ pub struct OpcodeSelectors<T> {
     pub is_bltu: T,
     pub is_bgeu: T,
 
-    // Specific instruction selectors.
+    // Jump instruction selectors.
     pub is_jalr: T,
     pub is_jal: T,
+
     pub is_auipc: T,
 
     // Whether this is a no-op.
