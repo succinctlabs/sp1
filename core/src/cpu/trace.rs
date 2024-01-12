@@ -1,5 +1,6 @@
 use super::air::{
-    BranchColumns, CpuCols, MemoryAccessCols, MemoryColumns, CPU_COL_MAP, NUM_CPU_COLS,
+    AUIPCColumns, BranchColumns, CpuCols, JumpColumns, MemoryAccessCols, MemoryColumns,
+    CPU_COL_MAP, NUM_CPU_COLS,
 };
 use super::{CpuEvent, MemoryRecord};
 
@@ -85,6 +86,8 @@ impl CpuChip {
 
         self.populate_memory(cols, event, new_alu_events, new_blu_events);
         self.populate_branch(cols, event, new_alu_events);
+        self.populate_jump(cols, event, new_alu_events);
+        self.populate_auipc(cols, event, new_alu_events);
 
         cols.is_real = F::one();
 
@@ -266,6 +269,84 @@ impl CpuChip {
         }
     }
 
+    fn populate_jump<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+    ) {
+        if event.instruction.is_jump_instruction() {
+            let jump_columns: &mut JumpColumns<F> =
+                unsafe { transmute(&mut cols.opcode_specific_columns) };
+
+            match event.instruction.opcode {
+                Opcode::JAL => {
+                    let next_pc = event.pc.wrapping_add(event.b);
+                    jump_columns.pc = event.pc.into();
+                    jump_columns.next_pc = next_pc.into();
+
+                    let add_event = AluEvent {
+                        clk: event.clk,
+                        opcode: Opcode::ADD,
+                        a: next_pc,
+                        b: event.pc,
+                        c: event.b,
+                    };
+
+                    alu_events
+                        .entry(Opcode::ADD)
+                        .and_modify(|op_new_events| op_new_events.push(add_event))
+                        .or_insert(vec![add_event]);
+                }
+                Opcode::JALR => {
+                    let next_pc = event.b.wrapping_add(event.c);
+                    jump_columns.next_pc = next_pc.into();
+
+                    let add_event = AluEvent {
+                        clk: event.clk,
+                        opcode: Opcode::ADD,
+                        a: next_pc,
+                        b: event.b,
+                        c: event.c,
+                    };
+
+                    alu_events
+                        .entry(Opcode::ADD)
+                        .and_modify(|op_new_events| op_new_events.push(add_event))
+                        .or_insert(vec![add_event]);
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    fn populate_auipc<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
+    ) {
+        if matches!(event.instruction.opcode, Opcode::AUIPC) {
+            let auipc_columns: &mut AUIPCColumns<F> =
+                unsafe { transmute(&mut cols.opcode_specific_columns) };
+
+            auipc_columns.pc = event.pc.into();
+
+            let add_event = AluEvent {
+                clk: event.clk,
+                opcode: Opcode::ADD,
+                a: event.a,
+                b: event.pc,
+                c: event.b,
+            };
+
+            alu_events
+                .entry(Opcode::ADD)
+                .and_modify(|op_new_events| op_new_events.push(add_event))
+                .or_insert(vec![add_event]);
+        }
+    }
+
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
         let len: usize = values.len();
         let n_real_rows = values.len() / NUM_CPU_COLS;
@@ -290,7 +371,7 @@ impl CpuChip {
             .for_each(|(n, padded_row)| {
                 padded_row[CPU_COL_MAP.pc] = pc;
                 padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32((n as u32 + 1) * 4);
-                padded_row[CPU_COL_MAP.selectors.noop] = F::one();
+                padded_row[CPU_COL_MAP.selectors.is_noop] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
                 // The operands will default by 0, so this will be a no-op anyways.

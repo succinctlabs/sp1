@@ -33,10 +33,10 @@ impl<T> IntoIterator for InstructionCols<T> {
     type IntoIter = IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        once(self.opcode.into())
-            .chain(self.op_a.into_iter())
-            .chain(self.op_b.into_iter())
-            .chain(self.op_c.into_iter())
+        once(self.opcode)
+            .chain(self.op_a)
+            .chain(self.op_b)
+            .chain(self.op_c)
             .collect::<Vec<_>>()
             .into_iter()
     }
