@@ -161,7 +161,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
 
                 let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
 
-                // Byte shift.
+                // Byte shifting.
                 {
                     for i in 0..WORD_SIZE {
                         cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
@@ -183,7 +183,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     cols.byte_shift_result = byte_shift_result.map(F::from_canonical_u8);
                 }
 
-                // bit shifting
+                // Bit shifting.
                 {
                     for i in 0..BYTE_SIZE {
                         cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
@@ -198,20 +198,12 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                         cols.bit_shift_result[i] = F::from_canonical_u32(
                             shifted_byte as u32 + last_carry * carry_multiplier,
                         );
-                        // print shifted_byte, carry, last_carry, bit_shift_result[i], i.
-                        println!(
-                            "original byte: {}, shifted_byte: {}, carry: {}, last_carry: {}, bit_shift_result[i]: {}, i: {}",
-                            byte_shift_result[i], shifted_byte, carry, last_carry, cols.bit_shift_result[i], i
-                        );
                         last_carry = carry as u32;
                         if i < WORD_SIZE {
-                            // TODO do "anti-tests", like make sure to pass wrong inputs and make them fail.
                             debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                         }
                     }
                 }
-
-                println!("cols: {:#?}", cols);
 
                 row
             })
