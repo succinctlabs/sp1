@@ -32,3 +32,9 @@ itertools = "0.12.0"
 rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 log = "0.4.20"
 env_logger = "0.10.1"
+criterion = "0.5.1"
+
+
+[[bench]]
+name = "vm"
+harness = false

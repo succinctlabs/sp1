@@ -67,5 +67,7 @@ unsafe impl GlobalAlloc for SimpleAlloc {
     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
 
+// TODO: should we use this even outside of vm?
+#[cfg(target_os = "zkvm")]
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
