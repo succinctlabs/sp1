@@ -722,6 +722,7 @@ impl Runtime {
                         let mut w_i_read_records = Vec::new();
                         let mut h_write_records = Vec::new();
 
+                        // Execute the "initialize" phase.
                         const H_START_IDX: u32 = 64;
                         let mut hx = [0u32; 8];
                         for i in 0..8 {
@@ -731,6 +732,7 @@ impl Runtime {
                             self.clk += 4;
                         }
 
+                        // Execute the "compress" phase.
                         let mut a = hx[0];
                         let mut b = hx[1];
                         let mut c = hx[2];
@@ -765,6 +767,7 @@ impl Runtime {
                             self.clk += 4;
                         }
 
+                        // Execute the "finalize" phase.
                         let v = [a, b, c, d, e, f, g, h];
                         for i in 0..8 {
                             self.mr(w_ptr + (H_START_IDX + i as u32) * 4, AccessPosition::Memory);
