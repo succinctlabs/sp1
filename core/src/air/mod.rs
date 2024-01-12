@@ -5,6 +5,7 @@ use crate::bytes::ByteOpcode;
 use std::iter::once;
 
 pub use bool::Bool;
+use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
@@ -65,6 +66,10 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         self.assert_bool(value.0);
     }
 
+    fn sum(values: &[Self::Expr]) -> Self::Expr {
+        values.iter().cloned().sum()
+    }
+
     fn zero_word() -> Word<Self::Expr> {
         Word([
             Self::Expr::zero(),
@@ -81,6 +86,19 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
             Self::Expr::zero(),
             Self::Expr::zero(),
         ])
+    }
+
+    fn aggregate_words<I1: Into<Self::Expr> + Clone, I: Into<Self::Expr> + Clone>(
+        words: Vec<Word<I1>>,
+        selectors: Vec<I>,
+    ) -> Word<Self::Expr> {
+        let mut result = Self::zero_word();
+        for (word, selector) in words.iter().zip_eq(selectors) {
+            for (i, value) in word.0.clone().into_iter().enumerate() {
+                result[i] += value.into() * selector.clone().into();
+            }
+        }
+        result
     }
 
     fn send_alu<EOp, Ea, Eb, Ec, EMult>(

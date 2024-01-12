@@ -16,13 +16,13 @@ pub struct OpcodeSelectors<T> {
     pub imm_c: T,
 
     // Table selectors for opcodes.
-    pub add_op: T,
-    pub sub_op: T,
-    pub mul_op: T,
-    pub div_op: T,
-    pub shift_op: T,
-    pub bitwise_op: T,
-    pub lt_op: T,
+    pub is_add: T,
+    pub is_sub: T,
+    pub is_mul: T,
+    pub is_div: T,
+    pub is_shift: T,
+    pub is_bitwise: T,
+    pub is_lt: T,
 
     // Memory operation selectors.
     pub is_load: T,
@@ -41,12 +41,12 @@ pub struct OpcodeSelectors<T> {
     pub is_bgeu: T,
 
     // Specific instruction selectors.
-    pub jalr: T,
-    pub jal: T,
-    pub auipc: T,
+    pub is_jalr: T,
+    pub is_jal: T,
+    pub is_auipc: T,
 
     // Whether this is a no-op.
-    pub noop: T,
+    pub is_noop: T,
     pub reg_0_write: T,
 }
 
@@ -58,19 +58,19 @@ impl<F: PrimeField> OpcodeSelectors<F> {
         if instruction.is_alu_instruction() {
             match instruction.opcode {
                 Opcode::ADD => {
-                    self.add_op = F::one();
+                    self.is_add = F::one();
                 }
                 Opcode::SUB => {
-                    self.sub_op = F::one();
+                    self.is_sub = F::one();
                 }
                 Opcode::XOR | Opcode::OR | Opcode::AND => {
-                    self.bitwise_op = F::one();
+                    self.is_bitwise = F::one();
                 }
                 Opcode::SLL | Opcode::SRL | Opcode::SRA => {
-                    self.shift_op = F::one();
+                    self.is_shift = F::one();
                 }
                 Opcode::SLT | Opcode::SLTU => {
-                    self.lt_op = F::one();
+                    self.is_lt = F::one();
                 }
                 Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {}
                 _ => {
@@ -139,11 +139,13 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 _ => unreachable!(),
             }
         } else if instruction.opcode == Opcode::JAL {
-            self.jal = F::one();
+            self.is_jal = F::one();
         } else if instruction.opcode == Opcode::JALR {
-            self.jalr = F::one();
+            self.is_jalr = F::one();
+        } else if instruction.opcode == Opcode::AUIPC {
+            self.is_auipc = F::one();
         } else if instruction.opcode == Opcode::UNIMP {
-            self.noop = F::one();
+            self.is_noop = F::one();
         }
 
         if instruction.op_a == 0 {
@@ -151,7 +153,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             // We are always writing to the first register UNLESS it is a branch, is_store.
             if !(instruction.is_branch_instruction()
                 || self.is_store == F::one()
-                || self.noop == F::one())
+                || self.is_noop == F::one())
             {
                 self.reg_0_write = F::one();
             }
@@ -167,13 +169,13 @@ impl<T> IntoIterator for OpcodeSelectors<T> {
         vec![
             self.imm_b,
             self.imm_c,
-            self.add_op,
-            self.sub_op,
-            self.mul_op,
-            self.div_op,
-            self.shift_op,
-            self.bitwise_op,
-            self.lt_op,
+            self.is_add,
+            self.is_sub,
+            self.is_mul,
+            self.is_div,
+            self.is_shift,
+            self.is_bitwise,
+            self.is_lt,
             self.is_load,
             self.is_store,
             self.is_word,
@@ -186,10 +188,10 @@ impl<T> IntoIterator for OpcodeSelectors<T> {
             self.is_bge,
             self.is_bltu,
             self.is_bgeu,
-            self.jalr,
-            self.jal,
-            self.auipc,
-            self.noop,
+            self.is_jalr,
+            self.is_jal,
+            self.is_auipc,
+            self.is_noop,
             self.reg_0_write,
         ]
         .into_iter()
