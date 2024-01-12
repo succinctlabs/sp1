@@ -56,6 +56,19 @@ pub struct BranchColumns<T> {
     pub a_lt_b: T,
 }
 
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct JumpColumns<T> {
+    pub pc: Word<T>, // These are needed for JAL
+    pub next_pc: Word<T>,
+}
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AUIPCColumns<T> {
+    pub pc: Word<T>,
+}
+
 /// An AIR table for memory accesses.
 #[derive(AlignedBorrow, Default, Debug)]
 #[repr(C)]
@@ -104,11 +117,21 @@ pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_colum
 const fn get_opcode_specific_columns_offset() -> usize {
     let memory_columns_size = size_of::<MemoryColumns<u8>>();
     let branch_columns_size = size_of::<BranchColumns<u8>>();
+    let jump_columns_size = size_of::<JumpColumns<u8>>();
+    let aui_pc_columns_size = size_of::<AUIPCColumns<u8>>();
 
     let return_val = memory_columns_size;
 
     if branch_columns_size > return_val {
         panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    if jump_columns_size > return_val {
+        panic!("JumpColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    if aui_pc_columns_size > return_val {
+        panic!("AUIPCColumns is too large to fit in the opcode_specific_columns array.");
     }
 
     return_val
@@ -196,7 +219,7 @@ where
             local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
             local.instruction.op_a[0],
             local.op_a_access,
-            AB::Expr::one() - local.selectors.noop - local.selectors.reg_0_write,
+            AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
         );
 
         builder
@@ -273,32 +296,16 @@ where
 
         //////////////////////////////////////////
 
-        //// For branch instructions
-        self.branch_ops_eval::<AB>(builder, is_branch_instruction, local, next);
+        //// Branch instructions
+        self.branch_ops_eval::<AB>(builder, is_branch_instruction.clone(), local, next);
 
-        // //// For jump instructions
-        // builder
-        //     .when(local.selectors.jalr + local.selectors.jal)
-        //     .assert_eq(
-        //         reduce::<AB>(local.op_a_val),
-        //         local.pc + AB::F::from_canonical_u8(4),
-        //     );
-        // builder.when(local.selectors.jal).assert_eq(
-        //     local.pc + AB::F::from_canonical_u8(4) + reduce::<AB>(local.op_b_val),
-        //     next.pc,
-        // );
-        // builder.when(local.selectors.jalr).assert_eq(
-        //     reduce::<AB>(local.op_b_val) + local.instruction.op_c,
-        //     next.pc,
-        // );
+        //// Jump instructions
+        self.jump_ops_eval::<AB>(builder, local, next);
 
-        // //// Upper immediate instructions
-        // // lookup(clk, op_c_val, imm, 12) in SLT table with multiplicity AUIPC
-        // builder.when(local.selectors.auipc).assert_eq(
-        //     reduce::<AB>(local.op_a_val),
-        //     reduce::<AB>(local.op_c_val) + local.pc,
-        // );
+        //// AUIPC instruction
+        self.auipc_eval(builder, local);
 
+        //// ALU instructions
         builder.send_alu(
             local.instruction.opcode,
             *local.op_a_val(),
@@ -306,6 +313,12 @@ where
             *local.op_c_val(),
             is_alu_instruction,
         );
+
+        // TODO:  Need to handle HALT ecall
+        // For all non branch or jump instructions, verify that next.pc == pc + 4
+        // builder
+        //     .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
+        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
     }
 }
 
@@ -314,13 +327,13 @@ impl CpuChip {
         &self,
         opcode_selectors: &OpcodeSelectors<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.add_op
-            + opcode_selectors.sub_op
-            + opcode_selectors.mul_op
-            + opcode_selectors.div_op
-            + opcode_selectors.shift_op
-            + opcode_selectors.bitwise_op
-            + opcode_selectors.lt_op
+        opcode_selectors.is_add
+            + opcode_selectors.is_sub
+            + opcode_selectors.is_mul
+            + opcode_selectors.is_div
+            + opcode_selectors.is_shift
+            + opcode_selectors.is_bitwise
+            + opcode_selectors.is_lt
     }
 
     fn is_memory_instruction<AB: CurtaAirBuilder>(
@@ -459,6 +472,73 @@ impl CpuChip {
             *local.op_b_val(),
             *local.op_a_val(),
             is_branch_instruction.clone(),
+        );
+    }
+
+    fn jump_ops_eval<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) {
+        // Get the jump specific columns
+        let jump_columns: JumpColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
+        builder
+            .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .assert_eq(
+                reduce::<AB>(*local.op_a_val()),
+                local.pc + AB::F::from_canonical_u8(4),
+            );
+
+        // Verify that the word form of local.pc is correct for JAL instructions.
+        builder
+            .when(local.selectors.is_jal)
+            .assert_eq(reduce::<AB>(jump_columns.pc), local.pc);
+
+        // Verify that the word form of next.pc is correct for both jump instructions.
+        builder
+            .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .assert_eq(reduce::<AB>(jump_columns.next_pc), next.pc);
+
+        // Verify that the new pc is calculated correctly for JAL instructions.
+        builder.send_alu(
+            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+            jump_columns.next_pc,
+            jump_columns.pc,
+            *local.op_b_val(),
+            local.selectors.is_jal,
+        );
+
+        // Verify that the new pc is calculated correctly for JALR instructions.
+        builder.send_alu(
+            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+            jump_columns.next_pc,
+            *local.op_b_val(),
+            *local.op_c_val(),
+            local.selectors.is_jalr,
+        );
+    }
+
+    fn auipc_eval<AB: CurtaAirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
+        // Get the auipc specific columns
+        let auipc_columns: AUIPCColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        // Verify that the word form of local.pc is correct.
+        builder
+            .when(local.selectors.is_auipc)
+            .assert_eq(reduce::<AB>(auipc_columns.pc), local.pc);
+
+        // Verify that op_a == pc + op_b.
+        builder.send_alu(
+            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+            *local.op_a_val(),
+            auipc_columns.pc,
+            *local.op_b_val(),
+            local.selectors.is_auipc,
         );
     }
 }

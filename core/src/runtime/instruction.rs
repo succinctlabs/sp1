@@ -27,53 +27,52 @@ impl Instruction {
 
     /// Returns if the instruction is an ALU instruction.
     pub fn is_alu_instruction(&self) -> bool {
-        match self.opcode {
+        matches!(
+            self.opcode,
             Opcode::ADD
-            | Opcode::SUB
-            | Opcode::XOR
-            | Opcode::OR
-            | Opcode::AND
-            | Opcode::SLL
-            | Opcode::SRL
-            | Opcode::SRA
-            | Opcode::SLT
-            | Opcode::SLTU
-            | Opcode::MUL
-            | Opcode::MULH
-            | Opcode::MULHU
-            | Opcode::MULHSU
-            | Opcode::DIV
-            | Opcode::DIVU
-            | Opcode::REM
-            | Opcode::REMU => true,
-            _ => false,
-        }
+                | Opcode::SUB
+                | Opcode::XOR
+                | Opcode::OR
+                | Opcode::AND
+                | Opcode::SLL
+                | Opcode::SRL
+                | Opcode::SRA
+                | Opcode::SLT
+                | Opcode::SLTU
+                | Opcode::MUL
+                | Opcode::MULH
+                | Opcode::MULHU
+                | Opcode::MULHSU
+                | Opcode::DIV
+                | Opcode::DIVU
+                | Opcode::REM
+                | Opcode::REMU
+        )
     }
 
     /// Returns if the instruction is a load instruction.
     pub fn is_load_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => true,
-            _ => false,
-        }
+        matches!(
+            self.opcode,
+            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU
+        )
     }
 
     /// Returns if the instruction is a store instruction.
     pub fn is_store_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::SB | Opcode::SH | Opcode::SW => true,
-            _ => false,
-        }
+        matches!(self.opcode, Opcode::SB | Opcode::SH | Opcode::SW)
     }
 
     /// Returns if the instruction is a branch instruction.
     pub fn is_branch_instruction(&self) -> bool {
-        match self.opcode {
-            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
-                true
-            }
-            _ => false,
-        }
+        matches!(
+            self.opcode,
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU
+        )
+    }
+
+    pub fn is_jump_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::JAL | Opcode::JALR)
     }
 }
 
