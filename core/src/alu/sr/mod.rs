@@ -253,8 +253,6 @@ where
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
 
-        // TODO: Remove the debugging statements.
-
         // TODO: Calculate the MSB of b using byte lookup.
         {
             // TODO: Check that the MSB of most_significant_byte matches local.b_msb using lookup.
