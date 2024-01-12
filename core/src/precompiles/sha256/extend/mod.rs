@@ -1,5 +1,6 @@
 mod air;
 mod columns;
+mod execute;
 mod flags;
 mod trace;
 
@@ -13,11 +14,11 @@ pub struct ShaExtendEvent {
     pub clk: u32,
     pub w_ptr: u32,
     pub w: [u32; 64],
-    pub w_i_minus_15_records: [Option<MemoryRecord>; 48],
-    pub w_i_minus_2_records: [Option<MemoryRecord>; 48],
-    pub w_i_minus_16_records: [Option<MemoryRecord>; 48],
-    pub w_i_minus_7_records: [Option<MemoryRecord>; 48],
-    pub w_i_records: [Option<MemoryRecord>; 48],
+    pub w_i_minus_15_reads: [Option<MemoryRecord>; 48],
+    pub w_i_minus_2_reads: [Option<MemoryRecord>; 48],
+    pub w_i_minus_16_reads: [Option<MemoryRecord>; 48],
+    pub w_i_minus_7_reads: [Option<MemoryRecord>; 48],
+    pub w_i_writes: [Option<MemoryRecord>; 48],
 }
 
 pub struct ShaExtendChip;
@@ -34,7 +35,6 @@ impl ShaExtendChip {
         record: Option<MemoryRecord>,
     ) {
         cols.value = value.into();
-        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
         if let Some(record) = record {
             cols.prev_value = record.value.into();
             cols.segment = F::from_canonical_u32(record.segment);

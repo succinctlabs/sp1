@@ -6,7 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent, SHA_COMPRESS_K};
+use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -29,10 +29,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    a: Option<MemoryRecord>,
-    b: Option<MemoryRecord>,
-    c: Option<MemoryRecord>,
-    memory: Option<MemoryRecord>,
+    pub a: Option<MemoryRecord>,
+    pub b: Option<MemoryRecord>,
+    pub c: Option<MemoryRecord>,
+    pub memory: Option<MemoryRecord>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -164,7 +164,7 @@ impl Runtime {
     }
 
     /// Read from memory, assuming that all addresses are aligned.
-    fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
         let value = self.memory.entry(addr).or_insert(0).clone();
@@ -193,7 +193,7 @@ impl Runtime {
 
     /// Write to memory.
     /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
-    fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
+    pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
         // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
         self.memory.insert(addr, value);
@@ -209,12 +209,12 @@ impl Runtime {
     }
 
     /// Read from register.
-    fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
+    pub fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
         self.mr(register as u32, position)
     }
 
     /// Write to register.
-    fn rw(&mut self, register: Register, value: u32) {
+    pub fn rw(&mut self, register: Register, value: u32) {
         if register == Register::X0 {
             // We don't write to %x0. See 2.6 Load and Store Instruction on
             // P.18 of the RISC-V spec.
@@ -378,7 +378,6 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-
         self.record = Record::default();
 
         match instruction.opcode {
@@ -581,6 +580,7 @@ impl Runtime {
                 let a0 = Register::X10;
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
+
                 match syscall {
                     Syscall::HALT => {
                         a = self.register(a0);
@@ -595,204 +595,10 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::SHA_EXTEND => {
-                        // The number of cycles it takes to perform this precompile.
-                        const NB_SHA_EXTEND_CYCLES: u32 = 48 * 20;
-
-                        // Temporarily set the clock to the number of cycles it takes to perform
-                        // this precompile as reading `w_ptr` happens on this clock.
-                        self.clk += NB_SHA_EXTEND_CYCLES;
-
-                        // Read `w_ptr` from register a0 or x5.
-                        let w_ptr = self.register(a0);
-                        let mut w = Vec::new();
-                        for i in 0..64 {
-                            w.push(self.word(w_ptr + i * 4));
-                        }
-
-                        // Set the CPU table values with some dummy values.
-                        (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
-
-                        // We'll save the current record and restore it later so that the CPU
-                        // event gets emitted correctly.
-                        let t = self.record;
-
-                        // Set the clock back to the original value and begin executing the
-                        // precompile.
-                        self.clk -= NB_SHA_EXTEND_CYCLES;
-                        let saved_clk = self.clk;
-                        let saved_w_ptr = w_ptr;
-                        let saved_w = w.clone();
-                        let mut w_i_minus_15_records = Vec::new();
-                        let mut w_i_minus_2_records = Vec::new();
-                        let mut w_i_minus_16_records = Vec::new();
-                        let mut w_i_minus_7_records = Vec::new();
-                        let mut w_i_records = Vec::new();
-                        for i in 16..64 {
-                            // Read w[i-15].
-                            let w_i_minus_15 =
-                                self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
-                            w_i_minus_15_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `s0`.
-                            let s0 = w_i_minus_15.rotate_right(7)
-                                ^ w_i_minus_15.rotate_right(18)
-                                ^ (w_i_minus_15 >> 3);
-
-                            // Read w[i-2].
-                            let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
-                            w_i_minus_2_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `s1`.
-                            let s1 = w_i_minus_2.rotate_right(17)
-                                ^ w_i_minus_2.rotate_right(19)
-                                ^ (w_i_minus_2 >> 10);
-
-                            // Read w[i-16].
-                            let w_i_minus_16 =
-                                self.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
-                            w_i_minus_16_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Read w[i-7].
-                            let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
-                            w_i_minus_7_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `w_i`.
-                            let w_i = s1
-                                .wrapping_add(w_i_minus_16)
-                                .wrapping_add(s0)
-                                .wrapping_add(w_i_minus_7);
-
-                            // Write w[i].
-                            self.mr(w_ptr + i * 4, AccessPosition::Memory);
-                            self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
-                            w_i_records.push(self.record.memory);
-                            self.clk += 4;
-                        }
-
-                        // Push the SHA extend event.
-                        self.segment.sha_extend_events.push(ShaExtendEvent {
-                            clk: saved_clk,
-                            w_ptr: saved_w_ptr,
-                            w: saved_w.try_into().unwrap(),
-                            w_i_minus_15_records: w_i_minus_15_records.try_into().unwrap(),
-                            w_i_minus_2_records: w_i_minus_2_records.try_into().unwrap(),
-                            w_i_minus_16_records: w_i_minus_16_records.try_into().unwrap(),
-                            w_i_minus_7_records: w_i_minus_7_records.try_into().unwrap(),
-                            w_i_records: w_i_records.try_into().unwrap(),
-                        });
-
-                        // Restore the original record.
-                        self.record = t;
+                        (a, b, c) = ShaExtendChip::execute(self);
                     }
                     Syscall::SHA_COMPRESS => {
-                        // The number of cycles it takes to perform this precompile.
-                        const NB_SHA_COMPRESS_CYCLES: u32 = 8 * 4 + 64 * 4 + 8 * 4;
-
-                        // Temporarily set the clock to the number of cycles it takes to perform
-                        // this precompile as reading `w_ptr` happens on this clock.
-                        self.clk += NB_SHA_COMPRESS_CYCLES;
-
-                        // Read `w_ptr` from register a0 or x5.
-                        let w_ptr = self.register(a0);
-                        let mut w = Vec::new();
-                        for i in 0..64 {
-                            w.push(self.word(w_ptr + i * 4));
-                        }
-
-                        // Set the CPU table values with some dummy values.
-                        (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
-
-                        // We'll save the current record and restore it later so that the CPU
-                        // event gets emitted correctly.
-                        let t = self.record;
-
-                        // Set the clock back to the original value and begin executing the
-                        // precompile.
-                        self.clk -= NB_SHA_COMPRESS_CYCLES;
-                        let saved_clk = self.clk;
-                        let saved_w_ptr = w_ptr;
-                        let saved_w = w.clone();
-                        let mut h_read_records = Vec::new();
-                        let mut w_i_read_records = Vec::new();
-                        let mut h_write_records = Vec::new();
-
-                        // Execute the "initialize" phase.
-                        const H_START_IDX: u32 = 64;
-                        let mut hx = [0u32; 8];
-                        for i in 0..8 {
-                            hx[i] = self
-                                .mr(w_ptr + (H_START_IDX + i as u32) * 4, AccessPosition::Memory);
-                            h_read_records.push(self.record.memory);
-                            self.clk += 4;
-                        }
-
-                        // Execute the "compress" phase.
-                        let mut a = hx[0];
-                        let mut b = hx[1];
-                        let mut c = hx[2];
-                        let mut d = hx[3];
-                        let mut e = hx[4];
-                        let mut f = hx[5];
-                        let mut g = hx[6];
-                        let mut h = hx[7];
-                        for i in 0..64 {
-                            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-                            let ch = (e & f) ^ (!e & g);
-                            let w_i = self.mr(w_ptr + i * 4, AccessPosition::Memory);
-                            w_i_read_records.push(self.record.memory);
-                            let temp1 = h
-                                .wrapping_add(s1)
-                                .wrapping_add(ch)
-                                .wrapping_add(SHA_COMPRESS_K[i as usize])
-                                .wrapping_add(w_i);
-                            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-                            let maj = (a & b) ^ (a & c) ^ (b & c);
-                            let temp2 = s0.wrapping_add(maj);
-
-                            h = g;
-                            g = f;
-                            f = e;
-                            e = d + temp1;
-                            d = c;
-                            c = b;
-                            b = a;
-                            a = temp1 + temp2;
-
-                            self.clk += 4;
-                        }
-
-                        // Execute the "finalize" phase.
-                        let v = [a, b, c, d, e, f, g, h];
-                        for i in 0..8 {
-                            self.mr(w_ptr + (H_START_IDX + i as u32) * 4, AccessPosition::Memory);
-                            self.mw(
-                                w_ptr + (H_START_IDX + i as u32) * 4,
-                                hx[i] + v[i],
-                                AccessPosition::Memory,
-                            );
-                            h_write_records.push(self.record.memory);
-                            self.clk += 4;
-                        }
-
-                        // Push the SHA extend event.
-                        self.segment.sha_compress_events.push(ShaCompressEvent {
-                            clk: saved_clk,
-                            w_and_h_ptr: saved_w_ptr,
-                            w: saved_w.try_into().unwrap(),
-                            h: hx,
-                            h_read_records: h_read_records.try_into().unwrap(),
-                            w_i_read_records: w_i_read_records.try_into().unwrap(),
-                            h_write_records: h_write_records.try_into().unwrap(),
-                        });
-
-                        // Restore the original record.
-                        self.record = t;
+                        (a, b, c) = ShaCompressChip::execute(self);
                     }
                 }
             }

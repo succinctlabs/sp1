@@ -26,22 +26,22 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 self.populate_access(
                     &mut cols.w_i_minus_15,
                     w[16 + j - 15],
-                    event.w_i_minus_15_records[j],
+                    event.w_i_minus_15_reads[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_2,
                     w[16 + j - 2],
-                    event.w_i_minus_2_records[j],
+                    event.w_i_minus_2_reads[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_16,
                     w[16 + j - 16],
-                    event.w_i_minus_16_records[j],
+                    event.w_i_minus_16_reads[j],
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_7,
                     w[16 + j - 7],
-                    event.w_i_minus_7_records[j],
+                    event.w_i_minus_7_reads[j],
                 );
 
                 // Compute `s0`.
@@ -70,7 +70,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
                 // Write `s2` to `w[i]`.
                 w[16 + j] = s2;
-                self.populate_access(&mut cols.w_i, w[16 + j], event.w_i_records[j]);
+                self.populate_access(&mut cols.w_i, w[16 + j], event.w_i_writes[j]);
 
                 cols.is_real = F::one();
                 rows.push(row);

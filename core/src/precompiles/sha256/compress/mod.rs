@@ -4,6 +4,7 @@ use crate::cpu::{air::MemoryAccessCols, MemoryRecord};
 
 mod air;
 mod columns;
+mod execute;
 mod trace;
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
