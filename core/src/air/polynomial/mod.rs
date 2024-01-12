@@ -281,11 +281,3 @@ pub fn get_powers<T>(x: T, one: T) -> PowersIter<T> {
         current: one,
     }
 }
-
-// pub fn to_u16_le_limbs_polynomial<F: Field, P: FieldParameters>(x: &BigUint) -> Polynomial<F> {
-//     let num_limbs = bigint_into_u16_digits(x, P::NB_LIMBS)
-//         .iter()
-//         .map(|x| F::from_canonical_u16(*x))
-//         .collect();
-//     Polynomial::from_coefficients(num_limbs)
-// }

@@ -86,11 +86,11 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     fn poly_scalar_sub(
         &mut self,
         a: &Polynomial<Self::Expr>,
-        b: &Self::Var,
+        b: &Self::Expr,
     ) -> Polynomial<Self::Expr> {
         a.coefficients
             .iter()
-            .map(|x| x.clone() - b.clone().into())
+            .map(|x| x.clone() - b.clone())
             .collect()
     }
 
@@ -113,18 +113,18 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
     fn poly_scalar_mul(
         &mut self,
         a: &Polynomial<Self::Expr>,
-        b: &Self::Var,
+        b: &Self::Expr,
     ) -> Polynomial<Self::Expr> {
         a.coefficients
             .iter()
-            .map(|x| x.clone() * b.clone().into())
+            .map(|x| x.clone() * b.clone())
             .collect()
     }
 
     fn poly_mul_poly_const(
         &mut self,
         a: &Polynomial<Self::Expr>,
-        b: &Polynomial<Self::F>,
+        b: &Polynomial<Self::Expr>,
     ) -> Polynomial<Self::Expr> {
         let mut result: Vec<Self::Expr> =
             vec![Self::F::zero().into(); a.coefficients.len() + b.coefficients.len() - 1];
