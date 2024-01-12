@@ -245,9 +245,10 @@ where
         // TODO: Check shift_by_n_bytes and shift_by_n_bits match c by looking at the SLL example.
         // Byte shift the sign-extended b.
         {
-            // The leading byte of b should be 0 if b's MSB is 0, and 0xff if b's MSB is 1.
-            // TODO: ^ is wrong. I need to add the condition for SRA.
-            let leading_byte = { local.b_msb.clone() * AB::Expr::from_canonical_u8(0xff) };
+            // The leading bytes of b should be 0xff if b's MSB is 1 & opcode = SRA, 0 otherwise.
+            // TODO: Likely this will cause a polynomial degree error.
+            let leading_byte =
+                local.is_sra.clone() * local.b_msb.clone() * AB::Expr::from_canonical_u8(0xff);
             let mut sign_extended_b: Vec<AB::Expr> = vec![];
             for i in 0..WORD_SIZE {
                 sign_extended_b.push(local.b[i].into());
