@@ -2,7 +2,7 @@ mod bool;
 pub mod polynomial;
 mod word;
 use crate::bytes::ByteOpcode;
-
+use itertools::Itertools;
 use std::iter::once;
 
 pub use bool::Bool;
@@ -10,6 +10,7 @@ use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
+use crate::air::polynomial::{Polynomial, PolynomialBuilder};
 use crate::cpu::air::MemoryAccessCols;
 use crate::cpu::instruction_cols::InstructionCols;
 use crate::cpu::opcode_cols::OpcodeSelectors;
@@ -36,6 +37,106 @@ pub struct AirInteraction<E> {
 ///
 /// All `AirBuilder` implementations automatically implement this trait.
 pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
+    fn zero_poly(&mut self) -> Polynomial<Self::Expr> {
+        Polynomial {
+            coefficients: vec![Self::F::zero().into()],
+        }
+    }
+
+    fn constant_poly(&mut self, polynomial: &Polynomial<Self::F>) -> Polynomial<Self::Expr> {
+        polynomial
+            .coefficients
+            .iter()
+            .map(|x| x.clone().into())
+            .collect()
+    }
+
+    fn poly_add(
+        &mut self,
+        a: &Polynomial<Self::Expr>,
+        b: &Polynomial<Self::Expr>,
+    ) -> Polynomial<Self::Expr> {
+        a.coefficients
+            .iter()
+            .zip_longest(b.coefficients.iter())
+            .map(|x| match x {
+                itertools::EitherOrBoth::Both(a, b) => a.clone() + b.clone(),
+                itertools::EitherOrBoth::Left(a) => a.clone(),
+                itertools::EitherOrBoth::Right(b) => b.clone(),
+            })
+            .collect()
+    }
+
+    fn poly_sub(
+        &mut self,
+        a: &Polynomial<Self::Expr>,
+        b: &Polynomial<Self::Expr>,
+    ) -> Polynomial<Self::Expr> {
+        a.coefficients
+            .iter()
+            .zip_longest(b.coefficients.iter())
+            .map(|x| match x {
+                itertools::EitherOrBoth::Both(a, b) => a.clone() - b.clone(),
+                itertools::EitherOrBoth::Left(a) => a.clone(),
+                itertools::EitherOrBoth::Right(b) => -b.clone(),
+            })
+            .collect()
+    }
+
+    fn poly_scalar_sub(
+        &mut self,
+        a: &Polynomial<Self::Expr>,
+        b: &Self::Var,
+    ) -> Polynomial<Self::Expr> {
+        a.coefficients
+            .iter()
+            .map(|x| x.clone() - b.clone().into())
+            .collect()
+    }
+
+    fn poly_mul(
+        &mut self,
+        a: &Polynomial<Self::Expr>,
+        b: &Polynomial<Self::Expr>,
+    ) -> Polynomial<Self::Expr> {
+        let mut result: Vec<Self::Expr> =
+            vec![Self::F::zero().into(); a.coefficients.len() + b.coefficients.len() - 1];
+        for (i, a) in a.coefficients.iter().enumerate() {
+            for (j, b) in b.coefficients.iter().enumerate() {
+                let ab = a.clone() * b.clone();
+                result[i + j] = result[i + j].clone() + ab;
+            }
+        }
+        Polynomial::from_coefficients(result)
+    }
+
+    fn poly_scalar_mul(
+        &mut self,
+        a: &Polynomial<Self::Expr>,
+        b: &Self::Var,
+    ) -> Polynomial<Self::Expr> {
+        a.coefficients
+            .iter()
+            .map(|x| x.clone() * b.clone().into())
+            .collect()
+    }
+
+    fn poly_mul_poly_const(
+        &mut self,
+        a: &Polynomial<Self::Expr>,
+        b: &Polynomial<Self::F>,
+    ) -> Polynomial<Self::Expr> {
+        let mut result: Vec<Self::Expr> =
+            vec![Self::F::zero().into(); a.coefficients.len() + b.coefficients.len() - 1];
+        for (i, a) in a.coefficients.iter().enumerate() {
+            for (j, b) in b.coefficients.iter().enumerate() {
+                let ab = a.clone() * b.clone();
+                result[i + j] = result[i + j].clone() + ab;
+            }
+        }
+        Polynomial::from_coefficients(result)
+    }
+
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
     }
