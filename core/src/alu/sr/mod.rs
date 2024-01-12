@@ -28,8 +28,8 @@
 //! last_carry = 0
 //! for i in reversed(range(LONG_WORD_SIZE)):
 //!     # Shifts a byte to the right and returns both the shifted byte and the bits that carried.
-//!     (result[i], carry) = shr_carry(result[i], num_bits_to_shift)
-//!     result[i] += last_carry * carry_multiplier
+//!     (shifted_byte[i], carry) = shr_carry(result[i], num_bits_to_shift)
+//!     result[i] = shifted_byte[i] + last_carry * carry_multiplier
 //!     last_carry = carry
 //!
 //! # The 4 least significant bytes must match a. The 4 most significant bytes of result may be
