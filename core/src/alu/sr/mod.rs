@@ -268,9 +268,7 @@ where
                 if i + 1 < LONG_WORD_SIZE {
                     v += local.carry[i + 1].clone() * carry_multiplier.clone();
                 }
-                builder
-                    .when(local.is_real)
-                    .assert_eq(v, local.bit_shift_result[i].clone());
+                builder.assert_eq(v, local.bit_shift_result[i].clone());
             }
         }
 
