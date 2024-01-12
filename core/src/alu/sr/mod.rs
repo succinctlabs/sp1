@@ -114,6 +114,15 @@ pub struct ShiftRightCols<T> {
     pub is_real: T,
 }
 
+/// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
+pub struct RightShiftChip;
+
+impl RightShiftChip {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 /// Calculate the number of _bytes_ to shift by. Note that we take the least significant 5 bits per
 /// the RISC-V spec.
 fn nb_bytes_to_shift(shift_amount: u32) -> usize {
@@ -126,15 +135,6 @@ fn nb_bytes_to_shift(shift_amount: u32) -> usize {
 fn nb_bits_to_shift(shift_amount: u32) -> usize {
     let n = (shift_amount % 32) as usize;
     n % BYTE_SIZE
-}
-
-/// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
-pub struct RightShiftChip;
-
-impl RightShiftChip {
-    pub fn new() -> Self {
-        Self {}
-    }
 }
 
 impl<F: PrimeField> Chip<F> for RightShiftChip {
