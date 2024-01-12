@@ -97,6 +97,9 @@ pub struct ShiftRightCols<T> {
     /// The most significant bit of `b`.
     pub b_msb: T,
 
+    /// The least significant byte of `c`. Used to verify `shift_by_n_bits` and `shift_by_n_bytes`.
+    pub c_least_sig_byte: [T; BYTE_SIZE],
+
     /// Selector flags for the operation to perform.
     pub is_srl: T,
     pub is_sra: T,
@@ -188,7 +191,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                         );
                         // print shifted_byte, carry, last_carry, bit_shift_result[i], i.
                         println!(
-                            "origninal byte: {}, shifted_byte: {}, carry: {}, last_carry: {}, bit_shift_result[i]: {}, i: {}",
+                            "original byte: {}, shifted_byte: {}, carry: {}, last_carry: {}, bit_shift_result[i]: {}, i: {}",
                             byte_shift_result[i], shifted_byte, carry, last_carry, cols.bit_shift_result[i], i
                         );
                         last_carry = carry as u32;
@@ -247,9 +250,67 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
+        // TODO: Remove the debugging statements.
 
         // TODO: Calculate the MSB of b using byte lookup.
-        // TODO: Check shift_by_n_bytes and shift_by_n_bits match c by looking at the SLL example.
+        {
+            // TODO: Check that the MSB of most_significant_byte matches local.b_msb using lookup.
+            let _most_significant_byte = local.b[WORD_SIZE - 1].clone();
+        }
+
+        // Calculate the number of bits and bytes to shift by from c.
+        {
+            // The sum of c_least_sig_byte[i] * 2^i must match c[0].
+            let mut c_byte_sum = AB::Expr::zero();
+            for i in 0..BYTE_SIZE {
+                let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
+                c_byte_sum += val * local.c_least_sig_byte[i].clone();
+            }
+            builder.assert_eq(c_byte_sum, local.c[0]);
+
+            // The 3-bit number represented by the 3 least significant bits of c equals the number
+            // of bits to shift.
+            let mut num_bits_to_shift = AB::Expr::zero();
+            for i in 0..3 {
+                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+            }
+            for i in 0..BYTE_SIZE {
+                builder
+                    .when(local.shift_by_n_bits[i].clone())
+                    .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
+            }
+
+            let zero: AB::Expr = AB::F::zero().into();
+            let one: AB::Expr = AB::F::one().into();
+            // Exactly one of the shift_by_n_bits must be 1.
+            builder.assert_eq(
+                local
+                    .shift_by_n_bits
+                    .iter()
+                    .fold(zero.clone(), |acc, &x| acc + x),
+                one.clone(),
+            );
+            // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
+            // number of bytes to shift.
+            let num_bytes_to_shift = local.c_least_sig_byte[3]
+                + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
+
+            // Verify that shift_by_n_bytes[i] = 1 if and only if i = num_bytes_to_shift.
+            for i in 0..WORD_SIZE {
+                builder
+                    .when(local.shift_by_n_bytes[i])
+                    .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
+            }
+
+            // Exactly one of the shift_by_n_bytes must be 1.
+            builder.assert_eq(
+                local
+                    .shift_by_n_bytes
+                    .iter()
+                    .fold(zero.clone(), |acc, &x| acc + x),
+                one.clone(),
+            );
+        }
         // Byte shift the sign-extended b.
         {
             // The leading bytes of b should be 0xff if b's MSB is 1 & opcode = SRA, 0 otherwise.
