@@ -1,5 +1,5 @@
 [workspace]
-members = [ "cargo-succinct","core", "zkvm"]
+members = [ "core", "cli", "zkvm"]
 resolver = "2"
 
 [profile.release]
