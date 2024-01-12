@@ -8,8 +8,6 @@
 //! The right shift is verified by reformulating it as (b >> c) = (b >> (num_bytes_to_shift * 8)) >>
 //! num_bits_to_shift.
 //!
-//! By byte shifting is done by shifting each byte, and bit-shifting is done by ShrCarry lookups.
-//!
 //! The correct leading bits of logical and arithmetic right shifts are verified
 //! by sign extending b to 64 bits.
 //!
