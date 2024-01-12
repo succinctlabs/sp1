@@ -1,5 +1,5 @@
 [workspace]
-members = ["core"]
+members = [ "core", "cli", "zkvm"]
 resolver = "2"
 
 [profile.release]
@@ -15,7 +15,6 @@ p3-commit = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-util = { git = "https://github.com/succinctlabs/plonky3.git" }
-valida-opcodes = { git = "https://github.com/valida-xyz/valida.git" }
 valida-derive = { git = "https://github.com/valida-xyz/valida.git" }
 
 p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git" }
@@ -29,5 +28,3 @@ p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }
-
-curta-core = { path = "core" }
