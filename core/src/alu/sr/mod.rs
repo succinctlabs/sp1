@@ -8,8 +8,8 @@
 //! The right shift is verified by reformulating it as (b >> c) = (b >> (num_bytes_to_shift * 8)) >>
 //! num_bits_to_shift.
 //!
-//! The correct leading bits of logical and arithmetic right shifts are verified
-//! by sign extending b to 64 bits.
+//! The correct leading bits of logical and arithmetic right shifts are verified by sign extending b
+//! to 64 bits.
 //!
 //! c = take the least significant 5 bits of c
 //! num_bytes_to_shift = c // 8
