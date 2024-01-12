@@ -114,13 +114,18 @@ pub struct ShiftRightCols<T> {
     pub is_real: T,
 }
 
-/// Calculate the number of bytes and bits to shift by. Note that we take the least significant 5
-/// bits per the RISC-V spec.
-fn decompose_shift_into_byte_and_bit_shifting(shift_amount: u32) -> (usize, usize) {
+/// Calculate the number of _bytes_ to shift by. Note that we take the least significant 5 bits per
+/// the RISC-V spec.
+fn nb_bytes_to_shift(shift_amount: u32) -> usize {
     let n = (shift_amount % 32) as usize;
-    let num_bytes_to_shift = n / BYTE_SIZE;
-    let num_bits_to_shift = n % BYTE_SIZE;
-    (num_bytes_to_shift, num_bits_to_shift)
+    n / BYTE_SIZE
+}
+
+/// Calculate the number of _bits_ shift by. Note that we take the least significant 5 bits per the
+/// RISC-V spec.
+fn nb_bits_to_shift(shift_amount: u32) -> usize {
+    let n = (shift_amount % 32) as usize;
+    n % BYTE_SIZE
 }
 
 /// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
@@ -160,8 +165,8 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     }
                 }
 
-                let (num_bytes_to_shift, num_bits_to_shift) =
-                    decompose_shift_into_byte_and_bit_shifting(event.c);
+                let num_bytes_to_shift = nb_bytes_to_shift(event.c);
+                let num_bits_to_shift = nb_bits_to_shift(event.c);
 
                 let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
 
