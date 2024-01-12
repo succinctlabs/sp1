@@ -143,19 +143,19 @@ impl Runtime {
         }
     }
 
-    pub fn clk_from_position(&self, position: &AccessPosition) -> u32 {
+    fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.clk + *position as u32
     }
 
-    pub fn current_segment(&self) -> u32 {
+    fn current_segment(&self) -> u32 {
         self.segment.index
     }
 
-    pub fn align(&self, addr: u32) -> u32 {
+    fn align(&self, addr: u32) -> u32 {
         addr - addr % 4
     }
 
-    pub fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
+    fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
             let _ = BabyBear::from_canonical_u32(addr);
@@ -229,7 +229,7 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
-    pub fn emit_cpu(
+    fn emit_cpu(
         &mut self,
         segment: u32,
         clk: u32,
@@ -259,7 +259,7 @@ impl Runtime {
     }
 
     /// Emit an ALU event.
-    pub fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
         let event = AluEvent {
             clk,
             opcode,
