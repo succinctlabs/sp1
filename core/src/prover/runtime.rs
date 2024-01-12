@@ -4,7 +4,7 @@ use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
 use crate::memory::MemoryChipKind;
-use crate::precompiles::sha256_extend::ShaExtendChip;
+use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::prover::debug_constraints;
 use crate::prover::generate_permutation_trace;
@@ -79,7 +79,7 @@ impl Runtime {
 struct Prover {}
 
 impl Prover {
-    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 10]
+    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 11]
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -96,6 +96,7 @@ impl Prover {
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
         let sha_extend = ShaExtendChip::new();
+        let sha_compress = ShaCompressChip::new();
         [
             Box::new(program),
             Box::new(cpu),
@@ -106,6 +107,7 @@ impl Prover {
             Box::new(left_shift),
             Box::new(lt),
             Box::new(sha_extend),
+            Box::new(sha_compress),
             Box::new(bytes),
         ]
     }
