@@ -17,7 +17,7 @@
 //! num_bytes_to_shift = c // 8
 //! num_bits_to_shift = c % 8
 //!
-//! # Sign extend b to 64 bits.
+//! # Sign extend b to 64 bits if SRA.
 //!
 //! # Byte shift. Leave the num_bytes_to_shift most significant bytes of b 0 for simplicity as it
 //! # doesn't affect the correctness of the result.
@@ -155,7 +155,15 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     for i in 0..WORD_SIZE {
                         cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
                     }
-                    let sign_extended_b = ((event.b as i32) as i64).to_le_bytes();
+                    let sign_extended_b = {
+                        if event.opcode == Opcode::SRA {
+                            // Sign extension is necessary only for arithmetic right shift.
+                            ((event.b as i32) as i64).to_le_bytes()
+                        } else {
+                            (event.b as u64).to_le_bytes()
+                        }
+                    };
+
                     for i in 0..LONG_WORD_SIZE {
                         if i + num_bytes_to_shift < LONG_WORD_SIZE {
                             byte_shift_result[i] = sign_extended_b[i + num_bytes_to_shift];
@@ -172,15 +180,18 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     let carry_multiplier = 1 << (8 - num_bits_to_shift);
                     let mut last_carry = 0u32;
                     for i in (0..LONG_WORD_SIZE).rev() {
-                        let (res, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
+                        let (shifted_byte, carry) =
+                            shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
                         cols.carry[i] = F::from_canonical_u8(carry);
-                        cols.bit_shift_result[i] =
-                            F::from_canonical_u32(res as u32 + last_carry * carry_multiplier);
+                        cols.bit_shift_result[i] = F::from_canonical_u32(
+                            shifted_byte as u32 + last_carry * carry_multiplier,
+                        );
                         last_carry = carry as u32;
+                        if i < WORD_SIZE {
+                            debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
+                        }
                     }
                 }
-
-                println!("cols: {:#?}", cols);
 
                 row
             })
