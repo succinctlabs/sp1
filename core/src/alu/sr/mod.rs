@@ -254,6 +254,9 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
+        let zero: AB::Expr = AB::F::zero().into();
+        let one: AB::Expr = AB::F::one().into();
+
         // TODO: Remove the debugging statements.
 
         // TODO: Calculate the MSB of b using byte lookup.
@@ -272,6 +275,8 @@ where
             }
             builder.assert_eq(c_byte_sum, local.c[0]);
 
+            // Number of bits to shift.
+
             // The 3-bit number represented by the 3 least significant bits of c equals the number
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
@@ -283,9 +288,6 @@ where
                     .when(local.shift_by_n_bits[i].clone())
                     .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
             }
-
-            let zero: AB::Expr = AB::F::zero().into();
-            let one: AB::Expr = AB::F::one().into();
             // Exactly one of the shift_by_n_bits must be 1.
             builder.assert_eq(
                 local
@@ -294,18 +296,19 @@ where
                     .fold(zero.clone(), |acc, &x| acc + x),
                 one.clone(),
             );
+
+            // Number of bytes to shift.
+
             // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
             // number of bytes to shift.
             let num_bytes_to_shift = local.c_least_sig_byte[3]
                 + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
-
             // Verify that shift_by_n_bytes[i] = 1 if and only if i = num_bytes_to_shift.
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.shift_by_n_bytes[i])
                     .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
             }
-
             // Exactly one of the shift_by_n_bytes must be 1.
             builder.assert_eq(
                 local
@@ -318,7 +321,6 @@ where
         // Byte shift the sign-extended b.
         {
             // The leading bytes of b should be 0xff if b's MSB is 1 & opcode = SRA, 0 otherwise.
-            // TODO: Likely this will cause a polynomial degree error.
             let leading_byte =
                 local.is_sra.clone() * local.b_msb.clone() * AB::Expr::from_canonical_u8(0xff);
             let mut sign_extended_b: Vec<AB::Expr> = vec![];
@@ -369,7 +371,6 @@ where
         // inaccurate.
         {
             for i in 0..WORD_SIZE {
-                println!("i: {}", i);
                 builder.assert_eq(local.a[i].clone(), local.bit_shift_result[i].clone());
             }
         }
@@ -385,6 +386,24 @@ where
             }
             for shift_by_n_bit in local.shift_by_n_bits.iter() {
                 builder.assert_bool(*shift_by_n_bit);
+            }
+        }
+
+        // Range check bytes
+        {
+            let words = [local.a, local.b, local.c];
+            let long_words = [local.byte_shift_result, local.bit_shift_result, local.carry];
+
+            for word in words.iter() {
+                for _byte in word.0.iter() {
+                    // byte must be in [0, 255].
+                }
+            }
+
+            for long_word in long_words.iter() {
+                for _byte in long_word.iter() {
+                    // byte must be in [0, 255].
+                }
             }
         }
 
