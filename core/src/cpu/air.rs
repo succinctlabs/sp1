@@ -297,7 +297,7 @@ where
         //////////////////////////////////////////
 
         //// Branch instructions
-        self.branch_ops_eval::<AB>(builder, is_branch_instruction, local, next);
+        self.branch_ops_eval::<AB>(builder, is_branch_instruction.clone(), local, next);
 
         //// Jump instructions
         self.jump_ops_eval::<AB>(builder, local, next);
@@ -313,6 +313,12 @@ where
             *local.op_c_val(),
             is_alu_instruction,
         );
+
+        // TODO:  Need to handle HALT ecall
+        // For all non branch or jump instructions, verify that next.pc == pc + 4
+        // builder
+        //     .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
+        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
     }
 }
 
