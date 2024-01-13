@@ -1,4 +1,4 @@
-use crate::air::{reduce, CurtaAirBuilder, Word};
+use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 
 use core::borrow::{Borrow, BorrowMut};
@@ -266,7 +266,7 @@ where
 
         // Check that local.addr_offset \in [0, WORD_SIZE) by byte range checking local.addr_offset << 6
         // and local.addr_offset.
-        builder.send_byte_lookup(
+        builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::Range as u8),
             AB::Expr::zero(),
             memory_columns.addr_offset,
@@ -279,7 +279,7 @@ where
             .when(is_memory_instruction.clone())
             .assert_eq::<AB::Expr, AB::Expr>(
                 memory_columns.addr_aligned + memory_columns.addr_offset,
-                reduce::<AB>(memory_columns.addr_word),
+                memory_columns.addr_word.reduce::<AB>(),
             );
 
         // Check that each addr_word element is a byte
@@ -381,12 +381,12 @@ impl CpuChip {
         // Note that when local.branching == True, then is_branch_instruction == True.
         builder
             .when(local.branching)
-            .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
+            .assert_eq(branch_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that branch_columns.next_pc is correct.  That is next.pc in WORD form.
         builder
             .when(local.branching)
-            .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
+            .assert_eq(branch_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Calculate the new pc via the ADD chip if local.branching == true
         builder.send_alu(
@@ -458,7 +458,7 @@ impl CpuChip {
             use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
                 + (AB::Expr::one() - use_signed_comparison.clone())
                     * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.a_lt_b),
+            Word::extend::<AB>(branch_columns.a_lt_b),
             *local.op_a_val(),
             *local.op_b_val(),
             is_branch_instruction.clone(),
@@ -468,7 +468,7 @@ impl CpuChip {
             use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
                 + (AB::Expr::one() - use_signed_comparison)
                     * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.a_gt_b),
+            Word::extend::<AB>(branch_columns.a_gt_b),
             *local.op_b_val(),
             *local.op_a_val(),
             is_branch_instruction.clone(),
@@ -489,19 +489,19 @@ impl CpuChip {
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(
-                reduce::<AB>(*local.op_a_val()),
+                local.op_a_val().reduce::<AB>(),
                 local.pc + AB::F::from_canonical_u8(4),
             );
 
         // Verify that the word form of local.pc is correct for JAL instructions.
         builder
             .when(local.selectors.is_jal)
-            .assert_eq(reduce::<AB>(jump_columns.pc), local.pc);
+            .assert_eq(jump_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that the word form of next.pc is correct for both jump instructions.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
-            .assert_eq(reduce::<AB>(jump_columns.next_pc), next.pc);
+            .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
@@ -530,7 +530,7 @@ impl CpuChip {
         // Verify that the word form of local.pc is correct.
         builder
             .when(local.selectors.is_auipc)
-            .assert_eq(reduce::<AB>(auipc_columns.pc), local.pc);
+            .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that op_a == pc + op_b.
         builder.send_alu(
