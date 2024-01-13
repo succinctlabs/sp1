@@ -99,7 +99,7 @@ fn bench_program(program_name: &str, b: divan::Bencher) {
         .bench_refs(prove);
 }
 
-#[divan::bench(max_time = Duration::from_secs(20))]
+#[divan::bench(sample_count = 5, sample_size = 5)]
 pub fn fibonacci(b: divan::Bencher) {
     bench_program("fibonacci", b);
 }
