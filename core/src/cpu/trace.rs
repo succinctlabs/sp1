@@ -89,6 +89,11 @@ impl CpuChip {
         self.populate_jump(cols, event, new_alu_events);
         self.populate_auipc(cols, event, new_alu_events);
 
+        if matches!(event.instruction.opcode, Opcode::SH) {
+            println!("cols: {:?}", cols);
+            println!("memory_columns: {:?}", memory_columns);
+        }
+
         cols.is_real = F::one();
 
         row
@@ -132,6 +137,9 @@ impl CpuChip {
         if used_memory {
             let memory_addr = event.b.wrapping_add(event.c);
             let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
+
+            // bit little endian representation of addr_offset
+            let addr_offset_bits = [addr_offset & 1, addr_offset & 2];
             let memory_columns: &mut MemoryColumns<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
@@ -139,6 +147,12 @@ impl CpuChip {
             memory_columns.addr_aligned =
                 F::from_canonical_u32(memory_addr - memory_addr % WORD_SIZE as u32);
             memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
+
+            memory_columns.offset_bit_decomp[0] = F::from_canonical_u8(addr_offset_bits[0]);
+            memory_columns.offset_bit_decomp[1] = F::from_canonical_u8(addr_offset_bits[1]);
+            memory_columns.bit_product =
+                F::from_canonical_u8(addr_offset_bits[0] * addr_offset_bits[1]);
+
             // Add event to ALU check to check that addr == b + c
             let add_event = AluEvent {
                 clk: event.clk,
@@ -164,15 +178,6 @@ impl CpuChip {
                     c: byte_pair[1],
                 });
             }
-
-            // Byte range check addr_offset and addr_offset << 6
-            new_blu_events.push(ByteLookupEvent {
-                opcode: ByteOpcode::Range,
-                a1: 0,
-                a2: 0,
-                b: addr_offset,
-                c: addr_offset << 6,
-            });
         }
     }
 
@@ -447,6 +452,21 @@ mod tests {
             println!("{:?}", cpu_event);
         }
         println!("{:?}", trace.values)
+    }
+
+    #[test]
+    fn test_signed() {
+        let value = 200u8;
+        println!("value is {}", value);
+
+        let mut signed_value = value as i8;
+        println!("signed value is {}", signed_value);
+
+        let signed_value: i32 = signed_value as i32;
+        println!("signed value is {}", signed_value);
+
+        let signed_value: u32 = signed_value as u32;
+        println!("signed value is {}", signed_value);
     }
 
     #[test]

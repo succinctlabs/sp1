@@ -445,7 +445,7 @@ impl Runtime {
             Opcode::LH => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = match addr % 4 {
+                let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
                     1 => memory_read_value & 0xFFFF0000,
                     _ => unreachable!(),
@@ -471,10 +471,10 @@ impl Runtime {
             Opcode::LHU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = if addr % 4 == 0 {
-                    memory_read_value & 0x0000FFFF
-                } else {
-                    memory_read_value & 0xFFFF0000
+                let value = match (addr >> 1) % 2 {
+                    0 => memory_read_value & 0x0000FFFF,
+                    1 => memory_read_value & 0xFFFF0000,
+                    _ => unreachable!(),
                 };
                 a = (value as u16) as u32;
                 memory_store_value = Some(memory_read_value);
@@ -497,9 +497,9 @@ impl Runtime {
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = match addr % 2 {
-                    0 => (memory_read_value & 0xFFFF0000) + (a & 0x0000FFFF),
-                    1 => (memory_read_value & 0x0000FFFF) + (a & 0x0000FFFF) << 16,
+                let value = match (addr >> 1) % 2 {
+                    0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
+                    1 => (a & 0x0000FFFF) << 16 + (memory_read_value & 0x0000FFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);

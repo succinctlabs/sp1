@@ -25,12 +25,14 @@ pub struct OpcodeSelectors<T> {
     pub is_lt: T,
 
     // Memory operation selectors.
-    pub is_load: T,
-    pub is_store: T,
-    pub is_word: T,
-    pub is_half: T,
-    pub is_byte: T,
-    pub is_signed: T,
+    pub is_lb: T,
+    pub is_lbu: T,
+    pub is_lh: T,
+    pub is_lhu: T,
+    pub is_lw: T,
+    pub is_sb: T,
+    pub is_sh: T,
+    pub is_sw: T,
 
     // Branch operation selectors.
     pub is_beq: T,
@@ -81,62 +83,26 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                     )
                 }
             }
-        } else if instruction.is_load_instruction() {
-            self.is_load = F::one();
+        } else if instruction.is_memory_instruction() {
             match instruction.opcode {
-                Opcode::LB => {
-                    self.is_byte = F::one();
-                    self.is_signed = F::one();
-                }
-                Opcode::LBU => {
-                    self.is_byte = F::one();
-                }
-                Opcode::LHU => {
-                    self.is_half = F::one();
-                }
-                Opcode::LH => {
-                    self.is_half = F::one();
-                    self.is_signed = F::one();
-                }
-                Opcode::LW => {
-                    self.is_word = F::one();
-                }
-                _ => unreachable!(),
-            }
-        } else if instruction.is_store_instruction() {
-            self.is_store = F::one();
-            match instruction.opcode {
-                Opcode::SB => {
-                    self.is_byte = F::one();
-                }
-                Opcode::SH => {
-                    self.is_half = F::one();
-                }
-                Opcode::SW => {
-                    self.is_word = F::one();
-                }
+                Opcode::LB => self.is_lb = F::one(),
+                Opcode::LBU => self.is_lbu = F::one(),
+                Opcode::LHU => self.is_lhu = F::one(),
+                Opcode::LH => self.is_lh = F::one(),
+                Opcode::LW => self.is_lw = F::one(),
+                Opcode::SB => self.is_sb = F::one(),
+                Opcode::SH => self.is_sh = F::one(),
+                Opcode::SW => self.is_sw = F::one(),
                 _ => unreachable!(),
             }
         } else if instruction.is_branch_instruction() {
             match instruction.opcode {
-                Opcode::BEQ => {
-                    self.is_beq = F::one();
-                }
-                Opcode::BNE => {
-                    self.is_bne = F::one();
-                }
-                Opcode::BLT => {
-                    self.is_blt = F::one();
-                }
-                Opcode::BGE => {
-                    self.is_bge = F::one();
-                }
-                Opcode::BLTU => {
-                    self.is_bltu = F::one();
-                }
-                Opcode::BGEU => {
-                    self.is_bgeu = F::one();
-                }
+                Opcode::BEQ => self.is_beq = F::one(),
+                Opcode::BNE => self.is_bne = F::one(),
+                Opcode::BLT => self.is_blt = F::one(),
+                Opcode::BGE => self.is_bge = F::one(),
+                Opcode::BLTU => self.is_bltu = F::one(),
+                Opcode::BGEU => self.is_bgeu = F::one(),
                 _ => unreachable!(),
             }
         } else if instruction.opcode == Opcode::JAL {
@@ -153,7 +119,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
             // If op_a is 0 and we're writing to the register, then we don't do a write.
             // We are always writing to the first register UNLESS it is a branch, is_store.
             if !(instruction.is_branch_instruction()
-                || self.is_store == F::one()
+                || (self.is_sb + self.is_sh + self.is_sw) == F::one()
                 || self.is_noop == F::one())
             {
                 self.reg_0_write = F::one();
@@ -177,12 +143,14 @@ impl<T> IntoIterator for OpcodeSelectors<T> {
             self.is_shift,
             self.is_bitwise,
             self.is_lt,
-            self.is_load,
-            self.is_store,
-            self.is_word,
-            self.is_half,
-            self.is_byte,
-            self.is_signed,
+            self.is_lb,
+            self.is_lbu,
+            self.is_lh,
+            self.is_lhu,
+            self.is_lw,
+            self.is_sb,
+            self.is_sh,
+            self.is_sw,
             self.is_beq,
             self.is_bne,
             self.is_blt,
