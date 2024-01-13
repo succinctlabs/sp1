@@ -363,7 +363,7 @@ where
 
             // Calculate ShrCarry.
             for i in (0..LONG_WORD_SIZE).rev() {
-                builder.send_byte_loookup_pair(
+                builder.send_byte_pair(
                     AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
                     local.shr_carry_output_shifted_byte[i].clone(),
                     local.shr_carry_output_carry[i].clone(),
