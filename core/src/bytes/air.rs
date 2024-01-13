@@ -70,21 +70,19 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
             let mult = local.multiplicities[i];
             match opcode {
                 ByteOpcode::AND => {
-                    builder.receive_byte_lookup(field_op, local.and, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.and, local.b, local.c, mult)
                 }
-                ByteOpcode::OR => {
-                    builder.receive_byte_lookup(field_op, local.or, local.b, local.c, mult)
-                }
+                ByteOpcode::OR => builder.receive_byte(field_op, local.or, local.b, local.c, mult),
                 ByteOpcode::XOR => {
-                    builder.receive_byte_lookup(field_op, local.xor, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.xor, local.b, local.c, mult)
                 }
                 ByteOpcode::SLL => {
-                    builder.receive_byte_lookup(field_op, local.sll, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.sll, local.b, local.c, mult)
                 }
                 ByteOpcode::Range => {
-                    builder.receive_byte_lookup(field_op, AB::F::zero(), local.b, local.c, mult)
+                    builder.receive_byte(field_op, AB::F::zero(), local.b, local.c, mult)
                 }
-                ByteOpcode::ShrCarry => builder.receive_byte_lookup_pair(
+                ByteOpcode::ShrCarry => builder.receive_byte_pair(
                     field_op,
                     local.shr,
                     local.shr_carry,
