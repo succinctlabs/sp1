@@ -447,7 +447,7 @@ impl Runtime {
                 assert_eq!(addr % 2, 0, "addr is not aligned");
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
-                    1 => memory_read_value & 0xFFFF0000,
+                    1 => (memory_read_value & 0xFFFF0000) >> 16,
                     _ => unreachable!(),
                 };
                 a = ((value as i16) as i32) as u32;
@@ -473,7 +473,7 @@ impl Runtime {
                 assert_eq!(addr % 2, 0, "addr is not aligned");
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
-                    1 => memory_read_value & 0xFFFF0000,
+                    1 => (memory_read_value & 0xFFFF0000) >> 16,
                     _ => unreachable!(),
                 };
                 a = (value as u16) as u32;
