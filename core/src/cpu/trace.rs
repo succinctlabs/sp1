@@ -121,25 +121,56 @@ impl CpuChip {
         new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         new_blu_events: &mut Vec<ByteLookupEvent>,
     ) {
-        let used_memory = match event.instruction.opcode {
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                // TODO: populate memory constraint columns to constraint that
-                // cols.op_a_val() = load_op(cols.memory_access.value)
-                true
-            }
-            Opcode::SB | Opcode::SH | Opcode::SW => {
-                // TODO: populate memory constraint columns to constraint that
-                // cols.memory_access.value = store_op(cols.memory_access.prev_value, cols.op_a_val())
-                true
-            }
-            _ => false,
-        };
-        if used_memory {
+        if matches!(
+            event.instruction.opcode,
+            Opcode::LB
+                | Opcode::LH
+                | Opcode::LW
+                | Opcode::LBU
+                | Opcode::LHU
+                | Opcode::SB
+                | Opcode::SH
+                | Opcode::SW
+        ) {
             let memory_addr = event.b.wrapping_add(event.c);
-            let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
 
+            let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
             // bit little endian representation of addr_offset
             let addr_offset_bits = [addr_offset & 1, addr_offset & 2];
+
+            let mut bit_decomp = [0; 8];
+            let signed_opcode = matches!(event.instruction.opcode, Opcode::LBU | Opcode::LHU);
+            let mut is_neg = false;
+            let mut max_value = 0u32;
+            if signed_opcode {
+                // bit decompose the most significant byte of the memory address to be used
+                // to check if the loaded value is negative.
+
+                let most_sig_mem_value_byte: u8;
+                if matches!(event.instruction.opcode, Opcode::LBU) {
+                    max_value = 256;
+                    most_sig_mem_value_byte = event.memory_record.unwrap().value.to_le_bytes()[0];
+                } else {
+                    // LHU case
+                    max_value = 65536;
+                    most_sig_mem_value_byte = event.memory_record.unwrap().value.to_le_bytes()[1];
+                };
+
+                bit_decomp = [
+                    most_sig_mem_value_byte & 1,
+                    most_sig_mem_value_byte & 2,
+                    most_sig_mem_value_byte & 4,
+                    most_sig_mem_value_byte & 8,
+                    most_sig_mem_value_byte & 16,
+                    most_sig_mem_value_byte & 32,
+                    most_sig_mem_value_byte & 64,
+                    most_sig_mem_value_byte & 128,
+                ];
+
+                is_neg = bit_decomp[7] == 1;
+            }
+
+            //// Populate memory columns.
             let memory_columns: &mut MemoryColumns<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
@@ -153,12 +184,15 @@ impl CpuChip {
             memory_columns.bit_product =
                 F::from_canonical_u8(addr_offset_bits[0] * addr_offset_bits[1]);
 
+            memory_columns.most_sig_byte_decomp = bit_decomp.map(F::from_canonical_u8);
+
+            //// Add events to other tables.
             // Add event to ALU check to check that addr == b + c
             let add_event = AluEvent {
                 clk: event.clk,
                 opcode: Opcode::ADD,
                 a: memory_addr,
-                b: event.b,
+                b: max_value,
                 c: event.c,
             };
 
@@ -166,6 +200,22 @@ impl CpuChip {
                 .entry(Opcode::ADD)
                 .and_modify(|op_new_events| op_new_events.push(add_event))
                 .or_insert(vec![add_event]);
+
+            // If it's a signed_opcode and the a value is negative, then send an event to the SUB chip.
+            if signed_opcode && is_neg {
+                let sub_event = AluEvent {
+                    clk: event.clk,
+                    opcode: Opcode::SUB,
+                    a: event.a,
+                    b: max_value,
+                    c: event.memory_record.unwrap().value,
+                };
+
+                new_alu_events
+                    .entry(Opcode::SUB)
+                    .and_modify(|op_new_events| op_new_events.push(sub_event))
+                    .or_insert(vec![sub_event]);
+            }
 
             // Add event to byte lookup for byte range checking each byte in the memory addr
             let addr_bytes = memory_addr.to_le_bytes();
