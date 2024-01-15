@@ -1,10 +1,12 @@
 mod bool;
 mod word;
 use crate::bytes::ByteOpcode;
+use crate::disassembler::WORD_SIZE;
 
 use std::iter::once;
 
 pub use bool::Bool;
+use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
@@ -43,6 +45,20 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
         }
+    }
+
+    fn word_selector<I: Into<Self::Expr> + Clone>(
+        word: Vec<Word<I>>,
+        bitmap_selector: Vec<Self::Expr>,
+    ) -> Word<Self::Expr> {
+        let mut return_val: Word<Self::Expr> = Self::zero_word();
+        for (word, selector) in word.into_iter().zip_eq(bitmap_selector) {
+            for i in 0..WORD_SIZE {
+                return_val[i] += word[i].clone().into() * selector.clone();
+            }
+        }
+
+        return_val
     }
 
     fn range_check_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
