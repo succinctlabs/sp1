@@ -71,6 +71,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
+use crate::alu::AluEvent;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
@@ -197,96 +198,128 @@ fn get_msb(a: u32) -> u8 {
 impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
-            .divrem_events
-            .par_iter()
-            .map(|event| {
-                assert!(
-                    event.opcode == Opcode::DIVU
-                        || event.opcode == Opcode::REMU
-                        || event.opcode == Opcode::REM
-                        || event.opcode == Opcode::DIV
-                );
-                let mut row = [F::zero(); NUM_DIVREM_COLS];
-                let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
-                // Initialize cols with basic operands and flags derived from the current event.
-                {
-                    cols.a = Word::from(event.a);
-                    cols.b = Word::from(event.b);
-                    cols.c = Word::from(event.c);
-                    cols.is_real = F::one();
-                    cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
-                    cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
-                    cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
-                    cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
-                    if event.c == 0 {
-                        cols.is_c_0 = F::one();
-                    } else {
-                        let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
-                        cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
-                    }
+        let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
+        for event in segment.divrem_events.iter() {
+            assert!(
+                event.opcode == Opcode::DIVU
+                    || event.opcode == Opcode::REMU
+                    || event.opcode == Opcode::REM
+                    || event.opcode == Opcode::DIV
+            );
+            let mut row = [F::zero(); NUM_DIVREM_COLS];
+            let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
+            // Initialize cols with basic operands and flags derived from the current event.
+            {
+                cols.a = Word::from(event.a);
+                cols.b = Word::from(event.b);
+                cols.c = Word::from(event.c);
+                cols.is_real = F::one();
+                cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
+                cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
+                cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
+                cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
+                if event.c == 0 {
+                    cols.is_c_0 = F::one();
+                } else {
+                    let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
+                    cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
                 }
+            }
 
-                let (quotient, remainder) =
-                    get_quotient_and_remainder(event.b, event.c, event.opcode);
+            let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
 
-                cols.quotient = Word::from(quotient);
-                cols.remainder = Word::from(remainder);
+            cols.quotient = Word::from(quotient);
+            cols.remainder = Word::from(remainder);
 
-                // Calculate flags for sign detection.
-                {
-                    cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
-                    cols.b_msb = F::from_canonical_u8(get_msb(event.b));
-                    cols.c_msb = F::from_canonical_u8(get_msb(event.c));
+            // Calculate flags for sign detection.
+            {
+                cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
+                cols.b_msb = F::from_canonical_u8(get_msb(event.b));
+                cols.c_msb = F::from_canonical_u8(get_msb(event.c));
+                if is_signed_operation(event.opcode) {
+                    cols.rem_neg = cols.rem_msb;
+                    cols.b_neg = cols.b_msb;
+                    cols.c_neg = cols.c_msb;
+                    cols.is_overflow =
+                        F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
+                    cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
+                    cols.abs_c = Word::from((event.c as i32).abs() as u32);
+                    cols.max_abs_c_or_1 = Word::from(u32::max(1, (event.c as i32).abs() as u32));
+                } else {
+                    cols.abs_remainder = cols.remainder;
+                    cols.abs_c = cols.c;
+                    cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
+                }
+            }
+
+            // Calculate c * quotient + remainder.
+            {
+                let c_times_quotient = {
                     if is_signed_operation(event.opcode) {
-                        cols.rem_neg = cols.rem_msb;
-                        cols.b_neg = cols.b_msb;
-                        cols.c_neg = cols.c_msb;
-                        cols.is_overflow =
-                            F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
-                        cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
-                        cols.abs_c = Word::from((event.c as i32).abs() as u32);
-                        cols.max_abs_c_or_1 =
-                            Word::from(u32::max(1, (event.c as i32).abs() as u32));
+                        (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
                     } else {
-                        cols.abs_remainder = cols.remainder;
-                        cols.abs_c = cols.c;
-                        cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
+                        ((quotient as u64) * (event.c as u64)).to_le_bytes()
                     }
+                };
+                cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
+
+                let remainder_bytes = {
+                    if is_signed_operation(event.opcode) {
+                        ((remainder as i32) as i64).to_le_bytes()
+                    } else {
+                        (remainder as u64).to_le_bytes()
+                    }
+                };
+
+                // Add remainder to product.
+                let mut carry = 0u32;
+                let base = 1 << BYTE_SIZE;
+                for i in 0..LONG_WORD_SIZE {
+                    let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
+                    carry = x / base;
+                    cols.carry[i] = F::from_canonical_u32(carry);
                 }
 
-                // Calculate c * quotient + remainder.
+                // Insert the necessary multiplication events.
                 {
-                    let c_times_quotient = {
-                        if is_signed_operation(event.opcode) {
-                            (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
-                        } else {
-                            ((quotient as u64) * (event.c as u64)).to_le_bytes()
-                        }
-                    };
-                    cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
-
-                    let remainder_bytes = {
-                        if is_signed_operation(event.opcode) {
-                            ((remainder as i32) as i64).to_le_bytes()
-                        } else {
-                            (remainder as u64).to_le_bytes()
-                        }
-                    };
-
-                    // Add remainder to product.
-                    let mut carry = 0u32;
-                    let base = 1 << BYTE_SIZE;
-                    for i in 0..LONG_WORD_SIZE {
-                        let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
-                        carry = x / base;
-                        cols.carry[i] = F::from_canonical_u32(carry);
+                    let mut lower_word = 0;
+                    for i in 0..WORD_SIZE {
+                        lower_word += (c_times_quotient[i] as u32) << (i * BYTE_SIZE);
                     }
-                }
 
-                row
-            })
-            .collect::<Vec<_>>();
+                    let mut upper_word = 0;
+                    for i in 0..WORD_SIZE {
+                        upper_word += (c_times_quotient[WORD_SIZE + i] as u32) << (i * BYTE_SIZE);
+                    }
+
+                    let lower_multiplication = AluEvent {
+                        clk: event.clk,
+                        opcode: Opcode::MUL,
+                        a: lower_word,
+                        b: event.c,
+                        c: quotient,
+                    };
+
+                    let upper_multiplication = AluEvent {
+                        clk: event.clk,
+                        opcode: {
+                            if is_signed_operation(event.opcode) {
+                                Opcode::MULH
+                            } else {
+                                Opcode::MULHU
+                            }
+                        },
+                        a: upper_word,
+                        b: event.c,
+                        c: quotient,
+                    };
+
+                    segment.mul_events.push(upper_multiplication);
+                    segment.mul_events.push(lower_multiplication);
+                }
+            }
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
