@@ -316,6 +316,8 @@ pub mod tests {
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::Instruction;
+    use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::runtime::Runtime;
     use log::debug;
@@ -395,6 +397,17 @@ pub mod tests {
     #[test]
     fn test_ecall_lwa_prove() {
         let program = ecall_lwa_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_sll_prove() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+            Instruction::new(Opcode::SLL, 31, 30, 29, false, false),
+        ];
+        let program = Program::new(instructions, 0, 0);
         prove(program);
     }
 
