@@ -49,7 +49,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
         // Generate the trace rows for each event.
         let rows = segment
             .add_events
-            .iter()
+            .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_ADD_COLS];
                 let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
