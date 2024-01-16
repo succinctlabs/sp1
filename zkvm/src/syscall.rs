@@ -7,6 +7,12 @@ pub const HALT: u32 = 100;
 /// Loads a word supplied from the prover.
 pub const LWA: u32 = 101;
 
+/// Executes `SHA_EXTEND`.
+pub const SHA_EXTEND: u32 = 102;
+
+/// Executes `SHA_COMPRESS`.
+pub const SHA_COMPRESS: u32 = 103;
+
 pub extern "C" fn syscall_halt() -> ! {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -15,6 +21,34 @@ pub extern "C" fn syscall_halt() -> ! {
             in("t0") HALT
         );
         unreachable!()
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    panic!()
+}
+
+pub extern "C" fn syscall_sha_extend(w: &mut [u32]) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") SHA_EXTEND,
+            in("a0") w.as_ptr()
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    panic!()
+}
+
+pub extern "C" fn syscall_sha_compress(w_and_h: &mut [u32]) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") SHA_COMPRESS,
+            in("a0") w_and_h.as_ptr()
+        );
     }
 
     #[cfg(not(target_os = "zkvm"))]
