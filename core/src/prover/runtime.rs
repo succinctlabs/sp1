@@ -1,12 +1,13 @@
 use crate::bytes::ByteChip;
-use crate::cpu::trace::CpuChip;
 use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256_extend::ShaExtendChip;
 use crate::program::ProgramChip;
 use crate::prover::debug_constraints;
+use crate::prover::debug_cumulative_sums;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
 use crate::runtime::Runtime;
@@ -22,7 +23,6 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
 use super::types::*;
-use crate::prover::debug_cumulative_sums;
 
 impl Runtime {
     /// Prove the program.

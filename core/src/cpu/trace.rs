@@ -1,7 +1,7 @@
 use super::cols::cpu_cols::{
     AUIPCColumns, BranchColumns, JumpColumns, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS,
 };
-use super::{CpuEvent, MemoryRecord};
+use super::{CpuChip, CpuEvent, MemoryRecord};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -15,14 +15,6 @@ use std::collections::HashMap;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-
-pub struct CpuChip;
-
-impl CpuChip {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn name(&self) -> String {
