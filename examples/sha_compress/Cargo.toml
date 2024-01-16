@@ -1,0 +1,8 @@
+[package]
+version = "0.1.0"
+name = "sha_compress"
+
+[workspace]
+
+[dependencies]
+curta-zkvm = { path = "../../zkvm" }

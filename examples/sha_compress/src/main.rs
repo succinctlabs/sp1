@@ -7,6 +7,7 @@ curta_zkvm::entry!(main);
 
 pub fn main() {
     let mut w = [0u32; 64];
-    syscall_sha256_extend(w.as_mut_ptr());
+    let mut state = [0u32; 8];
+    syscall_sha256_compress(w.as_mut_ptr(), state.as_mut_ptr());
     syscall_halt();
 }
