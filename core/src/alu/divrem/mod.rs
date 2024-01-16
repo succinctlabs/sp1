@@ -255,7 +255,15 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             {
                 let c_times_quotient = {
                     if is_signed_operation(event.opcode) {
-                        (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
+                        cols.rem_neg = cols.rem_msb;
+                        cols.b_neg = cols.b_msb;
+                        cols.c_neg = cols.c_msb;
+                        cols.is_overflow =
+                            F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
+                        cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
+                        cols.abs_c = Word::from((event.c as i32).abs() as u32);
+                        cols.max_abs_c_or_1 =
+                            Word::from(u32::max(1, (event.c as i32).abs() as u32));
                     } else {
                         ((quotient as u64) * (event.c as u64)).to_le_bytes()
                     }
@@ -673,7 +681,7 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
-                local.is_real.clone(),
+                one.clone(),
             );
         }
 
