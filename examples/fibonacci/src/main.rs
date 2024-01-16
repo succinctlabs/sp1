@@ -6,20 +6,26 @@ use curta_zkvm::syscall::syscall_halt;
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
+use std::hint::black_box;
+
 curta_zkvm::entry!(main);
 
-pub fn main() {
+fn fibonacci(n: u32) -> u32 {
     let mut nums = vec![1, 1];
-
-    for _ in 0..5000 {
+    for _ in 0..n {
         let mut c = nums[nums.len() - 1] + nums[nums.len() - 2];
-        if c > 7919 {
+
+        // c %= 7919;
+        if c >= 7919 {
             c -= 7919;
         }
         nums.push(c);
     }
+    return nums[nums.len() - 1];
+}
 
-    let result = nums[nums.len() - 1];
+pub fn main() {
+    let result = black_box(fibonacci(black_box(5000)));
 
     #[cfg(not(target_os = "zkvm"))]
     println!("result: {}", result);
@@ -31,6 +37,4 @@ pub fn main() {
     //         in("t0") result,
     //     );
     // }
-
-    syscall_halt();
 }

@@ -101,7 +101,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 10000,
+            segment_size: 200000,
             global_segment: Segment::default(),
         }
     }
@@ -471,10 +471,10 @@ impl Runtime {
             Opcode::LHU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = if addr % 4 == 0 {
-                    memory_read_value & 0x0000FFFF
-                } else {
-                    memory_read_value & 0xFFFF0000
+                let value = match (addr >> 1) % 2 {
+                    0 => memory_read_value & 0x0000FFFF,
+                    1 => (memory_read_value & 0xFFFF0000) >> 16,
+                    _ => unreachable!(),
                 };
                 a = (value as u16) as u32;
                 memory_store_value = Some(memory_read_value);
@@ -497,9 +497,9 @@ impl Runtime {
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = match addr % 2 {
-                    0 => (memory_read_value & 0xFFFF0000) + (a & 0x0000FFFF),
-                    1 => (memory_read_value & 0x0000FFFF) + ((a & 0x0000FFFF) << 16),
+                let value = match (addr >> 1) % 2 {
+                    0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
+                    1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -899,7 +899,7 @@ impl Runtime {
 
             let width = 12;
             log::debug!(
-                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$}",
                 self.global_clk / 4,
                 self.pc,
                 instruction,
@@ -914,7 +914,10 @@ impl Runtime {
                 self.register(Register::X8),
                 self.register(Register::X9),
                 self.register(Register::X10),
-                self.register(Register::X11)
+                self.register(Register::X11),
+                self.register(Register::X12),
+                self.register(Register::X13),
+
             );
 
             // Execute the instruction.
@@ -1032,7 +1035,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fib_malloc.s")
+        Program::from_elf("../programs/fibonacci")
     }
 
     pub fn ecall_lwa_program() -> Program {
