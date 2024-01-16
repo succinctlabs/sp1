@@ -1,8 +1,10 @@
+use crate::alu::divrem::DivRemChip;
+use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
 use crate::memory::MemoryGlobalChip;
 
-use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeftChip, ShiftRightChip, SubChip};
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
@@ -47,7 +49,13 @@ impl Runtime {
             challenger.observe(main_data.main_commit.clone());
         });
 
+        println!("the length of segment_chips is {}", segment_chips.len());
+        // print the content of segment_chips
+        for i in 0..segment_chips.len() {
+            //            println!("segment_chips[{}] is {:#?}", i, segment_chips[i]);
+        }
         // We clone the challenger so that each segment can observe the same "global" challenges.
+        // 23 or 11: Prover::prove
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| {
@@ -70,6 +78,10 @@ impl Runtime {
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces.clone());
 
+        println!(
+            "the length of segment_chips is now {} right before debug_cumu",
+            segment_chips.len()
+        );
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
@@ -78,8 +90,9 @@ impl Runtime {
 
 struct Prover {}
 
+const NUM_CHIPS: usize = 13;
 impl Prover {
-    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 11]
+    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -91,20 +104,25 @@ impl Prover {
         let add = AddChip::new();
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
-        let right_shift = RightShiftChip::new();
-        let left_shift = LeftShiftChip::new();
+        let mul = MulChip::new();
+        let divrem = DivRemChip::new();
+        let shift_right = ShiftRightChip::new();
+        let shift_left = ShiftLeftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
+        // This is where we create a vector of chips.
         [
             Box::new(program),
             Box::new(cpu),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
-            Box::new(right_shift),
-            Box::new(left_shift),
+            Box::new(mul),
+            Box::new(divrem),
+            Box::new(shift_right),
+            Box::new(shift_left),
             Box::new(lt),
             Box::new(sha_extend),
             Box::new(sha_compress),
@@ -293,6 +311,7 @@ impl Prover {
 
         // Check that the table-specific constraints are correct for each chip.
         for i in 0..chips.len() {
+            // 10
             debug_constraints(
                 &*chips[i],
                 &traces[i],
@@ -313,6 +332,13 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use std::collections::BTreeMap;
+
+    use crate::alu::mul::MulChip;
+    use crate::alu::AddChip;
+    use crate::cpu::trace::CpuChip;
+    use crate::lookup::debug_interactions;
+    use crate::lookup::InteractionKind;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_program;
@@ -326,6 +352,7 @@ pub mod tests {
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
+    use p3_field::AbstractField;
     use p3_field::Field;
     use p3_fri::FriBasedPcs;
     use p3_fri::FriConfigImpl;
@@ -435,13 +462,63 @@ pub mod tests {
 
     #[test]
     fn test_mul_prove() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
             Instruction::new(Opcode::MUL, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        let mut runtime = Runtime::new(program.clone());
+        runtime.write_witness(&[1, 2]);
+        runtime.run();
+
+        let mul_chip = MulChip::new();
+        println!("MUL chip interactions");
+        let (_, mul_count) = debug_interactions::<BabyBear, _>(
+            mul_chip,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        let add_chip = AddChip::new();
+        println!("Add chip interactions");
+        let (_, add_count) = debug_interactions::<BabyBear, _>(
+            add_chip,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        println!("CPU interactions");
+        let cpu_chip = CpuChip::new();
+        let (_, cpu_count) = debug_interactions::<BabyBear, _>(
+            cpu_chip,
+            &mut runtime.segment,
+            InteractionKind::Memory,
+        );
+
+        let mut final_map = BTreeMap::new();
+
+        for (key, value) in mul_count
+            .iter()
+            .chain(add_count.iter())
+            .chain(cpu_count.iter())
+        {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+
+        println!("Final counts");
+
+        for (key, value) in final_map {
+            if !value.is_zero() {
+                println!("Key {} Value {}", key, value);
+            }
+        }
+
+        println!("proving");
+        prove(program); // 24
     }
 
     #[test]

@@ -87,15 +87,15 @@ pub struct ShiftLeftCols<T> {
 }
 
 /// A chip that implements bitwise operations for the opcodes SLL and SLLI.
-pub struct LeftShiftChip;
+pub struct ShiftLeftChip;
 
-impl LeftShiftChip {
+impl ShiftLeftChip {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl<F: PrimeField> Chip<F> for LeftShiftChip {
+impl<F: PrimeField> Chip<F> for ShiftLeftChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
@@ -179,13 +179,13 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
     }
 }
 
-impl<F> BaseAir<F> for LeftShiftChip {
+impl<F> BaseAir<F> for ShiftLeftChip {
     fn width(&self) -> usize {
         NUM_SHIFT_LEFT_COLS
     }
 }
 
-impl<AB> Air<AB> for LeftShiftChip
+impl<AB> Air<AB> for ShiftLeftChip
 where
     AB: CurtaAirBuilder,
 {
@@ -353,13 +353,13 @@ mod tests {
     };
     use p3_commit::ExtensionMmcs;
 
-    use super::LeftShiftChip;
+    use super::ShiftLeftChip;
 
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
-        let chip = LeftShiftChip::new();
+        let chip = ShiftLeftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -439,7 +439,7 @@ mod tests {
 
         let mut segment = Segment::default();
         segment.shift_left_events = shift_events;
-        let chip = LeftShiftChip::new();
+        let chip = ShiftLeftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
