@@ -18,9 +18,7 @@ pub extern "C" fn syscall_halt() -> ! {
         );
         unreachable!()
     }
-
-    #[cfg(not(target_os = "zkvm"))]
-    panic!()
+    unreachable!()
 }
 
 pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
@@ -34,13 +32,7 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
             in("a2") nbytes,
         );
     }
-
-    #[cfg(not(target_os = "zkvm"))]
-    {
-        let slice = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
-        let s = core::str::from_utf8(slice).unwrap();
-        print!("{}", s);
-    }
+    unreachable!()
 }
 
 #[no_mangle]
