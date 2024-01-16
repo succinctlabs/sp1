@@ -4,7 +4,7 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::{
-    air::{CurtaAirBuilder, Word},
+    air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder},
     cpu::{
         cols::{
             cpu_cols::{CpuCols, MemoryColumns},
@@ -147,7 +147,7 @@ impl CpuChip {
             + mem_val[2] * memory_columns.offset_is_two
             + mem_val[3] * memory_columns.offset_is_three;
 
-        let byte_value = AB::extend_expr_to_word(mem_byte.clone());
+        let byte_value = AB::extend(mem_byte.clone());
         builder
             .when(local.selectors.is_lb + local.selectors.is_lbu)
             .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));

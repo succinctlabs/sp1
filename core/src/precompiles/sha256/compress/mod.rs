@@ -1,28 +1,38 @@
-mod air;
-mod columns;
-mod flags;
-mod trace;
-
-pub use columns::*;
 use p3_field::PrimeField;
 
-use crate::cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord};
+use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::MemoryRecord;
+
+mod air;
+mod columns;
+mod execute;
+mod trace;
+
+pub const SHA_COMPRESS_K: [u32; 64] = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
 
 #[derive(Debug, Clone, Copy)]
-pub struct ShaExtendEvent {
+pub struct ShaCompressEvent {
     pub clk: u32,
-    pub w_ptr: u32,
+    pub w_and_h_ptr: u32,
     pub w: [u32; 64],
-    pub w_i_minus_15_records: [Option<MemoryRecord>; 48],
-    pub w_i_minus_2_records: [Option<MemoryRecord>; 48],
-    pub w_i_minus_16_records: [Option<MemoryRecord>; 48],
-    pub w_i_minus_7_records: [Option<MemoryRecord>; 48],
-    pub w_i_records: [Option<MemoryRecord>; 48],
+    pub h: [u32; 8],
+    pub h_read_records: [Option<MemoryRecord>; 8],
+    pub w_i_read_records: [Option<MemoryRecord>; 64],
+    pub h_write_records: [Option<MemoryRecord>; 8],
 }
 
-pub struct ShaExtendChip;
+pub struct ShaCompressChip;
 
-impl ShaExtendChip {
+impl ShaCompressChip {
     pub fn new() -> Self {
         Self {}
     }
@@ -43,16 +53,8 @@ impl ShaExtendChip {
     }
 }
 
-pub fn sha_extend(w: &mut [u32]) {
-    for i in 16..64 {
-        let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
-        let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16] + s0 + w[i - 7] + s1;
-    }
-}
-
 #[cfg(test)]
-pub mod tests {
+pub mod compress_tests {
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -62,7 +64,6 @@ pub mod tests {
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
-    use p3_matrix::dense::RowMajorMatrix;
     use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
@@ -70,16 +71,10 @@ pub mod tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
-    use crate::{
-        alu::AluEvent,
-        runtime::{Instruction, Opcode, Program, Runtime, Segment},
-        utils::Chip,
-    };
+    use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use p3_commit::ExtensionMmcs;
 
-    use super::ShaExtendChip;
-
-    pub fn sha_extend_program() -> Program {
+    pub fn sha_compress_program() -> Program {
         let w_ptr = 100;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
         for i in 0..64 {
@@ -89,20 +84,11 @@ pub mod tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 102, false, true),
+            Instruction::new(Opcode::ADD, 5, 0, 103, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
             Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
         Program::new(instructions, 0, 0)
-    }
-
-    #[test]
-    fn generate_trace() {
-        let mut segment = Segment::default();
-        segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
-        let chip = ShaExtendChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        println!("{:?}", trace.values)
     }
 
     #[test]
@@ -147,7 +133,7 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let program = sha_extend_program();
+        let program = sha_compress_program();
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();

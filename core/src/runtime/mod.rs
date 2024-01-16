@@ -6,7 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256_extend::ShaExtendEvent;
+use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 pub use opcode::*;
@@ -29,10 +29,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    a: Option<MemoryRecord>,
-    b: Option<MemoryRecord>,
-    c: Option<MemoryRecord>,
-    memory: Option<MemoryRecord>,
+    pub a: Option<MemoryRecord>,
+    pub b: Option<MemoryRecord>,
+    pub c: Option<MemoryRecord>,
+    pub memory: Option<MemoryRecord>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -101,7 +101,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 10000,
+            segment_size: 200000,
             global_segment: Segment::default(),
         }
     }
@@ -164,7 +164,7 @@ impl Runtime {
     }
 
     /// Read from memory, assuming that all addresses are aligned.
-    fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
         let value = self.memory.entry(addr).or_insert(0).clone();
@@ -193,7 +193,7 @@ impl Runtime {
 
     /// Write to memory.
     /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
-    fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
+    pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
         // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
         self.memory.insert(addr, value);
@@ -209,12 +209,12 @@ impl Runtime {
     }
 
     /// Read from register.
-    fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
+    pub fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
         self.mr(register as u32, position)
     }
 
     /// Write to register.
-    fn rw(&mut self, register: Register, value: u32) {
+    pub fn rw(&mut self, register: Register, value: u32) {
         if register == Register::X0 {
             // We don't write to %x0. See 2.6 Load and Store Instruction on
             // P.18 of the RISC-V spec.
@@ -285,7 +285,7 @@ impl Runtime {
                 self.segment.lt_events.push(event);
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.segment.add_events.push(event);
+                self.segment.mul_events.push(event);
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.segment.divrem_events.push(event);
@@ -378,7 +378,6 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-
         self.record = Record::default();
 
         match instruction.opcode {
@@ -579,8 +578,11 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
+                let a1 = Register::X11;
+                let a2 = Register::X12;
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
+
                 match syscall {
                     Syscall::HALT => {
                         a = self.register(a0);
@@ -595,99 +597,33 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::SHA_EXTEND => {
-                        // The number of cycles it takes to perform this precompile.
-                        const NB_SHA_EXTEND_CYCLES: u32 = 48 * 20;
-
-                        // Temporarily set the clock to the number of cycles it takes to perform
-                        // this precompile as reading `w_ptr` happens on this clock.
-                        self.clk += NB_SHA_EXTEND_CYCLES;
-
-                        // Read `w_ptr` from register a0 or x5.
-                        let w_ptr = self.register(a0);
-                        let mut w = Vec::new();
-                        for i in 0..64 {
-                            w.push(self.word(w_ptr + i * 4));
+                        (a, b, c) = ShaExtendChip::execute(self);
+                    }
+                    Syscall::SHA_COMPRESS => {
+                        (a, b, c) = ShaCompressChip::execute(self);
+                    }
+                    Syscall::WRITE => {
+                        let fd = self.register(a0);
+                        if fd == 1 || fd == 2 {
+                            let write_buf = self.register(a1);
+                            let nbytes = self.register(a2);
+                            // Read nbytes from memory starting at write_buf.
+                            // num words is ceil(nbytes / 4)
+                            let num_words = (nbytes + 3) / 4;
+                            let bytes = (0..num_words)
+                                .flat_map(|i| self.word(write_buf + i * 4).to_le_bytes())
+                                .take(nbytes as usize)
+                                .collect::<Vec<u8>>();
+                            let slice = bytes.as_slice();
+                            let s = core::str::from_utf8(slice).unwrap();
+                            if fd == 1 {
+                                print!("STDOUT: {}", s);
+                            } else {
+                                print!("STDERR: {}", s);
+                            }
                         }
-
-                        // Set the CPU table values with some dummy values.
-                        (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
+                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
-
-                        // We'll save the current record and restore it later so that the CPU
-                        // event gets emitted correctly.
-                        let t = self.record;
-
-                        // Set the clock back to the original value and begin executing the
-                        // precompile.
-                        self.clk -= 48 * 20;
-                        let saved_clk = self.clk;
-                        let saved_w_ptr = w_ptr;
-                        let saved_w = w.clone();
-                        let mut w_i_minus_15_records = Vec::new();
-                        let mut w_i_minus_2_records = Vec::new();
-                        let mut w_i_minus_16_records = Vec::new();
-                        let mut w_i_minus_7_records = Vec::new();
-                        let mut w_i_records = Vec::new();
-                        for i in 16..64 {
-                            // Read w[i-15].
-                            let w_i_minus_15 =
-                                self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
-                            w_i_minus_15_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `s0`.
-                            let s0 = w_i_minus_15.rotate_right(7)
-                                ^ w_i_minus_15.rotate_right(18)
-                                ^ (w_i_minus_15 >> 3);
-
-                            // Read w[i-2].
-                            let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
-                            w_i_minus_2_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `s1`.
-                            let s1 = w_i_minus_2.rotate_right(17)
-                                ^ w_i_minus_2.rotate_right(19)
-                                ^ (w_i_minus_2 >> 10);
-
-                            // Read w[i-16].
-                            let w_i_minus_16 =
-                                self.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
-                            w_i_minus_16_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Read w[i-7].
-                            let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
-                            w_i_minus_7_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `w_i`.
-                            let w_i = s1
-                                .wrapping_add(w_i_minus_16)
-                                .wrapping_add(s0)
-                                .wrapping_add(w_i_minus_7);
-
-                            // Write w[i].
-                            self.mr(w_ptr + i * 4, AccessPosition::Memory);
-                            self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
-                            w_i_records.push(self.record.memory);
-                            self.clk += 4;
-                        }
-
-                        // Push the SHA extend event.
-                        self.segment.sha_extend_events.push(ShaExtendEvent {
-                            clk: saved_clk,
-                            w_ptr: saved_w_ptr,
-                            w: saved_w.try_into().unwrap(),
-                            w_i_minus_15_records: w_i_minus_15_records.try_into().unwrap(),
-                            w_i_minus_2_records: w_i_minus_2_records.try_into().unwrap(),
-                            w_i_minus_16_records: w_i_minus_16_records.try_into().unwrap(),
-                            w_i_minus_7_records: w_i_minus_7_records.try_into().unwrap(),
-                            w_i_records: w_i_records.try_into().unwrap(),
-                        });
-
-                        // Restore the original record.
-                        self.record = t;
                     }
                 }
             }
@@ -794,7 +730,7 @@ impl Runtime {
 
             let width = 12;
             log::debug!(
-                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$}",
                 self.global_clk / 4,
                 self.pc,
                 instruction,
@@ -809,7 +745,10 @@ impl Runtime {
                 self.register(Register::X8),
                 self.register(Register::X9),
                 self.register(Register::X10),
-                self.register(Register::X11)
+                self.register(Register::X11),
+                self.register(Register::X12),
+                self.register(Register::X13),
+
             );
 
             // Execute the instruction.

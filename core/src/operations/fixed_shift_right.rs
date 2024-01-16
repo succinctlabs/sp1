@@ -13,7 +13,7 @@ use crate::disassembler::WORD_SIZE;
 use crate::runtime::Segment;
 use p3_field::AbstractField;
 
-/// A set of columns needed to compute `>>` with a fixed offset R.
+/// A set of columns needed to compute `>>` of a word with a fixed offset R.
 ///
 /// Note that we decompose shifts into a byte shift and a bit shift.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -129,7 +129,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         let mut first_shift = AB::Expr::zero();
         let mut last_carry = AB::Expr::zero();
         for i in (0..WORD_SIZE).rev() {
-            builder.send_byte_loookup_pair(
+            builder.send_byte_pair(
                 AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
                 cols.shift[i],
                 cols.carry[i],

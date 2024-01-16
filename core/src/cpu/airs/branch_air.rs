@@ -4,7 +4,7 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::{
-    air::{reduce, CurtaAirBuilder},
+    air::{BaseAirBuilder, CurtaAirBuilder, WordAirBuilder},
     cpu::{
         cols::{
             cpu_cols::{BranchColumns, CpuCols},
@@ -54,12 +54,12 @@ impl CpuChip {
         // Note that when local.branching == True, then is_branch_instruction == True.
         builder
             .when(local.branching)
-            .assert_eq(reduce::<AB>(branch_columns.pc), local.pc);
+            .assert_eq(branch_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that branch_columns.next_pc is correct.  That is next.pc in WORD form.
         builder
             .when(local.branching)
-            .assert_eq(reduce::<AB>(branch_columns.next_pc), next.pc);
+            .assert_eq(branch_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Calculate the new pc via the ADD chip if local.branching == true
         builder.send_alu(
@@ -131,7 +131,7 @@ impl CpuChip {
             use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
                 + (AB::Expr::one() - use_signed_comparison.clone())
                     * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.a_lt_b),
+            AB::extend(branch_columns.a_lt_b),
             *local.op_a_val(),
             *local.op_b_val(),
             is_branch_instruction.clone(),
@@ -141,7 +141,7 @@ impl CpuChip {
             use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
                 + (AB::Expr::one() - use_signed_comparison)
                     * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend_expr_to_word(branch_columns.a_gt_b),
+            AB::extend(branch_columns.a_gt_b),
             *local.op_b_val(),
             *local.op_a_val(),
             is_branch_instruction.clone(),

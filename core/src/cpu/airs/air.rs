@@ -1,4 +1,4 @@
-use crate::air::{reduce, CurtaAirBuilder};
+use crate::air::{CurtaAirBuilder, WordAirBuilder};
 use crate::cpu::cols::cpu_cols::{AUIPCColumns, CpuCols, JumpColumns, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::cpu::CpuChip;
@@ -119,7 +119,7 @@ where
             .when(is_memory_instruction.clone())
             .assert_eq::<AB::Expr, AB::Expr>(
                 memory_columns.addr_aligned + memory_columns.addr_offset,
-                reduce::<AB>(memory_columns.addr_word),
+                memory_columns.addr_word.reduce::<AB>(),
             );
 
         // Check that each addr_word element is a byte
@@ -194,19 +194,19 @@ impl CpuChip {
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(
-                reduce::<AB>(*local.op_a_val()),
+                local.op_a_val().reduce::<AB>(),
                 local.pc + AB::F::from_canonical_u8(4),
             );
 
         // Verify that the word form of local.pc is correct for JAL instructions.
         builder
             .when(local.selectors.is_jal)
-            .assert_eq(reduce::<AB>(jump_columns.pc), local.pc);
+            .assert_eq(jump_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that the word form of next.pc is correct for both jump instructions.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
-            .assert_eq(reduce::<AB>(jump_columns.next_pc), next.pc);
+            .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
@@ -239,7 +239,7 @@ impl CpuChip {
         // Verify that the word form of local.pc is correct.
         builder
             .when(local.selectors.is_auipc)
-            .assert_eq(reduce::<AB>(auipc_columns.pc), local.pc);
+            .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that op_a == pc + op_b.
         builder.send_alu(

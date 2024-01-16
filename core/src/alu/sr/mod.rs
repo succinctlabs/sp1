@@ -1,13 +1,58 @@
+//! Logical And Arithmetic Right Shift Verification.
+//!
+//! Implements verification for a = b >> c, decomposing the shift into bit and byte components:
+//!
+//! 1. num_bits_to_shift = c % 8: Bit-level shift, achieved by using ShrCarry.
+//! 2. num_bytes_to_shift = c // 8: Byte-level shift, shifting entire bytes or words in b.
+//!
+//! The right shift is verified by reformulating it as (b >> c) = (b >> (num_bytes_to_shift * 8)) >>
+//! num_bits_to_shift.
+//!
+//! The correct leading bits of logical and arithmetic right shifts are verified by sign extending b
+//! to 64 bits.
+//!
+//! c = take the least significant 5 bits of c
+//! num_bytes_to_shift = c // 8
+//! num_bits_to_shift = c % 8
+//!
+//! # Sign extend b to 64 bits if SRA.
+//! if opcode == SRA:
+//!    b = sign_extend_32_bits_to_64_bits(b)
+//! else:
+//!    b = zero_extend_32_bits_to_64_bits(b)
+//!
+//!
+//! # Byte shift. Leave the num_bytes_to_shift most significant bytes of b 0 for simplicity as it
+//! # doesn't affect the correctness of the result.
+//! result = [0; LONG_WORD_SIZE]
+//! for i in range(LONG_WORD_SIZE - num_bytes_to_shift):
+//!     result[i] = b[i + num_bytes_to_shift]
+//!
+//! # Bit shift.
+//! carry_multiplier = 1 << (8 - num_bits_to_shift)
+//! last_carry = 0
+//! for i in reversed(range(LONG_WORD_SIZE)):
+//!     # Shifts a byte to the right and returns both the shifted byte and the bits that carried.
+//!     (shifted_byte[i], carry) = shr_carry(result[i], num_bits_to_shift)
+//!     result[i] = shifted_byte[i] + last_carry * carry_multiplier
+//!     last_carry = carry
+//!
+//! # The 4 least significant bytes must match a. The 4 most significant bytes of result may be
+//! # inaccurate.
+//! assert a = result[0..WORD_SIZE]
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 
+use crate::bytes::utils::shr_carry;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -17,8 +62,15 @@ use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 
+/// The number of bytes necessary to represent a 64-bit integer.
+const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
+
+/// The number of bits in a byte.
+const BYTE_SIZE: usize = 8;
+
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Debug)]
+#[repr(C)]
 pub struct ShiftRightCols<T> {
     /// The output operand.
     pub a: Word<T>,
@@ -29,9 +81,36 @@ pub struct ShiftRightCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// A boolean array whose `i`th element indicates whether `num_bits_to_shift = i`.
+    pub shift_by_n_bits: [T; BYTE_SIZE],
+
+    /// A boolean array whose `i`th element indicates whether `num_bytes_to_shift = i`.
+    pub shift_by_n_bytes: [T; WORD_SIZE],
+
+    /// The result of "byte-shifting" the input operand `b` by `num_bytes_to_shift`.
+    pub byte_shift_result: [T; LONG_WORD_SIZE],
+
+    /// The result of "bit-shifting" the byte-shifted input by `num_bits_to_shift`.
+    pub bit_shift_result: [T; LONG_WORD_SIZE],
+
+    /// The carry output of `shrcarry` on each byte of `byte_shift_result`.
+    pub shr_carry_output_carry: [T; LONG_WORD_SIZE],
+
+    /// The shift byte output of `shrcarry` on each byte of `byte_shift_result`.
+    pub shr_carry_output_shifted_byte: [T; LONG_WORD_SIZE],
+
+    /// The most significant bit of `b`.
+    pub b_msb: T,
+
+    /// The least significant byte of `c`. Used to verify `shift_by_n_bits` and `shift_by_n_bytes`.
+    pub c_least_sig_byte: [T; BYTE_SIZE],
+
     /// Selector flags for the operation to perform.
     pub is_srl: T,
     pub is_sra: T,
+
+    /// Selector to know whether this row is enabled.
+    pub is_real: T,
 }
 
 /// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
@@ -43,23 +122,109 @@ impl RightShiftChip {
     }
 }
 
+/// Calculate the number of _bytes_ to shift by. Note that we take the least significant 5 bits per
+/// the RISC-V spec.
+fn nb_bytes_to_shift(shift_amount: u32) -> usize {
+    let n = (shift_amount % 32) as usize;
+    n / BYTE_SIZE
+}
+
+/// Calculate the number of _bits_ shift by. Note that we take the least significant 5 bits per the
+/// RISC-V spec.
+fn nb_bits_to_shift(shift_amount: u32) -> usize {
+    let n = (shift_amount % 32) as usize;
+    n % BYTE_SIZE
+}
+
 impl<F: PrimeField> Chip<F> for RightShiftChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
             .shift_right_events
-            .par_iter()
+            .iter()
             .map(|event| {
+                assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
                 let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
                 let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
-                cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
-                cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
+                // Initialize cols with basic operands and flags derived from the current event.
+                {
+                    cols.a = Word::from(event.a);
+                    cols.b = Word::from(event.b);
+                    cols.c = Word::from(event.c);
+
+                    cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
+
+                    cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
+                    cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
+
+                    cols.is_real = F::one();
+
+                    for i in 0..BYTE_SIZE {
+                        cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
+                    }
+                }
+
+                let num_bytes_to_shift = nb_bytes_to_shift(event.c);
+                let num_bits_to_shift = nb_bits_to_shift(event.c);
+
+                // Byte shifting.
+                let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
+                {
+                    for i in 0..WORD_SIZE {
+                        cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
+                    }
+                    let sign_extended_b = {
+                        if event.opcode == Opcode::SRA {
+                            // Sign extension is necessary only for arithmetic right shift.
+                            ((event.b as i32) as i64).to_le_bytes()
+                        } else {
+                            (event.b as u64).to_le_bytes()
+                        }
+                    };
+
+                    for i in 0..LONG_WORD_SIZE {
+                        if i + num_bytes_to_shift < LONG_WORD_SIZE {
+                            byte_shift_result[i] = sign_extended_b[i + num_bytes_to_shift];
+                        }
+                    }
+                    cols.byte_shift_result = byte_shift_result.map(F::from_canonical_u8);
+                }
+
+                // Bit shifting.
+                {
+                    for i in 0..BYTE_SIZE {
+                        cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
+                    }
+                    let carry_multiplier = 1 << (8 - num_bits_to_shift);
+                    let mut last_carry = 0u32;
+                    for i in (0..LONG_WORD_SIZE).rev() {
+                        let (shift, carry) =
+                            shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
+
+                        let byte_event = ByteLookupEvent {
+                            opcode: ByteOpcode::ShrCarry,
+                            a1: shift,
+                            a2: carry,
+                            b: byte_shift_result[i],
+                            c: num_bits_to_shift as u8,
+                        };
+                        segment
+                            .byte_lookups
+                            .entry(byte_event)
+                            .and_modify(|j| *j += 1)
+                            .or_insert(1);
+
+                        cols.shr_carry_output_carry[i] = F::from_canonical_u8(carry);
+                        cols.shr_carry_output_shifted_byte[i] = F::from_canonical_u8(shift);
+                        cols.bit_shift_result[i] =
+                            F::from_canonical_u32(shift as u32 + last_carry * carry_multiplier);
+                        last_carry = carry as u32;
+                        if i < WORD_SIZE {
+                            debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
+                        }
+                    }
+                }
+
                 row
             })
             .collect::<Vec<_>>();
@@ -72,6 +237,22 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
+
+        // Create the template for the padded rows. These are fake rows that don't fail on some
+        // sanity checks.
+        let padded_row_template = {
+            let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
+            let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            // Shift 0 by 0 bits and 0 bytes.
+            // cols.is_srl = F::one();
+            cols.shift_by_n_bits[0] = F::one();
+            cols.shift_by_n_bytes[0] = F::one();
+            row
+        };
+        debug_assert!(padded_row_template.len() == NUM_SHIFT_RIGHT_COLS);
+        for i in segment.shift_right_events.len() * NUM_SHIFT_RIGHT_COLS..trace.values.len() {
+            trace.values[i] = padded_row_template[i % NUM_SHIFT_RIGHT_COLS];
+        }
 
         trace
     }
@@ -90,6 +271,174 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
+        let zero: AB::Expr = AB::F::zero().into();
+        let one: AB::Expr = AB::F::one().into();
+
+        // TODO: Calculate the MSB of b using byte lookup.
+        {
+            // TODO: Check that the MSB of most_significant_byte matches local.b_msb using lookup.
+            let _most_significant_byte = local.b[WORD_SIZE - 1].clone();
+        }
+
+        // Calculate the number of bits and bytes to shift by from c.
+        {
+            // The sum of c_least_sig_byte[i] * 2^i must match c[0].
+            let mut c_byte_sum = AB::Expr::zero();
+            for i in 0..BYTE_SIZE {
+                let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
+                c_byte_sum += val * local.c_least_sig_byte[i].clone();
+            }
+            builder.assert_eq(c_byte_sum, local.c[0]);
+
+            // Number of bits to shift.
+
+            // The 3-bit number represented by the 3 least significant bits of c equals the number
+            // of bits to shift.
+            let mut num_bits_to_shift = AB::Expr::zero();
+            for i in 0..3 {
+                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+            }
+            for i in 0..BYTE_SIZE {
+                builder
+                    .when(local.shift_by_n_bits[i].clone())
+                    .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
+            }
+            // Exactly one of the shift_by_n_bits must be 1.
+            builder.assert_eq(
+                local
+                    .shift_by_n_bits
+                    .iter()
+                    .fold(zero.clone(), |acc, &x| acc + x),
+                one.clone(),
+            );
+
+            // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
+            // number of bytes to shift.
+            let num_bytes_to_shift = local.c_least_sig_byte[3]
+                + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
+            // If shift_by_n_bytes[i] = 1, then i = num_bytes_to_shift.
+            for i in 0..WORD_SIZE {
+                builder
+                    .when(local.shift_by_n_bytes[i])
+                    .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
+            }
+            // Exactly one of the shift_by_n_bytes must be 1.
+            builder.assert_eq(
+                local
+                    .shift_by_n_bytes
+                    .iter()
+                    .fold(zero.clone(), |acc, &x| acc + x),
+                one.clone(),
+            );
+        }
+
+        // Byte shift the sign-extended b.
+        {
+            // The leading bytes of b should be 0xff if b's MSB is 1 & opcode = SRA, 0 otherwise.
+            let leading_byte =
+                local.is_sra.clone() * local.b_msb.clone() * AB::Expr::from_canonical_u8(0xff);
+            let mut sign_extended_b: Vec<AB::Expr> = vec![];
+            for i in 0..WORD_SIZE {
+                sign_extended_b.push(local.b[i].into());
+            }
+            for _ in 0..WORD_SIZE {
+                sign_extended_b.push(leading_byte.clone());
+            }
+
+            // Shift the bytes of sign_extended_b by num_bytes_to_shift.
+            for num_bytes_to_shift in 0..WORD_SIZE {
+                for i in 0..(LONG_WORD_SIZE - num_bytes_to_shift) {
+                    builder
+                        .when(local.shift_by_n_bytes[num_bytes_to_shift].clone())
+                        .assert_eq(
+                            local.byte_shift_result[i].clone(),
+                            sign_extended_b[i + num_bytes_to_shift].clone(),
+                        );
+                }
+            }
+        }
+
+        // Bit shift the byte_shift_result using ShrCarry, and compare the result to a.
+        {
+            // The carry multiplier is 2^(8 - num_bits_to_shift).
+            let mut carry_multiplier = AB::Expr::from_canonical_u8(0);
+            for i in 0..BYTE_SIZE {
+                carry_multiplier += AB::Expr::from_canonical_u32(1u32 << (8 - i))
+                    * local.shift_by_n_bits[i].clone();
+            }
+            // The 3-bit number represented by the 3 least significant bits of c equals the number
+            // of bits to shift.
+            let mut num_bits_to_shift = AB::Expr::zero();
+            for i in 0..3 {
+                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+            }
+
+            // Calculate ShrCarry.
+            for i in (0..LONG_WORD_SIZE).rev() {
+                builder.send_byte_pair(
+                    AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
+                    local.shr_carry_output_shifted_byte[i].clone(),
+                    local.shr_carry_output_carry[i].clone(),
+                    local.byte_shift_result[i].clone(),
+                    num_bits_to_shift.clone(),
+                    local.is_real.clone(),
+                );
+            }
+
+            // Use the results of ShrCarry to calculate the bit shift result.
+            for i in (0..LONG_WORD_SIZE).rev() {
+                let mut v: AB::Expr = local.shr_carry_output_shifted_byte[i].into();
+                if i + 1 < LONG_WORD_SIZE {
+                    v += local.shr_carry_output_carry[i + 1].clone() * carry_multiplier.clone();
+                }
+                builder.assert_eq(v, local.bit_shift_result[i].clone());
+            }
+        }
+
+        // The 4 least significant bytes must match a. The 4 most significant bytes of result may be
+        // inaccurate.
+        {
+            for i in 0..WORD_SIZE {
+                builder.assert_eq(local.a[i].clone(), local.bit_shift_result[i].clone());
+            }
+        }
+
+        // Check that the flags are indeed boolean.
+        {
+            let flags = [local.is_srl, local.is_sra, local.is_real, local.b_msb];
+            for flag in flags.iter() {
+                builder.assert_bool(*flag);
+            }
+            for shift_by_n_byte in local.shift_by_n_bytes.iter() {
+                builder.assert_bool(*shift_by_n_byte);
+            }
+            for shift_by_n_bit in local.shift_by_n_bits.iter() {
+                builder.assert_bool(*shift_by_n_bit);
+            }
+        }
+
+        // Range check bytes.
+        {
+            let words = [local.a, local.b, local.c];
+            let long_words = [
+                local.byte_shift_result,
+                local.bit_shift_result,
+                local.shr_carry_output_carry,
+                local.shr_carry_output_shifted_byte,
+            ];
+
+            for word in words.iter() {
+                for _byte in word.0.iter() {
+                    // byte must be in [0, 255].
+                }
+            }
+
+            for long_word in long_words.iter() {
+                for _byte in long_word.iter() {
+                    // byte must be in [0, 255].
+                }
+            }
+        }
 
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
@@ -102,7 +451,7 @@ where
             local.a,
             local.b,
             local.c,
-            local.is_srl + local.is_sra,
+            local.is_real,
         );
     }
 }
@@ -186,8 +535,49 @@ mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
+        let shifts = vec![
+            (Opcode::SRL, 0xffff8000, 0xffff8000, 0),
+            (Opcode::SRL, 0x7fffc000, 0xffff8000, 1),
+            (Opcode::SRL, 0x01ffff00, 0xffff8000, 7),
+            (Opcode::SRL, 0x0003fffe, 0xffff8000, 14),
+            (Opcode::SRL, 0x0001ffff, 0xffff8001, 15),
+            (Opcode::SRL, 0xffffffff, 0xffffffff, 0),
+            (Opcode::SRL, 0x7fffffff, 0xffffffff, 1),
+            (Opcode::SRL, 0x01ffffff, 0xffffffff, 7),
+            (Opcode::SRL, 0x0003ffff, 0xffffffff, 14),
+            (Opcode::SRL, 0x00000001, 0xffffffff, 31),
+            (Opcode::SRL, 0x21212121, 0x21212121, 0),
+            (Opcode::SRL, 0x10909090, 0x21212121, 1),
+            (Opcode::SRL, 0x00424242, 0x21212121, 7),
+            (Opcode::SRL, 0x00008484, 0x21212121, 14),
+            (Opcode::SRL, 0x00000000, 0x21212121, 31),
+            (Opcode::SRL, 0x21212121, 0x21212121, 0xffffffe0),
+            (Opcode::SRL, 0x10909090, 0x21212121, 0xffffffe1),
+            (Opcode::SRL, 0x00424242, 0x21212121, 0xffffffe7),
+            (Opcode::SRL, 0x00008484, 0x21212121, 0xffffffee),
+            (Opcode::SRL, 0x00000000, 0x21212121, 0xffffffff),
+            (Opcode::SRA, 0x00000000, 0x00000000, 0),
+            (Opcode::SRA, 0xc0000000, 0x80000000, 1),
+            (Opcode::SRA, 0xff000000, 0x80000000, 7),
+            (Opcode::SRA, 0xfffe0000, 0x80000000, 14),
+            (Opcode::SRA, 0xffffffff, 0x80000001, 31),
+            (Opcode::SRA, 0x7fffffff, 0x7fffffff, 0),
+            (Opcode::SRA, 0x3fffffff, 0x7fffffff, 1),
+            (Opcode::SRA, 0x00ffffff, 0x7fffffff, 7),
+            (Opcode::SRA, 0x0001ffff, 0x7fffffff, 14),
+            (Opcode::SRA, 0x00000000, 0x7fffffff, 31),
+            (Opcode::SRA, 0x81818181, 0x81818181, 0),
+            (Opcode::SRA, 0xc0c0c0c0, 0x81818181, 1),
+            (Opcode::SRA, 0xff030303, 0x81818181, 7),
+            (Opcode::SRA, 0xfffe0606, 0x81818181, 14),
+            (Opcode::SRA, 0xffffffff, 0x81818181, 31),
+        ];
+        let mut shift_events: Vec<AluEvent> = Vec::new();
+        for t in shifts.iter() {
+            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+        }
         let mut segment = Segment::default();
-        segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)].repeat(1000);
+        segment.shift_right_events = shift_events;
         let chip = RightShiftChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);

@@ -1,9 +1,9 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
-use crate::air::CurtaAirBuilder;
+use crate::air::{BaseAirBuilder, CurtaAirBuilder};
 use crate::operations::{
-    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, Xor3Operation,
+    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
 };
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
@@ -20,9 +20,13 @@ where
     AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        // Initialize columns.
         let main = builder.main();
         let local: &ShaExtendCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
+        let i_start = AB::F::from_canonical_u32(16);
+        let nb_cycles_per_extend = AB::F::from_canonical_u64(20);
+        let nb_bytes_in_word = AB::F::from_canonical_u32(4);
 
         // Evaluate the control flags.
         self.eval_flags(builder);
@@ -44,8 +48,8 @@ where
         // Read w[i-15].
         builder.constraint_memory_access(
             local.segment,
-            local.clk + (local.i - AB::F::from_canonical_u64(16)) * AB::F::from_canonical_u32(20),
-            local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * AB::F::from_canonical_u32(4),
+            local.clk + (local.i - i_start) * nb_cycles_per_extend,
+            local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * nb_bytes_in_word,
             local.w_i_minus_15,
             local.is_real,
         );
@@ -53,10 +57,8 @@ where
         // Read w[i-2].
         builder.constraint_memory_access(
             local.segment,
-            local.clk
-                + (local.i - AB::F::from_canonical_u64(16)) * AB::F::from_canonical_u32(20)
-                + AB::F::from_canonical_u32(4),
-            local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * AB::F::from_canonical_u32(4),
+            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(4),
+            local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * nb_bytes_in_word,
             local.w_i_minus_2,
             local.is_real,
         );
@@ -64,10 +66,8 @@ where
         // Read w[i-16].
         builder.constraint_memory_access(
             local.segment,
-            local.clk
-                + (local.i - AB::F::from_canonical_u64(16)) * AB::F::from_canonical_u32(20)
-                + AB::F::from_canonical_u32(8),
-            local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * AB::F::from_canonical_u32(4),
+            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(8),
+            local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * nb_bytes_in_word,
             local.w_i_minus_16,
             local.is_real,
         );
@@ -75,10 +75,8 @@ where
         // Read w[i-7].
         builder.constraint_memory_access(
             local.segment,
-            local.clk
-                + (local.i - AB::F::from_canonical_u64(16)) * AB::F::from_canonical_u32(20)
-                + AB::F::from_canonical_u32(12),
-            local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * AB::F::from_canonical_u32(4),
+            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(12),
+            local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * nb_bytes_in_word,
             local.w_i_minus_7,
             local.is_real,
         );
@@ -105,10 +103,15 @@ where
             local.w_i_minus_15_rs_3,
             local.is_real,
         );
-        Xor3Operation::<AB::F>::eval(
+        XorOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_15_rr_7.value,
             local.w_i_minus_15_rr_18.value,
+            local.s0_intermediate,
+        );
+        XorOperation::<AB::F>::eval(
+            builder,
+            local.s0_intermediate.value,
             local.w_i_minus_15_rs_3.value,
             local.s0,
         );
@@ -135,10 +138,15 @@ where
             local.w_i_minus_2_rs_10,
             local.is_real,
         );
-        Xor3Operation::<AB::F>::eval(
+        XorOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_2_rr_17.value,
             local.w_i_minus_2_rr_19.value,
+            local.s1_intermediate,
+        );
+        XorOperation::<AB::F>::eval(
+            builder,
+            local.s1_intermediate.value,
             local.w_i_minus_2_rs_10.value,
             local.s1,
         );
@@ -156,10 +164,8 @@ where
         // Write `s2` to `w[i]`.
         builder.constraint_memory_access(
             local.segment,
-            local.clk
-                + (local.i - AB::F::from_canonical_u64(16)) * AB::F::from_canonical_u32(20)
-                + AB::F::from_canonical_u32(16),
-            local.w_ptr + local.i * AB::F::from_canonical_u32(4),
+            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(16),
+            local.w_ptr + local.i * nb_bytes_in_word,
             local.w_i,
             local.is_real,
         );
