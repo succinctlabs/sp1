@@ -16,7 +16,7 @@ use crate::{
 };
 
 impl CpuChip {
-    pub fn load_memory_eval<AB: CurtaAirBuilder>(
+    pub(crate) fn load_memory_eval<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -69,7 +69,7 @@ impl CpuChip {
             .assert_word_eq(local.unsigned_mem_val, *local.op_a_val());
     }
 
-    pub fn store_memory_eval<AB: CurtaAirBuilder>(
+    pub(crate) fn store_memory_eval<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -130,7 +130,7 @@ impl CpuChip {
             .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
-    pub fn verify_unsigned_mem_value<AB: CurtaAirBuilder>(
+    pub(crate) fn verify_unsigned_mem_value<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -176,7 +176,7 @@ impl CpuChip {
             .assert_word_eq(mem_val, local.unsigned_mem_val);
     }
 
-    pub fn verify_most_sig_byte_bit_decomp<AB: CurtaAirBuilder>(
+    pub(crate) fn verify_most_sig_byte_bit_decomp<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -198,7 +198,7 @@ impl CpuChip {
             .assert_eq(recomposed_byte, unsigned_mem_val[1]);
     }
 
-    pub fn verify_offset_bit_decomp<AB: CurtaAirBuilder>(
+    pub(crate) fn verify_offset_bit_decomp<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -225,28 +225,34 @@ impl CpuChip {
             .assert_bool(memory_columns.offset_bit_decomp[1]);
     }
 
-    pub fn index_is_zero<AB: CurtaAirBuilder>(memory_columns: &MemoryColumns<AB::Var>) -> AB::Expr {
+    pub(crate) fn index_is_zero<AB: CurtaAirBuilder>(
+        memory_columns: &MemoryColumns<AB::Var>,
+    ) -> AB::Expr {
         AB::Expr::one()
             - memory_columns.offset_bit_decomp[0]
             - memory_columns.offset_bit_decomp[1]
             - memory_columns.offset_bits_product
     }
 
-    pub fn index_is_one<AB: CurtaAirBuilder>(memory_columns: &MemoryColumns<AB::Var>) -> AB::Expr {
+    pub(crate) fn index_is_one<AB: CurtaAirBuilder>(
+        memory_columns: &MemoryColumns<AB::Var>,
+    ) -> AB::Expr {
         memory_columns.offset_bit_decomp[0] - memory_columns.offset_bits_product
     }
 
-    pub fn index_is_two<AB: CurtaAirBuilder>(memory_columns: &MemoryColumns<AB::Var>) -> AB::Expr {
+    pub(crate) fn index_is_two<AB: CurtaAirBuilder>(
+        memory_columns: &MemoryColumns<AB::Var>,
+    ) -> AB::Expr {
         AB::Expr::one() - memory_columns.offset_bits_product
     }
 
-    pub fn index_is_three<AB: CurtaAirBuilder>(
+    pub(crate) fn index_is_three<AB: CurtaAirBuilder>(
         memory_columns: &MemoryColumns<AB::Var>,
     ) -> AB::Expr {
         memory_columns.offset_bits_product.into()
     }
 
-    pub fn is_memory_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_memory_instruction<AB: CurtaAirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectors<AB::Var>,
     ) -> AB::Expr {
@@ -260,7 +266,7 @@ impl CpuChip {
             + opcode_selectors.is_sw
     }
 
-    pub fn is_store<AB: CurtaAirBuilder>(
+    pub(crate) fn is_store<AB: CurtaAirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectors<AB::Var>,
     ) -> AB::Expr {
