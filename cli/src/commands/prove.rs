@@ -1,4 +1,4 @@
-use std::{env, f32::consts::E};
+use std::env;
 
 use anyhow::Result;
 use clap::Parser;

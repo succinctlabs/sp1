@@ -1,6 +1,7 @@
 [package]
 version = "0.1.0"
-name = "hello_world"
+name = "fibonacci"
+edition = "2021"
 
 [workspace]
 

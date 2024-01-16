@@ -2,6 +2,7 @@
 use core::arch::asm;
 
 use core::alloc::{GlobalAlloc, Layout};
+use syscall::syscall_halt;
 
 extern crate alloc;
 
@@ -33,10 +34,12 @@ unsafe extern "C" fn __start() {
         }
         main()
     }
+
+    syscall_halt();
 }
 
 #[cfg(target_os = "zkvm")]
-static STACK_TOP: u32 = 0x0020_0800; // TODO: put in whatever.
+static STACK_TOP: u32 = 0x0020_0400; // TODO: put in whatever.
 
 #[cfg(target_os = "zkvm")]
 core::arch::global_asm!(
@@ -67,5 +70,7 @@ unsafe impl GlobalAlloc for SimpleAlloc {
     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
 
+// TODO: should we use this even outside of vm?
+#[cfg(target_os = "zkvm")]
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
