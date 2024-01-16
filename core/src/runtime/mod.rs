@@ -622,7 +622,8 @@ impl Runtime {
                                 print!("STDERR: {}", s);
                             }
                         }
-                        (a, b, c) = (0, 0, 0);
+                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
+                        self.rw(a0, a);
                     }
                 }
             }

@@ -1181,6 +1181,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha_compress"
+version = "0.1.0"
+dependencies = [
+ "curta-zkvm",
+]
+
+[[package]]
 name = "sha_extend"
 version = "0.1.0"
 dependencies = [
