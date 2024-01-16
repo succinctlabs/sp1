@@ -1,5 +1,5 @@
 [workspace]
 members = [
-  "hello_world",
+  "fibonacci",
   "sha_extend"
 ]
