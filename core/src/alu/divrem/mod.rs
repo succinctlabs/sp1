@@ -280,7 +280,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     cols.carry[i] = F::from_canonical_u32(carry);
                 }
 
-                // Insert the necessary multiplication events.
+                // Insert the necessary multiplication & LT events.
                 {
                     let mut lower_word = 0;
                     for i in 0..WORD_SIZE {
@@ -299,6 +299,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         b: event.c,
                         c: quotient,
                     };
+                    segment.mul_events.push(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
                         clk: event.clk,
@@ -315,7 +316,25 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     };
 
                     segment.mul_events.push(upper_multiplication);
-                    segment.mul_events.push(lower_multiplication);
+
+                    let lt_event = if is_signed_operation(event.opcode) {
+                        AluEvent {
+                            opcode: Opcode::SLT,
+                            a: 1,
+                            b: (remainder as i32).abs() as u32,
+                            c: u32::max(1, (event.c as i32).abs() as u32),
+                            clk: event.clk,
+                        }
+                    } else {
+                        AluEvent {
+                            opcode: Opcode::SLTU,
+                            a: 1,
+                            b: remainder,
+                            c: u32::max(1, event.c),
+                            clk: event.clk,
+                        }
+                    };
+                    segment.lt_events.push(lt_event);
                 }
             }
             rows.push(row);
