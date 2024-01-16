@@ -7,7 +7,7 @@ use core::arch::asm;
 
 use std::hint::black_box;
 
-curta_zkvm::entry!(main);
+curta_zkvm::entrypoint!(main);
 
 fn fibonacci(n: u32) -> u32 {
     let mut nums = vec![1, 1];

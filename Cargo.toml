@@ -1,5 +1,5 @@
 [workspace]
-members = [ "core", "cli", "zkvm", "examples/ssz"]
+members = [ "core", "cli", "zkvm", "examples/fibonacci", "examples/ssz"]
 resolver = "2"
 
 [profile.release]

@@ -7,6 +7,8 @@ pub const HALT: u32 = 100;
 /// Loads a word supplied from the prover.
 pub const LWA: u32 = 101;
 
+pub const WRITE: u32 = 999;
+
 pub extern "C" fn syscall_halt() -> ! {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -19,6 +21,26 @@ pub extern "C" fn syscall_halt() -> ! {
 
     #[cfg(not(target_os = "zkvm"))]
     panic!()
+}
+
+pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") WRITE,
+            in("a0") fd,
+            in("a1") write_buf,
+            in("a2") nbytes,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    {
+        let slice = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
+        let s = core::str::from_utf8(slice).unwrap();
+        print!("{}", s);
+    }
 }
 
 #[no_mangle]
@@ -43,9 +65,5 @@ pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
 
 #[no_mangle]
 pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
-    if fd == 1 {
-        let slice = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
-        let s = core::str::from_utf8(slice).unwrap();
-        print!("{}", s);
-    }
+    syscall_write(fd, write_buf, nbytes);
 }
