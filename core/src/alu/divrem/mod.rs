@@ -255,19 +255,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             {
                 let c_times_quotient = {
                     if is_signed_operation(event.opcode) {
-                        cols.rem_neg = cols.rem_msb;
-                        cols.b_neg = cols.b_msb;
-                        cols.c_neg = cols.c_msb;
-                        cols.is_overflow =
-                            F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
-                        cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
-                        cols.abs_c = Word::from((event.c as i32).abs() as u32);
-                        cols.max_abs_c_or_1 =
-                            Word::from(u32::max(1, (event.c as i32).abs() as u32));
+                        (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
                     } else {
-                        cols.abs_remainder = cols.remainder;
-                        cols.abs_c = cols.c;
-                        cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
+                        ((quotient as u64) * (event.c as u64)).to_le_bytes()
                     }
                 };
                 cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
@@ -289,11 +279,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     cols.carry[i] = F::from_canonical_u32(carry);
                 }
 
-                // Insert the necessary multiplication & LT events.
-                //
-                // This generate_trace for div must be executed _before_ calling generate_trace for
-                // mul and LT upon which div depends. This ordering is critical as mul and LT
-                // require all the mul and LT events be added before we can call generate_trace.
+                // Insert the necessary multiplication events.
                 {
                     let mut lower_word = 0;
                     for i in 0..WORD_SIZE {
@@ -309,10 +295,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         clk: event.clk,
                         opcode: Opcode::MUL,
                         a: lower_word,
-                        c: event.c,
-                        b: quotient,
+                        b: event.c,
+                        c: quotient,
                     };
-                    segment.mul_events.push(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
                         clk: event.clk,
@@ -324,30 +309,12 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                             }
                         },
                         a: upper_word,
-                        c: event.c,
-                        b: quotient,
+                        b: event.c,
+                        c: quotient,
                     };
 
                     segment.mul_events.push(upper_multiplication);
-
-                    let lt_event = if is_signed_operation(event.opcode) {
-                        AluEvent {
-                            opcode: Opcode::SLT,
-                            a: 1,
-                            b: (remainder as i32).abs() as u32,
-                            c: u32::max(1, (event.c as i32).abs() as u32),
-                            clk: event.clk,
-                        }
-                    } else {
-                        AluEvent {
-                            opcode: Opcode::SLTU,
-                            a: 1,
-                            b: remainder,
-                            c: u32::max(1, event.c),
-                            clk: event.clk,
-                        }
-                    };
-                    segment.lt_events.push(lt_event);
+                    segment.mul_events.push(lower_multiplication);
                 }
             }
             rows.push(row);
