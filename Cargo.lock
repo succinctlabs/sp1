@@ -927,6 +927,13 @@ version = "0.1.0"
 source = "git+https://github.com/succinctlabs/plonky3.git#bb143dd1638a37a398a1ca698ec8bfdfc42df4ed"
 
 [[package]]
+name = "panic"
+version = "0.1.0"
+dependencies = [
+ "curta-zkvm",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
