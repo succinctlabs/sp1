@@ -72,10 +72,6 @@ impl Runtime {
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces.clone());
 
-        println!(
-            "the length of segment_chips is now {} right before debug_cumu",
-            segment_chips.len()
-        );
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
