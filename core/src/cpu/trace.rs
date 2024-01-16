@@ -158,7 +158,7 @@ impl CpuChip {
             memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
             memory_columns.offset_bit_decomp[0] = F::from_canonical_u8(addr_offset_bits[0]);
             memory_columns.offset_bit_decomp[1] = F::from_canonical_u8(addr_offset_bits[1]);
-            memory_columns.bit_product =
+            memory_columns.offset_bits_product =
                 F::from_canonical_u8(addr_offset_bits[0] * addr_offset_bits[1]);
 
             // If it is a load instruction, set the unsigned_mem_val column

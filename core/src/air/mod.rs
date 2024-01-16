@@ -1,12 +1,10 @@
 mod bool;
 mod word;
 use crate::bytes::ByteOpcode;
-use crate::disassembler::WORD_SIZE;
 
 use std::iter::once;
 
 pub use bool::Bool;
-use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;

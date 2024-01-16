@@ -1,18 +1,13 @@
 use crate::air::{reduce, CurtaAirBuilder, Word};
-use crate::bytes::ByteOpcode;
-use crate::disassembler::WORD_SIZE;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use itertools::Itertools;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
-use p3_commit::OpenedValuesForMatrix;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
-use serde::de::Expected;
 use std::mem::transmute_copy;
 use valida_derive::AlignedBorrow;
 
@@ -48,8 +43,12 @@ pub struct MemoryColumns<T> {
     pub addr_offset: T,
     pub memory_access: MemoryAccessCols<T>,
 
+    // LE bit decomposition related columns for addr_offset column
     pub offset_bit_decomp: [T; 2],
-    pub bit_product: T,
+    pub offset_bits_product: T,
+
+    // LE bit decomposition for the most significant byte of memory value.  This is used to determine
+    // the sign for that value (used for LB and LH).
     pub most_sig_byte_decomp: [T; 8],
 }
 
@@ -120,8 +119,11 @@ pub struct CpuCols<T> {
     pub branching: T,
 
     // mem_value_is_neg column is equal to
-    // ((Self::selectors::is_lbu || Self::selectors::is_lhu) AND Self::MemoryColumns[7] == 1)
+    // ((Self::selectors::is_lbu || Self::selectors::is_lhu) AND Self::MemoryColumns::most_sig_byte_decomp[7] == 1)
     pub mem_value_is_neg: T,
+
+    // unsigned_mem_val is the memory value after the offset logic is applied.  This is used for
+    // load memory opcodes (LB, LH, LW, LBU, LHU).
     pub unsigned_mem_val: Word<T>,
 }
 
@@ -750,19 +752,19 @@ impl CpuChip {
         AB::Expr::one()
             - memory_columns.offset_bit_decomp[0]
             - memory_columns.offset_bit_decomp[1]
-            - memory_columns.bit_product
+            - memory_columns.offset_bits_product
     }
 
     fn index_is_one<AB: CurtaAirBuilder>(memory_columns: &MemoryColumns<AB::Var>) -> AB::Expr {
-        memory_columns.offset_bit_decomp[0] - memory_columns.bit_product
+        memory_columns.offset_bit_decomp[0] - memory_columns.offset_bits_product
     }
 
     fn index_is_two<AB: CurtaAirBuilder>(memory_columns: &MemoryColumns<AB::Var>) -> AB::Expr {
-        AB::Expr::one() - memory_columns.bit_product
+        AB::Expr::one() - memory_columns.offset_bits_product
     }
 
     fn index_is_three<AB: CurtaAirBuilder>(memory_columns: &MemoryColumns<AB::Var>) -> AB::Expr {
-        memory_columns.bit_product.into()
+        memory_columns.offset_bits_product.into()
     }
 
     fn verify_offset_bit_decomp<AB: CurtaAirBuilder>(
@@ -775,7 +777,7 @@ impl CpuChip {
 
         builder.when(is_mem_op.clone()).assert_eq(
             memory_columns.offset_bit_decomp[0] * memory_columns.offset_bit_decomp[1],
-            memory_columns.bit_product,
+            memory_columns.offset_bits_product,
         );
 
         builder.when(is_mem_op.clone()).assert_eq(
