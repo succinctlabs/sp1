@@ -285,7 +285,7 @@ impl Runtime {
                 self.segment.lt_events.push(event);
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.segment.add_events.push(event);
+                self.segment.mul_events.push(event);
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.segment.divrem_events.push(event);
