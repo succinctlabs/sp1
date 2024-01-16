@@ -866,7 +866,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fibonacci")
+        Program::from_elf("../programs/fib_malloc.s")
     }
 
     pub fn ecall_lwa_program() -> Program {
