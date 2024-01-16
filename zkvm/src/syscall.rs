@@ -1,6 +1,5 @@
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
-use std::arch::asm;
 
 /// Halts the program.
 pub const HALT: u32 = 100;
@@ -34,7 +33,7 @@ pub extern "C" fn syscall_sha_extend(w: *mut u32) {
         asm!(
             "ecall",
             in("t0") SHA_EXTEND,
-            in("a0") w.as_ptr()
+            in("a0") w
         );
     }
 

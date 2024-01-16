@@ -1,4 +1,5 @@
 [workspace]
 members = [
-  "hello_world"
+  "hello_world",
+  "sha_extend"
 ]

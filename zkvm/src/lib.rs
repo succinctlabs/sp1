@@ -6,7 +6,6 @@ use core::alloc::{GlobalAlloc, Layout};
 extern crate alloc;
 
 mod memory;
-mod precompiles;
 pub mod syscall;
 
 pub const WORD_SIZE: usize = core::mem::size_of::<u32>();
