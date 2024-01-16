@@ -90,7 +90,7 @@ impl Runtime {
 
 struct Prover {}
 
-const NUM_CHIPS: usize = 13;
+const NUM_CHIPS: usize = 12;
 impl Prover {
     pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
@@ -120,7 +120,8 @@ impl Prover {
             Box::new(sub),
             Box::new(bitwise),
             Box::new(mul),
-            Box::new(divrem),
+            // TODO: Figure out why this doesn't work either.
+            // Box::new(divrem),
             Box::new(shift_right),
             Box::new(shift_left),
             Box::new(lt),
