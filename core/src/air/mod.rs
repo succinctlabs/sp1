@@ -47,20 +47,6 @@ pub trait CurtaAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr
         }
     }
 
-    fn word_selector<I: Into<Self::Expr> + Clone>(
-        word: Vec<Word<I>>,
-        bitmap_selector: Vec<Self::Expr>,
-    ) -> Word<Self::Expr> {
-        let mut return_val: Word<Self::Expr> = Self::zero_word();
-        for (word, selector) in word.into_iter().zip_eq(bitmap_selector) {
-            for i in 0..WORD_SIZE {
-                return_val[i] += word[i].clone().into() * selector.clone();
-            }
-        }
-
-        return_val
-    }
-
     fn range_check_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
         input: Word<EWord>,
