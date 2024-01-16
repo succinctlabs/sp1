@@ -153,12 +153,12 @@ impl CpuChip {
 
         builder
             .when(local.selectors.is_lh + local.selectors.is_lhu)
-            .assert_zero(offset_is_zero.clone() + memory_columns.offset_is_one);
+            .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
-        let use_lower_half = memory_columns.offset_is_two;
-        let use_upper_half = memory_columns.offset_is_three;
+        let use_lower_half = offset_is_zero;
+        let use_upper_half = memory_columns.offset_is_two;
         let half_value = Word([
-            use_lower_half * mem_val[0] + use_upper_half * mem_val[2],
+            use_lower_half.clone() * mem_val[0] + use_upper_half * mem_val[2],
             use_lower_half * mem_val[1] + use_upper_half * mem_val[3],
             AB::Expr::zero(),
             AB::Expr::zero(),

@@ -1482,9 +1482,19 @@ pub mod tests {
 
     pub fn simple_memory_program() -> Program {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 0x12345678, false, true),
+            Instruction::new(Opcode::ADD, 29, 0, 0x12348765, false, true),
             Instruction::new(Opcode::SW, 29, 0, 0x27654320, false, true),
             Instruction::new(Opcode::LW, 28, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LBU, 27, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LBU, 26, 0, 0x27654321, false, true),
+            Instruction::new(Opcode::LBU, 25, 0, 0x27654322, false, true),
+            Instruction::new(Opcode::LBU, 24, 0, 0x27654323, false, true),
+            Instruction::new(Opcode::LB, 23, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LB, 22, 0, 0x27654321, false, true),
+            Instruction::new(Opcode::LHU, 21, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LHU, 20, 0, 0x27654322, false, true),
+            Instruction::new(Opcode::LH, 19, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LH, 18, 0, 0x27654322, false, true),
         ];
         Program::new(instructions, 0, 0)
     }
@@ -1494,6 +1504,26 @@ pub mod tests {
         let program = simple_memory_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        assert_eq!(runtime.register(Register::X28), 0x12345678);
+
+        // Assert LW case
+        assert_eq!(runtime.register(Register::X28), 0x12348765);
+
+        // Assert LBU cases
+        assert_eq!(runtime.register(Register::X27), 0x65);
+        assert_eq!(runtime.register(Register::X26), 0x87);
+        assert_eq!(runtime.register(Register::X25), 0x34);
+        assert_eq!(runtime.register(Register::X24), 0x12);
+
+        // Assert LB cases
+        assert_eq!(runtime.register(Register::X23), 0x65);
+        assert_eq!(runtime.register(Register::X22), 0xffffff87);
+
+        // Assert LHU cases
+        assert_eq!(runtime.register(Register::X21), 0x8765);
+        assert_eq!(runtime.register(Register::X20), 0x1234);
+
+        // Assert LH cases
+        assert_eq!(runtime.register(Register::X19), 0xffff8765);
+        assert_eq!(runtime.register(Register::X18), 0x1234);
     }
 }

@@ -180,18 +180,16 @@ impl CpuChip {
                 if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
                     let most_sig_mem_value_byte: u8;
                     let sign_value: u32;
-                    if matches!(event.instruction.opcode, Opcode::LBU) {
+                    if matches!(event.instruction.opcode, Opcode::LB) {
                         sign_value = 256;
-                        most_sig_mem_value_byte =
-                            event.memory_record.unwrap().value.to_le_bytes()[0];
+                        most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[0];
                     } else {
                         // LHU case
                         sign_value = 65536;
-                        most_sig_mem_value_byte =
-                            event.memory_record.unwrap().value.to_le_bytes()[1];
+                        most_sig_mem_value_byte = cols.unsigned_mem_val.to_u32().to_le_bytes()[1];
                     };
 
-                    for i in 0..8 {
+                    for i in (0..8).rev() {
                         memory_columns.most_sig_byte_decomp[i] =
                             F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
                     }
@@ -502,10 +500,10 @@ mod tests {
 
     #[test]
     fn test_signed() {
-        let value = 200u8;
+        let value = 34661u16;
         println!("value is {}", value);
 
-        let mut signed_value = value as i8;
+        let mut signed_value = value as i16;
         println!("signed value is {}", signed_value);
 
         let signed_value: i32 = signed_value as i32;
