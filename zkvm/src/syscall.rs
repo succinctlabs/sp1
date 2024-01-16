@@ -42,4 +42,10 @@ pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
 }
 
 #[no_mangle]
-pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {}
+pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
+    if fd == 1 {
+        let slice = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
+        let s = core::str::from_utf8(slice).unwrap();
+        print!("{}", s);
+    }
+}

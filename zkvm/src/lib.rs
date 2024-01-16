@@ -12,7 +12,7 @@ pub mod syscall;
 pub const WORD_SIZE: usize = core::mem::size_of::<u32>();
 
 #[macro_export]
-macro_rules! entry {
+macro_rules! entrypoint {
     ($path:path) => {
         const ZKVM_ENTRY: fn() = $path;
 

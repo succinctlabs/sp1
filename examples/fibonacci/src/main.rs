@@ -1,7 +1,6 @@
 #![no_main]
 
 extern crate curta_zkvm;
-use curta_zkvm::syscall::syscall_halt;
 
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
