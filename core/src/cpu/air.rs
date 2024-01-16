@@ -307,13 +307,9 @@ where
 
         self.verify_offset_bit_decomp(builder, &memory_columns, local);
 
-        self.memory_sb_eval::<AB>(builder, local);
-
-        self.memory_sh_eval::<AB>(builder, local);
-
-        self.memory_sw_eval::<AB>(builder, local);
-
         self.load_memory_eval::<AB>(builder, local);
+
+        self.store_memory_eval::<AB>(builder, local);
 
         //////////////////////////////////////////
 
@@ -683,6 +679,74 @@ impl CpuChip {
             .assert_word_eq(local.unsigned_mem_val, *local.op_a_val());
     }
 
+    fn store_memory_eval<AB: CurtaAirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
+        let memory_columns: MemoryColumns<AB::Var> =
+            unsafe { transmute_copy(&local.opcode_specific_columns) };
+
+        let mem_val = memory_columns.memory_access.value;
+
+        self.verify_offset_bit_decomp(builder, &memory_columns, local);
+
+        let index_is_zero = Self::index_is_zero::<AB>(&memory_columns);
+        let index_is_one = Self::index_is_one::<AB>(&memory_columns);
+        let index_is_two = Self::index_is_two::<AB>(&memory_columns);
+        let index_is_three = Self::index_is_three::<AB>(&memory_columns);
+
+        let one = AB::Expr::one();
+
+        let a_val = *local.op_a_val();
+        let prev_mem_val = memory_columns.memory_access.prev_value;
+
+        let sb_expected_stored_value = Word([
+            a_val[0] * index_is_zero.clone()
+                + (one.clone() - index_is_zero.clone()) * prev_mem_val[0],
+            a_val[0] * index_is_one.clone()
+                + (one.clone() - index_is_one.clone()) * prev_mem_val[1],
+            a_val[0] * index_is_two.clone()
+                + (one.clone() - index_is_two.clone()) * prev_mem_val[2],
+            a_val[0] * index_is_three.clone()
+                + (one.clone() - index_is_three.clone()) * prev_mem_val[3],
+        ]);
+
+        builder
+            .when(local.selectors.is_sh)
+            .assert_zero(index_is_zero + index_is_one.clone());
+
+        let use_a_lower_half = index_is_two;
+        let use_a_upper_half = index_is_three;
+        let sh_expected_stored_value = Word([
+            a_val[0] * use_a_lower_half.clone()
+                + (one.clone() - use_a_lower_half.clone()) * prev_mem_val[0],
+            a_val[1] * use_a_lower_half.clone()
+                + (one.clone() - use_a_lower_half) * prev_mem_val[1],
+            a_val[2] * use_a_upper_half.clone()
+                + (one.clone() - use_a_upper_half.clone()) * prev_mem_val[2],
+            a_val[3] * use_a_upper_half.clone()
+                + (one.clone() - use_a_upper_half) * prev_mem_val[3],
+        ]);
+
+        let sw_expected_stored_value = a_val;
+
+        let expected_stored_value = AB::word_selector(
+            [
+                sb_expected_stored_value,
+                sh_expected_stored_value,
+                sw_expected_stored_value.map(|x| x.into()),
+            ]
+            .to_vec(),
+            [
+                local.selectors.is_sb.into(),
+                local.selectors.is_sh.into(),
+                local.selectors.is_sw.into(),
+            ]
+            .to_vec(),
+        );
+
+        builder
+            .when(self.is_store::<AB>(&local.selectors))
+            .assert_word_eq(mem_val.map(|x| x.into()), expected_stored_value);
+    }
+
     fn is_store<AB: CurtaAirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectors<AB::Var>,
@@ -734,99 +798,5 @@ impl CpuChip {
         builder
             .when(is_mem_op)
             .assert_bool(memory_columns.offset_bit_decomp[1]);
-    }
-
-    fn memory_sb_eval<AB: CurtaAirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
-        // Get the memory specific columns
-        let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
-
-        let a_val = local.op_a_val();
-        let old_mem_val = memory_columns.memory_access.prev_value;
-        let new_mem_val = memory_columns.memory_access.value;
-
-        let index_is_zero = Self::index_is_zero::<AB>(&memory_columns);
-        let index_is_one = Self::index_is_one::<AB>(&memory_columns);
-        let index_is_two = Self::index_is_two::<AB>(&memory_columns);
-        let index_is_three = Self::index_is_three::<AB>(&memory_columns);
-
-        let one = AB::Expr::one();
-
-        let is_sb = local.selectors.is_sb;
-        builder.when(is_sb).assert_eq(
-            new_mem_val[0],
-            a_val[0] * index_is_zero.clone()
-                + (one.clone() - index_is_zero.clone()) * old_mem_val[0],
-        );
-
-        builder.when(is_sb).assert_eq(
-            new_mem_val[1],
-            a_val[0] * index_is_one.clone() + (one.clone() - index_is_one) * old_mem_val[1],
-        );
-
-        builder.when(is_sb).assert_eq(
-            new_mem_val[2],
-            a_val[0] * index_is_two.clone() + (one.clone() - index_is_two) * old_mem_val[2],
-        );
-
-        builder.when(is_sb).assert_eq(
-            new_mem_val[3],
-            a_val[0] * index_is_three.clone() + (one - index_is_three) * old_mem_val[3],
-        );
-    }
-
-    fn memory_sh_eval<AB: CurtaAirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
-        // Get the memory specific columns
-        let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
-
-        let a_val = local.op_a_val();
-        let old_mem_val = memory_columns.memory_access.prev_value;
-        let new_mem_val = memory_columns.memory_access.value;
-
-        let is_sh = local.selectors.is_sh;
-
-        // The offset's least sig bit should be 0
-        builder
-            .when(is_sh)
-            .assert_eq(memory_columns.offset_bit_decomp[0], AB::Expr::zero());
-
-        let one = AB::Expr::one();
-        let offset_msb = memory_columns.offset_bit_decomp[1];
-
-        builder.when(is_sh).assert_eq(
-            new_mem_val[0],
-            a_val[0] * (one.clone() - offset_msb) + offset_msb * old_mem_val[0],
-        );
-
-        builder.when(is_sh).assert_eq(
-            new_mem_val[1],
-            a_val[1] * (one.clone() - offset_msb) + offset_msb * old_mem_val[1],
-        );
-
-        builder.when(is_sh).assert_eq(
-            new_mem_val[2],
-            a_val[0] * offset_msb + (one.clone() - offset_msb) * old_mem_val[2],
-        );
-
-        builder.when(is_sh).assert_eq(
-            new_mem_val[3],
-            a_val[0] * offset_msb + (one - offset_msb) * old_mem_val[3],
-        );
-    }
-
-    fn memory_sw_eval<AB: CurtaAirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
-        // Get the memory specific columns
-        let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
-
-        let a_val = local.op_a_val();
-        let new_mem_val = memory_columns.memory_access.value;
-
-        for i in 0..WORD_SIZE {
-            builder
-                .when(local.selectors.is_sw)
-                .assert_eq(new_mem_val[i], a_val[i]);
-        }
     }
 }
