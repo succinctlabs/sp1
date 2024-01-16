@@ -463,63 +463,13 @@ pub mod tests {
 
     #[test]
     fn test_mul_prove() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
             Instruction::new(Opcode::MUL, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program.clone());
-        runtime.write_witness(&[1, 2]);
-        runtime.run();
-
-        let mul_chip = MulChip::new();
-        println!("MUL chip interactions");
-        let (_, mul_count) = debug_interactions::<BabyBear, _>(
-            mul_chip,
-            &mut runtime.segment,
-            InteractionKind::Byte,
-        );
-
-        let add_chip = AddChip::new();
-        println!("Add chip interactions");
-        let (_, add_count) = debug_interactions::<BabyBear, _>(
-            add_chip,
-            &mut runtime.segment,
-            InteractionKind::Byte,
-        );
-
-        println!("CPU interactions");
-        let cpu_chip = CpuChip::new();
-        let (_, cpu_count) = debug_interactions::<BabyBear, _>(
-            cpu_chip,
-            &mut runtime.segment,
-            InteractionKind::Memory,
-        );
-
-        let mut final_map = BTreeMap::new();
-
-        for (key, value) in mul_count
-            .iter()
-            .chain(add_count.iter())
-            .chain(cpu_count.iter())
-        {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        }
-
-        println!("Final counts");
-
-        for (key, value) in final_map {
-            if !value.is_zero() {
-                println!("Key {} Value {}", key, value);
-            }
-        }
-
-        println!("proving");
-        prove(program); // 24
+        prove(program);
     }
 
     #[test]
