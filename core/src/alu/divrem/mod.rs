@@ -251,6 +251,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     } else {
                         cols.abs_remainder = cols.remainder;
                         cols.abs_c = cols.c;
+                        cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
                     }
                 }
 
