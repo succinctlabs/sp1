@@ -412,6 +412,17 @@ pub mod tests {
     }
 
     #[test]
+    fn test_add_prove() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ];
+        let program = Program::new(instructions, 0, 0);
+        prove(program);
+    }
+
+    #[test]
     fn test_fibonacci_prove() {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
