@@ -578,6 +578,8 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
+                let a1 = Register::X11;
+                let a2 = Register::X12;
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
 
@@ -599,6 +601,28 @@ impl Runtime {
                     }
                     Syscall::SHA_COMPRESS => {
                         (a, b, c) = ShaCompressChip::execute(self);
+                    }
+                    Syscall::PRINT => {
+                        let fd = self.register(a0);
+                        if fd == 1 || fd == 2 {
+                            let write_buf = self.register(a1);
+                            let nbytes = self.register(a2);
+                            // Read nbytes from memory starting at write_buf.
+                            // num words is ceil(nbytes / 4)
+                            let num_words = (nbytes + 3) / 4;
+                            let bytes = (0..num_words)
+                                .flat_map(|i| self.word(write_buf + i * 4).to_le_bytes())
+                                .take(nbytes as usize)
+                                .collect::<Vec<u8>>();
+                            let slice = bytes.as_slice();
+                            let s = core::str::from_utf8(slice).unwrap();
+                            if fd == 1 {
+                                print!("STDOUT: {}", s);
+                            } else {
+                                print!("STDERR: {}", s);
+                            }
+                        }
+                        (a, b, c) = (0, 0, 0);
                     }
                 }
             }

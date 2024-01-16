@@ -3,7 +3,6 @@ version = "0.1.0"
 name = "fibonacci"
 edition = "2021"
 
-[workspace]
 
 [dependencies]
 curta-zkvm = { path = "../../zkvm" }

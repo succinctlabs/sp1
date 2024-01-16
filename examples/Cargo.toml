@@ -1,5 +1,0 @@
-[workspace]
-members = [
-  "fibonacci",
-  "sha_extend"
-]
