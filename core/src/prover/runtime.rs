@@ -4,7 +4,7 @@ use crate::bytes::ByteChip;
 use crate::cpu::trace::CpuChip;
 use crate::memory::MemoryGlobalChip;
 
-use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeftChip, ShiftRightChip, SubChip};
+use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
@@ -49,13 +49,7 @@ impl Runtime {
             challenger.observe(main_data.main_commit.clone());
         });
 
-        println!("the length of segment_chips is {}", segment_chips.len());
-        // print the content of segment_chips
-        for i in 0..segment_chips.len() {
-            //            println!("segment_chips[{}] is {:#?}", i, segment_chips[i]);
-        }
         // We clone the challenger so that each segment can observe the same "global" challenges.
-        // 23 or 11: Prover::prove
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| {
@@ -106,8 +100,8 @@ impl Prover {
         let bitwise = BitwiseChip::new();
         let mul = MulChip::new();
         let divrem = DivRemChip::new();
-        let shift_right = ShiftRightChip::new();
-        let shift_left = ShiftLeftChip::new();
+        let shift_right = RightShiftChip::new();
+        let shift_left = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
         let sha_extend = ShaExtendChip::new();
@@ -463,13 +457,16 @@ pub mod tests {
 
     #[test]
     fn test_mul_prove() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::MUL, 31, 30, 29, false, false),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        prove(program);
+        let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
+        for mul_op in mul_ops.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*mul_op, 31, 30, 29, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
     }
 
     #[test]
