@@ -31,14 +31,19 @@ pub struct MemoryAccessCols<T> {
 pub struct MemoryColumns<T> {
     // An addr that we are reading from or writing to as a word. We are guaranteed that this does
     // not overflow the field when reduced.
+
+    // The relationships among addr_word, addr_aligned, and addr_offset is as follows:
+    // addr_aligned = addr_word - addr_offset
+    // addr_offset = addr_word % 4
+    // Note that this all needs to be verified in the AIR
     pub addr_word: Word<T>,
     pub addr_aligned: T,
     pub addr_offset: T,
     pub memory_access: MemoryAccessCols<T>,
 
-    // LE bit decomposition related columns for addr_offset column
-    pub offset_bit_decomp: [T; 2],
-    pub offset_bits_product: T,
+    pub offset_is_one: T,
+    pub offset_is_two: T,
+    pub offset_is_three: T,
 
     // LE bit decomposition for the most significant byte of memory value.  This is used to determine
     // the sign for that value (used for LB and LH).
@@ -90,7 +95,7 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryAccessCols<T>,
     pub op_c_access: MemoryAccessCols<T>,
 
-    // This is transmuted to MemoryColumns or BNEColumns
+    // This is transmuted to MemoryColumns, BranchColumns, JumpColumns, or AUIPCColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
 
     // Selector to label whether this row is a non padded row.

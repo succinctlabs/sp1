@@ -313,6 +313,7 @@ pub mod tests {
 
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
+    use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Program;
     use crate::runtime::Runtime;
@@ -402,6 +403,12 @@ pub mod tests {
             debug!("Logger already initialized")
         }
         let program = fibonacci_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_simple_memory_program_prove() {
+        let program = simple_memory_program();
         prove(program);
     }
 }

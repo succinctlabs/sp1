@@ -486,9 +486,9 @@ impl Runtime {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 let value = match addr % 4 {
                     0 => (a & 0x000000FF) + (memory_read_value & 0xFFFFFF00),
-                    1 => (a & 0x000000FF) << (8 + (memory_read_value & 0xFFFF00FF)),
-                    2 => (a & 0x000000FF) << (16 + (memory_read_value & 0xFF00FFFF)),
-                    3 => (a & 0x000000FF) << (24 + (memory_read_value & 0x00FFFFFF)),
+                    1 => ((a & 0x000000FF) << 8) + (memory_read_value & 0xFFFF00FF),
+                    2 => ((a & 0x000000FF) << 16) + (memory_read_value & 0xFF00FFFF),
+                    3 => ((a & 0x000000FF) << 24) + (memory_read_value & 0x00FFFFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -499,7 +499,7 @@ impl Runtime {
                 assert_eq!(addr % 2, 0, "addr is not aligned");
                 let value = match (addr >> 1) % 2 {
                     0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
-                    1 => (a & 0x0000FFFF) << (16 + (memory_read_value & 0x0000FFFF)),
+                    1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -1478,5 +1478,22 @@ pub mod tests {
         simple_op_code_test(Opcode::SRA, 0xff030303, 0x81818181, 7);
         simple_op_code_test(Opcode::SRA, 0xfffe0606, 0x81818181, 14);
         simple_op_code_test(Opcode::SRA, 0xffffffff, 0x81818181, 31);
+    }
+
+    pub fn simple_memory_program() -> Program {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 0x12345678, false, true),
+            Instruction::new(Opcode::SW, 29, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LW, 28, 0, 0x27654320, false, true),
+        ];
+        Program::new(instructions, 0, 0)
+    }
+
+    #[test]
+    fn test_simple_memory_program_run() {
+        let program = simple_memory_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        assert_eq!(runtime.register(Register::X28), 0x12345678);
     }
 }

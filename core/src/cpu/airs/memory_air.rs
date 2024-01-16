@@ -79,12 +79,12 @@ impl CpuChip {
 
         let mem_val = memory_columns.memory_access.value;
 
-        self.verify_offset_bit_decomp(builder, &memory_columns, local);
+        self.verify_offset_value_flags(builder, &memory_columns, local);
 
-        let index_is_zero = Self::index_is_zero::<AB>(&memory_columns);
-        let index_is_one = Self::index_is_one::<AB>(&memory_columns);
-        let index_is_two = Self::index_is_two::<AB>(&memory_columns);
-        let index_is_three = Self::index_is_three::<AB>(&memory_columns);
+        let offset_is_zero = AB::Expr::one()
+            - memory_columns.offset_is_one
+            - memory_columns.offset_is_two
+            - memory_columns.offset_is_three;
 
         let one = AB::Expr::one();
 
@@ -92,14 +92,14 @@ impl CpuChip {
         let prev_mem_val = memory_columns.memory_access.prev_value;
 
         let sb_expected_stored_value = Word([
-            a_val[0] * index_is_zero.clone()
-                + (one.clone() - index_is_zero.clone()) * prev_mem_val[0],
-            a_val[0] * index_is_one.clone()
-                + (one.clone() - index_is_one.clone()) * prev_mem_val[1],
-            a_val[0] * index_is_two.clone()
-                + (one.clone() - index_is_two.clone()) * prev_mem_val[2],
-            a_val[0] * index_is_three.clone()
-                + (one.clone() - index_is_three.clone()) * prev_mem_val[3],
+            a_val[0] * offset_is_zero.clone()
+                + (one.clone() - offset_is_zero.clone()) * prev_mem_val[0],
+            a_val[0] * memory_columns.offset_is_one
+                + (one.clone() - memory_columns.offset_is_one) * prev_mem_val[1],
+            a_val[0] * memory_columns.offset_is_two
+                + (one.clone() - memory_columns.offset_is_two) * prev_mem_val[2],
+            a_val[0] * memory_columns.offset_is_three
+                + (one.clone() - memory_columns.offset_is_three) * prev_mem_val[3],
         ]);
         builder
             .when(local.selectors.is_sb)
@@ -107,19 +107,15 @@ impl CpuChip {
 
         builder
             .when(local.selectors.is_sh)
-            .assert_zero(index_is_zero + index_is_one.clone());
+            .assert_zero(offset_is_zero + memory_columns.offset_is_one);
 
-        let use_a_lower_half = index_is_two;
-        let use_a_upper_half = index_is_three;
+        let use_a_lower_half = memory_columns.offset_is_two;
+        let use_a_upper_half = memory_columns.offset_is_three;
         let sh_expected_stored_value = Word([
-            a_val[0] * use_a_lower_half.clone()
-                + (one.clone() - use_a_lower_half.clone()) * prev_mem_val[0],
-            a_val[1] * use_a_lower_half.clone()
-                + (one.clone() - use_a_lower_half) * prev_mem_val[1],
-            a_val[2] * use_a_upper_half.clone()
-                + (one.clone() - use_a_upper_half.clone()) * prev_mem_val[2],
-            a_val[3] * use_a_upper_half.clone()
-                + (one.clone() - use_a_upper_half) * prev_mem_val[3],
+            a_val[0] * use_a_lower_half + (one.clone() - use_a_lower_half) * prev_mem_val[0],
+            a_val[1] * use_a_lower_half + (one.clone() - use_a_lower_half) * prev_mem_val[1],
+            a_val[2] * use_a_upper_half + (one.clone() - use_a_upper_half) * prev_mem_val[2],
+            a_val[3] * use_a_upper_half + (one.clone() - use_a_upper_half) * prev_mem_val[3],
         ]);
         builder
             .when(local.selectors.is_sh)
@@ -138,17 +134,17 @@ impl CpuChip {
     ) {
         let mem_val = memory_columns.memory_access.value;
 
-        self.verify_offset_bit_decomp(builder, memory_columns, local);
+        self.verify_offset_value_flags(builder, memory_columns, local);
 
-        let index_is_zero = Self::index_is_zero::<AB>(memory_columns);
-        let index_is_one = Self::index_is_one::<AB>(memory_columns);
-        let index_is_two = Self::index_is_two::<AB>(memory_columns);
-        let index_is_three = Self::index_is_three::<AB>(memory_columns);
+        let offset_is_zero = AB::Expr::one()
+            - memory_columns.offset_is_one
+            - memory_columns.offset_is_two
+            - memory_columns.offset_is_three;
 
-        let mem_byte = mem_val[0] * index_is_zero.clone()
-            + mem_val[1] * index_is_one.clone()
-            + mem_val[2] * index_is_two.clone()
-            + mem_val[3] * index_is_three.clone();
+        let mem_byte = mem_val[0] * offset_is_zero.clone()
+            + mem_val[1] * memory_columns.offset_is_one
+            + mem_val[2] * memory_columns.offset_is_two
+            + mem_val[3] * memory_columns.offset_is_three;
 
         let byte_value = AB::extend_expr_to_word(mem_byte.clone());
         builder
@@ -157,12 +153,12 @@ impl CpuChip {
 
         builder
             .when(local.selectors.is_lh + local.selectors.is_lhu)
-            .assert_zero(index_is_zero.clone() + index_is_one);
+            .assert_zero(offset_is_zero.clone() + memory_columns.offset_is_one);
 
-        let use_lower_half = index_is_two;
-        let use_upper_half = index_is_three;
+        let use_lower_half = memory_columns.offset_is_two;
+        let use_upper_half = memory_columns.offset_is_three;
         let half_value = Word([
-            use_lower_half.clone() * mem_val[0] + use_upper_half.clone() * mem_val[2],
+            use_lower_half * mem_val[0] + use_upper_half * mem_val[2],
             use_lower_half * mem_val[1] + use_upper_half * mem_val[3],
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -198,7 +194,7 @@ impl CpuChip {
             .assert_eq(recomposed_byte, unsigned_mem_val[1]);
     }
 
-    pub(crate) fn verify_offset_bit_decomp<AB: CurtaAirBuilder>(
+    pub(crate) fn verify_offset_value_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -206,50 +202,49 @@ impl CpuChip {
     ) {
         let is_mem_op = self.is_memory_instruction::<AB>(&local.selectors);
 
-        builder.when(is_mem_op.clone()).assert_eq(
-            memory_columns.offset_bit_decomp[0] * memory_columns.offset_bit_decomp[1],
-            memory_columns.offset_bits_product,
-        );
+        let offset_is_zero = AB::Expr::one()
+            - memory_columns.offset_is_one
+            - memory_columns.offset_is_two
+            - memory_columns.offset_is_three;
 
-        builder.when(is_mem_op.clone()).assert_eq(
-            memory_columns.addr_offset,
-            memory_columns.offset_bit_decomp[1] * AB::F::from_canonical_u8(2)
-                + memory_columns.offset_bit_decomp[0],
-        );
+        // Assert that the value flags are boolean
+        builder
+            .when(is_mem_op.clone())
+            .assert_bool(memory_columns.offset_is_one);
 
         builder
             .when(is_mem_op.clone())
-            .assert_bool(memory_columns.offset_bit_decomp[0]);
+            .assert_bool(memory_columns.offset_is_two);
+
         builder
-            .when(is_mem_op)
-            .assert_bool(memory_columns.offset_bit_decomp[1]);
-    }
+            .when(is_mem_op.clone())
+            .assert_bool(memory_columns.offset_is_three);
 
-    pub(crate) fn index_is_zero<AB: CurtaAirBuilder>(
-        memory_columns: &MemoryColumns<AB::Var>,
-    ) -> AB::Expr {
-        AB::Expr::one()
-            - memory_columns.offset_bit_decomp[0]
-            - memory_columns.offset_bit_decomp[1]
-            - memory_columns.offset_bits_product
-    }
+        // Assert that only one of the value flags is true
+        builder.when(is_mem_op.clone()).assert_eq(
+            offset_is_zero.clone()
+                + memory_columns.offset_is_one
+                + memory_columns.offset_is_two
+                + memory_columns.offset_is_three,
+            AB::Expr::one(),
+        );
 
-    pub(crate) fn index_is_one<AB: CurtaAirBuilder>(
-        memory_columns: &MemoryColumns<AB::Var>,
-    ) -> AB::Expr {
-        memory_columns.offset_bit_decomp[0] - memory_columns.offset_bits_product
-    }
+        // Assert that the correct value flag is set
+        builder
+            .when(is_mem_op.clone() * offset_is_zero)
+            .assert_eq(memory_columns.addr_offset, AB::Expr::zero());
 
-    pub(crate) fn index_is_two<AB: CurtaAirBuilder>(
-        memory_columns: &MemoryColumns<AB::Var>,
-    ) -> AB::Expr {
-        AB::Expr::one() - memory_columns.offset_bits_product
-    }
+        builder
+            .when(is_mem_op.clone() * memory_columns.offset_is_one)
+            .assert_eq(memory_columns.addr_offset, AB::Expr::one());
 
-    pub(crate) fn index_is_three<AB: CurtaAirBuilder>(
-        memory_columns: &MemoryColumns<AB::Var>,
-    ) -> AB::Expr {
-        memory_columns.offset_bits_product.into()
+        builder
+            .when(is_mem_op.clone() * memory_columns.offset_is_two)
+            .assert_eq(memory_columns.addr_offset, AB::Expr::two());
+
+        builder
+            .when(is_mem_op * memory_columns.offset_is_three)
+            .assert_eq(memory_columns.addr_offset, AB::Expr::from_canonical_u8(3));
     }
 
     pub(crate) fn is_memory_instruction<AB: CurtaAirBuilder>(
