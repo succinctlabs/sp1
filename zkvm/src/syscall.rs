@@ -134,6 +134,7 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
 
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(_msg_ptr: *const u8, _len: usize) -> ! {
+    eprintln!("PANIC");
     syscall_halt();
 }
 

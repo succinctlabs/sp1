@@ -1,8 +1,10 @@
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
-use core::alloc::{GlobalAlloc, Layout};
+#[cfg(target_os = "zkvm")]
 use syscall::syscall_halt;
+
+use core::alloc::{GlobalAlloc, Layout};
 
 extern crate alloc;
 

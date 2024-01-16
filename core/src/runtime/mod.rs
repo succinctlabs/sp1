@@ -619,6 +619,9 @@ impl Runtime {
                             if fd == 1 {
                                 print!("STDOUT: {}", s);
                             } else {
+                                if s.contains("PANIC") {
+                                    panic!("vm panicked");
+                                }
                                 print!("STDERR: {}", s);
                             }
                         }
