@@ -1,6 +1,5 @@
 #![no_main]
 
-use hex_literal::hex;
 use sha2::{Digest, Sha256};
 use std::hint::black_box;
 

@@ -46,7 +46,7 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     unreachable!()
 }
 
-pub extern "C" fn syscall_sha_extend(w: *mut u32) {
+pub extern "C" fn syscall_sha256_extend(w: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
@@ -73,7 +73,7 @@ pub extern "C" fn syscall_sha_extend(w: *mut u32) {
     }
 }
 
-pub extern "C" fn syscall_sha_compress(w: *mut u32, state: *mut u32) {
+pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         let mut w_and_h = [0u32; 72];

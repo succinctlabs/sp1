@@ -47,13 +47,12 @@ use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 
 use crate::bytes::utils::shr_carry;
-use crate::bytes::ByteOpcode;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -142,7 +141,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
         // Generate the trace rows for each event.
         let rows = segment
             .shift_right_events
-            .par_iter()
+            .iter()
             .map(|event| {
                 assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
                 let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
@@ -199,13 +198,26 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
                     let carry_multiplier = 1 << (8 - num_bits_to_shift);
                     let mut last_carry = 0u32;
                     for i in (0..LONG_WORD_SIZE).rev() {
-                        let (shifted_byte, carry) =
+                        let (shift, carry) =
                             shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
+
+                        let byte_event = ByteLookupEvent {
+                            opcode: ByteOpcode::ShrCarry,
+                            a1: shift,
+                            a2: carry,
+                            b: byte_shift_result[i],
+                            c: num_bits_to_shift as u8,
+                        };
+                        segment
+                            .byte_lookups
+                            .entry(byte_event)
+                            .and_modify(|j| *j += 1)
+                            .or_insert(1);
+
                         cols.shr_carry_output_carry[i] = F::from_canonical_u8(carry);
-                        cols.shr_carry_output_shifted_byte[i] = F::from_canonical_u8(shifted_byte);
-                        cols.bit_shift_result[i] = F::from_canonical_u32(
-                            shifted_byte as u32 + last_carry * carry_multiplier,
-                        );
+                        cols.shr_carry_output_shifted_byte[i] = F::from_canonical_u8(shift);
+                        cols.bit_shift_result[i] =
+                            F::from_canonical_u32(shift as u32 + last_carry * carry_multiplier);
                         last_carry = carry as u32;
                         if i < WORD_SIZE {
                             debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
@@ -232,7 +244,7 @@ impl<F: PrimeField> Chip<F> for RightShiftChip {
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
             let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
             // Shift 0 by 0 bits and 0 bytes.
-            cols.is_srl = F::one();
+            // cols.is_srl = F::one();
             cols.shift_by_n_bits[0] = F::one();
             cols.shift_by_n_bytes[0] = F::one();
             row
