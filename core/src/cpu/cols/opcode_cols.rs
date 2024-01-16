@@ -75,7 +75,9 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 Opcode::SLT | Opcode::SLTU => {
                     self.is_lt = F::one();
                 }
-                Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {}
+                Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {
+                    self.is_mul = F::one();
+                }
                 _ => {
                     panic!(
                         "unexpected opcode {} in register instruction table processing",
