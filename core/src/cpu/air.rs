@@ -4,6 +4,7 @@ use crate::disassembler::WORD_SIZE;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
+use itertools::Itertools;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
@@ -305,8 +306,6 @@ where
             is_memory_instruction.clone(),
         );
 
-        self.verify_offset_bit_decomp(builder, &memory_columns, local);
-
         self.load_memory_eval::<AB>(builder, local);
 
         self.store_memory_eval::<AB>(builder, local);
@@ -571,33 +570,29 @@ impl CpuChip {
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
         local: &CpuCols<AB::Var>,
-        unsigned_mem_val: &Word<AB::Expr>,
+        unsigned_mem_val: &Word<AB::Var>,
     ) {
-        let recomposed_byte: AB::Expr = memory_columns
-            .most_sig_byte_decomp
-            .iter()
-            .zip(
-                [1, 2, 4, 8, 16, 32, 64, 128]
-                    .into_iter()
-                    .map(AB::Expr::from_canonical_u8),
-            )
-            .map(|(a, b)| *a * b)
-            .sum();
-
-        let expected_value = local.selectors.is_lb * unsigned_mem_val[0].clone()
-            + local.selectors.is_lh * unsigned_mem_val[1].clone();
+        let mut recomposed_byte = AB::Expr::zero();
+        for i in 0..8 {
+            builder.assert_bool(memory_columns.most_sig_byte_decomp[i]);
+            recomposed_byte +=
+                memory_columns.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
+        }
 
         builder
-            .when(local.selectors.is_lb + local.selectors.is_lh)
-            .assert_eq(recomposed_byte, expected_value);
+            .when(local.selectors.is_lb)
+            .assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
+        builder
+            .when(local.selectors.is_lh)
+            .assert_eq(recomposed_byte, unsigned_mem_val[1]);
     }
 
-    fn load_mem_value_with_offset<AB: CurtaAirBuilder>(
+    fn verify_unsigned_mem_value<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
         local: &CpuCols<AB::Var>,
-    ) -> Word<AB::Expr> {
+    ) {
         let mem_val = memory_columns.memory_access.value;
 
         self.verify_offset_bit_decomp(builder, memory_columns, local);
@@ -613,6 +608,9 @@ impl CpuChip {
             + mem_val[3] * index_is_three.clone();
 
         let byte_value = AB::extend_expr_to_word(mem_byte.clone());
+        builder
+            .when(local.selectors.is_lb + local.selectors.is_lbu)
+            .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));
 
         builder
             .when(local.selectors.is_lh + local.selectors.is_lhu)
@@ -626,29 +624,42 @@ impl CpuChip {
             AB::Expr::zero(),
             AB::Expr::zero(),
         ]);
+        builder
+            .when(local.selectors.is_lh + local.selectors.is_lhu)
+            .assert_word_eq(half_value, local.unsigned_mem_val.map(|x| x.into()));
 
-        let word_value = mem_val;
-
-        AB::word_selector(
-            [byte_value, half_value, word_value.map(|x| x.into())].to_vec(),
-            [
-                local.selectors.is_lb + local.selectors.is_lbu,
-                local.selectors.is_lh + local.selectors.is_lhu,
-                local.selectors.is_lw.into(),
-            ]
-            .to_vec(),
-        )
+        builder
+            .when(local.selectors.is_lw)
+            .assert_word_eq(mem_val, local.unsigned_mem_val);
     }
 
     fn load_memory_eval<AB: CurtaAirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         let memory_columns: MemoryColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
-        let unsigned_mem_val = self.load_mem_value_with_offset(builder, &memory_columns, local);
+        let is_load = local.selectors.is_lb
+            + local.selectors.is_lbu
+            + local.selectors.is_lh
+            + local.selectors.is_lhu
+            + local.selectors.is_lw;
+
+        self.verify_unsigned_mem_value(builder, &memory_columns, local);
 
         // If it's a signed operation (LB or LH), then we need verify the bit decomposition of the
         // most significant byte
-        self.verify_most_sig_byte_bit_decomp(builder, &memory_columns, local, &unsigned_mem_val);
+        self.verify_most_sig_byte_bit_decomp(
+            builder,
+            &memory_columns,
+            local,
+            &local.unsigned_mem_val,
+        );
+
+        builder
+            .when(local.selectors.is_lb + local.selectors.is_lh)
+            .assert_eq(
+                local.mem_value_is_neg,
+                memory_columns.most_sig_byte_decomp[7],
+            );
 
         let signed_value = Word([
             AB::Expr::zero(),
@@ -656,15 +667,6 @@ impl CpuChip {
             AB::Expr::one() * local.selectors.is_lh,
             AB::Expr::zero(),
         ]);
-
-        let is_load = local.selectors.is_lb
-            + local.selectors.is_lbu
-            + local.selectors.is_lh
-            + local.selectors.is_lhu
-            + local.selectors.is_lw;
-        builder
-            .when(is_load)
-            .assert_word_eq(unsigned_mem_val, local.unsigned_mem_val.map(|x| x.into()));
 
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::SUB as u32),
@@ -675,6 +677,7 @@ impl CpuChip {
         );
 
         builder
+            .when(is_load)
             .when_not(local.mem_value_is_neg)
             .assert_word_eq(local.unsigned_mem_val, *local.op_a_val());
     }
@@ -707,6 +710,9 @@ impl CpuChip {
             a_val[0] * index_is_three.clone()
                 + (one.clone() - index_is_three.clone()) * prev_mem_val[3],
         ]);
+        builder
+            .when(local.selectors.is_sb)
+            .assert_word_eq(mem_val.map(|x| x.into()), sb_expected_stored_value);
 
         builder
             .when(local.selectors.is_sh)
@@ -724,27 +730,13 @@ impl CpuChip {
             a_val[3] * use_a_upper_half.clone()
                 + (one.clone() - use_a_upper_half) * prev_mem_val[3],
         ]);
-
-        let sw_expected_stored_value = a_val;
-
-        let expected_stored_value = AB::word_selector(
-            [
-                sb_expected_stored_value,
-                sh_expected_stored_value,
-                sw_expected_stored_value.map(|x| x.into()),
-            ]
-            .to_vec(),
-            [
-                local.selectors.is_sb.into(),
-                local.selectors.is_sh.into(),
-                local.selectors.is_sw.into(),
-            ]
-            .to_vec(),
-        );
+        builder
+            .when(local.selectors.is_sh)
+            .assert_word_eq(mem_val.map(|x| x.into()), sh_expected_stored_value);
 
         builder
-            .when(self.is_store::<AB>(&local.selectors))
-            .assert_word_eq(mem_val.map(|x| x.into()), expected_stored_value);
+            .when(local.selectors.is_sw)
+            .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
     fn is_store<AB: CurtaAirBuilder>(
