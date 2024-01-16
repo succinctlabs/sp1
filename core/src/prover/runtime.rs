@@ -95,7 +95,7 @@ impl Prover {
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
         let mul = MulChip::new();
-        let divrem = DivRemChip::new();
+        let _divrem = DivRemChip::new();
         let shift_right = RightShiftChip::new();
         let shift_left = LeftShiftChip::new();
         let lt = LtChip::new();
@@ -110,7 +110,7 @@ impl Prover {
             Box::new(sub),
             Box::new(bitwise),
             Box::new(mul),
-            // TODO: Figure out why this doesn't work either.
+            // TODO: We need to add this here, but it doesn't work yet.
             // Box::new(divrem),
             Box::new(shift_right),
             Box::new(shift_left),
@@ -302,7 +302,6 @@ impl Prover {
 
         // Check that the table-specific constraints are correct for each chip.
         for i in 0..chips.len() {
-            // 10
             debug_constraints(
                 &*chips[i],
                 &traces[i],
