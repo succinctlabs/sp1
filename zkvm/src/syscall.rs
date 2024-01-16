@@ -13,6 +13,9 @@ pub const SHA_EXTEND: u32 = 102;
 /// Executes `SHA_COMPRESS`.
 pub const SHA_COMPRESS: u32 = 103;
 
+/// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
+pub const WRITE: u32 = 999;
+
 pub extern "C" fn syscall_halt() -> ! {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -24,7 +27,23 @@ pub extern "C" fn syscall_halt() -> ! {
     }
 
     #[cfg(not(target_os = "zkvm"))]
-    panic!()
+    unreachable!()
+}
+
+pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") WRITE,
+            in("a0") fd,
+            in("a1") write_buf,
+            in("a2") nbytes,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
 }
 
 pub extern "C" fn syscall_sha256_extend(w: *mut u32) {
@@ -115,7 +134,7 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
 
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(_msg_ptr: *const u8, _len: usize) -> ! {
-    unreachable!()
+    syscall_halt();
 }
 
 #[no_mangle]
@@ -134,4 +153,6 @@ pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
 }
 
 #[no_mangle]
-pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {}
+pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
+    syscall_write(fd, write_buf, nbytes);
+}

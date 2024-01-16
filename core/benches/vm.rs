@@ -99,9 +99,14 @@ fn bench_program(program_name: &str, b: divan::Bencher) {
         .bench_refs(prove);
 }
 
-#[divan::bench(sample_count = 5, sample_size = 5)]
-pub fn fibonacci(b: divan::Bencher) {
-    bench_program("fibonacci", b);
+// #[divan::bench(sample_count = 5, sample_size = 5)]
+// pub fn fibonacci(b: divan::Bencher) {
+//     bench_program("fibonacci", b);
+// }
+
+#[divan::bench(sample_count = 1, sample_size = 1)]
+pub fn sha256(b: divan::Bencher) {
+    bench_program("ssz", b);
 }
 
 fn main() {
