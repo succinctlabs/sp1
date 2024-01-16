@@ -299,6 +299,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         b: event.c,
                         c: quotient,
                     };
+                    println!("adding mul_events");
                     segment.mul_events.push(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
@@ -524,7 +525,7 @@ where
             for i in 0..LONG_WORD_SIZE {
                 if i < WORD_SIZE {
                     // The lower 4 bytes of the result must match the corresponding bytes in b.
-                    builder.when(local.is_real).assert_eq(
+                    builder.assert_eq(
                         local.b[i].clone(),
                         c_times_quotient_plus_remainder[i].clone(),
                     );
@@ -663,7 +664,7 @@ where
             // abs(c) if not division by 0.
             builder.send_alu(
                 opcode,
-                Word([zero.clone(), zero.clone(), zero.clone(), one.clone()]),
+                Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 one.clone(),
@@ -730,7 +731,7 @@ where
         // Receive the arguments.
         {
             // Exactly one of the opcode flags must be on.
-            builder.when(local.is_real).assert_eq(
+            builder.assert_eq(
                 one.clone(),
                 local.is_divu + local.is_remu + local.is_div + local.is_rem,
             );
@@ -747,6 +748,7 @@ where
                     + local.is_rem * rem
             };
 
+            println!("receiving divrem alu");
             builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
         }
 

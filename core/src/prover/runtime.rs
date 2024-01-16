@@ -321,6 +321,16 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use std::collections::BTreeMap;
+
+    use crate::alu::divrem;
+    use crate::alu::divrem::DivRemChip;
+    use crate::alu::mul::MulChip;
+    use crate::alu::AddChip;
+    use crate::alu::LtChip;
+    use crate::cpu::trace::CpuChip;
+    use crate::lookup::debug_interactions;
+    use crate::lookup::InteractionKind;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -335,6 +345,7 @@ pub mod tests {
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
+    use p3_field::AbstractField;
     use p3_field::Field;
     use p3_fri::FriBasedPcs;
     use p3_fri::FriConfigImpl;
@@ -458,17 +469,99 @@ pub mod tests {
 
     #[test]
     fn test_div_prove() {
-        let div_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
-        for div_op in div_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*div_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
-            break; // TODO: Remove this. FOr now I just want to test one op code.
+        // let div_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        // for div_op in div_ops.iter() {
+        //     let instructions = vec![
+        //         Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+        //         Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+        //         Instruction::new(*div_op, 31, 30, 29, false, false),
+        //     ];
+        //     let program = Program::new(instructions, 0, 0);
+        //     prove(program);
+        //     break; // TODO: Remove this. FOr now I just want to test one op code.
+        // }
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
         }
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+            Instruction::new(Opcode::DIV, 31, 30, 29, false, false),
+        ];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program.clone());
+        runtime.write_witness(&[999]);
+        runtime.run();
+
+        let divrem_chip = DivRemChip::new();
+        println!("DIVREM chip interactions");
+        let (divrem_data, divrem_count) = debug_interactions::<BabyBear, _>(
+            divrem_chip,
+            &mut runtime.segment,
+            InteractionKind::Alu,
+        );
+        for (key, value) in divrem_data.iter() {
+            println!("divrem_chip: Key {} Value {:#?}", key, value);
+        }
+
+        let lt_chip = LtChip::new();
+        println!("LT chip interactions");
+        let (lt_data, lt_count) =
+            debug_interactions::<BabyBear, _>(lt_chip, &mut runtime.segment, InteractionKind::Alu);
+        for (key, value) in lt_data.iter() {
+            println!("lt_chip: Key {} Value {:#?}", key, value);
+        }
+
+        let add_chip = AddChip::new();
+        println!("Add chip interactions");
+        let (add_data, add_count) =
+            debug_interactions::<BabyBear, _>(add_chip, &mut runtime.segment, InteractionKind::Alu);
+        for (key, value) in add_data.iter() {
+            println!("add_chip: Key {} Value {:#?}", key, value);
+        }
+
+        println!("CPU interactions");
+        let cpu_chip = CpuChip::new();
+        let (cpu_data, cpu_count) =
+            debug_interactions::<BabyBear, _>(cpu_chip, &mut runtime.segment, InteractionKind::Alu);
+        for (key, value) in cpu_data.iter() {
+            println!("cpu_chip: Key {} Value {:#?}", key, value);
+        }
+
+        let mut final_map = BTreeMap::new();
+
+        for (key, value) in divrem_count
+            .iter()
+            .chain(add_count.iter())
+            .chain(cpu_count.iter())
+            .chain(divrem_count.iter())
+            .chain(lt_count.iter())
+        {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+
+        println!("Final counts");
+        println!("=========");
+
+        for (key, value) in final_map.clone() {
+            if !value.is_zero() {
+                // This should all add up to 0. 2013265920 = -1.
+                println!("Key {} Value {}", key, value);
+            }
+        }
+        for (key, value) in final_map {
+            if value.is_zero() {
+                // This should all add up to 0. 2013265920 = -1.
+                println!("Key {} Value {}", key, value);
+            }
+        }
+        println!("=========");
+        println!(
+            "If there's nothing between the two lines above, congratulations, it's prob working"
+        );
+
+        println!("proving");
+        prove(program);
     }
 
     #[test]
