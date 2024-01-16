@@ -79,6 +79,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                     self.is_mul = F::one();
                 }
                 Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU => {
+                    println!("setting is_divrem to 1");
                     self.is_divrem = F::one();
                 }
                 _ => {
