@@ -62,13 +62,4 @@ pub mod tests {
         let program = Program::from_elf("../programs/malloc");
         prove(program.clone());
     }
-
-    #[test]
-    fn test_sha256_extend() {
-        env_logger::init();
-        let program = Program::from_elf(
-            "/Users/jtguibas/Succinct/curta-vm/target/riscv32im-risc0-zkvm-elf/release/sha_extend",
-        );
-        prove(program.clone());
-    }
 }
