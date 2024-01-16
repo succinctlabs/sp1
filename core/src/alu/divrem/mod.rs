@@ -591,7 +591,7 @@ where
 
                 // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
-                    v[i] = (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
+                    v[i] = (one.clone() - local.is_c_0.clone()) * local.abs_c[i].clone();
                 }
                 Word(v.try_into().unwrap_or_else(|_| panic!("Incorrect length")))
             };
