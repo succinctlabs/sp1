@@ -80,12 +80,6 @@ impl CpuChip {
         self.populate_branch(cols, event, new_alu_events);
         self.populate_jump(cols, event, new_alu_events);
         self.populate_auipc(cols, event, new_alu_events);
-
-        if matches!(event.instruction.opcode, Opcode::SH) {
-            println!("cols: {:?}", cols);
-            println!("memory_columns: {:?}", memory_columns);
-        }
-
         cols.is_real = F::one();
 
         row
@@ -496,21 +490,6 @@ mod tests {
             println!("{:?}", cpu_event);
         }
         println!("{:?}", trace.values)
-    }
-
-    #[test]
-    fn test_signed() {
-        let value = 34661u16;
-        println!("value is {}", value);
-
-        let mut signed_value = value as i16;
-        println!("signed value is {}", signed_value);
-
-        let signed_value: i32 = signed_value as i32;
-        println!("signed value is {}", signed_value);
-
-        let signed_value: u32 = signed_value as u32;
-        println!("signed value is {}", signed_value);
     }
 
     #[test]

@@ -107,15 +107,16 @@ impl CpuChip {
 
         builder
             .when(local.selectors.is_sh)
-            .assert_zero(offset_is_zero + memory_columns.offset_is_one);
+            .assert_zero(memory_columns.offset_is_one + memory_columns.offset_is_three);
 
-        let use_a_lower_half = memory_columns.offset_is_two;
-        let use_a_upper_half = memory_columns.offset_is_three;
+        let a_is_lower_half = offset_is_zero;
+        let a_is_upper_half = memory_columns.offset_is_two;
         let sh_expected_stored_value = Word([
-            a_val[0] * use_a_lower_half + (one.clone() - use_a_lower_half) * prev_mem_val[0],
-            a_val[1] * use_a_lower_half + (one.clone() - use_a_lower_half) * prev_mem_val[1],
-            a_val[2] * use_a_upper_half + (one.clone() - use_a_upper_half) * prev_mem_val[2],
-            a_val[3] * use_a_upper_half + (one.clone() - use_a_upper_half) * prev_mem_val[3],
+            a_val[0] * a_is_lower_half.clone()
+                + (one.clone() - a_is_lower_half.clone()) * prev_mem_val[0],
+            a_val[1] * a_is_lower_half.clone() + (one.clone() - a_is_lower_half) * prev_mem_val[1],
+            a_val[0] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[2],
+            a_val[1] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[3],
         ]);
         builder
             .when(local.selectors.is_sh)
