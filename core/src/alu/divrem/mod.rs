@@ -106,6 +106,9 @@ pub struct DivRemCols<T> {
     /// `abs(c)`, used to check `abs(remainder) < abs(c)`.
     pub abs_c: Word<T>,
 
+    /// `max(abs(c), 1)`, used to check `abs(remainder) < abs(c)`.
+    pub max_abs_c_or_1: Word<T>,
+
     /// The result of `c * quotient`.
     pub c_times_quotient: [T; LONG_WORD_SIZE],
 
@@ -243,6 +246,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                             F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
                         cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
                         cols.abs_c = Word::from((event.c as i32).abs() as u32);
+                        cols.max_abs_c_or_1 =
+                            Word::from(u32::max(1, (event.c as i32).abs() as u32));
                     } else {
                         cols.abs_remainder = cols.remainder;
                         cols.abs_c = cols.c;
@@ -300,6 +305,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             cols.is_divu = F::one();
             cols.c[0] = F::one();
             cols.abs_c[0] = F::one();
+            cols.max_abs_c_or_1[0] = F::one();
             cols.c_limb_sum_inverse = F::one();
 
             row
@@ -588,6 +594,9 @@ where
                 }
                 Word(v.try_into().unwrap_or_else(|_| panic!("Incorrect length")))
             };
+            for i in 0..WORD_SIZE {
+                builder.assert_eq(local.max_abs_c_or_1[i].clone(), max_abs_c_or_1[i].clone());
+            }
 
             let opcode = {
                 let is_signed = local.is_div + local.is_rem;
@@ -603,7 +612,7 @@ where
                 opcode,
                 Word([zero.clone(), zero.clone(), zero.clone(), one.clone()]),
                 local.abs_remainder,
-                max_abs_c_or_1,
+                local.max_abs_c_or_1,
                 one.clone(),
             );
         }
