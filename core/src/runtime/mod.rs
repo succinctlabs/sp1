@@ -602,7 +602,7 @@ impl Runtime {
                     Syscall::SHA_COMPRESS => {
                         (a, b, c) = ShaCompressChip::execute(self);
                     }
-                    Syscall::PRINT => {
+                    Syscall::WRITE => {
                         let fd = self.register(a0);
                         if fd == 1 || fd == 2 {
                             let write_buf = self.register(a1);
