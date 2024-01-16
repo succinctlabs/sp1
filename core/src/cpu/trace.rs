@@ -1,11 +1,11 @@
-use super::air::{
-    AUIPCColumns, BranchColumns, CpuCols, JumpColumns, MemoryAccessCols, MemoryColumns,
-    CPU_COL_MAP, NUM_CPU_COLS,
+use super::cols::cpu_cols::{
+    AUIPCColumns, BranchColumns, JumpColumns, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS,
 };
 use super::{CpuEvent, MemoryRecord};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::cpu::cols::cpu_cols::{CpuCols, MemoryColumns};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;

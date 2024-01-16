@@ -6,7 +6,7 @@ mod trace;
 pub use columns::*;
 use p3_field::PrimeField;
 
-use crate::cpu::{air::MemoryAccessCols, MemoryRecord};
+use crate::cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaExtendEvent {

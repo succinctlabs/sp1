@@ -1,6 +1,11 @@
 mod bool;
 mod word;
-use crate::bytes::ByteOpcode;
+use crate::{
+    bytes::ByteOpcode,
+    cpu::cols::{
+        cpu_cols::MemoryAccessCols, instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors,
+    },
+};
 
 use std::iter::once;
 
@@ -9,9 +14,6 @@ use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
 pub use word::Word;
 
-use crate::cpu::air::MemoryAccessCols;
-use crate::cpu::instruction_cols::InstructionCols;
-use crate::cpu::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
 
 pub fn reduce<AB: AirBuilder>(input: Word<AB::Var>) -> AB::Expr {

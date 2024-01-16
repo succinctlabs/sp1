@@ -177,7 +177,7 @@ impl Runtime {
         );
 
         let record = MemoryRecord {
-            value: value,
+            value,
             segment: prev_segment,
             timestamp: prev_timestamp,
         };
@@ -486,9 +486,9 @@ impl Runtime {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 let value = match addr % 4 {
                     0 => (a & 0x000000FF) + (memory_read_value & 0xFFFFFF00),
-                    1 => (a & 0x000000FF) << 8 + (memory_read_value & 0xFFFF00FF),
-                    2 => (a & 0x000000FF) << 16 + (memory_read_value & 0xFF00FFFF),
-                    3 => (a & 0x000000FF) << 24 + (memory_read_value & 0x00FFFFFF),
+                    1 => (a & 0x000000FF) << (8 + (memory_read_value & 0xFFFF00FF)),
+                    2 => (a & 0x000000FF) << (16 + (memory_read_value & 0xFF00FFFF)),
+                    3 => (a & 0x000000FF) << (24 + (memory_read_value & 0x00FFFFFF)),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -499,7 +499,7 @@ impl Runtime {
                 assert_eq!(addr % 2, 0, "addr is not aligned");
                 let value = match (addr >> 1) % 2 {
                     0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
-                    1 => (a & 0x0000FFFF) << 16 + (memory_read_value & 0x0000FFFF),
+                    1 => (a & 0x0000FFFF) << (16 + (memory_read_value & 0x0000FFFF)),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -892,7 +892,7 @@ impl Runtime {
                 (
                     addr,
                     MemoryRecord {
-                        value: value,
+                        value,
                         segment: 0,
                         timestamp: 0,
                     },

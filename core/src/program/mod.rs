@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::cpu::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
+use crate::cpu::cols::instruction_cols::InstructionCols;
+use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::runtime::Segment;
 use crate::utils::{pad_to_power_of_two, Chip};
 
