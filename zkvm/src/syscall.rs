@@ -25,6 +25,8 @@ pub extern "C" fn syscall_halt() -> ! {
         );
         unreachable!()
     }
+
+    #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
 
@@ -39,6 +41,8 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
             in("a2") nbytes,
         );
     }
+
+    #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
 
@@ -130,7 +134,7 @@ pub extern "C" fn syscall_sha_compress(w: *mut u32, state: *mut u32) {
 
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(_msg_ptr: *const u8, _len: usize) -> ! {
-    unreachable!()
+    syscall_halt();
 }
 
 #[no_mangle]
