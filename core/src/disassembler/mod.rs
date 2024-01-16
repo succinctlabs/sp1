@@ -59,7 +59,9 @@ pub mod tests {
 
     #[test]
     fn test_malloc() {
-        let program = Program::from_elf("../programs/malloc");
+        let program = Program::from_elf(
+            "/Users/jtguibas/Succinct/curta-vm/target/riscv32im-risc0-zkvm-elf/release/panic",
+        );
         prove(program.clone());
     }
 }
