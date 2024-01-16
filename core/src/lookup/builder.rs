@@ -63,7 +63,6 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
 }
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
-    // oh i wonder if this needs to be "connected" to send_alu. actually, send_alu calls this function.
     fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
         let values = message
             .values
@@ -77,7 +76,6 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
             .push(Interaction::new(values, multiplicity, message.kind));
     }
 
-    // i wonder if this needs to be "connected" to receive_alu. actually, receive_alu calls this function.
     fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
         let values = message
             .values
