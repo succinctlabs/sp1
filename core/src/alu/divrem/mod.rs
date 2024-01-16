@@ -265,7 +265,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         cols.max_abs_c_or_1 =
                             Word::from(u32::max(1, (event.c as i32).abs() as u32));
                     } else {
-                        ((quotient as u64) * (event.c as u64)).to_le_bytes()
+                        cols.abs_remainder = cols.remainder;
+                        cols.abs_c = cols.c;
+                        cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
                     }
                 };
                 cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
