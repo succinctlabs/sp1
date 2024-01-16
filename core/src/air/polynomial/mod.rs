@@ -7,11 +7,8 @@ use core::fmt::Debug;
 use core::iter;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub};
 
-use num::BigUint;
-
 use self::ops::PolynomialOps;
-// use crate::math::prelude::*;
-use crate::utils::field::{bigint_into_u16_digits, biguint_to_16_digits_field};
+// use crate::utils::field::biguint_to_16_digits_field;
 
 /// A wrapper around a vector of elements to represent a polynomial.
 #[derive(Debug, Clone)]
@@ -39,13 +36,13 @@ impl<T: Clone> Polynomial<T> {
         &self.coefficients
     }
 
-    pub fn from_biguint_field(num: &BigUint, num_bits: usize, num_limbs: usize) -> Self
-    where
-        T: Field,
-    {
-        assert_eq!(num_bits, 16, "Only 16 bit numbers supported");
-        Self::from_coefficients(biguint_to_16_digits_field(num, num_limbs))
-    }
+    // pub fn from_biguint_field(num: &BigUint, num_bits: usize, num_limbs: usize) -> Self
+    // where
+    //     T: Field,
+    // {
+    //     assert_eq!(num_bits, 16, "Only 16 bit numbers supported");
+    //     Self::from_coefficients(biguint_to_16_digits_field(num, num_limbs))
+    // }
 }
 
 impl<T> Polynomial<T> {
@@ -223,6 +220,18 @@ impl<T: Mul<Output = T> + Add<Output = T> + Copy + Default> Mul<T> for &Polynomi
 impl<T: Default + Clone> Default for Polynomial<T> {
     fn default() -> Self {
         Self::from_coefficients(vec![T::default()])
+    }
+}
+
+impl Polynomial<u8> {
+    pub fn as_field<F: Field>(self) -> Polynomial<F> {
+        Polynomial {
+            coefficients: self
+                .coefficients
+                .iter()
+                .map(|x| F::from_canonical_u8(*x))
+                .collect(),
+        }
     }
 }
 

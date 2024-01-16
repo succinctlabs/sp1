@@ -1,38 +1,29 @@
 use super::params::{FieldParameters, Limbs};
+use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
-use crate::air::Word;
-use crate::disassembler::WORD_SIZE;
-use crate::utils::field::{bigint_into_u16_digits, compute_root_quotient_and_shift};
 use core::borrow::{Borrow, BorrowMut};
-use num::{BigUint, Zero};
-use p3_field::AbstractField;
-use p3_field::Field;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use num::BigUint;
+use p3_field::{Field, PrimeField, PrimeField32};
 use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::mem::size_of;
-use std::ops::Add;
-use std::slice::Iter;
 use valida_derive::AlignedBorrow;
-
 /// A set of columns to compute `a + b` where a, b are field elements.
 /// In the future, this will be macro-ed to support different fields.
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct FpAdd<T> {
     /// The result of `a + b`, where a, b are field elements
-    pub result: Limbs<T, 16>,
-    pub(crate) carry: Limbs<T, 16>,
-    pub(crate) witness_low: [T; 16], // TODO: this number will be macro-ed later
-    pub(crate) witness_high: [T; 16],
+    pub result: Limbs<T, 32>,
+    pub(crate) carry: Limbs<T, 32>,
+    pub(crate) witness_low: [T; 32], // TODO: this number will be macro-ed later
+    pub(crate) witness_high: [T; 32],
 }
 
-impl<F: Field> FpAdd<F> {
+impl<F: PrimeField32> FpAdd<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: BigUint, b: BigUint) -> BigUint {
-        let p_a = P::to_limbs_as_polynomial::<F>(&a);
-        let p_b = P::to_limbs_as_polynomial::<F>(&b);
+        let p_a: Polynomial<F> = P::to_limbs_field::<F>(&a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F>(&b).into();
 
         // Compute field addition in the integers.
         let modulus = P::modulus();
@@ -43,17 +34,25 @@ impl<F: Field> FpAdd<F> {
         debug_assert_eq!(&carry * &modulus, a + b - &result);
 
         // Make little endian polynomial limbs.
-        let p_modulus = P::to_limbs_as_polynomial::<F>(&modulus);
-        let p_result = P::to_limbs_as_polynomial::<F>(&result);
-        let p_carry = P::to_limbs_as_polynomial::<F>(&carry);
+        let p_modulus: Polynomial<F> = P::to_limbs_field::<F>(&modulus).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
 
         // Compute the vanishing polynomial.
-        let p_vanishing = &p_a + &p_b - &p_result - &p_carry * &p_modulus;
+        let p_vanishing: Polynomial<F> = &p_a + &p_b - &p_result - &p_carry * &p_modulus;
         debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
-        // Compute the witness.
-        // let p_witness = compute_root_quotient_and_shift(&p_vanishing, P::WITNESS_OFFSET);
-        // let (p_witness_low, p_witness_high) = split_u32_limbs_to_u16_limbs(&p_witness);
+        let p_witness = compute_root_quotient_and_shift(
+            &p_vanishing,
+            P::WITNESS_OFFSET,
+            P::NB_BITS_PER_LIMB as u32,
+        );
+        let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
+
+        self.result = p_result.into();
+        self.carry = p_carry.into();
+        self.witness_low = p_witness_low.try_into().unwrap();
+        self.witness_high = p_witness_high.try_into().unwrap();
 
         result
     }
@@ -62,8 +61,9 @@ impl<F: Field> FpAdd<F> {
     pub fn eval<AB: CurtaAirBuilder<F = F>, P: FieldParameters>(
         &self,
         builder: &mut AB,
-        a: Limbs<AB::Var, 16>,
-        b: Limbs<AB::Var, 16>,
+        // TODO: will have to macro these later
+        a: Limbs<AB::Var, 32>,
+        b: Limbs<AB::Var, 32>,
     ) {
         let p_a = a.into();
         let p_b = b.into();

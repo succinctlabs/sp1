@@ -3,12 +3,10 @@ use num::{BigUint, Zero};
 use crate::air::polynomial::Polynomial;
 use p3_field::{Field, PrimeField32, PrimeField64};
 
-// use crate::math::prelude::*;
-
-pub fn bigint_into_u16_digits(x: &BigUint, num_digits: usize) -> Vec<u16> {
+pub fn bigint_into_u8_digits(x: &BigUint, num_digits: usize) -> Vec<u8> {
     let mut x_limbs = x
         .iter_u32_digits()
-        .flat_map(|x| vec![x as u16, (x >> 16) as u16])
+        .flat_map(|x| vec![x as u8, (x >> 8) as u8])
         .collect::<Vec<_>>();
     assert!(
         x_limbs.len() <= num_digits,
@@ -18,17 +16,17 @@ pub fn bigint_into_u16_digits(x: &BigUint, num_digits: usize) -> Vec<u16> {
     x_limbs
 }
 
-pub fn biguint_to_16_digits_field<F: Field>(x: &BigUint, num_digits: usize) -> Vec<F> {
-    bigint_into_u16_digits(x, num_digits)
+pub fn biguint_to_u8_digits_field<F: Field>(x: &BigUint, num_digits: usize) -> Vec<F> {
+    bigint_into_u8_digits(x, num_digits)
         .iter()
-        .map(|xi| F::from_canonical_u16(*xi))
+        .map(|xi| F::from_canonical_u8(*xi))
         .collect()
 }
 
-pub fn digits_to_biguint(digits: &[u16]) -> BigUint {
+pub fn digits_to_biguint(digits: &[u8]) -> BigUint {
     let mut x = BigUint::zero();
     for (i, &digit) in digits.iter().enumerate() {
-        x += BigUint::from(digit) << (16 * i);
+        x += BigUint::from(digit) << (8 * i);
     }
     x
 }
@@ -38,25 +36,9 @@ pub fn field_limbs_to_biguint<F: PrimeField64>(limbs: &[F]) -> BigUint {
     let mut x = BigUint::zero();
     let digits = limbs.iter().map(|x| x.as_canonical_u64());
     for (i, digit) in digits.enumerate() {
-        x += BigUint::from(digit) << (16 * i);
+        x += BigUint::from(digit) << (8 * i);
     }
     x
-}
-
-#[inline]
-pub fn split_u32_limbs_to_u16_limbs<F: PrimeField64>(slice: &[F]) -> (Vec<F>, Vec<F>) {
-    (
-        slice
-            .iter()
-            .map(|x| x.as_canonical_u64() as u16)
-            .map(|x| F::from_canonical_u16(x))
-            .collect(),
-        slice
-            .iter()
-            .map(|x| (x.as_canonical_u64() >> 16) as u16)
-            .map(|x| F::from_canonical_u16(x))
-            .collect(),
-    )
 }
 
 fn from_noncanonical_biguint<F: PrimeField64>(num: BigUint) -> F {
@@ -64,46 +46,6 @@ fn from_noncanonical_biguint<F: PrimeField64>(num: BigUint) -> F {
     let reduced = num % order;
     let reduced_u64 = reduced.to_u64_digits()[0];
     F::from_canonical_u64(reduced_u64)
-}
-
-#[inline]
-pub fn compute_root_quotient_and_shift<F: PrimeField64>(
-    p_vanishing: &Polynomial<F>,
-    offset: usize,
-) -> Vec<F> {
-    // Evaluate the vanishing polynomial at x = 2^16.
-    let p_vanishing_eval = p_vanishing
-        .coefficients()
-        .iter()
-        .enumerate()
-        .map(|(i, x)| from_noncanonical_biguint::<F>(BigUint::from(2u32).pow(16 * i as u32)) * *x)
-        .sum::<F>();
-    debug_assert_eq!(p_vanishing_eval, F::zero());
-
-    // Compute the witness polynomial by witness(x) = vanishing(x) / (x - 2^16).
-    let root_monomial = F::from_canonical_u32(2u32.pow(16));
-    let p_quotient = p_vanishing.root_quotient(root_monomial);
-    debug_assert_eq!(p_quotient.degree(), p_vanishing.degree() - 1);
-
-    // Sanity Check #1: For all i, |w_i| < 2^20 to prevent overflows.
-    let offset_u64 = offset as u64;
-    for c in p_quotient.coefficients().iter() {
-        debug_assert!(c.neg().as_canonical_u64() < offset_u64 || c.as_canonical_u64() < offset_u64);
-    }
-
-    // Sanity Check #2: w(x) * (x - 2^16) = vanishing(x).
-    let x_minus_root = Polynomial::<F>::from_coefficients_slice(&[-root_monomial, F::one()]);
-    debug_assert_eq!(
-        (&p_quotient * &x_minus_root).coefficients(),
-        p_vanishing.coefficients()
-    );
-
-    // Shifting the witness polynomial to make it positive
-    p_quotient
-        .coefficients()
-        .iter()
-        .map(|x| *x + F::from_canonical_u64(offset_u64))
-        .collect::<Vec<F>>()
 }
 
 #[inline]

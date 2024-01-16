@@ -1,15 +1,10 @@
 use crate::air::polynomial::Polynomial;
-use crate::air::Word;
-use crate::disassembler::WORD_SIZE;
-use crate::utils::field::{bigint_into_u16_digits, compute_root_quotient_and_shift};
+use crate::utils::field::bigint_into_u8_digits;
 use core::borrow::{Borrow, BorrowMut};
 use p3_field::AbstractField;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::mem::size_of;
-use std::ops::Add;
 use std::slice::Iter;
 use valida_derive::AlignedBorrow;
 
@@ -24,13 +19,13 @@ pub trait FieldParameters:
     const NB_BITS_PER_LIMB: usize;
     const NB_LIMBS: usize;
     const NB_WITNESS_LIMBS: usize;
-    const MODULUS: [u16; MAX_NB_LIMBS];
+    const MODULUS: [u8; MAX_NB_LIMBS];
     const WITNESS_OFFSET: usize;
 
     fn modulus() -> BigUint {
         let mut modulus = BigUint::zero();
         for (i, limb) in Self::MODULUS.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (16 * i);
+            modulus += BigUint::from(*limb) << (8 * i);
         }
         modulus
     }
@@ -38,21 +33,31 @@ pub trait FieldParameters:
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
         Self::MODULUS
             .into_iter()
-            .map(|x| F::from_canonical_u16(x))
+            .map(|x| F::from_canonical_u8(x))
             .take(Self::NB_LIMBS)
     }
 
-    fn to_limbs<F: Field>(x: &BigUint) -> Limbs<F, 16> {
-        let limbs: Vec<F> = bigint_into_u16_digits(x, Self::NB_LIMBS)
-            .iter()
-            .map(|x| F::from_canonical_u16(*x))
-            .collect();
-        Limbs(limbs.try_into().unwrap())
+    // TODO: macro in the number of limbs.
+    fn to_limbs(x: &BigUint) -> Limbs<u8, 32> {
+        let bytes = x.to_bytes_le();
+        if bytes.len() != 32 {
+            panic!("Expected exactly 32 limbs, found {}", bytes.len());
+        }
+        let mut limbs = [0u8; 32];
+        limbs.copy_from_slice(&bytes);
+        Limbs(limbs)
     }
 
-    fn to_limbs_as_polynomial<F: Field>(x: &BigUint) -> Polynomial<F> {
-        let limbs = Self::to_limbs::<F>(x);
-        limbs.into()
+    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F, 32> {
+        Limbs(
+            Self::to_limbs(x)
+                .0
+                .into_iter()
+                .map(|x| F::from_canonical_u8(x))
+                .collect::<Vec<F>>()
+                .try_into()
+                .unwrap(),
+        )
     }
 }
 
@@ -76,6 +81,14 @@ impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomia
 impl<const N: usize, T: Debug> From<Polynomial<T>> for Limbs<T, N> {
     fn from(value: Polynomial<T>) -> Self {
         let inner = value.coefficients.try_into().unwrap();
+        Self(inner)
+    }
+}
+
+impl<'a, const N: usize, T: Debug + Clone> From<Iter<'a, T>> for Limbs<T, N> {
+    fn from(value: Iter<'a, T>) -> Self {
+        let vec: Vec<T> = value.cloned().collect();
+        let inner = vec.try_into().unwrap();
         Self(inner)
     }
 }
