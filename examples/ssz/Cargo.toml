@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 hex-literal = "0.4.1"
 sha2 = "0.10.8"
-curta-zkvm = { path = "../../zkvm" }
+succinct-zkvm = { path = "../../zkvm" }

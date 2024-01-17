@@ -1,9 +1,9 @@
 #![no_main]
 
-extern crate curta_zkvm;
-use curta_zkvm::syscall::{syscall_halt, syscall_sha256_compress};
+extern crate succinct_zkvm;
+use succinct_zkvm::syscall::{syscall_halt, syscall_sha256_compress};
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
     let mut w = [0u32; 64];

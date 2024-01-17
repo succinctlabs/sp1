@@ -1,8 +1,8 @@
 #![no_main]
 
-extern crate curta_zkvm;
+extern crate succinct_zkvm;
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
     panic!("this is a panic!");

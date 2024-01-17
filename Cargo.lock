@@ -268,7 +268,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap",
- "curta-core",
+ "succinct-core",
 ]
 
 [[package]]
@@ -370,44 +370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta-core"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "divan",
- "elf",
- "env_logger",
- "itertools 0.12.0",
- "log",
- "p3-air",
- "p3-baby-bear",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-keccak",
- "p3-ldt",
- "p3-matrix",
- "p3-mds",
- "p3-merkle-tree",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "rand",
- "rayon",
- "rrs-lib",
- "serde",
- "valida-derive",
-]
-
-[[package]]
-name = "curta-zkvm"
-version = "0.1.0"
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -493,7 +455,7 @@ dependencies = [
 name = "fibonacci"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -930,7 +892,7 @@ source = "git+https://github.com/succinctlabs/plonky3.git#bb143dd1638a37a398a1ca
 name = "panic"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -1191,23 +1153,23 @@ dependencies = [
 name = "sha_compress"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
 name = "sha_extend"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
 name = "ssz"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
  "hex-literal",
  "sha2",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -1215,6 +1177,44 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "succinct-core"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "divan",
+ "elf",
+ "env_logger",
+ "itertools 0.12.0",
+ "log",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-keccak",
+ "p3-ldt",
+ "p3-matrix",
+ "p3-mds",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "p3-util",
+ "rand",
+ "rayon",
+ "rrs-lib",
+ "serde",
+ "valida-derive",
+]
+
+[[package]]
+name = "succinct-zkvm"
+version = "0.1.0"
 
 [[package]]
 name = "syn"

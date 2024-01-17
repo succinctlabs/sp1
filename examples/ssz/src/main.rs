@@ -3,9 +3,9 @@
 use sha2::{Digest, Sha256};
 use std::hint::black_box;
 
-extern crate curta_zkvm;
+extern crate succinct_zkvm;
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 fn main() {
     let hash = Sha256::digest(black_box(b"hello world"));
