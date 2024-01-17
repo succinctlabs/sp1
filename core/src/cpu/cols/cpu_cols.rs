@@ -14,6 +14,10 @@ use super::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
     pub prev_value: Word<T>,
+
+    // Flag that specifies whether the last memory access is within the same segment.  This needs
+    // to be verified in the air.
+    pub prev_access_within_segment: T,
     // The previous segment and timestamp that this memory access is being read from.
     pub segment: T,
     pub timestamp: T,

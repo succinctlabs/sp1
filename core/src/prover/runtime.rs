@@ -1,6 +1,7 @@
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
+use crate::field::FieldChip;
 use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
@@ -79,7 +80,7 @@ impl Runtime {
 
 struct Prover {}
 
-const NUM_CHIPS: usize = 12;
+const NUM_CHIPS: usize = 13;
 impl Prover {
     pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
@@ -99,6 +100,7 @@ impl Prover {
         let shift_left = LeftShiftChip::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
+        let field = FieldChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         // This is where we create a vector of chips.
@@ -117,6 +119,7 @@ impl Prover {
             Box::new(sha_extend),
             Box::new(sha_compress),
             Box::new(bytes),
+            Box::new(field),
         ]
     }
 

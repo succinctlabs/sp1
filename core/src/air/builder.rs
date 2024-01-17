@@ -8,8 +8,10 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::cols::instruction_cols::InstructionCols;
 use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
+use crate::runtime::Opcode;
 use p3_field::AbstractField;
 use std::iter::once;
+use std::sync::Arc;
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
@@ -116,14 +118,8 @@ pub trait ByteAirBuilder: BaseAirBuilder {
 /// A trait which contains methods for field interactions in an AIR.
 pub trait FieldAirBuilder: BaseAirBuilder {
     /// Sends a field operation to be processed.
-    fn send_field_op<EOp, Ea, Eb, Ec, EMult>(
-        &mut self,
-        opcode: EOp,
-        a: Ea,
-        b: Eb,
-        c: Ec,
-        multiplicity: EMult,
-    ) where
+    fn send_field_op<EOp, Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
+    where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
@@ -131,21 +127,15 @@ pub trait FieldAirBuilder: BaseAirBuilder {
         EMult: Into<Self::Expr>,
     {
         self.send(AirInteraction::new(
-            vec![opcode.into(), a.into(), b.into(), c.into()],
+            vec![a.into(), b.into(), c.into()],
             multiplicity.into(),
             InteractionKind::Field,
         ));
     }
 
     /// Receives a field operation to be processed.
-    fn receive_field_op<EOp, Ea, Eb, Ec, EMult>(
-        &mut self,
-        opcode: EOp,
-        a: Ea,
-        b: Eb,
-        c: Ec,
-        multiplicity: EMult,
-    ) where
+    fn receive_field_op<EOp, Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
+    where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
@@ -153,7 +143,7 @@ pub trait FieldAirBuilder: BaseAirBuilder {
         EMult: Into<Self::Expr>,
     {
         self.receive(AirInteraction::new(
-            vec![opcode.into(), a.into(), b.into(), c.into()],
+            vec![a.into(), b.into(), c.into()],
             multiplicity.into(),
             InteractionKind::Field,
         ));
@@ -263,8 +253,22 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         Eb: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // TODO:
-        // (segment == prev_segment && clk > prev_timestamp) OR segment > prev_segment
+        // Verify prev_access_within_segment value.
+        self.assert_bool(memory_access.prev_access_within_segment);
+        self.when(memory_access.prev_access_within_segment)
+            .assert_eq(segment, memory_access.segment);
+
+        let ltu_operand_b = memory_access.prev_access_within_segment * memory_access.timestamp
+            + (1 - memory_access.prev_access_within_segment) * memory_access.segment;
+        let ltu_operand_c = memory_access.prev_access_within_segment * clk
+            + (1 - memory_access.prev_access_within_segment) * segment;
+        self.send_field_op(
+            Self::Expr::one(),
+            ltu_operand_b,
+            ltu_operand_c,
+            multiplicity,
+        );
+
         let addr_expr = addr.into();
         let prev_values = once(memory_access.segment.into())
             .chain(once(memory_access.timestamp.into()))
@@ -364,6 +368,7 @@ pub trait CurtaAirBuilder:
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BoolAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
