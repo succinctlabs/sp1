@@ -118,9 +118,8 @@ pub trait ByteAirBuilder: BaseAirBuilder {
 /// A trait which contains methods for field interactions in an AIR.
 pub trait FieldAirBuilder: BaseAirBuilder {
     /// Sends a field operation to be processed.
-    fn send_field_op<EOp, Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
+    fn send_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
     where
-        EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
@@ -247,27 +246,28 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         memory_access: MemoryAccessCols<Eb>,
         multiplicity: EMult,
     ) where
-        ESegment: Into<Self::Expr>,
-        EClk: Into<Self::Expr>,
+        ESegment: Into<Self::Expr> + Clone,
+        EClk: Into<Self::Expr> + Clone,
         Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
+        Eb: Into<Self::Expr> + Clone,
+        EMult: Into<Self::Expr> + Clone,
     {
         // Verify prev_access_within_segment value.
-        self.assert_bool(memory_access.prev_access_within_segment);
-        self.when(memory_access.prev_access_within_segment)
-            .assert_eq(segment, memory_access.segment);
+        self.assert_bool(memory_access.prev_access_within_segment.clone());
+        self.when(memory_access.prev_access_within_segment.clone())
+            .assert_eq(segment.clone(), memory_access.segment.clone());
 
-        let ltu_operand_b = memory_access.prev_access_within_segment * memory_access.timestamp
-            + (1 - memory_access.prev_access_within_segment) * memory_access.segment;
-        let ltu_operand_c = memory_access.prev_access_within_segment * clk
-            + (1 - memory_access.prev_access_within_segment) * segment;
-        self.send_field_op(
-            Self::Expr::one(),
-            ltu_operand_b,
-            ltu_operand_c,
-            multiplicity,
-        );
+        let one = Self::Expr::one();
+
+        let ltu_operand_b = memory_access.prev_access_within_segment.clone().into()
+            * memory_access.timestamp.clone().into()
+            + (one.clone() - memory_access.prev_access_within_segment.clone().into())
+                * memory_access.segment.clone().into();
+        let ltu_operand_c = memory_access.prev_access_within_segment.clone().into()
+            * clk.clone().into()
+            + (one.clone() - memory_access.prev_access_within_segment.into())
+                * segment.clone().into();
+        self.send_field_op(one, ltu_operand_b, ltu_operand_c, multiplicity.clone());
 
         let addr_expr = addr.into();
         let prev_values = once(memory_access.segment.into())
