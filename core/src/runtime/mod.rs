@@ -183,7 +183,7 @@ impl Runtime {
         );
 
         let record = MemoryRecord {
-            value: value,
+            value,
             segment: prev_segment,
             timestamp: prev_timestamp,
         };
@@ -450,9 +450,9 @@ impl Runtime {
             Opcode::LH => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = match addr % 4 {
+                let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
-                    1 => memory_read_value & 0xFFFF0000,
+                    1 => (memory_read_value & 0xFFFF0000) >> 16,
                     _ => unreachable!(),
                 };
                 a = ((value as i16) as i32) as u32;
@@ -836,7 +836,7 @@ impl Runtime {
                 (
                     addr,
                     MemoryRecord {
-                        value: value,
+                        value,
                         segment: 0,
                         timestamp: 0,
                     },
@@ -1422,5 +1422,86 @@ pub mod tests {
         simple_op_code_test(Opcode::SRA, 0xff030303, 0x81818181, 7);
         simple_op_code_test(Opcode::SRA, 0xfffe0606, 0x81818181, 14);
         simple_op_code_test(Opcode::SRA, 0xffffffff, 0x81818181, 31);
+    }
+
+    pub fn simple_memory_program() -> Program {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 0x12348765, false, true),
+            // SW and LW
+            Instruction::new(Opcode::SW, 29, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LW, 28, 0, 0x27654320, false, true),
+            // LBU
+            Instruction::new(Opcode::LBU, 27, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LBU, 26, 0, 0x27654321, false, true),
+            Instruction::new(Opcode::LBU, 25, 0, 0x27654322, false, true),
+            Instruction::new(Opcode::LBU, 24, 0, 0x27654323, false, true),
+            // LB
+            Instruction::new(Opcode::LB, 23, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LB, 22, 0, 0x27654321, false, true),
+            // LHU
+            Instruction::new(Opcode::LHU, 21, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LHU, 20, 0, 0x27654322, false, true),
+            // LU
+            Instruction::new(Opcode::LH, 19, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LH, 18, 0, 0x27654322, false, true),
+            // SB
+            Instruction::new(Opcode::ADD, 17, 0, 0x38276525, false, true),
+            // Save the value 0x12348765 into address 0x43627530
+            Instruction::new(Opcode::SW, 29, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::LW, 16, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627531, false, true),
+            Instruction::new(Opcode::LW, 15, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627532, false, true),
+            Instruction::new(Opcode::LW, 14, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627533, false, true),
+            Instruction::new(Opcode::LW, 13, 0, 0x43627530, false, true),
+            // SH
+            // Save the value 0x12348765 into address 0x43627530
+            Instruction::new(Opcode::SW, 29, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SH, 17, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::LW, 12, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SH, 17, 0, 0x43627532, false, true),
+            Instruction::new(Opcode::LW, 11, 0, 0x43627530, false, true),
+        ];
+        Program::new(instructions, 0, 0)
+    }
+
+    #[test]
+    fn test_simple_memory_program_run() {
+        let program = simple_memory_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        // Assert SW & LW case
+        assert_eq!(runtime.register(Register::X28), 0x12348765);
+
+        // Assert LBU cases
+        assert_eq!(runtime.register(Register::X27), 0x65);
+        assert_eq!(runtime.register(Register::X26), 0x87);
+        assert_eq!(runtime.register(Register::X25), 0x34);
+        assert_eq!(runtime.register(Register::X24), 0x12);
+
+        // Assert LB cases
+        assert_eq!(runtime.register(Register::X23), 0x65);
+        assert_eq!(runtime.register(Register::X22), 0xffffff87);
+
+        // Assert LHU cases
+        assert_eq!(runtime.register(Register::X21), 0x8765);
+        assert_eq!(runtime.register(Register::X20), 0x1234);
+
+        // Assert LH cases
+        assert_eq!(runtime.register(Register::X19), 0xffff8765);
+        assert_eq!(runtime.register(Register::X18), 0x1234);
+
+        // Assert SB cases
+        assert_eq!(runtime.register(Register::X16), 0x12348725);
+        assert_eq!(runtime.register(Register::X15), 0x12342525);
+        assert_eq!(runtime.register(Register::X14), 0x12252525);
+        assert_eq!(runtime.register(Register::X13), 0x25252525);
+
+        // Assert SH cases
+        assert_eq!(runtime.register(Register::X12), 0x12346525);
+        assert_eq!(runtime.register(Register::X11), 0x65256525);
     }
 }

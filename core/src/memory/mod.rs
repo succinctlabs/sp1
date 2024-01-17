@@ -139,7 +139,7 @@ mod tests {
     use p3_field::{AbstractField, Field};
 
     use crate::bytes::ByteChip;
-    use crate::cpu::trace::CpuChip;
+    use crate::cpu::CpuChip;
     use crate::lookup::{debug_interactions, InteractionKind};
     use crate::memory::MemoryGlobalChip;
     use crate::precompiles::sha256::extend_tests::sha_extend_program;
