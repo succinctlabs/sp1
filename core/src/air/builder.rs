@@ -113,6 +113,53 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 }
 
+/// A trait which contains methods for field interactions in an AIR.
+pub trait FieldAirBuilder: BaseAirBuilder {
+    /// Sends a field operation to be processed.
+    fn send_field_op<EOp, Ea, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a: Ea,
+        b: Eb,
+        c: Ec,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.send(AirInteraction::new(
+            vec![opcode.into(), a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Field,
+        ));
+    }
+
+    /// Receives a field operation to be processed.
+    fn receive_field_op<EOp, Ea, Eb, Ec, EMult>(
+        &mut self,
+        opcode: EOp,
+        a: Ea,
+        b: Eb,
+        c: Ec,
+        multiplicity: EMult,
+    ) where
+        EOp: Into<Self::Expr>,
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.receive(AirInteraction::new(
+            vec![opcode.into(), a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Field,
+        ));
+    }
+}
+
 /// A trait which contains methods related to words in an AIR.
 pub trait WordAirBuilder: ByteAirBuilder {
     /// Asserts that the two words are equal.
