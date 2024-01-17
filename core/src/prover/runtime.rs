@@ -487,7 +487,7 @@ pub mod tests {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::MUL, 31, 30, 29, false, false),
+            Instruction::new(Opcode::DIV, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program.clone());
