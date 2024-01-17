@@ -281,6 +281,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 }
 
                 // Insert the necessary multiplication & LT events.
+                //
+                // This generate_trace for div must be executed _before_ calling generate_trace for
+                // mul and LT upon which div depends. This ordering is critical as mul and LT
+                // require all the mul and LT events be added before we can call generate_trace.
                 {
                     let mut lower_word = 0;
                     for i in 0..WORD_SIZE {
