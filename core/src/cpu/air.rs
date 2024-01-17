@@ -174,7 +174,6 @@ where
     AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        println!("cpu eval");
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();

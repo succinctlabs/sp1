@@ -138,7 +138,6 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        println!("receiving add alu");
         // Receive the arguments.
         builder.receive_alu(
             AB::F::from_canonical_u32(Opcode::ADD as u32),
