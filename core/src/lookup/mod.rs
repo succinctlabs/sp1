@@ -113,12 +113,12 @@ pub fn debug_interactions_with_all_chips<F: Field>(
     let bitwise_chip = BitwiseChip::new();
     let (_, bitwise_count) =
         debug_interactions::<BabyBear, _>(bitwise_chip, &mut segment, interaction_kind);
-    let mul_chip = MulChip::new();
-    let (_, mul_count) =
-        debug_interactions::<BabyBear, _>(mul_chip, &mut segment, interaction_kind);
     let divrem_chip = DivRemChip::new();
     let (_, divrem_count) =
         debug_interactions::<BabyBear, _>(divrem_chip, &mut segment, interaction_kind);
+    let mul_chip = MulChip::new();
+    let (_, mul_count) =
+        debug_interactions::<BabyBear, _>(mul_chip, &mut segment, interaction_kind);
     let shift_right_chip = RightShiftChip::new();
     let (_, shift_right_count) =
         debug_interactions::<BabyBear, _>(shift_right_chip, &mut segment, interaction_kind);
