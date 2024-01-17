@@ -330,6 +330,7 @@ pub mod tests {
     use crate::cpu::trace::CpuChip;
     use crate::lookup::debug_interactions;
     use crate::lookup::InteractionKind;
+    use crate::program::ProgramChip;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -485,7 +486,7 @@ pub mod tests {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::DIV, 31, 30, 29, false, false),
+            Instruction::new(Opcode::DIVU, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program.clone());
@@ -511,6 +512,14 @@ pub mod tests {
             println!("lt_chip: Key {} Value {:#?}", key, value);
         }
 
+        let mul_chip = MulChip::new();
+        println!("mul chip interactions");
+        let (mul_data, mul_count) =
+            debug_interactions::<BabyBear, _>(mul_chip, &mut runtime.segment, InteractionKind::Alu);
+        for (key, value) in mul_data.iter() {
+            println!("mul_chip: Key {} Value {:#?}", key, value);
+        }
+
         let add_chip = AddChip::new();
         println!("Add chip interactions");
         let (add_data, add_count) =
@@ -527,14 +536,26 @@ pub mod tests {
             println!("cpu_chip: Key {} Value {:#?}", key, value);
         }
 
+        println!("ProgramChip interactions");
+        let program_chip = ProgramChip::new();
+        let (program_data, program_count) = debug_interactions::<BabyBear, _>(
+            program_chip,
+            &mut runtime.segment,
+            InteractionKind::Alu,
+        );
+        for (key, value) in program_data.iter() {
+            println!("program_chip: Key {} Value {:#?}", key, value);
+        }
+
         let mut final_map = BTreeMap::new();
 
         for (key, value) in divrem_count
             .iter()
             .chain(add_count.iter())
             .chain(cpu_count.iter())
-            .chain(divrem_count.iter())
             .chain(lt_count.iter())
+            .chain(program_count.iter())
+            .chain(mul_count.iter())
         {
             *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
         }
@@ -548,16 +569,17 @@ pub mod tests {
                 println!("Key {} Value {}", key, value);
             }
         }
+        println!("=========");
+        println!(
+            "If there's nothing between the two lines above, congratulations, it's prob working"
+        );
+        println!("just as a reference...");
         for (key, value) in final_map {
             if value.is_zero() {
                 // This should all add up to 0. 2013265920 = -1.
                 println!("Key {} Value {}", key, value);
             }
         }
-        println!("=========");
-        println!(
-            "If there's nothing between the two lines above, congratulations, it's prob working"
-        );
 
         println!("proving");
         prove(program);

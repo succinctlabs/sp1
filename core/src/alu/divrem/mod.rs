@@ -296,8 +296,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         clk: event.clk,
                         opcode: Opcode::MUL,
                         a: lower_word,
-                        b: event.c,
-                        c: quotient,
+                        c: event.c,
+                        b: quotient,
                     };
                     println!("adding mul_events");
                     segment.mul_events.push(lower_multiplication);
@@ -312,8 +312,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                             }
                         },
                         a: upper_word,
-                        b: event.c,
-                        c: quotient,
+                        c: event.c,
+                        b: quotient,
                     };
 
                     segment.mul_events.push(upper_multiplication);
@@ -467,7 +467,7 @@ where
                 Word(lower_half),
                 local.quotient.clone(),
                 local.c.clone(),
-                one.clone(),
+                local.is_real.clone(),
             );
 
             let opcode_for_upper_half = {
@@ -490,7 +490,7 @@ where
                 Word(upper_half),
                 local.quotient.clone(),
                 local.c.clone(),
-                one.clone(),
+                local.is_real.clone(),
             );
         }
 
@@ -667,7 +667,7 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
-                one.clone(),
+                local.is_real.clone(),
             );
         }
 
