@@ -1,14 +1,10 @@
 use crate::air::polynomial::Polynomial;
-use crate::utils::field::bigint_into_u8_digits;
-use core::borrow::{Borrow, BorrowMut};
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 use std::slice::Iter;
-use valida_derive::AlignedBorrow;
 
 use num::{BigUint, One, Zero};
 

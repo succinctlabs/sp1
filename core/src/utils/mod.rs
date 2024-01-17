@@ -1,5 +1,5 @@
 use p3_air::{Air, BaseAir};
-use p3_field::{Field, PrimeField32};
+use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
@@ -8,8 +8,6 @@ use crate::{
     prover::DebugConstraintBuilder,
     runtime::Segment,
 };
-
-pub mod field;
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String {

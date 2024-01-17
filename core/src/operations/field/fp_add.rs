@@ -12,7 +12,7 @@ use p3_field::{Field, PrimeField, PrimeField32};
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum FpOperation {
     Add,
     Mul,
@@ -104,20 +104,21 @@ impl<F: Field> FpOpCols<F> {
 
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder<F = F>, P: FieldParameters>(
-        &self,
         builder: &mut AB,
-        // TODO: will have to macro these later
-        a: Limbs<AB::Var>,
-        b: Limbs<AB::Var>,
+        cols: &FpOpCols<AB::Var>,
+        a: &Limbs<AB::Var>,
+        b: &Limbs<AB::Var>,
         op: FpOperation,
     ) {
         let (p_a, p_result) = match op {
-            FpOperation::Add | FpOperation::Mul => (a.into(), self.result.clone().into()),
-            FpOperation::Sub => (self.result.clone().into(), a.into()),
+            FpOperation::Add | FpOperation::Mul => {
+                ((*a).clone().into(), cols.result.clone().into())
+            }
+            FpOperation::Sub => (cols.result.clone().into(), (*a).clone().into()),
         };
 
-        let p_b = b.into();
-        let p_carry = self.carry.clone().into();
+        let p_b = (*b).clone().into();
+        let p_carry = cols.carry.clone().into();
         let p_op = match op {
             FpOperation::Add | FpOperation::Sub => builder.poly_add(&p_a, &p_b),
             FpOperation::Mul => builder.poly_mul(&p_a, &p_b),
@@ -128,8 +129,8 @@ impl<F: Field> FpOpCols<F> {
         let p_mul_times_carry = builder.poly_mul(&p_carry, &p_limbs);
         let p_vanishing = builder.poly_sub(&p_op_minus_result, &p_mul_times_carry);
 
-        let p_witness_low = self.witness_low.iter().into();
-        let p_witness_high = self.witness_high.iter().into();
+        let p_witness_low = cols.witness_low.iter().into();
+        let p_witness_high = cols.witness_high.iter().into();
 
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
@@ -170,7 +171,7 @@ mod tests {
     use rand::{thread_rng, Rng};
     use valida_derive::AlignedBorrow;
 
-    #[derive(AlignedBorrow)]
+    #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
         pub b: Limbs<T>,
@@ -217,9 +218,7 @@ mod tests {
             // let b = local[1];
             // let a_op_b = local[2];
 
-            local
-                .a_op_b
-                .eval::<AB, P>(builder, local.a, local.b, self.operation);
+            FpOpCols::eval::<AB, P>(builder, &local.a_op_b, &local.a, &local.b, self.operation);
         }
     }
 
@@ -285,11 +284,11 @@ mod tests {
                 .push(AluEvent::new(0, Opcode::ADD, result, operand_1, operand_2));
         }
 
-        // let chip = AddChip::new();
-        // let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        // let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
+        let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
-        // let mut challenger = Challenger::new(perm);
-        // verify(&config, &chip, &mut challenger, &proof).unwrap();
+        let mut challenger = Challenger::new(perm);
+        verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }
