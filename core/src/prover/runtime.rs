@@ -113,7 +113,6 @@ impl Prover {
             Box::new(bitwise),
             Box::new(divrem),
             Box::new(mul),
-            Box::new(divrem),
             Box::new(shift_right),
             Box::new(shift_left),
             Box::new(lt),
@@ -324,18 +323,6 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use std::collections::BTreeMap;
-
-    use crate::alu::divrem;
-    use crate::alu::divrem::DivRemChip;
-    use crate::alu::mul::MulChip;
-    use crate::alu::AddChip;
-    use crate::alu::LtChip;
-    use crate::cpu::CpuChip;
-    use crate::lookup::debug_interactions;
-    use crate::lookup::debug_interactions_with_all_chips;
-    use crate::lookup::InteractionKind;
-    use crate::program::ProgramChip;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -350,7 +337,6 @@ pub mod tests {
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
-    use p3_field::AbstractField;
     use p3_field::Field;
     use p3_fri::FriBasedPcs;
     use p3_fri::FriConfigImpl;
@@ -478,38 +464,15 @@ pub mod tests {
     }
 
     #[test]
-    fn test_div_prove() {
-        // let div_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
-        // for div_op in div_ops.iter() {
-        //     let instructions = vec![
-        //         Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-        //         Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-        //         Instruction::new(*div_op, 31, 30, 29, false, false),
-        //     ];
-        //     let program = Program::new(instructions, 0, 0);
-        //     prove(program);
-        //     break; // TODO: Remove this. FOr now I just want to test one op code.
-        // }
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::DIV, 31, 30, 29, false, false),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program.clone());
-        runtime.write_witness(&[999]);
-        runtime.run();
-
-        let res = debug_interactions_with_all_chips::<BabyBear>(
-            &mut runtime.segment,
-            InteractionKind::Alu,
-        );
-
-        if res {
-            println!("proving");
+    fn test_divrem_prove() {
+        let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        for div_rem_op in div_rem_ops.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*div_rem_op, 31, 30, 29, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
             prove(program);
         }
     }
