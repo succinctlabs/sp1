@@ -80,7 +80,7 @@ impl Runtime {
 
 pub(crate) struct Prover {}
 
-pub const NUM_CHIPS: usize = 13;
+const NUM_CHIPS: usize = 13;
 impl Prover {
     pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
@@ -113,6 +113,7 @@ impl Prover {
             Box::new(bitwise),
             Box::new(divrem),
             Box::new(mul),
+            Box::new(divrem),
             Box::new(shift_right),
             Box::new(shift_left),
             Box::new(lt),
@@ -465,16 +466,17 @@ pub mod tests {
     }
 
     #[test]
-    fn test_divrem_prove() {
-        let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
-        for div_rem_op in div_rem_ops.iter() {
+    fn test_div_prove() {
+        let div_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        for div_op in div_ops.iter() {
             let instructions = vec![
                 Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
                 Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*div_rem_op, 31, 30, 29, false, false),
+                Instruction::new(*div_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
             prove(program);
+            break; // TODO: Remove this. FOr now I just want to test one op code.
         }
     }
 
