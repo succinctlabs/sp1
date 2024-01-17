@@ -138,16 +138,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
             );
         }
     }
-
-    /// Extends an element to a word.
-    fn extend<I: Into<Self::Expr>>(value: I) -> Word<Self::Expr> {
-        Word([
-            value.into(),
-            Self::Expr::zero(),
-            Self::Expr::zero(),
-            Self::Expr::zero(),
-        ])
-    }
 }
 
 /// A trait which contains methods related to ALU interactions in an AIR.

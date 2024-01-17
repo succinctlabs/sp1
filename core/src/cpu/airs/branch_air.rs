@@ -4,7 +4,7 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::{
-    air::{BaseAirBuilder, CurtaAirBuilder, WordAirBuilder},
+    air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder},
     cpu::{
         cols::{
             cpu_cols::{BranchColumns, CpuCols},
@@ -131,7 +131,7 @@ impl CpuChip {
             use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
                 + (AB::Expr::one() - use_signed_comparison.clone())
                     * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend(branch_columns.a_lt_b),
+            Word::extend_var::<AB>(branch_columns.a_lt_b),
             *local.op_a_val(),
             *local.op_b_val(),
             is_branch_instruction.clone(),
@@ -141,7 +141,7 @@ impl CpuChip {
             use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
                 + (AB::Expr::one() - use_signed_comparison)
                     * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
-            AB::extend(branch_columns.a_gt_b),
+            Word::extend_var::<AB>(branch_columns.a_gt_b),
             *local.op_b_val(),
             *local.op_a_val(),
             is_branch_instruction.clone(),

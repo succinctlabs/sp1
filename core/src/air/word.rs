@@ -8,6 +8,8 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use valida_derive::AlignedBorrow;
 
+use super::CurtaAirBuilder;
+
 /// The size of a word in bytes.
 pub const WORD_SIZE: usize = 4;
 
@@ -22,6 +24,28 @@ impl<T> Word<T> {
         F: FnMut(T) -> S,
     {
         Word(self.0.map(f))
+    }
+
+    /// Extends a variable to a word.
+    pub fn extend_var<AB: CurtaAirBuilder<Var = T>>(var: T) -> Word<AB::Expr> {
+        Word([
+            AB::Expr::zero() + var,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ])
+    }
+}
+
+impl<T: AbstractField> Word<T> {
+    /// Extends a variable to a word.
+    pub fn extend_expr<AB: CurtaAirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
+        Word([
+            AB::Expr::zero() + expr,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ])
     }
 }
 
