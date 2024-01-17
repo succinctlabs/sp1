@@ -50,17 +50,19 @@ impl Instruction {
         )
     }
 
-    /// Returns if the instruction is a load instruction.
-    pub fn is_load_instruction(&self) -> bool {
+    /// Returns if the instruction is a memory instruction.
+    pub fn is_memory_instruction(&self) -> bool {
         matches!(
             self.opcode,
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU
+            Opcode::LB
+                | Opcode::LH
+                | Opcode::LW
+                | Opcode::LBU
+                | Opcode::LHU
+                | Opcode::SB
+                | Opcode::SH
+                | Opcode::SW
         )
-    }
-
-    /// Returns if the instruction is a store instruction.
-    pub fn is_store_instruction(&self) -> bool {
-        matches!(self.opcode, Opcode::SB | Opcode::SH | Opcode::SW)
     }
 
     /// Returns if the instruction is a branch instruction.

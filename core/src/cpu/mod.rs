@@ -1,8 +1,7 @@
 use crate::runtime::Instruction;
 
-pub mod air;
-pub mod instruction_cols;
-pub mod opcode_cols;
+pub mod airs;
+pub mod cols;
 pub mod trace;
 
 #[derive(Debug, Copy, Clone)]
@@ -26,4 +25,12 @@ pub struct MemoryRecord {
     pub value: u32,
     pub segment: u32,
     pub timestamp: u32,
+}
+
+pub struct CpuChip;
+
+impl CpuChip {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
