@@ -139,7 +139,6 @@ impl CpuChip {
                 .or_insert(vec![add_event]);
 
             let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
-            // bit little endian representation of addr_offset
             memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
             memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
             memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
