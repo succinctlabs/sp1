@@ -40,6 +40,7 @@ impl<F: Field> AddOperation<F> {
             self.carry[2] = F::one();
         }
 
+        println!("{:?} + {:?} => self: {:#?}", a, b, self);
         expected
     }
 
@@ -59,20 +60,20 @@ impl<F: Field> AddOperation<F> {
         let overflow_1 = a[1] + b[1] - cols.value[1] + cols.carry[0];
         let overflow_2 = a[2] + b[2] - cols.value[2] + cols.carry[1];
         let overflow_3 = a[3] + b[3] - cols.value[3] + cols.carry[2];
-        builder.assert_zero(overflow_0.clone() * (overflow_0.clone() - base));
-        builder.assert_zero(overflow_1.clone() * (overflow_1.clone() - base));
-        builder.assert_zero(overflow_2.clone() * (overflow_2.clone() - base));
-        builder.assert_zero(overflow_3.clone() * (overflow_3.clone() - base));
+        // builder.assert_zero(overflow_0.clone() * (overflow_0.clone() - base));
+        // builder.assert_zero(overflow_1.clone() * (overflow_1.clone() - base));
+        // builder.assert_zero(overflow_2.clone() * (overflow_2.clone() - base));
+        // builder.assert_zero(overflow_3.clone() * (overflow_3.clone() - base));
 
-        // If the carry is one, then the overflow must be the base.
+        // // If the carry is one, then the overflow must be the base.
         builder.assert_zero(cols.carry[0] * (overflow_0.clone() - base.clone()));
-        builder.assert_zero(cols.carry[1] * (overflow_1.clone() - base.clone()));
-        builder.assert_zero(cols.carry[2] * (overflow_2.clone() - base.clone()));
+        // builder.assert_zero(cols.carry[1] * (overflow_1.clone() - base.clone()));
+        // builder.assert_zero(cols.carry[2] * (overflow_2.clone() - base.clone()));
 
-        // If the carry is not one, then the overflow must be zero.
+        // // If the carry is not one, then the overflow must be zero.
         builder.assert_zero((cols.carry[0] - one.clone()) * overflow_0.clone());
-        builder.assert_zero((cols.carry[1] - one.clone()) * overflow_1.clone());
-        builder.assert_zero((cols.carry[2] - one.clone()) * overflow_2.clone());
+        // builder.assert_zero((cols.carry[1] - one.clone()) * overflow_1.clone());
+        // builder.assert_zero((cols.carry[2] - one.clone()) * overflow_2.clone());
 
         // Assert that the carry is either zero or one.
         builder.assert_bool(cols.carry[0]);

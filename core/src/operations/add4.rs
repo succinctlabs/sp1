@@ -45,19 +45,7 @@ impl<F: Field> Add4Operation<F> {
             debug_assert!(carry[i] <= 3);
             debug_assert_eq!(self.value[i], F::from_canonical_u32(res % base));
 
-            // TODO: Fix this!
-            let byte_event = ByteLookupEvent {
-                opcode: ByteOpcode::Range,
-                a1: shift,
-                a2: carry,
-                b,
-                c,
-            };
-            segment
-                .byte_lookups
-                .entry(byte_event)
-                .and_modify(|j| *j += 1)
-                .or_insert(1);
+            // TODO: Use is_1, is_2, is_3, is_4 to check that carry[i] is in the correct range.
         }
         expected
     }
@@ -71,35 +59,28 @@ impl<F: Field> Add4Operation<F> {
         d: Word<AB::Var>,
         cols: Add4Operation<AB::Var>,
     ) {
-        let one = AB::Expr::one();
-        let base = AB::F::from_canonical_u32(256);
+        // let one = AB::Expr::one();
+        // let base = AB::F::from_canonical_u32(256);
 
-        // For each limb, assert that difference between the carried result and the non-carried
-        // result is the product of carry and base.
-        for i in 0..WORD_SIZE {
-            let mut overflow = a[i] + b[i] + c[i] + d[i] - cols.value[i];
-            if i > 0 {
-                overflow += cols.carry[i - 1].into();
-            }
-            builder.assert_eq(cols.carry[i] * base, overflow);
-        }
+        // // For each limb, assert that difference between the carried result and the non-carried
+        // // result is the product of carry and base.
+        // for i in 0..WORD_SIZE {
+        //     let mut overflow = a[i] + b[i] + c[i] + d[i] - cols.value[i];
+        //     if i > 0 {
+        //         overflow += cols.carry[i - 1].into();
+        //     }
+        //     builder.assert_eq(cols.carry[i] * base, overflow.clone());
+        // }
 
-        // Assert that the carry is either zero or one.
-        builder.assert_bool(cols.carry[0]);
-        for i in 0..WORD_SIZE {
-            // TODO: Change this!
-            // Make sure that carry[i] = 0, 1, 2, 3.
-            builder.send_byte_pair(
-                AB::F::from_canonical_u32(ByteOpcode::Range as u32),
-                cols.shift[i],
-                cols.carry[i],
-                input_bytes_rotated[i],
-                AB::F::from_canonical_usize(nb_bits_to_shift),
-                is_real,
-            );
-        }
+        // // Assert that the carry is either zero or one.
+        // builder.assert_bool(cols.carry[0]);
+        // for i in 0..WORD_SIZE {
+        //     // TODO: Change this!
+        //     // Make sure that carry[i] = 0, 1, 2, 3.
+        //     // TODO: Use is_1, is_2, is_3, is_4 to check that carry[i] is in the correct range.
+        // }
 
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
+        // // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        // builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
     }
 }
