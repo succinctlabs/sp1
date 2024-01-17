@@ -60,6 +60,7 @@ impl<F: Field> AddOperation<F> {
         let overflow_1 = a[1] + b[1] - cols.value[1] + cols.carry[0];
         let overflow_2 = a[2] + b[2] - cols.value[2] + cols.carry[1];
         let overflow_3 = a[3] + b[3] - cols.value[3] + cols.carry[2];
+        // these seem to be failing. it looks like overflow_0 is liek some weird number.
         // builder.assert_zero(overflow_0.clone() * (overflow_0.clone() - base));
         // builder.assert_zero(overflow_1.clone() * (overflow_1.clone() - base));
         // builder.assert_zero(overflow_2.clone() * (overflow_2.clone() - base));
