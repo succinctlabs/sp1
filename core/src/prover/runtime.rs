@@ -394,6 +394,7 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
+        log::info!("cycles: {}", runtime.segment.cpu_events.len());
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 

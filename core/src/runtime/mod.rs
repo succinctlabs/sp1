@@ -141,6 +141,12 @@ impl Runtime {
         }
     }
 
+    pub fn byte(&self, addr: u32) -> u8 {
+        let word = self.word(addr - addr % 4);
+        let byte = (word >> (addr % 4) * 8) as u8;
+        byte
+    }
+
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.clk + *position as u32
     }
@@ -610,9 +616,8 @@ impl Runtime {
                             // Read nbytes from memory starting at write_buf.
                             // num words is ceil(nbytes / 4)
                             let num_words = (nbytes + 3) / 4;
-                            let bytes = (0..num_words)
-                                .flat_map(|i| self.word(write_buf + i * 4).to_le_bytes())
-                                .take(nbytes as usize)
+                            let bytes = (0..nbytes)
+                                .map(|i| self.byte(write_buf + i))
                                 .collect::<Vec<u8>>();
                             let slice = bytes.as_slice();
                             let s = core::str::from_utf8(slice).unwrap();
@@ -866,7 +871,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fib_malloc.s")
+        Program::from_elf("../programs/ssz")
     }
 
     pub fn ecall_lwa_program() -> Program {

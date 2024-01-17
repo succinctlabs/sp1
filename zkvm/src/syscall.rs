@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
