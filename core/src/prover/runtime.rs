@@ -281,17 +281,20 @@ impl Prover {
 
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
-        let zeta_and_next = [zeta, zeta * g_subgroups[0]];
+        let zeta_and_next = vec![zeta, zeta * g_subgroups[0]];
         let prover_data_and_points = [
-            (&main_data.main_data, zeta_and_next.as_slice()),
-            (&permutation_data, zeta_and_next.as_slice()),
+            (&main_data.main_data, core::slice::from_ref(&zeta_and_next)),
+            (&permutation_data, core::slice::from_ref(&zeta_and_next)),
         ];
         let (openings, opening_proof) = config
             .pcs()
             .open_multi_batches(&prover_data_and_points, challenger);
         let (openings, opening_proofs): (Vec<_>, Vec<_>) = (0..chips.len())
             .map(|i| {
-                let prover_data_and_points = [(&quotient_commit_data[i], zeta_and_next.as_slice())];
+                let prover_data_and_points = [(
+                    &quotient_commit_data[i],
+                    core::slice::from_ref(&zeta_and_next),
+                )];
                 config
                     .pcs()
                     .open_multi_batches(&prover_data_and_points, challenger)
