@@ -2,12 +2,12 @@ mod bool;
 pub mod polynomial;
 mod word;
 use crate::bytes::ByteOpcode;
-use itertools::Itertools;
-use std::iter::once;
-
 pub use bool::Bool;
+use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use std::iter::once;
 pub use word::Word;
 
 use crate::air::polynomial::Polynomial;

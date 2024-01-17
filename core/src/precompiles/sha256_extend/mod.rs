@@ -43,6 +43,7 @@ impl ShaExtendChip {
     }
 }
 
+// @jtguibas is this used? If not, can we remove it or move it to test crate?
 pub fn sha_extend(w: &mut [u32]) {
     for i in 16..64 {
         let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
