@@ -40,14 +40,13 @@ impl ProveCmd {
             build_target = target.clone();
         }
         cmd.arg("--release");
+        cmd.arg("-Aunknown-lints");
 
         let rust_flags = [
             "-C",
             "passes=loweratomic",
             "-C",
             "link-arg=-Ttext=0x00200800",
-            "-C",
-            "link-arg=--fatal-warnings",
             "-C",
             "panic=abort",
         ];

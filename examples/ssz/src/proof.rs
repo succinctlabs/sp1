@@ -12,27 +12,27 @@ pub fn is_valid_merkle_big_branch<'a>(
     index: U256,
     root: &Node,
 ) -> bool {
-    let mut value = *leaf;
+    let mut value: [u8; 32] = leaf.as_ref().try_into().unwrap();
+
+    let mut gindex = index;
 
     let mut hasher = Sha256::new();
-    for i in 0..depth {
+    let two = U256::from(2);
+    for _ in 0..depth {
         let next_node = match branch.next() {
             Some(node) => node,
             None => return false,
         };
-        // if (index / 2usize.pow(i as u32)) % 2 != 0 {
-        if (index
-            .div(alloy_primitives::U256::from(2).pow(alloy_primitives::U256::from(i)))
-            .wrapping_rem(alloy_primitives::U256::from(2)))
-            != alloy_primitives::U256::from(0)
-        {
+        if gindex.bit(0) {
             hasher.update(next_node.as_ref());
             hasher.update(value.as_ref());
         } else {
             hasher.update(value.as_ref());
             hasher.update(next_node.as_ref());
         }
-        value.as_mut().copy_from_slice(&hasher.finalize_reset());
+        gindex = gindex.div(two);
+        value = hasher.finalize_reset().into();
     }
-    value == *root
+    let root: [u8; 32] = root.as_ref().try_into().unwrap();
+    root == value
 }
