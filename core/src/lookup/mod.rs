@@ -5,6 +5,7 @@ use crate::bytes::ByteChip;
 use crate::cpu::CpuChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
+use crate::prover::runtime::NUM_CHIPS;
 use crate::utils::{AirChip, Chip};
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
@@ -135,26 +136,30 @@ pub fn debug_interactions_with_all_chips<F: Field>(
     let sha_compress_chip = ShaCompressChip::new();
     let (_, sha_compress_count) =
         debug_interactions::<BabyBear, _>(sha_compress_chip, &mut segment, interaction_kind);
-    let counts: [BTreeMap<String, BabyBear>; 13] = [
-        program_count,
-        cpu_count,
-        add_count,
-        sub_count,
-        bitwise_count,
-        mul_count,
-        divrem_count,
-        shift_right_count,
-        shift_left_count,
-        lt_count,
-        byte_count,
-        sha_extend_count,
-        sha_compress_count,
+    let counts: [(BTreeMap<String, BabyBear>, &str); NUM_CHIPS] = [
+        (program_count, "program"),
+        (cpu_count, "cpu"),
+        (add_count, "add"),
+        (sub_count, "sub"),
+        (bitwise_count, "bitwise"),
+        (mul_count, "mul"),
+        (divrem_count, "divrem"),
+        (shift_right_count, "shift_right"),
+        (shift_left_count, "shift_left"),
+        (lt_count, "lt"),
+        (byte_count, "byte"),
+        (sha_extend_count, "sha_extend"),
+        (sha_compress_count, "sha_compress"),
     ];
 
     let mut final_map = BTreeMap::new();
 
-    for (key, value) in counts.iter().flat_map(|map| map.iter()) {
+    for (key, value) in counts.iter().flat_map(|map| map.0.iter()) {
         *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+    }
+
+    for count in counts.iter() {
+        println!("{} chip has {} events", count.1, count.0.len());
     }
 
     println!("Final counts below. Positive => sent more than received, negative => opposite.");
@@ -166,6 +171,11 @@ pub fn debug_interactions_with_all_chips<F: Field>(
             // This should all add up to 0. 2013265920 = -1.
             println!("Key {} Value {}", key, value);
             any_nonzero = true;
+            for count in counts.iter() {
+                if count.0.contains_key(&key) {
+                    println!("{} chip's value for this key is {}", count.1, count.0[&key]);
+                }
+            }
         }
     }
     println!("=========");
