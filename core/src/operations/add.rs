@@ -41,6 +41,9 @@ impl<F: Field> AddOperation<F> {
         }
 
         println!("{:?} + {:?} => self: {:#?}", a, b, self);
+        let base = 256u32;
+        let overflow = (a[0] + b[0] - expected.to_le_bytes()[0]) as u32;
+        debug_assert_eq!(overflow * (overflow - base), 0);
         expected
     }
 
