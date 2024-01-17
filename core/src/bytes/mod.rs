@@ -127,6 +127,8 @@ impl<F: Field> ByteChip<F> {
                         col.sll = F::from_canonical_u8(sll);
                         ByteLookupEvent::new(*opcode, sll, 0, b, c)
                     }
+                    // TODO: I feel like this is wrong? Shouldn't we be setting the result based on
+                    // b and c, rather than just always setting it to zero? What does this do?
                     ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, 0, b, c),
                     ByteOpcode::ShrCarry => {
                         let (res, carry) = shr_carry(b, c);
