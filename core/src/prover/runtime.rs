@@ -9,7 +9,6 @@ use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
-use crate::prover::debug_constraints;
 use crate::prover::debug_cumulative_sums;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
