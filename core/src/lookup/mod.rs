@@ -1,5 +1,14 @@
-use crate::utils::Chip;
+use crate::alu::divrem::DivRemChip;
+use crate::alu::mul::MulChip;
+use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::bytes::ByteChip;
+use crate::cpu::CpuChip;
+use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::program::ProgramChip;
+use crate::utils::{AirChip, Chip};
 use p3_air::VirtualPairCol;
+use p3_baby_bear::BabyBear;
+use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -82,6 +91,85 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     }
     result.push(')');
     result
+}
+
+pub fn debug_interactions_with_all_chips<F: Field>(
+    mut segment: &mut Segment,
+    interaction_kind: InteractionKind,
+) -> bool {
+    let cpu_chip = CpuChip::new();
+    let (_, cpu_count) =
+        debug_interactions::<BabyBear, _>(cpu_chip, &mut segment, interaction_kind);
+    let program_chip = ProgramChip::new();
+    let (_, program_count) =
+        debug_interactions::<BabyBear, _>(program_chip, &mut segment, interaction_kind);
+    let add_chip = AddChip::new();
+    let (_, add_count) =
+        debug_interactions::<BabyBear, _>(add_chip, &mut segment, interaction_kind);
+    let sub_chip = SubChip::new();
+    let (_, sub_count) =
+        debug_interactions::<BabyBear, _>(sub_chip, &mut segment, interaction_kind);
+    let bitwise_chip = BitwiseChip::new();
+    let (_, bitwise_count) =
+        debug_interactions::<BabyBear, _>(bitwise_chip, &mut segment, interaction_kind);
+    let mul_chip = MulChip::new();
+    let (_, mul_count) =
+        debug_interactions::<BabyBear, _>(mul_chip, &mut segment, interaction_kind);
+    let divrem_chip = DivRemChip::new();
+    let (_, divrem_count) =
+        debug_interactions::<BabyBear, _>(divrem_chip, &mut segment, interaction_kind);
+    let shift_right_chip = RightShiftChip::new();
+    let (_, shift_right_count) =
+        debug_interactions::<BabyBear, _>(shift_right_chip, &mut segment, interaction_kind);
+    let shift_left_chip = LeftShiftChip::new();
+    let (_, shift_left_count) =
+        debug_interactions::<BabyBear, _>(shift_left_chip, &mut segment, interaction_kind);
+    let lt_chip = LtChip::new();
+    let (_, lt_count) = debug_interactions::<BabyBear, _>(lt_chip, &mut segment, interaction_kind);
+    let byte_chip = ByteChip::new();
+    let (_, byte_count) =
+        debug_interactions::<BabyBear, _>(byte_chip, &mut segment, interaction_kind);
+    let sha_extend_chip = ShaExtendChip::new();
+    let (_, sha_extend_count) =
+        debug_interactions::<BabyBear, _>(sha_extend_chip, &mut segment, interaction_kind);
+    let sha_compress_chip = ShaCompressChip::new();
+    let (_, sha_compress_count) =
+        debug_interactions::<BabyBear, _>(sha_compress_chip, &mut segment, interaction_kind);
+    let counts: [BTreeMap<String, BabyBear>; 13] = [
+        program_count,
+        cpu_count,
+        add_count,
+        sub_count,
+        bitwise_count,
+        mul_count,
+        divrem_count,
+        shift_right_count,
+        shift_left_count,
+        lt_count,
+        byte_count,
+        sha_extend_count,
+        sha_compress_count,
+    ];
+
+    let mut final_map = BTreeMap::new();
+
+    for (key, value) in counts.iter().flat_map(|map| map.iter()) {
+        *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+    }
+
+    println!("Final counts below. Positive => sent more than received, negative => opposite.");
+    println!("=========");
+
+    let mut any_nonzero = false;
+    for (key, value) in final_map.clone() {
+        if !value.is_zero() {
+            // This should all add up to 0. 2013265920 = -1.
+            println!("Key {} Value {}", key, value);
+            any_nonzero = true;
+        }
+    }
+    println!("=========");
+    !any_nonzero
 }
 
 pub fn debug_interactions<F: Field, C: Chip<F>>(

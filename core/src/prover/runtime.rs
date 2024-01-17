@@ -329,6 +329,7 @@ pub mod tests {
     use crate::alu::LtChip;
     use crate::cpu::CpuChip;
     use crate::lookup::debug_interactions;
+    use crate::lookup::debug_interactions_with_all_chips;
     use crate::lookup::InteractionKind;
     use crate::program::ProgramChip;
     use crate::runtime::tests::ecall_lwa_program;
@@ -486,103 +487,22 @@ pub mod tests {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::DIVU, 31, 30, 29, false, false),
+            Instruction::new(Opcode::MUL, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program.clone());
         runtime.write_witness(&[999]);
         runtime.run();
 
-        let divrem_chip = DivRemChip::new();
-        println!("DIVREM chip interactions");
-        let (divrem_data, divrem_count) = debug_interactions::<BabyBear, _>(
-            divrem_chip,
+        let res = debug_interactions_with_all_chips::<BabyBear>(
             &mut runtime.segment,
             InteractionKind::Alu,
         );
-        for (key, value) in divrem_data.iter() {
-            println!("divrem_chip: Key {} Value {:#?}", key, value);
+
+        if res {
+            println!("proving");
+            prove(program);
         }
-
-        let lt_chip = LtChip::new();
-        println!("LT chip interactions");
-        let (lt_data, lt_count) =
-            debug_interactions::<BabyBear, _>(lt_chip, &mut runtime.segment, InteractionKind::Alu);
-        for (key, value) in lt_data.iter() {
-            println!("lt_chip: Key {} Value {:#?}", key, value);
-        }
-
-        let mul_chip = MulChip::new();
-        println!("mul chip interactions");
-        let (mul_data, mul_count) =
-            debug_interactions::<BabyBear, _>(mul_chip, &mut runtime.segment, InteractionKind::Alu);
-        for (key, value) in mul_data.iter() {
-            println!("mul_chip: Key {} Value {:#?}", key, value);
-        }
-
-        let add_chip = AddChip::new();
-        println!("Add chip interactions");
-        let (add_data, add_count) =
-            debug_interactions::<BabyBear, _>(add_chip, &mut runtime.segment, InteractionKind::Alu);
-        for (key, value) in add_data.iter() {
-            println!("add_chip: Key {} Value {:#?}", key, value);
-        }
-
-        println!("CPU interactions");
-        let cpu_chip = CpuChip::new();
-        let (cpu_data, cpu_count) =
-            debug_interactions::<BabyBear, _>(cpu_chip, &mut runtime.segment, InteractionKind::Alu);
-        for (key, value) in cpu_data.iter() {
-            println!("cpu_chip: Key {} Value {:#?}", key, value);
-        }
-
-        println!("ProgramChip interactions");
-        let program_chip = ProgramChip::new();
-        let (program_data, program_count) = debug_interactions::<BabyBear, _>(
-            program_chip,
-            &mut runtime.segment,
-            InteractionKind::Alu,
-        );
-        for (key, value) in program_data.iter() {
-            println!("program_chip: Key {} Value {:#?}", key, value);
-        }
-
-        let mut final_map = BTreeMap::new();
-
-        for (key, value) in divrem_count
-            .iter()
-            .chain(add_count.iter())
-            .chain(cpu_count.iter())
-            .chain(lt_count.iter())
-            .chain(program_count.iter())
-            .chain(mul_count.iter())
-        {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        }
-
-        println!("Final counts");
-        println!("=========");
-
-        for (key, value) in final_map.clone() {
-            if !value.is_zero() {
-                // This should all add up to 0. 2013265920 = -1.
-                println!("Key {} Value {}", key, value);
-            }
-        }
-        println!("=========");
-        println!(
-            "If there's nothing between the two lines above, congratulations, it's prob working"
-        );
-        println!("just as a reference...");
-        for (key, value) in final_map {
-            if value.is_zero() {
-                // This should all add up to 0. 2013265920 = -1.
-                println!("Key {} Value {}", key, value);
-            }
-        }
-
-        println!("proving");
-        prove(program);
     }
 
     #[test]
