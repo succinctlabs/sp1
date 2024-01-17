@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 hex-literal = "0.4.1"
-sha2 = { git = "https://github.com/jtguibas/hashes.git", branch = "patched" }
+sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git" }
 curta-zkvm = { path = "../../zkvm" }
 hex = "0.4.3"
