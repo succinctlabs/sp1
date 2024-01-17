@@ -299,7 +299,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         c: event.c,
                         b: quotient,
                     };
-                    println!("adding mul_events");
                     segment.mul_events.push(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
@@ -748,7 +747,6 @@ where
                     + local.is_rem * rem
             };
 
-            println!("receiving divrem alu");
             builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
         }
 
