@@ -328,7 +328,7 @@ pub mod tests {
     use crate::alu::mul::MulChip;
     use crate::alu::AddChip;
     use crate::alu::LtChip;
-    use crate::cpu::trace::CpuChip;
+    use crate::cpu::CpuChip;
     use crate::lookup::debug_interactions;
     use crate::lookup::InteractionKind;
     use crate::program::ProgramChip;
