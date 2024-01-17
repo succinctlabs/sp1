@@ -1,5 +1,5 @@
 pub mod air;
-mod event;
+pub mod event;
 mod trace;
 
 pub struct FieldChip;

@@ -1,12 +1,12 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FieldLookupEvent {
-    pub a: u8,
-    pub b: u8,
-    pub c: u8,
+pub struct FieldEvent {
+    pub ltu: bool,
+    pub b: u32,
+    pub c: u32,
 }
 
-impl FieldLookupEvent {
-    pub const fn new(a: u8, b: u8, c: u8) -> Self {
-        Self { a, b, c }
+impl FieldEvent {
+    pub const fn new(ltu: bool, b: u32, c: u32) -> Self {
+        Self { ltu, b, c }
     }
 }

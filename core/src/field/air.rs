@@ -9,6 +9,7 @@ use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
+use crate::bytes::ByteOpcode;
 
 use super::FieldChip;
 
@@ -57,7 +58,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
         let local: &FieldCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
-        builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
+        builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);
 
         // Verify that lt is a boolean.
         builder.assert_bool(local.lt);
@@ -77,7 +78,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
             .fold(AB::Expr::zero(), |acc, x| acc + *x);
         // Verify bitmap sum is 0 or 1
         builder.assert_eq(
-            bitmap_sum * (bitmap_sum - AB::Expr::one()),
+            bitmap_sum.clone() * (bitmap_sum - AB::Expr::one()),
             AB::Expr::zero(),
         );
 
@@ -98,7 +99,13 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
             c_byte += local.c_word[i] * local.differing_byte[i];
         }
 
-        // Do the byte lt lookup
-        // builder.send_alu()
+        // Do the byte ltu lookup
+        builder.send_byte(
+            ByteOpcode::LTU.to_field::<AB::F>(),
+            local.lt,
+            b_byte,
+            c_byte,
+            local.is_real,
+        );
     }
 }
