@@ -94,6 +94,8 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     result
 }
 
+/// Calculate the the number of times we send and receive each event of the given interaction type,
+/// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<F: Field>(
     mut segment: &mut Segment,
     interaction_kind: InteractionKind,
@@ -168,7 +170,6 @@ pub fn debug_interactions_with_all_chips<F: Field>(
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
         if !value.is_zero() {
-            // This should all add up to 0. 2013265920 = -1.
             println!("Key {} Value {}", key, value);
             any_nonzero = true;
             for count in counts.iter() {
