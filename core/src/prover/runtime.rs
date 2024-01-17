@@ -80,7 +80,7 @@ impl Runtime {
 
 pub(crate) struct Prover {}
 
-const NUM_CHIPS: usize = 13;
+pub const NUM_CHIPS: usize = 13;
 impl Prover {
     pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
