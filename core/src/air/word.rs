@@ -27,9 +27,21 @@ impl<T> Word<T> {
     }
 
     /// Extends a variable to a word.
-    pub fn extend<AB: CurtaAirBuilder<Var = T>>(var: T) -> Word<AB::Expr> {
+    pub fn extend_var<AB: CurtaAirBuilder<Var = T>>(var: T) -> Word<AB::Expr> {
         Word([
             AB::Expr::zero() + var,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ])
+    }
+}
+
+impl<T: AbstractField> Word<T> {
+    /// Extends a variable to a word.
+    pub fn extend_expr<AB: CurtaAirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
+        Word([
+            AB::Expr::zero() + expr,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
