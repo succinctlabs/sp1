@@ -19,7 +19,7 @@ pub struct OpcodeSelectors<T> {
     pub is_add: T,
     pub is_sub: T,
     pub is_mul: T,
-    pub is_div: T,
+    pub is_divrem: T,
     pub is_shift: T,
     pub is_bitwise: T,
     pub is_lt: T,
@@ -77,6 +77,9 @@ impl<F: PrimeField> OpcodeSelectors<F> {
                 }
                 Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {
                     self.is_mul = F::one();
+                }
+                Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU => {
+                    self.is_divrem = F::one();
                 }
                 _ => {
                     panic!(
@@ -141,7 +144,7 @@ impl<T> IntoIterator for OpcodeSelectors<T> {
             self.is_add,
             self.is_sub,
             self.is_mul,
-            self.is_div,
+            self.is_divrem,
             self.is_shift,
             self.is_bitwise,
             self.is_lt,

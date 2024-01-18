@@ -202,4 +202,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "ShaCompress".to_string()
+    }
 }

@@ -177,6 +177,10 @@ impl<F: PrimeField> Chip<F> for LeftShiftChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "LeftShift".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for LeftShiftChip {
