@@ -20,7 +20,6 @@ use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
 use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
 use p3_uni_stark::StarkConfigImpl;
 
-use std::any;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 mod builder;
