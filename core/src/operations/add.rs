@@ -40,7 +40,6 @@ impl<F: Field> AddOperation<F> {
             self.carry[2] = F::one();
         }
 
-        println!("{:?} + {:?} => self: {:#?}", a, b, self);
         let base = 256u32;
         let overflow = a[0]
             .wrapping_add(b[0])
