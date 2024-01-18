@@ -114,12 +114,12 @@ impl CpuChip {
 
         builder
             .when((local.selectors.is_bge + local.selectors.is_bgeu) * local.branching)
-            .assert_one(branch_columns.a_gt_b);
+            .assert_one(branch_columns.a_eq_b + branch_columns.a_gt_b);
 
         builder
             .when(local.selectors.is_bge + local.selectors.is_bgeu)
             .when_not(local.branching)
-            .assert_one(branch_columns.a_eq_b + branch_columns.a_lt_b);
+            .assert_one(branch_columns.a_lt_b);
 
         //// Check that the helper bools' value is correct.
         builder
