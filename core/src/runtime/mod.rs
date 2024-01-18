@@ -726,11 +726,16 @@ impl Runtime {
             < (self.program.instructions.len() * 4) as u32
         {
             // Fetch the instruction at the current program counter.
+            if self.global_clk / 4 > 4719 {
+                break;
+            }
+            // 4718 ok
+            // 4720 bad
             let instruction = self.fetch();
 
             let width = 12;
             log::debug!(
-                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$}",
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk / 4,
                 self.pc,
                 instruction,
@@ -748,7 +753,11 @@ impl Runtime {
                 self.register(Register::X11),
                 self.register(Register::X12),
                 self.register(Register::X13),
-
+                self.register(Register::X14),
+                self.register(Register::X15),
+                self.register(Register::X16),
+                self.register(Register::X17),
+                self.register(Register::X18),
             );
 
             // Execute the instruction.

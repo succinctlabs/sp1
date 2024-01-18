@@ -351,6 +351,9 @@ pub mod tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
+    extern crate test;
+    use test::Bencher;
+
     pub fn prove(program: Program) {
         type Val = BabyBear;
         type Domain = Val;
