@@ -468,6 +468,20 @@ pub mod tests {
     }
 
     #[test]
+    fn test_lt_prove() {
+        let less_than = [Opcode::SLT, Opcode::SLTU];
+        for lt_op in less_than.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*lt_op, 31, 30, 29, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
+    }
+
+    #[test]
     fn test_divrem_prove() {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
         for div_rem_op in div_rem_ops.iter() {
