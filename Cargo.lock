@@ -2392,21 +2392,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ssz"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "curta-zkvm",
- "hex",
- "hex-literal",
- "serde",
- "serde_json",
- "serde_with",
- "sha2 0.9.8",
- "ssz_rs",
-]
-
-[[package]]
 name = "ssz_rs"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2429,6 +2414,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "ssz_withdrawals"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "curta-zkvm",
+ "hex",
+ "hex-literal",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sha2 0.9.8",
+ "ssz_rs",
 ]
 
 [[package]]

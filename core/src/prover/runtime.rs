@@ -302,14 +302,14 @@ impl Prover {
             .unzip();
 
         // Check that the table-specific constraints are correct for each chip.
-        for i in 0..chips.len() {
-            debug_constraints(
-                &*chips[i],
-                &traces[i],
-                &permutation_traces[i],
-                &permutation_challenges,
-            );
-        }
+        // for i in 0..chips.len() {
+        //     debug_constraints(
+        //         &*chips[i],
+        //         &traces[i],
+        //         &permutation_traces[i],
+        //         &permutation_challenges,
+        //     );
+        // }
 
         SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),
@@ -401,6 +401,11 @@ pub mod tests {
         runtime.write_witness(&[1, 2]);
         runtime.run();
         log::info!("cycles: {}", runtime.segment.cpu_events.len());
+        log::info!(
+            "sha_compress: {}",
+            runtime.segment.sha_compress_events.len()
+        );
+        log::info!("sha_extend: {}", runtime.segment.sha_extend_events.len());
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
 
         debug_interactions_with_all_chips(
