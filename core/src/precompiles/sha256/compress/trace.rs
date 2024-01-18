@@ -163,7 +163,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
 
                 self.populate_access(
                     &mut cols.mem,
-                    og_h[j] + event.h[j],
+                    og_h[j].wrapping_add(event.h[j]),
                     event.h_write_records[j],
                 );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
