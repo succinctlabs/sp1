@@ -119,8 +119,8 @@ impl Prover {
             Box::new(lt),
             Box::new(sha_extend),
             Box::new(sha_compress),
-            Box::new(bytes),
             Box::new(field),
+            Box::new(bytes),
         ]
     }
 
@@ -325,6 +325,13 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use std::collections::BTreeMap;
+
+    use crate::bytes::ByteChip;
+    use crate::cpu::CpuChip;
+    use crate::field::FieldChip;
+    use crate::lookup::debug_interactions;
+    use crate::lookup::InteractionKind;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -339,6 +346,7 @@ pub mod tests {
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
+    use p3_field::AbstractField;
     use p3_field::Field;
     use p3_fri::FriBasedPcs;
     use p3_fri::FriConfigImpl;
@@ -398,6 +406,45 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
+
+        println!("Byte interactions");
+        let byte_chip = ByteChip::new();
+        let (_, byte_count) = debug_interactions::<BabyBear, _>(
+            byte_chip,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        println!("Field interactions");
+        let field_chip = FieldChip::new();
+        let (_, field_count) = debug_interactions::<BabyBear, _>(
+            field_chip,
+            &mut runtime.segment,
+            InteractionKind::Byte,
+        );
+
+        let mut final_map = BTreeMap::new();
+
+        // for (key, value) in byte_count.iter().chain(field_count.iter()) {
+        //     *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        // }
+
+        for (key, value) in field_count.iter() {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+
+        // for (key, value) in byte_count.iter() {
+        //     *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        // }
+
+        println!("Final counts");
+
+        for (key, value) in final_map {
+            if !value.is_zero() {
+                println!("Key {} Value {}", key, value);
+            }
+        }
+
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }
 
