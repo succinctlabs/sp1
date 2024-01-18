@@ -1,7 +1,6 @@
 #![no_main]
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use hex_literal::hex;
 use ssz_rs::prelude::*;
