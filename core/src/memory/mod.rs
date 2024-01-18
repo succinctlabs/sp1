@@ -136,9 +136,7 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
-    use crate::bytes::ByteChip;
-    use crate::cpu::CpuChip;
-    use crate::lookup::{debug_interactions, debug_interactions_with_all_chips, InteractionKind};
+    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
     use crate::precompiles::sha256::extend_tests::sha_extend_program;
     use p3_baby_bear::BabyBear;
@@ -246,9 +244,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-
-        let memory_init_chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
-        println!("Memory init chip interactions");
         debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Memory);
     }
 
@@ -261,7 +256,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-
         debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Byte);
     }
 }

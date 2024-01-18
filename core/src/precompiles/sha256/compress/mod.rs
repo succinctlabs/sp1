@@ -4,7 +4,7 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::MemoryRecord;
 
 mod air;
-pub(crate) mod columns;
+mod columns;
 mod execute;
 mod trace;
 
@@ -71,10 +71,7 @@ pub mod compress_tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
-    use crate::{
-        lookup::{debug_interactions_with_all_chips, InteractionKind},
-        runtime::{Instruction, Opcode, Program, Runtime},
-    };
+    use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use p3_commit::ExtensionMmcs;
 
     pub fn sha_compress_program() -> Program {
@@ -140,7 +137,6 @@ pub mod compress_tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-        debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Alu);
 
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     }

@@ -1,4 +1,4 @@
-pub(crate) mod compress;
+mod compress;
 mod extend;
 
 pub use compress::*;

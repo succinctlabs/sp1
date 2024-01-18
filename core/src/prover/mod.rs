@@ -1,9 +1,3 @@
-use std::mem::transmute_copy;
-
-use crate::precompiles::sha256::{
-    columns::ShaCompressCols, compress::columns::NUM_SHA_COMPRESS_COLS,
-};
-
 use itertools::izip;
 use p3_air::{
     Air, AirBuilder, BaseAir, PairBuilder, PermutationAirBuilder, TwoRowMatrixView, VirtualPairCol,
@@ -27,10 +21,7 @@ pub use debug::*;
 #[cfg(test)]
 pub use runtime::tests;
 
-use crate::{
-    cpu::cols::cpu_cols::{CpuCols, NUM_CPU_COLS},
-    utils::Chip,
-};
+use crate::utils::Chip;
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
@@ -338,19 +329,6 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
         if i == height - 1 {
             builder.is_last_row = F::one();
             builder.is_transition = F::zero();
-        }
-
-        if main_local.len() == NUM_SHA_COMPRESS_COLS {
-            let mut array_copy = [F::zero(); NUM_SHA_COMPRESS_COLS];
-            array_copy.copy_from_slice(main_local);
-            let main_local_sha_col = unsafe {
-                transmute_copy::<[F; NUM_SHA_COMPRESS_COLS], ShaCompressCols<F>>(&array_copy)
-            };
-
-            println!(
-                "output: d + temp1 = d_add_temp1 => {:?} + {:?} = {:?}",
-                main_local_sha_col.d, main_local_sha_col.temp1, main_local_sha_col.d_add_temp1
-            );
         }
 
         air.eval(&mut builder);

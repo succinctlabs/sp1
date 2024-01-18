@@ -5,11 +5,9 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
-use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
+use valida_derive::AlignedBorrow;
 
 use crate::operations::AddOperation;
 use crate::runtime::{Opcode, Segment};
