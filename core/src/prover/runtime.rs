@@ -19,6 +19,7 @@ use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::Matrix;
+use p3_maybe_rayon::*;
 use p3_uni_stark::decompose_and_flatten;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_ceil_usize;
@@ -33,7 +34,7 @@ impl Runtime {
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
+        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
         SC::Challenger: Clone,
     {
         let segment_chips = Prover::segment_chips::<F, EF, SC>();
@@ -175,7 +176,7 @@ impl Prover {
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
+        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
     {
         // Compute some statistics.
         let mut main_cols = 0usize;
@@ -213,7 +214,7 @@ impl Prover {
 
         // Generate the permutation traces.
         let permutation_traces = chips
-            .iter()
+            .par_iter()
             .enumerate()
             .map(|(i, chip)| {
                 generate_permutation_trace(
@@ -226,7 +227,7 @@ impl Prover {
 
         // Commit to the permutation traces.
         let flattened_permutation_traces = permutation_traces
-            .iter()
+            .par_iter()
             .map(|trace| trace.flatten_to_base())
             .collect::<Vec<_>>();
         let (permutation_commit, permutation_data) =
@@ -239,7 +240,7 @@ impl Prover {
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
-        let quotient_values = (0..chips.len()).map(|i| {
+        let quotient_values = (0..chips.len()).into_par_iter().map(|i| {
             quotient_values(
                 config,
                 &*chips[i],
