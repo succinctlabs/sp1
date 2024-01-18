@@ -125,10 +125,10 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let maj_intermediate = cols.maj_intermediate.populate(a_and_b, a_and_c);
                 let maj = cols.maj.populate(maj_intermediate, b_and_c);
 
-                let temp2 = cols.temp2.populate(s0, maj);
+                let temp2 = cols.temp2.populate(segment, s0, maj);
 
-                let d_add_temp1 = cols.d_add_temp1.populate(d, temp1);
-                let temp1_add_temp2 = cols.temp1_add_temp2.populate(temp1, temp2);
+                let d_add_temp1 = cols.d_add_temp1.populate(segment, d, temp1);
+                let temp1_add_temp2 = cols.temp1_add_temp2.populate(segment, temp1, temp2);
 
                 event.h[7] = g;
                 event.h[6] = f;
@@ -163,7 +163,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
 
                 self.populate_access(
                     &mut cols.mem,
-                    og_h[j] + event.h[j],
+                    og_h[j].wrapping_add(event.h[j]),
                     event.h_write_records[j],
                 );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
@@ -201,5 +201,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
         );
 
         trace
+    }
+
+    fn name(&self) -> String {
+        "ShaCompress".to_string()
     }
 }

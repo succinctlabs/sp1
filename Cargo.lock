@@ -549,6 +549,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d3d0e0f38255e7fa3cf31335b3a56f05febd18025f4db5ef7a0cfb4f8da651f"
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "hex-literal"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1191,6 +1197,26 @@ dependencies = [
 
 [[package]]
 name = "sha2"
+version = "0.1.0"
+dependencies = [
+ "curta-zkvm",
+ "hex",
+ "hex-literal",
+ "sha2 0.10.6",
+]
+
+[[package]]
+name = "sha2"
+version = "0.10.6"
+source = "git+https://github.com/succinctbot/RustCrypto-hashes.git#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
+name = "sha2"
 version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
@@ -1220,7 +1246,7 @@ version = "0.1.0"
 dependencies = [
  "curta-zkvm",
  "hex-literal",
- "sha2",
+ "sha2 0.10.8",
 ]
 
 [[package]]

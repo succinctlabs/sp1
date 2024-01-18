@@ -2,13 +2,13 @@ use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
 use crate::memory::MemoryGlobalChip;
+use crate::prover::debug_constraints;
 
-use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
-use crate::prover::debug_constraints;
 use crate::prover::debug_cumulative_sums;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
@@ -82,9 +82,9 @@ impl Runtime {
     }
 }
 
-struct Prover {}
+pub(crate) struct Prover {}
 
-const NUM_CHIPS: usize = 12;
+pub const NUM_CHIPS: usize = 13;
 impl Prover {
     pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
@@ -99,23 +99,24 @@ impl Prover {
         let sub = SubChip::new();
         let bitwise = BitwiseChip::new();
         let mul = MulChip::new();
-        let _divrem = DivRemChip::new();
-        let shift_right = RightShiftChip::new();
-        let shift_left = LeftShiftChip::new();
+        let divrem = DivRemChip::new();
+        let shift_right = ShiftRightChip::new();
+        let shift_left = ShiftLeft::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
-        // This is where we create a vector of chips.
+        // This vector contains chips ordered to address dependencies. Some operations, like div,
+        // depend on others like mul for verification. To prevent race conditions and ensure correct
+        // execution sequences, dependent operations are positioned before their dependencies.
         [
             Box::new(program),
             Box::new(cpu),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
+            Box::new(divrem),
             Box::new(mul),
-            // TODO: We need to add this here, but it doesn't work yet.
-            // Box::new(divrem),
             Box::new(shift_right),
             Box::new(shift_left),
             Box::new(lt),
@@ -406,6 +407,7 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use crate::lookup::debug_interactions_with_all_chips;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -480,6 +482,11 @@ pub mod tests {
         runtime.write_witness(&[1, 2]);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+
+        debug_interactions_with_all_chips(
+            &mut runtime.segment,
+            crate::lookup::InteractionKind::Alu,
+        );
     }
 
     #[test]
@@ -495,14 +502,17 @@ pub mod tests {
     }
 
     #[test]
-    fn test_sll_prove() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::SLL, 31, 30, 29, false, false),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        prove(program);
+    fn test_shift_prove() {
+        let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
+        for shift_op in shift_ops.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*shift_op, 31, 29, 3, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
     }
 
     #[test]
@@ -535,6 +545,49 @@ pub mod tests {
                 Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
                 Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
                 Instruction::new(*mul_op, 31, 30, 29, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
+    }
+
+    #[test]
+    fn test_lt_prove() {
+        let less_than = [Opcode::SLT, Opcode::SLTU];
+        for lt_op in less_than.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*lt_op, 31, 30, 29, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
+    }
+
+    #[test]
+    fn test_bitwise_prove() {
+        let bitwise_opcodes = [Opcode::XOR, Opcode::OR, Opcode::AND];
+
+        for bitwise_op in bitwise_opcodes.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*bitwise_op, 31, 30, 29, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
+    }
+
+    #[test]
+    fn test_divrem_prove() {
+        let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        for div_rem_op in div_rem_ops.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*div_rem_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
             prove(program);
