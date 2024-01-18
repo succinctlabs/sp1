@@ -2,6 +2,7 @@ use crate::air::CurtaAirBuilder;
 use crate::operations::field::fp_den::FpDenCols;
 use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
+use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::AffinePoint;
 use crate::operations::field::params::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
@@ -27,14 +28,14 @@ pub struct EdAddCols<T> {
     pub(crate) y3_ins: FpDenCols<T>,
 }
 
-// impl<T> EdAddCols<T> {
-//     pub fn result(&self) -> AffinePoint<T> {
-//         AffinePoint {
-//             x: self.x3_ins.result,
-//             y: self.y3_ins.result,
-//         }
-//     }
-// }
+impl<T: Copy> EdAddCols<T> {
+    pub fn result(&self) -> AffinePoint<T> {
+        AffinePoint {
+            x: self.x3_ins.result,
+            y: self.y3_ins.result,
+        }
+    }
+}
 
 impl<F: Field> EdAddCols<F> {
     pub fn populate<P: FieldParameters>(&mut self) {
@@ -65,20 +66,31 @@ impl<V: Copy> EdAddCols<V> {
         self.y3_numerator
             .eval::<AB, P>(builder, &vec![y1, x1], &vec![y2, x2]);
 
-        // TODO: fill in below
-
         // // f = x1 * x2 * y1 * y2.
-        // let x1_mul_y1 = self.fp_mul(&x1, &y1);
-        // let x2_mul_y2 = self.fp_mul(&x2, &y2);
-        // let f = self.fp_mul(&x1_mul_y1, &x2_mul_y2);
+        self.x1_mul_y1
+            .eval::<AB, P>(builder, &x1, &y1, FpOperation::Mul);
+        self.x2_mul_y2
+            .eval::<AB, P>(builder, &x2, &y2, FpOperation::Mul);
+
+        let x1_mul_y1 = self.x1_mul_y1.result;
+        let x2_mul_y2 = self.x2_mul_y2.result;
+        self.f
+            .eval::<AB, P>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
         // // d * f.
+        let f = self.f.result;
         // let d_mul_f = self.fp_mul_const(&f, E::D);
+        // TODO: put in E as a generic here
+        // self.d_mul_f.eval::<AB, P>(builder, &f, E::D, FpOperation::Mul);
+
+        let d_mul_f = self.d_mul_f.result;
 
         // // x3 = x3_numerator / (1 + d * f).
-        // let x3_ins = self.fp_den(&x3_numerator, &d_mul_f, true);
+        self.x3_ins
+            .eval::<AB, P>(builder, &self.x3_numerator.result, &d_mul_f, true);
 
         // // y3 = y3_numerator / (1 - d * f).
-        // let y3_ins = self.fp_den(&y3_numerator, &d_mul_f, false);
+        self.y3_ins
+            .eval::<AB, P>(builder, &self.y3_numerator.result, &d_mul_f, false);
     }
 }

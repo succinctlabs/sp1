@@ -18,7 +18,7 @@ use valida_derive::AlignedBorrow;
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FpDenCols<T> {
-    /// The result of `a op b`, where a, b are field elements
+    /// The result of `a den b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
     pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
