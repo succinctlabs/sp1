@@ -42,6 +42,10 @@ pub struct FieldCols<T> {
     // Bitmap of which byte is the most signficant differing byte.
     // Either exactly one must be set or none are set.
     pub differing_byte: [T; WORD_SIZE],
+
+    pub b_byte: T,
+    pub c_byte: T,
+
     // pub multiplicities: T,
     pub is_real: T,
 }
@@ -98,13 +102,15 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
             b_byte += local.b_word[i] * local.differing_byte[i];
             c_byte += local.c_word[i] * local.differing_byte[i];
         }
+        builder.assert_eq(b_byte, local.b_byte);
+        builder.assert_eq(c_byte, local.c_byte);
 
         // Do the byte ltu lookup
         builder.send_byte(
             ByteOpcode::LTU.to_field::<AB::F>(),
             local.lt,
-            b_byte,
-            c_byte,
+            local.b_byte,
+            local.c_byte,
             local.is_real,
         );
     }

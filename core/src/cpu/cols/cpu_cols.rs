@@ -15,12 +15,16 @@ pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
     pub prev_value: Word<T>,
 
-    // Flag that specifies whether the last memory access is within the same segment.  This needs
-    // to be verified in the air.
-    pub prev_access_within_segment: T,
     // The previous segment and timestamp that this memory access is being read from.
     pub segment: T,
     pub timestamp: T,
+
+    // Flag that specifies whether clk/timestamp should be used for verifying current access is
+    // greater than previous access.
+    // All these values will need to be verified in the air.
+    pub use_clk_comparison: T,
+    pub prev_comparison_value: T, // use_clk_comparison ? timestamp : segment
+    pub current_comparison_value: T, // !use_clk_comparison ? current clk : current segment
 }
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]

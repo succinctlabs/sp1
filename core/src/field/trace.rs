@@ -41,6 +41,8 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                             b[i],
                             c[i],
                         ));
+                        cols.b_byte = F::from_canonical_u8(b[i]);
+                        cols.c_byte = F::from_canonical_u8(c[i]);
                         byte_lookup_event_added = true;
                         break;
                     }
@@ -56,6 +58,8 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                         0,
                         0,
                     ));
+                    cols.b_byte = F::zero();
+                    cols.c_byte = F::zero();
                 }
 
                 cols.lt = F::from_bool(event.ltu);

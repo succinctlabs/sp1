@@ -136,21 +136,17 @@ impl CpuChip {
             cols.segment = F::from_canonical_u32(record.segment);
             cols.timestamp = F::from_canonical_u32(record.timestamp);
 
-            let prev_access_within_segment = record.segment == segment;
-            cols.prev_access_within_segment = F::from_bool(prev_access_within_segment);
+            let use_clk_comparison = record.segment == segment;
+            cols.use_clk_comparison = F::from_bool(use_clk_comparison);
 
             let field_event = FieldEvent::new(
                 true,
-                if prev_access_within_segment {
+                if use_clk_comparison {
                     record.timestamp
                 } else {
                     record.segment
                 },
-                if prev_access_within_segment {
-                    clk
-                } else {
-                    segment
-                },
+                if use_clk_comparison { clk } else { segment },
             );
 
             new_field_events.push(field_event);

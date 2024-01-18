@@ -8,10 +8,8 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::cols::instruction_cols::InstructionCols;
 use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
-use crate::runtime::Opcode;
 use p3_field::AbstractField;
 use std::iter::once;
-use std::sync::Arc;
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
@@ -253,21 +251,36 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         EMult: Into<Self::Expr> + Clone,
     {
         // Verify prev_access_within_segment value.
-        self.assert_bool(memory_access.prev_access_within_segment.clone());
-        self.when(memory_access.prev_access_within_segment.clone())
+        self.assert_bool(multiplicity.clone());
+
+        self.when(multiplicity.clone())
+            .assert_bool(memory_access.use_clk_comparison.clone());
+        self.when(multiplicity.clone())
+            .when(memory_access.use_clk_comparison.clone())
             .assert_eq(segment.clone(), memory_access.segment.clone());
 
         let one = Self::Expr::one();
+        self.when(multiplicity.clone()).assert_eq(
+            memory_access.prev_comparison_value.clone(),
+            memory_access.use_clk_comparison.clone().into()
+                * memory_access.timestamp.clone().into()
+                + (one.clone() - memory_access.use_clk_comparison.clone().into())
+                    * memory_access.segment.clone().into(),
+        );
 
-        let ltu_operand_b = memory_access.prev_access_within_segment.clone().into()
-            * memory_access.timestamp.clone().into()
-            + (one.clone() - memory_access.prev_access_within_segment.clone().into())
-                * memory_access.segment.clone().into();
-        let ltu_operand_c = memory_access.prev_access_within_segment.clone().into()
-            * clk.clone().into()
-            + (one.clone() - memory_access.prev_access_within_segment.into())
-                * segment.clone().into();
-        self.send_field_op(one, ltu_operand_b, ltu_operand_c, multiplicity.clone());
+        self.when(multiplicity.clone()).assert_eq(
+            memory_access.current_comparison_value.clone(),
+            memory_access.use_clk_comparison.clone().into() * clk.clone().into()
+                + (one.clone() - memory_access.use_clk_comparison.clone().into())
+                    * segment.clone().into(),
+        );
+
+        self.send_field_op(
+            one,
+            memory_access.prev_comparison_value,
+            memory_access.current_comparison_value,
+            multiplicity.clone(),
+        );
 
         let addr_expr = addr.into();
         let prev_values = once(memory_access.segment.into())
