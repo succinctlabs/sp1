@@ -19,7 +19,7 @@ use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{Matrix, MatrixRowSlices};
 use p3_maybe_rayon::*;
 use p3_uni_stark::decompose_and_flatten;
 use p3_uni_stark::StarkConfig;
@@ -228,6 +228,12 @@ impl Prover {
             })
             .collect::<Vec<_>>();
 
+        // Get the commulutative sums of the permutation traces.
+        let commulative_sums = permutation_traces
+            .par_iter()
+            .map(|trace| trace.row_slice(trace.height() - 1).last().copied().unwrap())
+            .collect::<Vec<_>>();
+
         // Commit to the permutation traces.
         let flattened_permutation_traces = permutation_traces
             .par_iter()
@@ -235,7 +241,7 @@ impl Prover {
             .collect::<Vec<_>>();
         let (permutation_commit, permutation_data) =
             config.pcs().commit_batches(flattened_permutation_traces);
-        challenger.observe(permutation_commit);
+        challenger.observe(permutation_commit.clone());
 
         // For each chip, compute the quotient polynomial.
         let main_ldes = config.pcs().get_ldes(&main_data.main_data);
@@ -281,7 +287,7 @@ impl Prover {
             .commit_shifted_batches(quotient_chunks, coset_shift);
 
         // Observe the quotient commitments.
-        challenger.observe(quotient_commit);
+        challenger.observe(quotient_commit.clone());
 
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
@@ -297,7 +303,7 @@ impl Prover {
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
-        let (openings, opening_proof) = config.pcs().open_multi_batches(
+        let (openings, openning_proof) = config.pcs().open_multi_batches(
             &[
                 (&main_data.main_data, &trace_openning_points),
                 (&permutation_data, &trace_openning_points),
@@ -337,6 +343,46 @@ impl Prover {
             assert_eq!(opening.len(), 1);
             assert_eq!(opening[0].len(), width);
         }
+
+        // Collect the opened values for each chip.
+        let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
+
+        let main_opened_values = main_values
+            .into_iter()
+            .map(|op| {
+                let [local, next] = op.try_into().unwrap();
+                AirOpenedValues { local, next }
+            })
+            .collect::<Vec<_>>();
+        let permutation_opened_values = permutation_values
+            .into_iter()
+            .map(|op| {
+                let [local, next] = op.try_into().unwrap();
+                AirOpenedValues { local, next }
+            })
+            .collect::<Vec<_>>();
+        let quotient_opened_values = quotient_values
+            .into_iter()
+            .map(|mut op| op.pop().unwrap())
+            .collect::<Vec<_>>();
+
+        let opened_values = SegmentOpenedValues {
+            main: main_opened_values,
+            permutation: permutation_opened_values,
+            quotient: quotient_opened_values,
+        };
+
+        let proof = SegmentProof::<SC> {
+            commitment: SegmentCommitment {
+                main_commit: main_data.main_commit.clone(),
+                permutation_commit,
+                quotient_commit,
+            },
+            opened_values,
+            commulative_sums,
+            openning_proof,
+            degree_bits: log_degrees,
+        };
 
         // Check that the table-specific constraints are correct for each chip.
         for i in 0..chips.len() {
