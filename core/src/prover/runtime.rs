@@ -4,7 +4,7 @@ use crate::bytes::ByteChip;
 use crate::memory::MemoryGlobalChip;
 use crate::prover::debug_constraints;
 
-use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
@@ -96,8 +96,8 @@ impl Prover {
         let bitwise = BitwiseChip::new();
         let mul = MulChip::new();
         let divrem = DivRemChip::new();
-        let shift_right = RightShiftChip::new();
-        let shift_left = LeftShiftChip::new();
+        let shift_right = ShiftRightChip::new();
+        let shift_left = ShiftLeft::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
         let sha_extend = ShaExtendChip::new();
@@ -418,14 +418,17 @@ pub mod tests {
     }
 
     #[test]
-    fn test_sll_prove() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-            Instruction::new(Opcode::SLL, 31, 30, 29, false, false),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        prove(program);
+    fn test_shift_prove() {
+        let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
+        for shift_op in shift_ops.iter() {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(*shift_op, 31, 29, 3, false, false),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            prove(program);
+        }
     }
 
     #[test]
