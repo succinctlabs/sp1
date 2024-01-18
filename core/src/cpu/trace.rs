@@ -151,11 +151,6 @@ impl CpuChip {
                 FieldEvent::new(true, prev_comparison_value, current_comparison_value);
 
             new_field_events.push(field_event);
-
-            println!(
-                "populate_access: {:?}, clk: {:?}, segment: {:?}, record: {:?}",
-                cols, clk, segment, record
-            );
         }
     }
 

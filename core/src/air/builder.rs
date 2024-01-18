@@ -131,9 +131,8 @@ pub trait FieldAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a field operation to be processed.
-    fn receive_field_op<EOp, Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
+    fn receive_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
     where
-        EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,

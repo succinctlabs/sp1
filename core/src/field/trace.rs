@@ -71,8 +71,6 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                 cols.c_word = event.c.into();
 
                 cols.is_real = F::one();
-
-                println!("field trace cols: {:?}", cols);
                 row
             })
             .collect::<Vec<_>>();

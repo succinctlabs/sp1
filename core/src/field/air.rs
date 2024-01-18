@@ -8,7 +8,7 @@ use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
-use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
+use crate::air::{CurtaAirBuilder, FieldAirBuilder, Word, WORD_SIZE};
 use crate::bytes::ByteOpcode;
 
 use super::FieldChip;
@@ -113,5 +113,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
             local.c_byte,
             local.is_real,
         );
+
+        builder.receive_field_op(local.lt, local.b, local.c, local.is_real);
     }
 }
