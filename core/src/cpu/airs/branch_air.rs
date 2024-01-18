@@ -78,6 +78,8 @@ impl CpuChip {
         builder
             .when(is_branch_instruction.clone())
             .when_not(local.branching)
+            .when_transition()
+            .when(next.is_real)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         //// Check that the branching value is correct
