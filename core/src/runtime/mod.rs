@@ -729,11 +729,6 @@ impl Runtime {
             < (self.program.instructions.len() * 4) as u32
         {
             // Fetch the instruction at the current program counter.
-            if self.global_clk / 4 > 4719 {
-                break;
-            }
-            // 4718 ok
-            // 4720 bad
             let instruction = self.fetch();
 
             let width = 12;
