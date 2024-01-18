@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "cli", "zkvm"]
+members = ["core", "cli", "zkvm", "examples/*"]
 resolver = "2"
 
 [profile.release]
@@ -9,22 +9,22 @@ opt-level = 3
 opt-level = 3
 
 [workspace.dependencies]
-p3-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-field = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-commit = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-util = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
+p3-air = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-field = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-commit = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-util = { git = "https://github.com/succinctlabs/plonky3.git" }
 valida-derive = { git = "https://github.com/valida-xyz/valida.git" }
 
-p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-dft = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-fri = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-ldt = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-mds = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
-p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/dev" }
+p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-dft = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-fri = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-ldt = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-mds = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }

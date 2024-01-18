@@ -1,5 +1,3 @@
-use std::iter::repeat;
-
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
@@ -262,90 +260,78 @@ impl Prover {
             })
             .collect::<Vec<_>>();
 
+        // Check the shapes of the quotient chunks.
         for (i, mat) in quotient_chunks.iter().enumerate() {
-            assert_eq!(mat.width(), 1 << (2 + log_quotient_degree));
+            assert_eq!(mat.width(), EF::D << log_quotient_degree);
             assert_eq!(mat.height(), traces[i].height());
         }
 
-        // Commit to the quotient chunks.
-        let (quotient_commit, quotient_commit_data): (Vec<_>, Vec<_>) = (0..chips.len())
-            .map(|i| {
-                config.pcs().commit_shifted_batch(
-                    quotient_chunks[i].clone(),
-                    config
-                        .pcs()
-                        .coset_shift()
-                        .exp_power_of_2(log_quotient_degree),
-                )
-            })
-            .into_iter()
-            .unzip();
+        let num_quotient_chunks = quotient_chunks.len();
+        let coset_shift = config
+            .pcs()
+            .coset_shift()
+            .exp_power_of_2(log_quotient_degree);
+        let (quotient_commit, quotient_data) = config
+            .pcs()
+            .commit_shifted_batches(quotient_chunks, coset_shift);
 
         // Observe the quotient commitments.
-        for commit in quotient_commit {
-            challenger.observe(commit);
-        }
+        challenger.observe(quotient_commit);
 
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
         let g_subgroup = g_subgroups[0];
 
-        let openning_points = g_subgroups
+        let trace_openning_points = g_subgroups
             .iter()
             .map(|g| vec![zeta, zeta * *g])
             .collect::<Vec<_>>();
 
+        let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
+        let quotient_openning_points = (0..num_quotient_chunks)
+            .map(|_| vec![zeta_quot_pow])
+            .collect::<Vec<_>>();
+
         let (openings, opening_proof) = config.pcs().open_multi_batches(
             &[
-                (&main_data.main_data, &openning_points),
-                (&permutation_data, &openning_points),
+                (&main_data.main_data, &trace_openning_points),
+                (&permutation_data, &trace_openning_points),
+                (&quotient_data, &quotient_openning_points),
             ],
             challenger,
         );
 
-        assert_eq!(openings.len(), 2);
-
         // Checking the shapes of opennings match our expectations.
-        for (chip, trace) in chips.iter().zip(traces.iter()) {
-            let width = chip.air_width();
-            assert_eq!(trace.width(), width);
-        }
+        //
+        // This is a sanity check to make sure we are using the API correctly. We should remove this
+        // once everything is stable.
 
+        // Check for the correct number of openning collections.
+        assert_eq!(openings.len(), 3);
+
+        // Check the shape of the main trace opennings.
+        assert_eq!(openings[0].len(), chips.len());
         for (chip, opening) in chips.iter().zip(openings[0].iter()) {
             let width = chip.air_width();
+            assert_eq!(opening.len(), 2);
             assert_eq!(opening[0].len(), width);
             assert_eq!(opening[1].len(), width);
         }
+        // Check the shape of the permutation trace opennings.
+        assert_eq!(openings[1].len(), chips.len());
         for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
             let width = perm.width() * EF::D;
+            assert_eq!(opening.len(), 2);
             assert_eq!(opening[0].len(), width);
             assert_eq!(opening[1].len(), width);
         }
-
-        assert_eq!(openings[0].len(), chips.len());
-        assert_eq!(openings[1].len(), chips.len());
-
-        let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
-        // let (openings, opening_proofs): (Vec<_>, Vec<_>) = quotient_commit_data
-        //     .iter()
-        //     .map(|data| {
-        //         config
-        //             .pcs()
-        //             .open_multi_batches(&[(data, &[vec![zeta_quot_pow]])], challenger)
-        //     })
-        //     .into_iter()
-        //     .unzip();
-
-        // assert_eq!(openings[0][0][2].len(), main_cols);
-        // // Check that the table-specific constraints are correct for each chip.
-        // for i in 0..chips.len() {
-        //     debug_constraints(
-        //         &*chips[i],
-        //         &traces[i],
-        //         &permutation_traces[i],
-        //         &permutation_challenges,
-        //     );
-        // }
+        // Check the shape of the quotient opennings.
+        assert_eq!(openings[2].len(), num_quotient_chunks);
+        for opening in openings[2].iter() {
+            let width = EF::D << log_quotient_degree;
+            assert_eq!(opening.len(), 1);
+            assert_eq!(opening[0].len(), width);
+        }
 
         SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),
