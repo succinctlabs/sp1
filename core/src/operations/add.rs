@@ -64,18 +64,7 @@ impl<F: Field> AddOperation<F> {
 
             // Pass two bytes to range check at a time.
             for i in (0..bytes.len()).step_by(2) {
-                let byte_event = ByteLookupEvent {
-                    opcode: ByteOpcode::Range,
-                    a1: 0,
-                    a2: 0,
-                    b: bytes[i],
-                    c: bytes[i + 1],
-                };
-                segment
-                    .byte_lookups
-                    .entry(byte_event)
-                    .and_modify(|j| *j += 1)
-                    .or_insert(1);
+                segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
             }
         }
         expected
