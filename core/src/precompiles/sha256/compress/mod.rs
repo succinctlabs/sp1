@@ -1,6 +1,7 @@
 use p3_field::PrimeField;
 
-use crate::cpu::{air::MemoryAccessCols, MemoryRecord};
+use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::MemoryRecord;
 
 mod air;
 mod columns;

@@ -5,7 +5,7 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::cpu::air::MemoryAccessCols;
+use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::operations::Add5Operation;
 use crate::operations::AddOperation;
 use crate::operations::AndOperation;

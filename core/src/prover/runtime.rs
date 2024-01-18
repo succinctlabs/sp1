@@ -1,14 +1,15 @@
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
-use crate::cpu::trace::CpuChip;
 use crate::memory::MemoryGlobalChip;
+use crate::prover::debug_constraints;
 
 use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
+use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
-use crate::prover::debug_constraints;
+use crate::prover::debug_cumulative_sums;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
 use crate::runtime::Runtime;
@@ -24,7 +25,6 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
 use super::types::*;
-use crate::prover::debug_cumulative_sums;
 
 impl Runtime {
     /// Prove the program.
@@ -300,15 +300,15 @@ impl Prover {
             .into_iter()
             .unzip();
 
-        // // Check that the table-specific constraints are correct for each chip.
-        // for i in 0..chips.len() {
-        //     debug_constraints(
-        //         &*chips[i],
-        //         &traces[i],
-        //         &permutation_traces[i],
-        //         &permutation_challenges,
-        //     );
-        // }
+        // Check that the table-specific constraints are correct for each chip.
+        for i in 0..chips.len() {
+            debug_constraints(
+                &*chips[i],
+                &traces[i],
+                &permutation_traces[i],
+                &permutation_challenges,
+            );
+        }
 
         SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),
@@ -324,6 +324,7 @@ pub mod tests {
 
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
+    use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
@@ -462,6 +463,12 @@ pub mod tests {
             debug!("Logger already initialized")
         }
         let program = fibonacci_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_simple_memory_program_prove() {
+        let program = simple_memory_program();
         prove(program);
     }
 }
