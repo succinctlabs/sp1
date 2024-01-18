@@ -120,40 +120,6 @@ impl CpuChip {
         row
     }
 
-    fn populate_access<F: PrimeField>(
-        &self,
-        cols: &mut MemoryAccessCols<F>,
-        value: u32,
-        record: Option<MemoryRecord>,
-        clk: u32,
-        segment: u32,
-        new_field_events: &mut Vec<FieldEvent>,
-    ) {
-        cols.value = value.into();
-        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
-        if let Some(record) = record {
-            cols.prev_value = record.value.into();
-            cols.segment = F::from_canonical_u32(record.segment);
-            cols.timestamp = F::from_canonical_u32(record.timestamp);
-
-            let use_clk_comparison = record.segment == segment;
-            cols.use_clk_comparison = F::from_bool(use_clk_comparison);
-            let prev_comparison_value = if use_clk_comparison {
-                record.timestamp
-            } else {
-                record.segment
-            };
-            cols.prev_comparison_value = F::from_canonical_u32(prev_comparison_value);
-            let current_comparison_value = if use_clk_comparison { clk } else { segment };
-            cols.current_comparison_value = F::from_canonical_u32(current_comparison_value);
-
-            let field_event =
-                FieldEvent::new(true, prev_comparison_value, current_comparison_value);
-
-            new_field_events.push(field_event);
-        }
-    }
-
     fn populate_memory<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,

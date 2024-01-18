@@ -14,6 +14,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        const SEGMENT_NUM: u32 = 1;
+        let mut new_field_events = Vec::new();
         for i in 0..segment.sha_compress_events.len() {
             let mut event = segment.sha_compress_events[i].clone();
 
@@ -25,14 +27,22 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(event.clk + (j * 4) as u32);
+                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                let clk = event.clk + (j * 4) as u32;
+                cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
                 cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
 
-                self.populate_access(&mut cols.mem, event.h[j], event.h_read_records[j]);
+                self.populate_access(
+                    &mut cols.mem,
+                    event.h[j],
+                    event.h_read_records[j],
+                    clk,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
+                );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
 
                 cols.a = v[0];
@@ -74,11 +84,19 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(event.clk + (8 * 4 + j * 4) as u32);
+                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                let clk = event.clk + (8 * 4 + j * 4) as u32;
+                cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                self.populate_access(&mut cols.mem, event.w[j], event.w_i_read_records[j]);
+                self.populate_access(
+                    &mut cols.mem,
+                    event.w[j],
+                    event.w_i_read_records[j],
+                    clk,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
+                );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (j * 4) as u32);
 
                 let a = event.h[0];
@@ -154,8 +172,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(event.clk + 8 * 4 + 64 * 4 + (j * 4) as u32);
+                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                let clk = event.clk + (8 * 4 + 64 * 4 + (j * 4)) as u32;
+                cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
                 cols.i = F::from_canonical_usize(j);
@@ -165,6 +184,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                     &mut cols.mem,
                     og_h[j].wrapping_add(event.h[j]),
                     event.h_write_records[j],
+                    clk,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
                 );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
 
@@ -182,6 +204,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 rows.push(row);
             }
         }
+
+        segment.field_events.extend(new_field_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();

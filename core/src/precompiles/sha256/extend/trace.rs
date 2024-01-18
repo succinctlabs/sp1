@@ -11,6 +11,10 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        const SEGMENT_NUM: u32 = 1;
+        let mut new_field_events = Vec::new();
+        let i_start = 16;
+        let nb_cycles_per_extend = 20;
         for i in 0..segment.sha_extend_events.len() {
             let mut event = segment.sha_extend_events[i].clone();
             let w = &mut event.w;
@@ -19,29 +23,42 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
 
                 cols.populate_flags(j);
-                cols.segment = F::one();
+                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
                 cols.clk = F::from_canonical_u32(event.clk);
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
+                let i = 16 + (j % 48);
 
                 self.populate_access(
                     &mut cols.w_i_minus_15,
                     w[16 + j - 15],
                     event.w_i_minus_15_reads[j],
+                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_2,
                     w[16 + j - 2],
                     event.w_i_minus_2_reads[j],
+                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 4,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_16,
                     w[16 + j - 16],
                     event.w_i_minus_16_reads[j],
+                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 8,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
                 );
                 self.populate_access(
                     &mut cols.w_i_minus_7,
                     w[16 + j - 7],
                     event.w_i_minus_7_reads[j],
+                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 12,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
                 );
 
                 // Compute `s0`.
@@ -70,12 +87,21 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
                 // Write `s2` to `w[i]`.
                 w[16 + j] = s2;
-                self.populate_access(&mut cols.w_i, w[16 + j], event.w_i_writes[j]);
+                self.populate_access(
+                    &mut cols.w_i,
+                    w[16 + j],
+                    event.w_i_writes[j],
+                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 16,
+                    SEGMENT_NUM,
+                    &mut new_field_events,
+                );
 
                 cols.is_real = F::one();
                 rows.push(row);
             }
         }
+
+        segment.field_events.extend(new_field_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
