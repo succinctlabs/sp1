@@ -8,7 +8,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::cols::cpu_cols::{CpuCols, MemoryColumns};
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
-use crate::runtime::{Opcode, Segment};
+use crate::runtime::{AccessPosition, Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -74,7 +74,7 @@ impl CpuChip {
             &mut cols.op_a_access,
             event.a,
             event.a_record,
-            event.clk,
+            event.clk + AccessPosition::A as u32,
             event.segment,
             new_field_events,
         );
@@ -82,7 +82,7 @@ impl CpuChip {
             &mut cols.op_b_access,
             event.b,
             event.b_record,
-            event.clk,
+            event.clk + AccessPosition::B as u32,
             event.segment,
             new_field_events,
         );
@@ -90,7 +90,7 @@ impl CpuChip {
             &mut cols.op_c_access,
             event.c,
             event.c_record,
-            event.clk,
+            event.clk + AccessPosition::C as u32,
             event.segment,
             new_field_events,
         );
@@ -105,7 +105,7 @@ impl CpuChip {
                 &mut memory_columns.memory_access,
                 memory,
                 event.memory_record,
-                event.clk,
+                event.clk + AccessPosition::Memory as u32,
                 event.segment,
                 new_field_events,
             )
@@ -138,18 +138,24 @@ impl CpuChip {
 
             let use_clk_comparison = record.segment == segment;
             cols.use_clk_comparison = F::from_bool(use_clk_comparison);
+            let prev_comparison_value = if use_clk_comparison {
+                record.timestamp
+            } else {
+                record.segment
+            };
+            cols.prev_comparison_value = F::from_canonical_u32(prev_comparison_value);
+            let current_comparison_value = if use_clk_comparison { clk } else { segment };
+            cols.current_comparison_value = F::from_canonical_u32(current_comparison_value);
 
-            let field_event = FieldEvent::new(
-                true,
-                if use_clk_comparison {
-                    record.timestamp
-                } else {
-                    record.segment
-                },
-                if use_clk_comparison { clk } else { segment },
-            );
+            let field_event =
+                FieldEvent::new(true, prev_comparison_value, current_comparison_value);
 
             new_field_events.push(field_event);
+
+            println!(
+                "populate_access: {:?}, clk: {:?}, segment: {:?}, record: {:?}",
+                cols, clk, segment, record
+            );
         }
     }
 

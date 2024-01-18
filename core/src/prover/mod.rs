@@ -1,3 +1,5 @@
+use std::mem::{transmute, transmute_copy};
+
 use itertools::izip;
 use p3_air::{
     Air, AirBuilder, BaseAir, PairBuilder, PermutationAirBuilder, TwoRowMatrixView, VirtualPairCol,
@@ -21,7 +23,10 @@ pub use debug::*;
 #[cfg(test)]
 pub use runtime::tests;
 
-use crate::utils::Chip;
+use crate::{
+    cpu::cols::cpu_cols::{CpuCols, NUM_CPU_COLS},
+    utils::Chip,
+};
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
@@ -331,6 +336,13 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
             builder.is_transition = F::zero();
         }
 
+        if main_local.len() == NUM_CPU_COLS {
+            let mut array_copy: [F; NUM_CPU_COLS] = [F::zero(); NUM_CPU_COLS];
+            array_copy.copy_from_slice(main_local);
+            let local_cpu_columns =
+                unsafe { transmute_copy::<[F; NUM_CPU_COLS], CpuCols<F>>(&array_copy) };
+            println!("main_local: {:?}", local_cpu_columns);
+        }
         air.eval(&mut builder);
         eval_permutation_constraints(air, &mut builder, cumulative_sum);
     });

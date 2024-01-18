@@ -62,6 +62,8 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                     cols.c_byte = F::zero();
                 }
 
+                cols.differing_byte = differing_byte;
+
                 cols.lt = F::from_bool(event.ltu);
                 cols.b = F::from_canonical_u32(event.b);
                 cols.b_word = event.b.into();
@@ -69,6 +71,8 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                 cols.c_word = event.c.into();
 
                 cols.is_real = F::one();
+
+                println!("field trace cols: {:?}", cols);
                 row
             })
             .collect::<Vec<_>>();
