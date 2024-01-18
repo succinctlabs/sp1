@@ -8,6 +8,7 @@ use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
+use crate::prover::debug_constraints;
 use crate::prover::debug_cumulative_sums;
 use crate::prover::generate_permutation_trace;
 use crate::prover::quotient_values;
@@ -331,6 +332,16 @@ impl Prover {
             let width = EF::D << log_quotient_degree;
             assert_eq!(opening.len(), 1);
             assert_eq!(opening[0].len(), width);
+        }
+
+        // Check that the table-specific constraints are correct for each chip.
+        for i in 0..chips.len() {
+            debug_constraints(
+                &*chips[i],
+                &traces[i],
+                &permutation_traces[i],
+                &permutation_challenges,
+            );
         }
 
         SegmentDebugProof {

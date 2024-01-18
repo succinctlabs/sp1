@@ -44,6 +44,7 @@ pub struct SegmentOpenedValues<T> {
 pub struct SegmentProof<SC: StarkConfig> {
     pub commitment: SegmentCommitment<Com<SC>>,
     pub opened_values: SegmentOpenedValues<Val<SC>>,
+    pub commulative_sums: Vec<SC::Challenge>,
     pub openning_proof: OpenningProof<SC>,
     pub degree_bits: Vec<usize>,
 }
