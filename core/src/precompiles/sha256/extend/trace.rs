@@ -97,4 +97,8 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "ShaExtend".to_string()
+    }
 }

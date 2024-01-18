@@ -91,6 +91,10 @@ impl<F: PrimeField> Chip<F> for SubChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "Sub".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for SubChip {
