@@ -125,7 +125,6 @@ where
             local.maj,
         );
 
-        // This seems correct.
         AddOperation::<AB::F>::eval(
             builder,
             local.s0.value,
@@ -134,7 +133,6 @@ where
             local.is_compression,
         );
 
-        // This seems incorrect.
         AddOperation::<AB::F>::eval(
             builder,
             local.d,
@@ -143,7 +141,6 @@ where
             local.is_compression,
         );
 
-        // This seems correct also.
         AddOperation::<AB::F>::eval(
             builder,
             local.temp1.value,
