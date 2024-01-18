@@ -174,7 +174,7 @@ impl CpuChip {
         opcode_selectors.is_add
             + opcode_selectors.is_sub
             + opcode_selectors.is_mul
-            + opcode_selectors.is_divrem
+            + opcode_selectors.is_div
             + opcode_selectors.is_shift
             + opcode_selectors.is_bitwise
             + opcode_selectors.is_lt
