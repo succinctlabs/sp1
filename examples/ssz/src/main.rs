@@ -1,6 +1,7 @@
 #![no_main]
 
 use hex_literal::hex;
+use sha2::{Digest, Sha256};
 use ssz_rs::prelude::*;
 use std::hint::black_box;
 use std::str::FromStr;
@@ -21,19 +22,18 @@ fn main() {
     //   -> validators root -> validators
     //   -> historical summaries far slot proofs -> historical block root
     //     -> withdrawals root -> withdrawals
-    // for _ in 0..3 {
-    //     historical_far_slot_proof();
-    //     historical_far_slot_blockroot_proof();
-    //     withdrawals_root_proof();
-    //     for _ in 0..16 {
-    //         withdrawal_proof();
-    //     }
-    // }
+    for _ in 0..3 {
+        historical_far_slot_proof();
+        historical_far_slot_blockroot_proof();
+        withdrawals_root_proof();
+        for _ in 0..16 {
+            withdrawal_proof();
+        }
+    }
     validators_root_proof();
-    // for _ in 0..1 {
-    //     validator_proof();
-    // }
-    // println!("hi");
+    for _ in 0..1 {
+        validator_proof();
+    }
 }
 
 fn branch_from_bytes(s: Vec<[u8; 32]>) -> Vec<Node> {
