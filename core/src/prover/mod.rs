@@ -1,3 +1,9 @@
+use std::mem::transmute_copy;
+
+use crate::precompiles::sha256::{
+    columns::ShaCompressCols, compress::columns::NUM_SHA_COMPRESS_COLS,
+};
+
 use itertools::izip;
 use p3_air::{
     Air, AirBuilder, BaseAir, PairBuilder, PermutationAirBuilder, TwoRowMatrixView, VirtualPairCol,
@@ -21,7 +27,10 @@ pub use debug::*;
 #[cfg(test)]
 pub use runtime::tests;
 
-use crate::utils::Chip;
+use crate::{
+    cpu::cols::cpu_cols::{CpuCols, NUM_CPU_COLS},
+    utils::Chip,
+};
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
@@ -329,6 +338,81 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
         if i == height - 1 {
             builder.is_last_row = F::one();
             builder.is_transition = F::zero();
+        }
+
+        if main_local.len() == NUM_CPU_COLS {
+            let mut array_copy = [F::zero(); NUM_CPU_COLS];
+            array_copy.copy_from_slice(main_local);
+            let main_local_cpucol =
+                unsafe { transmute_copy::<[F; NUM_CPU_COLS], CpuCols<F>>(&array_copy) };
+
+            // println!("main_local_cpucol: {:#?}", main_local_cpucol);
+
+            let mut array_copy = [F::zero(); NUM_CPU_COLS];
+            array_copy.copy_from_slice(main_next);
+            let main_next_cpucol =
+                unsafe { transmute_copy::<[F; NUM_CPU_COLS], CpuCols<F>>(&array_copy) };
+
+            // println!("main_next_cpucol: {:#?}", main_next_cpucol);
+        }
+
+        if main_local.len() == NUM_SHA_COMPRESS_COLS {
+            let mut array_copy = [F::zero(); NUM_SHA_COMPRESS_COLS];
+            array_copy.copy_from_slice(main_local);
+            let main_local_sha_col = unsafe {
+                transmute_copy::<[F; NUM_SHA_COMPRESS_COLS], ShaCompressCols<F>>(&array_copy)
+            };
+
+            // println!("main_local_shacol: {:#?}", main_local_sha_col);
+
+            //println!("===================");
+            println!(
+                "output: d + temp1 = d_add_temp1 => {:?} + {:?} = {:?}",
+                main_local_sha_col.d, main_local_sha_col.temp1, main_local_sha_col.d_add_temp1
+            );
+            // let mut d = F::zero();
+            // for i in 0..main_local_sha_col.d.0.len() {
+            //     d += main_local_sha_col.d[i] * F::from_canonical_u32(1 << (8 * i));
+            // }
+            // let mut temp1 = F::zero();
+            // for i in 0..main_local_sha_col.temp1.value.0.len() {
+            //     temp1 += main_local_sha_col.temp1.value.0[i] * F::from_canonical_u32(1 << (8 * i));
+            // }
+            // let mut temp2 = F::zero();
+            // for i in 0..main_local_sha_col.temp2.value.0.len() {
+            //     temp2 += main_local_sha_col.temp2.value.0[i] * F::from_canonical_u32(1 << (8 * i));
+            // }
+            // let mut temp1_add_temp2 = F::zero();
+            // for i in 0..main_local_sha_col.temp1_add_temp2.value.0.len() {
+            //     temp1_add_temp2 += main_local_sha_col.temp1_add_temp2.value.0[i]
+            //         * F::from_canonical_u32(1 << (8 * i));
+            // }
+            // if temp1 + temp2 != temp1_add_temp2
+            //     && temp1 + temp2 + F::from_canonical_u64(1u64 << 32) != temp1_add_temp2
+            // {
+            //     println!(
+            //         "temp1: {:#?}, temp2: {:#?}, temp1_add_temp2: {:#?}",
+            //         main_local_sha_col.temp1,
+            //         main_local_sha_col.temp2,
+            //         main_local_sha_col.temp1_add_temp2
+            //     );
+            // } else {
+            //     println!("good");
+            // }
+            // println!("main_local_sha_col.temp2: {:#?}", main_local_sha_col.temp2);
+            // println!(
+            //     "main_local_sha_col.temp1_add_temp2: {:#?}",
+            //     main_local_sha_col.temp1_add_temp2
+            // );
+            // println!("===================");
+
+            let mut array_copy = [F::zero(); NUM_SHA_COMPRESS_COLS];
+            array_copy.copy_from_slice(main_next);
+            let main_next_sha_col = unsafe {
+                transmute_copy::<[F; NUM_SHA_COMPRESS_COLS], ShaCompressCols<F>>(&array_copy)
+            };
+
+            // println!("main_next_shacol: {:#?}", main_next_sha_col);
         }
 
         air.eval(&mut builder);

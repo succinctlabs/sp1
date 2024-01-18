@@ -125,8 +125,13 @@ where
             local.maj,
         );
 
+        // This seems correct.
         AddOperation::<AB::F>::eval(builder, local.s0.value, local.maj.value, local.temp2);
+
+        // This seems incorrect.
         AddOperation::<AB::F>::eval(builder, local.d, local.temp1.value, local.d_add_temp1);
+
+        // This seems correct also.
         AddOperation::<AB::F>::eval(
             builder,
             local.temp1.value,

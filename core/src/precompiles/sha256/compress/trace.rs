@@ -128,16 +128,23 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let temp2 = cols.temp2.populate(s0, maj);
 
                 let d_add_temp1 = cols.d_add_temp1.populate(d, temp1);
+                println!(
+                    "input: d + temp1 = d_add_temp1 => {:?} + {:?} = {:?}",
+                    d.to_le_bytes(),
+                    temp1.to_le_bytes(),
+                    cols.d_add_temp1.value.0
+                );
+
                 let temp1_add_temp2 = cols.temp1_add_temp2.populate(temp1, temp2);
 
                 event.h[7] = g;
                 event.h[6] = f;
                 event.h[5] = e;
-                event.h[4] = d_add_temp1;
+                event.h[4] = d_add_temp1.clone();
                 event.h[3] = c;
                 event.h[2] = b;
                 event.h[1] = a;
-                event.h[0] = temp1_add_temp2;
+                event.h[0] = temp1_add_temp2.clone();
 
                 cols.is_compression = F::one();
                 rows.push(row);
