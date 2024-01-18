@@ -19,6 +19,7 @@ pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
 #[derive(AlignedBorrow, Default)]
 #[repr(C)]
 pub struct AddCols<T> {
+    /// Instance of `AddOperation` to handle addition logic in `AddChip`'s ALU operations.
     pub add_operation: AddOperation<T>,
 
     /// The first input operand.
