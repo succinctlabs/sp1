@@ -125,13 +125,28 @@ where
             local.maj,
         );
 
-        AddOperation::<AB::F>::eval(builder, local.s0.value, local.maj.value, local.temp2);
-        AddOperation::<AB::F>::eval(builder, local.d, local.temp1.value, local.d_add_temp1);
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.s0.value,
+            local.maj.value,
+            local.temp2,
+            local.is_compression,
+        );
+
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.d,
+            local.temp1.value,
+            local.d_add_temp1,
+            local.is_compression,
+        );
+
         AddOperation::<AB::F>::eval(
             builder,
             local.temp1.value,
             local.temp2.value,
             local.temp1_add_temp2,
+            local.is_compression,
         );
     }
 }
