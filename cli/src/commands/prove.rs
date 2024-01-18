@@ -40,7 +40,6 @@ impl ProveCmd {
             build_target = target.clone();
         }
         cmd.arg("--release");
-        cmd.arg("-Aunknown-lints");
 
         let rust_flags = [
             "-C",
