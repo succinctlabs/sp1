@@ -158,6 +158,10 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "Lt".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for LtChip {

@@ -158,6 +158,10 @@ impl<F: Field> Chip<F> for ByteChip<F> {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         self.generate_trace_from_events(&segment.byte_lookups)
     }
+
+    fn name(&self) -> String {
+        "Byte".to_string()
+    }
 }
 
 impl From<Opcode> for ByteOpcode {
