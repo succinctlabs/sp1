@@ -614,8 +614,6 @@ impl Runtime {
                             let write_buf = self.register(a1);
                             let nbytes = self.register(a2);
                             // Read nbytes from memory starting at write_buf.
-                            // num words is ceil(nbytes / 4)
-                            let num_words = (nbytes + 3) / 4;
                             let bytes = (0..nbytes)
                                 .map(|i| self.byte(write_buf + i))
                                 .collect::<Vec<u8>>();
