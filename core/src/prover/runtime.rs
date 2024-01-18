@@ -78,7 +78,7 @@ impl Runtime {
     }
 }
 
-struct Prover {}
+pub(crate) struct Prover {}
 
 pub const NUM_CHIPS: usize = 13;
 impl Prover {
@@ -323,6 +323,7 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use crate::lookup::debug_interactions_with_all_chips;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -397,6 +398,11 @@ pub mod tests {
         runtime.write_witness(&[1, 2]);
         runtime.run();
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+
+        debug_interactions_with_all_chips(
+            &mut runtime.segment,
+            crate::lookup::InteractionKind::Alu,
+        );
     }
 
     #[test]

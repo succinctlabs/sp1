@@ -1,18 +1,26 @@
-use crate::alu::divrem::DivRemChip;
-use crate::alu::mul::MulChip;
-use crate::alu::{AddChip, BitwiseChip, LeftShiftChip, LtChip, RightShiftChip, SubChip};
-use crate::bytes::ByteChip;
-use crate::cpu::CpuChip;
-use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::program::ProgramChip;
-use crate::prover::runtime::NUM_CHIPS;
-use crate::utils::{AirChip, Chip};
+use crate::prover::runtime::Prover;
+
+use crate::utils::Chip;
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
+use p3_challenger::DuplexChallenger;
+use p3_commit::ExtensionMmcs;
+use p3_dft::Radix2DitParallel;
+use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_fri::{FriBasedPcs, FriConfigImpl};
+use p3_keccak::Keccak256Hash;
+use p3_ldt::QuotientMmcs;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use p3_mds::coset_mds::CosetMds;
+use p3_merkle_tree::FieldMerkleTreeMmcs;
+use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+use p3_uni_stark::StarkConfigImpl;
+
+use std::any;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 mod builder;
@@ -96,76 +104,50 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
-pub fn debug_interactions_with_all_chips<F: Field>(
+pub fn debug_interactions_with_all_chips(
     mut segment: &mut Segment,
     interaction_kind: InteractionKind,
 ) -> bool {
-    let cpu_chip = CpuChip::new();
-    let (_, cpu_count) =
-        debug_interactions::<BabyBear, _>(cpu_chip, &mut segment, interaction_kind);
-    let program_chip = ProgramChip::new();
-    let (_, program_count) =
-        debug_interactions::<BabyBear, _>(program_chip, &mut segment, interaction_kind);
-    let add_chip = AddChip::new();
-    let (_, add_count) =
-        debug_interactions::<BabyBear, _>(add_chip, &mut segment, interaction_kind);
-    let sub_chip = SubChip::new();
-    let (_, sub_count) =
-        debug_interactions::<BabyBear, _>(sub_chip, &mut segment, interaction_kind);
-    let bitwise_chip = BitwiseChip::new();
-    let (_, bitwise_count) =
-        debug_interactions::<BabyBear, _>(bitwise_chip, &mut segment, interaction_kind);
-    let divrem_chip = DivRemChip::new();
-    let (_, divrem_count) =
-        debug_interactions::<BabyBear, _>(divrem_chip, &mut segment, interaction_kind);
-    let mul_chip = MulChip::new();
-    let (_, mul_count) =
-        debug_interactions::<BabyBear, _>(mul_chip, &mut segment, interaction_kind);
-    let shift_right_chip = RightShiftChip::new();
-    let (_, shift_right_count) =
-        debug_interactions::<BabyBear, _>(shift_right_chip, &mut segment, interaction_kind);
-    let shift_left_chip = LeftShiftChip::new();
-    let (_, shift_left_count) =
-        debug_interactions::<BabyBear, _>(shift_left_chip, &mut segment, interaction_kind);
-    let lt_chip = LtChip::new();
-    let (_, lt_count) = debug_interactions::<BabyBear, _>(lt_chip, &mut segment, interaction_kind);
-    let byte_chip = ByteChip::new();
-    let (_, byte_count) =
-        debug_interactions::<BabyBear, _>(byte_chip, &mut segment, interaction_kind);
-    let sha_extend_chip = ShaExtendChip::new();
-    let (_, sha_extend_count) =
-        debug_interactions::<BabyBear, _>(sha_extend_chip, &mut segment, interaction_kind);
-    let sha_compress_chip = ShaCompressChip::new();
-    let (_, sha_compress_count) =
-        debug_interactions::<BabyBear, _>(sha_compress_chip, &mut segment, interaction_kind);
-    let counts: [(BTreeMap<String, BabyBear>, &str); NUM_CHIPS] = [
-        (program_count, "program"),
-        (cpu_count, "cpu"),
-        (add_count, "add"),
-        (sub_count, "sub"),
-        (bitwise_count, "bitwise"),
-        (mul_count, "mul"),
-        (divrem_count, "divrem"),
-        (shift_right_count, "shift_right"),
-        (shift_left_count, "shift_left"),
-        (lt_count, "lt"),
-        (byte_count, "byte"),
-        (sha_extend_count, "sha_extend"),
-        (sha_compress_count, "sha_compress"),
-    ];
+    // Boilerplate code to set up the chips.
+    type Val = BabyBear;
+    type Domain = Val;
+    type Challenge = BinomialExtensionField<Val, 4>;
+    type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    type MyMds = CosetMds<Val, 16>;
+    type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+    type MyHash = SerializingHasher32<Keccak256Hash>;
+    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+    type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+    type Dft = Radix2DitParallel;
+    type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+    type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+    type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+    type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
 
+    // Here, we collect all the chips.
+    let segment_chips = Prover::segment_chips::<Val, Challenge, MyConfig>();
+    let global_chips = Prover::global_chips::<Val, Challenge, MyConfig>();
+
+    let all_chips = segment_chips.iter().chain(global_chips.iter());
+
+    let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
     let mut final_map = BTreeMap::new();
 
-    for (key, value) in counts.iter().flat_map(|map| map.0.iter()) {
-        *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+    for chip in all_chips {
+        let (_, count) =
+            debug_interactions::<BabyBear>(chip.as_ref(), &mut segment, interaction_kind);
+
+        counts.push((count.clone(), chip.name()));
+        println!("{} chip has {} distinct events", chip.name(), count.len());
+        for (key, value) in count.iter() {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
     }
 
-    for count in counts.iter() {
-        println!("{} chip has {} events", count.1, count.0.len());
-    }
-
-    println!("Final counts below. Positive => sent more than received, negative => opposite.");
-    println!("=========");
+    println!("Final counts below.");
+    println!("==================");
 
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
@@ -179,12 +161,20 @@ pub fn debug_interactions_with_all_chips<F: Field>(
             }
         }
     }
-    println!("=========");
+
+    println!("==================");
+    if !any_nonzero {
+        println!("All chips have the same number of sends and receives.");
+    } else {
+        println!("Positive values mean sent more than received.");
+        println!("Negative values mean received more than sent.");
+    }
+
     !any_nonzero
 }
 
-pub fn debug_interactions<F: Field, C: Chip<F>>(
-    chip: C,
+pub fn debug_interactions<F: Field>(
+    chip: &dyn Chip<F>,
     segment: &mut Segment,
     interaction_kind: InteractionKind,
 ) -> (

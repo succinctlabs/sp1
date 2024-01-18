@@ -97,6 +97,10 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "Bitwise".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for BitwiseChip {

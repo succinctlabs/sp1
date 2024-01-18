@@ -374,6 +374,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "DivRem".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for DivRemChip {
