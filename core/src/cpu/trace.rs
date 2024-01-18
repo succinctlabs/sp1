@@ -343,7 +343,7 @@ impl CpuChip {
                 Opcode::BEQ => a_eq_b,
                 Opcode::BNE => !a_eq_b,
                 Opcode::BLT | Opcode::BLTU => a_lt_b,
-                Opcode::BGE | Opcode::BGEU => a_gt_b,
+                Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
                 _ => unreachable!(),
             };
 

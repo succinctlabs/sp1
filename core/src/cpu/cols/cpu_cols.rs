@@ -113,7 +113,8 @@ pub struct CpuCols<T> {
     // (Self::selectors::is_beq AND Self::BranchColumns::a_eq_b) ||
     // (Self::selectors::is_bne AND (Self::BranchColumns::a_lt_b || Self::BranchColumns::a_gt:b) ||
     // ((Self::selectors::is_blt || Self::selectors::is_bltu) AND Self::BranchColumns::a_lt_b) ||
-    // ((Self::selectors::is_bge || Self::selectors::is_bgeu) AND Self::BranchColumns::a_gt_b)
+    // ((Self::selectors::is_bge || Self::selectors::is_bgeu)
+    //  AND (Self::BranchColumns::a_eq_b || Self::BranchColumns::a_gt_b))
     pub branching: T,
 
     // mem_value_is_neg column is equal to
