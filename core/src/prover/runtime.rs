@@ -18,6 +18,7 @@ use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
+use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::*;
 use p3_uni_stark::decompose_and_flatten;
@@ -36,11 +37,13 @@ impl Runtime {
         EF: ExtensionField<F>,
         SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
         SC::Challenger: Clone,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
         let segment_chips = Prover::segment_chips::<F, EF, SC>();
         let segment_main_data = self
             .segments
-            .iter_mut()
+            .par_iter_mut()
             .map(|segment| Prover::commit_main(config, &segment_chips, segment))
             .collect::<Vec<_>>();
 
