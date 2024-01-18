@@ -27,15 +27,15 @@ pub struct FpOpCols<T> {
     /// The result of `a op b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_LIMBS], // TODO: this number will be macro-ed later
+    pub(crate) witness_low: [T; NUM_LIMBS],
     pub(crate) witness_high: [T; NUM_LIMBS],
 }
 
 impl<F: Field> FpOpCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
-        a: BigUint,
-        b: BigUint,
+        a: &BigUint,
+        b: &BigUint,
         op: FpOperation,
     ) -> BigUint {
         type PF = BabyBear;
@@ -43,11 +43,11 @@ impl<F: Field> FpOpCols<F> {
         let modulus = P::modulus();
         // If sub, a - b = result, equivalent to a = result + b.
         if op == FpOperation::Sub {
-            let result = (&a - &b) % &modulus;
+            let result = (a - b) % &modulus;
             // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
             // But we populate `result` with the actual result of the subtraction because those columns are expected
             // to contain the result by the user.
-            self.populate::<P>(result.clone(), b, FpOperation::Add);
+            self.populate::<P>(&result, b, FpOperation::Add);
             let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
             self.result = convert_polynomial(p_result);
             return result;
@@ -57,21 +57,15 @@ impl<F: Field> FpOpCols<F> {
         let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(&b).into();
 
         // Compute field addition in the integers.
-        let modulus = P::modulus();
+        let modulus = &P::modulus();
         let (result, carry) = match op {
-            FpOperation::Add => (
-                (&a + &b) % &modulus,
-                (&a + &b - (&a + &b) % &modulus) / &modulus,
-            ),
-            FpOperation::Mul => (
-                (&a * &b) % &modulus,
-                (&a * &b - (&a * &b) % &modulus) / &modulus,
-            ),
+            FpOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
+            FpOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
             FpOperation::Sub => unreachable!(),
         };
-        debug_assert!(result < modulus);
-        debug_assert!(carry < modulus);
-        debug_assert_eq!(&carry * &modulus, a + b - &result);
+        debug_assert!(&result < modulus);
+        debug_assert!(&carry < modulus);
+        debug_assert_eq!(&carry * modulus, a + b - &result);
 
         // Make little endian polynomial limbs.
         let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(&modulus).into();
@@ -138,12 +132,14 @@ impl<F: Field> FpOpCols<F> {
 
 #[cfg(test)]
 mod tests {
+    use num::{BigInt, BigUint, Zero};
     use p3_air::BaseAir;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
     use super::{FpOpCols, FpOperation, Limbs};
+    use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
         alu::AluEvent,
@@ -196,7 +192,29 @@ mod tests {
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpOpChip<P> {
         fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-            todo!();
+            // TODO: ignore segment for now since we're just hardcoding this test case.
+            let operands: Vec<(BigUint, BigUint)> = vec![];
+            let rows = operands
+                .iter()
+                .map(|(a, b)| {
+                    let mut row = [F::zero(); NUM_TEST_COLS];
+                    let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
+                    cols.a = P::to_limbs_field::<F>(a);
+                    cols.b = P::to_limbs_field::<F>(b);
+                    cols.a_op_b.populate::<P>(a, b, self.operation);
+                    row
+                })
+                .collect::<Vec<_>>();
+            // Convert the trace to a row major matrix.
+            let mut trace = RowMajorMatrix::new(
+                rows.into_iter().flatten().collect::<Vec<_>>(),
+                NUM_TEST_COLS,
+            );
+
+            // Pad the trace to a power of two.
+            pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
+
+            trace
         }
     }
 
@@ -213,19 +231,18 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-
-            // let a = local.a;
-            // let b = local[1];
-            // let a_op_b = local[2];
-
             FpOpCols::eval::<AB, P>(builder, &local.a_op_b, &local.a, &local.b, self.operation);
+
+            // A dummy constraint to keep the degree 3.
+            builder.assert_zero(
+                local.a[0] * local.b[0] * local.a[0] - local.a[0] * local.b[0] * local.a[0],
+            )
         }
     }
 
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
@@ -274,15 +291,6 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut segment = Segment::default();
-        for _i in 0..1000 {
-            let operand_1 = thread_rng().gen_range(0..u32::MAX);
-            let operand_2 = thread_rng().gen_range(0..u32::MAX);
-            let result = operand_1.wrapping_add(operand_2);
-
-            segment
-                .add_events
-                .push(AluEvent::new(0, Opcode::ADD, result, operand_1, operand_2));
-        }
 
         let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

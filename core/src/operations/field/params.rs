@@ -1,12 +1,12 @@
 use crate::air::polynomial::Polynomial;
+use num::{BigUint, One, Zero};
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
+use std::ops::{Index, IndexMut};
 use std::slice::Iter;
-
-use num::{BigUint, One, Zero};
 
 pub const MAX_NB_LIMBS: usize = 32;
 pub const LIMB: u32 = 2u32.pow(16);
@@ -79,6 +79,14 @@ impl FieldParameters for Ed25519BaseField {
 pub const NUM_LIMBS: usize = 32;
 #[derive(Default, Debug, Clone)]
 pub struct Limbs<T>(pub [T; NUM_LIMBS]);
+
+impl<T> Index<usize> for Limbs<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
 
 impl<Var: Into<Expr> + Clone, Expr: Clone> From<Limbs<Var>> for Polynomial<Expr> {
     fn from(value: Limbs<Var>) -> Self {
