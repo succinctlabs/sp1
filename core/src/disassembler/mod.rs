@@ -62,4 +62,11 @@ pub mod tests {
         let program = Program::from_elf("../programs/malloc");
         prove(program.clone());
     }
+
+    #[test]
+    fn test_sha2() {
+        env_logger::init();
+        let program = Program::from_elf("../programs/sha2");
+        prove(program.clone());
+    }
 }

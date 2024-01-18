@@ -77,11 +77,11 @@ impl ShaCompressChip {
             h = g;
             g = f;
             f = e;
-            e = d + temp1;
+            e = d.wrapping_add(temp1);
             d = c;
             c = b;
             b = a;
-            a = temp1 + temp2;
+            a = temp1.wrapping_add(temp2);
 
             rt.clk += 4;
         }
@@ -91,8 +91,8 @@ impl ShaCompressChip {
         for i in 0..8 {
             rt.mr(w_ptr + (H_START_IDX + i as u32) * 4, AccessPosition::Memory);
             rt.mw(
-                w_ptr + (H_START_IDX + i as u32) * 4,
-                hx[i] + v[i],
+                w_ptr.wrapping_add((H_START_IDX + i as u32) * 4),
+                hx[i].wrapping_add(v[i]),
                 AccessPosition::Memory,
             );
             h_write_records.push(rt.record.memory);
