@@ -125,9 +125,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let maj_intermediate = cols.maj_intermediate.populate(a_and_b, a_and_c);
                 let maj = cols.maj.populate(maj_intermediate, b_and_c);
 
-                let temp2 = cols.temp2.populate(s0, maj);
+                let temp2 = cols.temp2.populate(segment, s0, maj);
 
-                let d_add_temp1 = cols.d_add_temp1.populate(d, temp1);
+                let d_add_temp1 = cols.d_add_temp1.populate(segment, d, temp1);
                 println!(
                     "input: d + temp1 = d_add_temp1 => {:?} + {:?} = {:?}",
                     d.to_le_bytes(),
@@ -135,7 +135,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                     cols.d_add_temp1.value.0
                 );
 
-                let temp1_add_temp2 = cols.temp1_add_temp2.populate(temp1, temp2);
+                let temp1_add_temp2 = cols.temp1_add_temp2.populate(segment, temp1, temp2);
 
                 event.h[7] = g;
                 event.h[6] = f;

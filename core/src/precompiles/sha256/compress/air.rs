@@ -126,10 +126,22 @@ where
         );
 
         // This seems correct.
-        AddOperation::<AB::F>::eval(builder, local.s0.value, local.maj.value, local.temp2);
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.s0.value,
+            local.maj.value,
+            local.temp2,
+            local.is_compression,
+        );
 
         // This seems incorrect.
-        AddOperation::<AB::F>::eval(builder, local.d, local.temp1.value, local.d_add_temp1);
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.d,
+            local.temp1.value,
+            local.d_add_temp1,
+            local.is_compression,
+        );
 
         // This seems correct also.
         AddOperation::<AB::F>::eval(
@@ -137,6 +149,7 @@ where
             local.temp1.value,
             local.temp2.value,
             local.temp1_add_temp2,
+            local.is_compression,
         );
     }
 }

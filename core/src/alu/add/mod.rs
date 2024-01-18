@@ -44,21 +44,18 @@ impl AddChip {
 
 impl<F: PrimeField> Chip<F> for AddChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let rows = segment
-            .add_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_ADD_COLS];
-                let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
+        let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
+        let add_events = segment.add_events.clone();
+        for event in add_events.iter() {
+            let mut row = [F::zero(); NUM_ADD_COLS];
+            let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
 
-                cols.add_operation.populate(event.b, event.c);
-                cols.b = Word::from(event.b);
-                cols.c = Word::from(event.c);
-                cols.is_real = F::one();
-                row
-            })
-            .collect::<Vec<_>>();
+            cols.add_operation.populate(segment, event.b, event.c);
+            cols.b = Word::from(event.b);
+            cols.c = Word::from(event.c);
+            cols.is_real = F::one();
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -89,7 +86,13 @@ where
         let main = builder.main();
         let local: &AddCols<AB::Var> = main.row_slice(0).borrow();
 
-        AddOperation::<AB::F>::eval(builder, local.b, local.c, local.add_operation);
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.b,
+            local.c,
+            local.add_operation,
+            local.is_real,
+        );
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
