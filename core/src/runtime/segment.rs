@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use super::program::Program;
 use super::Opcode;
 use crate::alu::AluEvent;
-use crate::bytes::ByteLookupEvent;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::runtime::MemoryRecord;
@@ -64,6 +64,21 @@ impl Segment {
                 .and_modify(|i| *i += 1)
                 .or_insert(1);
         }
+    }
+
+    /// Adds a ByteLookupEvent to verify `a` and `b are indeed bytes to the segment.
+    pub fn add_byte_range_checks(&mut self, a: u8, b: u8) {
+        let byte_event = ByteLookupEvent {
+            opcode: ByteOpcode::Range,
+            a1: 0,
+            a2: 0,
+            b: a,
+            c: b,
+        };
+        self.byte_lookups
+            .entry(byte_event)
+            .and_modify(|j| *j += 1)
+            .or_insert(1);
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
