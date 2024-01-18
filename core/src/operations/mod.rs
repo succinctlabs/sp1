@@ -5,7 +5,7 @@
 //! the constraints.
 
 mod add4;
-mod field;
+pub mod field;
 mod fixed_rotate_right;
 mod fixed_shift_right;
 mod xor3;

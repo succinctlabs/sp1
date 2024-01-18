@@ -12,12 +12,19 @@ use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-/// A set of columns to compute `FpDen(a, b)` where a, b are field elements.
+#[derive(PartialEq, Copy, Clone)]
+pub enum FpOperation {
+    Add,
+    Mul,
+    Sub,
+}
+
+/// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpDenCols<T> {
+pub struct FpOpCols<T> {
     /// The result of `a op b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
@@ -25,53 +32,64 @@ pub struct FpDenCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: Field> FpDenCols<F> {
+impl<F: Field> FpOpCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
-        sign: bool,
+        op: FpOperation,
     ) -> BigUint {
         /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
         /// support that. This is a hack, since we always use BabyBear, to get around that, but
         /// all operations using "PF" should use "F" in the future.
         type PF = BabyBear;
 
-        let p = P::modulus();
-        let minus_b_int = &p - b;
-        let b_signed = if sign { b.clone() } else { minus_b_int };
-        let denominator = (b_signed + 1u32) % &(p.clone());
-        let den_inv = denominator.modpow(&(&p - 2u32), &p);
-        let result = (a * &den_inv) % &p;
-        debug_assert_eq!(&den_inv * &denominator % &p, BigUint::from(1u32));
-        debug_assert!(result < p);
+        let modulus = P::modulus();
 
-        let equation_lhs = if sign {
-            b * &result + &result
-        } else {
-            b * &result + a
+        // If doing the substraction operation, a - b = result, equivalent to a = result + b.
+        if op == FpOperation::Sub {
+            let result = (a - b) % &modulus;
+            // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
+            // But we populate `result` with the actual result of the subtraction because those columns are expected
+            // to contain the result by the user.
+            // Note that this reversal means we have to flip result, a correspondingly in
+            // the `eval` function.
+            self.populate::<P>(&result, b, FpOperation::Add);
+            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
+            self.result = convert_polynomial(p_result);
+            return result;
+        }
+
+        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(&a).into();
+        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(&b).into();
+
+        // Compute field addition in the integers.
+        let modulus = &P::modulus();
+        let (result, carry) = match op {
+            FpOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
+            FpOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
+            FpOperation::Sub => unreachable!(),
         };
-        let equation_rhs = if sign { a.clone() } else { result.clone() };
-        let carry = (&equation_lhs - &equation_rhs) / &p;
-        debug_assert!(carry < p);
-        debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
+        debug_assert!(&result < modulus);
+        debug_assert!(&carry < modulus);
+        debug_assert_eq!(&carry * modulus, a + b - &result);
 
-        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
-        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
-        let p_p: Polynomial<PF> = P::to_limbs_field::<PF>(&p).into();
+        // Make little endian polynomial limbs.
+        let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(&modulus).into();
         let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
         let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
 
         // Compute the vanishing polynomial.
-        let vanishing_poly = if sign {
-            &p_b * &p_result + &p_result - &p_a - &p_carry * &p_p
-        } else {
-            &p_b * &p_result + &p_a - &p_result - &p_carry * &p_p
+        let p_op = match op {
+            FpOperation::Add => &p_a + &p_b,
+            FpOperation::Mul => &p_a * &p_b,
+            FpOperation::Sub => unreachable!(),
         };
-        debug_assert_eq!(vanishing_poly.degree(), P::NB_WITNESS_LIMBS);
+        let p_vanishing: Polynomial<PF> = &p_op - &p_result - &p_carry * &p_modulus;
+        debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
         let p_witness = compute_root_quotient_and_shift(
-            &vanishing_poly,
+            &p_vanishing,
             P::WITNESS_OFFSET,
             P::NB_BITS_PER_LIMB as u32,
         );
@@ -82,44 +100,45 @@ impl<F: Field> FpDenCols<F> {
         self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
         self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
 
+        println!("result: {:?}", self.result);
+        println!("carry: {:?}", self.carry);
+        println!("witness_low: {:?}", self.witness_low);
+        println!("witness_high: {:?}", self.witness_high);
+
         result
     }
 }
 
-impl<V: Copy> FpDenCols<V> {
+impl<V: Copy> FpOpCols<V> {
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var>,
         b: &Limbs<AB::Var>,
-        sign: bool,
+        op: FpOperation,
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a = (*a).clone().into();
-        let p_b = (*b).clone().into();
-        let p_result = self.result.clone().into();
-        let p_carry = self.carry.clone().into();
-
-        // Compute the vanishing polynomial:
-        //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))
-        //      rhs(x) = sign * a(x) + (1 - sign) * result(x)
-        //      lhs(x) - rhs(x) - carry(x) * p(x)
-        let p_b_times_res = builder.poly_mul(&p_b, &p_result);
-        let p_equation_lhs = if sign {
-            builder.poly_add(&p_b_times_res, &p_result)
-        } else {
-            builder.poly_add(&p_b_times_res, &p_a)
+        let (p_a, p_result) = match op {
+            FpOperation::Add | FpOperation::Mul => {
+                ((*a).clone().into(), self.result.clone().into())
+            }
+            FpOperation::Sub => (self.result.clone().into(), (*a).clone().into()),
         };
-        let p_equation_rhs = if sign { p_a } else { p_result };
 
-        let p_lhs_minus_rhs = builder.poly_sub(&p_equation_lhs, &p_equation_rhs);
+        let p_b = (*b).clone().into();
+        let p_carry = self.carry.clone().into();
+        let p_op = match op {
+            FpOperation::Add | FpOperation::Sub => builder.poly_add(&p_a, &p_b),
+            FpOperation::Mul => builder.poly_mul(&p_a, &p_b),
+        };
+        let p_op_minus_result = builder.poly_sub(&p_op, &p_result);
         let p_limbs =
             builder.constant_poly(&Polynomial::from_iter(P::modulus_field_iter::<AB::F>()));
 
-        let mul_times_carry = builder.poly_mul(&p_carry, &p_limbs);
-        let p_vanishing = builder.poly_sub(&p_lhs_minus_rhs, &mul_times_carry);
+        let p_mul_times_carry = builder.poly_mul(&p_carry, &p_limbs);
+        let p_vanishing = builder.poly_sub(&p_op_minus_result, &p_mul_times_carry);
 
         let p_witness_low = self.witness_low.iter().into();
         let p_witness_high = self.witness_high.iter().into();
@@ -136,7 +155,7 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
-    use super::{FpDenCols, Limbs};
+    use super::{FpOpCols, FpOperation, Limbs};
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
@@ -167,26 +186,26 @@ mod tests {
     pub struct TestCols<T> {
         pub a: Limbs<T>,
         pub b: Limbs<T>,
-        pub a_den_b: FpDenCols<T>,
+        pub a_op_b: FpOpCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
-    struct FpDenChip<P: FieldParameters> {
-        pub sign: bool,
+    struct FpOpChip<P: FieldParameters> {
+        pub operation: FpOperation,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FpDenChip<P> {
-        pub fn new(sign: bool) -> Self {
+    impl<P: FieldParameters> FpOpChip<P> {
+        pub fn new(operation: FpOperation) -> Self {
             Self {
-                sign,
+                operation,
                 _phantom: std::marker::PhantomData,
             }
         }
     }
 
-    impl<F: Field, P: FieldParameters> Chip<F> for FpDenChip<P> {
+    impl<F: Field, P: FieldParameters> Chip<F> for FpOpChip<P> {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             // TODO: ignore segment for now since we're just hardcoding this test case.
             let operands: Vec<(BigUint, BigUint)> = vec![
@@ -202,7 +221,7 @@ mod tests {
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
                     cols.b = P::to_limbs_field::<F>(b);
-                    cols.a_den_b.populate::<P>(a, b, self.sign);
+                    cols.a_op_b.populate::<P>(a, b, self.operation);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -219,13 +238,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FpDenChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FpOpChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FpDenChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FpOpChip<P>
     where
         AB: CurtaAirBuilder,
     {
@@ -233,8 +252,8 @@ mod tests {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
             local
-                .a_den_b
-                .eval::<AB, P>(builder, &local.a, &local.b, self.sign);
+                .a_op_b
+                .eval::<AB, P>(builder, &local.a, &local.b, self.operation);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
@@ -246,7 +265,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
-        let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
+        let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -295,7 +314,7 @@ mod tests {
 
         let mut segment = Segment::default();
 
-        let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
+        let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 

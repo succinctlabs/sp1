@@ -12,7 +12,7 @@ pub const NUM_LIMBS: usize = 32;
 pub const NB_BITS_PER_LIMB: usize = 8;
 pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Limbs<T>(pub [T; NUM_LIMBS]);
 
 impl<T> Index<usize> for Limbs<T> {
@@ -21,6 +21,12 @@ impl<T> Index<usize> for Limbs<T> {
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct AffinePoint<T> {
+    pub x: Limbs<T>,
+    pub y: Limbs<T>,
 }
 
 pub trait FieldParameters:
