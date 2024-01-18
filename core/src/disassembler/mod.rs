@@ -65,7 +65,6 @@ pub mod tests {
 
     #[test]
     fn test_sha2() {
-        env_logger::init();
         let program = Program::from_elf("../programs/sha2");
         prove(program.clone());
     }
