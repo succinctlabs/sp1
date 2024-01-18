@@ -2307,7 +2307,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.9.8"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#433800a7d93a7ca44cc83df8899bcd3e86d8e555"
+source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#d6aa005324a4917ae8558a60c6d759723f806ba7"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
