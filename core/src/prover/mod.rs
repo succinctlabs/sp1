@@ -336,13 +336,6 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
             builder.is_transition = F::zero();
         }
 
-        if main_local.len() == NUM_CPU_COLS {
-            let mut array_copy: [F; NUM_CPU_COLS] = [F::zero(); NUM_CPU_COLS];
-            array_copy.copy_from_slice(main_local);
-            let local_cpu_columns =
-                unsafe { transmute_copy::<[F; NUM_CPU_COLS], CpuCols<F>>(&array_copy) };
-            println!("main_local: {:?}", local_cpu_columns);
-        }
         air.eval(&mut builder);
         eval_permutation_constraints(air, &mut builder, cumulative_sum);
     });
