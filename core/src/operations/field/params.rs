@@ -1,15 +1,27 @@
 use crate::air::polynomial::Polynomial;
-use num::{BigUint, One, Zero};
+use num::{BigUint, One};
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
-use std::ops::{Index, IndexMut};
+use std::ops::Index;
 use std::slice::Iter;
 
-pub const MAX_NB_LIMBS: usize = 32;
-pub const LIMB: u32 = 2u32.pow(16);
+pub const NUM_LIMBS: usize = 32;
+pub const NB_BITS_PER_LIMB: usize = 8;
+pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
+
+#[derive(Default, Debug, Clone)]
+pub struct Limbs<T>(pub [T; NUM_LIMBS]);
+
+impl<T> Index<usize> for Limbs<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
 
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
@@ -17,16 +29,10 @@ pub trait FieldParameters:
     const NB_BITS_PER_LIMB: usize;
     const NB_LIMBS: usize;
     const NB_WITNESS_LIMBS: usize;
-    const MODULUS: [u8; MAX_NB_LIMBS];
+    const MODULUS: [u8; NUM_LIMBS];
     const WITNESS_OFFSET: usize;
 
-    fn modulus() -> BigUint {
-        let mut modulus = BigUint::zero();
-        for (i, limb) in Self::MODULUS.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (8 * i);
-        }
-        modulus
-    }
+    fn modulus() -> BigUint;
 
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
         Self::MODULUS
@@ -36,11 +42,9 @@ pub trait FieldParameters:
     }
 
     fn to_limbs(x: &BigUint) -> Limbs<u8> {
-        let bytes = x.to_bytes_le();
-        if bytes.len() != 32 {
-            panic!("Expected exactly 32 limbs, found {}", bytes.len());
-        }
-        let mut limbs = [0u8; 32];
+        let mut bytes = x.to_bytes_le();
+        bytes.resize(NUM_LIMBS, 0u8);
+        let mut limbs = [0u8; NUM_LIMBS];
         limbs.copy_from_slice(&bytes);
         Limbs(limbs)
     }
@@ -62,29 +66,17 @@ pub trait FieldParameters:
 pub struct Ed25519BaseField;
 
 impl FieldParameters for Ed25519BaseField {
-    const NB_BITS_PER_LIMB: usize = 16;
-    const NB_LIMBS: usize = 16;
+    const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
+    const NB_LIMBS: usize = NUM_LIMBS;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-    const MODULUS: [u8; MAX_NB_LIMBS] = [0u8; MAX_NB_LIMBS];
-    // 65517, 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
-    // 65535, 65535, 32767, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // ];
+    const MODULUS: [u8; NUM_LIMBS] = [
+        237, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
+    ];
     const WITNESS_OFFSET: usize = 1usize << 20;
 
     fn modulus() -> BigUint {
         (BigUint::one() << 255) - BigUint::from(19u32)
-    }
-}
-
-pub const NUM_LIMBS: usize = 32;
-#[derive(Default, Debug, Clone)]
-pub struct Limbs<T>(pub [T; NUM_LIMBS]);
-
-impl<T> Index<usize> for Limbs<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
     }
 }
 
@@ -130,12 +122,32 @@ pub fn convert_polynomial<F: Field>(value: Polynomial<BabyBear>) -> Limbs<F> {
 }
 
 // TODO: we probably won't need this in the future when we do things properly.
-pub fn convert_vec<F: Field>(value: Vec<BabyBear>) -> Limbs<F> {
-    let inner_u8 = value
+pub fn convert_vec<F: Field>(value: Vec<BabyBear>) -> Vec<F> {
+    value
         .iter()
         .map(|x| x.as_canonical_u32() as u8)
         .map(|x| F::from_canonical_u8(x))
-        .collect::<Vec<_>>();
-    let inner = inner_u8.try_into().unwrap();
-    Limbs(inner)
+        .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_modulus() {
+        // Convert the MODULUS array to BigUint
+        let array_modulus = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
+
+        // Get the modulus from the function
+        let func_modulus = Ed25519BaseField::modulus();
+
+        // println!("array_modulus: {:?}", func_modulus.to_bytes_le());
+
+        // Assert equality
+        assert_eq!(
+            array_modulus, func_modulus,
+            "MODULUS array does not match the modulus() function output."
+        );
+    }
 }

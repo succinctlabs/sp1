@@ -6,7 +6,6 @@ pub use bool::Bool;
 use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
 use p3_field::AbstractField;
-use p3_field::PrimeField32;
 use std::iter::once;
 pub use word::Word;
 

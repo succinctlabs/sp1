@@ -1,4 +1,4 @@
-use super::params::NUM_LIMBS;
+use super::params::NUM_WITNESS_LIMBS;
 use super::params::{convert_polynomial, convert_vec, FieldParameters, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
@@ -8,7 +8,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
 use p3_baby_bear::BabyBear;
-use p3_field::{Field, PrimeField, PrimeField32};
+use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
@@ -19,16 +19,17 @@ pub enum FpOperation {
     Sub,
 }
 
-/// A set of columns to compute `a + b` where a, b are field elements.
-/// In the future, this will be macro-ed to support different fields.
+/// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
+/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
+/// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FpOpCols<T> {
     /// The result of `a op b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_LIMBS],
-    pub(crate) witness_high: [T; NUM_LIMBS],
+    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
+    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
 impl<F: Field> FpOpCols<F> {
@@ -38,15 +39,21 @@ impl<F: Field> FpOpCols<F> {
         b: &BigUint,
         op: FpOperation,
     ) -> BigUint {
+        /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
+        /// support that. This is a hack, since we always use BabyBear, to get around that, but
+        /// all operations using "PF" should use "F" in the future.
         type PF = BabyBear;
 
         let modulus = P::modulus();
-        // If sub, a - b = result, equivalent to a = result + b.
+
+        // If doing the substraction operation, a - b = result, equivalent to a = result + b.
         if op == FpOperation::Sub {
             let result = (a - b) % &modulus;
             // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
             // But we populate `result` with the actual result of the subtraction because those columns are expected
             // to contain the result by the user.
+            // Note that this reversal means we have to flip result, a correspondingly in
+            // the `eval` function.
             self.populate::<P>(&result, b, FpOperation::Add);
             let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
             self.result = convert_polynomial(p_result);
@@ -90,8 +97,13 @@ impl<F: Field> FpOpCols<F> {
 
         self.result = convert_polynomial(p_result);
         self.carry = convert_polynomial(p_carry);
-        self.witness_low = convert_vec(p_witness_low).0;
-        self.witness_high = convert_vec(p_witness_high).0;
+        self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
+        self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
+
+        println!("result: {:?}", self.result);
+        println!("carry: {:?}", self.carry);
+        println!("witness_low: {:?}", self.witness_low);
+        println!("witness_high: {:?}", self.witness_high);
 
         result
     }
@@ -132,7 +144,7 @@ impl<F: Field> FpOpCols<F> {
 
 #[cfg(test)]
 mod tests {
-    use num::{BigInt, BigUint, Zero};
+    use num::BigUint;
     use p3_air::BaseAir;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
@@ -142,9 +154,8 @@ mod tests {
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
-        alu::AluEvent,
         operations::field::params::{Ed25519BaseField, FieldParameters},
-        runtime::{Opcode, Segment},
+        runtime::Segment,
         utils::Chip,
     };
     use core::borrow::{Borrow, BorrowMut};
@@ -153,7 +164,6 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_commit::ExtensionMmcs;
     use p3_field::extension::BinomialExtensionField;
-    use p3_field::PrimeField32;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
@@ -164,7 +174,7 @@ mod tests {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
-    use rand::{thread_rng, Rng};
+    use rand::thread_rng;
     use valida_derive::AlignedBorrow;
 
     #[derive(AlignedBorrow, Debug, Clone)]
@@ -191,9 +201,14 @@ mod tests {
     }
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpOpChip<P> {
-        fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             // TODO: ignore segment for now since we're just hardcoding this test case.
-            let operands: Vec<(BigUint, BigUint)> = vec![];
+            let operands: Vec<(BigUint, BigUint)> = vec![
+                (BigUint::from(0u32), BigUint::from(0u32)),
+                (BigUint::from(1u32), BigUint::from(2u32)),
+                (BigUint::from(4u32), BigUint::from(5u32)),
+                (BigUint::from(10u32), BigUint::from(19u32)),
+            ];
             let rows = operands
                 .iter()
                 .map(|(a, b)| {

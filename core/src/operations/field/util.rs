@@ -1,19 +1,16 @@
-use super::params::FieldParameters;
 use crate::air::polynomial::Polynomial;
-use crate::air::CurtaAirBuilder;
-use core::fmt::Debug;
-use core::iter;
-use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use num::{BigUint, Zero};
-use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, Field, PrimeField32};
+use num::BigUint;
+use p3_field::PrimeField32;
 
-fn biguint_to_field<F: Field>(num: BigUint) -> F {
+fn biguint_to_field<F: PrimeField32>(num: BigUint) -> F {
     let mut x = F::zero();
+    let mut power = F::from_canonical_u32(1u32);
+    let base = F::from_canonical_u32(2u32);
     let digits = num.iter_u32_digits();
-    for (i, digit) in digits.enumerate() {
-        x += F::from_canonical_u32(digit).mul_2exp_u64(32 * i as u64);
+    for (_, digit) in digits.enumerate() {
+        x += F::from_canonical_u32(digit) * power;
+        power *= base;
     }
     x
 }
