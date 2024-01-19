@@ -736,12 +736,6 @@ impl Runtime {
             let instruction = self.fetch();
 
             let width = 12;
-            if self.global_clk / 4 % 10000000 == 0 {
-                log::info!("wtf {}", self.global_clk / 4);
-            }
-            // if self.global_clk / 4 > 80000000 {
-            //     panic!();
-            // }
             log::debug!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk / 4,
@@ -791,9 +785,6 @@ impl Runtime {
         if !self.segment.cpu_events.is_empty() {
             self.segments.push(self.segment.clone());
         }
-
-        // Right now we only do 1 segment.
-        // assert_eq!(self.segments.len(), 1);
 
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
@@ -888,7 +879,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/tendermint")
+        Program::from_elf("../programs/fib_malloc.s")
     }
 
     pub fn ecall_lwa_program() -> Program {
