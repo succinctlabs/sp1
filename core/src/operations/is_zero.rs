@@ -40,33 +40,35 @@ pub struct IsZeroOperation<T> {
 }
 
 impl<F: Field> IsZeroOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, x_u32: u32) -> u32 {
-        let x = x_u32.to_le_bytes();
+    pub fn populate(&mut self, segment: &mut Segment, a_u32: u32, is_real: bool) -> u32 {
+        let a = a_u32.to_le_bytes();
         let mut num_zero_bytes = 0;
         for i in 0..WORD_SIZE {
-            if x[i] == 0 {
+            if a[i] == 0 {
                 self.inverse[i] = F::zero();
                 num_zero_bytes += 1;
             } else {
-                self.inverse[i] = F::from_canonical_u64(u64::from(x[i])).inverse();
+                self.inverse[i] = F::from_canonical_u64(u64::from(a[i])).inverse();
             }
-            self.is_zero_byte[i] = F::from_bool(x[i] == 0);
-            let prod = self.inverse[i] * F::from_canonical_u8(x[i]);
+            self.is_zero_byte[i] = F::from_bool(a[i] == 0);
+            let prod = self.inverse[i] * F::from_canonical_u8(a[i]);
             debug_assert!(prod == F::one() || prod == F::zero());
         }
         for n in 0..(WORD_SIZE + 1) {
             self.zero_byte_count_flag[n] = F::from_bool(n == num_zero_bytes);
         }
         let result: u32 = {
-            if x_u32 == 0 {
+            if a_u32 == 0 {
                 1
             } else {
                 0
             }
         };
         self.result = F::from_canonical_u32(result);
-        {
-            let mut bytes = x.to_vec();
+        if is_real {
+            // To make sure that the multiplicity matches when sending and receiving, we need to
+            // insert a byte range check event only if is_real.
+            let mut bytes = a.to_vec();
             bytes.push(result as u8);
             bytes.push(result as u8); // Check it twice to make the array length even.
 
@@ -78,8 +80,6 @@ impl<F: Field> IsZeroOperation<F> {
                 segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
             }
         }
-        // TODO: Remove this before opening a PR.
-        println!("(x = {:?}) => {:#?}", x, self);
         result
     }
 
