@@ -4,7 +4,7 @@
 //!
 //! The idea is to compute the inverse of each byte in the input word and store them in the trace.
 //! Then we compute the product of each byte with its inverse. We get 1 if the input is nonzero, and
-//! 0 if the input is zero.
+//! 0 if the input is zero. Assertions fail if the inverse is not correctly set.
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
@@ -19,7 +19,7 @@ use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::Segment;
 
-/// A set of columns needed to compute the not of a word.
+/// A set of columns needed to compute whether the given word is 0.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct IsZeroOperation<T> {
