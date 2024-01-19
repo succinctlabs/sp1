@@ -779,8 +779,6 @@ impl Runtime {
             }
         }
 
-        log::info!("done loop");
-
         // Push the last segment.
         if !self.segment.cpu_events.is_empty() {
             self.segments.push(self.segment.clone());
