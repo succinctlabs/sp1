@@ -6,8 +6,5 @@
     },
     "editor.rulers": [
         100
-    ],
-    "rust-analyzer.linkedProjects": [
-        "./examples/ssz_withdrawals/Cargo.toml"
-    ],
+    ]
 }

@@ -14,23 +14,19 @@ pub fn is_valid_merkle_big_branch<'a>(
 ) -> bool {
     let mut value: [u8; 32] = leaf.as_ref().try_into().unwrap();
 
-    let mut gindex = index;
-
     let mut hasher = Sha256::new();
-    let two = U256::from(2);
-    for _ in 0..depth {
+    for i in 0..depth {
         let next_node = match branch.next() {
             Some(node) => node,
             None => return false,
         };
-        if gindex.bit(0) {
+        if index.bit(i) {
             hasher.update(next_node.as_ref());
             hasher.update(value.as_ref());
         } else {
             hasher.update(value.as_ref());
             hasher.update(next_node.as_ref());
         }
-        gindex = gindex.div(two);
         value = hasher.finalize_reset().into();
     }
     let root: [u8; 32] = root.as_ref().try_into().unwrap();
