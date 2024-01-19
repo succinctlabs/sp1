@@ -408,45 +408,6 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
-
-        println!("Byte interactions");
-        let byte_chip = ByteChip::new();
-        let (_, byte_count) = debug_interactions::<BabyBear, _>(
-            byte_chip,
-            &mut runtime.segment,
-            InteractionKind::Byte,
-        );
-
-        println!("Field interactions");
-        let field_chip = FieldChip::new();
-        let (_, field_count) = debug_interactions::<BabyBear, _>(
-            field_chip,
-            &mut runtime.segment,
-            InteractionKind::Byte,
-        );
-
-        let mut final_map = BTreeMap::new();
-
-        // for (key, value) in byte_count.iter().chain(field_count.iter()) {
-        //     *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        // }
-
-        for (key, value) in field_count.iter() {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        }
-
-        // for (key, value) in byte_count.iter() {
-        //     *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        // }
-
-        println!("Final counts");
-
-        for (key, value) in final_map {
-            if !value.is_zero() {
-                println!("Key {} Value {}", key, value);
-            }
-        }
-
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
 
         debug_interactions_with_all_chips(
