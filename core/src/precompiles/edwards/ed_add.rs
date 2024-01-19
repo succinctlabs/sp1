@@ -1,23 +1,43 @@
 use crate::air::CurtaAirBuilder;
+use crate::cpu::air::MemoryAccessCols;
+use crate::cpu::air::MemoryReadCols;
 use crate::operations::field::fp_den::FpDenCols;
 use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::AffinePoint;
 use crate::operations::field::params::FieldParameters;
+use crate::operations::field::params::Limbs;
+use crate::operations::field::params::NUM_LIMBS;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-
 use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
+
+#[derive(Debug, Clone, Copy)]
+pub struct EdAddEvent {
+    pub clk: u32,
+    pub p_ptr: u32,
+    pub p: [u32; 26],
+    pub q_ptr: u32,
+    pub q: [u32; 16],
+}
+
+// NUM_LIMBS = 32 -> 32 / 4 = 8 Words
+// 2 Limbs<> per affine point => 16 words
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct EdAddCols<T> {
+pub struct EdAddAssignCols<T> {
+    pub clk: T,
+    pub p_ptr: T,
+    pub q_ptr: T,
+    pub p_access: [MemoryAccessCols<T>; 16],
+    pub q_access: [MemoryReadCols<T>; 16],
     pub(crate) x3_numerator: FpInnerProductCols<T>,
     pub(crate) y3_numerator: FpInnerProductCols<T>,
     pub(crate) x1_mul_y1: FpOpCols<T>,
@@ -28,35 +48,55 @@ pub struct EdAddCols<T> {
     pub(crate) y3_ins: FpDenCols<T>,
 }
 
-impl<T: Copy> EdAddCols<T> {
+impl<T: Copy> EdAddAssignCols<T> {
     pub fn result(&self) -> AffinePoint<T> {
         AffinePoint {
             x: self.x3_ins.result,
             y: self.y3_ins.result,
         }
     }
+
+    pub fn limbs_from_read(cols: &[MemoryReadCols<T>]) -> Limbs<T> {
+        let vec = cols
+            .into_iter()
+            .flat_map(|access| access.value.0)
+            .collect::<Vec<_>>();
+        assert_eq!(vec.len(), NUM_LIMBS);
+
+        // let sized = &vec.as_slice()[..NUM_LIMBS];
+        // Limbs(sized);
+        todo!();
+    }
+
+    pub fn limbs_from_access(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+        let vec = cols
+            .into_iter()
+            .flat_map(|access| access.prev_value.0)
+            .collect::<Vec<_>>();
+        assert_eq!(vec.len(), NUM_LIMBS);
+
+        // let sized = &vec.as_slice()[..NUM_LIMBS];
+        // Limbs(sized);
+        todo!();
+    }
 }
 
-impl<F: Field> EdAddCols<F> {
+impl<F: Field> EdAddAssignCols<F> {
     pub fn populate<P: FieldParameters>(&mut self) {
         todo!();
     }
 }
 
-impl<V: Copy> EdAddCols<V> {
+impl<V: Copy> EdAddAssignCols<V> {
     #[allow(unused_variables)]
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
-        &self,
-        builder: &mut AB,
-        p: &AffinePoint<AB::Var>,
-        q: &AffinePoint<AB::Var>,
-    ) where
+    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(&self, builder: &mut AB)
+    where
         V: Into<AB::Expr>,
     {
-        let x1 = p.x;
-        let x2 = q.x;
-        let y1 = p.y;
-        let y2 = q.y;
+        let x1 = EdAddAssignCols::limbs_from_access(&self.p_access[0..32]);
+        let x2 = EdAddAssignCols::limbs_from_read(&self.q_access[0..32]);
+        let y1 = EdAddAssignCols::limbs_from_access(&self.p_access[32..64]);
+        let y2 = EdAddAssignCols::limbs_from_read(&self.q_access[32..64]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         self.x3_numerator
@@ -92,5 +132,12 @@ impl<V: Copy> EdAddCols<V> {
         // // y3 = y3_numerator / (1 - d * f).
         self.y3_ins
             .eval::<AB, P>(builder, &self.y3_numerator.result, &d_mul_f, false);
+
+        // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
+        // This is to ensure that p_access is updated with the new value.
+        for i in 0..NUM_LIMBS {
+            builder.assert_eq(self.x3_ins.result[i], self.p_access[i / 4].value[i % 4]);
+            builder.assert_eq(self.y3_ins.result[i], self.p_access[8 + i / 4].value[i % 4]);
+        }
     }
 }
