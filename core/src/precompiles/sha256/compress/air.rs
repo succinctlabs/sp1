@@ -5,7 +5,8 @@ use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
 use crate::operations::{
-    AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
+    Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
+    XorOperation,
 };
 use p3_matrix::MatrixRowSlices;
 use std::borrow::Borrow;

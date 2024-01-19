@@ -144,7 +144,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
 
                 let temp1 = cols
                     .temp1
-                    .populate(h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                    .populate(segment, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
 
                 let a_rr_2 = cols.a_rr_2.populate(segment, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(segment, a, 13);
