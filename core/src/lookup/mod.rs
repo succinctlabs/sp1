@@ -59,6 +59,8 @@ pub enum InteractionKind {
     Byte = 5,
     /// Requesting a range check for a given value and range.
     Range = 6,
+    /// Interaction with the field op table for field operations.
+    Field = 7,
 }
 
 impl<F: Field> Interaction<F> {

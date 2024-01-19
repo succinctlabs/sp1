@@ -113,6 +113,39 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 }
 
+/// A trait which contains methods for field interactions in an AIR.
+pub trait FieldAirBuilder: BaseAirBuilder {
+    /// Sends a field operation to be processed.
+    fn send_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
+    where
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.send(AirInteraction::new(
+            vec![a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Field,
+        ));
+    }
+
+    /// Receives a field operation to be processed.
+    fn receive_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
+    where
+        Ea: Into<Self::Expr>,
+        Eb: Into<Self::Expr>,
+        Ec: Into<Self::Expr>,
+        EMult: Into<Self::Expr>,
+    {
+        self.receive(AirInteraction::new(
+            vec![a.into(), b.into(), c.into()],
+            multiplicity.into(),
+            InteractionKind::Field,
+        ));
+    }
+}
+
 /// A trait which contains methods related to words in an AIR.
 pub trait WordAirBuilder: ByteAirBuilder {
     /// Asserts that the two words are equal.
@@ -202,46 +235,87 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
-    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EMult>(
+    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify>(
         &mut self,
         segment: ESegment,
         clk: EClk,
         addr: Ea,
         memory_access: MemoryAccessCols<Eb>,
-        multiplicity: EMult,
+        verify_memory_access: EVerify,
     ) where
         ESegment: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
+        EVerify: Into<Self::Expr>,
     {
-        // TODO:
-        // (segment == prev_segment && clk > prev_timestamp) OR segment > prev_segment
+        let verify_memory_access_expr: Self::Expr = verify_memory_access.into();
+        self.assert_bool(verify_memory_access_expr.clone());
+
+        //// Check that this memory access occurs after the previous one.
+        // First check if we need to compare between the segment or the clk.
+        let use_clk_comparison_expr: Self::Expr = memory_access.use_clk_comparison.into();
+        let current_segment_expr: Self::Expr = segment.into();
+        let prev_segment_expr: Self::Expr = memory_access.prev_segment.into();
+        let current_clk_expr: Self::Expr = clk.into();
+        let prev_clk_expr: Self::Expr = memory_access.prev_clk.into();
+
+        self.when(verify_memory_access_expr.clone())
+            .assert_bool(use_clk_comparison_expr.clone());
+        self.when(verify_memory_access_expr.clone())
+            .when(use_clk_comparison_expr.clone())
+            .assert_eq(current_segment_expr.clone(), prev_segment_expr.clone());
+
+        // Verify the previous and current time value that should be used for comparison.
+        let one = Self::Expr::one();
+        let calculated_prev_time_value = use_clk_comparison_expr.clone() * prev_clk_expr.clone()
+            + (one.clone() - use_clk_comparison_expr.clone()) * prev_segment_expr.clone();
+        let calculated_current_time_value = use_clk_comparison_expr.clone()
+            * current_clk_expr.clone()
+            + (one.clone() - use_clk_comparison_expr.clone()) * current_segment_expr.clone();
+
+        let prev_time_value_expr: Self::Expr = memory_access.prev_time_value.into();
+        let current_time_value_expr: Self::Expr = memory_access.current_time_value.into();
+        self.when(verify_memory_access_expr.clone())
+            .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
+
+        self.when(verify_memory_access_expr.clone()).assert_eq(
+            current_time_value_expr.clone(),
+            calculated_current_time_value,
+        );
+
+        // Do the actual comparison via a lookup to the field op table.
+        self.send_field_op(
+            one,
+            prev_time_value_expr,
+            current_time_value_expr,
+            verify_memory_access_expr.clone(),
+        );
+
+        //// Check the previous and current memory access via a lookup to the memory table.
         let addr_expr = addr.into();
-        let prev_values = once(memory_access.segment.into())
-            .chain(once(memory_access.timestamp.into()))
+        let prev_values = once(prev_segment_expr)
+            .chain(once(prev_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.prev_value.map(Into::into))
             .collect();
-        let current_values = once(segment.into())
-            .chain(once(clk.into()))
+        let current_values = once(current_segment_expr)
+            .chain(once(current_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.value.map(Into::into))
             .collect();
 
-        let multiplicity_expr = multiplicity.into();
         // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
             prev_values,
-            multiplicity_expr.clone(),
+            verify_memory_access_expr.clone(),
             InteractionKind::Memory,
         ));
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(AirInteraction::new(
             current_values,
-            multiplicity_expr.clone(),
+            verify_memory_access_expr.clone(),
             InteractionKind::Memory,
         ));
     }
@@ -317,6 +391,7 @@ pub trait CurtaAirBuilder:
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BoolAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
