@@ -15,7 +15,9 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
+use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
+use crate::runtime::Segment;
 
 /// A set of columns needed to compute the not of a word.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -38,7 +40,7 @@ pub struct IsZeroOperation<T> {
 }
 
 impl<F: Field> IsZeroOperation<F> {
-    pub fn populate(&mut self, x_u32: u32) -> u32 {
+    pub fn populate(&mut self, segment: &mut Segment, x_u32: u32) -> u32 {
         let x = x_u32.to_le_bytes();
         let mut num_zero_bytes = 0;
         for i in 0..WORD_SIZE {
@@ -55,7 +57,6 @@ impl<F: Field> IsZeroOperation<F> {
         for n in 0..(WORD_SIZE + 1) {
             self.zero_byte_count_flag[n] = F::from_bool(n == num_zero_bytes);
         }
-        // TODO: Range check the input word.
         let result: u32 = {
             if x_u32 == 0 {
                 1
@@ -64,6 +65,19 @@ impl<F: Field> IsZeroOperation<F> {
             }
         };
         self.result = F::from_canonical_u32(result);
+        {
+            let mut bytes = x.to_vec();
+            bytes.push(result as u8);
+            bytes.push(result as u8); // Check it twice to make the array length even.
+
+            // The length needs to be even since add_byte_range_checks takes two bytes at a time.
+            debug_assert_eq!(bytes.len() % 2, 0);
+
+            // Pass two bytes to range check at a time.
+            for i in (0..bytes.len()).step_by(2) {
+                segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
+            }
+        }
         // TODO: Remove this before opening a PR.
         println!("(x = {:?}) => {:#?}", x, self);
         result
@@ -75,14 +89,26 @@ impl<F: Field> IsZeroOperation<F> {
         cols: IsZeroOperation<AB::Var>,
         is_real: AB::Var,
     ) {
+        // Sanity checks including range checks and boolean checks.
+        {
+            let mut bytes = a.0.to_vec();
+            bytes.push(cols.result);
+            bytes.push(cols.result);
+            debug_assert_eq!(bytes.len() % 2, 0);
+            for i in (0..bytes.len()).step_by(2) {
+                builder.send_byte_pair(
+                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
+                    AB::F::zero(),
+                    AB::F::zero(),
+                    bytes[i],
+                    bytes[i + 1],
+                    is_real,
+                );
+            }
+        }
         builder.assert_bool(is_real);
         let mut builder_is_real = builder.when(is_real);
         let one: AB::Expr = AB::F::one().into();
-        // Sanity checks including range checks and boolean checks.
-        {
-            builder_is_real.assert_bool(cols.result);
-            // TODO: Range check the input word.
-        }
 
         // Calculate whether each byte is 0.
         {
@@ -121,6 +147,8 @@ impl<F: Field> IsZeroOperation<F> {
                     );
             }
         }
+
+        builder_is_real.assert_bool(cols.result);
 
         // If cols.result is true, then a is zero.
         {

@@ -196,7 +196,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
-        for event in segment.divrem_events.iter() {
+        let divrem_events = segment.divrem_events.clone();
+        for event in divrem_events.iter() {
             assert!(
                 event.opcode == Opcode::DIVU
                     || event.opcode == Opcode::REMU
@@ -215,7 +216,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
-                cols.is_c_0.populate(event.c);
+                cols.is_c_0.populate(segment, event.c);
             }
 
             let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
@@ -355,7 +356,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             cols.c[0] = F::one();
             cols.abs_c[0] = F::one();
             cols.max_abs_c_or_1[0] = F::one();
-            cols.is_c_0.populate(1);
+            cols.is_c_0.populate(segment, 1);
 
             row
         };
