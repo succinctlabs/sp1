@@ -1,3 +1,5 @@
+#![feature(test)]
+
 pub mod air;
 pub mod alu;
 pub mod bytes;

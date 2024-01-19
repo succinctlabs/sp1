@@ -28,3 +28,6 @@ p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }
+
+[patch.crates-io]
+sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", branch = "v0.9.8" }
