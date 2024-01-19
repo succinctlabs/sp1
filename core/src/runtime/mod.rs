@@ -105,7 +105,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 1048576,
+            segment_size: 4194304,
             global_segment: Segment::default(),
         }
     }
@@ -877,7 +877,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fib_malloc.s")
+        Program::from_elf("../programs/ed25519")
     }
 
     pub fn ecall_lwa_program() -> Program {
