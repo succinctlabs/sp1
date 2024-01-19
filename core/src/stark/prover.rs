@@ -1,16 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::alu::divrem::DivRemChip;
-use crate::alu::mul::MulChip;
-use crate::bytes::ByteChip;
-use crate::memory::MemoryGlobalChip;
 use crate::stark::debug_constraints;
 
-use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
-use crate::cpu::CpuChip;
-use crate::memory::MemoryChipKind;
-use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::program::ProgramChip;
 use crate::runtime::Segment;
 use crate::stark::permutation::generate_permutation_trace;
 use crate::stark::quotient_values;
@@ -28,64 +19,10 @@ use p3_util::log2_strict_usize;
 
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 13;
-
 pub(crate) struct Prover<SC>(PhantomData<SC>);
 
 impl<SC: StarkConfig> Prover<SC> {
-    pub fn segment_chips() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
-    where
-        SC::Val: PrimeField32,
-    {
-        // Initialize chips.
-        let program = ProgramChip::new();
-        let cpu = CpuChip::new();
-        let add = AddChip::new();
-        let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
-        let mul = MulChip::new();
-        let divrem = DivRemChip::new();
-        let shift_right = ShiftRightChip::new();
-        let shift_left = ShiftLeft::new();
-        let lt = LtChip::new();
-        let bytes = ByteChip::<SC::Val>::new();
-        let sha_extend = ShaExtendChip::new();
-        let sha_compress = ShaCompressChip::new();
-        // This vector contains chips ordered to address dependencies. Some operations, like div,
-        // depend on others like mul for verification. To prevent race conditions and ensure correct
-        // execution sequences, dependent operations are positioned before their dependencies.
-        [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(divrem),
-            Box::new(mul),
-            Box::new(shift_right),
-            Box::new(shift_left),
-            Box::new(lt),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            Box::new(bytes),
-        ]
-    }
-
-    pub fn global_chips() -> [Box<dyn AirChip<SC>>; 3]
-    where
-        SC::Val: PrimeField32,
-    {
-        // Initialize chips.
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        [
-            Box::new(memory_init),
-            Box::new(memory_finalize),
-            Box::new(program_memory_init),
-        ]
-    }
-
+    /// Commit to the main data
     pub fn commit_main(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],

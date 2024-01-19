@@ -20,7 +20,6 @@ mod verifier;
 pub mod zerofier_coset;
 
 pub use debug::*;
-pub(crate) use prover::Prover;
 
 #[cfg(test)]
 pub use runtime::tests;

@@ -1,5 +1,14 @@
+use crate::alu::divrem::DivRemChip;
+use crate::alu::mul::MulChip;
+use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
+use crate::bytes::ByteChip;
+use crate::cpu::CpuChip;
+use crate::memory::{MemoryChipKind, MemoryGlobalChip};
+use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::program::ProgramChip;
 use crate::runtime::Runtime;
 use crate::stark::debug_cumulative_sums;
+use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 
 use p3_commit::Pcs;
@@ -11,7 +20,61 @@ use p3_uni_stark::StarkConfig;
 use super::prover::Prover;
 use super::types::*;
 
+pub const NUM_CHIPS: usize = 13;
+
 impl Runtime {
+    pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
+    where
+        SC::Val: PrimeField32,
+    {
+        // Initialize chips.
+        let program = ProgramChip::new();
+        let cpu = CpuChip::new();
+        let add = AddChip::new();
+        let sub = SubChip::new();
+        let bitwise = BitwiseChip::new();
+        let mul = MulChip::new();
+        let divrem = DivRemChip::new();
+        let shift_right = ShiftRightChip::new();
+        let shift_left = ShiftLeft::new();
+        let lt = LtChip::new();
+        let bytes = ByteChip::<SC::Val>::new();
+        let sha_extend = ShaExtendChip::new();
+        let sha_compress = ShaCompressChip::new();
+        // This vector contains chips ordered to address dependencies. Some operations, like div,
+        // depend on others like mul for verification. To prevent race conditions and ensure correct
+        // execution sequences, dependent operations are positioned before their dependencies.
+        [
+            Box::new(program),
+            Box::new(cpu),
+            Box::new(add),
+            Box::new(sub),
+            Box::new(bitwise),
+            Box::new(divrem),
+            Box::new(mul),
+            Box::new(shift_right),
+            Box::new(shift_left),
+            Box::new(lt),
+            Box::new(sha_extend),
+            Box::new(sha_compress),
+            Box::new(bytes),
+        ]
+    }
+
+    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
+    where
+        SC::Val: PrimeField32,
+    {
+        // Initialize chips.
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        [
+            Box::new(memory_init),
+            Box::new(memory_finalize),
+            Box::new(program_memory_init),
+        ]
+    }
     /// Prove the program.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
@@ -23,7 +86,7 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
-        let segment_chips = Prover::<SC>::segment_chips();
+        let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data = self
             .segments
             .par_iter_mut()
@@ -44,7 +107,7 @@ impl Runtime {
             })
             .collect();
 
-        let global_chips = Prover::<SC>::global_chips();
+        let global_chips = Self::global_chips::<SC>();
         let global_main_data = Prover::commit_main(config, &global_chips, &mut self.global_segment);
         let global_proof = Prover::prove(
             config,
