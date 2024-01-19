@@ -13,7 +13,6 @@ use crate::air::WORD_SIZE;
 use crate::bytes::ByteOpcode;
 use crate::runtime::Segment;
 
-const MAX_CARRY: usize = 3;
 /// A set of columns needed to compute the add of four words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
