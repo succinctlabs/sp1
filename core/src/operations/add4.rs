@@ -92,7 +92,6 @@ impl<F: Field> Add4Operation<F> {
                 segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
             }
         }
-        println!("{:#?}", self);
         expected
     }
 
@@ -105,7 +104,6 @@ impl<F: Field> Add4Operation<F> {
         is_real: AB::Var,
         cols: Add4Operation<AB::Var>,
     ) {
-        println!("Add4Operation::eval");
         // Range check each byte.
         {
             let bytes: Vec<AB::Var> =
@@ -136,7 +134,7 @@ impl<F: Field> Add4Operation<F> {
         builder.assert_bool(is_real);
         let mut builder_is_real = builder.when(is_real);
 
-        // Check if is_carry_{0,1,2,3} is correct.
+        // Each value in is_carry_{0,1,2,3} is 0 or 1, and exactly one of them is 1 per digit.
         {
             for i in 0..WORD_SIZE {
                 builder_is_real.assert_bool(cols.is_carry_0[i]);
@@ -153,7 +151,7 @@ impl<F: Field> Add4Operation<F> {
             }
         }
 
-        // Calculates carry.
+        // Calculates carry from is_carry_{0,1,2,3}.
         {
             let one = AB::Expr::one();
             let two = AB::F::from_canonical_u32(2);
@@ -169,7 +167,7 @@ impl<F: Field> Add4Operation<F> {
             }
         }
 
-        // Carry check.
+        // Compare the sum and summands by looking at carry.
         {
             let base = AB::F::from_canonical_u32(256);
             // For each limb, assert that difference between the carried result and the non-carried
