@@ -9,13 +9,13 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, FieldAirBuilder, Word, WORD_SIZE};
 use crate::bytes::ByteOpcode;
 
-use super::FieldChip;
+use super::FieldLTUChip;
 
-pub const NUM_FIELD_COLS: usize = size_of::<FieldCols<u8>>();
+pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
 
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldCols<T> {
+pub struct FieldLTUCols<T> {
     /// The first field operand.
     pub b: T,
 
@@ -47,16 +47,16 @@ pub struct FieldCols<T> {
     pub is_real: T,
 }
 
-impl<F: Field> BaseAir<F> for FieldChip {
+impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {
         NUM_FIELD_COLS
     }
 }
 
-impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
+impl<AB: CurtaAirBuilder> Air<AB> for FieldLTUChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &FieldCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &FieldLTUCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
         builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);

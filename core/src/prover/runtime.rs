@@ -1,7 +1,7 @@
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
-use crate::field::FieldChip;
+use crate::field::FieldLTUChip;
 use crate::memory::MemoryGlobalChip;
 use crate::prover::debug_constraints;
 
@@ -101,7 +101,7 @@ impl Prover {
         let shift_left = ShiftLeft::new();
         let lt = LtChip::new();
         let bytes = ByteChip::<F>::new();
-        let field = FieldChip::new();
+        let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,

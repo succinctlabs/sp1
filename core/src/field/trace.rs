@@ -11,11 +11,11 @@ use crate::{
 };
 
 use super::{
-    air::{FieldCols, NUM_FIELD_COLS},
-    FieldChip,
+    air::{FieldLTUCols, NUM_FIELD_COLS},
+    FieldLTUChip,
 };
 
-impl<F: PrimeField> Chip<F> for FieldChip {
+impl<F: PrimeField> Chip<F> for FieldLTUChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut byte_ltu_lookup_events = Vec::new();
@@ -25,7 +25,7 @@ impl<F: PrimeField> Chip<F> for FieldChip {
             .iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
-                let cols: &mut FieldCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut FieldLTUCols<F> = unsafe { transmute(&mut row) };
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 

@@ -2,9 +2,9 @@ pub mod air;
 pub mod event;
 mod trace;
 
-pub struct FieldChip;
+pub struct FieldLTUChip;
 
-impl FieldChip {
+impl FieldLTUChip {
     pub fn new() -> Self {
         Self {}
     }
