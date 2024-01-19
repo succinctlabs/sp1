@@ -25,71 +25,9 @@ where
         let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
 
-        //// Constrain octet columns
-        // Verify that all of the octet columns are bool.
-        for i in 0..8 {
-            builder.assert_bool(local.octet[i]);
-        }
-        // Verify that exactly one of the octet columns is true.
-        let mut octet_sum = AB::Expr::zero();
-        for i in 0..8 {
-            octet_sum += local.octet[i].into();
-        }
-        builder.assert_one(octet_sum);
+        self.verify_control_flow_flags(builder, local, next);
 
-        // Verify that the first row's octet value is correct.
-        builder.when_first_row().assert_one(local.octet[0]);
-
-        // Verify correct transition for octet column.
-        for i in 0..7 {
-            builder
-                .when_transition()
-                .when(local.octet[i])
-                .assert_one(next.octet[i + 1])
-        }
-        builder
-            .when_transition()
-            .when(local.octet[7])
-            .assert_one(next.octet[0]);
-
-        //// Constrain octet_num columns
-        // Verify taht all of the octet_num columns are bool.
-        for i in 0..8 {
-            builder.assert_bool(local.octet_num[i]);
-        }
-
-        // Verify that exactly one of the octet_num columns is true.
-        let mut octet_num_sum = AB::Expr::zero();
-        for i in 0..8 {
-            octet_num_sum += local.octet_num[i].into();
-        }
-        builder.assert_one(octet_num_sum);
-
-        // Verify that the first row's octet_num value is correct.
-        builder.when_first_row().assert_one(local.octet_num[0]);
-
-        for i in 0..8 {
-            builder
-                .when_transition()
-                .when_not(local.octet[7])
-                .assert_eq(local.octet_num[i], next.octet_num[i]);
-        }
-
-        for i in 0..8 {
-            builder
-                .when_transition()
-                .when(local.octet[7])
-                .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 8]);
-        }
-
-        let is_initialize = local.octet_num[0];
-        let is_compress = local.octet_num[1]
-            + local.octet_num[2]
-            + local.octet_num[3]
-            + local.octet_num[4]
-            + local.octet_num[5]
-            + local.octet_num[6];
-        let is_finalize = local.octet_num[7];
+        self.verify_memory(builder, local);
 
         builder.constraint_memory_access(
             local.segment,
@@ -215,6 +153,117 @@ where
             local.temp2.value,
             local.temp1_add_temp2,
             local.is_compression,
+        );
+    }
+}
+
+impl ShaCompressChip {
+    fn verify_control_flow_flags<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &ShaCompressCols<AB::Var>,
+        next: &ShaCompressCols<AB::Var>,
+    ) {
+        //// Constrain octet columns
+        // Verify that all of the octet columns are bool.
+        for i in 0..8 {
+            builder.assert_bool(local.octet[i]);
+        }
+        // Verify that exactly one of the octet columns is true.
+        let mut octet_sum = AB::Expr::zero();
+        for i in 0..8 {
+            octet_sum += local.octet[i].into();
+        }
+        builder.assert_one(octet_sum);
+
+        // Verify that the first row's octet value is correct.
+        builder.when_first_row().assert_one(local.octet[0]);
+
+        // Verify correct transition for octet column.
+        for i in 0..7 {
+            builder
+                .when_transition()
+                .when(local.octet[i])
+                .assert_one(next.octet[i + 1])
+        }
+        builder
+            .when_transition()
+            .when(local.octet[7])
+            .assert_one(next.octet[0]);
+
+        //// Constrain octet_num columns
+        // Verify taht all of the octet_num columns are bool.
+        for i in 0..8 {
+            builder.assert_bool(local.octet_num[i]);
+        }
+
+        // Verify that exactly one of the octet_num columns is true.
+        let mut octet_num_sum = AB::Expr::zero();
+        for i in 0..8 {
+            octet_num_sum += local.octet_num[i].into();
+        }
+        builder.assert_one(octet_num_sum);
+
+        // Verify that the first row's octet_num value is correct.
+        builder.when_first_row().assert_one(local.octet_num[0]);
+
+        for i in 0..8 {
+            builder
+                .when_transition()
+                .when_not(local.octet[7])
+                .assert_eq(local.octet_num[i], next.octet_num[i]);
+        }
+
+        for i in 0..8 {
+            builder
+                .when_transition()
+                .when(local.octet[7])
+                .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 8]);
+        }
+
+        builder.assert_eq(local.is_initialize, local.octet_num[0]);
+        builder.assert_eq(
+            local.is_compression,
+            local.octet_num[1]
+                + local.octet_num[2]
+                + local.octet_num[3]
+                + local.octet_num[4]
+                + local.octet_num[5]
+                + local.octet_num[6],
+        );
+        builder.assert_eq(local.is_finalize, local.octet_num[7]);
+    }
+
+    fn verify_memory<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &ShaCompressCols<AB::Var>,
+    ) {
+        let mut cycle_step = AB::Expr::zero();
+        for i in 0..8 {
+            cycle_step += local.octet[i] * AB::Expr::from_canonical_usize(i);
+        }
+
+        // Verify correct mem address for initialize phase
+        builder.when(local.is_initialize).assert_eq(
+            local.mem_addr,
+            local.w_and_h_ptr
+                + (AB::Expr::from_canonical_u32(64 * 4)
+                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+        );
+
+        // Verify correct mem address for compression phase
+        builder.when(local.is_compression).assert_eq(
+            local.mem_addr,
+            local.w_and_h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
+        );
+
+        // Verify correct mem address for finalize phase
+        builder.when(local.is_finalize).assert_eq(
+            local.mem_addr,
+            local.w_and_h_ptr
+                + (AB::Expr::from_canonical_u32(64 * 4)
+                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
         );
     }
 }
