@@ -7,8 +7,8 @@ use crate::{
     cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord},
     field::event::FieldEvent,
     lookup::{Interaction, InteractionBuilder},
-    prover::DebugConstraintBuilder,
     runtime::Segment,
+    stark::DebugConstraintBuilder,
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
@@ -74,6 +74,11 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
             let field_event = FieldEvent::new(true, prev_time_value, current_time_value);
             new_field_events.push(field_event);
         }
+    }
+
+    /// The width of the permutation trace as a matrix of challenge elements.
+    fn permutation_width(&self) -> usize {
+        todo!()
     }
 }
 
