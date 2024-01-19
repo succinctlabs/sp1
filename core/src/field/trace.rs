@@ -29,6 +29,7 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                // Figure out which byte is the most significant differing byte.
                 let mut differing_byte = [F::zero(); WORD_SIZE];
                 let mut byte_lookup_event_added = false;
                 for i in (0..WORD_SIZE).rev() {
@@ -49,6 +50,8 @@ impl<F: PrimeField> Chip<F> for FieldChip {
                 }
 
                 // This means that b and c are equal.
+                // We will send to the byte ltu lookup the parameters (LT = false, b = 0, c = 0).
+                // See here:  https://github.com/succinctlabs/vm/blob/07009d3b89998c2816d6cc12a0b6da54d319427f/core/src/field/air.rs#L96
                 if !byte_lookup_event_added {
                     assert!(event.b == event.c);
                     byte_ltu_lookup_events.push(ByteLookupEvent::new(
@@ -75,6 +78,7 @@ impl<F: PrimeField> Chip<F> for FieldChip {
             })
             .collect::<Vec<_>>();
 
+        // Add the byte ltu lookup events to the segment.
         if !byte_ltu_lookup_events.is_empty() {
             segment.add_byte_lookup_events(byte_ltu_lookup_events);
         }
