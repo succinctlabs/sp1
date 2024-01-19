@@ -51,27 +51,27 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
         if let Some(prev_record) = prev_record {
             cols.prev_value = prev_record.value.into();
-            cols.segment = F::from_canonical_u32(prev_record.segment);
-            cols.timestamp = F::from_canonical_u32(prev_record.timestamp);
+            cols.prev_segment = F::from_canonical_u32(prev_record.segment);
+            cols.prev_clk = F::from_canonical_u32(prev_record.timestamp);
 
+            // Fill columns used for verifying current memory access time value is greater than previous's.
             let use_clk_comparison = prev_record.segment == current_record.segment;
             cols.use_clk_comparison = F::from_bool(use_clk_comparison);
-            let prev_comparison_value = if use_clk_comparison {
+            let prev_time_value = if use_clk_comparison {
                 prev_record.timestamp
             } else {
                 prev_record.segment
             };
-            cols.prev_comparison_value = F::from_canonical_u32(prev_comparison_value);
-            let current_comparison_value = if use_clk_comparison {
+            cols.prev_time_value = F::from_canonical_u32(prev_time_value);
+            let current_time_value = if use_clk_comparison {
                 current_record.timestamp
             } else {
                 current_record.segment
             };
-            cols.current_comparison_value = F::from_canonical_u32(current_comparison_value);
+            cols.current_time_value = F::from_canonical_u32(current_time_value);
 
-            let field_event =
-                FieldEvent::new(true, prev_comparison_value, current_comparison_value);
-
+            // Add a field op event for the prev_time_value < current_time_value constraint.
+            let field_event = FieldEvent::new(true, prev_time_value, current_time_value);
             new_field_events.push(field_event);
         }
     }
