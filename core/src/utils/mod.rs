@@ -37,6 +37,11 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         sends.extend(receives);
         sends
     }
+
+    /// The width of the permutation trace as a matrix of challenge elements.
+    fn permutation_width(&self) -> usize {
+        todo!()
+    }
 }
 
 pub trait AirChip<SC: StarkConfig>:

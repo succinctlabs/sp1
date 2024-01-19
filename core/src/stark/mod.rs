@@ -20,6 +20,7 @@ mod verifier;
 pub mod zerofier_coset;
 
 pub use debug::*;
+pub use verifier::{VerificationError, Verifier};
 
 #[cfg(test)]
 pub use runtime::tests;
