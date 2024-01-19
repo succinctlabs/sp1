@@ -235,55 +235,59 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
-    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EMult>(
+    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify>(
         &mut self,
         segment: ESegment,
         clk: EClk,
         addr: Ea,
         memory_access: MemoryAccessCols<Eb>,
-        multiplicity: EMult,
+        verify_memory_access: EVerify,
     ) where
         ESegment: Into<Self::Expr> + Clone,
         EClk: Into<Self::Expr> + Clone,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr> + Clone,
-        EMult: Into<Self::Expr> + Clone,
+        EVerify: Into<Self::Expr> + Clone,
     {
-        // Verify prev_access_within_segment value.
-        self.assert_bool(multiplicity.clone());
+        self.assert_bool(verify_memory_access.clone());
 
-        self.when(multiplicity.clone())
+        //// Check that this memory access occurs after the previous one.
+        // First check if we need to compare between the segment or the clk.
+        self.when(verify_memory_access.clone())
             .assert_bool(memory_access.use_clk_comparison.clone());
-        self.when(multiplicity.clone())
+        self.when(verify_memory_access.clone())
             .when(memory_access.use_clk_comparison.clone())
-            .assert_eq(segment.clone(), memory_access.segment.clone());
+            .assert_eq(segment.clone(), memory_access.prev_segment.clone());
 
+        // Verify the previous and current time value that should be used for comparison.
         let one = Self::Expr::one();
-        self.when(multiplicity.clone()).assert_eq(
-            memory_access.prev_comparison_value.clone(),
-            memory_access.use_clk_comparison.clone().into()
-                * memory_access.timestamp.clone().into()
-                + (one.clone() - memory_access.use_clk_comparison.clone().into())
-                    * memory_access.segment.clone().into(),
-        );
+        let prev_time_value = memory_access.use_clk_comparison.clone().into()
+            * memory_access.prev_clk.clone().into()
+            + (one.clone() - memory_access.use_clk_comparison.clone().into())
+                * memory_access.prev_segment.clone().into();
+        let current_time_value = memory_access.use_clk_comparison.clone().into()
+            * clk.clone().into()
+            + (one.clone() - memory_access.use_clk_comparison.clone().into())
+                * segment.clone().into();
 
-        self.when(multiplicity.clone()).assert_eq(
-            memory_access.current_comparison_value.clone(),
-            memory_access.use_clk_comparison.clone().into() * clk.clone().into()
-                + (one.clone() - memory_access.use_clk_comparison.clone().into())
-                    * segment.clone().into(),
-        );
+        self.when(verify_memory_access.clone())
+            .assert_eq(memory_access.prev_time_value.clone(), prev_time_value);
 
+        self.when(verify_memory_access.clone())
+            .assert_eq(memory_access.current_time_value.clone(), current_time_value);
+
+        // Do the actual comparison via a lookup to the field op table.
         self.send_field_op(
             one,
-            memory_access.prev_comparison_value,
-            memory_access.current_comparison_value,
-            multiplicity.clone(),
+            memory_access.prev_time_value,
+            memory_access.current_time_value,
+            verify_memory_access.clone(),
         );
 
+        //// Check the previous and current memory access via a lookup to the memory table.
         let addr_expr = addr.into();
-        let prev_values = once(memory_access.segment.into())
-            .chain(once(memory_access.timestamp.into()))
+        let prev_values = once(memory_access.prev_segment.into())
+            .chain(once(memory_access.prev_clk.into()))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.prev_value.map(Into::into))
             .collect();
@@ -293,7 +297,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(memory_access.value.map(Into::into))
             .collect();
 
-        let multiplicity_expr = multiplicity.into();
+        let multiplicity_expr = verify_memory_access.into();
         // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
             prev_values,

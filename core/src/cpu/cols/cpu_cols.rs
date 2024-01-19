@@ -16,15 +16,21 @@ pub struct MemoryAccessCols<T> {
     pub prev_value: Word<T>,
 
     // The previous segment and timestamp that this memory access is being read from.
-    pub segment: T,
-    pub timestamp: T,
+    pub prev_segment: T,
+    pub prev_clk: T,
 
-    // Flag that specifies whether clk/timestamp should be used for verifying current access is
-    // greater than previous access.
-    // All these values will need to be verified in the air.
+    // The three columns below are helper/materialized columns used to verify that this memory access is
+    // after the last one.  Specifically, it verifies that the current clk value > timestsamp (if
+    // this access's segment == prev_access's segment) or that the current segment > segment.
+    // These columns will need to be verified in the air.
+
+    // This will be true if the current segment == prev_access's segment, else false.
     pub use_clk_comparison: T,
-    pub prev_comparison_value: T, // use_clk_comparison ? timestamp : segment
-    pub current_comparison_value: T, // !use_clk_comparison ? current clk : current segment
+
+    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_segment
+    pub prev_time_value: T,
+    // This materialized column is equal to use_clk_comparison ? current_clk : current_segment
+    pub current_time_value: T,
 }
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
