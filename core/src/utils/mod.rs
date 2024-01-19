@@ -43,28 +43,30 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn populate_access(
         &self,
         cols: &mut MemoryAccessCols<F>,
-        value: u32,
-        record: Option<MemoryRecord>,
-        clk: u32,
-        segment: u32,
+        current_record: MemoryRecord,
+        prev_record: Option<MemoryRecord>,
         new_field_events: &mut Vec<FieldEvent>,
     ) {
-        cols.value = value.into();
+        cols.value = current_record.value.into();
         // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
-        if let Some(record) = record {
-            cols.prev_value = record.value.into();
-            cols.segment = F::from_canonical_u32(record.segment);
-            cols.timestamp = F::from_canonical_u32(record.timestamp);
+        if let Some(prev_record) = prev_record {
+            cols.prev_value = prev_record.value.into();
+            cols.segment = F::from_canonical_u32(prev_record.segment);
+            cols.timestamp = F::from_canonical_u32(prev_record.timestamp);
 
-            let use_clk_comparison = record.segment == segment;
+            let use_clk_comparison = prev_record.segment == current_record.segment;
             cols.use_clk_comparison = F::from_bool(use_clk_comparison);
             let prev_comparison_value = if use_clk_comparison {
-                record.timestamp
+                prev_record.timestamp
             } else {
-                record.segment
+                prev_record.segment
             };
             cols.prev_comparison_value = F::from_canonical_u32(prev_comparison_value);
-            let current_comparison_value = if use_clk_comparison { clk } else { segment };
+            let current_comparison_value = if use_clk_comparison {
+                current_record.timestamp
+            } else {
+                current_record.segment
+            };
             cols.current_comparison_value = F::from_canonical_u32(current_comparison_value);
 
             let field_event =

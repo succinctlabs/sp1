@@ -326,14 +326,7 @@ impl Prover {
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use std::collections::BTreeMap;
-
-    use crate::bytes::ByteChip;
-    use crate::cpu::CpuChip;
-    use crate::field::FieldChip;
-    use crate::lookup::debug_interactions;
     use crate::lookup::debug_interactions_with_all_chips;
-    use crate::lookup::InteractionKind;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -348,7 +341,6 @@ pub mod tests {
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
-    use p3_field::AbstractField;
     use p3_field::Field;
     use p3_fri::FriBasedPcs;
     use p3_fri::FriConfigImpl;

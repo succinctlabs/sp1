@@ -1,6 +1,4 @@
-use super::cols::cpu_cols::{
-    AUIPCColumns, BranchColumns, JumpColumns, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS,
-};
+use super::cols::cpu_cols::{AUIPCColumns, BranchColumns, JumpColumns, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent, MemoryRecord};
 
 use crate::alu::{self, AluEvent};
@@ -70,28 +68,39 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
+        let current_a_record = MemoryRecord {
+            value: event.a,
+            segment: event.segment,
+            timestamp: event.clk + AccessPosition::A as u32,
+        };
         self.populate_access(
             &mut cols.op_a_access,
-            event.a,
+            current_a_record,
             event.a_record,
-            event.clk + AccessPosition::A as u32,
-            event.segment,
             new_field_events,
         );
+
+        let current_b_record = MemoryRecord {
+            value: event.b,
+            segment: event.segment,
+            timestamp: event.clk + AccessPosition::B as u32,
+        };
         self.populate_access(
             &mut cols.op_b_access,
-            event.b,
+            current_b_record,
             event.b_record,
-            event.clk + AccessPosition::B as u32,
-            event.segment,
             new_field_events,
         );
+
+        let current_c_record = MemoryRecord {
+            value: event.c,
+            segment: event.segment,
+            timestamp: event.clk + AccessPosition::C as u32,
+        };
         self.populate_access(
             &mut cols.op_c_access,
-            event.c,
+            current_c_record,
             event.c_record,
-            event.clk + AccessPosition::C as u32,
-            event.segment,
             new_field_events,
         );
 
@@ -101,12 +110,16 @@ impl CpuChip {
         let memory_columns: &mut MemoryColumns<F> =
             unsafe { transmute(&mut cols.opcode_specific_columns) };
         if let Some(memory) = event.memory {
+            let current_mem_record = MemoryRecord {
+                value: memory,
+                segment: event.segment,
+                timestamp: event.clk + AccessPosition::Memory as u32,
+            };
+
             self.populate_access(
                 &mut memory_columns.memory_access,
-                memory,
+                current_mem_record,
                 event.memory_record,
-                event.clk + AccessPosition::Memory as u32,
-                event.segment,
                 new_field_events,
             )
         }
@@ -327,6 +340,8 @@ impl CpuChip {
                     .entry(Opcode::ADD)
                     .and_modify(|op_new_events| op_new_events.push(add_event))
                     .or_insert(vec![add_event]);
+            } else {
+                cols.not_branching = F::one();
             }
         }
     }

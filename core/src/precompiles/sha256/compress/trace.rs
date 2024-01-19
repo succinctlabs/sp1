@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, runtime::Segment, utils::Chip};
+use crate::{air::Word, cpu::MemoryRecord, runtime::Segment, utils::Chip};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -35,12 +35,15 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
 
+                let h_current_read = MemoryRecord {
+                    value: event.h[j],
+                    segment: SEGMENT_NUM,
+                    timestamp: clk,
+                };
                 self.populate_access(
                     &mut cols.mem,
-                    event.h[j],
+                    h_current_read,
                     event.h_read_records[j],
-                    clk,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
@@ -89,12 +92,18 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
+                let w_i_current_record = MemoryRecord {
+                    value: event.w[j],
+                    segment: SEGMENT_NUM,
+                    timestamp: clk,
+                };
+
+                event.w_i_read_records[j];
+
                 self.populate_access(
                     &mut cols.mem,
-                    event.w[j],
+                    w_i_current_record,
                     event.w_i_read_records[j],
-                    clk,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (j * 4) as u32);
@@ -180,12 +189,15 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
 
+                let updated_h_record = MemoryRecord {
+                    value: og_h[j].wrapping_add(event.h[j]),
+                    segment: SEGMENT_NUM,
+                    timestamp: clk,
+                };
                 self.populate_access(
                     &mut cols.mem,
-                    og_h[j].wrapping_add(event.h[j]),
+                    updated_h_record,
                     event.h_write_records[j],
-                    clk,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);

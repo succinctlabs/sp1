@@ -117,6 +117,14 @@ pub struct CpuCols<T> {
     //  AND (Self::BranchColumns::a_eq_b || Self::BranchColumns::a_gt_b))
     pub branching: T,
 
+    // not_branching column is equal to
+    // (Self::selectors::is_beq AND !Self::BranchColumns::a_eq_b) ||
+    // (Self::selectors::is_bne AND !(Self::BranchColumns::a_lt_b || Self::BranchColumns::a_gt:b) ||
+    // ((Self::selectors::is_blt || Self::selectors::is_bltu) AND !Self::BranchColumns::a_lt_b) ||
+    // ((Self::selectors::is_bge || Self::selectors::is_bgeu)
+    //  AND !(Self::BranchColumns::a_eq_b || Self::BranchColumns::a_gt_b))
+    pub not_branching: T,
+
     // mem_value_is_neg column is equal to
     // ((Self::selectors::is_lbu || Self::selectors::is_lhu) AND Self::MemoryColumns::most_sig_byte_decomp[7] == 1)
     pub mem_value_is_neg: T,

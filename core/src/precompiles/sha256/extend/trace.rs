@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, runtime::Segment, utils::Chip};
+use crate::{air::Word, cpu::MemoryRecord, runtime::Segment, utils::Chip};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
@@ -28,36 +28,51 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
                 let i = 16 + (j % 48);
 
+                let w_i_minus_15_current_read = MemoryRecord {
+                    value: w[16 + j - 15],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_15,
-                    w[16 + j - 15],
+                    w_i_minus_15_current_read,
                     event.w_i_minus_15_reads[j],
-                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
+
+                let w_i_minus_2_current_read = MemoryRecord {
+                    value: w[16 + j - 2],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 4,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_2,
-                    w[16 + j - 2],
+                    w_i_minus_2_current_read,
                     event.w_i_minus_2_reads[j],
-                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 4,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
+
+                let w_i_minus_16_current_read = MemoryRecord {
+                    value: w[16 + j - 16],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 8,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_16,
-                    w[16 + j - 16],
+                    w_i_minus_16_current_read,
                     event.w_i_minus_16_reads[j],
-                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 8,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
+
+                let w_i_minus_7_current_read = MemoryRecord {
+                    value: w[16 + j - 7],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 12,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_7,
-                    w[16 + j - 7],
+                    w_i_minus_7_current_read,
                     event.w_i_minus_7_reads[j],
-                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 12,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
 
@@ -87,12 +102,17 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
                 // Write `s2` to `w[i]`.
                 w[16 + j] = s2;
+
+                let w_i_current_write = MemoryRecord {
+                    value: w[16 + j],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 16,
+                };
+
                 self.populate_access(
                     &mut cols.w_i,
-                    w[16 + j],
+                    w_i_current_write,
                     event.w_i_writes[j],
-                    event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 16,
-                    SEGMENT_NUM,
                     &mut new_field_events,
                 );
 
