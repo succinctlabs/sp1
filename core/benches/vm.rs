@@ -20,7 +20,6 @@ use p3_symmetric::CompressionFunctionFromHasher;
 use p3_symmetric::SerializingHasher32;
 use p3_uni_stark::StarkConfigImpl;
 use rand::thread_rng;
-use std::time::Duration;
 
 pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&mut Runtime)) {
     type Val = BabyBear;
@@ -61,7 +60,7 @@ pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&
 
     let pcs = Pcs::new(dft, val_mmcs, ldt);
     let config = StarkConfigImpl::new(pcs);
-    let mut challenger = Challenger::new(perm.clone());
+    let challenger = Challenger::new(perm.clone());
 
     let mut runtime = Runtime::new(program.clone());
     runtime.write_witness(&[1, 2]);
@@ -95,18 +94,20 @@ fn bench_program(program_name: &str, b: divan::Bencher) {
     println!("cycle count: {}", cycle_count);
 
     b.counter(divan::counter::ItemsCount::new(cycle_count as u64))
-        .with_inputs(prepare)
-        .bench_refs(prove);
+        .bench(|| {
+            let mut runtime = prepare();
+            prove(&mut runtime);
+        });
 }
 
-// #[divan::bench(sample_count = 5, sample_size = 5)]
-// pub fn fibonacci(b: divan::Bencher) {
-//     bench_program("fibonacci", b);
-// }
+#[divan::bench(sample_count = 2, sample_size = 2)]
+pub fn fibonacci(b: divan::Bencher) {
+    bench_program("fibonacci", b);
+}
 
 #[divan::bench(sample_count = 1, sample_size = 1)]
-pub fn sha256(b: divan::Bencher) {
-    bench_program("ssz", b);
+pub fn ssz_withdrawals(b: divan::Bencher) {
+    bench_program("ssz_withdrawals", b);
 }
 
 fn main() {

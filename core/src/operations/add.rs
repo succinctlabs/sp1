@@ -8,7 +8,6 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 
-use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::runtime::Segment;
 use p3_field::AbstractField;
