@@ -1,5 +1,4 @@
 pub mod ops;
-// pub mod parser;
 
 use p3_field::Field;
 
@@ -8,7 +7,6 @@ use core::iter;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub};
 
 use self::ops::PolynomialOps;
-// use crate::utils::field::biguint_to_16_digits_field;
 
 /// A wrapper around a vector of elements to represent a polynomial.
 #[derive(Debug, Clone)]
