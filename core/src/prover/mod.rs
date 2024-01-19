@@ -1,5 +1,3 @@
-use std::mem::{transmute, transmute_copy};
-
 use itertools::izip;
 use p3_air::{
     Air, AirBuilder, BaseAir, PairBuilder, PermutationAirBuilder, TwoRowMatrixView, VirtualPairCol,
@@ -23,10 +21,7 @@ pub use debug::*;
 #[cfg(test)]
 pub use runtime::tests;
 
-use crate::{
-    cpu::cols::cpu_cols::{CpuCols, NUM_CPU_COLS},
-    utils::Chip,
-};
+use crate::utils::Chip;
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///

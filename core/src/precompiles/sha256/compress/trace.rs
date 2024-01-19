@@ -98,8 +98,6 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                     timestamp: clk,
                 };
 
-                event.w_i_read_records[j];
-
                 self.populate_access(
                     &mut cols.mem,
                     w_i_current_record,
