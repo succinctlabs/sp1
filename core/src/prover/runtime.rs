@@ -353,6 +353,9 @@ pub mod tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
+    extern crate test;
+    use test::Bencher;
+
     pub fn prove(program: Program) {
         type Val = BabyBear;
         type Domain = Val;
@@ -397,6 +400,12 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
+        log::info!("cycles: {}", runtime.segment.cpu_events.len());
+        log::info!(
+            "sha_compress: {}",
+            runtime.segment.sha_compress_events.len()
+        );
+        log::info!("sha_extend: {}", runtime.segment.sha_extend_events.len());
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
 
         debug_interactions_with_all_chips(
