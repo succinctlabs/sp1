@@ -4,6 +4,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
 use crate::{
+    cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord},
+    field::event::FieldEvent,
     lookup::{Interaction, InteractionBuilder},
     runtime::Segment,
     stark::DebugConstraintBuilder,
@@ -36,6 +38,42 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         let (mut sends, receives) = builder.interactions();
         sends.extend(receives);
         sends
+    }
+
+    fn populate_access(
+        &self,
+        cols: &mut MemoryAccessCols<F>,
+        current_record: MemoryRecord,
+        prev_record: Option<MemoryRecord>,
+        new_field_events: &mut Vec<FieldEvent>,
+    ) {
+        cols.value = current_record.value.into();
+        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
+        if let Some(prev_record) = prev_record {
+            cols.prev_value = prev_record.value.into();
+            cols.prev_segment = F::from_canonical_u32(prev_record.segment);
+            cols.prev_clk = F::from_canonical_u32(prev_record.timestamp);
+
+            // Fill columns used for verifying current memory access time value is greater than previous's.
+            let use_clk_comparison = prev_record.segment == current_record.segment;
+            cols.use_clk_comparison = F::from_bool(use_clk_comparison);
+            let prev_time_value = if use_clk_comparison {
+                prev_record.timestamp
+            } else {
+                prev_record.segment
+            };
+            cols.prev_time_value = F::from_canonical_u32(prev_time_value);
+            let current_time_value = if use_clk_comparison {
+                current_record.timestamp
+            } else {
+                current_record.segment
+            };
+            cols.current_time_value = F::from_canonical_u32(current_time_value);
+
+            // Add a field op event for the prev_time_value < current_time_value constraint.
+            let field_event = FieldEvent::new(true, prev_time_value, current_time_value);
+            new_field_events.push(field_event);
+        }
     }
 
     /// The width of the permutation trace as a matrix of challenge elements.
