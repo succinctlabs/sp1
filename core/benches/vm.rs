@@ -20,7 +20,6 @@ use p3_symmetric::CompressionFunctionFromHasher;
 use p3_symmetric::SerializingHasher32;
 use p3_uni_stark::StarkConfigImpl;
 use rand::thread_rng;
-use std::time::Duration;
 
 pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&mut Runtime)) {
     type Val = BabyBear;
@@ -61,7 +60,7 @@ pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&
 
     let pcs = Pcs::new(dft, val_mmcs, ldt);
     let config = StarkConfigImpl::new(pcs);
-    let mut challenger = Challenger::new(perm.clone());
+    let challenger = Challenger::new(perm.clone());
 
     let mut runtime = Runtime::new(program.clone());
     runtime.write_witness(&[1, 2]);
