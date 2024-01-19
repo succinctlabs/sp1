@@ -216,7 +216,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
-                cols.is_c_0.populate(segment, event.c, true);
+                cols.is_c_0.populate(event.c);
             }
 
             let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
@@ -357,7 +357,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             cols.abs_c[0] = F::one();
             cols.max_abs_c_or_1[0] = F::one();
 
-            cols.is_c_0.populate(segment, 1, false);
+            cols.is_c_0.populate(1);
 
             row
         };

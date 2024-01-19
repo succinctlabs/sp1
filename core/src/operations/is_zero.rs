@@ -2,9 +2,8 @@
 //!
 //! This is guaranteed to return 1 if and only if the input is 0.
 //!
-//! The idea is to compute the inverse of each byte in the input word and store them in the trace.
-//! Then we compute the product of each byte with its inverse. We get 1 if the input is nonzero, and
-//! 0 if the input is zero. Assertions fail if the inverse is not correctly set.
+//! The idea is that 1 - input * inverse is exactly the boolean value indicating whether the input
+//! is 0.
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
@@ -14,10 +13,6 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::air::Word;
-use crate::bytes::ByteOpcode;
-use crate::disassembler::WORD_SIZE;
-use crate::runtime::Segment;
 
 /// A set of columns needed to compute whether the given word is 0.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -27,21 +22,21 @@ pub struct IsZeroOperation<T> {
     pub inverse: T,
 
     /// Result indicating whether the input is 0. This equals `inverse * input == 0`.
-    pub result: Word<T>,
+    pub result: T,
 }
 
 impl<F: Field> IsZeroOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, a: u32) -> u32 {
-        if a[i] == 0 {
-            self.inverse[i] = F::zero();
+    pub fn populate(&mut self, a: u32) -> u32 {
+        if a == 0 {
+            self.inverse = F::zero();
             self.result = F::one();
         } else {
-            self.inverse[i] = F::from_canonical_u64(u64::from(a[i])).inverse();
+            self.inverse = F::from_canonical_u32(a).inverse();
             self.result = F::zero();
         }
-        let prod = self.inverse[i] * F::from_canonical_u8(a[i]);
+        let prod = self.inverse * F::from_canonical_u32(a);
         debug_assert!(prod == F::one() || prod == F::zero());
-        (n == 0) as u32
+        (a == 0) as u32
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
