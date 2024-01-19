@@ -2,16 +2,23 @@ use std::env;
 
 use anyhow::Result;
 use clap::Parser;
+
 #[derive(Parser)]
 #[command(name = "prove", about = "(default) Build and prove a Rust program")]
 pub struct ProveCmd {
     #[clap(long)]
     target: Option<String>,
+
+    #[clap(last = true)]
+    cargo_args: Vec<String>,
 }
 
 impl ProveCmd {
     pub fn new() -> Self {
-        Self { target: None }
+        Self {
+            target: None,
+            cargo_args: Vec::new(),
+        }
     }
 
     pub fn run(&self) -> Result<()> {
@@ -40,6 +47,7 @@ impl ProveCmd {
             build_target = target.clone();
         }
         cmd.arg("--release");
+        cmd.args(self.cargo_args.clone());
 
         let rust_flags = [
             "-C",

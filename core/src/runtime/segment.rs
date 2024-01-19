@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
 use super::program::Program;
 use super::Opcode;
@@ -13,7 +14,7 @@ pub struct Segment {
     /// The index of this segment in the program.
     pub index: u32,
 
-    pub program: Program,
+    pub program: Arc<Program>,
 
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
