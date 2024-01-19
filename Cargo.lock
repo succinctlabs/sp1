@@ -717,6 +717,7 @@ dependencies = [
  "p3-keccak",
  "p3-ldt",
  "p3-matrix",
+ "p3-maybe-rayon",
  "p3-mds",
  "p3-merkle-tree",
  "p3-poseidon2",

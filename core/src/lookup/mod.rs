@@ -1,4 +1,4 @@
-use crate::prover::runtime::Prover;
+use crate::runtime::Runtime;
 
 use crate::utils::Chip;
 use p3_air::VirtualPairCol;
@@ -126,8 +126,8 @@ pub fn debug_interactions_with_all_chips(
     type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
 
     // Here, we collect all the chips.
-    let segment_chips = Prover::segment_chips::<Val, Challenge, MyConfig>();
-    let global_chips = Prover::global_chips::<Val, Challenge, MyConfig>();
+    let segment_chips = Runtime::segment_chips::<MyConfig>();
+    let global_chips = Runtime::global_chips::<MyConfig>();
 
     let all_chips = segment_chips.iter().chain(global_chips.iter());
 

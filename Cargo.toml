@@ -28,6 +28,7 @@ p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
 p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git" }
 
 [patch.crates-io]
 # Patch sha2 so we can use sha precompiles
