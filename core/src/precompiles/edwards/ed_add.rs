@@ -81,9 +81,35 @@ impl<T: Copy> EdAddAssignCols<T> {
     }
 }
 
-impl<F: Field> EdAddAssignCols<F> {
-    pub fn populate<P: FieldParameters>(&mut self) {
-        todo!();
+pub struct EdAddAssignChip<P: FieldParameters> {
+    pub _phantom: std::marker::PhantomData<P>,
+}
+
+impl<F: Field, P: FieldParameters> Chip<F> for EdAddAssignChip<P> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+        let mut rows = Vec::new();
+
+        for i in 0..segment.ed_add_events.len() {
+            let mut event = segment.ed_add_events[i].clone();
+            let p = &mut event.p;
+            let q = &mut event.q;
+            for j in 0..48usize {
+                let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                let cols: &mut EdAddAssignCols<F> = unsafe { transmute(&mut row) };
+
+                cols.segment = F::one();
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+                cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+
+                for i in 0..16 {
+                    self.populate_access(&mut cols.p_access[i], p[i], event.p_records[i]);
+                    self.populate_access(&mut cols.q_access[i], q[i], event.q_records[i]);
+                }
+            }
+        }
+
+        RowMajorMatrix::new(rows)
     }
 }
 
