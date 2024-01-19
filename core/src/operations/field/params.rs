@@ -79,7 +79,7 @@ impl FieldParameters for Ed25519BaseField {
         237, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
     ];
-    const WITNESS_OFFSET: usize = 1usize << 20;
+    const WITNESS_OFFSET: usize = 1usize << 13;
 
     fn modulus() -> BigUint {
         (BigUint::one() << 255) - BigUint::from(19u32)

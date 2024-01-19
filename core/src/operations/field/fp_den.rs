@@ -12,6 +12,8 @@ use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
+// a / (1 + b) if sign
+// a/ -b if !sign
 /// A set of columns to compute `FpDen(a, b)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
@@ -137,7 +139,6 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpDenCols, Limbs};
-    use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
         operations::field::params::{Ed25519BaseField, FieldParameters},
@@ -146,10 +147,12 @@ mod tests {
     };
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
+    use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_commit::ExtensionMmcs;
     use p3_field::extension::BinomialExtensionField;
+    // use p3_field::AbstractField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_keccak::Keccak256Hash;
     use p3_ldt::QuotientMmcs;
@@ -162,7 +165,6 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
     use valida_derive::AlignedBorrow;
-
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
@@ -188,13 +190,26 @@ mod tests {
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpDenChip<P> {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
-            // TODO: ignore segment for now since we're just hardcoding this test case.
-            let operands: Vec<(BigUint, BigUint)> = vec![
+            let mut rng = thread_rng();
+            let num_rows = 1 << 8;
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
+                .map(|_| {
+                    let a = rng.gen_biguint(256) % &P::modulus();
+                    let b = rng.gen_biguint(256) % &P::modulus();
+                    (a, b)
+                })
+                .collect();
+            // Hardcoded edge cases.
+            operands.extend(vec![
                 (BigUint::from(0u32), BigUint::from(0u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
                 (BigUint::from(10u32), BigUint::from(19u32)),
-            ];
+            ]);
+            // It is important that the number of rows is an exact power of 2,
+            // otherwise the padding will not work correctly.
+            assert_eq!(operands.len(), num_rows);
+
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
@@ -207,13 +222,12 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             // Convert the trace to a row major matrix.
-            let mut trace = RowMajorMatrix::new(
+            let trace = RowMajorMatrix::new(
                 rows.into_iter().flatten().collect::<Vec<_>>(),
                 NUM_TEST_COLS,
             );
 
-            // Pad the trace to a power of two.
-            pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
+            // Note we do not pad the trace here because we cannot just pad with all 0s.
 
             trace
         }
@@ -297,6 +311,9 @@ mod tests {
 
         let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        // This it to test that the proof DOESN'T work if messed up.
+        // let row = trace.row_mut(0);
+        // row[0] = BabyBear::from_canonical_u8(0);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = Challenger::new(perm);

@@ -15,14 +15,14 @@ impl PolynomialOps {
     /// Polynomial addition.
     pub fn add<T>(a: &[T], b: &[T]) -> Vec<T>
     where
-        T: Add<Output = T> + Copy + Default,
+        T: Add<Output = T> + Clone,
     {
         a.iter()
             .zip_longest(b.iter())
             .map(|x| match x {
-                itertools::EitherOrBoth::Both(a, b) => *a + *b,
-                itertools::EitherOrBoth::Left(a) => *a,
-                itertools::EitherOrBoth::Right(b) => *b,
+                itertools::EitherOrBoth::Both(a, b) => a.clone() + b.clone(),
+                itertools::EitherOrBoth::Left(a) => a.clone(),
+                itertools::EitherOrBoth::Right(b) => b.clone(),
             })
             .collect()
     }
@@ -30,31 +30,33 @@ impl PolynomialOps {
     /// Polynomial addition with assignment. Assumes `a.len() >= b.len()`.
     pub fn add_assign<T>(a: &mut [T], b: &[T])
     where
-        T: AddAssign + Copy,
+        T: AddAssign + Clone,
     {
         debug_assert!(a.len() >= b.len(), "Expects a.len() >= b.len()");
-        a.iter_mut().zip(b.iter()).for_each(|(a, b)| *a += *b);
+        a.iter_mut()
+            .zip(b.iter())
+            .for_each(|(a, b)| *a += b.clone());
     }
 
     /// Polynomial negation.
     pub fn neg<T>(a: &[T]) -> Vec<T>
     where
-        T: Neg<Output = T> + Copy,
+        T: Neg<Output = T> + Clone,
     {
-        a.iter().map(|x| -*x).collect()
+        a.iter().map(|x| -x.clone()).collect()
     }
 
     /// Polynomial subtraction.
     pub fn sub<T>(a: &[T], b: &[T]) -> Vec<T>
     where
-        T: Sub<Output = T> + Copy + Neg<Output = T>,
+        T: Sub<Output = T> + Clone + Neg<Output = T>,
     {
         a.iter()
             .zip_longest(b.iter())
             .map(|x| match x {
-                itertools::EitherOrBoth::Both(a, b) => *a - *b,
-                itertools::EitherOrBoth::Left(a) => *a,
-                itertools::EitherOrBoth::Right(b) => -*b,
+                itertools::EitherOrBoth::Both(a, b) => a.clone() - b.clone(),
+                itertools::EitherOrBoth::Left(a) => a.clone(),
+                itertools::EitherOrBoth::Right(b) => -b.clone(),
             })
             .collect()
     }

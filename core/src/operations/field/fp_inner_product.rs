@@ -139,6 +139,7 @@ mod tests {
     };
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
+    use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_commit::ExtensionMmcs;
@@ -179,13 +180,22 @@ mod tests {
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpIpChip<P> {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
-            // TODO: ignore segment for now since we're just hardcoding this test case.
-            let operands: Vec<(Vec<BigUint>, Vec<BigUint>)> = vec![
+            let mut rng = thread_rng();
+            let num_rows = 1 << 8;
+            let mut operands: Vec<(Vec<BigUint>, Vec<BigUint>)> = (0..num_rows - 4)
+                .map(|_| {
+                    let a = rng.gen_biguint(256) % &P::modulus();
+                    let b = rng.gen_biguint(256) % &P::modulus();
+                    (vec![a], vec![b])
+                })
+                .collect();
+
+            operands.extend(vec![
                 (vec![BigUint::from(0u32)], vec![BigUint::from(0u32)]),
                 (vec![BigUint::from(0u32)], vec![BigUint::from(0u32)]),
                 (vec![BigUint::from(0u32)], vec![BigUint::from(0u32)]),
                 (vec![BigUint::from(0u32)], vec![BigUint::from(0u32)]),
-            ];
+            ]);
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
@@ -226,9 +236,10 @@ mod tests {
             local.a_ip_b.eval::<AB, P>(builder, &local.a, &local.b);
 
             // A dummy constraint to keep the degree 3.
-            // builder.assert_zero(
-            //     local.a[0] * local.b[0] * local.a[0] - local.a[0] * local.b[0] * local.a[0],
-            // )
+            builder.assert_zero(
+                local.a[0][0] * local.b[0][0] * local.a[0][0]
+                    - local.a[0][0] * local.b[0][0] * local.a[0][0],
+            )
         }
     }
 

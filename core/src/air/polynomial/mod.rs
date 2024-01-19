@@ -35,14 +35,6 @@ impl<T: Clone> Polynomial<T> {
     pub fn coefficients(&self) -> &[T] {
         &self.coefficients
     }
-
-    // pub fn from_biguint_field(num: &BigUint, num_bits: usize, num_limbs: usize) -> Self
-    // where
-    //     T: Field,
-    // {
-    //     assert_eq!(num_bits, 16, "Only 16 bit numbers supported");
-    //     Self::from_coefficients(biguint_to_16_digits_field(num, num_limbs))
-    // }
 }
 
 impl<T> Polynomial<T> {
@@ -85,7 +77,7 @@ impl<T> FromIterator<T> for Polynomial<T> {
     }
 }
 
-impl<T: Add<Output = T> + Copy + Default> Add for Polynomial<T> {
+impl<T: Add<Output = T> + Clone> Add for Polynomial<T> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -96,7 +88,7 @@ impl<T: Add<Output = T> + Copy + Default> Add for Polynomial<T> {
     }
 }
 
-impl<T: Add<Output = T> + Copy + Default> Add for &Polynomial<T> {
+impl<T: Add<Output = T> + Clone> Add for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn add(self, other: Self) -> Polynomial<T> {
@@ -107,7 +99,7 @@ impl<T: Add<Output = T> + Copy + Default> Add for &Polynomial<T> {
     }
 }
 
-impl<T: Add<Output = T> + Copy + Default> Add<&Polynomial<T>> for Polynomial<T> {
+impl<T: Add<Output = T> + Clone> Add<&Polynomial<T>> for Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn add(self, other: &Polynomial<T>) -> Polynomial<T> {
@@ -118,7 +110,7 @@ impl<T: Add<Output = T> + Copy + Default> Add<&Polynomial<T>> for Polynomial<T> 
     }
 }
 
-impl<T: Mul<Output = T> + Add<Output = T> + AddAssign + Copy + Default> Add<T> for Polynomial<T> {
+impl<T: Mul<Output = T> + Add<Output = T> + AddAssign + Clone> Add<T> for Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn add(self, other: T) -> Polynomial<T> {
@@ -128,7 +120,7 @@ impl<T: Mul<Output = T> + Add<Output = T> + AddAssign + Copy + Default> Add<T> f
     }
 }
 
-impl<T: Mul<Output = T> + Add<Output = T> + AddAssign + Copy + Default> Add<T> for &Polynomial<T> {
+impl<T: Mul<Output = T> + Add<Output = T> + AddAssign + Clone> Add<T> for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn add(self, other: T) -> Polynomial<T> {
@@ -146,7 +138,7 @@ impl<T: Neg<Output = T> + Copy> Neg for Polynomial<T> {
     }
 }
 
-impl<T: Sub<Output = T> + Neg<Output = T> + Copy + Default> Sub for Polynomial<T> {
+impl<T: Sub<Output = T> + Neg<Output = T> + Clone> Sub for Polynomial<T> {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {

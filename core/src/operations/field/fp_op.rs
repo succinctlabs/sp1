@@ -7,12 +7,13 @@ use crate::air::CurtaAirBuilder;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
+use p3_air::AirBuilder;
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FpOperation {
     Add,
     Mul,
@@ -48,7 +49,7 @@ impl<F: Field> FpOpCols<F> {
 
         // If doing the substraction operation, a - b = result, equivalent to a = result + b.
         if op == FpOperation::Sub {
-            let result = (a - b) % &modulus;
+            let result = (modulus.clone() + a - b) % &modulus;
             // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
             // But we populate `result` with the actual result of the subtraction because those columns are expected
             // to contain the result by the user.
@@ -72,7 +73,11 @@ impl<F: Field> FpOpCols<F> {
         };
         debug_assert!(&result < modulus);
         debug_assert!(&carry < modulus);
-        debug_assert_eq!(&carry * modulus, a + b - &result);
+        match op {
+            FpOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
+            FpOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
+            FpOperation::Sub => unreachable!(),
+        }
 
         // Make little endian polynomial limbs.
         let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(&modulus).into();
@@ -100,11 +105,6 @@ impl<F: Field> FpOpCols<F> {
         self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
         self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
 
-        println!("result: {:?}", self.result);
-        println!("carry: {:?}", self.carry);
-        println!("witness_low: {:?}", self.witness_low);
-        println!("witness_high: {:?}", self.witness_high);
-
         result
     }
 }
@@ -127,10 +127,10 @@ impl<V: Copy> FpOpCols<V> {
             FpOperation::Sub => (self.result.clone().into(), (*a).clone().into()),
         };
 
-        let p_b = (*b).clone().into();
-        let p_carry = self.carry.clone().into();
+        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).clone().into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.clone().into();
         let p_op = match op {
-            FpOperation::Add | FpOperation::Sub => builder.poly_add(&p_a, &p_b),
+            FpOperation::Add | FpOperation::Sub => p_a + p_b,
             FpOperation::Mul => builder.poly_mul(&p_a, &p_b),
         };
         let p_op_minus_result = builder.poly_sub(&p_op, &p_result);
@@ -165,6 +165,7 @@ mod tests {
     };
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
+    use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_commit::ExtensionMmcs;
@@ -181,7 +182,6 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
     use valida_derive::AlignedBorrow;
-
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
@@ -207,13 +207,22 @@ mod tests {
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpOpChip<P> {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
-            // TODO: ignore segment for now since we're just hardcoding this test case.
-            let operands: Vec<(BigUint, BigUint)> = vec![
+            let mut rng = thread_rng();
+            let num_rows = 1 << 8;
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
+                .map(|_| {
+                    let a = rng.gen_biguint(256) % &P::modulus();
+                    let b = rng.gen_biguint(256) % &P::modulus();
+                    (a, b)
+                })
+                .collect();
+            // Hardcoded edge cases.
+            operands.extend(vec![
                 (BigUint::from(0u32), BigUint::from(0u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
                 (BigUint::from(10u32), BigUint::from(19u32)),
-            ];
+            ]);
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
@@ -264,10 +273,13 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
-        let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        println!("{:?}", trace.values)
+        for op in [FpOperation::Add, FpOperation::Mul, FpOperation::Sub].iter() {
+            println!("op: {:?}", op);
+            let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(*op);
+            let mut segment = Segment::default();
+            let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+            // println!("{:?}", trace.values)
+        }
     }
 
     #[test]
@@ -278,10 +290,7 @@ mod tests {
         type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
         type MyMds = CosetMds<Val, 16>;
-        let mds = MyMds::default();
-
         type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
 
         type MyHash = SerializingHasher32<Keccak256Hash>;
         let hash = MyHash::new(Keccak256Hash {});
@@ -310,15 +319,21 @@ mod tests {
 
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
-        let mut challenger = Challenger::new(perm.clone());
 
-        let mut segment = Segment::default();
+        for op in [FpOperation::Add, FpOperation::Sub, FpOperation::Mul].iter() {
+            println!("op: {:?}", op);
 
-        let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(FpOperation::Add);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-        let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
+            let mds = MyMds::default();
+            let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+            let mut challenger = Challenger::new(perm.clone());
 
-        let mut challenger = Challenger::new(perm);
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+            let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(*op);
+            let mut segment = Segment::default();
+            let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+            let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
+
+            let mut challenger = Challenger::new(perm.clone());
+            verify(&config, &chip, &mut challenger, &proof).unwrap();
+        }
     }
 }
