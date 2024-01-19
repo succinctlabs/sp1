@@ -1,11 +1,9 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
-use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, FieldAirBuilder, Word, WORD_SIZE};
@@ -14,12 +12,6 @@ use crate::bytes::ByteOpcode;
 use super::FieldChip;
 
 pub const NUM_FIELD_COLS: usize = size_of::<FieldCols<u8>>();
-pub(crate) const FIELD_COL_MAP: FieldCols<usize> = make_col_map();
-
-const fn make_col_map() -> FieldCols<usize> {
-    let indices_arr = indices_arr::<NUM_FIELD_COLS>();
-    unsafe { transmute::<[usize; NUM_FIELD_COLS], FieldCols<usize>>(indices_arr) }
-}
 
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
@@ -43,9 +35,14 @@ pub struct FieldCols<T> {
     // Either exactly one must be set or none are set.
     pub differing_byte: [T; WORD_SIZE],
 
+    // The value of the most significant different byte.
+    // Note that this needs to be "materialized" as a column (as opposed to being an expression of
+    // b_word/c_word and differeing_byte) because it is used as an input to the byte ltu lookup,
+    // which must have a degree at most 1.
     pub b_byte: T,
     pub c_byte: T,
 
+    // TODO:  Support multiplicities > 1.  Right now there can be duplicate rows.
     // pub multiplicities: T,
     pub is_real: T,
 }
@@ -71,18 +68,18 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
         builder.assert_eq(Word::reduce::<AB>(&local.b_word), local.b);
         builder.assert_eq(Word::reduce::<AB>(&local.c_word), local.c);
 
-        // Check the validity of the differing byte bitmap.
+        // Check that each element in differeing_byte is a boolean.
         for i in 0..WORD_SIZE {
             builder.assert_bool(local.differing_byte[i]);
         }
 
-        let bitmap_sum = local
+        // Verify that at most one bit in different_byte is set.
+        let bit_sum = local
             .differing_byte
             .iter()
             .fold(AB::Expr::zero(), |acc, x| acc + *x);
-        // Verify bitmap sum is 0 or 1
         builder.assert_eq(
-            bitmap_sum.clone() * (bitmap_sum - AB::Expr::one()),
+            bit_sum.clone() * (bit_sum - AB::Expr::one()),
             AB::Expr::zero(),
         );
 
@@ -95,7 +92,10 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldChip {
             }
         }
 
-        // Byte to compare
+        // Find out the most significant byte to compare.
+        // Note that if all the bytes are equal, then b_byte and c_byte will
+        // equal to zero.  That is fine, since the byte ltu lookup will constraint
+        // the lt column to be false, which is what we want.
         let mut b_byte = AB::Expr::zero();
         let mut c_byte = AB::Expr::zero();
         for i in 0..WORD_SIZE {
