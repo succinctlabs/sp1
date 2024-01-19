@@ -97,6 +97,10 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "Bitwise".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for BitwiseChip {
@@ -122,7 +126,7 @@ where
         let mult = local.is_xor + local.is_or + local.is_and;
 
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte_lookup(opcode.clone(), a, b, c, mult.clone());
+            builder.send_byte(opcode.clone(), a, b, c, mult.clone());
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

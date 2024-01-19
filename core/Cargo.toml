@@ -22,14 +22,24 @@ p3-goldilocks = { workspace = true }
 p3-keccak = { workspace = true }
 p3-ldt = { workspace = true }
 p3-mds = { workspace = true }
-p3-merkle-tree ={ workspace = true }
+p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
+p3-maybe-rayon = { workspace = true }
 rand = "0.8.5"
 p3-util = { workspace = true }
 itertools = "0.12.0"
 rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 log = "0.4.20"
 env_logger = "0.10.1"
-num = { version = "0.4.1", features = ["rand"]}
+num = { version = "0.4.1", features = ["rand"] }
+nohash-hasher = "0.2.0"
+
+[dev-dependencies]
+divan = "0.1.8"
+
+
+[[bench]]
+name = "vm"
+harness = false

@@ -131,19 +131,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use log::debug;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{AbstractField, Field};
+    use p3_field::Field;
 
-    use crate::bytes::ByteChip;
-    use crate::cpu::trace::CpuChip;
-    use crate::lookup::{debug_interactions, InteractionKind};
+    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
-    use crate::precompiles::sha256_extend::tests::sha_extend_program;
-    use crate::precompiles::sha256_extend::ShaExtendChip;
+    use crate::precompiles::sha256::extend_tests::sha_extend_program;
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
@@ -249,57 +244,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-
-        let memory_init_chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
-        println!("Memory init chip interactions");
-        let (_, init_count) = debug_interactions::<BabyBear, _>(
-            memory_init_chip,
-            &mut runtime.segment,
-            InteractionKind::Memory,
-        );
-
-        println!("Memory finalize chip interactions");
-        let memory_finalize_chip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        let (_, finalize_count) = debug_interactions::<BabyBear, _>(
-            memory_finalize_chip,
-            &mut runtime.segment,
-            InteractionKind::Memory,
-        );
-
-        println!("CPU interactions");
-        let cpu_chip = CpuChip::new();
-        let (_, cpu_count) = debug_interactions::<BabyBear, _>(
-            cpu_chip,
-            &mut runtime.segment,
-            InteractionKind::Memory,
-        );
-
-        println!("SHA interactions");
-        let sha256_extend = ShaExtendChip::new();
-        let (_, sha_extend_count) = debug_interactions::<BabyBear, _>(
-            sha256_extend,
-            &mut runtime.segment,
-            InteractionKind::Memory,
-        );
-
-        let mut final_map = BTreeMap::new();
-
-        for (key, value) in init_count
-            .iter()
-            .chain(finalize_count.iter())
-            .chain(cpu_count.iter())
-            .chain(sha_extend_count.iter())
-        {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        }
-
-        println!("Final counts");
-
-        for (key, value) in final_map {
-            if !value.is_zero() {
-                println!("Key {} Value {}", key, value);
-            }
-        }
+        debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Memory);
     }
 
     #[test]
@@ -311,35 +256,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-
-        println!("SHA interactions");
-        let sha256_extend = ShaExtendChip::new();
-        let (_, sha_extend_count) = debug_interactions::<BabyBear, _>(
-            sha256_extend,
-            &mut runtime.segment,
-            InteractionKind::Byte,
-        );
-
-        let byte_chip = ByteChip::new();
-        println!("Byte chip interactions");
-        let (_, byte_count) = debug_interactions::<BabyBear, _>(
-            byte_chip,
-            &mut runtime.segment,
-            InteractionKind::Byte,
-        );
-
-        let mut final_map = BTreeMap::new();
-
-        for (key, value) in byte_count.iter().chain(sha_extend_count.iter()) {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
-        }
-
-        println!("Final counts");
-
-        for (key, value) in final_map {
-            if !value.is_zero() {
-                println!("Key {} Value {}", key, value);
-            }
-        }
+        debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Byte);
     }
 }

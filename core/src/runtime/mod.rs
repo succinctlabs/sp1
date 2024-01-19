@@ -6,14 +6,16 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256_extend::ShaExtendEvent;
+use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
+use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::sync::Arc;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -29,10 +31,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    a: Option<MemoryRecord>,
-    b: Option<MemoryRecord>,
-    c: Option<MemoryRecord>,
-    memory: Option<MemoryRecord>,
+    pub a: Option<MemoryRecord>,
+    pub b: Option<MemoryRecord>,
+    pub c: Option<MemoryRecord>,
+    pub memory: Option<MemoryRecord>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -54,13 +56,13 @@ pub struct Runtime {
     pub pc: u32,
 
     /// The program.
-    pub program: Program,
+    pub program: Arc<Program>,
 
     /// The memory which instructions operate over.
-    pub memory: BTreeMap<u32, u32>,
+    pub memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
 
     /// Maps a memory address to (segment, timestamp) that it was touched.
-    pub memory_access: BTreeMap<u32, (u32, u32)>,
+    pub memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
 
     /// A stream of witnessed values (global to the entire program).
     pub witness: Vec<u32>,
@@ -86,22 +88,24 @@ pub struct Runtime {
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let mut segment = Segment::default();
-        segment.program = program.clone();
-        segment.index = 1;
-
+        let program_rc = Arc::new(program);
+        let segment = Segment {
+            program: program_rc.clone(),
+            index: 0,
+            ..Default::default()
+        };
         Self {
             global_clk: 0,
             clk: 0,
-            pc: program.pc_start,
-            program,
-            memory: BTreeMap::new(),
-            memory_access: BTreeMap::new(),
+            pc: program_rc.pc_start,
+            program: program_rc,
+            memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
+            memory_access: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
             witness: Vec::new(),
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 10000,
+            segment_size: 1048576,
             global_segment: Segment::default(),
         }
     }
@@ -121,7 +125,7 @@ impl Runtime {
                 None => 0,
             };
         }
-        return registers;
+        registers
     }
 
     /// Get the current value of a register.
@@ -139,6 +143,12 @@ impl Runtime {
             Some(value) => *value,
             None => 0,
         }
+    }
+
+    pub fn byte(&self, addr: u32) -> u8 {
+        let word = self.word(addr - addr % 4);
+        let byte = (word >> (addr % 4) * 8) as u8;
+        byte
     }
 
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
@@ -164,10 +174,10 @@ impl Runtime {
     }
 
     /// Read from memory, assuming that all addresses are aligned.
-    fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
-        let value = self.memory.entry(addr).or_insert(0).clone();
+        let value = *self.memory.entry(addr).or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
@@ -177,7 +187,7 @@ impl Runtime {
         );
 
         let record = MemoryRecord {
-            value: value,
+            value,
             segment: prev_segment,
             timestamp: prev_timestamp,
         };
@@ -193,7 +203,7 @@ impl Runtime {
 
     /// Write to memory.
     /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
-    fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
+    pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
         // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
         self.memory.insert(addr, value);
@@ -209,12 +219,12 @@ impl Runtime {
     }
 
     /// Read from register.
-    fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
+    pub fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
         self.mr(register as u32, position)
     }
 
     /// Write to register.
-    fn rw(&mut self, register: Register, value: u32) {
+    pub fn rw(&mut self, register: Register, value: u32) {
         if register == Register::X0 {
             // We don't write to %x0. See 2.6 Load and Store Instruction on
             // P.18 of the RISC-V spec.
@@ -285,7 +295,7 @@ impl Runtime {
                 self.segment.lt_events.push(event);
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.segment.add_events.push(event);
+                self.segment.mul_events.push(event);
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.segment.divrem_events.push(event);
@@ -378,7 +388,6 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-
         self.record = Record::default();
 
         match instruction.opcode {
@@ -445,9 +454,9 @@ impl Runtime {
             Opcode::LH => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = match addr % 4 {
+                let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
-                    1 => memory_read_value & 0xFFFF0000,
+                    1 => (memory_read_value & 0xFFFF0000) >> 16,
                     _ => unreachable!(),
                 };
                 a = ((value as i16) as i32) as u32;
@@ -464,17 +473,17 @@ impl Runtime {
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = (value as u8) as u32;
+                a = value as u32;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
             Opcode::LHU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = if addr % 4 == 0 {
-                    memory_read_value & 0x0000FFFF
-                } else {
-                    memory_read_value & 0xFFFF0000
+                let value = match (addr >> 1) % 2 {
+                    0 => memory_read_value & 0x0000FFFF,
+                    1 => (memory_read_value & 0xFFFF0000) >> 16,
+                    _ => unreachable!(),
                 };
                 a = (value as u16) as u32;
                 memory_store_value = Some(memory_read_value);
@@ -486,9 +495,9 @@ impl Runtime {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 let value = match addr % 4 {
                     0 => (a & 0x000000FF) + (memory_read_value & 0xFFFFFF00),
-                    1 => (a & 0x000000FF) << 8 + (memory_read_value & 0xFFFF00FF),
-                    2 => (a & 0x000000FF) << 16 + (memory_read_value & 0xFF00FFFF),
-                    3 => (a & 0x000000FF) << 24 + (memory_read_value & 0x00FFFFFF),
+                    1 => ((a & 0x000000FF) << 8) + (memory_read_value & 0xFFFF00FF),
+                    2 => ((a & 0x000000FF) << 16) + (memory_read_value & 0xFF00FFFF),
+                    3 => ((a & 0x000000FF) << 24) + (memory_read_value & 0x00FFFFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -497,9 +506,9 @@ impl Runtime {
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 assert_eq!(addr % 2, 0, "addr is not aligned");
-                let value = match addr % 2 {
-                    0 => (memory_read_value & 0xFFFF0000) + (a & 0x0000FFFF),
-                    1 => (memory_read_value & 0x0000FFFF) + (a & 0x0000FFFF) << 16,
+                let value = match (addr >> 1) % 2 {
+                    0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
+                    1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
@@ -579,8 +588,11 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
+                let a1 = Register::X11;
+                let a2 = Register::X12;
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
+
                 match syscall {
                     Syscall::HALT => {
                         a = self.register(a0);
@@ -595,99 +607,30 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::SHA_EXTEND => {
-                        // The number of cycles it takes to perform this precompile.
-                        const NB_SHA_EXTEND_CYCLES: u32 = 48 * 20;
-
-                        // Temporarily set the clock to the number of cycles it takes to perform
-                        // this precompile as reading `w_ptr` happens on this clock.
-                        self.clk += NB_SHA_EXTEND_CYCLES;
-
-                        // Read `w_ptr` from register a0 or x5.
-                        let w_ptr = self.register(a0);
-                        let mut w = Vec::new();
-                        for i in 0..64 {
-                            w.push(self.word(w_ptr + i * 4));
+                        (a, b, c) = ShaExtendChip::execute(self);
+                    }
+                    Syscall::SHA_COMPRESS => {
+                        (a, b, c) = ShaCompressChip::execute(self);
+                    }
+                    Syscall::WRITE => {
+                        let fd = self.register(a0);
+                        if fd == 1 || fd == 2 {
+                            let write_buf = self.register(a1);
+                            let nbytes = self.register(a2);
+                            // Read nbytes from memory starting at write_buf.
+                            let bytes = (0..nbytes)
+                                .map(|i| self.byte(write_buf + i))
+                                .collect::<Vec<u8>>();
+                            let slice = bytes.as_slice();
+                            let s = core::str::from_utf8(slice).unwrap();
+                            if fd == 1 {
+                                print!("STDOUT: {}", s);
+                            } else {
+                                print!("STDERR: {}", s);
+                            }
                         }
-
-                        // Set the CPU table values with some dummy values.
-                        (a, b, c) = (w_ptr, self.rr(t0, AccessPosition::B), 0);
+                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
-
-                        // We'll save the current record and restore it later so that the CPU
-                        // event gets emitted correctly.
-                        let t = self.record;
-
-                        // Set the clock back to the original value and begin executing the
-                        // precompile.
-                        self.clk -= 48 * 20;
-                        let saved_clk = self.clk;
-                        let saved_w_ptr = w_ptr;
-                        let saved_w = w.clone();
-                        let mut w_i_minus_15_records = Vec::new();
-                        let mut w_i_minus_2_records = Vec::new();
-                        let mut w_i_minus_16_records = Vec::new();
-                        let mut w_i_minus_7_records = Vec::new();
-                        let mut w_i_records = Vec::new();
-                        for i in 16..64 {
-                            // Read w[i-15].
-                            let w_i_minus_15 =
-                                self.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
-                            w_i_minus_15_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `s0`.
-                            let s0 = w_i_minus_15.rotate_right(7)
-                                ^ w_i_minus_15.rotate_right(18)
-                                ^ (w_i_minus_15 >> 3);
-
-                            // Read w[i-2].
-                            let w_i_minus_2 = self.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
-                            w_i_minus_2_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `s1`.
-                            let s1 = w_i_minus_2.rotate_right(17)
-                                ^ w_i_minus_2.rotate_right(19)
-                                ^ (w_i_minus_2 >> 10);
-
-                            // Read w[i-16].
-                            let w_i_minus_16 =
-                                self.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
-                            w_i_minus_16_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Read w[i-7].
-                            let w_i_minus_7 = self.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
-                            w_i_minus_7_records.push(self.record.memory);
-                            self.clk += 4;
-
-                            // Compute `w_i`.
-                            let w_i = s1
-                                .wrapping_add(w_i_minus_16)
-                                .wrapping_add(s0)
-                                .wrapping_add(w_i_minus_7);
-
-                            // Write w[i].
-                            self.mr(w_ptr + i * 4, AccessPosition::Memory);
-                            self.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
-                            w_i_records.push(self.record.memory);
-                            self.clk += 4;
-                        }
-
-                        // Push the SHA extend event.
-                        self.segment.sha_extend_events.push(ShaExtendEvent {
-                            clk: saved_clk,
-                            w_ptr: saved_w_ptr,
-                            w: saved_w.try_into().unwrap(),
-                            w_i_minus_15_records: w_i_minus_15_records.try_into().unwrap(),
-                            w_i_minus_2_records: w_i_minus_2_records.try_into().unwrap(),
-                            w_i_minus_16_records: w_i_minus_16_records.try_into().unwrap(),
-                            w_i_minus_7_records: w_i_minus_7_records.try_into().unwrap(),
-                            w_i_records: w_i_records.try_into().unwrap(),
-                        });
-
-                        // Restore the original record.
-                        self.record = t;
                     }
                 }
             }
@@ -794,7 +737,7 @@ impl Runtime {
 
             let width = 12;
             log::debug!(
-                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$}",
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk / 4,
                 self.pc,
                 instruction,
@@ -809,7 +752,14 @@ impl Runtime {
                 self.register(Register::X8),
                 self.register(Register::X9),
                 self.register(Register::X10),
-                self.register(Register::X11)
+                self.register(Register::X11),
+                self.register(Register::X12),
+                self.register(Register::X13),
+                self.register(Register::X14),
+                self.register(Register::X15),
+                self.register(Register::X16),
+                self.register(Register::X17),
+                self.register(Register::X18),
             );
 
             // Execute the instruction.
@@ -819,10 +769,10 @@ impl Runtime {
             self.global_clk += 4;
             self.clk += 4;
 
-            if self.clk % self.segment_size == 0 {
-                self.segments.push(self.segment.clone());
+            if self.clk % self.segment_size == 1 {
+                let segment = std::mem::take(&mut self.segment);
+                self.segments.push(segment);
                 // Set up new segment
-                self.segment = Segment::default();
                 self.segment.index = self.segments.len() as u32 + 1;
                 self.segment.program = self.program.clone();
                 self.clk = 1;
@@ -830,11 +780,9 @@ impl Runtime {
         }
 
         // Push the last segment.
-        // TODO: edge case where the last segment is empty.
-        self.segments.push(self.segment.clone());
-
-        // Right now we only do 1 segment.
-        assert_eq!(self.segments.len(), 1);
+        if !self.segment.cpu_events.is_empty() {
+            self.segments.push(self.segment.clone());
+        }
 
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
@@ -842,30 +790,32 @@ impl Runtime {
     }
 
     fn postprocess(&mut self) {
-        let mut program_memory_used = BTreeMap::new();
+        let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.
-            program_memory_used.insert((*key, *value), 1);
+            program_memory_used.insert(*key, (*value, 1));
         }
 
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
-        for (addr, value) in &self.memory {
-            let (segment, timestamp) = self.memory_access.get(&addr).unwrap().clone();
+        let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
+        for addr in memory_keys {
+            let value = self.memory.remove(&addr).unwrap();
+            let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert((*addr, *value), 0);
+                program_memory_used.insert(addr, (value, 0));
                 continue;
             }
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
             // not in the program_memory_image, otherwise we'll add to the memory argument from
             // the program_memory_image table.
-            if !self.program.memory_image.contains_key(addr) {
+            if !self.program.memory_image.contains_key(&addr) {
                 first_memory_record.push((
-                    *addr,
+                    addr,
                     MemoryRecord {
                         value: 0,
                         segment: 0,
@@ -876,23 +826,23 @@ impl Runtime {
             }
 
             last_memory_record.push((
-                *addr,
+                addr,
                 MemoryRecord {
-                    value: *value,
+                    value,
                     segment,
                     timestamp,
                 },
                 1,
-            ))
+            ));
         }
 
         let mut program_memory_record = program_memory_used
             .iter()
-            .map(|(&(addr, value), &used)| {
+            .map(|(&addr, &(value, used))| {
                 (
                     addr,
                     MemoryRecord {
-                        value: value,
+                        value,
                         segment: 0,
                         timestamp: 0,
                     },
@@ -1478,5 +1428,86 @@ pub mod tests {
         simple_op_code_test(Opcode::SRA, 0xff030303, 0x81818181, 7);
         simple_op_code_test(Opcode::SRA, 0xfffe0606, 0x81818181, 14);
         simple_op_code_test(Opcode::SRA, 0xffffffff, 0x81818181, 31);
+    }
+
+    pub fn simple_memory_program() -> Program {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 0x12348765, false, true),
+            // SW and LW
+            Instruction::new(Opcode::SW, 29, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LW, 28, 0, 0x27654320, false, true),
+            // LBU
+            Instruction::new(Opcode::LBU, 27, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LBU, 26, 0, 0x27654321, false, true),
+            Instruction::new(Opcode::LBU, 25, 0, 0x27654322, false, true),
+            Instruction::new(Opcode::LBU, 24, 0, 0x27654323, false, true),
+            // LB
+            Instruction::new(Opcode::LB, 23, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LB, 22, 0, 0x27654321, false, true),
+            // LHU
+            Instruction::new(Opcode::LHU, 21, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LHU, 20, 0, 0x27654322, false, true),
+            // LU
+            Instruction::new(Opcode::LH, 19, 0, 0x27654320, false, true),
+            Instruction::new(Opcode::LH, 18, 0, 0x27654322, false, true),
+            // SB
+            Instruction::new(Opcode::ADD, 17, 0, 0x38276525, false, true),
+            // Save the value 0x12348765 into address 0x43627530
+            Instruction::new(Opcode::SW, 29, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::LW, 16, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627531, false, true),
+            Instruction::new(Opcode::LW, 15, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627532, false, true),
+            Instruction::new(Opcode::LW, 14, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SB, 17, 0, 0x43627533, false, true),
+            Instruction::new(Opcode::LW, 13, 0, 0x43627530, false, true),
+            // SH
+            // Save the value 0x12348765 into address 0x43627530
+            Instruction::new(Opcode::SW, 29, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SH, 17, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::LW, 12, 0, 0x43627530, false, true),
+            Instruction::new(Opcode::SH, 17, 0, 0x43627532, false, true),
+            Instruction::new(Opcode::LW, 11, 0, 0x43627530, false, true),
+        ];
+        Program::new(instructions, 0, 0)
+    }
+
+    #[test]
+    fn test_simple_memory_program_run() {
+        let program = simple_memory_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        // Assert SW & LW case
+        assert_eq!(runtime.register(Register::X28), 0x12348765);
+
+        // Assert LBU cases
+        assert_eq!(runtime.register(Register::X27), 0x65);
+        assert_eq!(runtime.register(Register::X26), 0x87);
+        assert_eq!(runtime.register(Register::X25), 0x34);
+        assert_eq!(runtime.register(Register::X24), 0x12);
+
+        // Assert LB cases
+        assert_eq!(runtime.register(Register::X23), 0x65);
+        assert_eq!(runtime.register(Register::X22), 0xffffff87);
+
+        // Assert LHU cases
+        assert_eq!(runtime.register(Register::X21), 0x8765);
+        assert_eq!(runtime.register(Register::X20), 0x1234);
+
+        // Assert LH cases
+        assert_eq!(runtime.register(Register::X19), 0xffff8765);
+        assert_eq!(runtime.register(Register::X18), 0x1234);
+
+        // Assert SB cases
+        assert_eq!(runtime.register(Register::X16), 0x12348725);
+        assert_eq!(runtime.register(Register::X15), 0x12342525);
+        assert_eq!(runtime.register(Register::X14), 0x12252525);
+        assert_eq!(runtime.register(Register::X13), 0x25252525);
+
+        // Assert SH cases
+        assert_eq!(runtime.register(Register::X12), 0x12346525);
+        assert_eq!(runtime.register(Register::X11), 0x65256525);
     }
 }

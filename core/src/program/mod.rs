@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::cpu::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
+use crate::cpu::cols::instruction_cols::InstructionCols;
+use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::runtime::Segment;
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -118,7 +119,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, sync::Arc};
 
     use p3_baby_bear::BabyBear;
 
@@ -141,12 +142,14 @@ mod tests {
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut segment = Segment::default();
-        segment.program = Program {
-            instructions,
-            pc_start: 0,
-            pc_base: 0,
-            memory_image: BTreeMap::new(),
+        let mut segment = Segment {
+            program: Arc::new(Program {
+                instructions,
+                pc_start: 0,
+                pc_base: 0,
+                memory_image: BTreeMap::new(),
+            }),
+            ..Default::default()
         };
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

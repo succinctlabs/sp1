@@ -183,6 +183,10 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
         trace
     }
+
+    fn name(&self) -> String {
+        "Mul".to_string()
+    }
 }
 
 impl<F> BaseAir<F> for MulChip {

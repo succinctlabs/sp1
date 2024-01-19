@@ -1,6 +1,6 @@
 pub mod ops;
 
-use p3_field::Field;
+use p3_field::{AbstractExtensionField, AbstractField, Field};
 
 use core::fmt::Debug;
 use core::iter;
@@ -14,12 +14,15 @@ pub struct Polynomial<T> {
     pub coefficients: Vec<T>,
 }
 
-impl<T: Clone> Polynomial<T> {
+impl<T> Polynomial<T> {
     pub fn from_coefficients(coefficients: Vec<T>) -> Self {
         Self { coefficients }
     }
 
-    pub fn from_coefficients_slice(coefficients: &[T]) -> Self {
+    pub fn from_coefficients_slice(coefficients: &[T]) -> Self
+    where
+        T: Clone,
+    {
         Self {
             coefficients: coefficients.to_vec(),
         }
@@ -33,22 +36,26 @@ impl<T: Clone> Polynomial<T> {
     pub fn coefficients(&self) -> &[T] {
         &self.coefficients
     }
-}
 
-impl<T> Polynomial<T> {
+    #[inline]
     pub fn degree(&self) -> usize {
         self.coefficients.len() - 1
     }
 
-    pub fn eval<S>(&self, x: S) -> S
+    pub fn eval<S: AbstractExtensionField<T>>(&self, x: S) -> S
     where
-        T: Copy,
-        S: One<Output = S>,
-        S: Add<Output = S> + MulAssign + Mul<T, Output = S> + Copy + iter::Sum,
+        T: AbstractField,
     {
-        PolynomialOps::eval::<T, S, S>(&self.coefficients, &x)
+        let powers = x.powers();
+        self.coefficients
+            .iter()
+            .zip(powers)
+            .map(|(c, x)| x * *c)
+            .sum()
     }
+}
 
+impl<T> Polynomial<T> {
     pub fn root_quotient(&self, r: T) -> Self
     where
         T: Copy
@@ -147,7 +154,7 @@ impl<T: Sub<Output = T> + Neg<Output = T> + Clone> Sub for Polynomial<T> {
     }
 }
 
-impl<T: Sub<Output = T> + Neg<Output = T> + Copy + Default> Sub<&Polynomial<T>> for Polynomial<T> {
+impl<T: Sub<Output = T> + Neg<Output = T> + Clone> Sub<&Polynomial<T>> for Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn sub(self, other: &Polynomial<T>) -> Polynomial<T> {
@@ -158,7 +165,7 @@ impl<T: Sub<Output = T> + Neg<Output = T> + Copy + Default> Sub<&Polynomial<T>> 
     }
 }
 
-impl<T: Sub<Output = T> + Neg<Output = T> + Copy + Default> Sub for &Polynomial<T> {
+impl<T: Sub<Output = T> + Neg<Output = T> + Clone> Sub for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn sub(self, other: Self) -> Polynomial<T> {
@@ -230,53 +237,5 @@ pub struct Eval<T>(T);
 impl<T> From<T> for Eval<T> {
     fn from(f: T) -> Self {
         Self(f)
-    }
-}
-
-pub struct PowersIter<T> {
-    base: T,
-    current: T,
-}
-
-impl<T: MulAssign + Copy> Iterator for PowersIter<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<T> {
-        let result = self.current;
-        self.current *= self.base;
-        Some(result)
-    }
-}
-
-pub trait One {
-    type Output;
-    fn one() -> Self::Output;
-}
-
-pub trait Zero {
-    type Output;
-    fn zero() -> Self::Output;
-}
-
-impl<F: Field> One for Eval<F> {
-    type Output = F;
-
-    fn one() -> Self::Output {
-        F::one()
-    }
-}
-
-impl<F: Field> Zero for Eval<F> {
-    type Output = F;
-
-    fn zero() -> Self::Output {
-        F::zero()
-    }
-}
-
-pub fn get_powers<T>(x: T, one: T) -> PowersIter<T> {
-    PowersIter {
-        base: x,
-        current: one,
     }
 }

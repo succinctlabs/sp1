@@ -49,7 +49,7 @@ impl Program {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{disassembler::Program, prover::tests::prove};
+    use crate::{disassembler::Program, stark::tests::prove};
 
     #[test]
     fn test_fibonacci() {
@@ -60,6 +60,12 @@ pub mod tests {
     #[test]
     fn test_malloc() {
         let program = Program::from_elf("../programs/malloc");
+        prove(program.clone());
+    }
+
+    #[test]
+    fn test_sha2() {
+        let program = Program::from_elf("../programs/sha2");
         prove(program.clone());
     }
 }

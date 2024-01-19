@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 /// An opcode specifies which operation to execute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     // Arithmetic instructions.

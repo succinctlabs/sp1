@@ -4,8 +4,6 @@ use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use itertools::Itertools;
 
-use super::{get_powers, One};
-
 /// A struct which implements helper methods for polynomial operations, such as addition and
 /// multiplication.
 #[derive(Debug, Clone, Copy)]
@@ -135,19 +133,6 @@ impl PolynomialOps {
             }
         }
         result
-    }
-
-    /// Evaluate the polynomial at a point.
-    pub fn eval<T, E, S>(a: &[T], x: &S) -> S
-    where
-        T: Copy,
-        E: One<Output = S>,
-        S: Add<Output = S> + MulAssign + Mul<T, Output = S> + Copy + iter::Sum,
-    {
-        let one = E::one();
-        let powers = get_powers(*x, one);
-
-        a.iter().zip(powers).map(|(a, x)| x.mul(*a)).sum()
     }
 
     /// Extract the quotient s(x) of a(x) such that (x-r)s(x) when r is a root of a(x). Panics if r = 0
