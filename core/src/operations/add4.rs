@@ -162,9 +162,9 @@ impl<F: Field> Add4Operation<F> {
             for i in 0..WORD_SIZE {
                 builder_is_real.assert_eq(
                     cols.carry[i],
-                    cols.is_carry_1[1] * one.clone()
-                        + cols.is_carry_2[2] * two.clone()
-                        + cols.is_carry_3[3] * three.clone(),
+                    cols.is_carry_1[i] * one.clone()
+                        + cols.is_carry_2[i] * two.clone()
+                        + cols.is_carry_3[i] * three.clone(),
                 );
             }
         }
