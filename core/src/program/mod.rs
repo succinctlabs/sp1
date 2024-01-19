@@ -119,7 +119,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, rc::Rc};
 
     use p3_baby_bear::BabyBear;
 
@@ -143,12 +143,12 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let mut segment = Segment::default();
-        segment.program = Program {
+        segment.program = Rc::new(Program {
             instructions,
             pc_start: 0,
             pc_base: 0,
             memory_image: BTreeMap::new(),
-        };
+        });
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)

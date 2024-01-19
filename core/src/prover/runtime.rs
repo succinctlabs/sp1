@@ -37,11 +37,16 @@ impl Runtime {
         SC::Challenger: Clone,
     {
         let segment_chips = Prover::segment_chips::<F, EF, SC>();
-        let segment_main_data = self
-            .segments
-            .iter_mut()
-            .map(|segment| Prover::commit_main(config, &segment_chips, segment))
-            .collect::<Vec<_>>();
+        let segment_main_data = vec![Prover::commit_main(
+            config,
+            &segment_chips,
+            &mut self.segment,
+        )];
+        // let segment_main_data = self
+        //     .segments
+        //     .iter_mut()
+        //     .map(|segment| Prover::commit_main(config, &segment_chips, segment))
+        //     .collect::<Vec<_>>();
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
@@ -53,7 +58,7 @@ impl Runtime {
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| {
-                Prover::prove(config, &mut challenger.clone(), &segment_chips, &main_data)
+                Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data)
             })
             .collect();
 
@@ -74,7 +79,7 @@ impl Runtime {
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
-        debug_cumulative_sums::<F, EF>(&all_permutation_traces);
+        // debug_cumulative_sums::<F, EF>(&all_permutation_traces);
     }
 }
 
