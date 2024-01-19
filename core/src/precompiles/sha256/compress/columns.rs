@@ -29,11 +29,11 @@ pub struct ShaCompressCols<T> {
     /// The counter for initialization / finalization loops (i.e., reading / writing h0..h7).
     pub octet: [T; 8],
 
-    /// This flag is turned on when it's time to initialize the working variables.
-    pub is_start: T,
-
-    /// This flag is turned on when it's time to add the compressed chunk to the current hash value.
-    pub is_end: T,
+    // This will specify which octet we are currently processing.
+    // The first octect is for initialize.
+    // The next 8 octects are for compress.
+    // The last octect is for finalize.
+    pub octet_num: [T; 8],
 
     pub mem: MemoryAccessCols<T>,
     pub mem_addr: T,

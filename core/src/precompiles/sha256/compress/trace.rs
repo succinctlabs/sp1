@@ -20,6 +20,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
             let og_h = event.h.clone();
             let mut v = [0u32; 8].map(Word::from);
 
+            let mut octet_num_idx = 0;
+
             // Load a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
@@ -31,6 +33,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
 
                 cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
+                cols.octet_num[octet_num_idx] = F::one();
 
                 self.populate_access(&mut cols.mem, event.h[j], event.h_read_records[j]);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
@@ -64,15 +67,19 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 v[6] = cols.g;
                 v[7] = cols.h;
 
-                cols.is_initialize = F::one();
-
                 rows.push(row);
             }
 
             // Peforms the compress operation.
             for j in 0..64 {
+                if j % 8 == 0 {
+                    octet_num_idx += 1;
+                }
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
+
+                cols.octet[j % 8] = F::one();
+                cols.octet_num[octet_num_idx] = F::one();
 
                 cols.segment = F::one();
                 cols.clk = F::from_canonical_u32(event.clk + (8 * 4 + j * 4) as u32);
@@ -139,7 +146,6 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 event.h[1] = a;
                 event.h[0] = temp1_add_temp2;
 
-                cols.is_compression = F::one();
                 rows.push(row);
             }
 
@@ -149,6 +155,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 .try_into()
                 .unwrap();
 
+            octet_num_idx += 1;
             // Store a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
@@ -160,6 +167,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
 
                 cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
+                cols.octet_num[octet_num_idx] = F::one();
 
                 self.populate_access(
                     &mut cols.mem,
@@ -178,7 +186,6 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.g = Word::from(v[6]);
                 cols.h = Word::from(v[7]);
 
-                cols.is_finalize = F::one();
                 rows.push(row);
             }
         }
