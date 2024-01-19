@@ -141,6 +141,12 @@ impl Runtime {
         }
     }
 
+    pub fn byte(&self, addr: u32) -> u8 {
+        let word = self.word(addr - addr % 4);
+        let byte = (word >> (addr % 4) * 8) as u8;
+        byte
+    }
+
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.clk + *position as u32
     }
@@ -609,11 +615,8 @@ impl Runtime {
                             let write_buf = self.register(a1);
                             let nbytes = self.register(a2);
                             // Read nbytes from memory starting at write_buf.
-                            // num words is ceil(nbytes / 4)
-                            let num_words = (nbytes + 3) / 4;
-                            let bytes = (0..num_words)
-                                .flat_map(|i| self.word(write_buf + i * 4).to_le_bytes())
-                                .take(nbytes as usize)
+                            let bytes = (0..nbytes)
+                                .map(|i| self.byte(write_buf + i))
                                 .collect::<Vec<u8>>();
                             let slice = bytes.as_slice();
                             let s = core::str::from_utf8(slice).unwrap();
@@ -731,7 +734,7 @@ impl Runtime {
 
             let width = 12;
             log::debug!(
-                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$}",
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk / 4,
                 self.pc,
                 instruction,
@@ -749,7 +752,11 @@ impl Runtime {
                 self.register(Register::X11),
                 self.register(Register::X12),
                 self.register(Register::X13),
-
+                self.register(Register::X14),
+                self.register(Register::X15),
+                self.register(Register::X16),
+                self.register(Register::X17),
+                self.register(Register::X18),
             );
 
             // Execute the instruction.

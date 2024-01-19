@@ -47,8 +47,6 @@ impl ProveCmd {
             "-C",
             "link-arg=-Ttext=0x00200800",
             "-C",
-            "link-arg=--fatal-warnings",
-            "-C",
             "panic=abort",
         ];
         cmd.env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"));
