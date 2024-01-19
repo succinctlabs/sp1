@@ -4,7 +4,7 @@ use hex_literal::hex;
 use ssz_rs::prelude::*;
 use std::hint::black_box;
 
-// TODO: Read real data in all of these hints by reading it from the host system.
+// TODO: Read real data in all of these hints by reading it from outside of the zkvm.
 
 /// Returns the beaacon block's withdrawals root and a corresponding SSZ merkle proof.
 pub fn withdrawals_root_proof(_block_root: Node) -> (Node, Vec<Node>) {

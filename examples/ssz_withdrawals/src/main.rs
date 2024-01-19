@@ -33,7 +33,7 @@ fn main() {
     // Get slot number from block by proving the block header.
     let source_slot = prove::block_header(beacon_block_root).slot;
 
-    // Load the witness data from the host.
+    // Load the witness data from outside of the vm.
     let (withdrawal_slots, validator_indexes) =
         hints::withdrawals_range(beacon_block_root, start_slot, end_slot, &eigenpod_address);
 
