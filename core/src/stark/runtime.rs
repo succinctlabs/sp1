@@ -23,7 +23,7 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
-        let segment_chips = Prover::segment_chips::<F, EF, SC>();
+        let segment_chips = Prover::<SC>::segment_chips();
         let segment_main_data = self
             .segments
             .par_iter_mut()
@@ -44,7 +44,7 @@ impl Runtime {
             })
             .collect();
 
-        let global_chips = Prover::global_chips::<F, EF, SC>();
+        let global_chips = Prover::<SC>::global_chips();
         let global_main_data = Prover::commit_main(config, &global_chips, &mut self.global_segment);
         let global_proof = Prover::prove(
             config,

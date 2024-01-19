@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
@@ -15,7 +17,8 @@ use crate::stark::quotient_values;
 use crate::utils::AirChip;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
+use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{PrimeField32, TwoAdicField};
 use p3_matrix::{Matrix, MatrixRowSlices};
 use p3_maybe_rayon::*;
 use p3_uni_stark::decompose_and_flatten;
@@ -27,14 +30,12 @@ use super::types::*;
 
 pub const NUM_CHIPS: usize = 13;
 
-pub(crate) struct Prover {}
+pub(crate) struct Prover<SC>(PhantomData<SC>);
 
-impl Prover {
-    pub fn segment_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
+impl<SC: StarkConfig> Prover<SC> {
+    pub fn segment_chips() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
+        SC::Val: PrimeField32,
     {
         // Initialize chips.
         let program = ProgramChip::new();
@@ -47,7 +48,7 @@ impl Prover {
         let shift_right = ShiftRightChip::new();
         let shift_left = ShiftLeft::new();
         let lt = LtChip::new();
-        let bytes = ByteChip::<F>::new();
+        let bytes = ByteChip::<SC::Val>::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
@@ -70,11 +71,9 @@ impl Prover {
         ]
     }
 
-    pub fn global_chips<F, EF, SC>() -> [Box<dyn AirChip<SC>>; 3]
+    pub fn global_chips() -> [Box<dyn AirChip<SC>>; 3]
     where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
+        SC::Val: PrimeField32,
     {
         // Initialize chips.
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
@@ -87,15 +86,13 @@ impl Prover {
         ]
     }
 
-    pub fn commit_main<F, EF, SC>(
+    pub fn commit_main(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
         segment: &mut Segment,
     ) -> MainData<SC>
     where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF>,
+        SC::Val: PrimeField32,
     {
         // For each chip, generate the trace.
         let traces = chips
@@ -115,16 +112,15 @@ impl Prover {
 
     /// Prove the program for the given segment and given a commitment to the main data.
     #[allow(unused)]
-    pub fn prove<F, EF, SC>(
+    pub fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
         main_data: &MainData<SC>,
     ) -> SegmentDebugProof<SC>
     where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC::Val: PrimeField32,
+        SC: Send + Sync,
     {
         // Compute some statistics.
         let mut main_cols = 0usize;
@@ -155,7 +151,7 @@ impl Prover {
             .collect::<Vec<_>>();
 
         // Obtain the challenges used for the permutation argument.
-        let mut permutation_challenges: Vec<EF> = Vec::new();
+        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
@@ -218,7 +214,7 @@ impl Prover {
 
         // Check the shapes of the quotient chunks.
         for (i, mat) in quotient_chunks.iter().enumerate() {
-            assert_eq!(mat.width(), EF::D << log_quotient_degree);
+            assert_eq!(mat.width(), SC::Challenge::D << log_quotient_degree);
             assert_eq!(mat.height(), traces[i].height());
         }
 
@@ -276,7 +272,7 @@ impl Prover {
         // Check the shape of the permutation trace opennings.
         assert_eq!(openings[1].len(), chips.len());
         for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
-            let width = perm.width() * EF::D;
+            let width = perm.width() * SC::Challenge::D;
             assert_eq!(opening.len(), 2);
             assert_eq!(opening[0].len(), width);
             assert_eq!(opening[1].len(), width);
@@ -284,7 +280,7 @@ impl Prover {
         // Check the shape of the quotient opennings.
         assert_eq!(openings[2].len(), num_quotient_chunks);
         for opening in openings[2].iter() {
-            let width = EF::D << log_quotient_degree;
+            let width = SC::Challenge::D << log_quotient_degree;
             assert_eq!(opening.len(), 1);
             assert_eq!(opening[0].len(), width);
         }
