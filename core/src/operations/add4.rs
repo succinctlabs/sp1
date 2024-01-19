@@ -13,7 +13,7 @@ use crate::air::WORD_SIZE;
 use crate::bytes::ByteOpcode;
 use crate::runtime::Segment;
 
-const MAX_CARRY: usize = 4;
+const MAX_CARRY: usize = 3;
 /// A set of columns needed to compute the add of four words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -58,21 +58,16 @@ impl<F: Field> Add4Operation<F> {
 
         let base = 256;
         let mut carry = [0u8, 0u8, 0u8, 0u8];
-        let mut is_carry_n = [
-            self.is_carry_0,
-            self.is_carry_1,
-            self.is_carry_2,
-            self.is_carry_3,
-        ];
         for i in 0..WORD_SIZE {
             let mut res = (a[i] as u32) + (b[i] as u32) + (c[i] as u32) + (d[i] as u32);
             if i > 0 {
                 res += carry[i - 1] as u32;
             }
             carry[i] = (res / base) as u8;
-            for n in 0..(MAX_CARRY + 1) {
-                is_carry_n[i] = Word::from(if carry[i] == n as u8 { 1 } else { 0 });
-            }
+            self.is_carry_0[i] = F::from_bool(carry[i] == 0);
+            self.is_carry_1[i] = F::from_bool(carry[i] == 1);
+            self.is_carry_2[i] = F::from_bool(carry[i] == 2);
+            self.is_carry_3[i] = F::from_bool(carry[i] == 3);
             self.carry[i] = F::from_canonical_u8(carry[i]);
             debug_assert!(carry[i] <= 3);
             debug_assert_eq!(self.value[i], F::from_canonical_u32(res % base));
@@ -97,6 +92,7 @@ impl<F: Field> Add4Operation<F> {
                 segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
             }
         }
+        println!("{:#?}", self);
         expected
     }
 
@@ -185,7 +181,6 @@ impl<F: Field> Add4Operation<F> {
                 }
                 builder_is_real.assert_eq(cols.carry[i].clone() * base, overflow.clone());
             }
-            builder_is_real.assert_eq(base, base + base);
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
