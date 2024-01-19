@@ -95,18 +95,20 @@ fn bench_program(program_name: &str, b: divan::Bencher) {
     println!("cycle count: {}", cycle_count);
 
     b.counter(divan::counter::ItemsCount::new(cycle_count as u64))
-        .with_inputs(prepare)
-        .bench_refs(prove);
+        .bench(|| {
+            let mut runtime = prepare();
+            prove(&mut runtime);
+        });
 }
 
-// #[divan::bench(sample_count = 5, sample_size = 5)]
-// pub fn fibonacci(b: divan::Bencher) {
-//     bench_program("fibonacci", b);
-// }
+#[divan::bench(sample_count = 2, sample_size = 2)]
+pub fn fibonacci(b: divan::Bencher) {
+    bench_program("fibonacci", b);
+}
 
 #[divan::bench(sample_count = 1, sample_size = 1)]
-pub fn sha256(b: divan::Bencher) {
-    bench_program("ssz", b);
+pub fn ssz_withdrawals(b: divan::Bencher) {
+    bench_program("ssz_withdrawals", b);
 }
 
 fn main() {

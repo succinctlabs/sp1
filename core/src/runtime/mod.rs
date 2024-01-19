@@ -9,13 +9,13 @@ use crate::cpu::MemoryRecord;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
-use nohash_hasher::{BuildNoHashHasher, NoHashHasher};
+use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
-use std::collections::{BTreeMap, HashMap};
-use std::rc::Rc;
+use std::collections::HashMap;
+use std::sync::Arc;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -56,7 +56,7 @@ pub struct Runtime {
     pub pc: u32,
 
     /// The program.
-    pub program: Rc<Program>,
+    pub program: Arc<Program>,
 
     /// The memory which instructions operate over.
     pub memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
@@ -88,10 +88,12 @@ pub struct Runtime {
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let program_rc = Rc::new(program);
-        let mut segment = Segment::default();
-        segment.program = program_rc.clone();
-        segment.index = 1;
+        let program_rc = Arc::new(program);
+        let segment = Segment {
+            program: program_rc.clone(),
+            index: 0,
+            ..Default::default()
+        };
         Self {
             global_clk: 0,
             clk: 0,
@@ -103,7 +105,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 200000,
+            segment_size: 1048576,
             global_segment: Segment::default(),
         }
     }
@@ -123,7 +125,7 @@ impl Runtime {
                 None => 0,
             };
         }
-        return registers;
+        registers
     }
 
     /// Get the current value of a register.
@@ -471,7 +473,7 @@ impl Runtime {
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = (value as u8) as u32;
+                a = value as u32;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -799,19 +801,16 @@ impl Runtime {
     }
 
     fn postprocess(&mut self) {
-        log::info!("postprocess");
         let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.
             program_memory_used.insert(*key, (*value, 1));
         }
 
-        log::info!("1");
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
         let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
-        log::info!("3");
         for addr in memory_keys {
             let value = self.memory.remove(&addr).unwrap();
             let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
@@ -846,10 +845,7 @@ impl Runtime {
                 },
                 1,
             ));
-
-            // &self.memory.remove(addr);
         }
-        log::info!("4");
 
         let mut program_memory_record = program_memory_used
             .iter()
@@ -865,14 +861,11 @@ impl Runtime {
                 )
             })
             .collect::<Vec<(u32, MemoryRecord, u32)>>();
-        log::info!("5");
         program_memory_record.sort_by_key(|&(addr, _, _)| addr);
-        log::info!("6");
 
         self.global_segment.first_memory_record = first_memory_record;
         self.global_segment.last_memory_record = last_memory_record;
         self.global_segment.program_memory_record = program_memory_record;
-        log::info!("7");
     }
 }
 
