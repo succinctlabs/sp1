@@ -10,8 +10,8 @@ pub mod memory;
 pub mod operations;
 pub mod precompiles;
 pub mod program;
-pub mod prover;
 pub mod runtime;
+pub mod stark;
 pub mod utils;
 
 extern crate alloc;

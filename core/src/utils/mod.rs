@@ -5,8 +5,8 @@ use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
 use crate::{
     lookup::{Interaction, InteractionBuilder},
-    prover::DebugConstraintBuilder,
     runtime::Segment,
+    stark::DebugConstraintBuilder,
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
@@ -36,6 +36,11 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         let (mut sends, receives) = builder.interactions();
         sends.extend(receives);
         sends
+    }
+
+    /// The width of the permutation trace as a matrix of challenge elements.
+    fn permutation_width(&self) -> usize {
+        todo!()
     }
 }
 
