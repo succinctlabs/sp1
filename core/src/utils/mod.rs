@@ -5,8 +5,8 @@ use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
 use crate::{
     lookup::{Interaction, InteractionBuilder},
-    prover::DebugConstraintBuilder,
     runtime::Segment,
+    stark::DebugConstraintBuilder,
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {

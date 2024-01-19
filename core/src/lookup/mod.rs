@@ -1,4 +1,4 @@
-use crate::prover::runtime::Prover;
+use crate::stark::Prover;
 
 use crate::utils::Chip;
 use p3_air::VirtualPairCol;

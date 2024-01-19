@@ -49,7 +49,7 @@ impl Program {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{disassembler::Program, prover::tests::prove};
+    use crate::{disassembler::Program, stark::tests::prove};
 
     #[test]
     fn test_fibonacci() {
