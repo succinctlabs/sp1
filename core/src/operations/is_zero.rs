@@ -65,7 +65,7 @@ impl<F: Field> IsZeroOperation<F> {
         };
         self.result = F::from_canonical_u32(result);
         // TODO: Remove this before opening a PR.
-        println!("{:#?}", self);
+        println!("(x = {:?}) => {:#?}", x, self);
         result
     }
 
@@ -134,7 +134,7 @@ impl<F: Field> IsZeroOperation<F> {
             let not_zero = one.clone() - cols.result;
             builder_is_real
                 .when(not_zero)
-                .assert_zero(cols.zero_byte_count_flag[0]);
+                .assert_zero(cols.zero_byte_count_flag[WORD_SIZE]);
         }
     }
 }
