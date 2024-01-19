@@ -243,72 +243,79 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         memory_access: MemoryAccessCols<Eb>,
         verify_memory_access: EVerify,
     ) where
-        ESegment: Into<Self::Expr> + Clone,
-        EClk: Into<Self::Expr> + Clone,
+        ESegment: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr> + Clone,
-        EVerify: Into<Self::Expr> + Clone,
+        Eb: Into<Self::Expr>,
+        EVerify: Into<Self::Expr>,
     {
-        self.assert_bool(verify_memory_access.clone());
+        let verify_memory_access_expr: Self::Expr = verify_memory_access.into();
+        self.assert_bool(verify_memory_access_expr.clone());
 
         //// Check that this memory access occurs after the previous one.
         // First check if we need to compare between the segment or the clk.
-        self.when(verify_memory_access.clone())
-            .assert_bool(memory_access.use_clk_comparison.clone());
-        self.when(verify_memory_access.clone())
-            .when(memory_access.use_clk_comparison.clone())
-            .assert_eq(segment.clone(), memory_access.prev_segment.clone());
+        let use_clk_comparison_expr: Self::Expr = memory_access.use_clk_comparison.into();
+        let current_segment_expr: Self::Expr = segment.into();
+        let prev_segment_expr: Self::Expr = memory_access.prev_segment.into();
+        let current_clk_expr: Self::Expr = clk.into();
+        let prev_clk_expr: Self::Expr = memory_access.prev_clk.into();
+
+        self.when(verify_memory_access_expr.clone())
+            .assert_bool(use_clk_comparison_expr.clone());
+        self.when(verify_memory_access_expr.clone())
+            .when(use_clk_comparison_expr.clone())
+            .assert_eq(current_segment_expr.clone(), prev_segment_expr.clone());
 
         // Verify the previous and current time value that should be used for comparison.
         let one = Self::Expr::one();
-        let prev_time_value = memory_access.use_clk_comparison.clone().into()
-            * memory_access.prev_clk.clone().into()
-            + (one.clone() - memory_access.use_clk_comparison.clone().into())
-                * memory_access.prev_segment.clone().into();
-        let current_time_value = memory_access.use_clk_comparison.clone().into()
-            * clk.clone().into()
-            + (one.clone() - memory_access.use_clk_comparison.clone().into())
-                * segment.clone().into();
+        let calculated_prev_time_value = use_clk_comparison_expr.clone() * prev_clk_expr.clone()
+            + (one.clone() - use_clk_comparison_expr.clone()) * prev_segment_expr.clone();
+        let calculated_current_time_value = use_clk_comparison_expr.clone()
+            * current_clk_expr.clone()
+            + (one.clone() - use_clk_comparison_expr.clone()) * current_segment_expr.clone();
 
-        self.when(verify_memory_access.clone())
-            .assert_eq(memory_access.prev_time_value.clone(), prev_time_value);
+        let prev_time_value_expr: Self::Expr = memory_access.prev_time_value.into();
+        let current_time_value_expr: Self::Expr = memory_access.current_time_value.into();
+        self.when(verify_memory_access_expr.clone())
+            .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
 
-        self.when(verify_memory_access.clone())
-            .assert_eq(memory_access.current_time_value.clone(), current_time_value);
+        self.when(verify_memory_access_expr.clone()).assert_eq(
+            current_time_value_expr.clone(),
+            calculated_current_time_value,
+        );
 
         // Do the actual comparison via a lookup to the field op table.
         self.send_field_op(
             one,
-            memory_access.prev_time_value,
-            memory_access.current_time_value,
-            verify_memory_access.clone(),
+            prev_time_value_expr,
+            current_time_value_expr,
+            verify_memory_access_expr.clone(),
         );
 
         //// Check the previous and current memory access via a lookup to the memory table.
         let addr_expr = addr.into();
-        let prev_values = once(memory_access.prev_segment.into())
-            .chain(once(memory_access.prev_clk.into()))
+        let prev_values = once(prev_segment_expr)
+            .chain(once(prev_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.prev_value.map(Into::into))
             .collect();
-        let current_values = once(segment.into())
-            .chain(once(clk.into()))
+        let current_values = once(current_segment_expr)
+            .chain(once(current_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.value.map(Into::into))
             .collect();
 
-        let multiplicity_expr = verify_memory_access.into();
         // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
             prev_values,
-            multiplicity_expr.clone(),
+            verify_memory_access_expr.clone(),
             InteractionKind::Memory,
         ));
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(AirInteraction::new(
             current_values,
-            multiplicity_expr.clone(),
+            verify_memory_access_expr.clone(),
             InteractionKind::Memory,
         ));
     }
