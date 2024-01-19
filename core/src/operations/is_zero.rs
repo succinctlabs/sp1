@@ -40,19 +40,33 @@ pub struct IsZeroOperation<T> {
 impl<F: Field> IsZeroOperation<F> {
     pub fn populate(&mut self, x_u32: u32) -> u32 {
         let x = x_u32.to_le_bytes();
+        let mut num_zero_bytes = 0;
         for i in 0..WORD_SIZE {
             if x[i] == 0 {
                 self.inverse[i] = F::zero();
+                num_zero_bytes += 1;
             } else {
                 self.inverse[i] = F::from_canonical_u64(u64::from(x[i])).inverse();
             }
+            self.is_zero_byte[i] = F::from_bool(x[i] == 0);
+            let prod = self.inverse[i] * F::from_canonical_u8(x[i]);
+            debug_assert!(prod == F::one() || prod == F::zero());
+        }
+        for n in 0..(WORD_SIZE + 1) {
+            self.zero_byte_count_flag[n] = F::from_bool(n == num_zero_bytes);
         }
         // TODO: Range check the input word.
-        if x_u32 == 0 {
-            1
-        } else {
-            0
-        }
+        let result: u32 = {
+            if x_u32 == 0 {
+                1
+            } else {
+                0
+            }
+        };
+        self.result = F::from_canonical_u32(result);
+        // TODO: Remove this before opening a PR.
+        println!("{:#?}", self);
+        result
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
@@ -72,10 +86,12 @@ impl<F: Field> IsZeroOperation<F> {
 
         // Calculate whether each byte is 0.
         {
+            // If a byte is 0, then any product involving the byte is 0. If a byte is nonzero and
+            // its inverse is correctly set, then the product is 1.
             for i in 0..WORD_SIZE {
-                builder_is_real.assert_bool(cols.inverse[i] * a[i]);
                 let is_zero = one.clone() - cols.inverse[i] * a[i];
                 builder_is_real.assert_eq(is_zero, cols.is_zero_byte[i]);
+                builder_is_real.assert_bool(cols.is_zero_byte[i]);
             }
         }
 
@@ -118,7 +134,7 @@ impl<F: Field> IsZeroOperation<F> {
             let not_zero = one.clone() - cols.result;
             builder_is_real
                 .when(not_zero)
-                .assert_zero(one.clone() - cols.zero_byte_count_flag[0]);
+                .assert_zero(cols.zero_byte_count_flag[0]);
         }
     }
 }
