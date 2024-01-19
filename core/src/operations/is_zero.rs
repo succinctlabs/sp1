@@ -23,146 +23,51 @@ use crate::runtime::Segment;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct IsZeroOperation<T> {
-    /// The inverse of each byte in the input word.
-    pub inverse: Word<T>,
+    /// The inverse of the input.
+    pub inverse: T,
 
-    /// A boolean array indicating whether each byte in the input word is zero.
-    ///
-    /// This equals `inverse[0] * input[0] == 0`.
-    pub is_zero_byte: Word<T>,
-
-    /// A boolean array whose `i`th element is true if and only if the input word has exactly `i`
-    /// zero bytes.
-    pub zero_byte_count_flag: [T; WORD_SIZE + 1],
-
-    /// A boolean flag indicating whether the word is zero.
-    pub result: T,
+    /// Result indicating whether the input is 0. This equals `inverse * input == 0`.
+    pub result: Word<T>,
 }
 
 impl<F: Field> IsZeroOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, a_u32: u32, is_real: bool) -> u32 {
-        let a = a_u32.to_le_bytes();
-        let mut num_zero_bytes = 0;
-        for i in 0..WORD_SIZE {
-            if a[i] == 0 {
-                self.inverse[i] = F::zero();
-                num_zero_bytes += 1;
-            } else {
-                self.inverse[i] = F::from_canonical_u64(u64::from(a[i])).inverse();
-            }
-            self.is_zero_byte[i] = F::from_bool(a[i] == 0);
-            let prod = self.inverse[i] * F::from_canonical_u8(a[i]);
-            debug_assert!(prod == F::one() || prod == F::zero());
+    pub fn populate(&mut self, segment: &mut Segment, a: u32) -> u32 {
+        if a[i] == 0 {
+            self.inverse[i] = F::zero();
+            self.result = F::one();
+        } else {
+            self.inverse[i] = F::from_canonical_u64(u64::from(a[i])).inverse();
+            self.result = F::zero();
         }
-        for n in 0..(WORD_SIZE + 1) {
-            self.zero_byte_count_flag[n] = F::from_bool(n == num_zero_bytes);
-        }
-        let result: u32 = {
-            if a_u32 == 0 {
-                1
-            } else {
-                0
-            }
-        };
-        self.result = F::from_canonical_u32(result);
-        if is_real {
-            // To make sure that the multiplicity matches when sending and receiving, we need to
-            // insert a byte range check event only if is_real.
-            let mut bytes = a.to_vec();
-            bytes.push(result as u8);
-            bytes.push(result as u8); // Check it twice to make the array length even.
-
-            // The length needs to be even since add_byte_range_checks takes two bytes at a time.
-            debug_assert_eq!(bytes.len() % 2, 0);
-
-            // Pass two bytes to range check at a time.
-            for i in (0..bytes.len()).step_by(2) {
-                segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
-            }
-        }
-        result
+        let prod = self.inverse[i] * F::from_canonical_u8(a[i]);
+        debug_assert!(prod == F::one() || prod == F::zero());
+        (n == 0) as u32
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Var>,
+        a: AB::Var,
         cols: IsZeroOperation<AB::Var>,
         is_real: AB::Var,
     ) {
-        // Sanity checks including range checks and boolean checks.
-        {
-            let mut bytes = a.0.to_vec();
-            bytes.push(cols.result);
-            bytes.push(cols.result);
-            debug_assert_eq!(bytes.len() % 2, 0);
-            for i in (0..bytes.len()).step_by(2) {
-                builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
-                    AB::F::zero(),
-                    AB::F::zero(),
-                    bytes[i],
-                    bytes[i + 1],
-                    is_real,
-                );
-            }
-        }
         builder.assert_bool(is_real);
-        let mut builder_is_real = builder.when(is_real);
         let one: AB::Expr = AB::F::one().into();
 
-        // Calculate whether each byte is 0.
-        {
-            // If a byte is 0, then any product involving the byte is 0. If a byte is nonzero and
-            // its inverse is correctly set, then the product is 1.
-            for i in 0..WORD_SIZE {
-                let is_zero = one.clone() - cols.inverse[i] * a[i];
-                builder_is_real.assert_eq(is_zero, cols.is_zero_byte[i]);
-                builder_is_real.assert_bool(cols.is_zero_byte[i]);
-            }
-        }
+        // 1. Input == 0 => is_zero = 1 regardless of the inverse.
+        // 2. Input != 0
+        //   2.1. inverse is correctly set => is_zero = 0.
+        //   2.2. inverse is incorrect
+        //     2.2.1 inverse is nonzero => is_zero isn't bool, it fails.
+        //     2.2.2 inverse is 0 => is_zero is 1. But then we would assert that a = 0. And that
+        //                           assert fails.
 
-        // Count the number of zero bytes.
-        {
-            let mut zero_byte_count: AB::Expr = AB::F::zero().into();
-            for i in 0..WORD_SIZE {
-                zero_byte_count = zero_byte_count + cols.is_zero_byte[i];
-            }
+        // If the input is 0, then any product involving it is 0. If it is nonzero and its inverse
+        // is correctly set, then the product is 1.
+        let is_zero = one.clone() - cols.inverse * a;
+        builder.when(is_real).assert_eq(is_zero, cols.result);
+        builder.when(is_real).assert_bool(cols.result);
 
-            // zero_byte_count_flag must be a boolean array and the sum of its elements must be 1.
-            let mut zero_byte_count_flag_sum: AB::Expr = AB::F::from_canonical_usize(0).into();
-            for num_zero_bytes in 0..(WORD_SIZE + 1) {
-                builder_is_real.assert_bool(cols.zero_byte_count_flag[num_zero_bytes]);
-                zero_byte_count_flag_sum =
-                    zero_byte_count_flag_sum + cols.zero_byte_count_flag[num_zero_bytes];
-            }
-            builder_is_real.assert_eq(zero_byte_count_flag_sum, one.clone());
-
-            // Finally, zero_byte_count must match zero_byte_count_flag.
-            for num_zero_bytes in 0..(WORD_SIZE + 1) {
-                builder_is_real
-                    .when(cols.zero_byte_count_flag[num_zero_bytes])
-                    .assert_eq(
-                        zero_byte_count.clone(),
-                        AB::F::from_canonical_usize(num_zero_bytes),
-                    );
-            }
-        }
-
-        builder_is_real.assert_bool(cols.result);
-
-        // If cols.result is true, then a is zero.
-        {
-            for i in 0..WORD_SIZE {
-                builder_is_real.when(cols.result).assert_zero(a[i]);
-            }
-        }
-
-        // If cols.result is false, then a is not zero.
-        {
-            let not_zero = one.clone() - cols.result;
-            builder_is_real
-                .when(not_zero)
-                .assert_zero(cols.zero_byte_count_flag[WORD_SIZE]);
-        }
+        // If the result is 1, then the input is 0.
+        builder.when(is_real).when(cols.result).assert_zero(a);
     }
 }

@@ -72,7 +72,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
 use crate::disassembler::WORD_SIZE;
-use crate::operations::IsZeroOperation;
+use crate::operations::IsZeroWordOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -117,7 +117,7 @@ pub struct DivRemCols<T> {
     pub carry: [T; LONG_WORD_SIZE],
 
     /// Flag to indicate division by 0.
-    pub is_c_0: IsZeroOperation<T>,
+    pub is_c_0: IsZeroWordOperation<T>,
 
     pub is_divu: T,
     pub is_remu: T,
@@ -590,7 +590,7 @@ where
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
             // Calculate whether c is 0.
-            IsZeroOperation::<AB::F>::eval(builder, local.c, local.is_c_0, local.is_real);
+            IsZeroWordOperation::<AB::F>::eval(builder, local.c, local.is_c_0, local.is_real);
 
             // If is_c_0 is true, then quotient must be 0xffffffff = u32::MAX.
             for i in 0..WORD_SIZE {
