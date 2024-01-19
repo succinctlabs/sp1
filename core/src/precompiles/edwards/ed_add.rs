@@ -9,6 +9,7 @@ use crate::operations::field::params::AffinePoint;
 use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
+use crate::runtime::Runtime;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_field::Field;
@@ -83,6 +84,14 @@ impl<T: Copy> EdAddAssignCols<T> {
 
 pub struct EdAddAssignChip<P: FieldParameters> {
     pub _phantom: std::marker::PhantomData<P>,
+}
+
+impl<P: FieldParameters> EdAddAssignChip<P> {
+    pub fn execute(&mut runtime: Runtime) -> (u32, u32, u32) {
+        // TODO: grab all of the data and push it to the segment
+        // TODO: construct the EdAddEvent and push it to the segment
+        // Include all of the data in the event, like the clk, base_ptr, etc.
+    }
 }
 
 impl<F: Field, P: FieldParameters> Chip<F> for EdAddAssignChip<P> {
