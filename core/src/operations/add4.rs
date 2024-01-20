@@ -21,8 +21,7 @@ pub struct Add4Operation<T> {
 
 impl<F: Field> Add4Operation<F> {
     pub fn populate(&mut self, a: u32, b: u32, c: u32, d: u32) -> u32 {
-        let expected = a.wrapping_add(b).wrapping_add(c).wrapping_add(d);
-        expected
+        a.wrapping_add(b).wrapping_add(c).wrapping_add(d)
     }
 
     #[allow(unused_variables)]

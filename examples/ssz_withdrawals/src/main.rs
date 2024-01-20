@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use hex_literal::hex;
 use ssz_rs::prelude::*;
 
-extern crate curta_zkvm;
+extern crate succinct_zkvm;
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 mod beacon;
 mod proof;

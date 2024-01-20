@@ -108,7 +108,7 @@ impl Runtime {
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| {
-                Prover::prove(config, &mut challenger.clone(), &segment_chips, &main_data)
+                Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data)
             })
             .collect();
 
@@ -166,8 +166,6 @@ pub mod tests {
     use p3_symmetric::SerializingHasher32;
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
-
-    extern crate test;
 
     pub fn prove(program: Program) {
         type Val = BabyBear;

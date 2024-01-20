@@ -99,10 +99,10 @@ impl<V: Copy> FpDenCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a = Polynomial::from((*a).clone());
-        let p_b = (*b).clone().into();
-        let p_result = self.result.clone().into();
-        let p_carry = self.carry.clone().into();
+        let p_a = Polynomial::from(*a);
+        let p_b = (*b).into();
+        let p_result = self.result.into();
+        let p_carry = self.carry.into();
 
         // Compute the vanishing polynomial:
         //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))
@@ -219,14 +219,13 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             // Convert the trace to a row major matrix.
-            let trace = RowMajorMatrix::new(
-                rows.into_iter().flatten().collect::<Vec<_>>(),
-                NUM_TEST_COLS,
-            );
 
             // Note we do not pad the trace here because we cannot just pad with all 0s.
 
-            trace
+            RowMajorMatrix::new(
+                rows.into_iter().flatten().collect::<Vec<_>>(),
+                NUM_TEST_COLS,
+            )
         }
     }
 

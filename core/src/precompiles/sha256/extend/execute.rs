@@ -38,7 +38,7 @@ impl ShaExtendChip {
         rt.clk -= NB_SHA_EXTEND_CYCLES;
         let clk_init = rt.clk;
         let w_ptr_init = w_ptr;
-        let w_init = w.clone();
+        let w_init = w;
         let mut w_i_minus_15_reads = Vec::new();
         let mut w_i_minus_2_reads = Vec::new();
         let mut w_i_minus_16_reads = Vec::new();

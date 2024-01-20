@@ -5,6 +5,7 @@ use std::ops::Div;
 
 // From https://github.com/ralexstokes/ssz-rs/blob/main/ssz-rs/src/merkleization/proofs.rs
 // Modified to use alloy_primitives::U256 instead of u64 for large gindex values
+#[allow(dead_code)]
 pub fn is_valid_merkle_big_branch<'a>(
     leaf: &Node,
     mut branch: impl Iterator<Item = &'a Node>,

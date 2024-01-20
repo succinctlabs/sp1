@@ -106,7 +106,7 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
-    mut segment: &mut Segment,
+    segment: &mut Segment,
     interaction_kind: InteractionKind,
 ) -> bool {
     // Boilerplate code to set up the chips.
@@ -137,8 +137,7 @@ pub fn debug_interactions_with_all_chips(
     let mut final_map = BTreeMap::new();
 
     for chip in all_chips {
-        let (_, count) =
-            debug_interactions::<BabyBear>(chip.as_ref(), &mut segment, interaction_kind);
+        let (_, count) = debug_interactions::<BabyBear>(chip.as_ref(), segment, interaction_kind);
 
         counts.push((count.clone(), chip.name()));
         println!("{} chip has {} distinct events", chip.name(), count.len());
@@ -201,12 +200,12 @@ pub fn debug_interactions<F: Field>(
             let is_send = m < nb_send_interactions;
             let multiplicity_eval = interaction
                 .multiplicity
-                .apply::<F, F>(&[], &main.row_mut(row));
+                .apply::<F, F>(&[], main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
                 for value in &interaction.values {
-                    let expr = value.apply::<F, F>(&[], &main.row_mut(row));
+                    let expr = value.apply::<F, F>(&[], main.row_mut(row));
                     values.push(expr);
                 }
                 let key = vec_to_string(values);
