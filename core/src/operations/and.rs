@@ -53,7 +53,6 @@ impl<F: Field> AndOperation<F> {
         cols: AndOperation<AB::Var>,
         is_real: AB::Var,
     ) {
-        // TODO: do we have to do something with "is_real"?
         for i in 0..WORD_SIZE {
             builder.send_byte(
                 AB::F::from_canonical_u32(ByteOpcode::AND as u32),

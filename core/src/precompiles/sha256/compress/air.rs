@@ -57,12 +57,14 @@ where
             local.e_rr_6.value,
             local.e_rr_11.value,
             local.s1_intermediate,
+            local.is_compression,
         );
         XorOperation::<AB::F>::eval(
             builder,
             local.s1_intermediate.value,
             local.e_rr_25.value,
             local.s1,
+            local.is_compression,
         );
 
         AndOperation::<AB::F>::eval(
@@ -85,6 +87,7 @@ where
             local.e_and_f.value,
             local.e_not_and_g.value,
             local.ch,
+            local.is_compression,
         );
 
         FixedRotateRightOperation::<AB::F>::eval(
@@ -113,12 +116,14 @@ where
             local.a_rr_2.value,
             local.a_rr_13.value,
             local.s0_intermediate,
+            local.is_compression,
         );
         XorOperation::<AB::F>::eval(
             builder,
             local.s0_intermediate.value,
             local.a_rr_22.value,
             local.s0,
+            local.is_compression,
         );
 
         AndOperation::<AB::F>::eval(
@@ -147,12 +152,14 @@ where
             local.a_and_b.value,
             local.a_and_c.value,
             local.maj_intermediate,
+            local.is_compression,
         );
         XorOperation::<AB::F>::eval(
             builder,
             local.maj_intermediate.value,
             local.b_and_c.value,
             local.maj,
+            local.is_compression,
         );
 
         AddOperation::<AB::F>::eval(
