@@ -1738,13 +1738,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "panic"
-version = "0.1.0"
-dependencies = [
- "succinct-zkvm",
-]
-
-[[package]]
 name = "parity-scale-codec"
 version = "3.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
