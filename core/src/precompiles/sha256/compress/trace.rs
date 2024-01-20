@@ -175,11 +175,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
-                self.populate_access(
-                    &mut cols.mem,
-                    og_h[j].wrapping_add(event.h[j]),
-                    event.h_write_records[j],
-                );
+                let finalized_sum = cols.finalize_add.populate(segment, og_h[j], event.h[j]);
+
+                self.populate_access(&mut cols.mem, finalized_sum, event.h_write_records[j]);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
 
                 v[j] = event.h[j];
@@ -191,6 +189,18 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.f = Word::from(v[5]);
                 cols.g = Word::from(v[6]);
                 cols.h = Word::from(v[7]);
+
+                match j {
+                    0 => cols.finalized_operand = cols.a,
+                    1 => cols.finalized_operand = cols.b,
+                    2 => cols.finalized_operand = cols.c,
+                    3 => cols.finalized_operand = cols.d,
+                    4 => cols.finalized_operand = cols.e,
+                    5 => cols.finalized_operand = cols.f,
+                    6 => cols.finalized_operand = cols.g,
+                    7 => cols.finalized_operand = cols.h,
+                    _ => panic!("unsupported j"),
+                };
 
                 cols.is_real = F::one();
 

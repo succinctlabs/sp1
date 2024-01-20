@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::ShaCompressChip;
-use crate::air::{BaseAirBuilder, CurtaAirBuilder, WordAirBuilder};
+use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
@@ -155,26 +155,34 @@ where
             local.is_compression,
         );
 
-        // // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h.
-        // // Can get a,b,c,...,h by doing an inner produce with octect and [a,b,c,...,h]
-        // let add_operands = [
-        //     local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
-        // ];
-        // let zero = AB::Expr::zero();
-        // let mut filtered_operand = Word([zero.clone(), zero.clone(), zero.clone(), zero]);
-        // for (i, operand) in local.octet.iter().zip(add_operands.iter()) {
-        //     for j in 0..4 {
-        //         filtered_operand.0[j] += *i * operand.0[j];
-        //     }
-        // }
+        // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h.
+        // Can get a,b,c,...,h by doing an inner produce with octect and [a,b,c,...,h]
+        let add_operands = [
+            local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
+        ];
+        let zero = AB::Expr::zero();
+        let mut filtered_operand = Word([zero.clone(), zero.clone(), zero.clone(), zero]);
+        for (i, operand) in local.octet.iter().zip(add_operands.iter()) {
+            for j in 0..4 {
+                filtered_operand.0[j] += *i * operand.0[j];
+            }
+        }
 
-        // AddOperation::<AB::F>::eval(
-        //     builder,
-        //     local.mem.value,
-        //     filtered_operand,
-        //     local.finalize_add,
-        //     local.is_finalize,
-        // );
+        builder
+            .when(local.is_finalize)
+            .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
+
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.mem.prev_value,
+            local.finalized_operand,
+            local.finalize_add,
+            local.is_finalize,
+        );
+
+        builder
+            .when(local.is_finalize)
+            .assert_word_eq(local.mem.value, local.finalize_add.value);
     }
 }
 

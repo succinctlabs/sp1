@@ -77,6 +77,7 @@ pub struct ShaCompressCols<T> {
     pub d_add_temp1: AddOperation<T>,
     pub temp1_add_temp2: AddOperation<T>,
 
+    pub finalized_operand: Word<T>,
     pub finalize_add: AddOperation<T>,
 
     pub is_initialize: T,
