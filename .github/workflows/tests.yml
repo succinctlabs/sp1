@@ -22,8 +22,8 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Set up Git with custom config
-      run: |
-        git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
+        run: |
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
 
       - name: rust-cache
         uses: buildjet/cache@v3
