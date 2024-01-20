@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::ShaCompressChip;
-use crate::air::{BaseAirBuilder, CurtaAirBuilder};
+use crate::air::{BaseAirBuilder, CurtaAirBuilder, WordAirBuilder};
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
@@ -25,9 +25,9 @@ where
         let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
 
-        self.verify_control_flow_flags(builder, local, next);
+        self.contrain_control_flow_flags(builder, local, next);
 
-        self.verify_memory(builder, local);
+        self.constrain_memory(builder, local);
 
         builder.constraint_memory_access(
             local.segment,
@@ -158,7 +158,7 @@ where
 }
 
 impl ShaCompressChip {
-    fn verify_control_flow_flags<AB: CurtaAirBuilder>(
+    fn contrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -234,7 +234,7 @@ impl ShaCompressChip {
         builder.assert_eq(local.is_finalize, local.octet_num[7]);
     }
 
-    fn verify_memory<AB: CurtaAirBuilder>(
+    fn constrain_memory<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -265,5 +265,17 @@ impl ShaCompressChip {
                 + (AB::Expr::from_canonical_u32(64 * 4)
                     + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
         );
+
+        // In the initialize phase, verify that local.a, local.b, ... is correctly set to the
+        // memory value.
+        let vars = [
+            local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
+        ];
+        for i in 0..8 {
+            builder
+                .when(local.is_initialize)
+                .when(local.octet[i])
+                .assert_word_eq(vars[i], local.mem.value);
+        }
     }
 }
