@@ -42,4 +42,3 @@ divan = "0.1.8"
 [[bench]]
 name = "vm"
 harness = false
-nohash-hasher = "0.2.0"

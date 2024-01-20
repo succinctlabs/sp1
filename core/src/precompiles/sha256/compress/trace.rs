@@ -126,13 +126,13 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let e_rr_6 = cols.e_rr_6.populate(segment, e, 6);
                 let e_rr_11 = cols.e_rr_11.populate(segment, e, 11);
                 let e_rr_25 = cols.e_rr_25.populate(segment, e, 25);
-                let s1_intermeddiate = cols.s1_intermediate.populate(e_rr_6, e_rr_11);
-                let s1 = cols.s1.populate(s1_intermeddiate, e_rr_25);
+                let s1_intermeddiate = cols.s1_intermediate.populate(segment, e_rr_6, e_rr_11);
+                let s1 = cols.s1.populate(segment, s1_intermeddiate, e_rr_25);
 
-                let e_and_f = cols.e_and_f.populate(e, f);
-                let e_not = cols.e_not.populate(e);
-                let e_not_and_g = cols.e_not_and_g.populate(e_not, g);
-                let ch = cols.ch.populate(e_and_f, e_not_and_g);
+                let e_and_f = cols.e_and_f.populate(segment, e, f);
+                let e_not = cols.e_not.populate(segment, e);
+                let e_not_and_g = cols.e_not_and_g.populate(segment, e_not, g);
+                let ch = cols.ch.populate(segment, e_and_f, e_not_and_g);
 
                 let temp1 = cols
                     .temp1
@@ -141,14 +141,14 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let a_rr_2 = cols.a_rr_2.populate(segment, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(segment, a, 13);
                 let a_rr_22 = cols.a_rr_22.populate(segment, a, 22);
-                let s0_intermediate = cols.s0_intermediate.populate(a_rr_2, a_rr_13);
-                let s0 = cols.s0.populate(s0_intermediate, a_rr_22);
+                let s0_intermediate = cols.s0_intermediate.populate(segment, a_rr_2, a_rr_13);
+                let s0 = cols.s0.populate(segment, s0_intermediate, a_rr_22);
 
-                let a_and_b = cols.a_and_b.populate(a, b);
-                let a_and_c = cols.a_and_c.populate(a, c);
-                let b_and_c = cols.b_and_c.populate(b, c);
-                let maj_intermediate = cols.maj_intermediate.populate(a_and_b, a_and_c);
-                let maj = cols.maj.populate(maj_intermediate, b_and_c);
+                let a_and_b = cols.a_and_b.populate(segment, a, b);
+                let a_and_c = cols.a_and_c.populate(segment, a, c);
+                let b_and_c = cols.b_and_c.populate(segment, b, c);
+                let maj_intermediate = cols.maj_intermediate.populate(segment, a_and_b, a_and_c);
+                let maj = cols.maj.populate(segment, maj_intermediate, b_and_c);
 
                 let temp2 = cols.temp2.populate(segment, s0, maj);
 
