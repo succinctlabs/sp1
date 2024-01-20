@@ -129,9 +129,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let s1_intermeddiate = cols.s1_intermediate.populate(e_rr_6, e_rr_11);
                 let s1 = cols.s1.populate(s1_intermeddiate, e_rr_25);
 
-                let e_and_f = cols.e_and_f.populate(e, f);
+                let e_and_f = cols.e_and_f.populate(segment, e, f);
                 let e_not = cols.e_not.populate(segment, e);
-                let e_not_and_g = cols.e_not_and_g.populate(e_not, g);
+                let e_not_and_g = cols.e_not_and_g.populate(segment, e_not, g);
                 let ch = cols.ch.populate(e_and_f, e_not_and_g);
 
                 let temp1 = cols
@@ -144,9 +144,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let s0_intermediate = cols.s0_intermediate.populate(a_rr_2, a_rr_13);
                 let s0 = cols.s0.populate(s0_intermediate, a_rr_22);
 
-                let a_and_b = cols.a_and_b.populate(a, b);
-                let a_and_c = cols.a_and_c.populate(a, c);
-                let b_and_c = cols.b_and_c.populate(b, c);
+                let a_and_b = cols.a_and_b.populate(segment, a, b);
+                let a_and_c = cols.a_and_c.populate(segment, a, c);
+                let b_and_c = cols.b_and_c.populate(segment, b, c);
                 let maj_intermediate = cols.maj_intermediate.populate(a_and_b, a_and_c);
                 let maj = cols.maj.populate(maj_intermediate, b_and_c);
 

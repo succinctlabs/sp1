@@ -65,9 +65,21 @@ where
             local.s1,
         );
 
-        AndOperation::<AB::F>::eval(builder, local.e, local.f, local.e_and_f);
+        AndOperation::<AB::F>::eval(
+            builder,
+            local.e,
+            local.f,
+            local.e_and_f,
+            local.is_compression,
+        );
         NotOperation::<AB::F>::eval(builder, local.e, local.e_not, local.is_compression);
-        AndOperation::<AB::F>::eval(builder, local.e_not.value, local.g, local.e_not_and_g);
+        AndOperation::<AB::F>::eval(
+            builder,
+            local.e_not.value,
+            local.g,
+            local.e_not_and_g,
+            local.is_compression,
+        );
         XorOperation::<AB::F>::eval(
             builder,
             local.e_and_f.value,
@@ -109,9 +121,27 @@ where
             local.s0,
         );
 
-        AndOperation::<AB::F>::eval(builder, local.a, local.b, local.a_and_b);
-        AndOperation::<AB::F>::eval(builder, local.a, local.c, local.a_and_c);
-        AndOperation::<AB::F>::eval(builder, local.b, local.c, local.b_and_c);
+        AndOperation::<AB::F>::eval(
+            builder,
+            local.a,
+            local.b,
+            local.a_and_b,
+            local.is_compression,
+        );
+        AndOperation::<AB::F>::eval(
+            builder,
+            local.a,
+            local.c,
+            local.a_and_c,
+            local.is_compression,
+        );
+        AndOperation::<AB::F>::eval(
+            builder,
+            local.b,
+            local.c,
+            local.b_and_c,
+            local.is_compression,
+        );
         XorOperation::<AB::F>::eval(
             builder,
             local.a_and_b.value,
