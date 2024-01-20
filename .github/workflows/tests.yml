@@ -21,10 +21,9 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Setup git ssh auth
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.PRIVATE_PULL_TOKEN }}
+      - name: Set up Git with custom config
+      run: |
+        git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
 
       - name: rust-cache
         uses: buildjet/cache@v3
@@ -39,7 +38,6 @@ jobs:
           key: test-rust-nightly-2023-12-19-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: rust-nightly-2023-12-19-
           
-
       - name: Install nightly toolchain
         id: rustc-toolchain
         uses: actions-rs/toolchain@v1
