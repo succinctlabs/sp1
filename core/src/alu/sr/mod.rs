@@ -281,7 +281,7 @@ where
         // TODO: Calculate the MSB of b using byte lookup.
         {
             // TODO: Check that the MSB of most_significant_byte matches local.b_msb using lookup.
-            let _most_significant_byte = local.b[WORD_SIZE - 1].clone();
+            let _most_significant_byte = local.b[WORD_SIZE - 1];
         }
 
         // Calculate the number of bits and bytes to shift by from c.
@@ -290,7 +290,7 @@ where
             let mut c_byte_sum = AB::Expr::zero();
             for i in 0..BYTE_SIZE {
                 let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
-                c_byte_sum += val * local.c_least_sig_byte[i].clone();
+                c_byte_sum += val * local.c_least_sig_byte[i];
             }
             builder.assert_eq(c_byte_sum, local.c[0]);
 
@@ -304,7 +304,7 @@ where
             }
             for i in 0..BYTE_SIZE {
                 builder
-                    .when(local.shift_by_n_bits[i].clone())
+                    .when(local.shift_by_n_bits[i])
                     .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
             }
             // Exactly one of the shift_by_n_bits must be 1.
@@ -339,8 +339,7 @@ where
         // Byte shift the sign-extended b.
         {
             // The leading bytes of b should be 0xff if b's MSB is 1 & opcode = SRA, 0 otherwise.
-            let leading_byte =
-                local.is_sra.clone() * local.b_msb.clone() * AB::Expr::from_canonical_u8(0xff);
+            let leading_byte = local.is_sra * local.b_msb * AB::Expr::from_canonical_u8(0xff);
             let mut sign_extended_b: Vec<AB::Expr> = vec![];
             for i in 0..WORD_SIZE {
                 sign_extended_b.push(local.b[i].into());
@@ -353,9 +352,9 @@ where
             for num_bytes_to_shift in 0..WORD_SIZE {
                 for i in 0..(LONG_WORD_SIZE - num_bytes_to_shift) {
                     builder
-                        .when(local.shift_by_n_bytes[num_bytes_to_shift].clone())
+                        .when(local.shift_by_n_bytes[num_bytes_to_shift])
                         .assert_eq(
-                            local.byte_shift_result[i].clone(),
+                            local.byte_shift_result[i],
                             sign_extended_b[i + num_bytes_to_shift].clone(),
                         );
                 }
@@ -367,8 +366,8 @@ where
             // The carry multiplier is 2^(8 - num_bits_to_shift).
             let mut carry_multiplier = AB::Expr::from_canonical_u8(0);
             for i in 0..BYTE_SIZE {
-                carry_multiplier += AB::Expr::from_canonical_u32(1u32 << (8 - i))
-                    * local.shift_by_n_bits[i].clone();
+                carry_multiplier +=
+                    AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
             }
             // The 3-bit number represented by the 3 least significant bits of c equals the number
             // of bits to shift.
@@ -381,11 +380,11 @@ where
             for i in (0..LONG_WORD_SIZE).rev() {
                 builder.send_byte_pair(
                     AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
-                    local.shr_carry_output_shifted_byte[i].clone(),
-                    local.shr_carry_output_carry[i].clone(),
-                    local.byte_shift_result[i].clone(),
+                    local.shr_carry_output_shifted_byte[i],
+                    local.shr_carry_output_carry[i],
+                    local.byte_shift_result[i],
                     num_bits_to_shift.clone(),
-                    local.is_real.clone(),
+                    local.is_real,
                 );
             }
 
@@ -393,9 +392,9 @@ where
             for i in (0..LONG_WORD_SIZE).rev() {
                 let mut v: AB::Expr = local.shr_carry_output_shifted_byte[i].into();
                 if i + 1 < LONG_WORD_SIZE {
-                    v += local.shr_carry_output_carry[i + 1].clone() * carry_multiplier.clone();
+                    v += local.shr_carry_output_carry[i + 1] * carry_multiplier.clone();
                 }
-                builder.assert_eq(v, local.bit_shift_result[i].clone());
+                builder.assert_eq(v, local.bit_shift_result[i]);
             }
         }
 
@@ -403,7 +402,7 @@ where
         // inaccurate.
         {
             for i in 0..WORD_SIZE {
-                builder.assert_eq(local.a[i].clone(), local.bit_shift_result[i].clone());
+                builder.assert_eq(local.a[i], local.bit_shift_result[i]);
             }
         }
 

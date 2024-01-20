@@ -94,6 +94,7 @@ where
         );
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        #[allow(clippy::eq_op)]
         builder.assert_zero(
             local.b[0] * local.b[0] * local.c[0] - local.b[0] * local.b[0] * local.c[0],
         );

@@ -16,7 +16,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         let i_start = 16;
         let nb_cycles_per_extend = 20;
         for i in 0..segment.sha_extend_events.len() {
-            let mut event = segment.sha_extend_events[i].clone();
+            let mut event = segment.sha_extend_events[i];
             let w = &mut event.w;
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
@@ -140,12 +140,10 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         }
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_EXTEND_COLS,
-        );
-
-        trace
+        )
     }
 
     fn name(&self) -> String {

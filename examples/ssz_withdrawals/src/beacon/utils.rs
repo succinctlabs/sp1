@@ -1,7 +1,6 @@
 use alloy_primitives::U256;
 use sha2::{Digest, Sha256};
 use ssz_rs::prelude::Node;
-use std::ops::Div;
 
 // From https://github.com/ralexstokes/ssz-rs/blob/main/ssz-rs/src/merkleization/proofs.rs
 // Modified to use alloy_primitives::U256 instead of u64 for large gindex values

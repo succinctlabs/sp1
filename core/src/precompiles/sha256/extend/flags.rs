@@ -40,9 +40,9 @@ impl<F: Field> ShaExtendCols<F> {
         // Populate the columns needed to keep track of cycles of 48 rows.
         let j = 16 + (i % 48);
         self.i = F::from_canonical_usize(j);
-        self.cycle_48[0] = F::from_bool(16 <= j && j < 32);
-        self.cycle_48[1] = F::from_bool(32 <= j && j < 48);
-        self.cycle_48[2] = F::from_bool(48 <= j && j < 64);
+        self.cycle_48[0] = F::from_bool((16..32).contains(&j));
+        self.cycle_48[1] = F::from_bool((32..48).contains(&j));
+        self.cycle_48[2] = F::from_bool((48..64).contains(&j));
         self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start;
         self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end;
     }

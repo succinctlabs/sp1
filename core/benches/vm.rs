@@ -1,6 +1,5 @@
-use curta_core::runtime::Program;
+use succinct_core::runtime::Program;
 
-use curta_core::runtime::Runtime;
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
@@ -20,6 +19,7 @@ use p3_symmetric::CompressionFunctionFromHasher;
 use p3_symmetric::SerializingHasher32;
 use p3_uni_stark::StarkConfigImpl;
 use rand::thread_rng;
+use succinct_core::runtime::Runtime;
 
 pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&mut Runtime)) {
     type Val = BabyBear;
@@ -78,7 +78,6 @@ pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&
             }
         },
         {
-            let config = config;
             move |r: &mut Runtime| {
                 let mut c = challenger.clone();
                 r.prove::<_, _, MyConfig>(&config, &mut c)

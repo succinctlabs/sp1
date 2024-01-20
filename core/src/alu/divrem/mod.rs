@@ -419,14 +419,13 @@ fn eval_abs_value<AB>(
             }
         });
 
-        builder.when(is_negative.clone()).assert_eq(
-            value[i].clone() + abs_value[i].clone(),
-            exp_sum_if_negative.clone(),
-        );
+        builder
+            .when(*is_negative)
+            .assert_eq(value[i] + abs_value[i], exp_sum_if_negative.clone());
 
         builder
-            .when(AB::Expr::one() - is_negative.clone())
-            .assert_eq(value[i].clone(), abs_value[i].clone());
+            .when(AB::Expr::one() - *is_negative)
+            .assert_eq(value[i], abs_value[i]);
     }
 }
 
@@ -446,15 +445,15 @@ where
             // Negative if and only if op code is signed & MSB = 1.
             let is_signed_type = local.is_div + local.is_rem;
             let msb_sign_pairs = [
-                (local.b_msb.clone(), local.b_neg.clone()),
-                (local.rem_msb.clone(), local.rem_neg.clone()),
-                (local.c_msb.clone(), local.c_neg.clone()),
+                (local.b_msb, local.b_neg),
+                (local.rem_msb, local.rem_neg),
+                (local.c_msb, local.c_neg),
             ];
 
             for msb_sign_pair in msb_sign_pairs.iter() {
-                let msb = msb_sign_pair.0.clone();
-                let is_negative = msb_sign_pair.1.clone();
-                builder.assert_eq(msb.clone() * is_signed_type.clone(), is_negative.clone());
+                let msb = msb_sign_pair.0;
+                let is_negative = msb_sign_pair.1;
+                builder.assert_eq(msb * is_signed_type.clone(), is_negative);
             }
         }
 
@@ -471,9 +470,9 @@ where
             builder.send_alu(
                 AB::Expr::from_canonical_u32(Opcode::MUL as u32),
                 Word(lower_half),
-                local.quotient.clone(),
-                local.c.clone(),
-                local.is_real.clone(),
+                local.quotient,
+                local.c,
+                local.is_real,
             );
 
             let opcode_for_upper_half = {
@@ -494,9 +493,9 @@ where
             builder.send_alu(
                 opcode_for_upper_half,
                 Word(upper_half),
-                local.quotient.clone(),
-                local.c.clone(),
-                local.is_real.clone(),
+                local.quotient,
+                local.c,
+                local.is_real,
             );
         }
 
@@ -504,7 +503,7 @@ where
 
         // Add remainder to product c * quotient, and compare it to b.
         {
-            let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u8(u8::MAX);
+            let sign_extension = local.rem_neg * AB::F::from_canonical_u8(u8::MAX);
             let mut c_times_quotient_plus_remainder: Vec<AB::Expr> =
                 vec![AB::F::zero().into(); LONG_WORD_SIZE];
 
@@ -521,7 +520,7 @@ where
                 }
 
                 // Propagate carry.
-                c_times_quotient_plus_remainder[i] -= local.carry[i].clone() * base.clone();
+                c_times_quotient_plus_remainder[i] -= local.carry[i] * base;
                 if i > 0 {
                     c_times_quotient_plus_remainder[i] += local.carry[i - 1].into();
                 }
@@ -531,15 +530,12 @@ where
             for i in 0..LONG_WORD_SIZE {
                 if i < WORD_SIZE {
                     // The lower 4 bytes of the result must match the corresponding bytes in b.
-                    builder.assert_eq(
-                        local.b[i].clone(),
-                        c_times_quotient_plus_remainder[i].clone(),
-                    );
+                    builder.assert_eq(local.b[i], c_times_quotient_plus_remainder[i].clone());
                 } else {
                     // The upper 4 bytes must reflect the sign of b in two's complement:
                     // - All 1s (0xff) for negative b.
                     // - All 0s for non-negative b.
-                    let not_overflow = one.clone() - local.is_overflow.clone();
+                    let not_overflow = one.clone() - local.is_overflow;
                     builder
                         .when(not_overflow.clone())
                         .when(local.b_neg)
@@ -554,7 +550,7 @@ where
 
                     // The only exception to the upper-4-byte check is the overflow case.
                     builder
-                        .when(local.is_overflow.clone())
+                        .when(local.is_overflow)
                         .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
                 }
             }
@@ -608,9 +604,7 @@ where
 
             // Ensure that if is_c_0 is true, then local.c = 0.
             for i in 0..WORD_SIZE {
-                builder
-                    .when(local.is_c_0.clone())
-                    .assert_zero(local.c[i].clone());
+                builder.when(local.is_c_0).assert_zero(local.c[i]);
             }
 
             // We checked that is_c_0 is true if and only if c = 0.
@@ -618,8 +612,8 @@ where
             // Finally, ensure that if is_c_0 is true, then quotient = 0xffffffff = u32::MAX.
             for i in 0..WORD_SIZE {
                 builder
-                    .when(local.is_c_0.clone())
-                    .when(local.is_divu.clone() + local.is_div.clone())
+                    .when(local.is_c_0)
+                    .when(local.is_divu + local.is_div)
                     .assert_eq(local.quotient[i], AB::F::from_canonical_u8(u8::MAX));
             }
         }
@@ -645,17 +639,16 @@ where
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
                 // Set the least significant byte to 1 if is_c_0 is true.
-                v[0] = local.is_c_0.clone() * one.clone()
-                    + (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
+                v[0] = local.is_c_0 * one.clone() + (one.clone() - local.is_c_0) * local.abs_c[0];
 
                 // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
-                    v[i] = (one.clone() - local.is_c_0.clone()) * local.abs_c[i].clone();
+                    v[i] = (one.clone() - local.is_c_0) * local.abs_c[i];
                 }
                 Word(v.try_into().unwrap_or_else(|_| panic!("Incorrect length")))
             };
             for i in 0..WORD_SIZE {
-                builder.assert_eq(local.max_abs_c_or_1[i].clone(), max_abs_c_or_1[i].clone());
+                builder.assert_eq(local.max_abs_c_or_1[i], max_abs_c_or_1[i].clone());
             }
 
             let opcode = {
@@ -673,23 +666,20 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
-                local.is_real.clone(),
+                local.is_real,
             );
         }
 
         // TODO: Use lookup to constrain the MSBs.
         {
             let msb_pairs = [
-                (local.b_msb.clone(), local.b[WORD_SIZE - 1].clone()),
-                (local.c_msb.clone(), local.c[WORD_SIZE - 1].clone()),
-                (
-                    local.rem_msb.clone(),
-                    local.remainder[WORD_SIZE - 1].clone(),
-                ),
+                (local.b_msb, local.b[WORD_SIZE - 1]),
+                (local.c_msb, local.c[WORD_SIZE - 1]),
+                (local.rem_msb, local.remainder[WORD_SIZE - 1]),
             ];
             for msb_pair in msb_pairs.iter() {
-                let _msb = msb_pair.0.clone();
-                let _byte = msb_pair.1.clone();
+                let _msb = msb_pair.0;
+                let _byte = msb_pair.1;
                 // _msb must match _byte's msb.
             }
         }
@@ -730,7 +720,7 @@ where
             ];
 
             for flag in bool_flags.iter() {
-                builder.assert_bool(flag.clone());
+                builder.assert_bool(*flag);
             }
         }
 

@@ -61,8 +61,8 @@ impl<F: Field> FpOpCols<F> {
             return result;
         }
 
-        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(&a).into();
-        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(&b).into();
+        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
+        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
 
         // Compute field addition in the integers.
         let modulus = &P::modulus();
@@ -80,7 +80,7 @@ impl<F: Field> FpOpCols<F> {
         }
 
         // Make little endian polynomial limbs.
-        let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(&modulus).into();
+        let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(modulus).into();
         let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
         let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
 
@@ -121,14 +121,12 @@ impl<V: Copy> FpOpCols<V> {
         V: Into<AB::Expr>,
     {
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
-            FpOperation::Add | FpOperation::Mul => {
-                ((*a).clone().into(), self.result.clone().into())
-            }
-            FpOperation::Sub => (self.result.clone().into(), (*a).clone().into()),
+            FpOperation::Add | FpOperation::Mul => ((*a).into(), self.result.into()),
+            FpOperation::Sub => (self.result.into(), (*a).into()),
         };
 
-        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).clone().into();
-        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.clone().into();
+        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
         let p_op = match op {
             FpOperation::Add | FpOperation::Sub => p_a + p_b,
             FpOperation::Mul => p_a * p_b,
