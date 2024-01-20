@@ -91,7 +91,7 @@ impl Runtime {
         let program_rc = Arc::new(program);
         let segment = Segment {
             program: program_rc.clone(),
-            index: 0,
+            index: 1,
             ..Default::default()
         };
         Self {
