@@ -33,7 +33,7 @@ pub struct ShaCompressCols<T> {
     // The first octect is for initialize.
     // The next 8 octects are for compress.
     // The last octect is for finalize.
-    pub octet_num: [T; 8],
+    pub octet_num: [T; 10],
 
     pub mem: MemoryAccessCols<T>,
     pub mem_addr: T,
@@ -77,7 +77,11 @@ pub struct ShaCompressCols<T> {
     pub d_add_temp1: AddOperation<T>,
     pub temp1_add_temp2: AddOperation<T>,
 
+    pub finalize_add: AddOperation<T>,
+
     pub is_initialize: T,
     pub is_compression: T,
     pub is_finalize: T,
+
+    pub is_real: T,
 }

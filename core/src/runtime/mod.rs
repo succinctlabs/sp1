@@ -226,7 +226,7 @@ impl Runtime {
             // P.18 of the RISC-V spec.
             return;
         }
-        // Only for register writes, do we not read it before, so we put in the read here.
+        // Only for register writes, we do not read it before, so we put in the read here.
         self.mr(register as u32, AccessPosition::A);
         // The only time we are writing to a register is when it is register A.
         self.mw(register as u32, value, AccessPosition::A)

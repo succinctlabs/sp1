@@ -27,6 +27,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
+                cols.is_initialize = F::one();
                 cols.segment = F::one();
                 cols.clk = F::from_canonical_u32(event.clk + (j * 4) as u32);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -67,6 +68,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 v[6] = cols.g;
                 v[7] = cols.h;
 
+                cols.is_real = F::one();
                 rows.push(row);
             }
 
@@ -78,6 +80,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
+                cols.is_compression = F::one();
                 cols.octet[j % 8] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
@@ -146,6 +149,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 event.h[1] = a;
                 event.h[0] = temp1_add_temp2;
 
+                cols.is_real = F::one();
+
                 rows.push(row);
             }
 
@@ -161,6 +166,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
+                cols.is_finalize = F::one();
                 cols.segment = F::one();
                 cols.clk = F::from_canonical_u32(event.clk + 8 * 4 + 64 * 4 + (j * 4) as u32);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -185,6 +191,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.f = Word::from(v[5]);
                 cols.g = Word::from(v[6]);
                 cols.h = Word::from(v[7]);
+
+                cols.is_real = F::one();
 
                 rows.push(row);
             }

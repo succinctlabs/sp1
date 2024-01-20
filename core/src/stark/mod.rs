@@ -1,3 +1,5 @@
+use std::mem::transmute_copy;
+
 use itertools::izip;
 use p3_air::{Air, BaseAir, TwoRowMatrixView};
 use p3_commit::UnivariatePcsWithLde;
@@ -25,6 +27,7 @@ pub use verifier::{VerificationError, Verifier};
 #[cfg(test)]
 pub use runtime::tests;
 
+use crate::precompiles::sha256::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use crate::{stark::permutation::eval_permutation_constraints, utils::Chip};
 
 use self::zerofier_coset::ZerofierOnCoset;
@@ -94,6 +97,24 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
             builder.is_last_row = F::one();
             builder.is_transition = F::zero();
         }
+
+        // if main_local.len() == NUM_SHA_COMPRESS_COLS {
+        //     let mut array_copy = [F::zero(); NUM_SHA_COMPRESS_COLS];
+        //     array_copy.copy_from_slice(main_local);
+        //     let main_local_cpucol = unsafe {
+        //         transmute_copy::<[F; NUM_SHA_COMPRESS_COLS], ShaCompressCols<F>>(&array_copy)
+        //     };
+
+        //     println!("main_local_shacompress: {:?}", main_local_cpucol);
+
+        //     let mut array_copy = [F::zero(); NUM_SHA_COMPRESS_COLS];
+        //     array_copy.copy_from_slice(main_next);
+        //     let main_next_cpucol = unsafe {
+        //         transmute_copy::<[F; NUM_SHA_COMPRESS_COLS], ShaCompressCols<F>>(&array_copy)
+        //     };
+
+        //     println!("main_next_shacompress: {:?}", main_next_cpucol);
+        // }
 
         air.eval(&mut builder);
         eval_permutation_constraints(air, &mut builder, cumulative_sum);

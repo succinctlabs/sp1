@@ -154,6 +154,27 @@ where
             local.temp1_add_temp2,
             local.is_compression,
         );
+
+        // // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h.
+        // // Can get a,b,c,...,h by doing an inner produce with octect and [a,b,c,...,h]
+        // let add_operands = [
+        //     local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
+        // ];
+        // let zero = AB::Expr::zero();
+        // let mut filtered_operand = Word([zero.clone(), zero.clone(), zero.clone(), zero]);
+        // for (i, operand) in local.octet.iter().zip(add_operands.iter()) {
+        //     for j in 0..4 {
+        //         filtered_operand.0[j] += *i * operand.0[j];
+        //     }
+        // }
+
+        // AddOperation::<AB::F>::eval(
+        //     builder,
+        //     local.mem.value,
+        //     filtered_operand,
+        //     local.finalize_add,
+        //     local.is_finalize,
+        // );
     }
 }
 
@@ -174,7 +195,7 @@ impl ShaCompressChip {
         for i in 0..8 {
             octet_sum += local.octet[i].into();
         }
-        builder.assert_one(octet_sum);
+        builder.when(local.is_real).assert_one(octet_sum);
 
         // Verify that the first row's octet value is correct.
         builder.when_first_row().assert_one(local.octet[0]);
@@ -183,42 +204,46 @@ impl ShaCompressChip {
         for i in 0..7 {
             builder
                 .when_transition()
+                .when(next.is_real)
                 .when(local.octet[i])
                 .assert_one(next.octet[i + 1])
         }
         builder
             .when_transition()
+            .when(next.is_real)
             .when(local.octet[7])
             .assert_one(next.octet[0]);
 
         //// Constrain octet_num columns
         // Verify taht all of the octet_num columns are bool.
-        for i in 0..8 {
+        for i in 0..10 {
             builder.assert_bool(local.octet_num[i]);
         }
 
         // Verify that exactly one of the octet_num columns is true.
         let mut octet_num_sum = AB::Expr::zero();
-        for i in 0..8 {
+        for i in 0..10 {
             octet_num_sum += local.octet_num[i].into();
         }
-        builder.assert_one(octet_num_sum);
+        builder.when(local.is_real).assert_one(octet_num_sum);
 
         // Verify that the first row's octet_num value is correct.
         builder.when_first_row().assert_one(local.octet_num[0]);
 
-        for i in 0..8 {
+        for i in 0..10 {
             builder
                 .when_transition()
+                .when(next.is_real)
                 .when_not(local.octet[7])
                 .assert_eq(local.octet_num[i], next.octet_num[i]);
         }
 
-        for i in 0..8 {
+        for i in 0..10 {
             builder
                 .when_transition()
+                .when(next.is_real)
                 .when(local.octet[7])
-                .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 8]);
+                .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 10]);
         }
 
         builder.assert_eq(local.is_initialize, local.octet_num[0]);
@@ -229,9 +254,11 @@ impl ShaCompressChip {
                 + local.octet_num[3]
                 + local.octet_num[4]
                 + local.octet_num[5]
-                + local.octet_num[6],
+                + local.octet_num[6]
+                + local.octet_num[7]
+                + local.octet_num[8],
         );
-        builder.assert_eq(local.is_finalize, local.octet_num[7]);
+        builder.assert_eq(local.is_finalize, local.octet_num[9]);
     }
 
     fn constrain_memory<AB: CurtaAirBuilder>(
@@ -239,6 +266,11 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
+        let mut cycle_num = AB::Expr::zero();
+        for i in 0..10 {
+            cycle_num += local.octet_num[i] * AB::Expr::from_canonical_usize(i);
+        }
+
         let mut cycle_step = AB::Expr::zero();
         for i in 0..8 {
             cycle_step += local.octet[i] * AB::Expr::from_canonical_usize(i);
@@ -255,7 +287,10 @@ impl ShaCompressChip {
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
+            local.w_and_h_ptr
+                + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
+                    + cycle_step.clone())
+                    * AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for finalize phase
