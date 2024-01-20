@@ -93,7 +93,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: --package succinct-core -- --check
+          args: --all -- --check
         env:
           CARGO_INCREMENTAL: 1
 
@@ -101,6 +101,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -p succinct-core --all-features --all-targets -- -D warnings -A incomplete-features
+          args: --all-features --all-targets -- -D warnings -A incomplete-features
         env:
           CARGO_INCREMENTAL: 1
