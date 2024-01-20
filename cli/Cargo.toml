@@ -9,4 +9,4 @@ edition = "2021"
 anyhow = { version = "1.0.79", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
 clap = { version = "4.4.15", features = ["derive"] }
-curta-core = { path = "../core" }
+succinct-core = { path = "../core" }

@@ -551,7 +551,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap",
- "curta-core",
+ "succinct-core",
 ]
 
 [[package]]
@@ -694,47 +694,6 @@ dependencies = [
  "generic-array",
  "typenum",
 ]
-
-[[package]]
-name = "curta-core"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "divan",
- "elf",
- "env_logger",
- "itertools 0.12.0",
- "log",
- "nohash-hasher",
- "num",
- "p3-air",
- "p3-baby-bear",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-keccak",
- "p3-ldt",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-mds",
- "p3-merkle-tree",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "rand",
- "rayon",
- "rrs-lib",
- "serde",
- "valida-derive",
-]
-
-[[package]]
-name = "curta-zkvm"
-version = "0.1.0"
 
 [[package]]
 name = "curve25519-dalek-ng"
@@ -1007,7 +966,7 @@ dependencies = [
 name = "fibonacci"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -1782,7 +1741,7 @@ dependencies = [
 name = "panic"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -2379,10 +2338,10 @@ dependencies = [
 name = "sha2"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
  "hex",
  "hex-literal",
  "sha2 0.10.6",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -2432,14 +2391,14 @@ dependencies = [
 name = "sha_compress"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
 name = "sha_extend"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -2492,7 +2451,6 @@ name = "ssz_withdrawals"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "curta-zkvm",
  "hex",
  "hex-literal",
  "serde",
@@ -2500,6 +2458,7 @@ dependencies = [
  "serde_with",
  "sha2 0.9.8",
  "ssz_rs",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -2534,6 +2493,47 @@ name = "subtle-ng"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
+
+[[package]]
+name = "succinct-core"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "divan",
+ "elf",
+ "env_logger",
+ "itertools 0.12.0",
+ "log",
+ "nohash-hasher",
+ "num",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-keccak",
+ "p3-ldt",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-mds",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "p3-util",
+ "rand",
+ "rayon",
+ "rrs-lib",
+ "serde",
+ "valida-derive",
+]
+
+[[package]]
+name = "succinct-zkvm"
+version = "0.1.0"
 
 [[package]]
 name = "syn"
@@ -2580,9 +2580,9 @@ dependencies = [
 name = "tendermint"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
  "serde",
  "serde_json",
+ "succinct-zkvm",
  "tendermint 0.34.0",
  "tendermint-light-client-verifier",
 ]

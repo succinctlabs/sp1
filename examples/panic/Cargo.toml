@@ -1,8 +1,0 @@
-[package]
-version = "0.1.0"
-name = "panic"
-edition = "2021"
-
-
-[dependencies]
-curta-zkvm = { path = "../../zkvm" }
