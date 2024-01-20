@@ -34,4 +34,4 @@ p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git" }
 # Patch sha2 so we can use sha precompiles
 sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", branch = "v0.9.8" }
 # Patch time because newer version breaks with older toolchains
-time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28"}
+time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }

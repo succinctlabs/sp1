@@ -1,2 +1,2 @@
-pub mod bigint;
+pub mod edwards;
 pub mod sha256;
