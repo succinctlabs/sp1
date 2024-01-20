@@ -98,21 +98,20 @@ impl<V: Copy> FpInnerProductCols<V> {
         let p_result = self.result.clone().into();
         let p_carry = self.carry.clone().into();
 
-        let p_zero = builder.zero_poly();
+        let p_zero = Polynomial::<AB::Expr>::from_coefficients(vec![AB::Expr::zero()]);
 
         let p_inner_product = p_a_vec
             .iter()
             .zip(p_b_vec.iter())
-            .map(|(p_a, p_b)| builder.poly_mul(p_a, p_b))
+            .map(|(p_a, p_b)| p_a * p_b)
             .collect::<Vec<_>>()
             .iter()
-            .fold(p_zero, |acc, x| builder.poly_add(&acc, x));
+            .fold(p_zero, |acc, x| acc + x);
 
-        let p_inner_product_minus_result = builder.poly_sub(&p_inner_product, &p_result);
-        let p_limbs =
-            builder.constant_poly(&Polynomial::from_iter(P::modulus_field_iter::<AB::F>()));
-        let p_carry_mul_modulus = builder.poly_mul(&p_carry, &p_limbs);
-        let p_vanishing = builder.poly_sub(&p_inner_product_minus_result, &p_carry_mul_modulus);
+        let p_inner_product_minus_result = &p_inner_product - &p_result;
+        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
+        let p_carry_mul_modulus = &p_carry * &p_limbs;
+        let p_vanishing = &p_inner_product_minus_result - &(&p_carry * &p_limbs);
 
         let p_witness_low = self.witness_low.iter().into();
         let p_witness_high = self.witness_high.iter().into();

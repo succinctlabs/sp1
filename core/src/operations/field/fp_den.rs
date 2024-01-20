@@ -99,7 +99,7 @@ impl<V: Copy> FpDenCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a = (*a).clone().into();
+        let p_a = Polynomial::from((*a).clone());
         let p_b = (*b).clone().into();
         let p_result = self.result.clone().into();
         let p_carry = self.carry.clone().into();
@@ -108,20 +108,17 @@ impl<V: Copy> FpDenCols<V> {
         //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))
         //      rhs(x) = sign * a(x) + (1 - sign) * result(x)
         //      lhs(x) - rhs(x) - carry(x) * p(x)
-        let p_b_times_res = builder.poly_mul(&p_b, &p_result);
         let p_equation_lhs = if sign {
-            builder.poly_add(&p_b_times_res, &p_result)
+            &p_b * &p_result + &p_result
         } else {
-            builder.poly_add(&p_b_times_res, &p_a)
+            &p_b * &p_result + &p_a
         };
         let p_equation_rhs = if sign { p_a } else { p_result };
 
-        let p_lhs_minus_rhs = builder.poly_sub(&p_equation_lhs, &p_equation_rhs);
-        let p_limbs =
-            builder.constant_poly(&Polynomial::from_iter(P::modulus_field_iter::<AB::F>()));
+        let p_lhs_minus_rhs = &p_equation_lhs - &p_equation_rhs;
+        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
 
-        let mul_times_carry = builder.poly_mul(&p_carry, &p_limbs);
-        let p_vanishing = builder.poly_sub(&p_lhs_minus_rhs, &mul_times_carry);
+        let p_vanishing = p_lhs_minus_rhs - &p_carry * &p_limbs;
 
         let p_witness_low = self.witness_low.iter().into();
         let p_witness_high = self.witness_high.iter().into();

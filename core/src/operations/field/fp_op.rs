@@ -120,7 +120,7 @@ impl<V: Copy> FpOpCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
-        let (p_a, p_result) = match op {
+        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
             FpOperation::Add | FpOperation::Mul => {
                 ((*a).clone().into(), self.result.clone().into())
             }
@@ -131,14 +131,12 @@ impl<V: Copy> FpOpCols<V> {
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.clone().into();
         let p_op = match op {
             FpOperation::Add | FpOperation::Sub => p_a + p_b,
-            FpOperation::Mul => builder.poly_mul(&p_a, &p_b),
+            FpOperation::Mul => p_a * p_b,
         };
-        let p_op_minus_result = builder.poly_sub(&p_op, &p_result);
-        let p_limbs =
-            builder.constant_poly(&Polynomial::from_iter(P::modulus_field_iter::<AB::F>()));
+        let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
+        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
 
-        let p_mul_times_carry = builder.poly_mul(&p_carry, &p_limbs);
-        let p_vanishing = builder.poly_sub(&p_op_minus_result, &p_mul_times_carry);
+        let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
 
         let p_witness_low = self.witness_low.iter().into();
         let p_witness_high = self.witness_high.iter().into();
