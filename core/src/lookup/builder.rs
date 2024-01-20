@@ -1,9 +1,8 @@
+use crate::air::AirInteraction;
 use p3_air::{AirBuilder, MessageBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
-
-use crate::air::AirInteraction;
 
 use super::Interaction;
 
