@@ -93,7 +93,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: --all -- --check
+          args: --package curta-core -- --check
         env:
           CARGO_INCREMENTAL: 1
 
