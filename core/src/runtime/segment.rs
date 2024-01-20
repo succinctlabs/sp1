@@ -6,6 +6,7 @@ use super::Opcode;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
+use crate::field::event::FieldEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::runtime::MemoryRecord;
 
@@ -45,6 +46,9 @@ pub struct Segment {
 
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+
+    /// A trace of field LTU events.
+    pub field_events: Vec<FieldEvent>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
 

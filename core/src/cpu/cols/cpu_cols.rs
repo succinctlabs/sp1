@@ -11,20 +11,26 @@ use super::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MemoryReadCols<T> {
-    pub value: Word<T>,
-    pub segment: T,
-    pub timestamp: T,
-}
-
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
-#[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
     pub prev_value: Word<T>,
+
     // The previous segment and timestamp that this memory access is being read from.
-    pub segment: T,
-    pub timestamp: T,
+    pub prev_segment: T,
+    pub prev_clk: T,
+
+    // The three columns below are helper/materialized columns used to verify that this memory access is
+    // after the last one.  Specifically, it verifies that the current clk value > timestsamp (if
+    // this access's segment == prev_access's segment) or that the current segment > segment.
+    // These columns will need to be verified in the air.
+
+    // This will be true if the current segment == prev_access's segment, else false.
+    pub use_clk_comparison: T,
+
+    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_segment
+    pub prev_time_value: T,
+    // This materialized column is equal to use_clk_comparison ? current_clk : current_segment
+    pub current_time_value: T,
 }
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -116,6 +122,14 @@ pub struct CpuCols<T> {
     // ((Self::selectors::is_bge || Self::selectors::is_bgeu)
     //  AND (Self::BranchColumns::a_eq_b || Self::BranchColumns::a_gt_b))
     pub branching: T,
+
+    // not_branching column is equal to
+    // (Self::selectors::is_beq AND !Self::BranchColumns::a_eq_b) ||
+    // (Self::selectors::is_bne AND !(Self::BranchColumns::a_lt_b || Self::BranchColumns::a_gt:b) ||
+    // ((Self::selectors::is_blt || Self::selectors::is_bltu) AND !Self::BranchColumns::a_lt_b) ||
+    // ((Self::selectors::is_bge || Self::selectors::is_bgeu)
+    //  AND !(Self::BranchColumns::a_eq_b || Self::BranchColumns::a_gt_b))
+    pub not_branching: T,
 
     // mem_value_is_neg column is equal to
     // ((Self::selectors::is_lbu || Self::selectors::is_lhu) AND Self::MemoryColumns::most_sig_byte_decomp[7] == 1)

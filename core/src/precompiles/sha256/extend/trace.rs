@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, runtime::Segment, utils::Chip};
+use crate::{air::Word, cpu::MemoryRecord, runtime::Segment, utils::Chip};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
@@ -11,6 +11,10 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        const SEGMENT_NUM: u32 = 1;
+        let mut new_field_events = Vec::new();
+        let i_start = 16;
+        let nb_cycles_per_extend = 20;
         for i in 0..segment.sha_extend_events.len() {
             let mut event = segment.sha_extend_events[i].clone();
             let w = &mut event.w;
@@ -19,29 +23,57 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
 
                 cols.populate_flags(j);
-                cols.segment = F::one();
+                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
                 cols.clk = F::from_canonical_u32(event.clk);
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
+                let i = 16 + (j % 48);
 
+                let w_i_minus_15_current_read = MemoryRecord {
+                    value: w[16 + j - 15],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_15,
-                    w[16 + j - 15],
+                    w_i_minus_15_current_read,
                     event.w_i_minus_15_reads[j],
+                    &mut new_field_events,
                 );
+
+                let w_i_minus_2_current_read = MemoryRecord {
+                    value: w[16 + j - 2],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 4,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_2,
-                    w[16 + j - 2],
+                    w_i_minus_2_current_read,
                     event.w_i_minus_2_reads[j],
+                    &mut new_field_events,
                 );
+
+                let w_i_minus_16_current_read = MemoryRecord {
+                    value: w[16 + j - 16],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 8,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_16,
-                    w[16 + j - 16],
+                    w_i_minus_16_current_read,
                     event.w_i_minus_16_reads[j],
+                    &mut new_field_events,
                 );
+
+                let w_i_minus_7_current_read = MemoryRecord {
+                    value: w[16 + j - 7],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 12,
+                };
                 self.populate_access(
                     &mut cols.w_i_minus_7,
-                    w[16 + j - 7],
+                    w_i_minus_7_current_read,
                     event.w_i_minus_7_reads[j],
+                    &mut new_field_events,
                 );
 
                 // Compute `s0`.
@@ -70,12 +102,26 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
                 // Write `s2` to `w[i]`.
                 w[16 + j] = s2;
-                self.populate_access(&mut cols.w_i, w[16 + j], event.w_i_writes[j]);
+
+                let w_i_current_write = MemoryRecord {
+                    value: w[16 + j],
+                    segment: SEGMENT_NUM,
+                    timestamp: event.clk + (i as u32 - i_start) * nb_cycles_per_extend + 16,
+                };
+
+                self.populate_access(
+                    &mut cols.w_i,
+                    w_i_current_write,
+                    event.w_i_writes[j],
+                    &mut new_field_events,
+                );
 
                 cols.is_real = F::one();
                 rows.push(row);
             }
         }
+
+        segment.field_events.extend(new_field_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();

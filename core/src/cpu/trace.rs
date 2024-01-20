@@ -1,13 +1,12 @@
-use super::cols::cpu_cols::{
-    AUIPCColumns, BranchColumns, JumpColumns, MemoryAccessCols, CPU_COL_MAP, NUM_CPU_COLS,
-};
+use super::cols::cpu_cols::{AUIPCColumns, BranchColumns, JumpColumns, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent, MemoryRecord};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::cols::cpu_cols::{CpuCols, MemoryColumns};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{Opcode, Segment};
+use crate::field::event::FieldEvent;
+use crate::runtime::{AccessPosition, Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -24,15 +23,24 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut new_blu_events = Vec::new();
         let mut new_alu_events = HashMap::new();
+        let mut new_field_events = Vec::new();
 
         let rows = segment
             .cpu_events
             .iter() // TODO: change this back to par_iter
-            .map(|op| self.event_to_row(*op, &mut new_alu_events, &mut new_blu_events))
+            .map(|op| {
+                self.event_to_row(
+                    *op,
+                    &mut new_alu_events,
+                    &mut new_blu_events,
+                    &mut new_field_events,
+                )
+            })
             .collect::<Vec<_>>();
 
         segment.add_alu_events(new_alu_events);
         segment.add_byte_lookup_events(new_blu_events);
+        segment.field_events.extend(new_field_events);
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
@@ -49,6 +57,7 @@ impl CpuChip {
         event: CpuEvent,
         new_alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
         new_blu_events: &mut Vec<ByteLookupEvent>,
+        new_field_events: &mut Vec<FieldEvent>,
     ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
@@ -59,9 +68,41 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        self.populate_access(&mut cols.op_a_access, event.a, event.a_record);
-        self.populate_access(&mut cols.op_b_access, event.b, event.b_record);
-        self.populate_access(&mut cols.op_c_access, event.c, event.c_record);
+        let current_a_record = MemoryRecord {
+            value: event.a,
+            segment: event.segment,
+            timestamp: event.clk + AccessPosition::A as u32,
+        };
+        self.populate_access(
+            &mut cols.op_a_access,
+            current_a_record,
+            event.a_record,
+            new_field_events,
+        );
+
+        let current_b_record = MemoryRecord {
+            value: event.b,
+            segment: event.segment,
+            timestamp: event.clk + AccessPosition::B as u32,
+        };
+        self.populate_access(
+            &mut cols.op_b_access,
+            current_b_record,
+            event.b_record,
+            new_field_events,
+        );
+
+        let current_c_record = MemoryRecord {
+            value: event.c,
+            segment: event.segment,
+            timestamp: event.clk + AccessPosition::C as u32,
+        };
+        self.populate_access(
+            &mut cols.op_c_access,
+            current_c_record,
+            event.c_record,
+            new_field_events,
+        );
 
         // If there is a memory record, then event.memory should be set and vice-versa.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
@@ -69,10 +110,17 @@ impl CpuChip {
         let memory_columns: &mut MemoryColumns<F> =
             unsafe { transmute(&mut cols.opcode_specific_columns) };
         if let Some(memory) = event.memory {
+            let current_mem_record = MemoryRecord {
+                value: memory,
+                segment: event.segment,
+                timestamp: event.clk + AccessPosition::Memory as u32,
+            };
+
             self.populate_access(
                 &mut memory_columns.memory_access,
-                memory,
+                current_mem_record,
                 event.memory_record,
+                new_field_events,
             )
         }
 
@@ -83,21 +131,6 @@ impl CpuChip {
         cols.is_real = F::one();
 
         row
-    }
-
-    fn populate_access<F: PrimeField>(
-        &self,
-        cols: &mut MemoryAccessCols<F>,
-        value: u32,
-        record: Option<MemoryRecord>,
-    ) {
-        cols.value = value.into();
-        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
-        if let Some(record) = record {
-            cols.prev_value = record.value.into();
-            cols.segment = F::from_canonical_u32(record.segment);
-            cols.timestamp = F::from_canonical_u32(record.timestamp);
-        }
     }
 
     fn populate_memory<F: PrimeField>(
@@ -139,7 +172,6 @@ impl CpuChip {
                 .or_insert(vec![add_event]);
 
             let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
-            // bit little endian representation of addr_offset
             memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
             memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
             memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
@@ -308,6 +340,8 @@ impl CpuChip {
                     .entry(Opcode::ADD)
                     .and_modify(|op_new_events| op_new_events.push(add_event))
                     .or_insert(vec![add_event]);
+            } else {
+                cols.not_branching = F::one();
             }
         }
     }
