@@ -66,7 +66,7 @@ where
         );
 
         AndOperation::<AB::F>::eval(builder, local.e, local.f, local.e_and_f);
-        NotOperation::<AB::F>::eval(builder, local.e, local.e_not);
+        NotOperation::<AB::F>::eval(builder, local.e, local.e_not, local.is_compression);
         AndOperation::<AB::F>::eval(builder, local.e_not.value, local.g, local.e_not_and_g);
         XorOperation::<AB::F>::eval(
             builder,

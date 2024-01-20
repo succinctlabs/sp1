@@ -130,7 +130,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let s1 = cols.s1.populate(s1_intermeddiate, e_rr_25);
 
                 let e_and_f = cols.e_and_f.populate(e, f);
-                let e_not = cols.e_not.populate(e);
+                let e_not = cols.e_not.populate(segment, e);
                 let e_not_and_g = cols.e_not_and_g.populate(e_not, g);
                 let ch = cols.ch.populate(e_and_f, e_not_and_g);
 
