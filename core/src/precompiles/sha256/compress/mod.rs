@@ -4,7 +4,7 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::MemoryRecord;
 
 mod air;
-pub mod columns;
+mod columns;
 mod execute;
 mod trace;
 
