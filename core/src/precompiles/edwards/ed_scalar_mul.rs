@@ -1,11 +1,9 @@
 use crate::air::CurtaAirBuilder;
 use crate::operations::field::params::AffinePoint;
-use p3_air::{Air, BaseAir};
-
+use crate::precompiles::edwards::ed_add::EdAddAssignCols;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-
-use super::ed_add::EdAddCols;
+use p3_air::{Air, BaseAir};
 use p3_matrix::MatrixRowSlices;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
@@ -19,8 +17,8 @@ pub struct EdScalarMulCols<T> {
     pub bit: T,
     pub temp: AffinePoint<T>,
     pub result: AffinePoint<T>,
-    pub result_plus_temp: EdAddCols<T>,
-    pub temp_double: EdAddCols<T>,
+    pub result_plus_temp: EdAddAssignCols<T>,
+    pub temp_double: EdAddAssignCols<T>,
     pub result_next: AffinePoint<T>, // TODO: we may not need this?
 }
 

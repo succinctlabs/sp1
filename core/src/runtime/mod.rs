@@ -6,7 +6,8 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
-use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::edwards::ed_add::EdAddAssignChip;
+use crate::precompiles::sha256_extend::ShaExtendEvent;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -632,6 +633,9 @@ impl Runtime {
                         }
                         (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
+                    }
+                    Syscall::ED_ADD => {
+                        (a, b, c) = EdAddAssignChip::execute(self);
                     }
                 }
             }

@@ -14,6 +14,9 @@ pub enum Syscall {
     /// Executes the `SHA_COMPRESS` precompile.
     SHA_COMPRESS = 103,
 
+    /// Executes the `ED_ADD` precompile.
+    ED_ADD = 104,
+
     WRITE = 999,
 }
 
