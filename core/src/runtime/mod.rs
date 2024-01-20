@@ -91,7 +91,7 @@ impl Runtime {
         let program_rc = Arc::new(program);
         let segment = Segment {
             program: program_rc.clone(),
-            index: 0,
+            index: 1,
             ..Default::default()
         };
         Self {
@@ -802,7 +802,7 @@ impl Runtime {
 
         let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let value = self.memory.remove(&addr).unwrap();
+            let value = *self.memory.get(&addr).unwrap();
             let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
@@ -922,7 +922,6 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
         runtime.run();
-
         assert_eq!(runtime.register(Register::X31), 42);
     }
 
