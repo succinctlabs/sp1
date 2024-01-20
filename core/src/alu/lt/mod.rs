@@ -91,8 +91,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.c = Word(c.map(F::from_canonical_u8));
 
                 // If this is SLT, mask the MSB of b & c before computing cols.bits.
-                let mut masked_b = b.clone();
-                let mut masked_c = c.clone();
+                let mut masked_b = b;
+                let mut masked_c = c;
                 masked_b[3] &= 0x7f;
                 masked_c[3] &= 0x7f;
 

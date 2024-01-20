@@ -147,8 +147,7 @@ impl Runtime {
 
     pub fn byte(&self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
-        let byte = (word >> (addr % 4) * 8) as u8;
-        byte
+        (word >> ((addr % 4) * 8)) as u8
     }
 
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
@@ -377,7 +376,7 @@ impl Runtime {
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
         let idx = ((self.pc - self.program.pc_base) / 4) as usize;
-        return self.program.instructions[idx];
+        self.program.instructions[idx]
     }
 
     /// Execute the given instruction over the current state of the runtime.

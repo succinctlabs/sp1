@@ -60,11 +60,11 @@ impl<V: Copy> EdAddCols<V> {
 
         // x3_numerator = x1 * y2 + x2 * y1.
         self.x3_numerator
-            .eval::<AB, P>(builder, &vec![x1, x2], &vec![y2, y1]);
+            .eval::<AB, P>(builder, &[x1, x2], &[y2, y1]);
 
         // y3_numerator = y1 * y2 + x1 * x2.
         self.y3_numerator
-            .eval::<AB, P>(builder, &vec![y1, x1], &vec![y2, x2]);
+            .eval::<AB, P>(builder, &[y1, x1], &[y2, x2]);
 
         // // f = x1 * x2 * y1 * y2.
         self.x1_mul_y1

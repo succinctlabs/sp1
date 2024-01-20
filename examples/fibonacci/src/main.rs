@@ -17,7 +17,7 @@ fn fibonacci(n: u32) -> u32 {
         c %= 7919;
         nums.push(c);
     }
-    return nums[nums.len() - 1];
+    nums[nums.len() - 1]
 }
 
 pub fn main() {

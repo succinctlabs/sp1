@@ -78,7 +78,6 @@ pub fn load_program(program: Program) -> (usize, impl Fn() -> Runtime, impl Fn(&
             }
         },
         {
-            let config = config;
             move |r: &mut Runtime| {
                 let mut c = challenger.clone();
                 r.prove::<_, _, MyConfig>(&config, &mut c)

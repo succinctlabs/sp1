@@ -65,6 +65,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
+        #[allow(clippy::eq_op)]
         builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
 
         // Send all the lookups for each operation.

@@ -130,6 +130,7 @@ where
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        #[allow(clippy::eq_op)]
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
@@ -224,7 +225,7 @@ mod tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let mut segment = Segment::default();
-        segment.bitwise_events = vec![
+        segment.bitwise_events = [
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),
             AluEvent::new(0, Opcode::AND, 2, 10, 19),

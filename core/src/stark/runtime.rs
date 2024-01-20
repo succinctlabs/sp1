@@ -108,7 +108,7 @@ impl Runtime {
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| {
-                Prover::prove(config, &mut challenger.clone(), &segment_chips, &main_data)
+                Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data)
             })
             .collect();
 

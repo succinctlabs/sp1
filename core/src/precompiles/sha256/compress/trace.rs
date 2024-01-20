@@ -17,9 +17,9 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
         const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
         for i in 0..segment.sha_compress_events.len() {
-            let mut event = segment.sha_compress_events[i].clone();
+            let mut event = segment.sha_compress_events[i];
 
-            let og_h = event.h.clone();
+            let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);
 
             // Load a, b, c, d, e, f, g, h.
@@ -229,12 +229,10 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
         }
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
-        );
-
-        trace
+        )
     }
 
     fn name(&self) -> String {
