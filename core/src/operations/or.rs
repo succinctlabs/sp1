@@ -12,7 +12,7 @@ use crate::disassembler::WORD_SIZE;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct OrOperation<T> {
-    /// The result of `x ^ y`.
+    /// The result of `x | y`.
     pub value: Word<T>,
 }
 
