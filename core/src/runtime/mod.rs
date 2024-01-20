@@ -603,7 +603,6 @@ impl Runtime {
                     }
                     Syscall::LWA => {
                         let witness = self.witness.pop().expect("witness stream is empty");
-                        println!("witness {}", witness);
                         (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
                     }
