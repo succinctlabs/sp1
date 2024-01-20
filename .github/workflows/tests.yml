@@ -21,6 +21,11 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
+      - name: Setup git ssh auth
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
       - name: rust-cache
         uses: buildjet/cache@v3
         with:
