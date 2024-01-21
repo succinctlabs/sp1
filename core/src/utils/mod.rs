@@ -1,3 +1,11 @@
+mod logger;
+mod prove;
+mod tracer;
+
+pub use logger::*;
+pub use prove::*;
+pub use tracer::*;
+
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;

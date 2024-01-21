@@ -39,6 +39,8 @@ nohash-hasher = "0.2.0"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
+tracing-log = "0.2.0"
+clap = { version = "4.4.0", features = ["derive"] }
 
 [dev-dependencies]
 divan = "0.1.8"
@@ -49,3 +51,7 @@ perf = []
 [[bench]]
 name = "vm"
 harness = false
+
+[[bin]]
+name = "profile"
+path = "profiles/main.rs"

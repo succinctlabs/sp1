@@ -623,9 +623,9 @@ impl Runtime {
                             let slice = bytes.as_slice();
                             let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
-                                tracing::info!("stdout: {}", s.trim_end());
+                                log::info!("stdout: {}", s.trim_end());
                             } else {
-                                tracing::info!("stderr: {}", s.trim_end());
+                                log::info!("stderr: {}", s.trim_end());
                             }
                         }
                         (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
@@ -734,32 +734,32 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            // let width = 12;
-            // log::debug!(
-            //     "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
-            //     self.global_clk / 4,
-            //     self.pc,
-            //     instruction,
-            //     self.register(Register::X0),
-            //     self.register(Register::X1),
-            //     self.register(Register::X2),
-            //     self.register(Register::X3),
-            //     self.register(Register::X4),
-            //     self.register(Register::X5),
-            //     self.register(Register::X6),
-            //     self.register(Register::X7),
-            //     self.register(Register::X8),
-            //     self.register(Register::X9),
-            //     self.register(Register::X10),
-            //     self.register(Register::X11),
-            //     self.register(Register::X12),
-            //     self.register(Register::X13),
-            //     self.register(Register::X14),
-            //     self.register(Register::X15),
-            //     self.register(Register::X16),
-            //     self.register(Register::X17),
-            //     self.register(Register::X18),
-            // );
+            let width = 12;
+            log::trace!(
+                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
+                self.global_clk / 4,
+                self.pc,
+                instruction,
+                self.register(Register::X0),
+                self.register(Register::X1),
+                self.register(Register::X2),
+                self.register(Register::X3),
+                self.register(Register::X4),
+                self.register(Register::X5),
+                self.register(Register::X6),
+                self.register(Register::X7),
+                self.register(Register::X8),
+                self.register(Register::X9),
+                self.register(Register::X10),
+                self.register(Register::X11),
+                self.register(Register::X12),
+                self.register(Register::X13),
+                self.register(Register::X14),
+                self.register(Register::X15),
+                self.register(Register::X16),
+                self.register(Register::X17),
+                self.register(Register::X18),
+            );
 
             // Execute the instruction.
             self.execute(instruction);

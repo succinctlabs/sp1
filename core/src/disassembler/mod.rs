@@ -49,36 +49,27 @@ impl Program {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{disassembler::Program, stark::tests::prove};
-    use tracing::level_filters::LevelFilter;
-    use tracing_forest::ForestLayer;
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::{EnvFilter, Registry};
+    use crate::disassembler::Program;
+    use crate::utils::{self, prove};
 
     #[test]
     fn test_fibonacci() {
+        utils::setup_logger();
         let program = Program::from_elf("../programs/fib_malloc.s");
         prove(program.clone());
     }
 
     #[test]
     fn test_malloc() {
+        utils::setup_logger();
         let program = Program::from_elf("../programs/malloc");
         prove(program.clone());
     }
 
     #[test]
     fn test_sha2() {
-        let env_filter = EnvFilter::builder()
-            .with_default_directive(LevelFilter::OFF.into())
-            .from_env_lossy()
-            .add_directive("succinct_core=info".parse().unwrap());
-        Registry::default()
-            .with(env_filter)
-            .with(ForestLayer::default())
-            .init();
-        let program = Program::from_elf("../programs/ssz_withdrawals");
+        utils::setup_logger();
+        let program = Program::from_elf("../programs/sha2");
         prove(program.clone());
     }
 }

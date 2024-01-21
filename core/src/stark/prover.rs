@@ -295,14 +295,16 @@ impl<SC: StarkConfig> Prover<SC> {
 
         // Check that the table-specific constraints are correct for each chip.
         #[cfg(not(feature = "perf"))]
-        for i in 0..chips.len() {
-            debug_constraints(
-                &*chips[i],
-                &traces[i],
-                &permutation_traces[i],
-                &permutation_challenges,
-            );
-        }
+        tracing::info_span!("debug constraints").in_scope(|| {
+            for i in 0..chips.len() {
+                debug_constraints(
+                    &*chips[i],
+                    &traces[i],
+                    &permutation_traces[i],
+                    &permutation_challenges,
+                )
+            }
+        });
 
         SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),

@@ -2556,6 +2556,7 @@ name = "succinct-core"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "clap",
  "divan",
  "elf",
  "env_logger",
@@ -2587,6 +2588,7 @@ dependencies = [
  "serde",
  "tracing",
  "tracing-forest",
+ "tracing-log",
  "tracing-subscriber",
  "valida-derive",
 ]
