@@ -16,7 +16,7 @@ fn generate_interaction_rlc_elements<C, F: PrimeField, EF: AbstractExtensionFiel
 where
     C: Chip<F> + ?Sized,
 {
-    let alphas = random_element
+    random_element
         .powers()
         .skip(1)
         .take(
@@ -27,8 +27,7 @@ where
                 .unwrap_or(0)
                 + 1,
         )
-        .collect::<Vec<_>>();
-    alphas
+        .collect::<Vec<_>>()
 }
 
 /// Generates the permutation trace for the given chip and main trace based on a variant of LogUp.
@@ -146,15 +145,15 @@ where
     let perm_local: &[AB::VarEF] = perm.row_slice(0);
     let perm_next: &[AB::VarEF] = perm.row_slice(1);
 
-    let phi_local = perm_local[perm_width - 1].clone();
-    let phi_next = perm_next[perm_width - 1].clone();
+    let phi_local = perm_local[perm_width - 1];
+    let phi_next = perm_next[perm_width - 1];
 
     let all_interactions = chip.all_interactions();
 
     let alphas = generate_interaction_rlc_elements(chip, alpha);
     let betas = beta.powers();
 
-    let lhs = phi_next - phi_local.clone();
+    let lhs = phi_next - phi_local;
     let mut rhs = AB::ExprEF::from_base(AB::Expr::zero());
     let mut phi_0 = AB::ExprEF::from_base(AB::Expr::zero());
 
@@ -192,9 +191,9 @@ where
         .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
     builder
         .when_first_row()
-        .assert_eq_ext(perm_local.last().unwrap().clone(), phi_0);
+        .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
     builder.when_last_row().assert_eq_ext(
-        perm_local.last().unwrap().clone(),
+        *perm_local.last().unwrap(),
         AB::ExprEF::from(cumulative_sum),
     );
 }

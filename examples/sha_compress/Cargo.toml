@@ -3,4 +3,4 @@ version = "0.1.0"
 name = "sha_compress"
 
 [dependencies]
-curta-zkvm = { path = "../../zkvm" }
+succinct-zkvm = { path = "../../zkvm" }

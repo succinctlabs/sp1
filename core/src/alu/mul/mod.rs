@@ -122,20 +122,16 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 let c_msb = get_msb(c_word);
                 cols.c_msb = F::from_canonical_u8(c_msb);
                 // Sign extend b and c whenever appropriate.
-                if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
-                    if b_msb == 1 {
-                        // b is signed and it is negative. Sign extend b.
-                        cols.b_sign_extend = F::one();
-                        b.resize(PRODUCT_SIZE, BYTE_MASK);
-                    }
+                if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) && b_msb == 1 {
+                    // b is signed and it is negative. Sign extend b.
+                    cols.b_sign_extend = F::one();
+                    b.resize(PRODUCT_SIZE, BYTE_MASK);
                 }
 
-                if event.opcode == Opcode::MULH {
-                    if c_msb == 1 {
-                        // c is signed and it is negative. Sign extend c.
-                        cols.c_sign_extend = F::one();
-                        c.resize(PRODUCT_SIZE, BYTE_MASK);
-                    }
+                if event.opcode == Opcode::MULH && c_msb == 1 {
+                    // c is signed and it is negative. Sign extend c.
+                    cols.c_sign_extend = F::one();
+                    c.resize(PRODUCT_SIZE, BYTE_MASK);
                 }
 
                 let mut product = [0u32; PRODUCT_SIZE];
@@ -228,8 +224,8 @@ where
                 b[i] = local.b[i].into();
                 c[i] = local.c[i].into();
             } else {
-                b[i] = local.b_sign_extend.clone() * byte_mask;
-                c[i] = local.c_sign_extend.clone() * byte_mask;
+                b[i] = local.b_sign_extend * byte_mask;
+                c[i] = local.c_sign_extend * byte_mask;
             }
         }
 
@@ -267,7 +263,7 @@ where
         let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
         for i in 0..WORD_SIZE {
             builder
-                .when(is_lower.clone())
+                .when(is_lower)
                 .assert_eq(local.product[i], local.a[i]);
             builder
                 .when(is_upper.clone())

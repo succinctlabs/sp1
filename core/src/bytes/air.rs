@@ -47,6 +47,9 @@ pub struct ByteCols<T> {
     pub shr: T,
     pub shr_carry: T,
 
+    /// The result of the `LTU` operation on `a` and `b`.
+    pub ltu: T,
+
     pub multiplicities: [T; NUM_BYTE_OPS],
 }
 
@@ -62,6 +65,7 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
+        #[allow(clippy::eq_op)]
         builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
 
         // Send all the lookups for each operation.
@@ -90,6 +94,9 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
                     local.c,
                     mult,
                 ),
+                ByteOpcode::LTU => {
+                    builder.receive_byte(field_op, local.ltu, local.b, local.c, mult)
+                }
             }
         }
     }

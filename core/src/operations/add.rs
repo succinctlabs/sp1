@@ -8,7 +8,6 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 
-use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::runtime::Segment;
 use p3_field::AbstractField;
@@ -57,7 +56,7 @@ impl<F: Field> AddOperation<F> {
                 .iter()
                 .chain(b.iter())
                 .chain(expected.to_le_bytes().iter())
-                .map(|x| *x)
+                .copied()
                 .collect();
             // The byte length is always even since each word has 4 bytes.
             assert_eq!(bytes.len() % 2, 0);
@@ -94,9 +93,9 @@ impl<F: Field> AddOperation<F> {
         builder_is_real.assert_zero(overflow_3.clone() * (overflow_3.clone() - base));
 
         // If the carry is one, then the overflow must be the base.
-        builder_is_real.assert_zero(cols.carry[0] * (overflow_0.clone() - base.clone()));
-        builder_is_real.assert_zero(cols.carry[1] * (overflow_1.clone() - base.clone()));
-        builder_is_real.assert_zero(cols.carry[2] * (overflow_2.clone() - base.clone()));
+        builder_is_real.assert_zero(cols.carry[0] * (overflow_0.clone() - base));
+        builder_is_real.assert_zero(cols.carry[1] * (overflow_1.clone() - base));
+        builder_is_real.assert_zero(cols.carry[2] * (overflow_2.clone() - base));
 
         // If the carry is not one, then the overflow must be zero.
         builder_is_real.assert_zero((cols.carry[0] - one.clone()) * overflow_0.clone());
@@ -115,7 +114,7 @@ impl<F: Field> AddOperation<F> {
                 a.0.iter()
                     .chain(b.0.iter())
                     .chain(cols.value.0.iter())
-                    .map(|x| *x)
+                    .copied()
                     .collect::<Vec<_>>();
             for i in (0..bytes.len()).step_by(2) {
                 builder.send_byte_pair(

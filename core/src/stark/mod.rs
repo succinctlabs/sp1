@@ -51,7 +51,7 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
     let cumulative_sum = *perm.row_slice(perm.height() - 1).last().unwrap();
 
     // Check that constraints are satisfied.
-    (0..height).into_iter().for_each(|i| {
+    (0..height).for_each(|i| {
         let i_next = (i + 1) % height;
 
         let main_local = main.row_slice(i);
@@ -71,16 +71,16 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
 
         let mut builder = DebugConstraintBuilder {
             main: TwoRowMatrixView {
-                local: &main_local,
-                next: &main_next,
+                local: main_local,
+                next: main_next,
             },
             preprocessed: TwoRowMatrixView {
-                local: &preprocessed_local,
-                next: &preprocessed_next,
+                local: preprocessed_local,
+                next: preprocessed_next,
             },
             perm: TwoRowMatrixView {
-                local: &perm_local,
-                next: &perm_next,
+                local: perm_local,
+                next: perm_next,
             },
             perm_challenges,
             is_first_row: F::zero(),
@@ -143,7 +143,6 @@ where
     let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
 
     (0..quotient_size)
-        .into_iter()
         .step_by(SC::PackedVal::WIDTH)
         .flat_map(|i_local_start| {
             let wrap = |i| i % quotient_size;

@@ -9,11 +9,13 @@ use crate::cpu::MemoryRecord;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
+use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::sync::Arc;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -54,13 +56,13 @@ pub struct Runtime {
     pub pc: u32,
 
     /// The program.
-    pub program: Program,
+    pub program: Arc<Program>,
 
     /// The memory which instructions operate over.
-    pub memory: BTreeMap<u32, u32>,
+    pub memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
 
     /// Maps a memory address to (segment, timestamp) that it was touched.
-    pub memory_access: BTreeMap<u32, (u32, u32)>,
+    pub memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
 
     /// A stream of witnessed values (global to the entire program).
     pub witness: Vec<u32>,
@@ -86,22 +88,24 @@ pub struct Runtime {
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let mut segment = Segment::default();
-        segment.program = program.clone();
-        segment.index = 1;
-
+        let program_rc = Arc::new(program);
+        let segment = Segment {
+            program: program_rc.clone(),
+            index: 1,
+            ..Default::default()
+        };
         Self {
             global_clk: 0,
             clk: 0,
-            pc: program.pc_start,
-            program,
-            memory: BTreeMap::new(),
-            memory_access: BTreeMap::new(),
+            pc: program_rc.pc_start,
+            program: program_rc,
+            memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
+            memory_access: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
             witness: Vec::new(),
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 200000,
+            segment_size: 1048576,
             global_segment: Segment::default(),
         }
     }
@@ -121,7 +125,7 @@ impl Runtime {
                 None => 0,
             };
         }
-        return registers;
+        registers
     }
 
     /// Get the current value of a register.
@@ -143,8 +147,7 @@ impl Runtime {
 
     pub fn byte(&self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
-        let byte = (word >> (addr % 4) * 8) as u8;
-        byte
+        (word >> ((addr % 4) * 8)) as u8
     }
 
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
@@ -173,7 +176,7 @@ impl Runtime {
     pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
-        let value = self.memory.entry(addr).or_insert(0).clone();
+        let value = *self.memory.entry(addr).or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
@@ -233,6 +236,7 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
+    #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
         segment: u32,
@@ -372,7 +376,7 @@ impl Runtime {
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
         let idx = ((self.pc - self.program.pc_base) / 4) as usize;
-        return self.program.instructions[idx];
+        self.program.instructions[idx]
     }
 
     /// Execute the given instruction over the current state of the runtime.
@@ -469,7 +473,7 @@ impl Runtime {
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = (value as u8) as u32;
+                a = value as u32;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -598,7 +602,6 @@ impl Runtime {
                     }
                     Syscall::LWA => {
                         let witness = self.witness.pop().expect("witness stream is empty");
-                        println!("witness {}", witness);
                         (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
                         self.rw(a0, a);
                     }
@@ -765,10 +768,10 @@ impl Runtime {
             self.global_clk += 4;
             self.clk += 4;
 
-            if self.clk % self.segment_size == 0 {
-                self.segments.push(self.segment.clone());
+            if self.clk % self.segment_size == 1 {
+                let segment = std::mem::take(&mut self.segment);
+                self.segments.push(segment);
                 // Set up new segment
-                self.segment = Segment::default();
                 self.segment.index = self.segments.len() as u32 + 1;
                 self.segment.program = self.program.clone();
                 self.clk = 1;
@@ -776,11 +779,9 @@ impl Runtime {
         }
 
         // Push the last segment.
-        // TODO: edge case where the last segment is empty.
-        self.segments.push(self.segment.clone());
-
-        // Right now we only do 1 segment.
-        assert_eq!(self.segments.len(), 1);
+        if !self.segment.cpu_events.is_empty() {
+            self.segments.push(self.segment.clone());
+        }
 
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
@@ -788,30 +789,32 @@ impl Runtime {
     }
 
     fn postprocess(&mut self) {
-        let mut program_memory_used = BTreeMap::new();
+        let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.
-            program_memory_used.insert((*key, *value), 1);
+            program_memory_used.insert(*key, (*value, 1));
         }
 
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
-        for (addr, value) in &self.memory {
-            let (segment, timestamp) = self.memory_access.get(&addr).unwrap().clone();
+        let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
+        for addr in memory_keys {
+            let value = *self.memory.get(&addr).unwrap();
+            let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert((*addr, *value), 0);
+                program_memory_used.insert(addr, (value, 0));
                 continue;
             }
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
             // not in the program_memory_image, otherwise we'll add to the memory argument from
             // the program_memory_image table.
-            if !self.program.memory_image.contains_key(addr) {
+            if !self.program.memory_image.contains_key(&addr) {
                 first_memory_record.push((
-                    *addr,
+                    addr,
                     MemoryRecord {
                         value: 0,
                         segment: 0,
@@ -822,19 +825,19 @@ impl Runtime {
             }
 
             last_memory_record.push((
-                *addr,
+                addr,
                 MemoryRecord {
-                    value: *value,
+                    value,
                     segment,
                     timestamp,
                 },
                 1,
-            ))
+            ));
         }
 
         let mut program_memory_record = program_memory_used
             .iter()
-            .map(|(&(addr, value), &used)| {
+            .map(|(&addr, &(value, used))| {
                 (
                     addr,
                     MemoryRecord {
@@ -917,7 +920,6 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
         runtime.run();
-
         assert_eq!(runtime.register(Register::X31), 42);
     }
 

@@ -1,13 +1,13 @@
 #![no_main]
 
-extern crate curta_zkvm;
+extern crate succinct_zkvm;
 
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
 use std::hint::black_box;
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 fn fibonacci(n: u32) -> u32 {
     let mut nums = vec![1, 1];
@@ -17,7 +17,7 @@ fn fibonacci(n: u32) -> u32 {
         c %= 7919;
         nums.push(c);
     }
-    return nums[nums.len() - 1];
+    nums[nums.len() - 1]
 }
 
 pub fn main() {

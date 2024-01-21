@@ -4,4 +4,4 @@ name = "sha_extend"
 
 
 [dependencies]
-curta-zkvm = { path = "../../zkvm" }
+succinct-zkvm = { path = "../../zkvm" }

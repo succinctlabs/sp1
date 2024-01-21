@@ -1,0 +1,16 @@
+[package]
+name = "tendermint"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+# serde-json-core = "0.5.1"
+tendermint = { version = "0.34.0", default-features = false }
+tendermint-light-client-verifier = { version = "0.34.0", default-features = false, features = [
+    "rust-crypto",
+] }

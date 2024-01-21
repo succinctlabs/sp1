@@ -76,8 +76,7 @@ impl CpuChip {
 
         // Check that pc + 4 == next_pc if local.branching == false
         builder
-            .when(is_branch_instruction.clone())
-            .when_not(local.branching)
+            .when(local.not_branching)
             .when_transition()
             .when(next.is_real)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
