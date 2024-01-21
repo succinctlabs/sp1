@@ -1,3 +1,11 @@
+mod logger;
+mod prove;
+mod tracer;
+
+pub use logger::*;
+pub use prove::*;
+pub use tracer::*;
+
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
@@ -12,9 +20,7 @@ use crate::{
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
-    fn name(&self) -> String {
-        "".to_string()
-    }
+    fn name(&self) -> String;
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>;
 

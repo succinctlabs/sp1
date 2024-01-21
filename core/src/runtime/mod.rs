@@ -44,7 +44,7 @@ pub struct Record {
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-#[allow(non_snake_case)]
+#[derive(Debug)]
 pub struct Runtime {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
@@ -623,9 +623,9 @@ impl Runtime {
                             let slice = bytes.as_slice();
                             let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
-                                print!("STDOUT: {}", s);
+                                log::info!("stdout: {}", s.trim_end());
                             } else {
-                                print!("STDERR: {}", s);
+                                log::info!("stderr: {}", s.trim_end());
                             }
                         }
                         (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
@@ -735,7 +735,7 @@ impl Runtime {
             let instruction = self.fetch();
 
             let width = 12;
-            log::debug!(
+            log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk / 4,
                 self.pc,

@@ -16,6 +16,10 @@ use super::{
 };
 
 impl<F: PrimeField> Chip<F> for FieldLTUChip {
+    fn name(&self) -> String {
+        "FieldLTU".to_string()
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut byte_ltu_lookup_events = Vec::new();
