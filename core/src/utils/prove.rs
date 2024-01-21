@@ -79,7 +79,7 @@ pub fn prove(program: Program) {
         debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
     });
 
-    let cycles = runtime.global_clk;
+    let cycles = runtime.global_clk / 4;
     let time = start.elapsed().as_millis();
     tracing::info!(
         "cycles={}, e2e={}, khz={:.2}",
