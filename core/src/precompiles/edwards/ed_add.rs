@@ -6,6 +6,7 @@ use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::AffinePoint;
+use crate::operations::field::params::Ed25519BaseField;
 use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
@@ -16,6 +17,7 @@ use crate::runtime::Segment;
 use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use num::BigUint;
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
@@ -91,13 +93,10 @@ impl<T: Copy> EdAddAssignCols<T> {
     }
 }
 
-pub struct EdAddAssignChip<P: FieldParameters> {
-    pub _phantom: std::marker::PhantomData<P>,
-}
+pub struct EdAddAssignChip {}
 
-impl<P: FieldParameters> EdAddAssignChip<P> {
+impl EdAddAssignChip {
     pub fn execute(rt: &mut Runtime) -> (u32, u32, u32) {
-        todo!()
         // TODO: grab all of the data and push it to the segment
         // TODO: construct the EdAddEvent and push it to the segment
         // Include all of the data in the event, like the clk, base_ptr, etc.
@@ -115,146 +114,132 @@ impl<P: FieldParameters> EdAddAssignChip<P> {
         // rt.clk += NB_SHA_EXTEND_CYCLES;
 
         // // Read `w_ptr` from register a0 or x5.
-        let p_ptr = rt.register(a0);
-        let q_ptr = rt.register(a1);
-        // let w: [u32; 64] = (0..64)
-        //     .map(|i| rt.word(w_ptr + i * 4))
-        //     .collect::<Vec<_>>()
-        //     .try_into()
-        //     .unwrap();
+        // let p_ptr = rt.register(a0);
+        // let q_ptr = rt.register(a1);
+        let opcode = rt.rr(t0, AccessPosition::A);
+        let p_ptr = rt.rr(a0, AccessPosition::B);
+        let q_ptr = rt.rr(a1, AccessPosition::C);
 
-        // // Set the CPU table values with some dummy values.
-        // let (a, b, c) = (w_ptr, rt.rr(t0, AccessPosition::B), 0);
-        // rt.rw(a0, a);
+        // Preserve record for cpu event. It just has p/q + opcode reads.
+        let start_clock = rt.clk;
+        let record = rt.record;
 
-        // // We'll save the current record and restore it later so that the CPU event gets emitted
-        // // correctly.
-        // let t = rt.record;
+        rt.clk += 4;
 
-
-        let p_read_records = Vec::new();
+        let mut p = [0; 16];
+        let mut p_read_records = Vec::new();
         for i in 0..16 {
-            let p_access = rt.mr(p_ptr + i * 4, AccessPosition::Memory);
+            p[i] = rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
             p_read_records.push(rt.record.memory);
             rt.clk += 4;
         }
 
-        let q_read_records = Vec::new();
+        let mut q = [0; 16];
+        let mut q_read_records = Vec::new();
         for i in 0..16 {
-            let q_access = rt.mr(q_ptr + i * 4, AccessPosition::Memory);
+            q[i] = rt.mr(q_ptr + (i as u32) * 4, AccessPosition::Memory);
             q_read_records.push(rt.record.memory);
             rt.clk += 4;
         }
-        
 
+        let p_x = BigUint::from_slice(&p[0..8]);
+        let p_y = BigUint::from_slice(&p[8..16]);
+        let q_x = BigUint::from_slice(&q[0..8]);
+        let q_y = BigUint::from_slice(&q[8..16]);
 
+        let x3_numerator = p_x * q_y + q_x * p_y;
+        let y3_numerator = p_y * q_y + p_x * q_x;
+        let f = p_x * q_x * p_y * q_y;
+        let d_bigint = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
+        let d_mul_f = f * d_bigint;
+        let one_bigint = BigUint::from(1_u32);
+        let x3 = x3_numerator / (one_bigint + d_mul_f);
+        let y3 = y3_numerator / (one_bigint - d_mul_f);
 
-        // // Set the clock back to the original value and begin executing the precompile.
-        // rt.clk -= NB_SHA_EXTEND_CYCLES;
-        // let clk_init = rt.clk;
-        // let w_ptr_init = w_ptr;
-        // let w_init = w.clone();
-        // let mut w_i_minus_15_reads = Vec::new();
-        // let mut w_i_minus_2_reads = Vec::new();
-        // let mut w_i_minus_16_reads = Vec::new();
-        // let mut w_i_minus_7_reads = Vec::new();
-        // let mut w_i_writes = Vec::new();
-        // for i in 16..64 {
-        //     // Read w[i-15].
-        //     let w_i_minus_15 = rt.mr(w_ptr + (i - 15) * 4, AccessPosition::Memory);
-        //     w_i_minus_15_reads.push(rt.record.memory);
-        //     rt.clk += 4;
+        let x3_limbs = x3.to_bytes_le();
+        let y3_limbs = y3.to_bytes_le();
 
-        //     // Compute `s0`.
-        //     let s0 =
-        //         w_i_minus_15.rotate_right(7) ^ w_i_minus_15.rotate_right(18) ^ (w_i_minus_15 >> 3);
+        for i in 0..8 {
+            let u32_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+            let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
+            rt.mw(p_ptr + (i as u32) * 4, u32_value, AccessPosition::Memory);
+            rt.clk += 4;
+        }
+        for i in 0..8 {
+            let u32_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+            let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
+            rt.mw(
+                p_ptr + (i as u32 + 8) * 4,
+                u32_value,
+                AccessPosition::Memory,
+            );
+            rt.clk += 4;
+        }
 
-        //     // Read w[i-2].
-        //     let w_i_minus_2 = rt.mr(w_ptr + (i - 2) * 4, AccessPosition::Memory);
-        //     w_i_minus_2_reads.push(rt.record.memory);
-        //     rt.clk += 4;
+        // x3_numerator = x1 * y2 + x2 * y1.
+        // y3_numerator = y1 * y2 + x1 * x2.
+        // // f = x1 * x2 * y1 * y2.
+        // // d * f.
+        // let d_mul_f = self.fp_mul_const(&f, E::D);
+        // TODO: put in E as a generic here
+        // self.d_mul_f.eval::<AB, P>(builder, &f, E::D, FpOperation::Mul);
+        // // x3 = x3_numerator / (1 + d * f).
+        // // y3 = y3_numerator / (1 - d * f).
+        // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
 
-        //     // Compute `s1`.
-        //     let s1 =
-        //         w_i_minus_2.rotate_right(17) ^ w_i_minus_2.rotate_right(19) ^ (w_i_minus_2 >> 10);
+        rt.segment.ed_add_events.push(EdAddEvent {
+            clk: rt.clk,
+            p_ptr,
+            p,
+            q_ptr,
+            q,
+        });
 
-        //     // Read w[i-16].
-        //     let w_i_minus_16 = rt.mr(w_ptr + (i - 16) * 4, AccessPosition::Memory);
-        //     w_i_minus_16_reads.push(rt.record.memory);
-        //     rt.clk += 4;
-
-        //     // Read w[i-7].
-        //     let w_i_minus_7 = rt.mr(w_ptr + (i - 7) * 4, AccessPosition::Memory);
-        //     w_i_minus_7_reads.push(rt.record.memory);
-        //     rt.clk += 4;
-
-        //     // Compute `w_i`.
-        //     let w_i = s1
-        //         .wrapping_add(w_i_minus_16)
-        //         .wrapping_add(s0)
-        //         .wrapping_add(w_i_minus_7);
-
-        //     // Write w[i].
-        //     rt.mr(w_ptr + i * 4, AccessPosition::Memory);
-        //     rt.mw(w_ptr + i * 4, w_i, AccessPosition::Memory);
-        //     w_i_writes.push(rt.record.memory);
-        //     rt.clk += 4;
-        // }
-
-        // // Push the SHA extend event.
-        // rt.segment.sha_extend_events.push(ShaExtendEvent {
-        //     clk: clk_init,
-        //     w_ptr: w_ptr_init,
-        //     w: w_init,
-        //     w_i_minus_15_reads: w_i_minus_15_reads.try_into().unwrap(),
-        //     w_i_minus_2_reads: w_i_minus_2_reads.try_into().unwrap(),
-        //     w_i_minus_16_reads: w_i_minus_16_reads.try_into().unwrap(),
-        //     w_i_minus_7_reads: w_i_minus_7_reads.try_into().unwrap(),
-        //     w_i_writes: w_i_writes.try_into().unwrap(),
-        // });
-
-        // // Restore the original record.
-        // rt.record = t;
-
-        // (a, b, c)
+        // Restore record
+        rt.record = record;
+        (p_ptr, opcode, q_ptr)
     }
 }
 
-impl<F: Field, P: FieldParameters> Chip<F> for EdAddAssignChip<P> {
+impl<F: Field> Chip<F> for EdAddAssignChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for i in 0..segment.ed_add_events.len() {
-            let mut event = segment.ed_add_events[i].clone();
-            let p = &mut event.p;
-            let q = &mut event.q;
-            for j in 0..48usize {
-                let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+        // for i in 0..segment.ed_add_events.len() {
+        //     let mut event = segment.ed_add_events[i].clone();
+        //     let p = &mut event.p;
+        //     let q = &mut event.q;
+        //     for j in 0..48usize {
+        //         let mut row = [F::zero(); NUM_ED_ADD_COLS];
+        //         let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
 
-                cols.segment = F::one();
-                cols.clk = F::from_canonical_u32(event.clk);
-                cols.q_ptr = F::from_canonical_u32(event.q_ptr);
-                cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+        //         cols.clk = F::from_canonical_u32(event.clk);
+        //         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+        //         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+        //         // let p_x = BigUint::from_limbs(...);
+        //         // let p_y = BigUint::from_limbs(...);
+        //         // let q_x = BigUint::from_limbs(...);
+        //         // let q_y = BigUint::from_limbs(...);
+        //         // cols.x3_numerator.populate(p_x, p_y);
 
-                for i in 0..16 {
-                    self.populate_access(&mut cols.p_access[i], p[i], event.p_records[i]);
-                    self.populate_access(&mut cols.q_access[i], q[i], event.q_records[i]);
-                }
-            }
-        }
+        //         // for i in 0..16 {
+        //         //     self.populate_access(&mut cols.p_access[i], p[i], event.p_records[i]);
+        //         //     self.populate_access(&mut cols.q_access[i], q[i], event.q_records[i]);
+        //         // }
+        //     }
+        // }
 
-        RowMajorMatrix::new(rows)
+        RowMajorMatrix::new(rows, NUM_ED_ADD_COLS)
     }
 }
 
-impl<F, P: FieldParameters> BaseAir<F> for EdAddAssignChip<P> {
+impl<F> BaseAir<F> for EdAddAssignChip {
     fn width(&self) -> usize {
         NUM_ED_ADD_COLS
     }
 }
 
-impl<AB, P: FieldParameters> Air<AB> for EdAddAssignChip<P>
+impl<AB> Air<AB> for EdAddAssignChip
 where
     AB: CurtaAirBuilder,
 {
@@ -266,9 +251,9 @@ where
     }
 }
 
-impl<V: Copy> EdAddAssignCols<V> {
+impl<V: Copy + Field> EdAddAssignCols<V> {
     #[allow(unused_variables)]
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(&self, builder: &mut AB)
+    pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB)
     where
         V: Into<AB::Expr>,
     {
@@ -298,11 +283,12 @@ impl<V: Copy> EdAddAssignCols<V> {
 
         // // d * f.
         let f = self.f.result;
-        // let d_mul_f = self.fp_mul_const(&f, E::D);
-        // TODO: put in E as a generic here
-        // self.d_mul_f.eval::<AB, P>(builder, &f, E::D, FpOperation::Mul);
-
+        // TODO: put in E::D as a generic here
         let d_mul_f = self.d_mul_f.result;
+        // 37095705934669439343138083508754565189542113879843219016388785533085940283555
+        let d_const = P::to_limbs_field(&BigUint::from_bytes_le(&Ed25519BaseField::MODULUS));
+        self.d_mul_f
+            .eval::<AB, P>(builder, &f, &d_const, FpOperation::Mul);
 
         // // x3 = x3_numerator / (1 + d * f).
         self.x3_ins
