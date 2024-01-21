@@ -3,9 +3,11 @@
 ## Profile
 
 ```
-RUST_TRACER=info cargo run --bin profile --release --features perf -- --program ../programs/sha2
+cd core && RUST_TRACER=debug cargo run --bin profile --release --features perf -- --program ../programs/sha2
 ```
 
+## Benchmark
+
 ```
-RUST_TRACER=debug cargo run --bin profile --release --features perf -- --program ../programs/sha2
+cd core && cargo bench --features perf
 ```

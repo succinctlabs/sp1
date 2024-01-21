@@ -43,13 +43,13 @@ tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
 
 [dev-dependencies]
-divan = "0.1.8"
+criterion = "0.5.1"
 
 [features]
 perf = []
 
 [[bench]]
-name = "vm"
+name = "main"
 harness = false
 
 [[bin]]

@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
@@ -65,6 +67,9 @@ pub fn prove(program: Program) {
         runtime.run();
         runtime
     });
+
+    let start = Instant::now();
+
     tracing::info_span!("runtime.prove(...)").in_scope(|| {
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     });
@@ -73,4 +78,13 @@ pub fn prove(program: Program) {
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
     });
+
+    let cycles = runtime.global_clk;
+    let time = start.elapsed().as_millis();
+    tracing::info!(
+        "cycles={}, e2e={}, khz={:.2}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+    );
 }
