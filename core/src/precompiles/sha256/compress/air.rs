@@ -55,7 +55,10 @@ impl ShaCompressChip {
         builder.when(local.is_real).assert_one(octet_sum);
 
         // Verify that the first row's octet value is correct.
-        builder.when_first_row().assert_one(local.octet[0]);
+        builder
+            .when_first_row()
+            .when(local.is_real)
+            .assert_one(local.octet[0]);
 
         // Verify correct transition for octet column.
         for i in 0..7 {
@@ -85,7 +88,10 @@ impl ShaCompressChip {
         builder.when(local.is_real).assert_one(octet_num_sum);
 
         // Verify that the first row's octet_num value is correct.
-        builder.when_first_row().assert_one(local.octet_num[0]);
+        builder
+            .when_first_row()
+            .when(local.is_real)
+            .assert_one(local.octet_num[0]);
 
         for i in 0..10 {
             builder
