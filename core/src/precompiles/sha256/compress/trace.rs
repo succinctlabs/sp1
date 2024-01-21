@@ -32,7 +32,6 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.clk = F::from_canonical_u32(event.clk + (j * 4) as u32);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
@@ -171,7 +170,6 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.clk = F::from_canonical_u32(event.clk + 8 * 4 + 64 * 4 + (j * 4) as u32);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
