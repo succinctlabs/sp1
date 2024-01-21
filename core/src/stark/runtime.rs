@@ -10,9 +10,11 @@ use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
-use crate::stark::debug_cumulative_sums;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
+
+#[cfg(not(feature = "perf"))]
+use crate::stark::debug_cumulative_sums;
 
 use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
@@ -80,6 +82,7 @@ impl Runtime {
             Box::new(program_memory_init),
         ]
     }
+
     /// Prove the program.
     #[allow(unused)]
     pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
@@ -91,44 +94,64 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
+        tracing::info!("nb_segments: {}", self.segments.len());
         let segment_chips = Self::segment_chips::<SC>();
-        let segment_main_data = self
-            .segments
-            .par_iter_mut()
-            .map(|segment| Prover::commit_main(config, &segment_chips, segment))
-            .collect::<Vec<_>>();
+        let segment_main_data =
+            tracing::info_span!("commit main for all segments").in_scope(|| {
+                self.segments
+                    .par_iter_mut()
+                    .map(|segment| Prover::commit_main(config, &segment_chips, segment))
+                    .collect::<Vec<_>>()
+            });
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
-        segment_main_data.iter().map(|main_data| {
-            challenger.observe(main_data.main_commit.clone());
+        tracing::info_span!("observe challenges for all segments").in_scope(|| {
+            segment_main_data.iter().map(|main_data| {
+                challenger.observe(main_data.main_commit.clone());
+            });
         });
 
         // We clone the challenger so that each segment can observe the same "global" challenges.
-        let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
-            .iter()
-            .map(|main_data| {
-                Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data)
-            })
-            .collect();
+        let proofs: Vec<SegmentDebugProof<SC>> = tracing::info_span!("proving all segments")
+            .in_scope(|| {
+                segment_main_data
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, main_data)| {
+                        tracing::info_span!("proving segment", segment = i).in_scope(|| {
+                            Prover::prove(
+                                config,
+                                &mut challenger.clone(),
+                                &segment_chips,
+                                main_data,
+                            )
+                        })
+                    })
+                    .collect()
+            });
 
         let global_chips = Self::global_chips::<SC>();
-        let global_main_data = Prover::commit_main(config, &global_chips, &mut self.global_segment);
-        let global_proof = Prover::prove(
-            config,
-            &mut challenger.clone(),
-            &global_chips,
-            &global_main_data,
-        );
+        let global_main_data = tracing::info_span!("commit main for global segments")
+            .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
+        let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
+            Prover::prove(
+                config,
+                &mut challenger.clone(),
+                &global_chips,
+                global_main_data,
+            )
+        });
 
         let mut all_permutation_traces = proofs
-            .iter()
-            .flat_map(|proof| proof.permutation_traces.clone())
+            .into_iter()
+            .flat_map(|proof| proof.permutation_traces)
             .collect::<Vec<_>>();
-        all_permutation_traces.extend(global_proof.permutation_traces.clone());
+        all_permutation_traces.extend(global_proof.permutation_traces);
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
+        #[cfg(not(feature = "perf"))]
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
     }
 }
@@ -137,7 +160,9 @@ impl Runtime {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    #[cfg(not(feature = "perf"))]
     use crate::lookup::debug_interactions_with_all_chips;
+
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -208,17 +233,17 @@ pub mod tests {
         let config = StarkConfigImpl::new(pcs);
         let mut challenger = Challenger::new(perm.clone());
 
-        let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[1, 2]);
-        runtime.run();
-        log::info!("cycles: {}", runtime.segment.cpu_events.len());
-        log::info!(
-            "sha_compress: {}",
-            runtime.segment.sha_compress_events.len()
-        );
-        log::info!("sha_extend: {}", runtime.segment.sha_extend_events.len());
-        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+            let mut runtime = Runtime::new(program);
+            runtime.write_witness(&[1, 2]);
+            runtime.run();
+            runtime
+        });
+        tracing::info_span!("runtime.prove(...)").in_scope(|| {
+            runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        });
 
+        #[cfg(not(feature = "perf"))]
         debug_interactions_with_all_chips(
             &mut runtime.segment,
             crate::lookup::InteractionKind::Alu,

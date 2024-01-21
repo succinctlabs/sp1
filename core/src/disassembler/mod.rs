@@ -50,6 +50,11 @@ impl Program {
 #[cfg(test)]
 pub mod tests {
     use crate::{disassembler::Program, stark::tests::prove};
+    use tracing::level_filters::LevelFilter;
+    use tracing_forest::ForestLayer;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, Registry};
 
     #[test]
     fn test_fibonacci() {
@@ -65,7 +70,15 @@ pub mod tests {
 
     #[test]
     fn test_sha2() {
-        let program = Program::from_elf("../programs/sha2");
+        let env_filter = EnvFilter::builder()
+            .with_default_directive(LevelFilter::OFF.into())
+            .from_env_lossy()
+            .add_directive("succinct_core=info".parse().unwrap());
+        Registry::default()
+            .with(env_filter)
+            .with(ForestLayer::default())
+            .init();
+        let program = Program::from_elf("../programs/ssz_withdrawals");
         prove(program.clone());
     }
 }

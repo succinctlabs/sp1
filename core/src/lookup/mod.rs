@@ -140,34 +140,34 @@ pub fn debug_interactions_with_all_chips(
         let (_, count) = debug_interactions::<BabyBear>(chip.as_ref(), segment, interaction_kind);
 
         counts.push((count.clone(), chip.name()));
-        println!("{} chip has {} distinct events", chip.name(), count.len());
+        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
             *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
         }
     }
 
-    println!("Final counts below.");
-    println!("==================");
+    tracing::debug!("Final counts below.");
+    tracing::debug!("==================");
 
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
         if !value.is_zero() {
-            println!("Key {} Value {}", key, value);
+            tracing::debug!("Key {} Value {}", key, value);
             any_nonzero = true;
             for count in counts.iter() {
                 if count.0.contains_key(&key) {
-                    println!("{} chip's value for this key is {}", count.1, count.0[&key]);
+                    tracing::debug!("{} chip's value for this key is {}", count.1, count.0[&key]);
                 }
             }
         }
     }
 
-    println!("==================");
+    tracing::debug!("==================");
     if !any_nonzero {
-        println!("All chips have the same number of sends and receives.");
+        tracing::debug!("All chips have the same number of sends and receives.");
     } else {
-        println!("Positive values mean sent more than received.");
-        println!("Negative values mean received more than sent.");
+        tracing::debug!("Positive values mean sent more than received.");
+        tracing::debug!("Negative values mean received more than sent.");
     }
 
     !any_nonzero
