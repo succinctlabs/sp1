@@ -61,18 +61,13 @@ impl ShaCompressChip {
             .assert_one(local.octet[0]);
 
         // Verify correct transition for octet column.
-        for i in 0..7 {
+        for i in 0..8 {
             builder
                 .when_transition()
                 .when(next.is_real)
                 .when(local.octet[i])
-                .assert_one(next.octet[i + 1])
+                .assert_one(next.octet[(i + 1) % 8])
         }
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .when(local.octet[7])
-            .assert_one(next.octet[0]);
 
         //// Constrain octet_num columns
         // Verify taht all of the octet_num columns are bool.
@@ -122,7 +117,6 @@ impl ShaCompressChip {
                 + local.octet_num[7]
                 + local.octet_num[8],
         );
-        builder.assert_eq(local.is_finalize, local.octet_num[9]);
     }
 
     fn constrain_memory<AB: CurtaAirBuilder>(
@@ -130,12 +124,13 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
+        let is_finalize = local.octet_num[9];
         builder.constraint_memory_access(
             local.segment,
             local.clk,
             local.mem_addr,
             local.mem,
-            local.is_initialize + local.is_compression + local.is_finalize,
+            local.is_initialize + local.is_compression + is_finalize,
         );
 
         // Calculate the current cycle_num.
@@ -168,7 +163,7 @@ impl ShaCompressChip {
         );
 
         // Verify correct mem address for finalize phase
-        builder.when(local.is_finalize).assert_eq(
+        builder.when(is_finalize).assert_eq(
             local.mem_addr,
             local.w_and_h_ptr
                 + (AB::Expr::from_canonical_u32(64 * 4)
@@ -354,8 +349,10 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
-        // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h.
-        // Can get the needed a,b,c,...,h value by doing an inner product between octect and [a,b,c,...,h]
+        let is_finalize = local.octet_num[9];
+        // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h, for each of the
+        // phase's 8 rows.
+        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and [a,b,c,...,h]
         // which will act as a selector.
         let add_operands = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
@@ -369,7 +366,7 @@ impl ShaCompressChip {
         }
 
         builder
-            .when(local.is_finalize)
+            .when(is_finalize)
             .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
 
         AddOperation::<AB::F>::eval(
@@ -377,11 +374,11 @@ impl ShaCompressChip {
             local.mem.prev_value,
             local.finalized_operand,
             local.finalize_add,
-            local.is_finalize,
+            is_finalize,
         );
 
         builder
-            .when(local.is_finalize)
+            .when(is_finalize)
             .assert_word_eq(local.mem.value, local.finalize_add.value);
     }
 }

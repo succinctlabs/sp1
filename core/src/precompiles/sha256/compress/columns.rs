@@ -27,9 +27,9 @@ pub struct ShaCompressCols<T> {
     pub octet: [T; 8],
 
     // This will specify which octet we are currently processing.
-    // The first octect is for initialize.
-    // The next 8 octects are for compress.
-    // The last octect is for finalize.
+    // The first octet is for initialize.
+    // The next 8 octets are for compress.
+    // The last octet is for finalize.
     pub octet_num: [T; 10],
 
     pub mem: MemoryAccessCols<T>,
@@ -83,7 +83,9 @@ pub struct ShaCompressCols<T> {
 
     pub is_initialize: T,
     pub is_compression: T,
-    pub is_finalize: T,
 
+    // We don't have an explicity column for finalize phase.
+    // Instead, we can use octet_num[9] for that.
+    // pub is_finalize: T,
     pub is_real: T,
 }
