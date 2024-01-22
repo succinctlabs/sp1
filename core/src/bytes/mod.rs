@@ -41,7 +41,7 @@ pub struct ByteChip<F> {
     initial_trace: RowMajorMatrix<F>,
 }
 
-pub const NUM_BYTE_OPS: usize = 7;
+pub const NUM_BYTE_OPS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteOpcode {
@@ -60,6 +60,8 @@ pub enum ByteOpcode {
     ShrCarry = 5,
     /// Byte less than unsigned.
     LTU = 6,
+    /// The most significant bit of the given byte.
+    MSB = 7,
 }
 
 impl ByteOpcode {
@@ -72,6 +74,7 @@ impl ByteOpcode {
             ByteOpcode::Range,
             ByteOpcode::ShrCarry,
             ByteOpcode::LTU,
+            ByteOpcode::MSB,
         ];
         // Make sure we included all the enum variants.
         assert_eq!(opcodes.len(), NUM_BYTE_OPS);
@@ -141,6 +144,11 @@ impl<F: Field> ByteChip<F> {
                         let ltu = b < c;
                         col.ltu = F::from_bool(ltu);
                         ByteLookupEvent::new(*opcode, ltu as u8, 0, b, c)
+                    }
+                    ByteOpcode::MSB => {
+                        let msb = (b & 0b1000_0000) != 0;
+                        col.msb = F::from_bool(msb);
+                        ByteLookupEvent::new(*opcode, msb as u8, 0, b, 0)
                     }
                 };
                 event_map.insert(event, (row_index, i));

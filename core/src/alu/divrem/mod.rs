@@ -71,6 +71,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::operations::IsZeroWordOperation;
 use crate::runtime::{Opcode, Segment};
@@ -242,6 +243,23 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     cols.abs_remainder = cols.remainder;
                     cols.abs_c = cols.c;
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
+                }
+
+                // Insert the MSB lookup events.
+                {
+                    let words = [event.b, event.c, remainder];
+                    let mut blu_events: Vec<ByteLookupEvent> = vec![];
+                    for word in words.iter() {
+                        let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
+                        blu_events.push(ByteLookupEvent {
+                            opcode: ByteOpcode::MSB,
+                            a1: get_msb(*word),
+                            a2: 0,
+                            b: most_significant_byte,
+                            c: 0,
+                        });
+                    }
+                    segment.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -654,17 +672,18 @@ where
             );
         }
 
-        // TODO: Use lookup to constrain the MSBs.
+        // Check that the MSBs are correct.
         {
             let msb_pairs = [
                 (local.b_msb, local.b[WORD_SIZE - 1]),
                 (local.c_msb, local.c[WORD_SIZE - 1]),
                 (local.rem_msb, local.remainder[WORD_SIZE - 1]),
             ];
+            let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
             for msb_pair in msb_pairs.iter() {
-                let _msb = msb_pair.0;
-                let _byte = msb_pair.1;
-                // _msb must match _byte's msb.
+                let msb = msb_pair.0;
+                let byte = msb_pair.1;
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
             }
         }
 
