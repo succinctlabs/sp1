@@ -80,7 +80,7 @@ impl<F: Field> Add4Operation<F> {
                 .chain(c.iter())
                 .chain(d.iter())
                 .chain(expected.to_le_bytes().iter())
-                .map(|x| *x)
+                .copied()
                 .collect();
 
             // The byte length is always even since each word has 4 bytes.
@@ -111,7 +111,7 @@ impl<F: Field> Add4Operation<F> {
                     .chain(c.0.iter())
                     .chain(d.0.iter())
                     .chain(cols.value.0.iter())
-                    .map(|x| *x)
+                    .copied()
                     .collect();
 
             // The byte length is always even since each word has 4 bytes.
@@ -160,8 +160,8 @@ impl<F: Field> Add4Operation<F> {
                 builder_is_real.assert_eq(
                     cols.carry[i],
                     cols.is_carry_1[i] * one.clone()
-                        + cols.is_carry_2[i] * two.clone()
-                        + cols.is_carry_3[i] * three.clone(),
+                        + cols.is_carry_2[i] * two
+                        + cols.is_carry_3[i] * three,
                 );
             }
         }
@@ -176,7 +176,7 @@ impl<F: Field> Add4Operation<F> {
                 if i > 0 {
                     overflow += cols.carry[i - 1].into();
                 }
-                builder_is_real.assert_eq(cols.carry[i].clone() * base, overflow.clone());
+                builder_is_real.assert_eq(cols.carry[i] * base, overflow.clone());
             }
         }
 
