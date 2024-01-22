@@ -27,16 +27,20 @@ pub struct IsZeroOperation<T> {
 
 impl<F: Field> IsZeroOperation<F> {
     pub fn populate(&mut self, a: u32) -> u32 {
-        if a == 0 {
+        self.populate_from_field_element(F::from_canonical_u32(a))
+    }
+
+    pub fn populate_from_field_element(&mut self, a: F) -> u32 {
+        if a == F::zero() {
             self.inverse = F::zero();
             self.result = F::one();
         } else {
-            self.inverse = F::from_canonical_u32(a).inverse();
+            self.inverse = a.inverse();
             self.result = F::zero();
         }
-        let prod = self.inverse * F::from_canonical_u32(a);
+        let prod = self.inverse * a;
         debug_assert!(prod == F::one() || prod == F::zero());
-        (a == 0) as u32
+        (a == F::zero()) as u32
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
