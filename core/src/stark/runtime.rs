@@ -213,7 +213,15 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
-        log::info!("cycles: {}", runtime.segment.cpu_events.len());
+        log::info!("segments: {}", runtime.segments.len());
+        log::info!(
+            "cycles: {}",
+            runtime
+                .segments
+                .iter()
+                .map(|s| s.cpu_events.len())
+                .sum::<usize>()
+        );
         log::info!(
             "sha_compress: {}",
             runtime.segment.sha_compress_events.len()
