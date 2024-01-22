@@ -73,7 +73,7 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::operations::IsZeroWordOperation;
+use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -132,6 +132,14 @@ pub struct DivRemCols<T> {
     /// case, the division result exceeds the maximum positive value representable by a 32-bit
     /// signed integer.
     pub is_overflow: T,
+
+    /// Flag to indicate whether the value of `b` matches the unique overflow case `b = -2^31` and
+    /// `c = -1`.
+    pub is_overflow_b: IsEqualWordOperation<T>,
+
+    /// Flag to indicate whether the value of `c` matches the unique overflow case `b = -2^31` and
+    /// `c = -1`.
+    pub is_overflow_c: IsEqualWordOperation<T>,
 
     /// The most significant bit of `b`.
     pub b_msb: T,
@@ -230,6 +238,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                 cols.b_msb = F::from_canonical_u8(get_msb(event.b));
                 cols.c_msb = F::from_canonical_u8(get_msb(event.c));
+                cols.is_overflow_b.populate(event.b, i32::MIN as u32);
+                cols.is_overflow_c.populate(event.c, -1i32 as u32);
                 if is_signed_operation(event.opcode) {
                     cols.rem_neg = cols.rem_msb;
                     cols.b_neg = cols.b_msb;
@@ -512,7 +522,16 @@ where
             );
         }
 
-        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1).
+        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1) * is_div.
+        {
+            IsEqualWordOperation::<AB::F>::eval(
+                builder,
+                local.b.map(|x| x.into()),
+                Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
+                local.is_overflow_b,
+                local.is_real.into(),
+            );
+        }
 
         // Add remainder to product c * quotient, and compare it to b.
         {
@@ -608,7 +627,12 @@ where
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
             // Calculate whether c is 0.
-            IsZeroWordOperation::<AB::F>::eval(builder, local.c, local.is_c_0, local.is_real);
+            IsZeroWordOperation::<AB::F>::eval(
+                builder,
+                local.c.map(|x| x.into()),
+                local.is_c_0,
+                local.is_real.into(),
+            );
 
             // If is_c_0 is true, then quotient must be 0xffffffff = u32::MAX.
             for i in 0..WORD_SIZE {

@@ -32,20 +32,22 @@ impl<F: Field> IsEqualOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: AB::Var,
-        b: AB::Var,
+        a: AB::Expr,
+        b: AB::Expr,
         cols: IsEqualOperation<AB::Var>,
-        is_real: AB::Var,
+        is_real: AB::Expr,
     ) {
-        builder.assert_bool(is_real);
+        builder.assert_bool(is_real.clone());
 
         // Calculate a - b.
-        builder.when(is_real).assert_eq(cols.diff, a - b);
+        builder
+            .when(is_real.clone())
+            .assert_eq(cols.diff, a.clone() - b.clone());
 
         // Check if a - b is 0.
-        IsZeroOperation::<AB::F>::eval(builder, cols.diff, cols.is_diff_zero, is_real);
+        IsZeroOperation::<AB::F>::eval(builder, cols.diff.into(), cols.is_diff_zero, is_real);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a * a * a - b * b * b);
+        builder.assert_zero(a.clone() * a.clone() * a.clone() - b.clone() * b.clone() * b.clone());
     }
 }

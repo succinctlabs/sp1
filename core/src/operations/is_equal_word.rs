@@ -9,7 +9,6 @@ use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
 
-use super::IsZeroOperation;
 use super::IsZeroWordOperation;
 
 /// A set of columns needed to compute the add of two words.
@@ -38,22 +37,34 @@ impl<F: Field> IsEqualWordOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Var>,
-        b: Word<AB::Var>,
+        a: Word<AB::Expr>,
+        b: Word<AB::Expr>,
         cols: IsEqualWordOperation<AB::Var>,
-        is_real: AB::Var,
+        is_real: AB::Expr,
     ) {
-        builder.assert_bool(is_real);
+        builder.assert_bool(is_real.clone());
 
         // Calculate the difference in limbs.
         for i in 0..WORD_SIZE {
-            builder.when(is_real).assert_eq(cols.diff[i], a[i] - b[i]);
+            builder
+                .when(is_real.clone())
+                .assert_eq(cols.diff[i], a[i].clone() - b[i].clone());
         }
 
+        let diff = Word([
+            a[0].clone() - b.0[0].clone(),
+            a[1].clone() - b.0[1].clone(),
+            a[2].clone() - b.0[2].clone(),
+            a[3].clone() - b.0[3].clone(),
+        ]);
+
         // Check if a - b is 0.
-        IsZeroWordOperation::<AB::F>::eval(builder, cols.diff, cols.is_diff_zero, is_real);
+        IsZeroWordOperation::<AB::F>::eval(builder, diff, cols.is_diff_zero, is_real.clone());
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
+        builder.assert_zero(
+            is_real.clone() * is_real.clone() * is_real.clone()
+                - is_real.clone() * is_real.clone() * is_real.clone(),
+        );
     }
 }
