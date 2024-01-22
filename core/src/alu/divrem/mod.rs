@@ -689,6 +689,7 @@ where
             );
         }
 
+        // Check that the MSBs are correct.
         {
             let msb_pairs = [
                 (local.b_msb, local.b[WORD_SIZE - 1]),
