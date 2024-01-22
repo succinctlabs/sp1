@@ -41,7 +41,7 @@ pub struct ByteChip<F> {
     initial_trace: RowMajorMatrix<F>,
 }
 
-pub const NUM_BYTE_OPS: usize = 7;
+pub const NUM_BYTE_OPS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteOpcode {
