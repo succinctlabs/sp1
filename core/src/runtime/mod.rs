@@ -635,7 +635,7 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::ED_ADD => {
-                        (a, b, c) = EdAddAssignChip::<P>::execute(self);
+                        (a, b, c) = EdAddAssignChip::execute(self);
                     }
                 }
             }

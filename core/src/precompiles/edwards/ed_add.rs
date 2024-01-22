@@ -1,6 +1,6 @@
 use crate::air::CurtaAirBuilder;
-use crate::cpu::air::MemoryAccessCols;
-use crate::cpu::air::MemoryReadCols;
+use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::MemoryRecord;
 use crate::operations::field::fp_den::FpDenCols;
 use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
@@ -32,6 +32,8 @@ pub struct EdAddEvent {
     pub p: [u32; 16],
     pub q_ptr: u32,
     pub q: [u32; 16],
+    pub p_memory_records: [MemoryRecord; 16],
+    pub q_memory_records: [MemoryRecord; 16],
 }
 
 // NUM_LIMBS = 32 -> 32 / 4 = 8 Words
@@ -49,7 +51,7 @@ pub struct EdAddAssignCols<T> {
     pub p_ptr: T,
     pub q_ptr: T,
     pub p_access: [MemoryAccessCols<T>; 16],
-    pub q_access: [MemoryReadCols<T>; 16],
+    pub q_access: [MemoryAccessCols<T>; 16],
     pub(crate) x3_numerator: FpInnerProductCols<T>,
     pub(crate) y3_numerator: FpInnerProductCols<T>,
     pub(crate) x1_mul_y1: FpOpCols<T>,
@@ -68,17 +70,17 @@ impl<T: Copy> EdAddAssignCols<T> {
         }
     }
 
-    pub fn limbs_from_read(cols: &[MemoryReadCols<T>]) -> Limbs<T> {
-        let vec = cols
-            .into_iter()
-            .flat_map(|access| access.value.0)
-            .collect::<Vec<_>>();
-        assert_eq!(vec.len(), NUM_LIMBS);
+    // pub fn limbs_from_read(cols: &[MemoryReadCols<T>]) -> Limbs<T> {
+    //     let vec = cols
+    //         .into_iter()
+    //         .flat_map(|access| access.value.0)
+    //         .collect::<Vec<_>>();
+    //     assert_eq!(vec.len(), NUM_LIMBS);
 
-        // let sized = &vec.as_slice()[..NUM_LIMBS];
-        // Limbs(sized);
-        todo!();
-    }
+    //     // let sized = &vec.as_slice()[..NUM_LIMBS];
+    //     // Limbs(sized);
+    //     todo!();
+    // }
 
     pub fn limbs_from_access(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
         let vec = cols
@@ -127,18 +129,18 @@ impl EdAddAssignChip {
         rt.clk += 4;
 
         let mut p = [0; 16];
-        let mut p_read_records = Vec::new();
         for i in 0..16 {
-            p[i] = rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
-            p_read_records.push(rt.record.memory);
-            rt.clk += 4;
+            // p[i] = rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
+            // p_read_records[i] = rt.record.memory.unwrap();
+            // rt.clk += 4;
+            p[i] = rt.word(p_ptr + (i as u32) * 4);
         }
 
         let mut q = [0; 16];
-        let mut q_read_records = Vec::new();
+        let mut q_memory_records = [MemoryRecord::default(); 16];
         for i in 0..16 {
             q[i] = rt.mr(q_ptr + (i as u32) * 4, AccessPosition::Memory);
-            q_read_records.push(rt.record.memory);
+            q_memory_records[i] = rt.record.memory.unwrap();
             rt.clk += 4;
         }
 
@@ -147,22 +149,27 @@ impl EdAddAssignChip {
         let q_x = BigUint::from_slice(&q[0..8]);
         let q_y = BigUint::from_slice(&q[8..16]);
 
-        let x3_numerator = p_x * q_y + q_x * p_y;
-        let y3_numerator = p_y * q_y + p_x * q_x;
+        let x3_numerator = p_x.clone() * q_y.clone() + q_x.clone() * p_y.clone();
+        let y3_numerator = p_y.clone() * q_y.clone() + p_x.clone() * q_x.clone();
         let f = p_x * q_x * p_y * q_y;
         let d_bigint = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
         let d_mul_f = f * d_bigint;
         let one_bigint = BigUint::from(1_u32);
-        let x3 = x3_numerator / (one_bigint + d_mul_f);
-        let y3 = y3_numerator / (one_bigint - d_mul_f);
+        let one_plus_d_mul_f = one_bigint + d_mul_f;
+        let x3 = x3_numerator / (one_plus_d_mul_f.clone());
+        let y3 = y3_numerator / one_plus_d_mul_f;
 
         let x3_limbs = x3.to_bytes_le();
         let y3_limbs = y3.to_bytes_le();
+
+        // Create p memory records that read the values of p and write the values of x3 and y3.
+        let mut p_memory_records = [MemoryRecord::default(); 16];
 
         for i in 0..8 {
             let u32_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
             let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
             rt.mw(p_ptr + (i as u32) * 4, u32_value, AccessPosition::Memory);
+            p_memory_records[i] = rt.record.memory.unwrap();
             rt.clk += 4;
         }
         for i in 0..8 {
@@ -173,6 +180,7 @@ impl EdAddAssignChip {
                 u32_value,
                 AccessPosition::Memory,
             );
+            p_memory_records[8 + i] = rt.record.memory.unwrap();
             rt.clk += 4;
         }
 
@@ -193,6 +201,8 @@ impl EdAddAssignChip {
             p,
             q_ptr,
             q,
+            p_memory_records,
+            q_memory_records,
         });
 
         // Restore record
@@ -204,6 +214,110 @@ impl EdAddAssignChip {
 impl<F: Field> Chip<F> for EdAddAssignChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
+
+        let mut new_field_events = Vec::new();
+
+        for i in 0..segment.ed_add_events.len() {
+            let event = segment.ed_add_events[i];
+            let mut row = [F::zero(); NUM_ED_ADD_COLS];
+            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            cols.clk = F::from_canonical_u32(event.clk);
+            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+            for i in 0..16 {
+                let q_record = MemoryRecord {
+                    value: event.q[i],
+                    segment: segment.index,
+                    timestamp: event.clk + 4 * (i as u32 + 1),
+                };
+                self.populate_access(
+                    &mut cols.q_access[i],
+                    q_record,
+                    Some(event.q_memory_records[i]),
+                    &mut new_field_events,
+                );
+            }
+            let p = &event.p;
+            let q = &event.q;
+            let p_x = BigUint::from_slice(&p[0..8]);
+            let p_y = BigUint::from_slice(&p[8..16]);
+            let q_x = BigUint::from_slice(&q[0..8]);
+            let q_y = BigUint::from_slice(&q[8..16]);
+            let x3_numerator = cols.x3_numerator.populate::<Ed25519BaseField>(
+                &vec![p_x.clone(), q_x.clone()],
+                &vec![p_y.clone(), q_y.clone()],
+            );
+            let y3_numerator = cols.y3_numerator.populate::<Ed25519BaseField>(
+                &vec![p_y.clone(), p_x.clone()],
+                &vec![q_y.clone(), q_x.clone()],
+            );
+            let x1_mul_y1 =
+                cols.x1_mul_y1
+                    .populate::<Ed25519BaseField>(&p_x, &p_y, FpOperation::Mul);
+            let x2_mul_y2 =
+                cols.x2_mul_y2
+                    .populate::<Ed25519BaseField>(&q_x, &q_y, FpOperation::Mul);
+            let f = cols
+                .f
+                .populate::<Ed25519BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+
+            let d = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
+            let d_mul_f = cols
+                .d_mul_f
+                .populate::<Ed25519BaseField>(&f, &d, FpOperation::Mul);
+
+            let x3_ins = cols
+                .x3_ins
+                .populate::<Ed25519BaseField>(&x3_numerator, &d_mul_f, true);
+            let y3_ins = cols
+                .y3_ins
+                .populate::<Ed25519BaseField>(&y3_numerator, &d_mul_f, false);
+
+            let x3_limbs = x3_ins.to_bytes_le();
+            let y3_limbs = y3_ins.to_bytes_le();
+            for i in 0..8 {
+                // let p_record = MemoryRecord {
+                //     value: event.p[i],
+                //     segment: segment.index,
+                //     timestamp: event.clk + 4 * (i as u32 + 1),
+                // };
+                // self.populate_access(
+                //     &mut cols.p_access[i],
+                //     p_record,
+                //     Some(event.p_memory_records[i]),
+                //     &mut new_field_events,
+                // );
+                let x3_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+                let x3_value: u32 = unsafe { std::mem::transmute(x3_array) };
+                let x3_write_record = MemoryRecord {
+                    value: x3_value,
+                    segment: segment.index,
+                    timestamp: event.clk + 4 * (i as u32 + 17),
+                };
+                self.populate_access(
+                    &mut cols.p_access[i],
+                    x3_write_record,
+                    Some(event.p_memory_records[i]),
+                    &mut new_field_events,
+                );
+                let y3_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+                let y3_value: u32 = unsafe { std::mem::transmute(y3_array) };
+                let y3_write_record = MemoryRecord {
+                    value: y3_value,
+                    segment: segment.index,
+                    timestamp: event.clk + 4 * (i as u32 + 25),
+                };
+                self.populate_access(
+                    &mut cols.p_access[8 + i],
+                    y3_write_record,
+                    Some(event.p_memory_records[8 + i]),
+                    &mut new_field_events,
+                );
+            }
+
+            rows.push(row);
+        }
+        segment.field_events.extend(new_field_events);
 
         // for i in 0..segment.ed_add_events.len() {
         //     let mut event = segment.ed_add_events[i].clone();
@@ -229,7 +343,10 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
         //     }
         // }
 
-        RowMajorMatrix::new(rows, NUM_ED_ADD_COLS)
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_ED_ADD_COLS,
+        )
     }
 }
 
@@ -258,45 +375,56 @@ impl<V: Copy + Field> EdAddAssignCols<V> {
         V: Into<AB::Expr>,
     {
         let x1 = EdAddAssignCols::limbs_from_access(&self.p_access[0..32]);
-        let x2 = EdAddAssignCols::limbs_from_read(&self.q_access[0..32]);
+        let x2 = EdAddAssignCols::limbs_from_access(&self.q_access[0..32]);
+        // let x2 = EdAddAssignCols::limbs_from_read(&self.q_access[0..32]);
         let y1 = EdAddAssignCols::limbs_from_access(&self.p_access[32..64]);
-        let y2 = EdAddAssignCols::limbs_from_read(&self.q_access[32..64]);
+        let y2 = EdAddAssignCols::limbs_from_access(&self.q_access[32..64]);
+        // let y2 = EdAddAssignCols::limbs_from_read(&self.q_access[32..64]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         self.x3_numerator
-            .eval::<AB, P>(builder, &vec![x1, x2], &vec![y2, y1]);
+            .eval::<AB, Ed25519BaseField>(builder, &vec![x1, x2], &vec![y2, y1]);
 
         // y3_numerator = y1 * y2 + x1 * x2.
         self.y3_numerator
-            .eval::<AB, P>(builder, &vec![y1, x1], &vec![y2, x2]);
+            .eval::<AB, Ed25519BaseField>(builder, &vec![y1, x1], &vec![y2, x2]);
 
         // // f = x1 * x2 * y1 * y2.
         self.x1_mul_y1
-            .eval::<AB, P>(builder, &x1, &y1, FpOperation::Mul);
+            .eval::<AB, Ed25519BaseField>(builder, &x1, &y1, FpOperation::Mul);
         self.x2_mul_y2
-            .eval::<AB, P>(builder, &x2, &y2, FpOperation::Mul);
+            .eval::<AB, Ed25519BaseField>(builder, &x2, &y2, FpOperation::Mul);
 
         let x1_mul_y1 = self.x1_mul_y1.result;
         let x2_mul_y2 = self.x2_mul_y2.result;
         self.f
-            .eval::<AB, P>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .eval::<AB, Ed25519BaseField>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
         // // d * f.
         let f = self.f.result;
         // TODO: put in E::D as a generic here
-        let d_mul_f = self.d_mul_f.result;
         // 37095705934669439343138083508754565189542113879843219016388785533085940283555
-        let d_const = P::to_limbs_field(&BigUint::from_bytes_le(&Ed25519BaseField::MODULUS));
+        let d_const =
+            Ed25519BaseField::to_limbs_field(&BigUint::from_bytes_le(&Ed25519BaseField::MODULUS));
         self.d_mul_f
-            .eval::<AB, P>(builder, &f, &d_const, FpOperation::Mul);
+            .eval::<AB, Ed25519BaseField>(builder, &f, &d_const, FpOperation::Mul);
+        let d_mul_f = self.d_mul_f.result;
 
         // // x3 = x3_numerator / (1 + d * f).
-        self.x3_ins
-            .eval::<AB, P>(builder, &self.x3_numerator.result, &d_mul_f, true);
+        self.x3_ins.eval::<AB, Ed25519BaseField>(
+            builder,
+            &self.x3_numerator.result,
+            &d_mul_f,
+            true,
+        );
 
         // // y3 = y3_numerator / (1 - d * f).
-        self.y3_ins
-            .eval::<AB, P>(builder, &self.y3_numerator.result, &d_mul_f, false);
+        self.y3_ins.eval::<AB, Ed25519BaseField>(
+            builder,
+            &self.y3_numerator.result,
+            &d_mul_f,
+            false,
+        );
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
