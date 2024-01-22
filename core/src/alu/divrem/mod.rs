@@ -522,7 +522,7 @@ where
             );
         }
 
-        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1) * is_div.
+        // Calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1) * is_signed
         {
             IsEqualWordOperation::<AB::F>::eval(
                 builder,
@@ -530,6 +530,23 @@ where
                 Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
                 local.is_overflow_b,
                 local.is_real.into(),
+            );
+
+            IsEqualWordOperation::<AB::F>::eval(
+                builder,
+                local.c.map(|x| x.into()),
+                Word::from(-1i32 as u32).map(|x: AB::F| x.into()),
+                local.is_overflow_c,
+                local.is_real.into(),
+            );
+
+            let is_signed = local.is_div + local.is_rem;
+
+            builder.assert_eq(
+                local.is_overflow,
+                local.is_overflow_b.is_diff_zero.result
+                    * local.is_overflow_c.is_diff_zero.result
+                    * is_signed,
             );
         }
 
