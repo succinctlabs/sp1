@@ -19,6 +19,11 @@ impl<SC: StarkConfig> Verifier<SC> {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
+        let chips_interactions = chips
+            .iter()
+            .map(|chip| chip.all_interactions())
+            .collect::<Vec<_>>();
+
         let SegmentProof {
             commitment,
             opened_values,
