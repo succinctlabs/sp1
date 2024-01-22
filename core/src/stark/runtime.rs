@@ -160,9 +160,6 @@ impl Runtime {
 #[allow(non_snake_case)]
 pub mod tests {
 
-    #[cfg(not(feature = "perf"))]
-    use crate::lookup::debug_interactions_with_all_chips;
-
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
