@@ -9,12 +9,13 @@ use crate::air::Word;
 
 use super::IsZeroWordOperation;
 
-/// A set of columns needed to compute the add of two words.
+/// A set of columns needed to compute the equality of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct IsEqualWordOperation<T> {
-    /// The result of whether `diff` is 0. `is_diff_zero.result` indicates whether the two input
-    /// values are exactly equal.
+    /// An operation to check whether the differences in limbs are all 0 (i.e., `a[0] - b[0]`,
+    /// `a[1] - b[1]`, `a[2] - b[2]`, `a[3] - b[3]]`). The result of `IsEqualWordOperation` is
+    /// `is_diff_zero.result`.
     pub is_diff_zero: IsZeroWordOperation<T>,
 }
 
@@ -41,7 +42,7 @@ impl<F: Field> IsEqualWordOperation<F> {
     ) {
         builder.assert_bool(is_real.clone());
 
-        // Calculate the difference in limbs.
+        // Calculate differences in limbs.
         let diff = Word([
             a[0].clone() - b.0[0].clone(),
             a[1].clone() - b.0[1].clone(),
