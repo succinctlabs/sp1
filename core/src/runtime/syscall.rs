@@ -28,6 +28,7 @@ impl Syscall {
             101 => Syscall::LWA,
             102 => Syscall::SHA_EXTEND,
             103 => Syscall::SHA_COMPRESS,
+            104 => Syscall::ED_ADD,
             999 => Syscall::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }

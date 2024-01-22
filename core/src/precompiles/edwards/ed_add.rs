@@ -157,8 +157,14 @@ impl EdAddAssignChip {
         let x3 = x3_numerator / (one_plus_d_mul_f.clone());
         let y3 = y3_numerator / one_plus_d_mul_f;
 
-        let x3_limbs = x3.to_bytes_le();
-        let y3_limbs = y3.to_bytes_le();
+        let mut x3_limbs = [0; 32];
+        let mut y3_limbs = [0; 32];
+        let x3_le = x3.to_bytes_le();
+        x3_limbs[0..x3_le.len()].copy_from_slice(x3_le.as_slice());
+        let y3_le = y3.to_bytes_le();
+        y3_limbs[0..y3_le.len()].copy_from_slice(y3_le.as_slice());
+        // let x3_limbs = x3.to_radix_le(8);
+        // let y3_limbs = y3.to_radix_le(8);
 
         // Create p memory records that read the values of p and write the values of x3 and y3.
         let mut p_memory_records = [MemoryRecord::default(); 16];
