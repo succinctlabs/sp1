@@ -624,6 +624,11 @@ impl Runtime {
                             let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
                                 log::info!("stdout: {}", s.trim_end());
+                                if s.contains("cycle-tracker-start") {
+                                    log::info!("cycle-tracker-start: {}", self.global_clk / 4);
+                                } else if s.contains("cyckle-tracker-end") {
+                                    log::info!("cycle-tracker-end: {}", self.global_clk / 4);
+                                }
                             } else {
                                 log::info!("stderr: {}", s.trim_end());
                             }
