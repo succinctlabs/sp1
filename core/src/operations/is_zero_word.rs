@@ -37,30 +37,39 @@ pub struct IsZeroWordOperation<T> {
 
 impl<F: Field> IsZeroWordOperation<F> {
     pub fn populate(&mut self, a_u32: u32) -> u32 {
-        let a = a_u32.to_le_bytes();
+        self.populate_from_field_element(Word::from(a_u32))
+    }
+
+    pub fn populate_from_field_element(&mut self, a: Word<F>) -> u32 {
+        let mut is_zero = true;
         for i in 0..WORD_SIZE {
-            self.is_zero_byte[i].populate(a[i] as u32);
+            is_zero &= self.is_zero_byte[i].populate_from_field_element(a[i]) == 1;
         }
         self.is_lower_half_zero = self.is_zero_byte[0].result * self.is_zero_byte[1].result;
         self.is_upper_half_zero = self.is_zero_byte[2].result * self.is_zero_byte[3].result;
-        self.result = F::from_bool(a_u32 == 0);
-        (a_u32 == 0) as u32
+        self.result = F::from_bool(is_zero);
+        is_zero as u32
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Var>,
+        a: Word<AB::Expr>,
         cols: IsZeroWordOperation<AB::Var>,
-        is_real: AB::Var,
+        is_real: AB::Expr,
     ) {
         // Calculate whether each byte is 0.
         for i in 0..WORD_SIZE {
-            IsZeroOperation::<AB::F>::eval(builder, a[i], cols.is_zero_byte[i], is_real);
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                a[i].clone(),
+                cols.is_zero_byte[i],
+                is_real.clone(),
+            );
         }
 
         // From here, we only assert when is_real is true.
-        builder.assert_bool(is_real);
-        let mut builder_is_real = builder.when(is_real);
+        builder.assert_bool(is_real.clone());
+        let mut builder_is_real = builder.when(is_real.clone());
 
         // Calculate is_upper_half_zero and is_lower_half_zero and finally the result.
         builder_is_real.assert_bool(cols.is_lower_half_zero);
