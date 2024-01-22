@@ -37,14 +37,7 @@ pub struct IsZeroWordOperation<T> {
 
 impl<F: Field> IsZeroWordOperation<F> {
     pub fn populate(&mut self, a_u32: u32) -> u32 {
-        let a = a_u32.to_le_bytes();
-        for i in 0..WORD_SIZE {
-            self.is_zero_byte[i].populate(a[i] as u32);
-        }
-        self.is_lower_half_zero = self.is_zero_byte[0].result * self.is_zero_byte[1].result;
-        self.is_upper_half_zero = self.is_zero_byte[2].result * self.is_zero_byte[3].result;
-        self.result = F::from_bool(a_u32 == 0);
-        (a_u32 == 0) as u32
+        self.populate_from_field_element(Word::from(a_u32))
     }
 
     pub fn populate_from_field_element(&mut self, a: Word<F>) -> u32 {
