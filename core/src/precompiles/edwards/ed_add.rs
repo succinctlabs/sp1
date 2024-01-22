@@ -84,7 +84,7 @@ impl<T: Copy> EdAddAssignCols<T> {
 
     pub fn limbs_from_access(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
         let vec = cols
-            .into_iter()
+            .iter()
             .flat_map(|access| access.prev_value.0)
             .collect::<Vec<_>>();
         assert_eq!(vec.len(), NUM_LIMBS);
@@ -98,32 +98,30 @@ impl<T: Copy> EdAddAssignCols<T> {
 pub struct EdAddAssignChip {}
 
 impl EdAddAssignChip {
+    const D: [u16; 32] = [
+        30883, 4953, 19914, 30187, 55467, 16705, 2637, 112, 59544, 30585, 16505, 36039, 65139,
+        11119, 27886, 20995, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+
+    fn d_biguint() -> BigUint {
+        let mut modulus = BigUint::from(0_u32);
+        for (i, limb) in Self::D.iter().enumerate() {
+            modulus += BigUint::from(*limb) << (16 * i);
+        }
+        modulus
+    }
+
     pub fn execute(rt: &mut Runtime) -> (u32, u32, u32) {
-        // TODO: grab all of the data and push it to the segment
-        // TODO: construct the EdAddEvent and push it to the segment
-        // Include all of the data in the event, like the clk, base_ptr, etc.
-
-        // The number of cycles it takes to perform this precompile.
-        // const NB_SHA_EXTEND_CYCLES: u32 = 48 * 20;
-
-        // // Initialize the registers.
+        // Initialize the registers.
         let t0 = Register::X5;
         let a0 = Register::X10;
         let a1 = Register::X11;
 
-        // // Temporarily set the clock to the number of cycles it takes to perform this precompile as
-        // // reading `w_ptr` happens on this clock.
-        // rt.clk += NB_SHA_EXTEND_CYCLES;
-
-        // // Read `w_ptr` from register a0 or x5.
-        // let p_ptr = rt.register(a0);
-        // let q_ptr = rt.register(a1);
         let opcode = rt.rr(t0, AccessPosition::A);
         let p_ptr = rt.rr(a0, AccessPosition::B);
         let q_ptr = rt.rr(a1, AccessPosition::C);
 
         // Preserve record for cpu event. It just has p/q + opcode reads.
-        let start_clock = rt.clk;
         let record = rt.record;
 
         rt.clk += 4;
@@ -183,17 +181,6 @@ impl EdAddAssignChip {
             p_memory_records[8 + i] = rt.record.memory.unwrap();
             rt.clk += 4;
         }
-
-        // x3_numerator = x1 * y2 + x2 * y1.
-        // y3_numerator = y1 * y2 + x1 * x2.
-        // // f = x1 * x2 * y1 * y2.
-        // // d * f.
-        // let d_mul_f = self.fp_mul_const(&f, E::D);
-        // TODO: put in E as a generic here
-        // self.d_mul_f.eval::<AB, P>(builder, &f, E::D, FpOperation::Mul);
-        // // x3 = x3_numerator / (1 + d * f).
-        // // y3 = y3_numerator / (1 - d * f).
-        // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
 
         rt.segment.ed_add_events.push(EdAddEvent {
             clk: rt.clk,
@@ -362,75 +349,65 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let _: &EdAddAssignCols<AB::Var> = main.row_slice(0).borrow();
-        let _: &EdAddAssignCols<AB::Var> = main.row_slice(1).borrow();
-        todo!();
-    }
-}
+        let row: &EdAddAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-impl<V: Copy + Field> EdAddAssignCols<V> {
-    #[allow(unused_variables)]
-    pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB)
-    where
-        V: Into<AB::Expr>,
-    {
-        let x1 = EdAddAssignCols::limbs_from_access(&self.p_access[0..32]);
-        let x2 = EdAddAssignCols::limbs_from_access(&self.q_access[0..32]);
+        let x1 = EdAddAssignCols::limbs_from_access(&row.p_access[0..8]);
+        let x2 = EdAddAssignCols::limbs_from_access(&row.q_access[0..8]);
         // let x2 = EdAddAssignCols::limbs_from_read(&self.q_access[0..32]);
-        let y1 = EdAddAssignCols::limbs_from_access(&self.p_access[32..64]);
-        let y2 = EdAddAssignCols::limbs_from_access(&self.q_access[32..64]);
+        let y1 = EdAddAssignCols::limbs_from_access(&row.p_access[8..16]);
+        let y2 = EdAddAssignCols::limbs_from_access(&row.q_access[8..16]);
         // let y2 = EdAddAssignCols::limbs_from_read(&self.q_access[32..64]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        self.x3_numerator
-            .eval::<AB, Ed25519BaseField>(builder, &vec![x1, x2], &vec![y2, y1]);
+        row.x3_numerator
+            .eval::<AB, Ed25519BaseField>(builder, &[x1, x2], &[y2, y1]);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        self.y3_numerator
-            .eval::<AB, Ed25519BaseField>(builder, &vec![y1, x1], &vec![y2, x2]);
+        row.y3_numerator
+            .eval::<AB, Ed25519BaseField>(builder, &[y1, x1], &[y2, x2]);
 
         // // f = x1 * x2 * y1 * y2.
-        self.x1_mul_y1
+        row.x1_mul_y1
             .eval::<AB, Ed25519BaseField>(builder, &x1, &y1, FpOperation::Mul);
-        self.x2_mul_y2
+        row.x2_mul_y2
             .eval::<AB, Ed25519BaseField>(builder, &x2, &y2, FpOperation::Mul);
 
-        let x1_mul_y1 = self.x1_mul_y1.result;
-        let x2_mul_y2 = self.x2_mul_y2.result;
-        self.f
+        let x1_mul_y1 = row.x1_mul_y1.result;
+        let x2_mul_y2 = row.x2_mul_y2.result;
+        row.f
             .eval::<AB, Ed25519BaseField>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
         // // d * f.
-        let f = self.f.result;
+        let f = row.f.result;
         // TODO: put in E::D as a generic here
         // 37095705934669439343138083508754565189542113879843219016388785533085940283555
-        let d_const =
-            Ed25519BaseField::to_limbs_field(&BigUint::from_bytes_le(&Ed25519BaseField::MODULUS));
-        self.d_mul_f
-            .eval::<AB, Ed25519BaseField>(builder, &f, &d_const, FpOperation::Mul);
-        let d_mul_f = self.d_mul_f.result;
+        // let d_const = Ed25519BaseField::to_limbs_field(&EdAddAssignChip::d_biguint());
+        // row.d_mul_f
+        //     .eval::<AB, Ed25519BaseField>(builder, &f, &d_const, FpOperation::Mul);
+        let d_mul_f = row.d_mul_f.result;
 
         // // x3 = x3_numerator / (1 + d * f).
-        self.x3_ins.eval::<AB, Ed25519BaseField>(
-            builder,
-            &self.x3_numerator.result,
-            &d_mul_f,
-            true,
-        );
+        row.x3_ins
+            .eval::<AB, Ed25519BaseField>(builder, &row.x3_numerator.result, &d_mul_f, true);
 
         // // y3 = y3_numerator / (1 - d * f).
-        self.y3_ins.eval::<AB, Ed25519BaseField>(
-            builder,
-            &self.y3_numerator.result,
-            &d_mul_f,
-            false,
-        );
+        row.y3_ins
+            .eval::<AB, Ed25519BaseField>(builder, &row.y3_numerator.result, &d_mul_f, false);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
         for i in 0..NUM_LIMBS {
-            builder.assert_eq(self.x3_ins.result[i], self.p_access[i / 4].value[i % 4]);
-            builder.assert_eq(self.y3_ins.result[i], self.p_access[8 + i / 4].value[i % 4]);
+            builder.assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+            builder.assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
         }
     }
 }
+
+// impl<V: Copy + Field> EdAddAssignCols<V> {
+//     #[allow(unused_variables)]
+//     pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB)
+//     where
+//         V: Into<AB::Expr>,
+//     {
+//     }
+// }
