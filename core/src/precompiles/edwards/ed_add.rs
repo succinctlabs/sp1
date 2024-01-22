@@ -23,6 +23,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::fmt::Debug;
+use std::str::FromStr;
 use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
@@ -127,11 +128,8 @@ impl EdAddAssignChip {
         rt.clk += 4;
 
         let mut p = [0; 16];
-        for i in 0..16 {
-            // p[i] = rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
-            // p_read_records[i] = rt.record.memory.unwrap();
-            // rt.clk += 4;
-            p[i] = rt.word(p_ptr + (i as u32) * 4);
+        for (i, item) in p.iter_mut().enumerate() {
+            *item = rt.word(p_ptr + (i as u32) * 4);
         }
 
         let mut q = [0; 16];
@@ -142,20 +140,27 @@ impl EdAddAssignChip {
             rt.clk += 4;
         }
 
-        let p_x = BigUint::from_slice(&p[0..8]);
-        let p_y = BigUint::from_slice(&p[8..16]);
-        let q_x = BigUint::from_slice(&q[0..8]);
-        let q_y = BigUint::from_slice(&q[8..16]);
+        let p_bytes: [u8; 64] = unsafe { std::mem::transmute(p) };
+        let q_bytes: [u8; 64] = unsafe { std::mem::transmute(q) };
 
-        let x3_numerator = p_x.clone() * q_y.clone() + q_x.clone() * p_y.clone();
-        let y3_numerator = p_y.clone() * q_y.clone() + p_x.clone() * q_x.clone();
-        let f = p_x * q_x * p_y * q_y;
-        let d_bigint = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
-        let d_mul_f = f * d_bigint;
-        let one_bigint = BigUint::from(1_u32);
-        let one_plus_d_mul_f = one_bigint + d_mul_f;
-        let x3 = x3_numerator / (one_plus_d_mul_f.clone());
-        let y3 = y3_numerator / one_plus_d_mul_f;
+        let p_x = BigUint::from_bytes_le(&p_bytes[0..32]);
+        let p_y = BigUint::from_bytes_le(&p_bytes[32..64]);
+        let q_x = BigUint::from_bytes_le(&q_bytes[0..32]);
+        let q_y = BigUint::from_bytes_le(&q_bytes[32..64]);
+
+        let modulus = Ed25519BaseField::modulus();
+        let x3_numerator = (&p_x * &q_y + &q_x * &p_y) % &modulus;
+        let y3_numerator = (&p_y * &q_y + &p_x * &q_x) % &modulus;
+        let f = (p_x * q_x * p_y * q_y) % &modulus;
+        let d_bigint = EdAddAssignChip::d_biguint();
+        let d_mul_f = (f * d_bigint) % &modulus;
+        // x3_denominator = 1 / (1 + d * f)
+        let x3_denominator = ((1u32 + &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
+        // y3_denominator = 1 / (1 - d * f)
+        let y3_denominator =
+            ((1u32 + &modulus - &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
+        let x3 = (&x3_numerator * &x3_denominator) % &modulus;
+        let y3 = (&y3_numerator * &y3_denominator) % &modulus;
 
         let mut x3_limbs = [0; 32];
         let mut y3_limbs = [0; 32];
@@ -163,8 +168,6 @@ impl EdAddAssignChip {
         x3_limbs[0..x3_le.len()].copy_from_slice(x3_le.as_slice());
         let y3_le = y3.to_bytes_le();
         y3_limbs[0..y3_le.len()].copy_from_slice(y3_le.as_slice());
-        // let x3_limbs = x3.to_radix_le(8);
-        // let y3_limbs = y3.to_radix_le(8);
 
         // Create p memory records that read the values of p and write the values of x3 and y3.
         let mut p_memory_records = [MemoryRecord::default(); 16];
@@ -269,17 +272,6 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
             let x3_limbs = x3_ins.to_bytes_le();
             let y3_limbs = y3_ins.to_bytes_le();
             for i in 0..8 {
-                // let p_record = MemoryRecord {
-                //     value: event.p[i],
-                //     segment: segment.index,
-                //     timestamp: event.clk + 4 * (i as u32 + 1),
-                // };
-                // self.populate_access(
-                //     &mut cols.p_access[i],
-                //     p_record,
-                //     Some(event.p_memory_records[i]),
-                //     &mut new_field_events,
-                // );
                 let x3_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
                 let x3_value: u32 = unsafe { std::mem::transmute(x3_array) };
                 let x3_write_record = MemoryRecord {
