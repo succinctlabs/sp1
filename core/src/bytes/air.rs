@@ -50,6 +50,9 @@ pub struct ByteCols<T> {
     /// The result of the `LTU` operation on `a` and `b`.
     pub ltu: T,
 
+    /// The most significant bit of `b`.
+    pub msb: T,
+
     pub multiplicities: [T; NUM_BYTE_OPS],
 }
 
@@ -96,6 +99,9 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
                 ),
                 ByteOpcode::LTU => {
                     builder.receive_byte(field_op, local.ltu, local.b, local.c, mult)
+                }
+                ByteOpcode::MSB => {
+                    builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), mult)
                 }
             }
         }
