@@ -8,6 +8,7 @@ use super::types::{OpenningError, SegmentProof};
 pub struct Verifier<SC>(PhantomData<SC>);
 
 impl<SC: StarkConfig> Verifier<SC> {
+    /// Verify a proof for a collection of air chips.
     #[allow(unused_variables)]
     pub fn verify(
         config: &SC,

@@ -2,26 +2,23 @@ use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder, VirtualPairCol
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::utils::Chip;
+use crate::{lookup::Interaction, utils::Chip};
 
 use super::util::batch_multiplicative_inverse;
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-fn generate_interaction_rlc_elements<C, F: PrimeField, EF: AbstractExtensionField<F>>(
-    chip: &C,
+fn generate_interaction_rlc_elements<F: PrimeField, EF: AbstractExtensionField<F>>(
+    interactions: &[Interaction<F>],
     random_element: EF,
-) -> Vec<EF>
-where
-    C: Chip<F> + ?Sized,
-{
+) -> Vec<EF> {
     random_element
         .powers()
         .skip(1)
         .take(
-            chip.all_interactions()
-                .into_iter()
+            interactions
+                .iter()
                 .map(|interaction| interaction.argument_index())
                 .max()
                 .unwrap_or(0)
@@ -43,7 +40,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     let all_interactions = chip.all_interactions();
 
     // Generate the RLC elements to uniquely identify each interaction.
-    let alphas = generate_interaction_rlc_elements(chip, random_elements[0]);
+    let alphas = generate_interaction_rlc_elements(&all_interactions, random_elements[0]);
 
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
@@ -150,7 +147,7 @@ where
 
     let all_interactions = chip.all_interactions();
 
-    let alphas = generate_interaction_rlc_elements(chip, alpha);
+    let alphas = generate_interaction_rlc_elements(&all_interactions, alpha);
     let betas = beta.powers();
 
     let lhs = phi_next - phi_local;
