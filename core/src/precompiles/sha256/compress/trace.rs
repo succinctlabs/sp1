@@ -29,7 +29,6 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.is_initialize = F::one();
                 cols.segment = F::from_canonical_u32(SEGMENT_NUM);
                 let clk = event.clk + (j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);

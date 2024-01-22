@@ -104,8 +104,7 @@ impl ShaCompressChip {
                 .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 10]);
         }
 
-        // Assert that the is_initialize, is_compression, and is_finalize flags are correct.
-        builder.assert_eq(local.is_initialize, local.octet_num[0]);
+        // Assert that the is_compression flag is correct.
         builder.assert_eq(
             local.is_compression,
             local.octet_num[1]
@@ -124,13 +123,14 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
+        let is_initialize = local.octet_num[0];
         let is_finalize = local.octet_num[9];
         builder.constraint_memory_access(
             local.segment,
             local.clk,
             local.mem_addr,
             local.mem,
-            local.is_initialize + local.is_compression + is_finalize,
+            is_initialize + local.is_compression + is_finalize,
         );
 
         // Calculate the current cycle_num.
@@ -146,7 +146,7 @@ impl ShaCompressChip {
         }
 
         // Verify correct mem address for initialize phase
-        builder.when(local.is_initialize).assert_eq(
+        builder.when(is_initialize).assert_eq(
             local.mem_addr,
             local.w_and_h_ptr
                 + (AB::Expr::from_canonical_u32(64 * 4)
@@ -177,7 +177,7 @@ impl ShaCompressChip {
         ];
         for i in 0..8 {
             builder
-                .when(local.is_initialize)
+                .when(is_initialize)
                 .when(local.octet[i])
                 .assert_word_eq(vars[i], local.mem.value);
         }

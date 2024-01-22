@@ -81,7 +81,9 @@ pub struct ShaCompressCols<T> {
     pub finalized_operand: Word<T>,
     pub finalize_add: AddOperation<T>,
 
-    pub is_initialize: T,
+    // We don't have an explicity column for initialize phase.
+    // Instead, we can use octet_num[0] for that.
+    // pub is_initialize: T,
     pub is_compression: T,
 
     // We don't have an explicity column for finalize phase.
