@@ -35,7 +35,6 @@ pub struct IsZeroWordOperation<T> {
 }
 
 impl<F: Field> IsZeroWordOperation<F> {
-    // TODO: Remove is_real and all byte checks
     pub fn populate(&mut self, a_u32: u32) -> u32 {
         let a = a_u32.to_le_bytes();
         let mut num_zero_bytes = 0;
