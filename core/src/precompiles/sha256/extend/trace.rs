@@ -102,7 +102,9 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                     .populate(segment, s1_intermediate, w_i_minus_2_rs_10);
 
                 // Compute `s2`.
-                let s2 = cols.s2.populate(w[16 + j - 16], s0, w[16 + j - 7], s1);
+                let s2 = cols
+                    .s2
+                    .populate(segment, w[16 + j - 16], s0, w[16 + j - 7], s1);
 
                 // Write `s2` to `w[i]`.
                 w[16 + j] = s2;

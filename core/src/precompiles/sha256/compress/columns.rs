@@ -23,17 +23,14 @@ pub struct ShaCompressCols<T> {
     pub clk: T,
     pub w_and_h_ptr: T,
 
-    /// The counter for the main loop.
-    pub i: T,
-
-    /// The counter for initialization / finalization loops (i.e., reading / writing h0..h7).
+    /// The bits for cycle 8.
     pub octet: [T; 8],
 
-    /// This flag is turned on when it's time to initialize the working variables.
-    pub is_start: T,
-
-    /// This flag is turned on when it's time to add the compressed chunk to the current hash value.
-    pub is_end: T,
+    // This will specify which octet we are currently processing.
+    // The first octet is for initialize.
+    // The next 8 octets are for compress.
+    // The last octet is for finalize.
+    pub octet_num: [T; 10],
 
     pub mem: MemoryAccessCols<T>,
     pub mem_addr: T,
@@ -77,7 +74,20 @@ pub struct ShaCompressCols<T> {
     pub d_add_temp1: AddOperation<T>,
     pub temp1_add_temp2: AddOperation<T>,
 
-    pub is_initialize: T,
+    // This is a materialized column that will have value of a || b || c ... || h depending on
+    // the row of the finalized phase.  This column will need to be verified.
+    // Note this is needed since the AddOperation gadget can only accept AB::Var types as inputs.
+    // TODO: Modify AddOperation to accept AB::Expr types as inputs.
+    pub finalized_operand: Word<T>,
+    pub finalize_add: AddOperation<T>,
+
+    // We don't have an explicity column for initialize phase.
+    // Instead, we can use octet_num[0] for that.
+    // pub is_initialize: T,
     pub is_compression: T,
-    pub is_finalize: T,
+
+    // We don't have an explicity column for finalize phase.
+    // Instead, we can use octet_num[9] for that.
+    // pub is_finalize: T,
+    pub is_real: T,
 }

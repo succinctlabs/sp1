@@ -71,7 +71,9 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
+use crate::operations::IsZeroWordOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -116,10 +118,7 @@ pub struct DivRemCols<T> {
     pub carry: [T; LONG_WORD_SIZE],
 
     /// Flag to indicate division by 0.
-    pub is_c_0: T,
-
-    /// The inverse of `c[0] + c[1] + c[2] + c[3]``, used to verify `is_c_0`.
-    pub c_limb_sum_inverse: T,
+    pub is_c_0: IsZeroWordOperation<T>,
 
     pub is_divu: T,
     pub is_remu: T,
@@ -198,7 +197,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
-        for event in segment.divrem_events.iter() {
+        let divrem_events = segment.divrem_events.clone();
+        for event in divrem_events.iter() {
             assert!(
                 event.opcode == Opcode::DIVU
                     || event.opcode == Opcode::REMU
@@ -217,12 +217,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
-                if event.c == 0 {
-                    cols.is_c_0 = F::one();
-                } else {
-                    let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
-                    cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
-                }
+                cols.is_c_0.populate(event.c);
             }
 
             let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
@@ -248,6 +243,23 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     cols.abs_remainder = cols.remainder;
                     cols.abs_c = cols.c;
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
+                }
+
+                // Insert the MSB lookup events.
+                {
+                    let words = [event.b, event.c, remainder];
+                    let mut blu_events: Vec<ByteLookupEvent> = vec![];
+                    for word in words.iter() {
+                        let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
+                        blu_events.push(ByteLookupEvent {
+                            opcode: ByteOpcode::MSB,
+                            a1: get_msb(*word),
+                            a2: 0,
+                            b: most_significant_byte,
+                            c: 0,
+                        });
+                    }
+                    segment.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -362,7 +374,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             cols.c[0] = F::one();
             cols.abs_c[0] = F::one();
             cols.max_abs_c_or_1[0] = F::one();
-            cols.c_limb_sum_inverse = F::one();
+
+            cols.is_c_0.populate(1);
 
             row
         };
@@ -594,25 +607,13 @@ where
 
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
-            // Ensure that if c is 0, is_c_0 = true. We utilize the mathematical trick that
-            // if c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero regardless of what
-            // c_limb_sum_inverse is.
-            let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
-            builder
-                .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
-                .assert_eq(local.is_c_0, one.clone());
+            // Calculate whether c is 0.
+            IsZeroWordOperation::<AB::F>::eval(builder, local.c, local.is_c_0, local.is_real);
 
-            // Ensure that if is_c_0 is true, then local.c = 0.
-            for i in 0..WORD_SIZE {
-                builder.when(local.is_c_0).assert_zero(local.c[i]);
-            }
-
-            // We checked that is_c_0 is true if and only if c = 0.
-
-            // Finally, ensure that if is_c_0 is true, then quotient = 0xffffffff = u32::MAX.
+            // If is_c_0 is true, then quotient must be 0xffffffff = u32::MAX.
             for i in 0..WORD_SIZE {
                 builder
-                    .when(local.is_c_0)
+                    .when(local.is_c_0.result)
                     .when(local.is_divu + local.is_div)
                     .assert_eq(local.quotient[i], AB::F::from_canonical_u8(u8::MAX));
             }
@@ -639,11 +640,12 @@ where
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
                 // Set the least significant byte to 1 if is_c_0 is true.
-                v[0] = local.is_c_0 * one.clone() + (one.clone() - local.is_c_0) * local.abs_c[0];
+                v[0] = local.is_c_0.result * one.clone()
+                    + (one.clone() - local.is_c_0.result) * local.abs_c[0];
 
                 // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
-                    v[i] = (one.clone() - local.is_c_0) * local.abs_c[i];
+                    v[i] = (one.clone() - local.is_c_0.result) * local.abs_c[i];
                 }
                 Word(v.try_into().unwrap_or_else(|_| panic!("Incorrect length")))
             };
@@ -670,17 +672,18 @@ where
             );
         }
 
-        // TODO: Use lookup to constrain the MSBs.
+        // Check that the MSBs are correct.
         {
             let msb_pairs = [
                 (local.b_msb, local.b[WORD_SIZE - 1]),
                 (local.c_msb, local.c[WORD_SIZE - 1]),
                 (local.rem_msb, local.remainder[WORD_SIZE - 1]),
             ];
+            let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
             for msb_pair in msb_pairs.iter() {
-                let _msb = msb_pair.0;
-                let _byte = msb_pair.1;
-                // _msb must match _byte's msb.
+                let msb = msb_pair.0;
+                let byte = msb_pair.1;
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
             }
         }
 
@@ -714,7 +717,6 @@ where
                 local.rem_neg,
                 local.b_msb,
                 local.rem_msb,
-                local.is_c_0,
                 local.c_neg,
                 local.c_msb,
             ];
