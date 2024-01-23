@@ -3,20 +3,23 @@ mod prove;
 mod tracer;
 
 pub use logger::*;
+use p3_uni_stark::StarkConfig;
 pub use prove::*;
 pub use tracer::*;
 
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_uni_stark::{ProverConstraintFolder, StarkConfig};
 
 use crate::{
     cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord},
     field::event::FieldEvent,
     lookup::{Interaction, InteractionBuilder},
     runtime::Segment,
-    stark::DebugConstraintBuilder,
+    stark::{
+        folder::{ProverConstraintFolder, VerifierConstraintFolder},
+        DebugConstraintBuilder,
+    },
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
@@ -81,16 +84,12 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
             new_field_events.push(field_event);
         }
     }
-
-    /// The width of the permutation trace as a matrix of challenge elements.
-    fn permutation_width(&self) -> usize {
-        todo!()
-    }
 }
 
 pub trait AirChip<SC: StarkConfig>:
     Chip<SC::Val>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
+    + for<'a> Air<VerifierConstraintFolder<'a, SC::Challenge>>
     + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
     fn air_width(&self) -> usize {
@@ -101,6 +100,7 @@ pub trait AirChip<SC: StarkConfig>:
 impl<SC: StarkConfig, T> AirChip<SC> for T where
     T: Chip<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC::Challenge>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
 }

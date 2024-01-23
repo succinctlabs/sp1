@@ -12,6 +12,7 @@ use crate::program::ProgramChip;
 use crate::runtime::Runtime;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
+use p3_uni_stark::StarkConfig;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -19,8 +20,7 @@ use crate::stark::debug_cumulative_sums;
 use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::*;
-use p3_uni_stark::StarkConfig;
+use p3_maybe_rayon::prelude::*;
 
 use super::prover::Prover;
 use super::types::*;
@@ -120,12 +120,14 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            Prover::prove(
+                            let (debug_proof, _) = Prover::prove(
                                 config,
                                 &mut challenger.clone(),
                                 &segment_chips,
                                 main_data,
-                            )
+                            );
+
+                            debug_proof
                         })
                     })
                     .collect()
@@ -135,12 +137,14 @@ impl Runtime {
         let global_main_data = tracing::info_span!("commit main for global segments")
             .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            Prover::prove(
+            let (debug_proof, _) = Prover::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,
                 global_main_data,
-            )
+            );
+
+            debug_proof
         });
 
         let mut all_permutation_traces = proofs
