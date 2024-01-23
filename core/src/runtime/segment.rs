@@ -77,6 +77,8 @@ impl Segment {
 
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
     pub fn add_byte_range_check(&mut self, a: u8, b: u8) {
+        println!("added {}", a);
+        println!("added {}", b);
         self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::Range,
             a1: 0,
