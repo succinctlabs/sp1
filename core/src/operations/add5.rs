@@ -39,15 +39,7 @@ pub struct Add5Operation<T> {
 }
 
 impl<F: Field> Add5Operation<F> {
-    pub fn populate(
-        &mut self,
-        segment: &mut Segment,
-        a_u32: u32,
-        b_u32: u32,
-        c_u32: u32,
-        d_u32: u32,
-        e_u32: u32,
-    ) -> u32 {
+    pub fn populate(&mut self, a_u32: u32, b_u32: u32, c_u32: u32, d_u32: u32, e_u32: u32) -> u32 {
         let expected = a_u32
             .wrapping_add(b_u32)
             .wrapping_add(c_u32)
@@ -80,26 +72,6 @@ impl<F: Field> Add5Operation<F> {
             debug_assert_eq!(self.value[i], F::from_canonical_u32(res % base));
         }
 
-        // Range check.
-        {
-            let bytes: Vec<u8> = a
-                .iter()
-                .chain(b.iter())
-                .chain(c.iter())
-                .chain(d.iter())
-                .chain(e.iter())
-                .chain(expected.to_le_bytes().iter())
-                .map(|x| *x)
-                .collect();
-
-            // The byte length is always even since each word has 4 bytes.
-            assert_eq!(bytes.len() % 2, 0);
-
-            // Pass two bytes to range check at a time.
-            for i in (0..bytes.len()).step_by(2) {
-                segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
-            }
-        }
         expected
     }
 
@@ -114,34 +86,6 @@ impl<F: Field> Add5Operation<F> {
         is_real: AB::Var,
         cols: Add5Operation<AB::Var>,
     ) {
-        // Range check each byte.
-        {
-            let bytes: Vec<AB::Var> =
-                a.0.iter()
-                    .chain(b.0.iter())
-                    .chain(c.0.iter())
-                    .chain(d.0.iter())
-                    .chain(e.0.iter())
-                    .chain(cols.value.0.iter())
-                    .map(|x| *x)
-                    .collect();
-
-            // The byte length is always even since each word has 4 bytes.
-            assert_eq!(bytes.len() % 2, 0);
-
-            // Pass two bytes to range check at a time.
-            for i in (0..bytes.len()).step_by(2) {
-                builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
-                    AB::F::zero(),
-                    AB::F::zero(),
-                    bytes[i],
-                    bytes[i + 1],
-                    is_real,
-                );
-            }
-        }
-
         builder.assert_bool(is_real);
         let mut builder_is_real = builder.when(is_real);
 
