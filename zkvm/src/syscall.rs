@@ -89,6 +89,22 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
     }
 }
 
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_keccak256_compress(state: *mut u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") KECCAK_PERMUTE,
+            in("a0") state
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
     sys_write(2, msg_ptr, len);
