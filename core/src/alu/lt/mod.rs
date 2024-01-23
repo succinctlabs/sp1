@@ -78,13 +78,12 @@ impl<F: PrimeField> Chip<F> for LtChip {
             .map(|event| {
                 let mut row = [F::zero(); NUM_LT_COLS];
                 let cols: &mut LtCols<F> = unsafe { transmute(&mut row) };
-                let a = event.a.to_be_bytes();
-                let b = event.b.to_be_bytes();
-                let c = event.c.to_be_bytes();
+                cols.a = Word::from(event.a);
+                cols.b = Word::from(event.b);
+                cols.c = Word::from(event.c);
 
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
+                let b = event.b.to_le_bytes();
+                let c = event.c.to_le_bytes();
 
                 for i in 0..4 {
                     let is_b_lt_c = lt(b[i], c[i]);
@@ -109,7 +108,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 let mut sign_xor = 0;
                 if event.opcode == Opcode::SLT {
-                    sign_xor = (b[3] >> 7) ^ (c[3] >> 7);
+                    sign_xor = (b[0] >> 7) ^ (c[0] >> 7);
                 }
 
                 cols.sign_xor = F::from_canonical_u8(sign_xor);
@@ -117,9 +116,9 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 // Starting from the largest byte, find the first byte pair, index i that differs.
                 let equal_bytes = b == c;
                 // Defaults to the first byte in BE if the bytes are equal.
-                let mut idx_to_check = 0;
+                let mut idx_to_check = 3;
                 // Find the first byte pair that differs in BE.
-                for i in 0..4 {
+                for i in (0..4).rev() {
                     if b[i] != c[i] {
                         idx_to_check = i;
                         cols.byte_flag[i] = F::one();
@@ -131,7 +130,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 // all bytes after the first byte pair that differs in BE).
                 // Note: If b and c are equal, set byte_equality_check to true for all bytes.
                 for i in 0..4 {
-                    if i < idx_to_check || equal_bytes {
+                    if i > idx_to_check || equal_bytes {
                         cols.byte_equality_check[i] = F::one();
                     }
                 }
@@ -191,7 +190,7 @@ where
                 .when(local.byte_equality_check[i])
                 .assert_eq(local.b[i], local.c[i]);
 
-            if i == 0 {
+            if i == 3 {
                 // If the sign bits of b, c are different, the output should be 1 - unsigned_b_lt_c.
                 // Ex. 0b10000000 < 0b01111111 = 0 in unsigned, but is 1 in signed.
                 // Ex. 0b01111111 < 0b10000000 = 1 in unsigned, but is 0 in signed.
@@ -199,20 +198,20 @@ where
                 // the output if the sign bits are different.
                 builder
                     .when(local.sign_xor)
-                    .assert_eq(local.a[3], one.clone() - local.unsigned_b_lt_c[0]);
+                    .assert_eq(local.a[0], one.clone() - local.unsigned_b_lt_c[3]);
 
                 // If the first bytes are different, but the sign bits are the same.
                 let diff_first_byte_same_sign = (one.clone() - local.sign_xor) * local.byte_flag[i];
                 builder
                     .when(diff_first_byte_same_sign)
-                    .assert_eq(local.a[3], local.unsigned_b_lt_c[0]);
+                    .assert_eq(local.a[0], local.unsigned_b_lt_c[3]);
             } else {
                 // If the byte is marked as differing, verify the output matches unsigned_b_lt_c.
                 // This also works for signed comparisons.
                 // Ex. 0b11111111 (-1) < 0b11111110 (-2) = 0 in signed & unsigned.
                 builder
                     .when(local.byte_flag[i])
-                    .assert_eq(local.unsigned_b_lt_c[i], local.a[3]);
+                    .assert_eq(local.unsigned_b_lt_c[i], local.a[0]);
             }
 
             builder.assert_bool(local.byte_flag[i]);
@@ -226,10 +225,10 @@ where
         builder.assert_bool(flag_sum.clone());
 
         // Check output bits are valid.
-        for i in 0..3 {
+        for i in 1..4 {
             builder.assert_zero(local.a[i]);
         }
-        builder.assert_bool(local.a[3]);
+        builder.assert_bool(local.a[0]);
 
         // Sign XOR
         builder.assert_bool(local.sign_xor);

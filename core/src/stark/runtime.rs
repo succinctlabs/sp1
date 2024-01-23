@@ -171,6 +171,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::utils;
     use crate::utils::prove;
 
     #[test]
@@ -237,6 +238,8 @@ pub mod tests {
 
     #[test]
     fn test_lt_prove() {
+        std::env::set_var("RUST_TRACER", "debug");
+        utils::setup_tracer();
         let less_than = [Opcode::SLT, Opcode::SLTU];
         for lt_op in less_than.iter() {
             let instructions = vec![
