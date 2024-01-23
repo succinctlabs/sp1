@@ -49,7 +49,6 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::operations::WordRangeOperation;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -471,16 +470,8 @@ where
             for long_word in long_words.iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(first_half.map(|x| x.into())),
-                    local.is_real.into(),
-                );
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(second_half.map(|x| x.into())),
-                    local.is_real.into(),
-                );
+                builder.range_check_word(Word(first_half), local.is_real);
+                builder.range_check_word(Word(second_half), local.is_real);
             }
         }
 
