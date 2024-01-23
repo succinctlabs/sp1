@@ -7,7 +7,6 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
-use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::Segment;
@@ -28,21 +27,8 @@ impl<F: Field> OrOperation<F> {
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
         for i in 0..WORD_SIZE {
-            let and = x_bytes[i] & y_bytes[i];
-            self.value[i] = F::from_canonical_u8(and);
-
-            let byte_event = ByteLookupEvent {
-                opcode: ByteOpcode::OR,
-                a1: and,
-                a2: 0,
-                b: x_bytes[i],
-                c: y_bytes[i],
-            };
-            segment
-                .byte_lookups
-                .entry(byte_event)
-                .and_modify(|j| *j += 1)
-                .or_insert(1);
+            self.value[i] = F::from_canonical_u8(x_bytes[i] | y_bytes[i]);
+            segment.lookup_or(x_bytes[i], y_bytes[i]);
         }
         expected
     }
