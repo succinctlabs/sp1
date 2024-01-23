@@ -367,32 +367,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 // Range check.
                 {
-                    segment.add_byte_lookup_events({
-                        let mut events = vec![];
-                        for word in [quotient, remainder].iter() {
-                            for byte_pair in word.to_le_bytes().chunks_exact(2) {
-                                events.push(ByteLookupEvent {
-                                    opcode: ByteOpcode::Range,
-                                    a1: 0,
-                                    a2: 0,
-                                    b: byte_pair[0],
-                                    c: byte_pair[1],
-                                });
-                            }
-                        }
-                        for word in [c_times_quotient, carry].iter() {
-                            for byte_pair in word.chunks_exact(2) {
-                                events.push(ByteLookupEvent {
-                                    opcode: ByteOpcode::Range,
-                                    a1: 0,
-                                    a2: 0,
-                                    b: byte_pair[0],
-                                    c: byte_pair[1],
-                                });
-                            }
-                        }
-                        events
-                    });
+                    segment.add_byte_range_checks(&quotient.to_le_bytes());
+                    segment.add_byte_range_checks(&remainder.to_le_bytes());
+                    segment.add_byte_range_checks(&c_times_quotient);
+                    segment.add_byte_range_checks(&carry);
                 }
             }
 
