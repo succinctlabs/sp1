@@ -76,13 +76,13 @@ pub fn prove(program: Program) {
 
     let start = Instant::now();
 
-    // #[cfg(not(feature = "perf"))]
-    tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
-    });
-
     tracing::info_span!("runtime.prove(...)").in_scope(|| {
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+    });
+
+    #[cfg(not(feature = "perf"))]
+    tracing::info_span!("debug interactions with all chips").in_scope(|| {
+        debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
     });
 
     let cycles = runtime.global_clk;
