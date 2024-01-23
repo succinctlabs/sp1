@@ -227,6 +227,10 @@ where
             builder.assert_bool(local.is_b_less_than_c[i]);
         }
 
+        let check_first_byte_slt =
+            local.is_slt * local.byte_flag[0] * (one.clone() - local.sign_xor);
+        builder.assert_eq(check_first_byte_slt, local.check_first_byte_slt);
+
         // If SLT, if sign_xor is true, then a[3] == !is_b_less_than_c[0].
         let check_lt_1 = local.is_slt * local.sign_xor;
         builder
