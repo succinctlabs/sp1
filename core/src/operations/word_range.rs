@@ -22,7 +22,7 @@ pub struct WordRangeOperation<T> {
 }
 
 impl<F: Field> WordRangeOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, a: u32) {
+    pub fn populate(segment: &mut Segment, a: u32) {
         let bytes = a.to_le_bytes();
         // Pass two bytes to range check at a time.
         for i in (0..bytes.len()).step_by(2) {
