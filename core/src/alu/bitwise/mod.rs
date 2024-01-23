@@ -13,6 +13,7 @@ use crate::air::{CurtaAirBuilder, Word};
 
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 
+use crate::operations::WordRangeOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -48,43 +49,44 @@ impl BitwiseChip {
 impl<F: PrimeField> Chip<F> for BitwiseChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
-            .bitwise_events
-            .iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_BITWISE_COLS];
-                let cols: &mut BitwiseCols<F> = unsafe { transmute(&mut row) };
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+        let mut rows: Vec<[F; NUM_BITWISE_COLS]> = vec![];
+        let bitwise_events = segment.bitwise_events.clone();
+        for event in bitwise_events.iter() {
+            let mut row = [F::zero(); NUM_BITWISE_COLS];
+            let cols: &mut BitwiseCols<F> = unsafe { transmute(&mut row) };
+            let a = event.a.to_le_bytes();
+            let b = event.b.to_le_bytes();
+            let c = event.c.to_le_bytes();
 
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
+            cols.a = Word(a.map(F::from_canonical_u8));
+            cols.b = Word(b.map(F::from_canonical_u8));
+            cols.c = Word(c.map(F::from_canonical_u8));
+            WordRangeOperation::<F>::populate(segment, event.a);
+            WordRangeOperation::<F>::populate(segment, event.b);
+            WordRangeOperation::<F>::populate(segment, event.c);
 
-                cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
-                cols.is_or = F::from_bool(event.opcode == Opcode::OR);
-                cols.is_and = F::from_bool(event.opcode == Opcode::AND);
+            cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
+            cols.is_or = F::from_bool(event.opcode == Opcode::OR);
+            cols.is_and = F::from_bool(event.opcode == Opcode::AND);
 
-                for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
-                    let byte_event = ByteLookupEvent {
-                        opcode: ByteOpcode::from(event.opcode),
-                        a1: b_a,
-                        a2: 0,
-                        b: b_b,
-                        c: b_c,
-                    };
+            for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
+                let byte_event = ByteLookupEvent {
+                    opcode: ByteOpcode::from(event.opcode),
+                    a1: b_a,
+                    a2: 0,
+                    b: b_b,
+                    c: b_c,
+                };
 
-                    segment
-                        .byte_lookups
-                        .entry(byte_event)
-                        .and_modify(|i| *i += 1)
-                        .or_insert(1);
-                }
+                segment
+                    .byte_lookups
+                    .entry(byte_event)
+                    .and_modify(|i| *i += 1)
+                    .or_insert(1);
+            }
 
-                row
-            })
-            .collect::<Vec<_>>();
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -128,6 +130,11 @@ where
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
             builder.send_byte(opcode.clone(), a, b, c, mult.clone());
         }
+
+        // Check that each limb of a, b, c is a byte.
+        WordRangeOperation::<AB::F>::eval(builder, local.a.map(|x| x.into()), mult.clone());
+        WordRangeOperation::<AB::F>::eval(builder, local.b.map(|x| x.into()), mult.clone());
+        WordRangeOperation::<AB::F>::eval(builder, local.c.map(|x| x.into()), mult.clone());
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         #[allow(clippy::eq_op)]
