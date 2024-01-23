@@ -234,9 +234,13 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     bit_shift_result[i] =
                         ((shift as u32 + last_carry * carry_multiplier) & 0xff) as u8;
                     last_carry = carry as u32;
-                    if i < WORD_SIZE {
-                        debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
-                    }
+                }
+                cols.bit_shift_result = bit_shift_result.map(F::from_canonical_u8);
+                cols.shr_carry_output_carry = shr_carry_output_carry.map(F::from_canonical_u8);
+                cols.shr_carry_output_shifted_byte =
+                    shr_carry_output_shifted_byte.map(F::from_canonical_u8);
+                for i in 0..WORD_SIZE {
+                    debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
                 let long_words = [
