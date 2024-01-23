@@ -5,20 +5,25 @@ use crate::stark::debug_constraints;
 
 use crate::runtime::Segment;
 use crate::stark::permutation::generate_permutation_trace;
-use crate::stark::quotient_values;
 use crate::utils::AirChip;
+use p3_air::TwoRowMatrixView;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::PackedField;
+use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
 use p3_field::{PrimeField32, TwoAdicField};
-use p3_matrix::{Matrix, MatrixRowSlices};
+use p3_matrix::strided::VerticallyStridedMatrixView;
+use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices, MatrixRows};
 use p3_maybe_rayon::*;
-use p3_uni_stark::decompose_and_flatten;
 use p3_uni_stark::StarkConfig;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
+use super::folder::ProverConstraintFolder;
+use super::permutation::eval_permutation_constraints;
 use super::types::*;
+use super::util::decompose_and_flatten;
+use super::zerofier_coset::ZerofierOnCoset;
 
 pub(crate) struct Prover<SC>(PhantomData<SC>);
 
@@ -49,13 +54,12 @@ impl<SC: StarkConfig> Prover<SC> {
     }
 
     /// Prove the program for the given segment and given a commitment to the main data.
-    #[allow(unused)]
     pub fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
         main_data: MainData<SC>,
-    ) -> SegmentDebugProof<SC>
+    ) -> (SegmentDebugProof<SC>, SegmentProof<SC>)
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
@@ -137,18 +141,24 @@ impl<SC: StarkConfig> Prover<SC> {
         let main_ldes = tracing::debug_span!("get main ldes")
             .in_scope(|| config.pcs().get_ldes(&main_data.main_data));
         let permutation_ldes = tracing::debug_span!("get perm ldes")
-            .in_scope(|| config.pcs().get_ldes(&permutation_data));
+            .in_scope(|| config.pcs().get_ldes(&permutation_data))
+            .into_iter()
+            .map(|lde| lde.vertically_strided(SC::Challenge::D, 0))
+            .collect::<Vec<_>>();
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
         let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
             (0..chips.len()).into_par_iter().map(|i| {
-                quotient_values(
+                Self::quotient_values(
                     config,
                     &*chips[i],
+                    commulative_sums[i],
                     log_degrees[i],
                     log_quotient_degree,
                     &main_ldes[i],
+                    &permutation_ldes[i],
+                    &permutation_challenges,
                     alpha,
                 )
             })
@@ -157,8 +167,7 @@ impl<SC: StarkConfig> Prover<SC> {
         // Compute the quotient chunks.
         let quotient_chunks = tracing::debug_span!("decompose and flatten").in_scope(|| {
             quotient_values
-                .enumerate()
-                .map(|(i, values)| {
+                .map(|values| {
                     decompose_and_flatten::<SC>(
                         values,
                         SC::Challenge::from_base(config.pcs().coset_shift()),
@@ -194,7 +203,6 @@ impl<SC: StarkConfig> Prover<SC> {
 
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
-        let g_subgroup = g_subgroups[0];
 
         let trace_openning_points =
             tracing::debug_span!("compute trace opening points").in_scope(|| {
@@ -248,7 +256,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 assert_eq!(opening[1].len(), width);
             }
             // Check the shape of the quotient opennings.
-            assert_eq!(openings[2].len(), num_quotient_chunks);
+            assert_eq!(openings[2].len(), chips.len());
             for opening in openings[2].iter() {
                 let width = SC::Challenge::D << log_quotient_degree;
                 assert_eq!(opening.len(), 1);
@@ -306,10 +314,143 @@ impl<SC: StarkConfig> Prover<SC> {
             }
         });
 
-        SegmentDebugProof {
-            main_commit: main_data.main_commit.clone(),
-            traces,
-            permutation_traces,
-        }
+        (
+            SegmentDebugProof {
+                main_commit: main_data.main_commit.clone(),
+                traces,
+                permutation_traces,
+            },
+            proof,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn quotient_values<C, Mat>(
+        config: &SC,
+        chip: &C,
+        commulative_sum: SC::Challenge,
+        degree_bits: usize,
+        quotient_degree_bits: usize,
+        main_lde: &Mat,
+        permutation_lde: &VerticallyStridedMatrixView<Mat>,
+        perm_challenges: &[SC::Challenge],
+        alpha: SC::Challenge,
+    ) -> Vec<SC::Challenge>
+    where
+        SC: StarkConfig,
+        C: AirChip<SC> + ?Sized,
+        Mat: MatrixGet<SC::Val> + Sync,
+    {
+        let degree = 1 << degree_bits;
+        let quotient_size_bits = degree_bits + quotient_degree_bits;
+        let quotient_size = 1 << quotient_size_bits;
+        let g_subgroup = SC::Val::two_adic_generator(degree_bits);
+        let g_extended = SC::Val::two_adic_generator(quotient_size_bits);
+        let subgroup_last = g_subgroup.inverse();
+        let coset_shift = config.pcs().coset_shift();
+        let next_step = 1 << quotient_degree_bits;
+
+        let coset: Vec<_> =
+            cyclic_subgroup_coset_known_order(g_extended, coset_shift, quotient_size).collect();
+
+        let zerofier_on_coset =
+            ZerofierOnCoset::new(degree_bits, quotient_degree_bits, coset_shift);
+
+        // Evaluations of L_first(x) = Z_H(x) / (x - 1) on our coset s H.
+        let lagrange_first_evals = zerofier_on_coset.lagrange_basis_unnormalized(0);
+        let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
+
+        (0..quotient_size)
+            .step_by(SC::PackedVal::WIDTH)
+            .flat_map(|i_local_start| {
+                let wrap = |i| i % quotient_size;
+                let i_next_start = wrap(i_local_start + next_step);
+                let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
+
+                let x = *SC::PackedVal::from_slice(&coset[i_range.clone()]);
+                let is_transition = x - subgroup_last;
+                let is_first_row =
+                    *SC::PackedVal::from_slice(&lagrange_first_evals[i_range.clone()]);
+                let is_last_row = *SC::PackedVal::from_slice(&lagrange_last_evals[i_range]);
+
+                let local: Vec<_> = (0..main_lde.width())
+                    .map(|col| {
+                        SC::PackedVal::from_fn(|offset| {
+                            let row = wrap(i_local_start + offset);
+                            main_lde.get(row, col)
+                        })
+                    })
+                    .collect();
+                let next: Vec<_> = (0..main_lde.width())
+                    .map(|col| {
+                        SC::PackedVal::from_fn(|offset| {
+                            let row = wrap(i_next_start + offset);
+                            main_lde.get(row, col)
+                        })
+                    })
+                    .collect();
+
+                let perm_local: Vec<_> = (0..permutation_lde.width())
+                    .map(|col| {
+                        SC::PackedChallenge::from_base_fn(|i| {
+                            SC::PackedVal::from_fn(|offset| {
+                                let row = wrap(i_local_start + offset);
+                                permutation_lde.get(row, col + i)
+                            })
+                        })
+                    })
+                    .collect();
+
+                let perm_next: Vec<_> = (0..permutation_lde.width())
+                    .map(|col| {
+                        SC::PackedChallenge::from_base_fn(|i| {
+                            SC::PackedVal::from_fn(|offset| {
+                                let row = wrap(i_next_start + offset);
+                                permutation_lde.get(row, col + i)
+                            })
+                        })
+                    })
+                    .collect();
+
+                let accumulator = SC::PackedChallenge::zero();
+                let mut folder = ProverConstraintFolder {
+                    preprocessed: TwoRowMatrixView {
+                        local: &[],
+                        next: &[],
+                    },
+                    main: TwoRowMatrixView {
+                        local: &local,
+                        next: &next,
+                    },
+                    perm: TwoRowMatrixView {
+                        local: &perm_local,
+                        next: &perm_next,
+                    },
+                    perm_challenges,
+                    is_first_row,
+                    is_last_row,
+                    is_transition,
+                    alpha,
+                    accumulator,
+                };
+                chip.eval(&mut folder);
+                eval_permutation_constraints(chip, &mut folder, commulative_sum);
+
+                // quotient(x) = constraints(x) / Z_H(x)
+                let zerofier_inv: SC::PackedVal =
+                    zerofier_on_coset.eval_inverse_packed(i_local_start);
+                let quotient = folder.accumulator * zerofier_inv;
+
+                // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
+                (0..SC::PackedVal::WIDTH).map(move |idx_in_packing| {
+                    let quotient_value = (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
+                        .map(|coeff_idx| {
+                            quotient.as_base_slice()[coeff_idx].as_slice()[idx_in_packing]
+                        })
+                        .collect::<Vec<_>>();
+                    SC::Challenge::from_base_slice(&quotient_value)
+                })
+            })
+            .collect()
     }
 }

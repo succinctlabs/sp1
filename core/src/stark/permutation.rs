@@ -9,7 +9,7 @@ use super::util::batch_multiplicative_inverse;
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-fn generate_interaction_rlc_elements<F: PrimeField, EF: AbstractExtensionField<F>>(
+pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>>(
     interactions: &[Interaction<F>],
     random_element: EF,
 ) -> Vec<EF> {
@@ -122,7 +122,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 ///     - The running sum column ends at the (currently) given cumalitive sum.
 pub fn eval_permutation_constraints<F, C, AB>(chip: &C, builder: &mut AB, cumulative_sum: AB::EF)
 where
-    F: PrimeField,
+    F: Field,
     C: Chip<F> + Air<AB> + ?Sized,
     AB: PermutationAirBuilder<F = F> + PairBuilder,
 {
@@ -160,9 +160,9 @@ where
         let mut rlc = AB::ExprEF::from_base(AB::Expr::zero());
         for (field, beta) in interaction.values.iter().zip(betas.clone()) {
             let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
-            rlc += AB::ExprEF::from(beta) * elem;
+            rlc += AB::ExprEF::from_f(beta) * elem;
         }
-        rlc = rlc + alphas[interaction.argument_index()];
+        rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
         builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m]);
 
         let mult_local = interaction
@@ -191,7 +191,7 @@ where
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
     builder.when_last_row().assert_eq_ext(
         *perm_local.last().unwrap(),
-        AB::ExprEF::from(cumulative_sum),
+        AB::ExprEF::from_f(cumulative_sum),
     );
 }
 

@@ -5,7 +5,7 @@ use p3_uni_stark::StarkConfig;
 type Val<SC> = <SC as StarkConfig>::Val;
 type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpenningError<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
-type Challenge<SC> = <SC as StarkConfig>::Challenge;
+pub type Challenge<SC> = <SC as StarkConfig>::Challenge;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
 type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
 type Com<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;

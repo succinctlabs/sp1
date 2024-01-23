@@ -24,6 +24,7 @@ pub fn prove(program: Program) {
     type Val = BabyBear;
     type Domain = Val;
     type Challenge = BinomialExtensionField<Val, 4>;
+    type ExtChallenge = BinomialExtensionField<Challenge, 4>;
     type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
     type MyMds = CosetMds<Val, 16>;
