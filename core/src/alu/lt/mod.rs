@@ -36,8 +36,8 @@ pub struct LtCols<T> {
     /// Boolean flag to indicate which byte pair differs
     pub byte_flag: [T; 4],
 
-    // Boolean flag to indicate whether the sign bits of b and c are equal.
-    pub sign_xor: T,
+    // Boolean flag for the xor of the msb (sign bit) of b and c.
+    pub msb_sign_xor: T,
 
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
     /// true for all bytes with a lower index than the first byte pair that differs in BE.
@@ -106,18 +106,18 @@ impl<F: PrimeField> Chip<F> for LtChip {
                         .or_insert(1);
                 }
 
-                let mut sign_xor = 0;
+                // Store the xor of the MSB of b and c.
+                let mut msb_sign_xor = 0;
                 if event.opcode == Opcode::SLT {
-                    sign_xor = (b[0] >> 7) ^ (c[0] >> 7);
+                    msb_sign_xor = (b[0] >> 7) ^ (c[0] >> 7);
                 }
 
-                cols.sign_xor = F::from_canonical_u8(sign_xor);
+                cols.msb_sign_xor = F::from_canonical_u8(msb_sign_xor);
 
-                // Starting from the largest byte, find the first byte pair, index i that differs.
                 let equal_bytes = b == c;
-                // Defaults to the first byte in BE if the bytes are equal.
+                // Defaults to the most significant byte.
                 let mut idx_to_check = 3;
-                // Find the first byte pair that differs in BE.
+                // Starting from the most significant byte, find the first byte pair i that differs.
                 for i in (0..4).rev() {
                     if b[i] != c[i] {
                         idx_to_check = i;
@@ -126,9 +126,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                     }
                 }
 
-                // byte_equality_check marks the bytes that should be checked for equality (i.e.
-                // all bytes after the first byte pair that differs in BE).
-                // Note: If b and c are equal, set byte_equality_check to true for all bytes.
+                // If equal_bytes, mark all bytes as equal.
+                // Otherwise, all bytes more significant than idx_to_check should be equal.
                 for i in 0..4 {
                     if i > idx_to_check || equal_bytes {
                         cols.byte_equality_check[i] = F::one();
@@ -192,22 +191,24 @@ where
 
             if i == 3 {
                 // If the sign bits of b, c are different, the output should be 1 - unsigned_b_lt_c.
-                // Ex. 0b10000000 < 0b01111111 = 0 in unsigned, but is 1 in signed.
-                // Ex. 0b01111111 < 0b10000000 = 1 in unsigned, but is 0 in signed.
-                // Therefore, we can just flip the result of local.unsigned_b_lt_c[0] to get
-                // the output if the sign bits are different.
+                // Ex. 0b10000000 < 0b01111111 = 0 in unsigned, but =1 in signed.
+                // Ex. 0b01111111 < 0b10000000 = 1 in unsigned, but =0 in signed.
+                // Therefore, we can just flip the result of unsigned b < c of the most significant
+                // byte to get the correct signed result if the sign bits of b, c are different.
                 builder
-                    .when(local.sign_xor)
+                    .when(local.msb_sign_xor)
                     .assert_eq(local.a[0], one.clone() - local.unsigned_b_lt_c[3]);
 
-                // If the first bytes are different, but the sign bits are the same.
-                let diff_first_byte_same_sign = (one.clone() - local.sign_xor) * local.byte_flag[i];
+                // If the most significant bytes are different, but the sign bits are the same.
+                let diff_first_byte_same_sign =
+                    (one.clone() - local.msb_sign_xor) * local.byte_flag[i];
                 builder
                     .when(diff_first_byte_same_sign)
                     .assert_eq(local.a[0], local.unsigned_b_lt_c[3]);
             } else {
-                // If the byte is marked as differing, verify the output matches unsigned_b_lt_c.
-                // This also works for signed comparisons.
+                // If the byte pair differs, verify the output matches unsigned_b_lt_c. Note: Signed
+                // b < c is equivalent to unsigned b < c if the sign bits of b, c are the same, which
+                // is the case if local.byte_flag[i] is set for any i < 3.
                 // Ex. 0b11111111 (-1) < 0b11111110 (-2) = 0 in signed & unsigned.
                 builder
                     .when(local.byte_flag[i])
@@ -231,7 +232,7 @@ where
         builder.assert_bool(local.a[0]);
 
         // Sign XOR
-        builder.assert_bool(local.sign_xor);
+        builder.assert_bool(local.msb_sign_xor);
 
         // Receive the arguments.
         builder.receive_alu(
