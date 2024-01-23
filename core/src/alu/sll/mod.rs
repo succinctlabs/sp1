@@ -39,12 +39,12 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
 use crate::disassembler::WORD_SIZE;
+use crate::operations::WordRangeOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -98,58 +98,69 @@ impl ShiftLeft {
 impl<F: PrimeField> Chip<F> for ShiftLeft {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
-            .shift_left_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-                let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
-                cols.is_real = F::one();
-                for i in 0..BYTE_SIZE {
-                    cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
-                }
+        let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
+        let shift_left_events = segment.shift_left_events.clone();
+        for event in shift_left_events.iter() {
+            let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
+            let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
+            let a = event.a.to_le_bytes();
+            let b = event.b.to_le_bytes();
+            let c = event.c.to_le_bytes();
+            cols.a = Word(a.map(F::from_canonical_u8));
+            cols.b = Word(b.map(F::from_canonical_u8));
+            cols.c = Word(c.map(F::from_canonical_u8));
+            cols.is_real = F::one();
+            for i in 0..BYTE_SIZE {
+                cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
+            }
 
-                // Variables for bit shifting.
-                let num_bits_to_shift = event.c as usize % BYTE_SIZE;
-                for i in 0..BYTE_SIZE {
-                    cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
-                }
+            // Variables for bit shifting.
+            let num_bits_to_shift = event.c as usize % BYTE_SIZE;
+            for i in 0..BYTE_SIZE {
+                cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
+            }
 
-                let bit_shift_multiplier = 1u32 << num_bits_to_shift;
-                cols.bit_shift_multiplier = F::from_canonical_u32(bit_shift_multiplier);
+            let bit_shift_multiplier = 1u32 << num_bits_to_shift;
+            cols.bit_shift_multiplier = F::from_canonical_u32(bit_shift_multiplier);
 
-                let mut carry = 0u32;
-                let base = 1u32 << BYTE_SIZE;
-                for i in 0..WORD_SIZE {
-                    let v = b[i] as u32 * bit_shift_multiplier + carry;
-                    cols.bit_shift_result[i] = F::from_canonical_u32(v % base);
-                    carry = v / base;
-                    cols.bit_shift_result_carry[i] = F::from_canonical_u32(carry);
-                }
+            let mut carry = 0u32;
+            let base = 1u32 << BYTE_SIZE;
+            let mut bit_shift_result = [0u8; WORD_SIZE];
+            let mut bit_shift_result_carry = [0u8; WORD_SIZE];
+            for i in 0..WORD_SIZE {
+                let v = b[i] as u32 * bit_shift_multiplier + carry;
+                carry = v / base;
+                bit_shift_result[i] = (v % base) as u8;
+                bit_shift_result_carry[i] = carry as u8;
+            }
+            cols.bit_shift_result = bit_shift_result.map(F::from_canonical_u8);
+            cols.bit_shift_result_carry = bit_shift_result_carry.map(F::from_canonical_u8);
 
-                // Variables for byte shifting.
-                let num_bytes_to_shift = (event.c & 0b11111) as usize / BYTE_SIZE;
-                for i in 0..WORD_SIZE {
-                    cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
-                }
+            // Variables for byte shifting.
+            let num_bytes_to_shift = (event.c & 0b11111) as usize / BYTE_SIZE;
+            for i in 0..WORD_SIZE {
+                cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
+            }
 
-                // Sanity check.
-                for i in num_bytes_to_shift..WORD_SIZE {
-                    debug_assert_eq!(
-                        cols.bit_shift_result[i - num_bytes_to_shift],
-                        F::from_canonical_u8(a[i])
-                    );
-                }
+            // Range checks.
+            {
+                WordRangeOperation::<F>::populate(segment, event.a);
+                WordRangeOperation::<F>::populate(segment, event.b);
+                WordRangeOperation::<F>::populate(segment, event.c);
+                WordRangeOperation::<F>::populate_from_le_bytes(segment, bit_shift_result);
+                WordRangeOperation::<F>::populate_from_le_bytes(segment, bit_shift_result_carry);
+            }
 
-                row
-            })
-            .collect::<Vec<_>>();
+            // Sanity check.
+            for i in num_bytes_to_shift..WORD_SIZE {
+                debug_assert_eq!(
+                    cols.bit_shift_result[i - num_bytes_to_shift],
+                    F::from_canonical_u8(a[i])
+                );
+            }
+
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -290,12 +301,23 @@ where
             one.clone(),
         );
 
-        for _x in local.bit_shift_result.iter() {
-            // TODO: _x in [0, 255]
-        }
+        // Range check.
+        {
+            let words = [
+                local.a,
+                local.b,
+                local.c,
+                Word(local.bit_shift_result),
+                Word(local.bit_shift_result_carry),
+            ];
 
-        for _x in local.bit_shift_result_carry.iter() {
-            // TODO: _x in [0, 255]
+            for word in words.iter() {
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    word.map(|x| x.into()),
+                    local.is_real.into(),
+                );
+            }
         }
 
         for shift in local.shift_by_n_bytes.iter() {
