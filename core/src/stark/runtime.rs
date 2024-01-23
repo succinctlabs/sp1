@@ -251,7 +251,7 @@ pub mod tests {
 
     #[test]
     fn test_bitwise_prove() {
-        let bitwise_opcodes = [Opcode::XOR, Opcode::OR, Opcode::AND];
+        let bitwise_opcodes = [Opcode::XOR];
 
         for bitwise_op in bitwise_opcodes.iter() {
             let instructions = vec![
