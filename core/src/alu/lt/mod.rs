@@ -38,18 +38,11 @@ pub struct LtCols<T> {
     /// Boolean flag to indicate which byte pair differs
     pub byte_flag: [T; 4],
 
-    /// Sign bits of MSB
-    pub sign: [T; 2],
-
     // Boolean flag to indicate whether the sign bits of b and c are equal.
     pub sign_xor: T,
 
-    // Boolean flag whether to check the first byte of b and c for equality with SLT.
-    pub check_first_byte_slt: T,
-
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
-    /// true for all bytes smaller than the first byte pair that differs. With LE bytes, this is all
-    /// bytes after the differing byte pair.
+    /// true for all bytes with a lower index than the first byte pair that differs in BE.
     pub byte_equality_check: [T; 4],
 
     /// Selector flags for the operation to perform.
@@ -95,14 +88,6 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
 
-                if event.opcode == Opcode::SLT {
-                    cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
-                    cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
-                } else {
-                    cols.sign[0] = F::zero();
-                    cols.sign[1] = F::zero();
-                }
-
                 for i in 0..4 {
                     let is_b_lt_c = lt(b[i], c[i]);
 
@@ -123,8 +108,12 @@ impl<F: PrimeField> Chip<F> for LtChip {
                         .or_insert(1);
                 }
 
-                cols.sign_xor = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
-                    + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
+                let mut sign_xor = 0;
+                if event.opcode == Opcode::SLT {
+                    sign_xor = (b[3] >> 7) ^ (c[3] >> 7);
+                }
+
+                cols.sign_xor = F::from_canonical_u8(sign_xor);
 
                 // Starting from the largest byte, find the first byte pair, index i that differs.
                 let equal_bytes = b == c;
@@ -150,9 +139,6 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
-
-                cols.check_first_byte_slt =
-                    cols.is_slt * cols.byte_flag[0] * (F::one() - cols.sign_xor);
 
                 row
             })
@@ -206,16 +192,15 @@ where
                 .assert_eq(local.b[i], local.c[i]);
 
             if i == 0 {
-                // If SLTU, check on byte_flag.
-                let check_ltu = local.is_sltu * local.byte_flag[i];
                 builder
-                    .when(check_ltu)
-                    .assert_eq(local.is_b_less_than_c[i], local.a[3]);
+                    .when(local.sign_xor)
+                    .assert_eq(local.a[3], one.clone() - local.is_b_less_than_c[0]);
 
-                // If SLT, only check is_b_less_than_c if equal sign bits & byte_flag.
+                // If the first bytes are different, but the sign bits are the same.
+                let diff_first_byte_same_sign = (one.clone() - local.sign_xor) * local.byte_flag[i];
                 builder
-                    .when(local.check_first_byte_slt)
-                    .assert_eq(local.is_b_less_than_c[i], local.a[3]);
+                    .when(same_sign)
+                    .assert_eq(local.a[3], local.is_b_less_than_c[0]);
             } else {
                 builder
                     .when(local.byte_flag[i])
@@ -227,30 +212,19 @@ where
             builder.assert_bool(local.is_b_less_than_c[i]);
         }
 
-        let check_first_byte_slt =
-            local.is_slt * local.byte_flag[0] * (one.clone() - local.sign_xor);
-        builder.assert_eq(check_first_byte_slt, local.check_first_byte_slt);
-
-        // If SLT, if sign_xor is true, then a[3] == !is_b_less_than_c[0].
-        let check_lt_1 = local.is_slt * local.sign_xor;
-        builder
-            .when(check_lt_1)
-            .assert_eq(local.a[3], one.clone() - local.is_b_less_than_c[0]);
-
         // Verify at most one byte flag is set.
         let flag_sum =
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
-        // local.sign[0] (b_s) and local.sign[1] (c_s) are the sign bits of b and c respectively.
-        builder.assert_bool(local.sign[0]);
-        builder.assert_bool(local.sign[1]);
-
-        // Check output bits and bit decomposition are valid.
-        builder.assert_bool(local.a[3]);
+        // Check output bits are valid.
         for i in 0..3 {
             builder.assert_zero(local.a[i]);
         }
+        builder.assert_bool(local.a[3]);
+
+        // Sign XOR
+        builder.assert_bool(local.sign_xor);
 
         // Receive the arguments.
         builder.receive_alu(
