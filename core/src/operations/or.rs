@@ -13,6 +13,8 @@ use crate::disassembler::WORD_SIZE;
 use crate::runtime::Segment;
 
 /// A set of columns needed to compute the or of two words.
+///
+/// TODO: This is currently not in use, and thus not tested thoroughly yet.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct OrOperation<T> {
@@ -45,7 +47,6 @@ impl<F: Field> OrOperation<F> {
         expected
     }
 
-    #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,

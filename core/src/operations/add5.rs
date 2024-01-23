@@ -11,6 +11,8 @@ use crate::air::WORD_SIZE;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute the sum of five words.
+///
+/// TODO: This is currently not in use, and thus not tested thoroughly yet.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Add5Operation<T> {
@@ -73,7 +75,6 @@ impl<F: Field> Add5Operation<F> {
         expected
     }
 
-    #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
         words: &[Word<AB::Var>; 5],
