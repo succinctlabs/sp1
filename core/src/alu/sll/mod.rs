@@ -314,11 +314,7 @@ where
         // Range check.
         {
             for word in [local.bit_shift_result, local.bit_shift_result_carry].iter() {
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(word.map(|x| x.into())),
-                    local.is_real.into(),
-                );
+                builder.range_check_word(Word(*word), local.is_real);
             }
         }
 
