@@ -10,6 +10,13 @@ pub fn shr_carry(input: u8, rotation: u8) -> (u8, u8) {
     }
 }
 
+/// Computes a < b and returns the result and whether or not the two are equal.
+/// First element of the tuple is the result, second is whether or not the two are equal.
+pub fn lt(b: u8, c: u8) -> u8 {
+    let res = if b < c { 1 } else { 0 };
+    res
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

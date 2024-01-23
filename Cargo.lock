@@ -761,6 +761,7 @@ version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
+ "powerfmt",
  "serde",
 ]
 
@@ -848,7 +849,7 @@ dependencies = [
  "curve25519-dalek-ng",
  "hex",
  "rand_core",
- "sha2 0.9.8",
+ "sha2 0.9.9",
  "zeroize",
 ]
 
@@ -1833,6 +1834,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "powerfmt"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2350,8 +2357,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.9.8"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d58a1e1bf39749807d89cf2d98ac2dfa0ff1cb3faa38fbb64dd88ac8013d800"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -2450,7 +2458,7 @@ dependencies = [
  "hex",
  "num-bigint",
  "serde",
- "sha2 0.9.8",
+ "sha2 0.9.9",
  "ssz_rs_derive",
 ]
 
@@ -2475,7 +2483,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sha2 0.9.8",
+ "sha2 0.9.9",
  "ssz_rs",
  "succinct-zkvm",
 ]
@@ -2712,11 +2720,13 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.28"
-source = "git+https://github.com/time-rs/time.git?rev=v0.3.28#bb9b38e4a444f7b5e0648a1bd16e52003e01cfbd"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f657ba42c3f86e7680e53c8cd3af8abbe56b5491790b46e22e19c0d57463583e"
 dependencies = [
  "deranged",
  "itoa",
+ "powerfmt",
  "serde",
  "time-core",
  "time-macros",
@@ -2724,13 +2734,15 @@ dependencies = [
 
 [[package]]
 name = "time-core"
-version = "0.1.1"
-source = "git+https://github.com/time-rs/time.git?rev=v0.3.28#bb9b38e4a444f7b5e0648a1bd16e52003e01cfbd"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
 
 [[package]]
 name = "time-macros"
-version = "0.2.14"
-source = "git+https://github.com/time-rs/time.git?rev=v0.3.28#bb9b38e4a444f7b5e0648a1bd16e52003e01cfbd"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26197e33420244aeb70c3e8c78376ca46571bc4e701e4791c2cd9f57dcb3a43f"
 dependencies = [
  "time-core",
 ]
