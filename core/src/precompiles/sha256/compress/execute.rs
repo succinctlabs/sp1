@@ -6,7 +6,7 @@ use crate::{
 use super::ShaCompressChip;
 
 impl ShaCompressChip {
-    pub fn execute(rt: &mut Runtime) -> (u32, u32, u32) {
+    pub fn execute(rt: &mut Runtime) -> u32 {
         let t0 = Register::X5;
         let a0 = Register::X10;
 
@@ -113,6 +113,6 @@ impl ShaCompressChip {
         // Restore the original record.
         rt.record = t;
 
-        (fa, fb, fc)
+        fc
     }
 }

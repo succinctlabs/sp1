@@ -7,6 +7,7 @@ mod syscall;
 
 use crate::cpu::MemoryRecord;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::PrecompileRuntimeContext;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -597,23 +598,32 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
 
+                (b, c) = (self.rr(t0, AccessPosition::B), 0);
+                let mut context = PrecompileRuntimeContext::new(
+                    self.current_segment(),
+                    self.clk,
+                    &mut self.memory,
+                    &mut self.memory_access,
+                    &mut self.segment,
+                );
+
                 match syscall {
                     Syscall::HALT => {
                         a = self.register(a0);
-                        (b, c) = (self.rr(t0, AccessPosition::B), 0);
                         next_pc = 0;
-                        self.rw(a0, a);
                     }
                     Syscall::LWA => {
-                        let witness = self.witness.pop().expect("witness stream is empty");
-                        (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
+                        a = self.witness.pop().expect("witness stream is empty");
                     }
                     Syscall::SHA_EXTEND => {
-                        (a, b, c) = ShaExtendChip::execute(self);
+                        // a = ShaExtendChip::execute(self);
+                        a = ShaExtendChip::execute_context(&mut context);
+                        let init_clk = self.clk;
+                        self.clk = context.clk;
+                        assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::SHA_COMPRESS => {
-                        (a, b, c) = ShaCompressChip::execute(self);
+                        a = ShaCompressChip::execute(self);
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
@@ -648,10 +658,11 @@ impl Runtime {
                                 log::info!("stderr: {}", s.trim_end());
                             }
                         }
-                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
+                        a = 0;
                     }
                 }
+
+                self.rw(a0, a);
             }
 
             Opcode::EBREAK => {
