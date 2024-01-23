@@ -144,21 +144,8 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
 
             // Range checks.
             {
-                segment.add_byte_lookup_events({
-                    let mut events = vec![];
-                    for word in [bit_shift_result, bit_shift_result_carry].iter() {
-                        for byte_pair in word.chunks_exact(2) {
-                            events.push(ByteLookupEvent {
-                                opcode: ByteOpcode::Range,
-                                a1: 0,
-                                a2: 0,
-                                b: byte_pair[0],
-                                c: byte_pair[1],
-                            });
-                        }
-                    }
-                    events
-                });
+                segment.add_byte_range_checks(&bit_shift_result);
+                segment.add_byte_range_checks(&bit_shift_result_carry);
             }
 
             // Sanity check.

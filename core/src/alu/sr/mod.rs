@@ -239,27 +239,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                segment.add_byte_lookup_events({
-                    let long_words = [
-                        byte_shift_result,
-                        bit_shift_result,
-                        shr_carry_output_carry,
-                        shr_carry_output_shifted_byte,
-                    ];
-                    let mut events = vec![];
-                    for long_word in long_words.iter() {
-                        for byte_pair in long_word.chunks_exact(2) {
-                            events.push(ByteLookupEvent {
-                                opcode: ByteOpcode::Range,
-                                a1: 0,
-                                a2: 0,
-                                b: byte_pair[0],
-                                c: byte_pair[1],
-                            });
-                        }
-                    }
-                    events
-                });
+                segment.add_byte_range_checks(&byte_shift_result);
+                segment.add_byte_range_checks(&bit_shift_result);
+                segment.add_byte_range_checks(&shr_carry_output_carry);
+                segment.add_byte_range_checks(&shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
