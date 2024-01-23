@@ -83,6 +83,9 @@ pub struct Runtime {
 
     /// The maximum size of each segment.
     pub segment_size: u32,
+
+    /// A counter for the number of cycles that have been executed in certain functions.
+    pub cycle_tracker: u32,
 }
 
 impl Runtime {
@@ -107,6 +110,7 @@ impl Runtime {
             record: Record::default(),
             segment_size: 1048576,
             global_segment: Segment::default(),
+            cycle_tracker: 0,
         }
     }
 
@@ -623,7 +627,23 @@ impl Runtime {
                             let slice = bytes.as_slice();
                             let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
-                                log::info!("stdout: {}", s.trim_end());
+                                if s.contains("cycle-tracker-start:") {
+                                    self.cycle_tracker = self.global_clk
+                                } else if s.contains("cycle-tracker-end:") {
+                                    let fn_name = s
+                                        .split("cycle-tracker-end:")
+                                        .last()
+                                        .unwrap()
+                                        .trim_end()
+                                        .trim_start();
+                                    log::info!(
+                                        "===> {} took {} cycles",
+                                        fn_name,
+                                        self.global_clk - self.cycle_tracker
+                                    );
+                                } else {
+                                    log::info!("stdout: {}", s.trim_end());
+                                }
                             } else {
                                 log::info!("stderr: {}", s.trim_end());
                             }
@@ -737,7 +757,7 @@ impl Runtime {
             let width = 12;
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
-                self.global_clk / 4,
+                self.global_clk,
                 self.pc,
                 instruction,
                 self.register(Register::X0),
@@ -765,7 +785,7 @@ impl Runtime {
             self.execute(instruction);
 
             // Increment the clock.
-            self.global_clk += 4;
+            self.global_clk += 1;
             self.clk += 4;
 
             if self.clk % self.segment_size == 1 {

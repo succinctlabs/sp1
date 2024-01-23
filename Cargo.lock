@@ -711,6 +711,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cycle-tracker"
+version = "0.1.0"
+dependencies = [
+ "succinct-derive",
+ "succinct-zkvm",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2553,6 +2561,15 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "valida-derive",
+]
+
+[[package]]
+name = "succinct-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

@@ -23,7 +23,7 @@ use crate::lookup::debug_interactions_with_all_chips;
 pub fn get_cycles(program: Program) -> u64 {
     let mut runtime = Runtime::new(program);
     runtime.run();
-    (runtime.global_clk / 4) as u64
+    runtime.global_clk as u64
 }
 
 pub fn prove(program: Program) {
@@ -85,7 +85,7 @@ pub fn prove(program: Program) {
         debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
     });
 
-    let cycles = runtime.global_clk / 4;
+    let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();
     tracing::info!(
         "cycles={}, e2e={}, khz={:.2}",
