@@ -44,6 +44,9 @@ pub struct LtCols<T> {
     // Boolean flag to indicate whether the sign bits of b and c are equal.
     pub sign_xor: T,
 
+    // Boolean flag whether to check the first byte of b and c for equality with SLT.
+    pub check_first_byte_slt: T,
+
     /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
     /// true for all bytes smaller than the first byte pair that differs. With LE bytes, this is all
     /// bytes after the differing byte pair.
@@ -125,19 +128,16 @@ impl<F: PrimeField> Chip<F> for LtChip {
 
                 // Starting from the largest byte, find the first byte pair, index i that differs.
                 let equal_bytes = b == c;
-
                 // Defaults to the first byte in BE if the bytes are equal.
                 let mut idx_to_check = 0;
                 // Find the first byte pair that differs in BE.
                 for i in 0..4 {
                     if b[i] != c[i] {
                         idx_to_check = i;
+                        cols.byte_flag[i] = F::one();
                         break;
                     }
                 }
-
-                // byte_flag marks the byte which cols.bits is computed from.
-                cols.byte_flag[idx_to_check] = F::one();
 
                 // byte_equality_check marks the bytes that should be checked for equality (i.e.
                 // all bytes after the first byte pair that differs in BE).
@@ -151,9 +151,12 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
 
+                cols.check_first_byte_slt =
+                    cols.is_slt * cols.byte_flag[0] * (F::one() - cols.sign_xor);
+
                 // println!("Byte equality check: {:?}", cols.byte_equality_check);
-                println!("Byte flag: {:?}", cols.byte_flag);
-                println!("B < C: {:?}", cols.is_b_less_than_c);
+                // println!("Byte flag: {:?}", cols.byte_flag);
+                // println!("B < C: {:?}", cols.is_b_less_than_c);
                 // println!("C: {:?}", cols.c);
 
                 row
@@ -203,8 +206,9 @@ where
         }
 
         for i in 0..4 {
-            let check_eq = (one.clone() - local.byte_flag[i]) * local.byte_equality_check[i];
-            builder.when(check_eq).assert_eq(local.b[i], local.c[i]);
+            builder
+                .when(local.byte_equality_check[i])
+                .assert_eq(local.b[i], local.c[i]);
 
             if i == 0 {
                 // If SLTU, check on byte_flag.
@@ -213,12 +217,10 @@ where
                     .when(check_ltu)
                     .assert_eq(local.is_b_less_than_c[i], local.a[3]);
 
-                // // If SLT, only check is_b_less_than_c if equal sign bits & byte_flag.
-                // let check_lt_1 = local.is_slt * (one.clone() - local.sign_xor);
-                // let check_lt = check_lt_1 * local.byte_flag[i];
-                // builder
-                //     .when(check_lt)
-                //     .assert_eq(local.is_b_less_than_c[i], local.a[3]);
+                // If SLT, only check is_b_less_than_c if equal sign bits & byte_flag.
+                builder
+                    .when(local.check_first_byte_slt)
+                    .assert_eq(local.is_b_less_than_c[i], local.a[3]);
             } else {
                 builder
                     .when(local.byte_flag[i])
@@ -229,6 +231,13 @@ where
             builder.assert_bool(local.byte_equality_check[i]);
             builder.assert_bool(local.is_b_less_than_c[i]);
         }
+
+        // If SLT, if sign_xor is true, then a[3] == !is_b_less_than_c[0].
+        let check_lt_1 = local.is_slt * local.sign_xor;
+        builder
+            .when(check_lt_1)
+            .assert_eq(local.a[3], one.clone() - local.is_b_less_than_c[0]);
+
         // Verify at most one byte flag is set.
         let flag_sum =
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
