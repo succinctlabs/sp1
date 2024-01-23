@@ -882,7 +882,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/ed25519")
+        Program::from_elf("../programs/ed_add")
     }
 
     pub fn ecall_lwa_program() -> Program {

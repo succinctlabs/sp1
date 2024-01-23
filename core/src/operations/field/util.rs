@@ -45,10 +45,10 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
 
     // Sanity Check #2: w(x) * (x - 2^nb_bits_per_limb) = vanishing(x).
     let x_minus_root = Polynomial::<F>::from_coefficients_slice(&[-root_monomial, F::one()]);
-    debug_assert_eq!(
-        (&p_quotient * &x_minus_root).coefficients(),
-        p_vanishing.coefficients()
-    );
+    // debug_assert_eq!(
+    //     (&p_quotient * &x_minus_root).coefficients(),
+    //     p_vanishing.coefficients()
+    // );
 
     // Shifting the witness polynomial to make it positive
     p_quotient

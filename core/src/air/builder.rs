@@ -8,7 +8,7 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::cols::instruction_cols::InstructionCols;
 use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, Field};
 use std::iter::once;
 
 /// A trait which contains basic methods for building an AIR.

@@ -263,14 +263,14 @@ impl<SC: StarkConfig> Prover<SC> {
         };
 
         // Check that the table-specific constraints are correct for each chip.
-        // for i in 0..chips.len() {
-        //     debug_constraints(
-        //         &*chips[i],
-        //         &traces[i],
-        //         &permutation_traces[i],
-        //         &permutation_challenges,
-        //     );
-        // }
+        for i in 0..chips.len() {
+            debug_constraints(
+                &*chips[i],
+                &traces[i],
+                &permutation_traces[i],
+                &permutation_challenges,
+            );
+        }
 
         SegmentDebugProof {
             main_commit: main_data.main_commit.clone(),
