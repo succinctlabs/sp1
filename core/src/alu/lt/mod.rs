@@ -154,11 +154,6 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.check_first_byte_slt =
                     cols.is_slt * cols.byte_flag[0] * (F::one() - cols.sign_xor);
 
-                // println!("Byte equality check: {:?}", cols.byte_equality_check);
-                // println!("Byte flag: {:?}", cols.byte_flag);
-                // println!("B < C: {:?}", cols.is_b_less_than_c);
-                // println!("C: {:?}", cols.c);
-
                 row
             })
             .collect::<Vec<_>>();
