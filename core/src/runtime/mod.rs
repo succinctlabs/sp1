@@ -6,6 +6,7 @@ mod segment;
 mod syscall;
 
 use crate::cpu::MemoryRecord;
+use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
@@ -610,6 +611,9 @@ impl Runtime {
                     }
                     Syscall::SHA_COMPRESS => {
                         (a, b, c) = ShaCompressChip::execute(self);
+                    }
+                    Syscall::KECCAK_PERMUTE => {
+                        (a, b, c) = KeccakPermuteChip::execute(self);
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
