@@ -78,7 +78,10 @@ pub fn prove(program: Program) {
 
     // #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
+        debug_interactions_with_all_chips(
+            &mut runtime.segment,
+            crate::lookup::InteractionKind::Byte,
+        )
     });
 
     tracing::info_span!("runtime.prove(...)").in_scope(|| {

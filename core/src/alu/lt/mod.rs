@@ -179,8 +179,14 @@ where
 
         let mult = local.is_slt + local.is_sltu;
 
-        for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(ByteOpcode::LTU.to_field::<AB::F>(), a, b, c, mult.clone());
+        for ((b_lt_c, b), c) in local.unsigned_b_lt_c.into_iter().zip(local.b).zip(local.c) {
+            builder.send_byte(
+                ByteOpcode::LTU.to_field::<AB::F>(),
+                b_lt_c,
+                b,
+                c,
+                mult.clone(),
+            );
         }
 
         for i in 0..4 {
