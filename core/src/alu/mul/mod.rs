@@ -187,21 +187,8 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
             // Range check.
             {
-                segment.add_byte_lookup_events({
-                    let mut events = vec![];
-                    for word in [carry, product].iter() {
-                        for byte_pair in word.chunks_exact(2) {
-                            events.push(ByteLookupEvent {
-                                opcode: ByteOpcode::Range,
-                                a1: 0,
-                                a2: 0,
-                                b: byte_pair[0] as u8,
-                                c: byte_pair[1] as u8,
-                            });
-                        }
-                    }
-                    events
-                });
+                segment.add_byte_range_checks(&carry.map(|x| x as u8));
+                segment.add_byte_range_checks(&carry.map(|x| x as u8));
             }
 
             rows.push(row);
