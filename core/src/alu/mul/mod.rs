@@ -188,25 +188,21 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
             // Range check operations.
             {
-                WordRangeOperation::<F>::populate(segment, event.a);
-                WordRangeOperation::<F>::populate(segment, event.b);
-                WordRangeOperation::<F>::populate(segment, event.c);
-                for long_word in [carry, product].iter() {
-                    let first_half = [
-                        long_word[0] as u8,
-                        long_word[1] as u8,
-                        long_word[2] as u8,
-                        long_word[3] as u8,
-                    ];
-                    let second_half = [
-                        long_word[4] as u8,
-                        long_word[5] as u8,
-                        long_word[6] as u8,
-                        long_word[7] as u8,
-                    ];
-                    WordRangeOperation::<F>::populate_from_le_bytes(segment, first_half);
-                    WordRangeOperation::<F>::populate_from_le_bytes(segment, second_half);
-                }
+                segment.add_byte_lookup_events({
+                    let mut events = vec![];
+                    for word in [carry, product].iter() {
+                        for byte_pair in word.chunks_exact(2) {
+                            events.push(ByteLookupEvent {
+                                opcode: ByteOpcode::Range,
+                                a1: 0,
+                                a2: 0,
+                                b: byte_pair[0] as u8,
+                                c: byte_pair[1] as u8,
+                            });
+                        }
+                    }
+                    events
+                });
             }
 
             rows.push(row);
@@ -368,29 +364,11 @@ where
 
         // Range check.
         {
-            let words = [local.a, local.b, local.c];
-            for word in words.iter() {
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    word.map(|x| x.into()),
-                    local.is_real.into(),
-                );
-            }
-
-            let long_words = [local.carry, local.product];
-            for long_word in long_words.iter() {
+            for long_word in [local.carry, local.product].iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(first_half.map(|x| x.into())),
-                    local.is_real.into(),
-                );
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(second_half.map(|x| x.into())),
-                    local.is_real.into(),
-                );
+                builder.range_check_word(Word(first_half), local.is_real);
+                builder.range_check_word(Word(second_half), local.is_real);
             }
         }
 
