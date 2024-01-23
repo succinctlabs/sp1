@@ -171,6 +171,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::utils;
     use crate::utils::prove;
 
     #[test]
@@ -280,6 +281,8 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
+        std::env::set_var("RUST_TRACER", "debug");
+        utils::setup_tracer();
         let program = fibonacci_program();
         prove(program);
     }
