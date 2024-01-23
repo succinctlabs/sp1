@@ -1,13 +1,11 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
-use log::info;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -33,7 +31,7 @@ pub struct LtCols<T> {
     pub c: Word<T>,
 
     /// b[i] < c[i].
-    pub is_b_less_than_c: [T; 4],
+    pub unsigned_b_lt_c: [T; 4],
 
     /// Boolean flag to indicate which byte pair differs
     pub byte_flag: [T; 4],
@@ -99,7 +97,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                         c: c[i],
                     };
 
-                    cols.is_b_less_than_c[i] = F::from_canonical_u8(is_b_lt_c);
+                    // unsigned_b_lt_c[i] stores the value of the unsigned lt comparison of b and c.
+                    cols.unsigned_b_lt_c[i] = F::from_canonical_u8(is_b_lt_c);
 
                     segment
                         .byte_lookups
@@ -187,29 +186,38 @@ where
         }
 
         for i in 0..4 {
+            // If the bytes are marked equal, verify they are equal.
             builder
                 .when(local.byte_equality_check[i])
                 .assert_eq(local.b[i], local.c[i]);
 
             if i == 0 {
+                // If the sign bits of b, c are different, the output should be 1 - unsigned_b_lt_c.
+                // Ex. 0b10000000 < 0b01111111 = 0 in unsigned, but is 1 in signed.
+                // Ex. 0b01111111 < 0b10000000 = 1 in unsigned, but is 0 in signed.
+                // Therefore, we can just flip the result of local.unsigned_b_lt_c[0] to get
+                // the output if the sign bits are different.
                 builder
                     .when(local.sign_xor)
-                    .assert_eq(local.a[3], one.clone() - local.is_b_less_than_c[0]);
+                    .assert_eq(local.a[3], one.clone() - local.unsigned_b_lt_c[0]);
 
                 // If the first bytes are different, but the sign bits are the same.
                 let diff_first_byte_same_sign = (one.clone() - local.sign_xor) * local.byte_flag[i];
                 builder
-                    .when(same_sign)
-                    .assert_eq(local.a[3], local.is_b_less_than_c[0]);
+                    .when(diff_first_byte_same_sign)
+                    .assert_eq(local.a[3], local.unsigned_b_lt_c[0]);
             } else {
+                // If the byte is marked as differing, verify the output matches unsigned_b_lt_c.
+                // This also works for signed comparisons.
+                // Ex. 0b11111111 (-1) < 0b11111110 (-2) = 0 in signed & unsigned.
                 builder
                     .when(local.byte_flag[i])
-                    .assert_eq(local.is_b_less_than_c[i], local.a[3]);
+                    .assert_eq(local.unsigned_b_lt_c[i], local.a[3]);
             }
 
             builder.assert_bool(local.byte_flag[i]);
             builder.assert_bool(local.byte_equality_check[i]);
-            builder.assert_bool(local.is_b_less_than_c[i]);
+            builder.assert_bool(local.unsigned_b_lt_c[i]);
         }
 
         // Verify at most one byte flag is set.
