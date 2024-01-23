@@ -1,6 +1,7 @@
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder, VirtualPairCol};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
+use p3_maybe_rayon::IndexedParallelIterator;
 
 use crate::utils::Chip;
 
@@ -60,6 +61,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // fingerprint for the interaction.
     let permutation_trace_width = all_interactions.len() + 1;
     let mut permutation_trace_values = Vec::with_capacity(main.height() * permutation_trace_width);
+
     for (i, main_row) in main.rows().enumerate() {
         let mut row = vec![EF::zero(); permutation_trace_width];
         let preprocessed_row = if preprocessed.is_some() {
