@@ -73,7 +73,7 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::operations::{IsEqualWordOperation, IsZeroWordOperation, WordRangeOperation};
+use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
