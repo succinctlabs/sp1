@@ -43,8 +43,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::operations::WordRangeOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -144,11 +144,21 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
 
             // Range checks.
             {
-                WordRangeOperation::<F>::populate(segment, event.a);
-                WordRangeOperation::<F>::populate(segment, event.b);
-                WordRangeOperation::<F>::populate(segment, event.c);
-                WordRangeOperation::<F>::populate_from_le_bytes(segment, bit_shift_result);
-                WordRangeOperation::<F>::populate_from_le_bytes(segment, bit_shift_result_carry);
+                segment.add_byte_lookup_events({
+                    let mut events = vec![];
+                    for word in [bit_shift_result, bit_shift_result_carry].iter() {
+                        for byte_pair in word.chunks_exact(2) {
+                            events.push(ByteLookupEvent {
+                                opcode: ByteOpcode::Range,
+                                a1: 0,
+                                a2: 0,
+                                b: byte_pair[0],
+                                c: byte_pair[1],
+                            });
+                        }
+                    }
+                    events
+                });
             }
 
             // Sanity check.
@@ -303,18 +313,10 @@ where
 
         // Range check.
         {
-            let words = [
-                local.a,
-                local.b,
-                local.c,
-                Word(local.bit_shift_result),
-                Word(local.bit_shift_result_carry),
-            ];
-
-            for word in words.iter() {
+            for word in [local.bit_shift_result, local.bit_shift_result_carry].iter() {
                 WordRangeOperation::<AB::F>::eval(
                     builder,
-                    word.map(|x| x.into()),
+                    Word(word.map(|x| x.into())),
                     local.is_real.into(),
                 );
             }
