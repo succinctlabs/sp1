@@ -39,8 +39,7 @@ pub struct LtCols<T> {
     // Boolean flag for the xor of the msb (sign bit) of b and c.
     pub msb_sign_xor: T,
 
-    /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
-    /// true for all bytes with a lower index than the first byte pair that differs in BE.
+    /// Boolean flag to indicate whether to do an equality check between the bytes.
     pub byte_equality_check: [T; 4],
 
     /// Selector flags for the operation to perform.
@@ -126,8 +125,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                     }
                 }
 
-                // If equal_bytes, mark all bytes as equal.
-                // Otherwise, all bytes more significant than idx_to_check should be equal.
+                // If equal_bytes, mark all bytes as equal. Otherwise, all bytes more significant
+                // than byte idx_to_check should be equal.
                 for i in 0..4 {
                     if i > idx_to_check || equal_bytes {
                         cols.byte_equality_check[i] = F::one();
@@ -231,13 +230,13 @@ where
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
         builder.assert_bool(flag_sum.clone());
 
-        // Check output bits are valid.
+        // Verify output is valid (should be 0 or 1).
         for i in 1..4 {
             builder.assert_zero(local.a[i]);
         }
         builder.assert_bool(local.a[0]);
 
-        // Sign XOR
+        // Verify the msb xor is valid.
         builder.assert_bool(local.msb_sign_xor);
 
         // Receive the arguments.
