@@ -220,7 +220,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
-
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
