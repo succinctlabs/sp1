@@ -185,7 +185,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
             cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
             cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
 
-            // Range check operations.
+            // Range check.
             {
                 segment.add_byte_lookup_events({
                     let mut events = vec![];
