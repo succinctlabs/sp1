@@ -758,7 +758,7 @@ where
             }
         }
 
-        // TODO: Range check all the bytes.
+        // Range check all the bytes.
         {
             let words = [local.a, local.b, local.c, local.quotient, local.remainder];
 
