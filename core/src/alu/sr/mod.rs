@@ -151,9 +151,6 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
-                WordRangeOperation::<F>::populate(segment, event.a);
-                WordRangeOperation::<F>::populate(segment, event.b);
-                WordRangeOperation::<F>::populate(segment, event.c);
 
                 cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
 
@@ -243,18 +240,27 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                let long_words = [
-                    byte_shift_result,
-                    bit_shift_result,
-                    shr_carry_output_carry,
-                    shr_carry_output_shifted_byte,
-                ];
-                for long_word in long_words.iter() {
-                    let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
-                    let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                    WordRangeOperation::<F>::populate_from_le_bytes(segment, first_half);
-                    WordRangeOperation::<F>::populate_from_le_bytes(segment, second_half);
-                }
+                segment.add_byte_lookup_events({
+                    let long_words = [
+                        byte_shift_result,
+                        bit_shift_result,
+                        shr_carry_output_carry,
+                        shr_carry_output_shifted_byte,
+                    ];
+                    let mut events = vec![];
+                    for long_word in long_words.iter() {
+                        for byte_pair in long_word.chunks_exact(2) {
+                            events.push(ByteLookupEvent {
+                                opcode: ByteOpcode::Range,
+                                a1: 0,
+                                a2: 0,
+                                b: byte_pair[0],
+                                c: byte_pair[1],
+                            });
+                        }
+                    }
+                    events
+                });
             }
 
             rows.push(row);
@@ -455,21 +461,12 @@ where
 
         // Range check bytes.
         {
-            let words = [local.a, local.b, local.c];
             let long_words = [
                 local.byte_shift_result,
                 local.bit_shift_result,
                 local.shr_carry_output_carry,
                 local.shr_carry_output_shifted_byte,
             ];
-
-            for word in words.iter() {
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    word.map(|x| x.into()),
-                    local.is_real.into(),
-                );
-            }
 
             for long_word in long_words.iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
