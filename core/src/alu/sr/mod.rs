@@ -49,6 +49,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
+use crate::operations::WordRangeOperation;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -150,6 +151,9 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
+                WordRangeOperation::<F>::populate(segment, event.a);
+                WordRangeOperation::<F>::populate(segment, event.b);
+                WordRangeOperation::<F>::populate(segment, event.c);
 
                 cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
 
@@ -206,6 +210,9 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 }
                 let carry_multiplier = 1 << (8 - num_bits_to_shift);
                 let mut last_carry = 0u32;
+                let mut bit_shift_result = [0u8; LONG_WORD_SIZE];
+                let mut shr_carry_output_carry = [0u8; LONG_WORD_SIZE];
+                let mut shr_carry_output_shifted_byte = [0u8; LONG_WORD_SIZE];
                 for i in (0..LONG_WORD_SIZE).rev() {
                     let (shift, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
 
@@ -222,14 +229,27 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                         .and_modify(|j| *j += 1)
                         .or_insert(1);
 
-                    cols.shr_carry_output_carry[i] = F::from_canonical_u8(carry);
-                    cols.shr_carry_output_shifted_byte[i] = F::from_canonical_u8(shift);
-                    cols.bit_shift_result[i] =
-                        F::from_canonical_u32(shift as u32 + last_carry * carry_multiplier);
+                    shr_carry_output_carry[i] = carry;
+                    shr_carry_output_shifted_byte[i] = shift;
+                    bit_shift_result[i] =
+                        ((shift as u32 + last_carry * carry_multiplier) & 0xff) as u8;
                     last_carry = carry as u32;
                     if i < WORD_SIZE {
                         debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                     }
+                }
+                // Range checks.
+                let long_words = [
+                    byte_shift_result,
+                    bit_shift_result,
+                    shr_carry_output_carry,
+                    shr_carry_output_shifted_byte,
+                ];
+                for long_word in long_words.iter() {
+                    let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                    let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                    WordRangeOperation::<F>::populate_from_le_bytes(segment, first_half);
+                    WordRangeOperation::<F>::populate_from_le_bytes(segment, second_half);
                 }
             }
 
@@ -440,15 +460,26 @@ where
             ];
 
             for word in words.iter() {
-                for _byte in word.0.iter() {
-                    // byte must be in [0, 255].
-                }
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    word.map(|x| x.into()),
+                    local.is_real.into(),
+                );
             }
 
             for long_word in long_words.iter() {
-                for _byte in long_word.iter() {
-                    // byte must be in [0, 255].
-                }
+                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    Word(first_half.map(|x| x.into())),
+                    local.is_real.into(),
+                );
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    Word(second_half.map(|x| x.into())),
+                    local.is_real.into(),
+                );
             }
         }
 
