@@ -1,3 +1,5 @@
+use std::ops::{Add, Mul};
+
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder, VirtualPairCol};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
@@ -124,6 +126,8 @@ pub fn eval_permutation_constraints<F, C, AB>(chip: &C, builder: &mut AB, cumula
 where
     F: Field,
     C: Chip<F> + Air<AB> + ?Sized,
+    AB::EF: ExtensionField<F>,
+    AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
     AB: PermutationAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
@@ -150,20 +154,20 @@ where
     let alphas = generate_interaction_rlc_elements(&all_interactions, alpha);
     let betas = beta.powers();
 
-    let lhs = phi_next - phi_local;
-    let mut rhs = AB::ExprEF::from_base(AB::Expr::zero());
-    let mut phi_0 = AB::ExprEF::from_base(AB::Expr::zero());
+    let lhs: AB::ExprEF = phi_next.into() - phi_local.into();
+    let mut rhs = AB::ExprEF::zero();
+    let mut phi_0 = AB::ExprEF::zero();
 
     let nb_send_iteractions = chip.sends().len();
     for (m, interaction) in all_interactions.iter().enumerate() {
         // Ensure that the recipricals of the RLC's were properly calculated.
-        let mut rlc = AB::ExprEF::from_base(AB::Expr::zero());
+        let mut rlc = AB::ExprEF::zero();
         for (field, beta) in interaction.values.iter().zip(betas.clone()) {
             let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
             rlc += AB::ExprEF::from_f(beta) * elem;
         }
         rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
-        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m]);
+        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m].into());
 
         let mult_local = interaction
             .multiplicity
@@ -174,11 +178,11 @@ where
 
         // Ensure that the running sum is computed correctly.
         if m < nb_send_iteractions {
-            phi_0 += AB::ExprEF::from_base(mult_local) * perm_local[m];
-            rhs += AB::ExprEF::from_base(mult_next) * perm_next[m];
+            phi_0 += perm_local[m].into() * mult_local;
+            rhs += perm_next[m].into() * mult_next;
         } else {
-            phi_0 -= AB::ExprEF::from_base(mult_local) * perm_local[m];
-            rhs -= AB::ExprEF::from_base(mult_next) * perm_next[m];
+            phi_0 -= perm_local[m].into() * mult_local;
+            rhs -= perm_next[m].into() * mult_next;
         }
     }
 

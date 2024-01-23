@@ -3,13 +3,13 @@ mod prove;
 mod tracer;
 
 pub use logger::*;
+use p3_uni_stark::StarkConfig;
 pub use prove::*;
 pub use tracer::*;
 
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_uni_stark::StarkConfig;
 
 use crate::{
     cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord},

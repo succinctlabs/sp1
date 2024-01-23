@@ -1,5 +1,6 @@
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
+
 use p3_uni_stark::StarkConfig;
 
 type Val<SC> = <SC as StarkConfig>::Val;

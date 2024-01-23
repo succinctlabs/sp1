@@ -12,10 +12,10 @@ use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::PackedField;
 use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
 use p3_field::{PrimeField32, TwoAdicField};
-use p3_matrix::strided::VerticallyStridedMatrixView;
-use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices, MatrixRows};
-use p3_maybe_rayon::*;
-use p3_uni_stark::StarkConfig;
+use p3_matrix::MatrixRows;
+use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
+use p3_maybe_rayon::prelude::*;
+
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 
@@ -24,6 +24,7 @@ use super::permutation::eval_permutation_constraints;
 use super::types::*;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
+use p3_uni_stark::StarkConfig;
 
 pub(crate) struct Prover<SC>(PhantomData<SC>);
 
@@ -138,13 +139,23 @@ impl<SC: StarkConfig> Prover<SC> {
         challenger.observe(permutation_commit.clone());
 
         // For each chip, compute the quotient polynomial.
-        let main_ldes = tracing::debug_span!("get main ldes")
-            .in_scope(|| config.pcs().get_ldes(&main_data.main_data));
-        let permutation_ldes = tracing::debug_span!("get perm ldes")
-            .in_scope(|| config.pcs().get_ldes(&permutation_data))
-            .into_iter()
-            .map(|lde| lde.vertically_strided(SC::Challenge::D, 0))
-            .collect::<Vec<_>>();
+        let log_stride_for_quotient = config.pcs().log_blowup() - log_quotient_degree;
+        let main_ldes = tracing::debug_span!("get main ldes").in_scope(|| {
+            config
+                .pcs()
+                .get_ldes(&main_data.main_data)
+                .into_iter()
+                .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
+                .collect::<Vec<_>>()
+        });
+        let permutation_ldes = tracing::debug_span!("get perm ldes").in_scope(|| {
+            config
+                .pcs()
+                .get_ldes(&permutation_data)
+                .into_iter()
+                .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
+                .collect::<Vec<_>>()
+        });
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
@@ -332,7 +343,7 @@ impl<SC: StarkConfig> Prover<SC> {
         degree_bits: usize,
         quotient_degree_bits: usize,
         main_lde: &Mat,
-        permutation_lde: &VerticallyStridedMatrixView<Mat>,
+        permutation_lde: &Mat,
         perm_challenges: &[SC::Challenge],
         alpha: SC::Challenge,
     ) -> Vec<SC::Challenge>
@@ -360,9 +371,12 @@ impl<SC: StarkConfig> Prover<SC> {
         let lagrange_first_evals = zerofier_on_coset.lagrange_basis_unnormalized(0);
         let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
 
+        let ext_degree = SC::Challenge::D;
+
         (0..quotient_size)
+            .into_par_iter()
             .step_by(SC::PackedVal::WIDTH)
-            .flat_map(|i_local_start| {
+            .flat_map_iter(|i_local_start| {
                 let wrap = |i| i % quotient_size;
                 let i_next_start = wrap(i_local_start + next_step);
                 let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
@@ -391,6 +405,7 @@ impl<SC: StarkConfig> Prover<SC> {
                     .collect();
 
                 let perm_local: Vec<_> = (0..permutation_lde.width())
+                    .step_by(ext_degree)
                     .map(|col| {
                         SC::PackedChallenge::from_base_fn(|i| {
                             SC::PackedVal::from_fn(|offset| {
@@ -402,6 +417,7 @@ impl<SC: StarkConfig> Prover<SC> {
                     .collect();
 
                 let perm_next: Vec<_> = (0..permutation_lde.width())
+                    .step_by(ext_degree)
                     .map(|col| {
                         SC::PackedChallenge::from_base_fn(|i| {
                             SC::PackedVal::from_fn(|offset| {

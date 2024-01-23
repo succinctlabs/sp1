@@ -1501,7 +1501,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1510,7 +1510,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "rand",
@@ -1520,7 +1520,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "p3-symmetric",
@@ -1529,7 +1529,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1540,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1551,7 +1551,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "itertools 0.12.0",
  "p3-util",
@@ -1562,7 +1562,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "itertools 0.12.0",
  "p3-challenger",
@@ -1579,7 +1579,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1590,7 +1590,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1600,7 +1600,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1609,7 +1609,7 @@ dependencies = [
 [[package]]
 name = "p3-ldt"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "itertools 0.12.0",
  "p3-challenger",
@@ -1626,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1638,7 +1638,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "rayon",
 ]
@@ -1646,7 +1646,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1662,7 +1662,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "itertools 0.12.0",
  "p3-commit",
@@ -1678,7 +1678,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "criterion",
  "itertools 0.12.0",
@@ -1694,7 +1694,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1708,7 +1708,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "itertools 0.12.0",
  "p3-field",
@@ -1717,7 +1717,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "itertools 0.12.0",
  "p3-air",
@@ -1735,7 +1735,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/perm_builder#c15e1b64d11f7ad79f159d013496d7ab97af9c71"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/upstream-jan-23#8fa390fbdaa49945a99c05dfcda4f449d096279a"
 dependencies = [
  "serde",
 ]
@@ -2902,7 +2902,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 [[package]]
 name = "valida-derive"
 version = "0.1.0"
-source = "git+https://github.com/valida-xyz/valida.git#50f0505e336a1d5988b6d9075da4ca22c682986c"
+source = "git+https://github.com/valida-xyz/valida.git#301943132f1e9fa4c1dd109752add72888b7747e"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -24,7 +24,6 @@ pub fn prove(program: Program) {
     type Val = BabyBear;
     type Domain = Val;
     type Challenge = BinomialExtensionField<Val, 4>;
-    type ExtChallenge = BinomialExtensionField<Challenge, 4>;
     type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
     type MyMds = CosetMds<Val, 16>;
@@ -52,7 +51,7 @@ pub fn prove(program: Program) {
 
     type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
     type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    let fri_config = MyFriConfig::new(40, challenge_mmcs);
+    let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
     let ldt = FriLdt { config: fri_config };
 
     type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

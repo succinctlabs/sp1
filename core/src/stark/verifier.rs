@@ -8,13 +8,14 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
-use p3_uni_stark::StarkConfig;
+
 use p3_util::log2_ceil_usize;
+use p3_util::reverse_slice_index_bits;
 use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
-use super::permutation::eval_permutation_constraints;
 use super::types::*;
+use p3_uni_stark::StarkConfig;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
@@ -25,7 +26,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         chips: &[Box<dyn AirChip<SC>>],
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
-    ) -> Result<(), VerificationError<SC>> {
+    ) -> Result<(), VerificationError> {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
@@ -37,7 +38,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         let SegmentProof {
             commitment,
             opened_values,
-            commulative_sums: _,
+            commulative_sums,
             openning_proof,
             degree_bits,
         } = proof;
@@ -116,17 +117,59 @@ impl<SC: StarkConfig> Verifier<SC> {
                 openning_proof,
                 challenger,
             )
-            .map_err(|e| VerificationError::InvalidOpenningArgument(e))?;
+            .map_err(|_| VerificationError::InvalidOpenningArgument)?;
 
         // Verify the constrtaint evaluations.
+        let SegmentOpenedValues {
+            main,
+            permutation,
+            quotient,
+        } = opened_values;
+        for (
+            (
+                (
+                    (((chip, main_openning), permutation_openning), quotient_openning),
+                    commulative_sum,
+                ),
+                log_degree,
+            ),
+            g,
+        ) in chips
+            .iter()
+            .zip(main.iter())
+            .zip(permutation.iter())
+            .zip(quotient.iter())
+            .zip(commulative_sums.iter())
+            .zip(degree_bits.iter())
+            .zip(g_subgroups.iter())
+        {
+            Self::verify_constraints(
+                chip.as_ref(),
+                main_openning,
+                permutation_openning,
+                quotient_openning,
+                *commulative_sum,
+                *log_degree,
+                *g,
+                zeta,
+                alpha,
+                &permutation_challenges,
+            )
+            .map_err(|_| {
+                VerificationError::OodEvaluationMismatch(format!(
+                    "Odd Evaluation mismatch on chip {}",
+                    chip.name()
+                ))
+            })?;
+        }
 
         Ok(())
     }
 
-    #[inline]
     #[allow(clippy::too_many_arguments)]
+    #[allow(unused_variables)]
+    // TODO! fix this
     fn verify_constraints<C>(
-        config: &SC,
         chip: &C,
         main_openning: &AirOpenedValues<SC::Challenge>,
         permutation_openning: &AirOpenedValues<SC::Challenge>,
@@ -139,7 +182,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         permutation_challenges: &[SC::Challenge],
     ) -> Result<(), OodEvaluationMismatch>
     where
-        C: AirChip<SC>,
+        C: AirChip<SC> + ?Sized,
     {
         let z_h = zeta.exp_power_of_2(log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
@@ -148,19 +191,27 @@ impl<SC: StarkConfig> Verifier<SC> {
 
         // Reconstruct the prmutation openning values as extention elements.
         let monomials = (0..SC::Challenge::D)
-            .map(|i| SC::Challenge::monomial(i))
+            .map(SC::Challenge::monomial)
             .collect::<Vec<_>>();
         let embed = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
-                .map(|slice| {
-                    slice
-                        .into_iter()
+                .map(|chunk| {
+                    chunk
+                        .iter()
                         .zip(monomials.iter())
                         .map(|(x, m)| *x * *m)
-                        .sum::<SC::Challenge>()
+                        .sum()
                 })
                 .collect::<Vec<SC::Challenge>>()
         };
+
+        let mut quotient_parts = embed(quotient_openning);
+        reverse_slice_index_bits(&mut quotient_parts);
+        let quotient: SC::Challenge = zeta
+            .powers()
+            .zip(quotient_parts)
+            .map(|(weight, part)| part * weight)
+            .sum();
 
         let perm_openning = AirOpenedValues {
             local: embed(&permutation_openning.local),
@@ -188,21 +239,15 @@ impl<SC: StarkConfig> Verifier<SC> {
             accumulator: SC::Challenge::zero(),
         };
         chip.eval(&mut folder);
-        eval_permutation_constraints(chip, &mut folder, commulative_sum);
+        // eval_permutation_constraints(chip, &mut folder, commulative_sum);
 
-        Ok(())
+        let folded_constraints = folder.accumulator;
+
+        match folded_constraints == z_h * quotient {
+            true => Ok(()),
+            false => Err(OodEvaluationMismatch),
+        }
     }
-
-    // fn verify_constraints<A>(
-    //     config: &SC,
-    //     air: &A,
-    //     openning: AirOpenedValues,
-    // ) -> Result<(), VerificationError<SC>>
-    // where
-    //     A: for<'a> Air<VerifierConstraintFolder<'a, Challenge<SC>>> + ?Sized,
-    // {
-    //     Ok(())
-    // }
 
     // fn verify_proof_shape(chips: &[Box<dyn AirChip<SC>>], proof: &SegmentProof<SC>) {}
 }
@@ -214,8 +259,9 @@ pub enum ProofShapeError {
 
 pub struct OodEvaluationMismatch;
 
-pub enum VerificationError<SC: StarkConfig> {
+#[derive(Debug)]
+pub enum VerificationError {
     InvalidProofShape(ProofShapeError),
-    InvalidOpenningArgument(OpenningError<SC>),
-    OodEvaluationMismatch,
+    InvalidOpenningArgument,
+    OodEvaluationMismatch(String),
 }

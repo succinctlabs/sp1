@@ -1,9 +1,11 @@
 use itertools::izip;
 use p3_field::{AbstractExtensionField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::*;
-use p3_uni_stark::StarkConfig;
+use p3_maybe_rayon::prelude::*;
+
 use p3_util::log2_strict_usize;
+
+use p3_uni_stark::StarkConfig;
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
