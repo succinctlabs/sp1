@@ -12,8 +12,11 @@ pub fn shr_carry(input: u8, rotation: u8) -> (u8, u8) {
 
 /// Computes a < b and returns the result as a u8.
 pub fn lt(b: u8, c: u8) -> u8 {
-    let res = if b < c { 1 } else { 0 };
-    res
+    if b < c {
+        1
+    } else {
+        0
+    }
 }
 
 #[cfg(test)]
