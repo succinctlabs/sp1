@@ -36,6 +36,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
+use crate::operations::WordRangeOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -165,13 +166,14 @@ impl<F: PrimeField> Chip<F> for MulChip {
             // Calculate the correct product using the `product` array. We
             // store the correct carry value for verification.
             let base = 1 << BYTE_SIZE;
+            let mut carry = [0u32; PRODUCT_SIZE];
             for i in 0..PRODUCT_SIZE {
-                let carry = product[i] / base;
+                carry[i] = product[i] / base;
                 product[i] %= base;
                 if i + 1 < PRODUCT_SIZE {
-                    product[i + 1] += carry;
+                    product[i + 1] += carry[i];
                 }
-                cols.carry[i] = F::from_canonical_u32(carry);
+                cols.carry[i] = F::from_canonical_u32(carry[i]);
             }
 
             cols.product = product.map(F::from_canonical_u32);
@@ -183,6 +185,29 @@ impl<F: PrimeField> Chip<F> for MulChip {
             cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
             cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
             cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+
+            // Range check operations.
+            {
+                WordRangeOperation::<F>::populate(segment, event.a);
+                WordRangeOperation::<F>::populate(segment, event.b);
+                WordRangeOperation::<F>::populate(segment, event.c);
+                for long_word in [carry, product].iter() {
+                    let first_half = [
+                        long_word[0] as u8,
+                        long_word[1] as u8,
+                        long_word[2] as u8,
+                        long_word[3] as u8,
+                    ];
+                    let second_half = [
+                        long_word[4] as u8,
+                        long_word[5] as u8,
+                        long_word[6] as u8,
+                        long_word[7] as u8,
+                    ];
+                    WordRangeOperation::<F>::populate_from_le_bytes(segment, first_half);
+                    WordRangeOperation::<F>::populate_from_le_bytes(segment, second_half);
+                }
+            }
 
             rows.push(row);
         }
@@ -341,9 +366,36 @@ where
                 + local.is_mulhsu * mulhsu
         };
 
+        // Range check.
+        {
+            let words = [local.a, local.b, local.c];
+            for word in words.iter() {
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    word.map(|x| x.into()),
+                    local.is_real.into(),
+                );
+            }
+
+            let long_words = [local.carry, local.product];
+            for long_word in long_words.iter() {
+                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    Word(first_half.map(|x| x.into())),
+                    local.is_real.into(),
+                );
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    Word(second_half.map(|x| x.into())),
+                    local.is_real.into(),
+                );
+            }
+        }
+
         // Receive the arguments.
         builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
-        // TODO: Range check the carry column.
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(
