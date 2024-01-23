@@ -34,6 +34,7 @@ pub struct EdAddEvent {
     pub p: [u32; 16],
     pub q_ptr: u32,
     pub q: [u32; 16],
+    pub q_ptr_record: MemoryRecord,
     pub p_memory_records: [MemoryRecord; 16],
     pub q_memory_records: [MemoryRecord; 16],
 }
@@ -54,6 +55,7 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
+    pub q_ptr_access: MemoryAccessCols<T>,
     pub p_access: [MemoryAccessCols<T>; 16],
     pub q_access: [MemoryAccessCols<T>; 16],
     pub(crate) x3_numerator: FpInnerProductCols<T>,
@@ -126,9 +128,13 @@ impl EdAddAssignChip {
         let a0 = Register::X10;
         let a1 = Register::X11;
 
-        let NB_ED_ADD_CYCLES = 132_u32;
+        let NB_ED_ADD_CYCLES = 8;
 
+        // We have to forward the clk because the memory access in the CPU table should end at that clk cycle
         rt.clk += NB_ED_ADD_CYCLES;
+
+        // These reads are happening in the CPU table
+        // So we have to make sure that it's set up properly for the ecall
 
         let opcode = rt.rr(t0, AccessPosition::A);
         println!(
@@ -158,9 +164,8 @@ impl EdAddAssignChip {
 
         rt.clk -= NB_ED_ADD_CYCLES;
 
-        rt.clk += 4;
-
         let q_ptr = rt.rr(a1, AccessPosition::C);
+        let q_ptr_record = *rt.record.c.as_ref().unwrap();
 
         let mut p = [0; 16];
         for (i, item) in p.iter_mut().enumerate() {
@@ -179,8 +184,8 @@ impl EdAddAssignChip {
                 q_ptr + (i as u32) * 4,
                 rt.clk
             );
-            rt.clk += 4;
         }
+        rt.clk += 4;
 
         let p_bytes: [u8; 64] = unsafe { std::mem::transmute(p) };
         let q_bytes: [u8; 64] = unsafe { std::mem::transmute(q) };
@@ -216,8 +221,10 @@ impl EdAddAssignChip {
 
         for i in 0..8 {
             let u32_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-            let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
-            rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
+
+            // let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
+            let u32_value = u32::from_le_bytes(u32_array);
+            let prev_value = rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
             println!(
                 "read: ({}, {}, {}, {})",
                 rt.record.memory.unwrap().timestamp,
@@ -225,13 +232,17 @@ impl EdAddAssignChip {
                 p_ptr + (i as u32) * 4,
                 rt.clk
             );
+            let prev_value_bytes = prev_value.to_le_bytes();
+            println!("prev_value_bytes: {:?}", prev_value_bytes);
+            println!("new bytes: {:?}", u32_array);
             rt.mw(p_ptr + (i as u32) * 4, u32_value, AccessPosition::Memory);
             p_memory_records[i] = *rt.record.memory.as_ref().unwrap();
-            rt.clk += 4;
         }
+        // panic!();
         for i in 0..8 {
             let u32_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-            let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
+            // let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
+            let u32_value = u32::from_le_bytes(u32_array);
             rt.mr(p_ptr + (i as u32 + 8) * 4, AccessPosition::Memory);
             println!(
                 "read: ({}, {}, {}, {})",
@@ -246,8 +257,8 @@ impl EdAddAssignChip {
                 AccessPosition::Memory,
             );
             p_memory_records[8 + i] = *rt.record.memory.as_ref().unwrap();
-            rt.clk += 4;
         }
+        rt.clk += 4;
 
         rt.segment.ed_add_events.push(EdAddEvent {
             clk: rt.clk - NB_ED_ADD_CYCLES,
@@ -255,6 +266,7 @@ impl EdAddAssignChip {
             p,
             q_ptr,
             q,
+            q_ptr_record,
             p_memory_records,
             q_memory_records,
         });
@@ -289,7 +301,7 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
                 let q_record = MemoryRecord {
                     value: event.q[i],
                     segment: segment.index,
-                    timestamp: event.clk + 4 * (i as u32 + 1),
+                    timestamp: event.clk,
                 };
                 self.populate_access(
                     &mut cols.q_access[i],
@@ -297,6 +309,8 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
                     Some(event.q_memory_records[i]),
                     &mut new_field_events,
                 );
+                println!("q record prev {} {:?}", i, event.q_memory_records[i]);
+                println!("q record {} {:?}", i, q_record);
             }
             let p = &event.p;
             let q = &event.q;
@@ -343,11 +357,12 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
             let y3_limbs = y3_ins.to_bytes_le();
             for i in 0..8 {
                 let x3_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-                let x3_value: u32 = unsafe { std::mem::transmute(x3_array) };
+                // let x3_value: u32 = unsafe { std::mem::transmute(x3_array) };
+                let x3_value = u32::from_le_bytes(x3_array);
                 let x3_write_record = MemoryRecord {
                     value: x3_value,
                     segment: segment.index,
-                    timestamp: event.clk + 4 * (i as u32 + 17),
+                    timestamp: event.clk + 4,
                 };
                 self.populate_access(
                     &mut cols.p_access[i],
@@ -356,11 +371,12 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
                     &mut new_field_events,
                 );
                 let y3_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-                let y3_value: u32 = unsafe { std::mem::transmute(y3_array) };
+                // let y3_value: u32 = unsafe { std::mem::transmute(y3_array) };
+                let y3_value = u32::from_le_bytes(y3_array);
                 let y3_write_record = MemoryRecord {
                     value: y3_value,
                     segment: segment.index,
-                    timestamp: event.clk + 4 * (i as u32 + 25),
+                    timestamp: event.clk + 4,
                 };
                 self.populate_access(
                     &mut cols.p_access[8 + i],
@@ -372,12 +388,12 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
             let q_ptr_record = MemoryRecord {
                 value: event.q_ptr,
                 segment: segment.index,
-                timestamp: event.clk + 4,
+                timestamp: event.clk + 1,
             };
             self.populate_access(
-                &mut cols.q_access[0],
+                &mut cols.q_ptr_access,
                 q_ptr_record,
-                Some(event.q_memory_records[0]),
+                Some(event.q_ptr_record),
                 &mut new_field_events,
             );
 
@@ -472,18 +488,25 @@ where
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.segment,
-                row.clk + AB::F::from_canonical_u32((i + 1) * 4),
+                row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
                 row.q_access[i as usize],
                 row.is_real,
             );
             builder.constraint_memory_access(
                 row.segment,
-                row.clk + AB::F::from_canonical_u32((i + 17) * 4),
+                row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
                 row.p_access[i as usize],
                 row.is_real,
             );
         }
+        builder.constraint_memory_access(
+            row.segment,
+            row.clk + AB::F::from_canonical_u32(1), // clk + 0 -> C
+            AB::F::from_canonical_u32(11),
+            row.q_ptr_access,
+            row.is_real,
+        );
     }
 }

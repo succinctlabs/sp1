@@ -952,7 +952,6 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.0"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
 dependencies = [
  "curve25519-dalek",
  "ed25519 2.2.3",
@@ -960,6 +959,15 @@ dependencies = [
  "sha2 0.10.8",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "ed_add"
+version = "0.1.0"
+dependencies = [
+ "curta-zkvm",
+ "hex-literal",
+ "num",
 ]
 
 [[package]]

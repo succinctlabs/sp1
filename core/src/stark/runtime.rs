@@ -61,10 +61,10 @@ impl Runtime {
             Box::new(mul),
             Box::new(shift_right),
             Box::new(shift_left),
-            Box::new(lt),
             Box::new(sha_extend),
             Box::new(sha_compress),
             Box::new(ed_add),
+            Box::new(lt),
             Box::new(field),
             Box::new(bytes),
         ]

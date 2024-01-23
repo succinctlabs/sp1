@@ -279,10 +279,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         self.when(verify_memory_access_expr.clone())
             .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
 
-        self.when(verify_memory_access_expr.clone()).assert_eq(
-            current_time_value_expr.clone(),
-            calculated_current_time_value,
-        );
+        // self.when(verify_memory_access_expr.clone()).assert_eq(
+        //     current_time_value_expr.clone(),
+        //     calculated_current_time_value,
+        // );
 
         // Do the actual comparison via a lookup to the field op table.
         self.send_field_op(

@@ -38,3 +38,4 @@ time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
 
 [patch."https://github.com/dalek-cryptography/curve25519-dalek.git"]
 curve25519-dalek = { path = "../dalek-private/curve25519-dalek" }
+ed25519-dalek = { path = "../dalek-private/ed25519-dalek" }
