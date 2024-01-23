@@ -73,7 +73,7 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
+use crate::operations::{IsEqualWordOperation, IsZeroWordOperation, WordRangeOperation};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -220,6 +220,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
+
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -293,12 +294,15 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 };
 
                 // Add remainder to product.
-                let mut carry = 0u32;
+                let mut carry = [0u8; 8];
                 let base = 1 << BYTE_SIZE;
                 for i in 0..LONG_WORD_SIZE {
-                    let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
-                    carry = x / base;
-                    cols.carry[i] = F::from_canonical_u32(carry);
+                    let mut x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32;
+                    if i > 0 {
+                        x += carry[i - 1] as u32;
+                    }
+                    carry[i] = (x / base) as u8;
+                    cols.carry[i] = F::from_canonical_u8(carry[i]);
                 }
 
                 // Insert the necessary multiplication & LT events.
@@ -361,7 +365,33 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     };
                     segment.lt_events.push(lt_event);
                 }
+
+                // Range check.
+                {
+                    WordRangeOperation::<F>::populate(segment, event.a);
+                    WordRangeOperation::<F>::populate(segment, event.b);
+                    WordRangeOperation::<F>::populate(segment, event.c);
+                    WordRangeOperation::<F>::populate(segment, quotient);
+                    WordRangeOperation::<F>::populate(segment, remainder);
+                    WordRangeOperation::<F>::populate_from_le_bytes(
+                        segment,
+                        c_times_quotient[0..4].try_into().unwrap(),
+                    );
+                    WordRangeOperation::<F>::populate_from_le_bytes(
+                        segment,
+                        c_times_quotient[4..8].try_into().unwrap(),
+                    );
+                    WordRangeOperation::<F>::populate_from_le_bytes(
+                        segment,
+                        carry[0..4].try_into().unwrap(),
+                    );
+                    WordRangeOperation::<F>::populate_from_le_bytes(
+                        segment,
+                        carry[4..8].try_into().unwrap(),
+                    );
+                }
             }
+
             rows.push(row);
         }
 
@@ -731,18 +761,29 @@ where
         // TODO: Range check all the bytes.
         {
             let words = [local.a, local.b, local.c, local.quotient, local.remainder];
-            let long_words = [local.c_times_quotient, local.carry];
 
             for word in words.iter() {
-                for _byte in word.0.iter() {
-                    // byte must be in [0, 255].
-                }
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    word.map(|x| x.into()),
+                    local.is_real.into(),
+                );
             }
 
+            let long_words = [local.c_times_quotient, local.carry];
             for long_word in long_words.iter() {
-                for _byte in long_word.iter() {
-                    // byte must be in [0, 255].
-                }
+                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    Word(first_half.map(|x| x.into())),
+                    local.is_real.into(),
+                );
+                WordRangeOperation::<AB::F>::eval(
+                    builder,
+                    Word(second_half.map(|x| x.into())),
+                    local.is_real.into(),
+                );
             }
         }
 
