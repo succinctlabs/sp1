@@ -8,33 +8,31 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
-use crate::bytes::ByteOpcode;
-use crate::runtime::Segment;
 use p3_field::AbstractField;
 
-/// A set of columns needed to compute the add of five words.
+/// A set of columns needed to compute the sum of five words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Add5Operation<T> {
     /// The result of `a + b + c + d + e`.
     pub value: Word<T>,
 
-    /// Indicates if the carry for the `i`th digit is 0.
+    /// Indicates if the carry for the `i`th limb is 0.
     pub is_carry_0: Word<T>,
 
-    /// Indicates if the carry for the `i`th digit is 1.
+    /// Indicates if the carry for the `i`th limb is 1.
     pub is_carry_1: Word<T>,
 
-    /// Indicates if the carry for the `i`th digit is 2.
+    /// Indicates if the carry for the `i`th limb is 2.
     pub is_carry_2: Word<T>,
 
-    /// Indicates if the carry for the `i`th digit is 3.
+    /// Indicates if the carry for the `i`th limb is 3.
     pub is_carry_3: Word<T>,
 
-    /// Indicates if the carry for the `i`th digit is 4. The carry when adding 5 words is at most 4.
+    /// Indicates if the carry for the `i`th limb is 4. The carry when adding 5 words is at most 4.
     pub is_carry_4: Word<T>,
 
-    /// The carry for the `i`th digit.
+    /// The carry for the `i`th limb.
     pub carry: Word<T>,
 }
 
@@ -78,11 +76,7 @@ impl<F: Field> Add5Operation<F> {
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Var>,
-        b: Word<AB::Var>,
-        c: Word<AB::Var>,
-        d: Word<AB::Var>,
-        e: Word<AB::Var>,
+        words: &[Word<AB::Var>; 5],
         is_real: AB::Var,
         cols: Add5Operation<AB::Var>,
     ) {
@@ -119,9 +113,9 @@ impl<F: Field> Add5Operation<F> {
                 builder_is_real.assert_eq(
                     cols.carry[i],
                     cols.is_carry_1[i] * one.clone()
-                        + cols.is_carry_2[i] * two.clone()
-                        + cols.is_carry_3[i] * three.clone()
-                        + cols.is_carry_4[i] * four.clone(),
+                        + cols.is_carry_2[i] * two
+                        + cols.is_carry_3[i] * three
+                        + cols.is_carry_4[i] * four,
                 );
             }
         }
@@ -132,15 +126,21 @@ impl<F: Field> Add5Operation<F> {
             // For each limb, assert that difference between the carried result and the non-carried
             // result is the product of carry and base.
             for i in 0..WORD_SIZE {
-                let mut overflow = a[i] + b[i] + c[i] + d[i] + e[i] - cols.value[i];
+                let mut overflow: AB::Expr = AB::F::zero().into();
+                for word in words {
+                    overflow += word[i].into();
+                }
+                overflow -= cols.value[i].into();
+
+                overflow -= cols.carry[i] * base;
                 if i > 0 {
                     overflow += cols.carry[i - 1].into();
                 }
-                builder_is_real.assert_eq(cols.carry[i].clone() * base, overflow.clone());
+                builder_is_real.assert_eq(cols.carry[i] * base, overflow.clone());
             }
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
+        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
 }
