@@ -20,6 +20,12 @@ use crate::runtime::{Program, Runtime};
 #[cfg(not(feature = "perf"))]
 use crate::lookup::debug_interactions_with_all_chips;
 
+pub fn get_cycles(program: Program) -> u64 {
+    let mut runtime = Runtime::new(program);
+    runtime.run();
+    (runtime.global_clk / 4) as u64
+}
+
 pub fn prove(program: Program) {
     type Val = BabyBear;
     type Domain = Val;
