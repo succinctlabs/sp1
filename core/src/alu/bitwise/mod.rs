@@ -61,9 +61,22 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
             cols.a = Word(a.map(F::from_canonical_u8));
             cols.b = Word(b.map(F::from_canonical_u8));
             cols.c = Word(c.map(F::from_canonical_u8));
-            WordRangeOperation::<F>::populate(segment, event.a);
-            WordRangeOperation::<F>::populate(segment, event.b);
-            WordRangeOperation::<F>::populate(segment, event.c);
+
+            segment.add_byte_lookup_events({
+                let mut events = vec![];
+                for word in [a, b, c].iter() {
+                    for byte_pair in word.chunks_exact(2) {
+                        events.push(ByteLookupEvent {
+                            opcode: ByteOpcode::Range,
+                            a1: 0,
+                            a2: 0,
+                            b: byte_pair[0],
+                            c: byte_pair[1],
+                        });
+                    }
+                }
+                events
+            });
 
             cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
             cols.is_or = F::from_bool(event.opcode == Opcode::OR);
@@ -132,9 +145,9 @@ where
         }
 
         // Check that each limb of a, b, c is a byte.
-        WordRangeOperation::<AB::F>::eval(builder, local.a.map(|x| x.into()), mult.clone());
-        WordRangeOperation::<AB::F>::eval(builder, local.b.map(|x| x.into()), mult.clone());
-        WordRangeOperation::<AB::F>::eval(builder, local.c.map(|x| x.into()), mult.clone());
+        builder.range_check_word(local.a, mult.clone());
+        builder.range_check_word(local.b, mult.clone());
+        builder.range_check_word(local.c, mult.clone());
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         #[allow(clippy::eq_op)]
