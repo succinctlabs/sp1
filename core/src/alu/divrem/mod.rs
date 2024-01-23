@@ -368,27 +368,32 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 // Range check.
                 {
-                    WordRangeOperation::<F>::populate(segment, event.a);
-                    WordRangeOperation::<F>::populate(segment, event.b);
-                    WordRangeOperation::<F>::populate(segment, event.c);
-                    WordRangeOperation::<F>::populate(segment, quotient);
-                    WordRangeOperation::<F>::populate(segment, remainder);
-                    WordRangeOperation::<F>::populate_from_le_bytes(
-                        segment,
-                        c_times_quotient[0..4].try_into().unwrap(),
-                    );
-                    WordRangeOperation::<F>::populate_from_le_bytes(
-                        segment,
-                        c_times_quotient[4..8].try_into().unwrap(),
-                    );
-                    WordRangeOperation::<F>::populate_from_le_bytes(
-                        segment,
-                        carry[0..4].try_into().unwrap(),
-                    );
-                    WordRangeOperation::<F>::populate_from_le_bytes(
-                        segment,
-                        carry[4..8].try_into().unwrap(),
-                    );
+                    segment.add_byte_lookup_events({
+                        let mut events = vec![];
+                        for word in [quotient, remainder].iter() {
+                            for byte_pair in word.to_le_bytes().chunks_exact(2) {
+                                events.push(ByteLookupEvent {
+                                    opcode: ByteOpcode::Range,
+                                    a1: 0,
+                                    a2: 0,
+                                    b: byte_pair[0],
+                                    c: byte_pair[1],
+                                });
+                            }
+                        }
+                        for word in [c_times_quotient, carry].iter() {
+                            for byte_pair in word.chunks_exact(2) {
+                                events.push(ByteLookupEvent {
+                                    opcode: ByteOpcode::Range,
+                                    a1: 0,
+                                    a2: 0,
+                                    b: byte_pair[0],
+                                    c: byte_pair[1],
+                                });
+                            }
+                        }
+                        events
+                    });
                 }
             }
 
@@ -760,30 +765,15 @@ where
 
         // Range check all the bytes.
         {
-            let words = [local.a, local.b, local.c, local.quotient, local.remainder];
-
-            for word in words.iter() {
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    word.map(|x| x.into()),
-                    local.is_real.into(),
-                );
-            }
+            builder.range_check_word(local.quotient, local.is_real);
+            builder.range_check_word(local.remainder, local.is_real);
 
             let long_words = [local.c_times_quotient, local.carry];
             for long_word in long_words.iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(first_half.map(|x| x.into())),
-                    local.is_real.into(),
-                );
-                WordRangeOperation::<AB::F>::eval(
-                    builder,
-                    Word(second_half.map(|x| x.into())),
-                    local.is_real.into(),
-                );
+                builder.range_check_word(Word(first_half), local.is_real);
+                builder.range_check_word(Word(second_half), local.is_real);
             }
         }
 
