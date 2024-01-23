@@ -15,6 +15,9 @@ pub const SHA_EXTEND: u32 = 102;
 /// Executes `SHA_COMPRESS`.
 pub const SHA_COMPRESS: u32 = 103;
 
+/// Executes `KECCAK_PERMUTE`.
+pub const KECCAK_PERMUTE: u32 = 104;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -91,7 +94,7 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_keccak256_compress(state: *mut u32) {
+pub extern "C" fn syscall_keccak256_permute(state: *mut u64) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
@@ -100,9 +103,6 @@ pub extern "C" fn syscall_keccak256_compress(state: *mut u32) {
             in("a0") state
         );
     }
-
-    #[cfg(not(target_os = "zkvm"))]
-    unreachable!()
 }
 
 #[no_mangle]

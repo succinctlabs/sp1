@@ -49,10 +49,10 @@ impl KeccakPermuteChip {
         // Temporarily set the clock to the number of cycles it takes to perform
         // this precompile as reading `(pre|post)image_ptr` happens on this clock.
         rt.clk += NB_KECCAK_PERMUTE_CYCLES;
-        let preimage_ptr = rt.register(a0);
+        let state_ptr = rt.register(a0);
 
         // Set the CPU table values with some dummy values.
-        let (fa, fb, fc) = (preimage_ptr, rt.rr(t0, AccessPosition::B), 0);
+        let (fa, fb, fc) = (state_ptr, rt.rr(t0, AccessPosition::B), 0);
         rt.rw(a0, fa);
 
         // We'll save the current record and restore it later so that the CPU
@@ -64,21 +64,21 @@ impl KeccakPermuteChip {
         rt.clk -= NB_KECCAK_PERMUTE_CYCLES;
 
         let saved_clk = rt.clk;
-        let saved_preimage_ptr = preimage_ptr;
+        let saved_preimage_ptr = state_ptr;
         let mut preimage_read_records = Vec::new();
         let mut postimage_write_records = Vec::new();
 
         // Read `preimage_ptr` from register a0 or x5.
-        let mut preimage = Vec::new();
+        let mut state = Vec::new();
         for i in (0..(25 * 2)).step_by(2) {
-            let most_sig = rt.mr(preimage_ptr + i * 4, AccessPosition::Memory);
+            let least_sig = rt.mr(state_ptr + i * 4, AccessPosition::Memory);
             preimage_read_records.push(rt.record.memory);
-            let least_sig = rt.mr(preimage_ptr + (i + 1) * 4, AccessPosition::Memory);
+            let most_sig = rt.mr(state_ptr + (i + 1) * 4, AccessPosition::Memory);
             preimage_read_records.push(rt.record.memory);
-            preimage.push(least_sig as u64 + ((most_sig as u64) << 32));
+            state.push(least_sig as u64 + ((most_sig as u64) << 32));
         }
 
-        let saved_preimage = preimage.clone();
+        let saved_preimage = state.clone();
 
         for i in 0..NUM_ROUNDS {
             let mut array: [u64; 5 * 5] = [0; 5 * 5];
@@ -87,22 +87,22 @@ impl KeccakPermuteChip {
             for x in 0..5 {
                 for y_count in 0..5 {
                     let y = y_count * 5;
-                    array[x] ^= preimage[x + y];
+                    array[x] ^= state[x + y];
                 }
             }
 
             for x in 0..5 {
                 for y_count in 0..5 {
                     let y = y_count * 5;
-                    preimage[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
+                    state[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
                 }
             }
 
             // Rho and pi
-            let mut last = preimage[1];
+            let mut last = state[1];
             for x in 0..24 {
-                array[0] = preimage[PI[x]];
-                preimage[PI[x]] = last.rotate_left(RHO[x]);
+                array[0] = state[PI[x]];
+                state[PI[x]] = last.rotate_left(RHO[x]);
                 last = array[0];
             }
 
@@ -111,31 +111,31 @@ impl KeccakPermuteChip {
                 let y = y_step * 5;
 
                 for x in 0..5 {
-                    array[x] = preimage[y + x];
+                    array[x] = state[y + x];
                 }
 
                 for x in 0..5 {
-                    preimage[y + x] = array[x] ^ ((!array[(x + 1) % 5]) & (array[(x + 2) % 5]));
+                    state[y + x] = array[x] ^ ((!array[(x + 1) % 5]) & (array[(x + 2) % 5]));
                 }
             }
 
             // Iota
-            preimage[0] ^= RC[i];
+            state[0] ^= RC[i];
         }
 
         rt.clk += NB_KECCAK_PERMUTE_CYCLES;
         for i in 0..25 {
-            let most_sig = ((preimage[i] >> 32) & 0xFFFFFFFF) as u32;
-            let least_sig = (preimage[i] & 0xFFFFFFFF) as u32;
+            let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
+            let least_sig = (state[i] & 0xFFFFFFFF) as u32;
             rt.mw(
-                preimage_ptr + (2 * i as u32) * 4,
-                most_sig,
+                state_ptr + (2 * i as u32) * 4,
+                least_sig,
                 AccessPosition::Memory,
             );
             postimage_write_records.push(rt.record.memory);
             rt.mw(
-                preimage_ptr + (2 * i as u32 + 1) * 4,
-                least_sig,
+                state_ptr + (2 * i as u32 + 1) * 4,
+                most_sig,
                 AccessPosition::Memory,
             );
             postimage_write_records.push(rt.record.memory);
