@@ -86,7 +86,7 @@ impl Segment {
         });
     }
 
-    /// Adds a `ByteLookupEvent` to verify that all the bytes in the input slice are indeed bytes.
+    /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
     pub fn add_byte_range_checks(&mut self, ls: &[u8]) {
         let mut index = 0;
         while index + 1 < ls.len() {
