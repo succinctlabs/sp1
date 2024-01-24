@@ -336,21 +336,22 @@ impl<SC: StarkConfig> Prover<SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn quotient_values<C, Mat>(
+    pub fn quotient_values<C, MainLde, PermLde>(
         config: &SC,
         chip: &C,
         commulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,
-        main_lde: &Mat,
-        permutation_lde: &Mat,
+        main_lde: &MainLde,
+        permutation_lde: &PermLde,
         perm_challenges: &[SC::Challenge],
         alpha: SC::Challenge,
     ) -> Vec<SC::Challenge>
     where
         SC: StarkConfig,
         C: AirChip<SC> + ?Sized,
-        Mat: MatrixGet<SC::Val> + Sync,
+        MainLde: MatrixGet<SC::Val> + Sync,
+        PermLde: MatrixGet<SC::Val> + Sync,
     {
         let degree = 1 << degree_bits;
         let quotient_size_bits = degree_bits + quotient_degree_bits;

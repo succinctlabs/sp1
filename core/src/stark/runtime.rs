@@ -10,6 +10,7 @@ use crate::memory::MemoryChipKind;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
+use crate::stark::Verifier;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
@@ -120,12 +121,20 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            let (debug_proof, _) = Prover::prove(
+                            let (debug_proof, proof) = Prover::prove(
                                 config,
                                 &mut challenger.clone(),
                                 &segment_chips,
                                 main_data,
                             );
+
+                            Verifier::verify(
+                                config,
+                                &segment_chips,
+                                &mut challenger.clone(),
+                                &proof,
+                            )
+                            .unwrap();
 
                             debug_proof
                         })
@@ -137,12 +146,14 @@ impl Runtime {
         let global_main_data = tracing::info_span!("commit main for global segments")
             .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            let (debug_proof, _) = Prover::prove(
+            let (debug_proof, proof) = Prover::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,
                 global_main_data,
             );
+
+            Verifier::verify(config, &global_chips, &mut challenger.clone(), &proof).unwrap();
 
             debug_proof
         });

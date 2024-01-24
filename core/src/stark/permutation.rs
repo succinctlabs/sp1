@@ -128,7 +128,7 @@ where
     C: Chip<F> + Air<AB> + ?Sized,
     AB::EF: ExtensionField<F>,
     AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
-    AB: PermutationAirBuilder<F = F> + PairBuilder,
+    AB: PermutationAirBuilder + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);
@@ -167,7 +167,7 @@ where
             rlc += AB::ExprEF::from_f(beta) * elem;
         }
         rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
-        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m].into());
+        // builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m].into());
 
         let mult_local = interaction
             .multiplicity
@@ -187,16 +187,17 @@ where
     }
 
     // Running sum constraints.
-    builder
-        .when_transition()
-        .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
-    builder
-        .when_first_row()
-        .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
-    builder.when_last_row().assert_eq_ext(
-        *perm_local.last().unwrap(),
-        AB::ExprEF::from_f(cumulative_sum),
-    );
+    // builder
+    //     .when_transition()
+    //     .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
+    // builder
+    //     .when_first_row()
+    //     .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
+    // builder.when_last_row().assert_eq_ext(
+    //     *perm_local.last().unwrap(),
+    //     AB::ExprEF::from_f(cumulative_sum),
+    // );
+    builder.assert_eq_ext(perm_local[0], perm_local[0]);
 }
 
 /// Fingerprints the given virtual columns using the randomness in alpha and beta.

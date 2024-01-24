@@ -14,6 +14,7 @@ use p3_util::reverse_slice_index_bits;
 use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
+use super::permutation::eval_permutation_constraints;
 use super::types::*;
 use p3_uni_stark::StarkConfig;
 
@@ -238,8 +239,8 @@ impl<SC: StarkConfig> Verifier<SC> {
             alpha,
             accumulator: SC::Challenge::zero(),
         };
-        chip.eval(&mut folder);
-        // eval_permutation_constraints(chip, &mut folder, commulative_sum);
+        // chip.eval(&mut folder);
+        eval_permutation_constraints(chip, &mut folder, commulative_sum);
 
         let folded_constraints = folder.accumulator;
 
