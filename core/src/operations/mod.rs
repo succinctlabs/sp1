@@ -28,7 +28,6 @@ pub use fixed_shift_right::*;
 pub use is_equal_word::*;
 pub use is_zero::*;
 pub use is_zero_word::*;
-pub use memory::*;
 pub use not::*;
 pub use or::*;
 pub use xor::*;

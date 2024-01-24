@@ -60,7 +60,7 @@ impl<'a> PrecompileRuntime<'a> {
     }
 
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        let prev_value = self.rt.memory.entry(addr).or_insert(0).clone();
+        let prev_value = *self.rt.memory.entry(addr).or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.rt.memory_access.get(&addr).cloned().unwrap_or((0, 0));
         self.rt
