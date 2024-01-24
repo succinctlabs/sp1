@@ -28,9 +28,10 @@ impl CommandExecutor for Command {
 }
 
 #[allow(clippy::useless_format)]
-pub async fn download_file(url: &str, path: &str) -> Result<(), String> {
-    let res = Client::new()
+pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(), String> {
+    let res = client
         .get(url)
+        .header("Accept", "application/octet-stream")
         .send()
         .await
         .or(Err(format!("Failed to GET from '{}'", &url)))?;
