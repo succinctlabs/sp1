@@ -7,7 +7,6 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField64;
 use p3_fri::{FriBasedPcs, FriConfigImpl};
@@ -106,12 +105,12 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 
 fn babybear_to_int(n: BabyBear) -> i32 {
     let modulus = BabyBear::ORDER_U64;
-    if n > modulus / 2 {
-        (n - modulus) as i32
+    let val = n.as_canonical_u64();
+    if val > modulus / 2 {
+        (val - modulus) as i32
     } else {
-        n as i32
+        val as i32
     }
-    result
 }
 
 /// Calculate the the number of times we send and receive each event of the given interaction type,
@@ -185,7 +184,7 @@ pub fn debug_interactions_with_all_chips(
 
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
-        if !value.is_zero() {
+        if value != 0 {
             tracing::debug!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,

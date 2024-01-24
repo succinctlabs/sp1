@@ -1,7 +1,8 @@
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::operations::field::params::FieldParameters;
+use crate::operations::field::params::NUM_LIMBS;
 use crate::utils::ec::utils::biguint_to_bits_le;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
@@ -9,8 +10,8 @@ pub mod bn254;
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
 pub trait WeierstrassParameters: EllipticCurveParameters {
-    const A: [u16; MAX_NB_LIMBS];
-    const B: [u16; MAX_NB_LIMBS];
+    const A: [u16; NUM_LIMBS];
+    const B: [u16; NUM_LIMBS];
 
     fn generator() -> (BigUint, BigUint);
 

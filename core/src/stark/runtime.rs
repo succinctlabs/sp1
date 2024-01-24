@@ -12,6 +12,8 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
+use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
@@ -49,7 +51,7 @@ impl Runtime {
         let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::new();
+        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -298,6 +300,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
+        env_logger::init();
         let program = fibonacci_program();
         prove(program);
     }

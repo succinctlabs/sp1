@@ -23,12 +23,6 @@ impl<T> Index<usize> for Limbs<T> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct AffinePoint<T> {
-    pub x: Limbs<T>,
-    pub y: Limbs<T>,
-}
-
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
 {

@@ -9,6 +9,8 @@ use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRe
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
+use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+use crate::utils::ec::edwards::EdwardsCurve;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -681,7 +683,15 @@ impl Runtime {
                         a = 0;
                     }
                     Syscall::ED_ADD => {
-                        (a, b, c) = EdAddAssignChip::execute(self);
+                        a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::execute(
+                            &mut precompile_rt,
+                        );
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(
+                            init_clk
+                                + EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::NUM_CYCLES,
+                            self.clk
+                        );
                     }
                 }
 
@@ -934,7 +944,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/ed25519")
+        Program::from_elf("../programs/ed_add")
     }
 
     pub fn ecall_lwa_program() -> Program {

@@ -14,7 +14,6 @@ pub mod alu;
 pub mod bytes;
 pub mod cpu;
 pub mod disassembler;
-pub mod ec;
 pub mod field;
 pub mod lookup;
 pub mod memory;
