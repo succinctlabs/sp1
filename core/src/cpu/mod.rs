@@ -79,8 +79,8 @@ impl MemoryReadRecord {
             value,
             segment,
             timestamp,
-            prev_segment: segment,
-            prev_timestamp: timestamp,
+            prev_segment,
+            prev_timestamp,
             _private: (),
         }
     }
@@ -106,8 +106,12 @@ impl MemoryWriteRecord {
         prev_segment: u32,
         prev_timestamp: u32,
     ) -> Self {
+        println!(
+            "{} {} {} {} {} {}",
+            value, segment, timestamp, prev_value, prev_segment, prev_timestamp
+        );
         assert!(
-            segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp))
+            segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp)),
         );
         Self {
             value,

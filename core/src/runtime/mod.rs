@@ -25,6 +25,7 @@ use p3_field::AbstractField;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AccessPosition {
     Memory = 0,
+    // C always needs to be read before B.
     C = 1,
     B = 2,
     A = 3,
@@ -193,7 +194,7 @@ impl Runtime {
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
         self.memory_access.insert(addr, (segment, clk));
         self.memory.insert(addr, value);
-
+        println!("addr {} value {}", addr, value);
         MemoryWriteRecord::new(
             value,
             segment,
@@ -226,6 +227,7 @@ impl Runtime {
     /// Write to memory.
     pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
+        println!("addr {} value {} position {:?}", addr, value, position);
 
         let record = self.mw_core(
             addr,
@@ -345,11 +347,8 @@ impl Runtime {
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
-            let (rd, b, c) = (
-                rd,
-                self.rr(rs1, AccessPosition::B),
-                self.rr(rs2, AccessPosition::C),
-            );
+            let c = self.rr(rs2, AccessPosition::C);
+            let b = self.rr(rs1, AccessPosition::B);
             (rd, b, c)
         } else if !instruction.imm_b && instruction.imm_c {
             let (rd, rs1, imm) = instruction.i_type();
@@ -387,11 +386,9 @@ impl Runtime {
     #[inline]
     fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
-        let (a, b, c) = (
-            self.rr(rs1, AccessPosition::A),
-            self.rr(rs2, AccessPosition::B),
-            imm,
-        );
+        let c = imm;
+        let b = self.rr(rs2, AccessPosition::B);
+        let a = self.rr(rs1, AccessPosition::A);
         let addr = b.wrapping_add(c);
         let memory_value = self.word(self.align(addr));
         (a, b, c, addr, memory_value)
@@ -401,11 +398,9 @@ impl Runtime {
     #[inline]
     fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
-        let (a, b, c) = (
-            self.rr(rs1, AccessPosition::A),
-            self.rr(rs2, AccessPosition::B),
-            imm,
-        );
+        let c = imm;
+        let b = self.rr(rs2, AccessPosition::B);
+        let a = self.rr(rs1, AccessPosition::A);
         (a, b, c)
     }
 
