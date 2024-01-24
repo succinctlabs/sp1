@@ -1,3 +1,4 @@
+pub mod ec;
 mod logger;
 mod prove;
 mod tracer;
@@ -49,6 +50,7 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         sends
     }
 
+    // TODO: move these to `operations`, not here.
     fn populate_read(
         &self,
         cols: &mut MemoryAccessCols<F>,

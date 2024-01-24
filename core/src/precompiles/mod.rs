@@ -48,6 +48,17 @@ impl<'a> PrecompileRuntime<'a> {
         )
     }
 
+    pub fn mr_slice(&mut self, addr: u32, len: usize) -> (Vec<MemoryReadRecord>, Vec<u32>) {
+        let mut records = Vec::new();
+        let mut values = Vec::new();
+        for i in 0..len {
+            let (record, value) = self.mr(addr + i as u32 * 4);
+            records.push(record);
+            values.push(value);
+        }
+        (records, values)
+    }
+
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
         let prev_value = self.rt.memory.entry(addr).or_insert(0).clone();
         let (prev_segment, prev_timestamp) =
@@ -68,6 +79,15 @@ impl<'a> PrecompileRuntime<'a> {
         }
     }
 
+    pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {
+        let mut records = Vec::new();
+        for i in 0..values.len() {
+            let record = self.mw(addr + i as u32 * 4, values[i]);
+            records.push(record);
+        }
+        records
+    }
+
     /// Get the current value of a register, but doesn't use a memory record.
     /// This is generally unconstrained, so you must be careful using it.
     pub fn register_unsafe(&self, register: Register) -> u32 {
@@ -76,5 +96,13 @@ impl<'a> PrecompileRuntime<'a> {
 
     pub fn word_unsafe(&self, addr: u32) -> u32 {
         self.rt.word(addr)
+    }
+
+    pub fn slice_unsafe(&self, addr: u32, len: usize) -> Vec<u32> {
+        let mut values = Vec::new();
+        for i in 0..len {
+            values.push(self.rt.word(addr + i as u32 * 4));
+        }
+        values
     }
 }
