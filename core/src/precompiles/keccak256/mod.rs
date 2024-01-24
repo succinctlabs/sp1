@@ -19,8 +19,8 @@ pub struct KeccakPermuteEvent {
     pub clk: u32,
     pub pre_state: [u64; 25],
     pub post_state: [u64; 25],
-    pub state_read_records: [Option<MemoryRecord>; 8],
-    pub state_write_records: [Option<MemoryRecord>; 8],
+    pub state_read_records: [Option<MemoryRecord>; 25 * 2],
+    pub state_write_records: [Option<MemoryRecord>; 25 * 2],
     pub state_addr: u32,
 }
 

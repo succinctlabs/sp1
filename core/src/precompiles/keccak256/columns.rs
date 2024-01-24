@@ -1,6 +1,8 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 
+use valida_derive::AlignedBorrow;
+
 use p3_util::indices_arr;
 
 use crate::cpu::cols::cpu_cols::MemoryAccessCols;
@@ -126,26 +128,4 @@ pub(crate) const KECCAK_COL_MAP: KeccakCols<usize> = make_col_map();
 const fn make_col_map() -> KeccakCols<usize> {
     let indices_arr = indices_arr::<NUM_KECCAK_COLS>();
     unsafe { transmute::<[usize; NUM_KECCAK_COLS], KeccakCols<usize>>(indices_arr) }
-}
-
-impl<T> Borrow<KeccakCols<T>> for [T] {
-    fn borrow(&self) -> &KeccakCols<T> {
-        // TODO: Double check if this is correct & consider making asserts debug-only.
-        let (prefix, shorts, suffix) = unsafe { self.align_to::<KeccakCols<T>>() };
-        assert!(prefix.is_empty(), "Data was not aligned");
-        assert!(suffix.is_empty(), "Data was not aligned");
-        assert_eq!(shorts.len(), 1);
-        &shorts[0]
-    }
-}
-
-impl<T> BorrowMut<KeccakCols<T>> for [T] {
-    fn borrow_mut(&mut self) -> &mut KeccakCols<T> {
-        // TODO: Double check if this is correct & consider making asserts debug-only.
-        let (prefix, shorts, suffix) = unsafe { self.align_to_mut::<KeccakCols<T>>() };
-        assert!(prefix.is_empty(), "Data was not aligned");
-        assert!(suffix.is_empty(), "Data was not aligned");
-        assert_eq!(shorts.len(), 1);
-        &mut shorts[0]
-    }
 }

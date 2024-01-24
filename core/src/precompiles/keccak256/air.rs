@@ -14,9 +14,6 @@ use super::{
     KeccakPermuteChip, BITS_PER_LIMB, NUM_ROUNDS, U64_LIMBS,
 };
 
-/// Assumes the field size is at least 16 bits.
-pub struct KeccakAir {}
-
 impl<F> BaseAir<F> for KeccakPermuteChip {
     fn width(&self) -> usize {
         NUM_KECCAK_COLS

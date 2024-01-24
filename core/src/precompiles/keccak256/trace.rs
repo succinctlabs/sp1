@@ -34,7 +34,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
         const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
         for i in 0..segment.keccak_permute_events.len() {
-            let mut event_rows = &rows[i * NUM_ROUNDS..(i + 1) * NUM_ROUNDS];
+            let event_rows = &mut rows[i * NUM_ROUNDS..(i + 1) * NUM_ROUNDS];
 
             let event = &segment.keccak_permute_events[i];
             let clk = event.clk;
@@ -49,7 +49,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
                     timestamp: clk,
                 };
                 self.populate_access(
-                    &mut rows[0].state_mem[2 * j],
+                    &mut event_rows[0].state_mem[2 * j],
                     state_current_read,
                     event.state_read_records[2 * j],
                     &mut new_field_events,
@@ -61,7 +61,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
                     timestamp: clk,
                 };
                 self.populate_access(
-                    &mut rows[0].state_mem[2 * j + 1],
+                    &mut event_rows[0].state_mem[2 * j + 1],
                     state_current_read,
                     event.state_read_records[2 * j + 1],
                     &mut new_field_events,
@@ -69,7 +69,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             }
             event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
 
-            generate_trace_rows_for_perm(&mut event_rows, event.pre_state, SEGMENT_NUM, event.clk);
+            generate_trace_rows_for_perm(event_rows, event.pre_state, SEGMENT_NUM, event.clk);
 
             let last_row_num = event_rows.len() - 1;
 
@@ -83,7 +83,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
                     timestamp: clk,
                 };
                 self.populate_access(
-                    &mut rows[last_row_num].state_mem[2 * j],
+                    &mut event_rows[last_row_num].state_mem[2 * j],
                     state_current_read,
                     event.state_read_records[2 * j],
                     &mut new_field_events,
@@ -95,7 +95,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
                     timestamp: clk,
                 };
                 self.populate_access(
-                    &mut rows[last_row_num].state_mem[2 * j + 1],
+                    &mut event_rows[last_row_num].state_mem[2 * j + 1],
                     state_current_read,
                     event.state_read_records[2 * j + 1],
                     &mut new_field_events,

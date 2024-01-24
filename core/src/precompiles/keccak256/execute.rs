@@ -39,7 +39,6 @@ impl KeccakPermuteChip {
         rt.clk -= NB_KECCAK_PERMUTE_CYCLES;
 
         let saved_clk = rt.clk;
-        let saved_preimage_ptr = state_ptr;
         let mut state_read_records = Vec::new();
         let mut state_write_records = Vec::new();
 
@@ -85,9 +84,7 @@ impl KeccakPermuteChip {
             for y_step in 0..5 {
                 let y = y_step * 5;
 
-                for x in 0..5 {
-                    array[x] = state[y + x];
-                }
+                array[..5].copy_from_slice(&state[y..(5 + y)]);
 
                 for x in 0..5 {
                     state[y + x] = array[x] ^ ((!array[(x + 1) % 5]) & (array[(x + 2) % 5]));
