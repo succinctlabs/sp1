@@ -247,8 +247,8 @@ mod tests {
             let num_rows = 1 << 8;
 
             // this is where i set my test cases.
-            let a = BigUint::from(1u32);
-            let b = BigUint::from(2u32);
+            let a = BigUint::from(3023u32);
+            let b = BigUint::from(3252u32);
             let operands: Vec<(BigUint, BigUint)> =
                 (0..num_rows).map(|_| (a.clone(), b.clone())).collect();
             let rows = operands

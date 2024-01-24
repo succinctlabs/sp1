@@ -7,10 +7,12 @@ use p3_field::PrimeField32;
 
 /// Computes the difference between `a` and `b` modulo `n`.
 pub fn subtract_mod(a: &BigUint, b: &BigUint, n: &BigUint) -> BigUint {
-    if a < b {
-        (n + a) - b
+    let a_mod = a % n;
+    let b_mod = b % n;
+    if a_mod < b_mod {
+        (n + a_mod) - b_mod
     } else {
-        a - b
+        a_mod - b_mod
     }
 }
 /// Computes the inverse of `a` modulo `n` using the same idea as the extended Euclidean algorithm.
