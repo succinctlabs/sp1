@@ -7,7 +7,7 @@ mod syscall;
 
 use crate::cpu::MemoryRecord;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::precompiles::PrecompileRuntimeContext;
+use crate::precompiles::PrecompileRuntime;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -599,7 +599,7 @@ impl Runtime {
                 let syscall = Syscall::from_u32(syscall_id);
 
                 (b, c) = (self.rr(t0, AccessPosition::B), 0);
-                let mut context = PrecompileRuntimeContext::new(
+                let mut precompile_rt = PrecompileRuntime::new(
                     self.current_segment(),
                     self.clk,
                     &mut self.memory,
@@ -617,13 +617,16 @@ impl Runtime {
                     }
                     Syscall::SHA_EXTEND => {
                         // a = ShaExtendChip::execute(self);
-                        a = ShaExtendChip::execute_context(&mut context);
+                        a = ShaExtendChip::execute(&mut precompile_rt);
                         let init_clk = self.clk;
-                        self.clk = context.clk;
+                        self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::SHA_COMPRESS => {
-                        a = ShaCompressChip::execute(self);
+                        a = ShaCompressChip::execute(&mut precompile_rt);
+                        let init_clk = self.clk;
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
@@ -661,7 +664,8 @@ impl Runtime {
                         a = 0;
                     }
                 }
-
+                // Assert that all the peeks were written.
+                // assert_eq!(precompile_rt.peeks.len(), 0);
                 self.rw(a0, a);
             }
 

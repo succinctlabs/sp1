@@ -1,11 +1,11 @@
 pub mod edwards;
 pub mod sha256;
 
+use crate::runtime::Register;
 use crate::{cpu::MemoryRecord, runtime::Segment};
 use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
-
-pub struct PrecompileRuntimeContext<'a> {
+pub struct PrecompileRuntime<'a> {
     pub segment_number: u32,
     pub clk: u32,
 
@@ -16,7 +16,7 @@ pub struct PrecompileRuntimeContext<'a> {
     pub peeks: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 }
 
-impl<'a> PrecompileRuntimeContext<'a> {
+impl<'a> PrecompileRuntime<'a> {
     pub fn new(
         segment_number: u32,
         clk: u32,
@@ -82,5 +82,15 @@ impl<'a> PrecompileRuntimeContext<'a> {
 
     pub fn increment_clk(&mut self, cycles: u32) {
         self.clk += cycles;
+    }
+
+    /// TODO: this should not be used, it is a hack!
+    /// Get the current value of a register.
+    pub fn register(&self, register: Register) -> u32 {
+        let addr = register as u32;
+        match self.memory.get(&addr) {
+            Some(value) => *value,
+            None => 0,
+        }
     }
 }
