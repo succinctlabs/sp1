@@ -240,7 +240,7 @@ mod tests {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 5)
                 .map(|_| {
                     let a = rng.gen_biguint(256) % &P::modulus();
                     let b = rng.gen_biguint(256) % &P::modulus();
@@ -252,6 +252,7 @@ mod tests {
             // allowed, we allow it in our implementation so padded rows can be all 0.
             operands.extend(vec![
                 (BigUint::from(0u32), BigUint::from(0u32)),
+                (BigUint::from(0u32), BigUint::from(1u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
                 (BigUint::from(10u32), BigUint::from(19u32)),
