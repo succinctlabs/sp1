@@ -52,19 +52,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check
         {
-            let bytes: Vec<u8> = a
-                .iter()
-                .chain(b.iter())
-                .chain(expected.to_le_bytes().iter())
-                .copied()
-                .collect();
-            // The byte length is always even since each word has 4 bytes.
-            assert_eq!(bytes.len() % 2, 0);
-
-            // Pass two bytes to range check at a time.
-            for i in (0..bytes.len()).step_by(2) {
-                segment.add_byte_range_checks(bytes[i], bytes[i + 1]);
-            }
+            segment.add_byte_range_checks(&a);
+            segment.add_byte_range_checks(&b);
+            segment.add_byte_range_checks(&expected.to_le_bytes());
         }
         expected
     }
