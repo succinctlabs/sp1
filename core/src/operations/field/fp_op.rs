@@ -4,7 +4,7 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
-use crate::operations::field::util::inverse_mod;
+use crate::utils::ec::utils::inverse_mod;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
@@ -75,7 +75,7 @@ impl<F: Field> FpOpCols<F> {
         // a / b = result is equivalent to a = result * b.
         if op == FpOperation::Div {
             let result = {
-                if a == &BigUint::zero() {
+                if b.is_zero() {
                     BigUint::zero()
                 } else {
                     (a * inverse_mod(b, &modulus)) % &modulus
