@@ -18,7 +18,7 @@ pub enum FpOperation {
     Add,
     Mul,
     Sub,
-    // TODO: Add Div
+    Div,
 }
 
 /// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
@@ -62,6 +62,20 @@ impl<F: Field> FpOpCols<F> {
             return result;
         }
 
+        // a / b = result is equivalent to a = result * b.
+        if op == FpOperation::Div {
+            let result = (a / b) % &modulus;
+            // We populate the carry, witness_low, witness_high as if we were doing a multiplication
+            // with result * b. But we populate `result` with the actual result of the
+            // multiplication because those columns are expected to contain the result by the user.
+            // Note that this reversal means we have to flip result, a correspondingly in the `eval`
+            // function.
+            self.populate::<P>(&result, b, FpOperation::Mul);
+            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
+            self.result = convert_polynomial(p_result);
+            return result;
+        }
+
         let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
         let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
 
@@ -70,14 +84,14 @@ impl<F: Field> FpOpCols<F> {
         let (result, carry) = match op {
             FpOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
             FpOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
-            FpOperation::Sub => unreachable!(),
+            FpOperation::Sub | FpOperation::Div => unreachable!(),
         };
         debug_assert!(&result < modulus);
         debug_assert!(&carry < modulus);
         match op {
             FpOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
             FpOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
-            FpOperation::Sub => unreachable!(),
+            FpOperation::Sub | FpOperation::Div => unreachable!(),
         }
 
         // Make little endian polynomial limbs.
@@ -89,7 +103,7 @@ impl<F: Field> FpOpCols<F> {
         let p_op = match op {
             FpOperation::Add => &p_a + &p_b,
             FpOperation::Mul => &p_a * &p_b,
-            FpOperation::Sub => unreachable!(),
+            FpOperation::Sub | FpOperation::Div => unreachable!(),
         };
         let p_vanishing: Polynomial<PF> = &p_op - &p_result - &p_carry * &p_modulus;
         debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
@@ -123,14 +137,14 @@ impl<V: Copy> FpOpCols<V> {
     {
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
             FpOperation::Add | FpOperation::Mul => ((*a).into(), self.result.into()),
-            FpOperation::Sub => (self.result.into(), (*a).into()),
+            FpOperation::Sub | FpOperation::Div => (self.result.into(), (*a).into()),
         };
 
         let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).into();
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
         let p_op = match op {
             FpOperation::Add | FpOperation::Sub => p_a + p_b,
-            FpOperation::Mul => p_a * p_b,
+            FpOperation::Mul | FpOperation::Div => p_a * p_b,
         };
         let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
@@ -321,7 +335,14 @@ mod tests {
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
 
-        for op in [FpOperation::Add, FpOperation::Sub, FpOperation::Mul].iter() {
+        for op in [
+            FpOperation::Add,
+            FpOperation::Sub,
+            FpOperation::Mul,
+            FpOperation::Div,
+        ]
+        .iter()
+        {
             println!("op: {:?}", op);
 
             let mds = MyMds::default();
