@@ -12,7 +12,7 @@ impl ShaCompressChip {
     pub const NUM_CYCLES: u32 = 8 * 4 + 64 * 4 + 8 * 4;
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         // Read `w_ptr` from register a0.
-        let w_ptr = rt.register(Register::X10);
+        let w_ptr = rt.register_unsafe(Register::X10);
 
         // Set the clock back to the original value and begin executing the
         // precompile.
@@ -81,7 +81,7 @@ impl ShaCompressChip {
         }
 
         // Push the SHA extend event.
-        rt.segment.sha_compress_events.push(ShaCompressEvent {
+        rt.segment_mut().sha_compress_events.push(ShaCompressEvent {
             clk: saved_clk,
             w_and_h_ptr: saved_w_ptr,
             w: original_w.try_into().unwrap(),

@@ -159,7 +159,7 @@ impl Runtime {
         self.clk + *position as u32
     }
 
-    fn current_segment(&self) -> u32 {
+    pub fn current_segment(&self) -> u32 {
         self.segment.index
     }
 
@@ -598,13 +598,8 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
 
-                let mut precompile_rt = PrecompileRuntime::new(
-                    self.current_segment(),
-                    self.clk,
-                    &mut self.memory,
-                    &mut self.memory_access,
-                    &mut self.segment,
-                );
+                let init_clk = self.clk;
+                let mut precompile_rt = PrecompileRuntime::new(self);
 
                 match syscall {
                     Syscall::HALT => {
@@ -615,19 +610,12 @@ impl Runtime {
                         a = self.witness.pop().expect("witness stream is empty");
                     }
                     Syscall::SHA_EXTEND => {
-                        // a = ShaExtendChip::execute(self);
                         a = ShaExtendChip::execute(&mut precompile_rt);
-                        let peeks = precompile_rt.peeks.len();
-                        assert_eq!(peeks, 0, "peeks is not empty");
-                        let init_clk = self.clk;
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::SHA_COMPRESS => {
                         a = ShaCompressChip::execute(&mut precompile_rt);
-                        let peeks = precompile_rt.peeks.len();
-                        assert_eq!(peeks, 0, "peeks is not empty");
-                        let init_clk = self.clk;
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
                     }
@@ -668,6 +656,9 @@ impl Runtime {
                     }
                 }
 
+                // We have to do this AFTER the precompile execution because the CPU event
+                // gets emitted at the end of this loop with the incremented clock.
+                // TODO: fix this.
                 self.rw(a0, a);
                 (b, c) = (self.rr(t0, AccessPosition::B), 0);
             }

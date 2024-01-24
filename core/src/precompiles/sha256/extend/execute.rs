@@ -14,7 +14,7 @@ impl ShaExtendChip {
 
         // Read `w_ptr` from register a0 or x5.
         // TODO: this is underconstrained.
-        let w_ptr = rt.register(a0);
+        let w_ptr = rt.register_unsafe(a0);
 
         let clk_init = rt.clk;
         let w_ptr_init = w_ptr;
@@ -64,7 +64,7 @@ impl ShaExtendChip {
         }
 
         // Push the SHA extend event.
-        rt.segment.sha_extend_events.push(ShaExtendEvent {
+        rt.segment_mut().sha_extend_events.push(ShaExtendEvent {
             clk: clk_init,
             w_ptr: w_ptr_init,
             w_i_minus_15_reads: w_i_minus_15_reads.try_into().unwrap(),

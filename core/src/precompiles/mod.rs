@@ -1,53 +1,45 @@
 pub mod edwards;
 pub mod sha256;
 
-use crate::runtime::Register;
-use crate::{cpu::MemoryReadRecord, cpu::MemoryRecord, cpu::MemoryWriteRecord, runtime::Segment};
-use nohash_hasher::BuildNoHashHasher;
-use std::collections::HashMap;
+use crate::runtime::{Register, Runtime};
+use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::Segment};
 
 /// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct PrecompileRuntime<'a> {
-    pub segment_number: u32,
+    current_segment: u32,
     pub clk: u32,
 
-    pub memory: &'a mut HashMap<u32, u32, BuildNoHashHasher<u32>>, // Reference
-    pub memory_access: &'a mut HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>, // Reference
-    pub segment: &'a mut Segment,                                  // Reference
-
-    pub peeks: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
+    rt: &'a mut Runtime, // Reference
 }
 
 impl<'a> PrecompileRuntime<'a> {
-    pub fn new(
-        segment_number: u32,
-        clk: u32,
-        memory: &'a mut HashMap<u32, u32, BuildNoHashHasher<u32>>,
-        memory_access: &'a mut HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
-        segment: &'a mut Segment,
-    ) -> Self {
+    pub fn new(runtime: &'a mut Runtime) -> Self {
+        let current_segment = runtime.current_segment();
+        let clk = runtime.clk;
         Self {
-            segment_number,
+            current_segment,
             clk,
-            memory,
-            memory_access,
-            segment,
-            peeks: HashMap::default(),
+            rt: runtime,
         }
     }
 
-    pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
-        let value = self.memory.entry(addr).or_insert(0);
-        let (prev_segment, prev_timestamp) =
-            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+    pub fn segment_mut(&mut self) -> &mut Segment {
+        &mut self.rt.segment
+    }
 
-        self.memory_access
-            .insert(addr, (self.segment_number, self.clk));
+    pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
+        let value = self.rt.memory.entry(addr).or_insert(0);
+        let (prev_segment, prev_timestamp) =
+            self.rt.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+
+        self.rt
+            .memory_access
+            .insert(addr, (self.current_segment, self.clk));
 
         (
             MemoryReadRecord {
                 value: *value,
-                segment: self.segment_number,
+                segment: self.current_segment,
                 timestamp: self.clk,
                 prev_segment,
                 prev_timestamp,
@@ -56,58 +48,33 @@ impl<'a> PrecompileRuntime<'a> {
         )
     }
 
-    pub fn peek(&mut self, addr: u32) -> u32 {
-        // All peeks must be accompanied by a write.
-        let value = self.memory.entry(addr).or_insert(0);
-        let (prev_segment, prev_timestamp) =
-            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
-
-        let record = MemoryRecord {
-            value: *value,
-            segment: prev_segment,
-            timestamp: prev_timestamp,
-        };
-        self.peeks.insert(addr, record.clone());
-        *value
-    }
-
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        // All peeks must be accompanied by a write.
-        let prev_value = self.memory.entry(addr).or_insert(0);
+        let prev_value = self.rt.memory.entry(addr).or_insert(0).clone();
         let (prev_segment, prev_timestamp) =
-            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+            self.rt.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+        self.rt
+            .memory_access
+            .insert(addr, (self.current_segment, self.clk));
+        self.rt.memory.insert(addr, value);
 
-        let record = MemoryRecord {
-            value: *prev_value,
-            segment: prev_segment,
-            timestamp: prev_timestamp,
-        };
-        // // All writes must be accompanied by a peek.
-        // let record = self
-        //     .peeks
-        //     .remove(&addr)
-        //     .expect("A write must be peeked before");
-        self.memory_access
-            .insert(addr, (self.segment_number, self.clk));
-        self.memory.insert(addr, value);
         // TODO: can do some checks on the record clk and self.clk at this point
         MemoryWriteRecord {
             value,
-            segment: self.segment_number,
+            segment: self.current_segment,
             timestamp: self.clk,
-            prev_value: record.value,
-            prev_segment: record.segment,
-            prev_timestamp: record.timestamp,
+            prev_value,
+            prev_segment,
+            prev_timestamp,
         }
     }
 
-    /// TODO: this should not be used, it is a hack!
-    /// Get the current value of a register.
-    pub fn register(&self, register: Register) -> u32 {
-        let addr = register as u32;
-        match self.memory.get(&addr) {
-            Some(value) => *value,
-            None => 0,
-        }
+    /// Get the current value of a register, but doesn't use a memory record.
+    /// This is generally unconstrained, so you must be careful using it.
+    pub fn register_unsafe(&self, register: Register) -> u32 {
+        self.rt.register(register)
+    }
+
+    pub fn word_unsafe(&self, addr: u32) -> u32 {
+        self.rt.word(addr)
     }
 }
