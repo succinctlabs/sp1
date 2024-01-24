@@ -37,7 +37,7 @@ impl MemoryRecordEnum {
     pub fn to_write_record(&self, value: u32) -> MemoryWriteRecord {
         match self {
             MemoryRecordEnum::Read(record) => record.to_write_record(value),
-            MemoryRecordEnum::Write(record) => {
+            MemoryRecordEnum::Write(_) => {
                 panic!("Cannot convert write record to write record")
             }
         }
@@ -73,7 +73,7 @@ pub struct MemoryReadRecord {
 }
 
 impl MemoryReadRecord {
-    fn to_write_record(&self, value: u32) -> MemoryWriteRecord {
+    fn to_write_record(self, value: u32) -> MemoryWriteRecord {
         MemoryWriteRecord {
             value,
             segment: self.segment,

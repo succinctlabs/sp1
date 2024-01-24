@@ -1,12 +1,12 @@
 use super::cols::cpu_cols::{AUIPCColumns, BranchColumns, JumpColumns, CPU_COL_MAP, NUM_CPU_COLS};
-use super::{CpuChip, CpuEvent, MemoryRecord};
+use super::{CpuChip, CpuEvent};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::cols::cpu_cols::{CpuCols, MemoryColumns};
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
-use crate::runtime::{AccessPosition, Opcode, Segment};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -69,25 +69,25 @@ impl CpuChip {
         cols.selectors.populate(event.instruction);
 
         // TODO: do we have to set the cols.op_a_access.value regardless here?
-        event
-            .a_record
-            .map(|record| cols.op_a_access.populate(record, new_field_events));
-        event
-            .b_record
-            .map(|record| cols.op_b_access.populate(record, new_field_events));
-        event
-            .c_record
-            .map(|record| cols.op_c_access.populate(record, new_field_events));
+        if let Some(record) = event.a_record {
+            cols.op_a_access.populate(record, new_field_events)
+        }
+        if let Some(record) = event.b_record {
+            cols.op_b_access.populate(record, new_field_events)
+        }
+        if let Some(record) = event.c_record {
+            cols.op_c_access.populate(record, new_field_events)
+        }
 
         // If there is a memory record, then event.memory should be set and vice-versa.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
 
         let memory_columns: &mut MemoryColumns<F> =
             unsafe { transmute(&mut cols.opcode_specific_columns) };
-        if let Some(memory) = event.memory {
+        if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(event.memory_record.unwrap(), new_field_events)
+                .populate(record, new_field_events)
         }
 
         self.populate_memory(cols, event, new_alu_events, new_blu_events);

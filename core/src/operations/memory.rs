@@ -51,8 +51,7 @@ impl<F: Field> MemoryAccessCols<F> {
         self.populate_access(current_record, prev_record, new_field_events);
     }
 
-    #[deprecated]
-    pub fn populate_access(
+    pub(crate) fn populate_access(
         &mut self,
         current_record: MemoryRecord,
         prev_record: MemoryRecord,

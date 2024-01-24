@@ -1,5 +1,5 @@
 use num::bigint::RandBigInt;
-use num::{BigUint, Zero};
+use num::BigUint;
 use rand::rngs::OsRng;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;

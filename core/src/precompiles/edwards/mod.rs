@@ -2,8 +2,6 @@ pub mod ed_add;
 pub mod ed_scalar_mul;
 
 use crate::utils::ec::{AffinePoint, EllipticCurve};
-use num::BigUint;
-use std::ops::Add;
 
 use crate::precompiles::PrecompileRuntime;
 

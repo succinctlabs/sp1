@@ -13,8 +13,6 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::{cols::cpu_cols::MemoryAccessCols, MemoryReadRecord, MemoryRecord, MemoryWriteRecord},
-    field::event::FieldEvent,
     lookup::{Interaction, InteractionBuilder},
     runtime::Segment,
     stark::{

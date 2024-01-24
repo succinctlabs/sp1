@@ -1,7 +1,6 @@
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
-use std::char::MAX;
 use std::str::FromStr;
 
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
