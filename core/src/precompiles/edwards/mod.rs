@@ -9,6 +9,8 @@ use crate::precompiles::PrecompileRuntime;
 
 struct EdAddChip;
 
+// TODO: maybe this method should be moved out to a higher-level for all adds
+// including secp, etc.
 impl EdAddChip {
     pub fn new() -> Self {
         Self {}

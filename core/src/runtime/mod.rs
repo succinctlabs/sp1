@@ -5,7 +5,7 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::MemoryRecord;
+use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -32,10 +32,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    pub a: Option<MemoryRecord>,
-    pub b: Option<MemoryRecord>,
-    pub c: Option<MemoryRecord>,
-    pub memory: Option<MemoryRecord>,
+    pub a: Option<MemoryRecordEnum>,
+    pub b: Option<MemoryRecordEnum>,
+    pub c: Option<MemoryRecordEnum>,
+    pub memory: Option<MemoryRecordEnum>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -190,17 +190,19 @@ impl Runtime {
             (self.current_segment(), self.clk_from_position(&position)),
         );
 
-        let record = MemoryRecord {
+        let record = MemoryReadRecord {
             value,
-            segment: prev_segment,
-            timestamp: prev_timestamp,
+            segment: self.current_segment(),
+            timestamp: self.clk_from_position(&position),
+            prev_segment,
+            prev_timestamp,
         };
 
         match position {
-            AccessPosition::A => self.record.a = Some(record),
-            AccessPosition::B => self.record.b = Some(record),
-            AccessPosition::C => self.record.c = Some(record),
-            AccessPosition::Memory => self.record.memory = Some(record),
+            AccessPosition::A => self.record.a = Some(record.into()),
+            AccessPosition::B => self.record.b = Some(record.into()),
+            AccessPosition::C => self.record.c = Some(record.into()),
+            AccessPosition::Memory => self.record.memory = Some(record.into()),
         }
         value
     }
@@ -213,12 +215,45 @@ impl Runtime {
         self.memory.insert(addr, value);
 
         assert!(self.memory_access.contains_key(&addr));
-        // Make sure that we have updated the memory records appropriately.
+
+        // Update the memory records to write records.
         match position {
-            AccessPosition::A => assert!(self.record.a.is_some()),
-            AccessPosition::B => assert!(self.record.b.is_some()),
-            AccessPosition::C => assert!(self.record.c.is_some()),
-            AccessPosition::Memory => assert!(self.record.memory.is_some()),
+            AccessPosition::A => {
+                self.record.a = Some(
+                    self.record
+                        .a
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::B => {
+                self.record.b = Some(
+                    self.record
+                        .b
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::C => {
+                self.record.c = Some(
+                    self.record
+                        .c
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::Memory => {
+                self.record.memory = Some(
+                    self.record
+                        .memory
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
         }
     }
 

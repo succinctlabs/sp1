@@ -68,41 +68,16 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        let current_a_record = MemoryRecord {
-            value: event.a,
-            segment: event.segment,
-            timestamp: event.clk + AccessPosition::A as u32,
-        };
-        self.populate_access(
-            &mut cols.op_a_access,
-            current_a_record,
-            event.a_record,
-            new_field_events,
-        );
-
-        let current_b_record = MemoryRecord {
-            value: event.b,
-            segment: event.segment,
-            timestamp: event.clk + AccessPosition::B as u32,
-        };
-        self.populate_access(
-            &mut cols.op_b_access,
-            current_b_record,
-            event.b_record,
-            new_field_events,
-        );
-
-        let current_c_record = MemoryRecord {
-            value: event.c,
-            segment: event.segment,
-            timestamp: event.clk + AccessPosition::C as u32,
-        };
-        self.populate_access(
-            &mut cols.op_c_access,
-            current_c_record,
-            event.c_record,
-            new_field_events,
-        );
+        // TODO: do we have to set the cols.op_a_access.value regardless here?
+        event
+            .a_record
+            .map(|record| cols.op_a_access.populate(record, new_field_events));
+        event
+            .b_record
+            .map(|record| cols.op_b_access.populate(record, new_field_events));
+        event
+            .c_record
+            .map(|record| cols.op_c_access.populate(record, new_field_events));
 
         // If there is a memory record, then event.memory should be set and vice-versa.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
@@ -110,18 +85,9 @@ impl CpuChip {
         let memory_columns: &mut MemoryColumns<F> =
             unsafe { transmute(&mut cols.opcode_specific_columns) };
         if let Some(memory) = event.memory {
-            let current_mem_record = MemoryRecord {
-                value: memory,
-                segment: event.segment,
-                timestamp: event.clk + AccessPosition::Memory as u32,
-            };
-
-            self.populate_access(
-                &mut memory_columns.memory_access,
-                current_mem_record,
-                event.memory_record,
-                new_field_events,
-            )
+            memory_columns
+                .memory_access
+                .populate(event.memory_record.unwrap(), new_field_events)
         }
 
         self.populate_memory(cols, event, new_alu_events, new_blu_events);
@@ -178,7 +144,7 @@ impl CpuChip {
             memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
 
             // If it is a load instruction, set the unsigned_mem_val column
-            let mem_value = event.memory_record.unwrap().value;
+            let mem_value = event.memory_record.unwrap().value();
             if matches!(
                 event.instruction.opcode,
                 Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
