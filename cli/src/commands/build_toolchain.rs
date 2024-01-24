@@ -57,6 +57,7 @@ impl BuildToolchainCmd {
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build", "--stage", "2"])
+            .current_dir("rust")
             .run()?;
 
         // Remove the existing toolchain from rustup, if it exists.
