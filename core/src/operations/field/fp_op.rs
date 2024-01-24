@@ -4,7 +4,6 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
-use crate::utils::ec::utils::inverse_mod;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
@@ -74,13 +73,11 @@ impl<F: Field> FpOpCols<F> {
 
         // a / b = result is equivalent to a = result * b.
         if op == FpOperation::Div {
-            let result = {
-                if b.is_zero() {
-                    BigUint::zero()
-                } else {
-                    (a * inverse_mod(b, &modulus)) % &modulus
-                }
-            };
+            // As modulus is prime, we can use Fermat's little theorem to compute the
+            // inverse.
+            let result =
+                (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+
             // We populate the carry, witness_low, witness_high as if we were doing a multiplication
             // with result * b. But we populate `result` with the actual result of the
             // multiplication because those columns are expected to contain the result by the user.
