@@ -107,7 +107,7 @@ fn babybear_to_int(n: BabyBear) -> i32 {
     let modulus = BabyBear::ORDER_U64;
     let val = n.as_canonical_u64();
     if val > modulus / 2 {
-        (val - modulus) as i32
+        val as i32 - modulus as i32
     } else {
         val as i32
     }

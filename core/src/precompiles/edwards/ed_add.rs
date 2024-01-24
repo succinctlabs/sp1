@@ -6,12 +6,10 @@ use crate::operations::field::fp_den::FpDenCols;
 use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::params::Ed25519BaseField;
 use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
-use crate::runtime::AccessPosition;
 use crate::runtime::Segment;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -193,35 +191,33 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
             let p_y = BigUint::from_slice(&p[8..16]);
             let q_x = BigUint::from_slice(&q[0..8]);
             let q_y = BigUint::from_slice(&q[8..16]);
-            let x3_numerator = cols.x3_numerator.populate::<Ed25519BaseField>(
-                &[p_x.clone(), q_x.clone()],
-                &[q_y.clone(), p_y.clone()],
-            );
-            let y3_numerator = cols.y3_numerator.populate::<Ed25519BaseField>(
-                &[p_y.clone(), p_x.clone()],
-                &[q_y.clone(), q_x.clone()],
-            );
-            let x1_mul_y1 =
-                cols.x1_mul_y1
-                    .populate::<Ed25519BaseField>(&p_x, &p_y, FpOperation::Mul);
-            let x2_mul_y2 =
-                cols.x2_mul_y2
-                    .populate::<Ed25519BaseField>(&q_x, &q_y, FpOperation::Mul);
+            let x3_numerator = cols
+                .x3_numerator
+                .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
+            let y3_numerator = cols
+                .y3_numerator
+                .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
+            let x1_mul_y1 = cols
+                .x1_mul_y1
+                .populate::<E::BaseField>(&p_x, &p_y, FpOperation::Mul);
+            let x2_mul_y2 = cols
+                .x2_mul_y2
+                .populate::<E::BaseField>(&q_x, &q_y, FpOperation::Mul);
             let f = cols
                 .f
-                .populate::<Ed25519BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+                .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
             let d = Self::d_biguint();
             let d_mul_f = cols
                 .d_mul_f
-                .populate::<Ed25519BaseField>(&f, &d, FpOperation::Mul);
+                .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
 
             let x3_ins = cols
                 .x3_ins
-                .populate::<Ed25519BaseField>(&x3_numerator, &d_mul_f, true);
+                .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
             let y3_ins = cols
                 .y3_ins
-                .populate::<Ed25519BaseField>(&y3_numerator, &d_mul_f, false);
+                .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
 
             let mut x3_limbs = x3_ins.to_bytes_le();
             x3_limbs.resize(NUM_LIMBS, 0u8);
@@ -246,33 +242,33 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
             let zero = BigUint::zero();
-            let x1_mul_y1 =
-                cols.x1_mul_y1
-                    .populate::<Ed25519BaseField>(&zero, &zero, FpOperation::Mul);
-            let x2_mul_y2 =
-                cols.x2_mul_y2
-                    .populate::<Ed25519BaseField>(&zero, &zero, FpOperation::Mul);
+            let x1_mul_y1 = cols
+                .x1_mul_y1
+                .populate::<E::BaseField>(&zero, &zero, FpOperation::Mul);
+            let x2_mul_y2 = cols
+                .x2_mul_y2
+                .populate::<E::BaseField>(&zero, &zero, FpOperation::Mul);
             let f = cols
                 .f
-                .populate::<Ed25519BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+                .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
             let d = Self::d_biguint();
             let d_mul_f = cols
                 .d_mul_f
-                .populate::<Ed25519BaseField>(&f, &d, FpOperation::Mul);
-            let x3_numerator = cols.x3_numerator.populate::<Ed25519BaseField>(
+                .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
+            let x3_numerator = cols.x3_numerator.populate::<E::BaseField>(
                 &[zero.clone(), zero.clone()],
                 &[zero.clone(), zero.clone()],
             );
-            let y3_numerator = cols.y3_numerator.populate::<Ed25519BaseField>(
+            let y3_numerator = cols.y3_numerator.populate::<E::BaseField>(
                 &[zero.clone(), zero.clone()],
                 &[zero.clone(), zero.clone()],
             );
             let x3_ins = cols
                 .x3_ins
-                .populate::<Ed25519BaseField>(&x3_numerator, &d_mul_f, true);
+                .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
             let y3_ins = cols
                 .y3_ins
-                .populate::<Ed25519BaseField>(&y3_numerator, &d_mul_f, false);
+                .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
             let mut x3_limbs = x3_ins.to_bytes_le();
             x3_limbs.resize(NUM_LIMBS, 0u8);
             let mut y3_limbs = y3_ins.to_bytes_le();
@@ -320,32 +316,32 @@ where
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, Ed25519BaseField>(builder, &x1, &y1, FpOperation::Mul);
+            .eval::<AB, E::BaseField>(builder, &x1, &y1, FpOperation::Mul);
         row.x2_mul_y2
-            .eval::<AB, Ed25519BaseField>(builder, &x2, &y2, FpOperation::Mul);
+            .eval::<AB, E::BaseField>(builder, &x2, &y2, FpOperation::Mul);
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
         row.f
-            .eval::<AB, Ed25519BaseField>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .eval::<AB, E::BaseField>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
         // d * f.
         let f = row.f.result;
         let d_biguint = Self::d_biguint();
-        let d_const = Ed25519BaseField::to_limbs_field::<AB::F>(&d_biguint);
+        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
         row.d_mul_f
-            .eval_expr::<AB, Ed25519BaseField>(builder, &f, &d_const_expr, FpOperation::Mul);
+            .eval_expr::<AB, E::BaseField>(builder, &f, &d_const_expr, FpOperation::Mul);
 
         let d_mul_f = row.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
         row.x3_ins
-            .eval::<AB, Ed25519BaseField>(builder, &row.x3_numerator.result, &d_mul_f, true);
+            .eval::<AB, E::BaseField>(builder, &row.x3_numerator.result, &d_mul_f, true);
 
         // y3 = y3_numerator / (1 - d * f).
         row.y3_ins
-            .eval::<AB, Ed25519BaseField>(builder, &row.y3_numerator.result, &d_mul_f, false);
+            .eval::<AB, E::BaseField>(builder, &row.y3_numerator.result, &d_mul_f, false);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
