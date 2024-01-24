@@ -7,6 +7,7 @@ use crate::memory::MemoryGlobalChip;
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
+use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
@@ -25,7 +26,7 @@ use p3_uni_stark::StarkConfig;
 use super::prover::Prover;
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 14;
+pub const NUM_CHIPS: usize = 15;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -47,6 +48,7 @@ impl Runtime {
         let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
+        let keccak_permute = KeccakPermuteChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -63,6 +65,7 @@ impl Runtime {
             Box::new(lt),
             Box::new(sha_extend),
             Box::new(sha_compress),
+            Box::new(keccak_permute),
             Box::new(field),
             Box::new(bytes),
         ]

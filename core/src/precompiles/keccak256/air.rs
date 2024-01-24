@@ -31,18 +31,18 @@ where
         let local: &KeccakCols<AB::Var> = main.row_slice(0).borrow();
         let next: &KeccakCols<AB::Var> = main.row_slice(1).borrow();
 
-        // The export flag must be 0 or 1.
-        builder.assert_bool(local.export);
-
         for i in 0..50 {
             builder.constraint_memory_access(
                 local.segment,
                 local.clk,
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 local.state_mem[i as usize],
-                local.step_flags[0],
+                local.step_flags[0] + local.step_flags[23],
             );
         }
+
+        // The export flag must be 0 or 1.
+        builder.assert_bool(local.export);
 
         // If this is not the final step, the export flag must be off.
         let final_step = local.step_flags[NUM_ROUNDS - 1];

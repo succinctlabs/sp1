@@ -53,8 +53,7 @@ pub mod compress_tests {
     use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use p3_commit::ExtensionMmcs;
 
-    #[test]
-    pub fn keccak_permute_program() {
+    pub fn keccak_permute_program() -> Program {
         let digest_ptr = 100;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
         for i in 0..(25 * 8) {
@@ -68,59 +67,65 @@ pub mod compress_tests {
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
             Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
-        let program = Program::new(instructions, 0, 0);
+
+        Program::new(instructions, 0, 0)
+    }
+
+    #[test]
+    pub fn test_keccak_permute_program_execute() {
+        let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run()
     }
 
-    // #[test]
-    // fn prove_babybear() {
-    //     type Val = BabyBear;
-    //     type Domain = Val;
-    //     type Challenge = BinomialExtensionField<Val, 4>;
-    //     type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    #[test]
+    fn prove_babybear() {
+        type Val = BabyBear;
+        type Domain = Val;
+        type Challenge = BinomialExtensionField<Val, 4>;
+        type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
-    //     type MyMds = CosetMds<Val, 16>;
-    //     let mds = MyMds::default();
+        type MyMds = CosetMds<Val, 16>;
+        let mds = MyMds::default();
 
-    //     type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-    //     let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+        type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
 
-    //     type MyHash = SerializingHasher32<Keccak256Hash>;
-    //     let hash = MyHash::new(Keccak256Hash {});
+        type MyHash = SerializingHasher32<Keccak256Hash>;
+        let hash = MyHash::new(Keccak256Hash {});
 
-    //     type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
-    //     let compress = MyCompress::new(hash);
+        type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+        let compress = MyCompress::new(hash);
 
-    //     type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
-    //     let val_mmcs = ValMmcs::new(hash, compress);
+        type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+        let val_mmcs = ValMmcs::new(hash, compress);
 
-    //     type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-    //     let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+        type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+        let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
-    //     type Dft = Radix2DitParallel;
-    //     let dft = Dft {};
+        type Dft = Radix2DitParallel;
+        let dft = Dft {};
 
-    //     type Challenger = DuplexChallenger<Val, Perm, 16>;
+        type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-    //     type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    //     type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    //     let fri_config = MyFriConfig::new(40, challenge_mmcs);
-    //     let ldt = FriLdt { config: fri_config };
+        type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+        type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let ldt = FriLdt { config: fri_config };
 
-    //     type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
-    //     type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
+        type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+        type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
 
-    //     let pcs = Pcs::new(dft, val_mmcs, ldt);
-    //     let config = StarkConfigImpl::new(pcs);
-    //     let mut challenger = Challenger::new(perm.clone());
+        let pcs = Pcs::new(dft, val_mmcs, ldt);
+        let config = StarkConfigImpl::new(pcs);
+        let mut challenger = Challenger::new(perm.clone());
 
-    //     let program = keccak_permute_program();
-    //     let mut runtime = Runtime::new(program);
-    //     runtime.write_witness(&[999]);
-    //     runtime.run();
+        let program = keccak_permute_program();
+        let mut runtime = Runtime::new(program);
+        runtime.write_witness(&[999]);
+        runtime.run();
 
-    //     runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
-    // }
+        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+    }
 }

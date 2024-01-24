@@ -99,12 +99,14 @@ impl KeccakPermuteChip {
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
             let least_sig = (state[i] & 0xFFFFFFFF) as u32;
+            rt.mr(state_ptr + (2 * i as u32) * 4, AccessPosition::Memory);
             rt.mw(
                 state_ptr + (2 * i as u32) * 4,
                 least_sig,
                 AccessPosition::Memory,
             );
             state_write_records.push(rt.record.memory);
+            rt.mr(state_ptr + (2 * i as u32 + 1) * 4, AccessPosition::Memory);
             rt.mw(
                 state_ptr + (2 * i as u32 + 1) * 4,
                 most_sig,
