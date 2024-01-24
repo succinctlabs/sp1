@@ -15,7 +15,10 @@ use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
 use p3_uni_stark::StarkConfigImpl;
 use rand::thread_rng;
 
-use crate::runtime::{Program, Runtime};
+use crate::{
+    lookup::{debug_global_interactions_with_all_chips, InteractionKind},
+    runtime::{Program, Runtime},
+};
 
 #[cfg(not(feature = "perf"))]
 use crate::lookup::debug_interactions_with_all_chips;
@@ -67,12 +70,26 @@ pub fn prove(program: Program) {
     let config = StarkConfigImpl::new(pcs);
     let mut challenger = Challenger::new(perm.clone());
 
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::DEBUG)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[1, 2]);
         runtime.run();
         runtime
     });
+
+    println!("debugging");
+    tracing::debug!("hi");
+    debug_global_interactions_with_all_chips(
+        &mut runtime.global_segment,
+        &mut runtime.segment,
+        InteractionKind::Byte,
+    );
 
     let start = Instant::now();
 

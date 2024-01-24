@@ -105,6 +105,97 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
+pub fn debug_global_interactions_with_all_chips(
+    global_segment: &mut Segment,
+    segment: &mut Segment,
+    interaction_kind: InteractionKind,
+) -> bool {
+    // Boilerplate code to set up the chips.
+    type Val = BabyBear;
+    type Domain = Val;
+    type Challenge = BinomialExtensionField<Val, 4>;
+    type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    type MyMds = CosetMds<Val, 16>;
+    type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+    type MyHash = SerializingHasher32<Keccak256Hash>;
+    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+    type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+    type Dft = Radix2DitParallel;
+    type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+    type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+    type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+    type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
+
+    // Here, we collect all the chips.
+    let segment_chips = Runtime::segment_chips::<MyConfig>();
+    let global_chips = Runtime::global_chips::<MyConfig>();
+
+    let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
+    let mut final_map = BTreeMap::new();
+
+    tracing::debug!("in debug");
+
+    for chip in global_chips {
+        let (_, count) =
+            debug_interactions::<BabyBear>(chip.as_ref(), global_segment, interaction_kind);
+
+        counts.push((count.clone(), chip.name()));
+        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+        for (key, value) in count.iter() {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+    }
+
+    for chip in segment_chips {
+        let (_, count) = debug_interactions::<BabyBear>(chip.as_ref(), segment, interaction_kind);
+
+        counts.push((count.clone(), chip.name()));
+        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+        for (key, value) in count.iter() {
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+    }
+
+    tracing::debug!("Final counts below.");
+    tracing::debug!("==================");
+
+    let mut any_nonzero = false;
+    for (key, value) in final_map.clone() {
+        if !value.is_zero() {
+            tracing::debug!(
+                "Interaction key: {} Send-Receive Discrepancy: {}",
+                key,
+                value
+            );
+            any_nonzero = true;
+            for count in counts.iter() {
+                if count.0.contains_key(&key) {
+                    tracing::debug!(
+                        "{} chip's send-receive discrepancy for this key is {}",
+                        count.1,
+                        count.0[&key]
+                    );
+                }
+            }
+        }
+    }
+
+    tracing::debug!("==================");
+    if !any_nonzero {
+        tracing::debug!("All chips have the same number of sends and receives.");
+    } else {
+        tracing::debug!("Positive values mean sent more than received.");
+        tracing::debug!("Negative values mean received more than sent.");
+        tracing::debug!("Every discrepancy is mod 2013265921. e.g., 2013265919 = -2");
+    }
+
+    !any_nonzero
+}
+
+/// Calculate the the number of times we send and receive each event of the given interaction type,
+/// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
     segment: &mut Segment,
     interaction_kind: InteractionKind,
