@@ -24,7 +24,7 @@ pub fn eval_field_operation<AB: CurtaAirBuilder, P: FieldParameters>(
     let root_monomial = Polynomial::from_coefficients(vec![-limb, AB::F::one().into()]);
 
     let constraints = p_vanishing - &(p_witness * root_monomial);
-    // for constr in constraints.as_coefficients() {
-    //     builder.assert_zero(constr);
-    // }
+    for constr in constraints.as_coefficients() {
+        builder.assert_zero(constr);
+    }
 }

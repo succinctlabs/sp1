@@ -2,7 +2,6 @@ use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
 use crate::field::FieldLTUChip;
-use crate::lookup::debug_interactions_with_all_chips;
 use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
@@ -54,6 +53,9 @@ impl Runtime {
         [
             Box::new(program),
             Box::new(cpu),
+            Box::new(sha_extend),
+            Box::new(sha_compress),
+            Box::new(ed_add),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -61,9 +63,6 @@ impl Runtime {
             Box::new(mul),
             Box::new(shift_right),
             Box::new(shift_left),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            Box::new(ed_add),
             Box::new(lt),
             Box::new(field),
             Box::new(bytes),
@@ -112,7 +111,7 @@ impl Runtime {
         let proofs: Vec<SegmentDebugProof<SC>> = segment_main_data
             .iter()
             .map(|main_data| {
-                Prover::prove(config, &mut challenger.clone(), &segment_chips, &main_data)
+                Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data)
             })
             .collect();
 
@@ -130,11 +129,6 @@ impl Runtime {
             .flat_map(|proof| proof.permutation_traces.clone())
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces.clone());
-
-        debug_interactions_with_all_chips(
-            &mut self.segments[0],
-            crate::lookup::InteractionKind::Memory,
-        );
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.

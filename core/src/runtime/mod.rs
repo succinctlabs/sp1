@@ -193,7 +193,13 @@ impl Runtime {
             timestamp: prev_timestamp,
         };
         if addr == 2097872 {
-            println!("mr: addr: {}, value: {}, record: {:?}", addr, value, record)
+            println!(
+                "mr: addr: {}, value: {}, record: {:?}, clk: {}",
+                addr,
+                value,
+                record,
+                self.clk_from_position(&position)
+            )
         }
 
         match position {
@@ -214,7 +220,7 @@ impl Runtime {
 
         assert!(self.memory_access.contains_key(&addr));
         if addr == 2097872 {
-            println!("mw: addr: {}, value: {}", addr, value)
+            println!("mw: addr: {}, value: {}", addr, value);
         }
         // Make sure that we have updated the memory records appropriately.
         match position {

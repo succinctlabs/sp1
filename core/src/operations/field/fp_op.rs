@@ -143,6 +143,36 @@ impl<V: Copy> FpOpCols<V> {
 
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
+
+    #[allow(unused_variables)]
+    pub fn eval_expr<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
+        &self,
+        builder: &mut AB,
+        a: &Limbs<AB::Var>,
+        b: &Limbs<AB::Expr>,
+        op: FpOperation,
+    ) where
+        V: Into<AB::Expr>,
+    {
+        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
+            FpOperation::Add | FpOperation::Mul => {
+                ((*a).clone().into(), self.result.clone().into())
+            }
+            FpOperation::Sub => (self.result.clone().into(), (*a).clone().into()),
+        };
+        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).clone().into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.clone().into();
+        let p_op = match op {
+            FpOperation::Add | FpOperation::Sub => p_a + p_b,
+            FpOperation::Mul => p_a * p_b,
+        };
+        let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
+        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
+        let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
+        let p_witness_low = self.witness_low.iter().into();
+        let p_witness_high = self.witness_high.iter().into();
+        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+    }
 }
 
 #[cfg(test)]
@@ -179,6 +209,7 @@ mod tests {
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
+    use std::str::FromStr;
     use valida_derive::AlignedBorrow;
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
@@ -219,16 +250,33 @@ mod tests {
                 (BigUint::from(0u32), BigUint::from(0u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
-                (BigUint::from(10u32), BigUint::from(19u32)),
+                (BigUint::from_str("15112221349535400772501151409588531511454012693041857206046113283949847762202").unwrap(), BigUint::from_str("46316835694926478169428394003475163141307993866256225615783033603165251855960").unwrap())
+                // (BigUint::from(10u32), BigUint::from(19u32)),
             ]);
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
-                    cols.a_op_b.populate::<P>(a, b, self.operation);
+                    // cols.a = P::to_limbs_field::<F>(a);
+                    // cols.b = P::to_limbs_field::<F>(b);
+                    let vals_a = [0_u8; 32];
+                    let a_bigint = BigUint::from_bytes_le(&vals_a) % &P::modulus();
+                    cols.a = P::to_limbs_field::<F>(&a_bigint);
+                    // cols.a = Limbs::<F>(vals_a);
+                    let vals_b = [0_u8; 32];
+                    let b_bigint = BigUint::from_bytes_le(&vals_b) % &P::modulus();
+                    cols.b = P::to_limbs_field::<F>(&b_bigint);
+                    println!("a: {:?}", a_bigint);
+                    println!("b: {:?}", b_bigint);
+
+                    // let mut row = [F::zero(); NUM_TEST_COLS];
+                    // let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
+                    // cols.a = P::to_limbs_field::<F>(a);
+                    // cols.b = P::to_limbs_field::<F>(b);
+                    // println!("a: {}, b: {}", a, b);
+                    cols.a_op_b
+                        .populate::<P>(&a_bigint, &b_bigint, self.operation);
                     row
                 })
                 .collect::<Vec<_>>();
