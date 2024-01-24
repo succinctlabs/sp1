@@ -1,15 +1,27 @@
-mod execute;
+use crate::cpu::MemoryRecord;
 
-// #[derive(Debug, Clone, Copy)]
-// pub struct ShaCompressEvent {
-//     pub clk: u32,
-//     pub w_and_h_ptr: u32,
-//     pub w: [u32; 64],
-//     pub h: [u32; 8],
-//     pub h_read_records: [Option<MemoryRecord>; 8],
-//     pub w_i_read_records: [Option<MemoryRecord>; 64],
-//     pub h_write_records: [Option<MemoryRecord>; 8],
-// }
+mod air;
+mod columns;
+mod constants;
+mod execute;
+mod logic;
+mod round_flags;
+mod trace;
+
+const NUM_ROUNDS: usize = 24;
+const BITS_PER_LIMB: usize = 16;
+const U64_LIMBS: usize = 64 / BITS_PER_LIMB;
+const RATE_BITS: usize = 1088;
+const RATE_LIMBS: usize = RATE_BITS / BITS_PER_LIMB;
+
+#[derive(Debug, Clone, Copy)]
+pub struct KeccakPermuteEvent {
+    pub clk: u32,
+    pub pre_state: [u64; 25],
+    pub post_state: [u64; 25],
+    pub state_read_records: [Option<MemoryRecord>; 8],
+    pub state_write_records: [Option<MemoryRecord>; 8],
+}
 
 pub struct KeccakPermuteChip;
 
