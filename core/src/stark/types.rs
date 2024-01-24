@@ -2,6 +2,7 @@ use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 
 use p3_uni_stark::StarkConfig;
+use serde::{Deserialize, Serialize};
 
 type Val<SC> = <SC as StarkConfig>::Val;
 type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
@@ -20,9 +21,14 @@ pub struct SegmentDebugProof<SC: StarkConfig> {
     pub permutation_traces: Vec<ChallengeMat<SC>>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct MainData<SC: StarkConfig> {
+    #[serde(bound(serialize = "ValMat<SC>: Serialize"))]
+    #[serde(bound(deserialize = "ValMat<SC>: Deserialize<'de>"))]
     pub traces: Vec<ValMat<SC>>,
     pub main_commit: Com<SC>,
+    #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
+    #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
     pub main_data: PcsProverData<SC>,
 }
 
