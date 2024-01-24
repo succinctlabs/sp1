@@ -168,11 +168,6 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
 
         let mut new_field_events = Vec::new();
 
-        println!(
-            "segment.ed_add_events.len() = {}",
-            segment.ed_add_events.len()
-        );
-
         for i in 0..segment.ed_add_events.len() {
             let event = segment.ed_add_events[i];
             let mut row = [F::zero(); NUM_ED_ADD_COLS];

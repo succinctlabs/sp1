@@ -100,7 +100,14 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
-        tracing::info!("nb_segments: {}", self.segments.len());
+        tracing::info!(
+            "total_cycles: {}, segments: {}",
+            self.segments
+                .iter()
+                .map(|s| s.cpu_events.len())
+                .sum::<usize>(),
+            self.segments.len()
+        );
         let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {
@@ -300,7 +307,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
-        env_logger::init();
+        tracing_subscriber::fmt::init();
         let program = fibonacci_program();
         prove(program);
     }

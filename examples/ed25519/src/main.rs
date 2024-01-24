@@ -20,11 +20,5 @@ pub fn main() {
         .verify_strict(&black_box(msg_bytes), &black_box(sig1))
         .is_ok());
 
-    // let sec_bytes = hex!("833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
-    // let signing_key = SigningKey::from_bytes(&sec_bytes);
-    // assert_eq!(verifying_key, signing_key.verifying_key());
-    // let sig2: Signature = signing_key.sign(&msg_bytes);
-    // println!("sig: {}", sig2);
-
     println!("done");
 }
