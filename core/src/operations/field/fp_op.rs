@@ -350,7 +350,14 @@ mod tests {
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
 
-        for op in [FpOperation::Add, FpOperation::Sub, FpOperation::Mul].iter() {
+        for op in [
+            FpOperation::Add,
+            FpOperation::Sub,
+            FpOperation::Mul,
+            FpOperation::Div,
+        ]
+        .iter()
+        {
             println!("op: {:?}", op);
 
             let mds = MyMds::default();
