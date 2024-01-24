@@ -47,10 +47,14 @@ impl<F: Field> FpOpCols<F> {
         /// all operations using "PF" should use "F" in the future.
         type PF = BabyBear;
 
-        assert!(
-            *a != BigUint::zero() || !b.is_zero() || op != FpOperation::Div,
-            "Division by zero"
-        );
+        if b == &BigUint::zero() && op == FpOperation::Div {
+            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
+            assert_eq!(
+                *a,
+                BigUint::zero(),
+                "division by zero is allowed only when dividing zero"
+            );
+        }
 
         let modulus = P::modulus();
 
@@ -70,7 +74,13 @@ impl<F: Field> FpOpCols<F> {
 
         // a / b = result is equivalent to a = result * b.
         if op == FpOperation::Div {
-            let result = (a * inverse_mod(b, &modulus)) % &modulus;
+            let result = {
+                if a == &BigUint::zero() {
+                    BigUint::zero()
+                } else {
+                    (a * inverse_mod(b, &modulus)) % &modulus
+                }
+            };
             // We populate the carry, witness_low, witness_high as if we were doing a multiplication
             // with result * b. But we populate `result` with the actual result of the
             // multiplication because those columns are expected to contain the result by the user.
@@ -238,16 +248,10 @@ mod tests {
                 })
                 .collect();
 
-            // Hardcoded edge cases. Use (0, 0) for add, mul, sub, but (0, 1) for div to avoid
-            // division by zero.
+            // Hardcoded edge cases. We purposely include 0 / 0. While mathematically, that is not
+            // allowed, we allow it in our implementation so padded rows can be all 0.
             operands.extend(vec![
-                (BigUint::from(0u32), {
-                    if self.operation == FpOperation::Div {
-                        BigUint::from(1u32)
-                    } else {
-                        BigUint::from(0u32)
-                    }
-                }),
+                (BigUint::from(0u32), BigUint::from(0u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
                 (BigUint::from(10u32), BigUint::from(19u32)),
