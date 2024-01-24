@@ -85,8 +85,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 let c = event.c.to_le_bytes();
 
                 for i in 0..4 {
+                    // Add a byte lookup for the unsigned lt comparison of b[i] and c[i].
                     let is_b_lt_c = lt(b[i], c[i]);
-
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::LTU,
                         a1: is_b_lt_c,
@@ -94,15 +94,14 @@ impl<F: PrimeField> Chip<F> for LtChip {
                         b: b[i],
                         c: c[i],
                     };
-
-                    // unsigned_b_lt_c[i] stores the value of the unsigned lt comparison of b and c.
-                    cols.unsigned_b_lt_c[i] = F::from_canonical_u8(is_b_lt_c);
-
                     segment
                         .byte_lookups
                         .entry(byte_event)
                         .and_modify(|j| *j += 1)
                         .or_insert(1);
+
+                    // unsigned_b_lt_c[i] stores the value of the unsigned lt comparison of b and c.
+                    cols.unsigned_b_lt_c[i] = F::from_canonical_u8(is_b_lt_c);
                 }
 
                 // Store the xor of the MSB of b and c.
@@ -176,8 +175,8 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
+        // Dispatch the byte lookups from the AIR.
         let mult = local.is_slt + local.is_sltu;
-
         for ((b_lt_c, b), c) in local.unsigned_b_lt_c.into_iter().zip(local.b).zip(local.c) {
             builder.send_byte(
                 ByteOpcode::LTU.to_field::<AB::F>(),
@@ -224,7 +223,6 @@ where
             builder.assert_bool(local.byte_equality_check[i]);
             builder.assert_bool(local.unsigned_b_lt_c[i]);
         }
-
         // Verify at most one byte flag is set.
         let flag_sum =
             local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
