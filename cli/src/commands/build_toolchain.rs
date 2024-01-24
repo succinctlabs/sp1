@@ -3,11 +3,13 @@ use std::process::{Command, Stdio};
 use anyhow::Result;
 use clap::Parser;
 
+const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
+
 #[derive(Parser)]
 #[command(name = "build-toolchain", about = "Build the cargo-prove toolchain.")]
-pub struct BuildToolChainCmd {}
+pub struct BuildToolchainCmd {}
 
-impl BuildToolChainCmd {
+impl BuildToolchainCmd {
     pub fn run(&self) -> Result<()> {
         // Clone our rust fork.
         Command::new("git")
@@ -50,7 +52,7 @@ impl BuildToolChainCmd {
 
         // Remove the existing toolchain from rustup, if it exists.
         match Command::new("rustup")
-            .args(["toolchain", "remove", "riscv32im-succinct-zkvm-elf"])
+            .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
@@ -60,6 +62,7 @@ impl BuildToolChainCmd {
             Err(_) => println!("No existing toolchain to remove."),
         }
 
+        // Find the toolchain directory.
         let mut toolchain_dir = None;
         for wentry in std::fs::read_dir("rust/build")? {
             let entry = wentry?;
@@ -69,11 +72,16 @@ impl BuildToolChainCmd {
                 break;
             }
         }
+        let toolchain_dir = toolchain_dir.unwrap();
+        println!(
+            "Found toolchain directory at {}",
+            toolchain_dir.as_path().to_str().unwrap()
+        );
 
         // Link the toolchain to rustup.
         Command::new("rustup")
-            .args(["toolchain", "link", "riscv32im-succinct-zkvm-elf"])
-            .arg(toolchain_dir.unwrap())
+            .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
+            .arg(toolchain_dir)
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
