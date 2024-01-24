@@ -1,5 +1,6 @@
-use super::field::NUM_LIMBS;
 use num::BigUint;
+
+use super::field::NUM_LIMBS;
 
 pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
     let byte_vec = integer.to_bytes_le();
