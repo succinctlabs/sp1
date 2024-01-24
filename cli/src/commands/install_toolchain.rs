@@ -4,10 +4,16 @@ use dirs::home_dir;
 use flate2::read::GzDecoder;
 use reqwest::{header::HeaderMap, Client};
 use serde::Deserialize;
-use std::{fs::File as SyncFile, process::Command};
+use std::{
+    fs::{self, File as SyncFile},
+    process::Command,
+};
 use tar::Archive;
 
 use crate::{download_file, CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
+
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 
 #[derive(Parser)]
 #[command(
@@ -76,9 +82,24 @@ impl InstallToolchainCmd {
         // Link the toolchain to rustup.
         Command::new("rustup")
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(toolchain_dir)
+            .arg(&toolchain_dir)
             .run()?;
         println!("Succesfully linked toolchain to rustup.");
+
+        // Ensure permissions.
+        #[cfg(target_family = "unix")]
+        {
+            let bin_dir = toolchain_dir.join("bin");
+            let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
+            for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
+                let entry = wrapped_entry?;
+                if entry.file_type()?.is_file() {
+                    let mut perms = entry.metadata()?.permissions();
+                    perms.set_mode(0o755);
+                    fs::set_permissions(entry.path(), perms)?;
+                }
+            }
+        }
 
         Ok(())
     }
