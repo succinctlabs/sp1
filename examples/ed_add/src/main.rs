@@ -45,9 +45,6 @@ pub fn main() {
 
     unsafe {
         syscall_ed_add(p_ptr, p_ptr);
-        syscall_ed_add(p_ptr, p_ptr);
-        syscall_ed_add(p_ptr, p_ptr);
-        syscall_ed_add(p_ptr, p_ptr);
     }
 
     assert_eq!(ec, doubled);

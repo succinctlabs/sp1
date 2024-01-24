@@ -192,15 +192,6 @@ impl Runtime {
             segment: prev_segment,
             timestamp: prev_timestamp,
         };
-        if addr == 2097872 {
-            println!(
-                "mr: addr: {}, value: {}, record: {:?}, clk: {}",
-                addr,
-                value,
-                record,
-                self.clk_from_position(&position)
-            )
-        }
 
         match position {
             AccessPosition::A => self.record.a = Some(record),
@@ -219,9 +210,7 @@ impl Runtime {
         self.memory.insert(addr, value);
 
         assert!(self.memory_access.contains_key(&addr));
-        if addr == 2097872 {
-            println!("mw: addr: {}, value: {}", addr, value);
-        }
+
         // Make sure that we have updated the memory records appropriately.
         match position {
             AccessPosition::A => assert!(self.record.a.is_some()),
@@ -647,7 +636,6 @@ impl Runtime {
                         self.rw(a0, a);
                     }
                     Syscall::ED_ADD => {
-                        println!("instruction: {:?}", instruction);
                         (a, b, c) = EdAddAssignChip::execute(self);
                     }
                 }

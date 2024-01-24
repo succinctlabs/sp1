@@ -128,12 +128,6 @@ impl EdAddAssignChip {
         let opcode = rt.rr(t0, AccessPosition::B);
         let p_ptr = rt.register(a0);
         rt.rw(a0, p_ptr);
-        println!(
-            "read: ({}, {}, {})",
-            rt.record.b.unwrap().timestamp,
-            rt.record.b.unwrap().value,
-            10
-        );
 
         // Preserve record for cpu event. It just has p/q + opcode reads.
         let record = rt.record;
@@ -178,8 +172,6 @@ impl EdAddAssignChip {
             ((1u32 + &modulus - &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
         let x3 = (&x3_numerator * &x3_denominator) % &modulus;
         let y3 = (&y3_numerator * &y3_denominator) % &modulus;
-        println!("x3 real: {}", x3);
-        println!("y3 real: {}", y3);
 
         let mut x3_limbs = [0; 32];
         let mut y3_limbs = [0; 32];
@@ -194,20 +186,14 @@ impl EdAddAssignChip {
         for i in 0..8 {
             let u32_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
 
-            // let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
             let u32_value = u32::from_le_bytes(u32_array);
-            let prev_value = rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
-            let prev_value_bytes = prev_value.to_le_bytes();
-            println!("prev_value_bytes: {:?}", prev_value_bytes);
-            println!("new bytes: {:?}", u32_array);
-            println!("new value: {:?} i: {}", u32_value, i);
+            rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
             rt.mw(p_ptr + (i as u32) * 4, u32_value, AccessPosition::Memory);
             p_memory_records[i] = *rt.record.memory.as_ref().unwrap();
         }
         // panic!();
         for i in 0..8 {
             let u32_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-            // let u32_value: u32 = unsafe { std::mem::transmute(u32_array) };
             let u32_value = u32::from_le_bytes(u32_array);
             rt.mr(p_ptr + (i as u32 + 8) * 4, AccessPosition::Memory);
             rt.mw(
@@ -274,15 +260,10 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
             let p_y = BigUint::from_slice(&p[8..16]);
             let q_x = BigUint::from_slice(&q[0..8]);
             let q_y = BigUint::from_slice(&q[8..16]);
-            println!("p_x: {:?}", p_x);
-            println!("p_y: {:?}", p_y);
-            println!("q_x: {:?}", q_x);
-            println!("q_y: {:?}", q_y);
             let x3_numerator = cols.x3_numerator.populate::<Ed25519BaseField>(
                 &vec![p_x.clone(), q_x.clone()],
                 &vec![q_y.clone(), p_y.clone()],
             );
-            println!("x3_numerator: {:?}", x3_numerator);
             let y3_numerator = cols.y3_numerator.populate::<Ed25519BaseField>(
                 &vec![p_y.clone(), p_x.clone()],
                 &vec![q_y.clone(), q_x.clone()],
@@ -354,15 +335,6 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
                 Some(event.q_ptr_record),
                 &mut new_field_events,
             );
-
-            let p_bytes = event
-                .p_memory_records
-                .iter()
-                .map(|x| x.value)
-                .collect::<Vec<_>>();
-
-            let px_limbs = EdAddAssignCols::limbs_from_access(&cols.p_access[0..8]);
-            let py_limbs = EdAddAssignCols::limbs_from_access(&cols.p_access[8..16]);
 
             rows.push(row);
         }
@@ -448,11 +420,8 @@ where
 
         let x1 = EdAddAssignCols::limbs_from_access(&row.p_access[0..8]);
         let x2 = EdAddAssignCols::limbs_from_access(&row.q_access[0..8]);
-        // let x2 = EdAddAssignCols::limbs_from_read(&self.q_access[0..32]);
         let y1 = EdAddAssignCols::limbs_from_access(&row.p_access[8..16]);
         let y2 = EdAddAssignCols::limbs_from_access(&row.q_access[8..16]);
-
-        // let y2 = EdAddAssignCols::limbs_from_read(&self.q_access[32..64]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         row.x3_numerator
@@ -462,7 +431,7 @@ where
         row.y3_numerator
             .eval::<AB, Ed25519BaseField>(builder, &[y1, x1], &[y2, x2]);
 
-        // // f = x1 * x2 * y1 * y2.
+        // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
             .eval::<AB, Ed25519BaseField>(builder, &x1, &y1, FpOperation::Mul);
         row.x2_mul_y2
@@ -473,11 +442,8 @@ where
         row.f
             .eval::<AB, Ed25519BaseField>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-        // // d * f.
+        // d * f.
         let f = row.f.result;
-        // TODO: put in E::D as a generic here
-        // 37095705934669439343138083508754565189542113879843219016388785533085940283555
-        // let d_const = Ed25519BaseField::to_limbs_field(&EdAddAssignChip::d_biguint());
         let d_biguint = EdAddAssignChip::d_biguint();
         let d_const = Ed25519BaseField::to_limbs_field::<AB::F>(&d_biguint);
         let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
@@ -519,7 +485,7 @@ where
         }
         builder.constraint_memory_access(
             row.segment,
-            row.clk + AB::F::from_canonical_u32(1), // clk + 0 -> C
+            row.clk + AB::F::from_canonical_u32(AccessPosition::C as u32), // clk + 0 -> C
             AB::F::from_canonical_u32(11),
             row.q_ptr_access,
             row.is_real,
