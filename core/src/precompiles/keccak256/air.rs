@@ -32,6 +32,7 @@ where
         let next: &KeccakCols<AB::Var> = main.row_slice(1).borrow();
 
         for i in 0..50 {
+            // Note that for the padded columns, local.step_flags elements are all zero.
             builder.constraint_memory_access(
                 local.segment,
                 local.clk,
@@ -58,6 +59,7 @@ where
                     builder
                         .when_transition()
                         .when(not_final_step.clone())
+                        .when(local.is_real)
                         .assert_eq(local.preimage[y][x][limb], next.preimage[y][x][limb]);
                 }
             }
@@ -72,7 +74,7 @@ where
                     local.c[(x + 1) % 5][(z + 63) % 64].into(),
                 );
                 let c_prime = local.c_prime[x][z];
-                builder.assert_eq(c_prime, xor);
+                builder.when(local.is_real).assert_eq(c_prime, xor);
             }
         }
 
@@ -96,7 +98,7 @@ where
                     let computed_limb = (limb * BITS_PER_LIMB..(limb + 1) * BITS_PER_LIMB)
                         .rev()
                         .fold(AB::Expr::zero(), |acc, z| acc.double() + get_bit(z));
-                    builder.assert_eq(computed_limb, a_limb);
+                    builder.when(local.is_real).assert_eq(computed_limb, a_limb);
                 }
             }
         }
@@ -110,6 +112,7 @@ where
                 let diff = sum - local.c_prime[x][z];
                 let four = AB::Expr::from_canonical_u8(4);
                 builder
+                    .when(local.is_real)
                     .assert_zero(diff.clone() * (diff.clone() - AB::Expr::two()) * (diff - four));
             }
         }
@@ -129,7 +132,9 @@ where
                     let computed_limb = (limb * BITS_PER_LIMB..(limb + 1) * BITS_PER_LIMB)
                         .rev()
                         .fold(AB::Expr::zero(), |acc, z| acc.double() + get_bit(z));
-                    builder.assert_eq(computed_limb, local.a_prime_prime[y][x][limb]);
+                    builder
+                        .when(local.is_real)
+                        .assert_eq(computed_limb, local.a_prime_prime[y][x][limb]);
                 }
             }
         }
@@ -143,7 +148,9 @@ where
                     acc.double() + local.a_prime_prime_0_0_bits[z]
                 });
             let a_prime_prime_0_0_limb = local.a_prime_prime[0][0][limb];
-            builder.assert_eq(computed_a_prime_prime_0_0_limb, a_prime_prime_0_0_limb);
+            builder
+                .when(local.is_real)
+                .assert_eq(computed_a_prime_prime_0_0_limb, a_prime_prime_0_0_limb);
         }
 
         let get_xored_bit = |i| {
@@ -163,7 +170,7 @@ where
                 ..(limb + 1) * BITS_PER_LIMB)
                 .rev()
                 .fold(AB::Expr::zero(), |acc, z| acc.double() + get_xored_bit(z));
-            builder.assert_eq(
+            builder.when(local.is_real).assert_eq(
                 computed_a_prime_prime_prime_0_0_limb,
                 a_prime_prime_prime_0_0_limb,
             );
@@ -177,6 +184,7 @@ where
                     let input = next.a[y][x][limb];
                     builder
                         .when_transition()
+                        .when(local.is_real)
                         .when(not_final_step.clone())
                         .assert_eq(output, input);
                 }

@@ -21,6 +21,7 @@ pub(crate) fn eval_round_flags<AB: AirBuilder>(builder: &mut AB) {
         let next_round_flag = next.step_flags[(i + 1) % NUM_ROUNDS];
         builder
             .when_transition()
+            .when(next.is_real)
             .assert_eq(next_round_flag, current_round_flag);
     }
 }

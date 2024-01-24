@@ -37,7 +37,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             let event_rows = &mut rows[i * NUM_ROUNDS..(i + 1) * NUM_ROUNDS];
 
             let event = &segment.keccak_permute_events[i];
-            let clk = event.clk;
+            let mut clk = event.clk;
 
             for j in 0..event.pre_state.len() {
                 let most_sig = ((event.pre_state[j] >> 32) & 0xFFFFFFFF) as u32;
@@ -72,6 +72,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             generate_trace_rows_for_perm(event_rows, event.pre_state, SEGMENT_NUM, event.clk);
 
             let last_row_num = event_rows.len() - 1;
+            clk += (NUM_ROUNDS - 1) as u32 * 4;
 
             for j in 0..event.post_state.len() {
                 let most_sig = ((event.post_state[j] >> 32) & 0xFFFFFFFF) as u32;
@@ -146,6 +147,7 @@ fn generate_trace_rows_for_perm<F: PrimeField32>(
 
     rows[0].clk = F::from_canonical_u32(start_clk);
     rows[0].segment = F::from_canonical_u32(segment);
+    rows[0].is_real = F::one();
     generate_trace_row_for_round(&mut rows[0], 0);
 
     for round in 1..rows.len() {
@@ -160,6 +162,7 @@ fn generate_trace_rows_for_perm<F: PrimeField32>(
 
         rows[round].clk = F::from_canonical_u32(start_clk + round as u32 * 4);
         rows[round].segment = F::from_canonical_u32(segment);
+        rows[round].is_real = F::one();
         generate_trace_row_for_round(&mut rows[round], round);
     }
 }

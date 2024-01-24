@@ -1,7 +1,7 @@
 use crate::cpu::MemoryRecord;
 
 mod air;
-mod columns;
+pub mod columns;
 mod constants;
 mod execute;
 mod logic;

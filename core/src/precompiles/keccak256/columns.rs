@@ -70,6 +70,8 @@ pub(crate) struct KeccakCols<T> {
     /// A'''[0, 0, z] = A''[0, 0, z] ^ RC[k, z]
     /// ```
     pub a_prime_prime_prime_0_0_limbs: [T; U64_LIMBS],
+
+    pub is_real: T,
 }
 
 impl<T: Copy> KeccakCols<T> {
@@ -129,7 +131,7 @@ pub fn output_limb(i: usize) -> usize {
     KECCAK_COL_MAP.postimage[y][x][limb_index]
 }
 
-pub(crate) const NUM_KECCAK_COLS: usize = size_of::<KeccakCols<u8>>();
+pub const NUM_KECCAK_COLS: usize = size_of::<KeccakCols<u8>>();
 pub(crate) const KECCAK_COL_MAP: KeccakCols<usize> = make_col_map();
 
 const fn make_col_map() -> KeccakCols<usize> {
