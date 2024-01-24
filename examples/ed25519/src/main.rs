@@ -1,12 +1,12 @@
 #![no_main]
 
-extern crate curta_zkvm;
+extern crate succinct_zkvm;
 
 use ed25519_dalek::*;
 use hex_literal::hex;
 use std::hint::black_box;
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
     let pub_bytes = hex!("ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");

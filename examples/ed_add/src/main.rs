@@ -1,8 +1,8 @@
 #![no_main]
 
-extern crate curta_zkvm;
+extern crate succinct_zkvm;
 
-curta_zkvm::entrypoint!(main);
+succinct_zkvm::entrypoint!(main);
 
 extern "C" {
     fn syscall_ed_add(p: *mut u32, q: *const u32);

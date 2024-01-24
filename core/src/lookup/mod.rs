@@ -9,6 +9,7 @@ use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField64;
 use p3_fri::{FriBasedPcs, FriConfigImpl};
 use p3_keccak::Keccak256Hash;
 use p3_ldt::QuotientMmcs;
@@ -103,6 +104,16 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     result
 }
 
+fn babybear_to_int(n: BabyBear) -> i32 {
+    let modulus = BabyBear::ORDER_U64;
+    if n > modulus / 2 {
+        (n - modulus) as i32
+    } else {
+        n as i32
+    }
+    result
+}
+
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
@@ -149,7 +160,7 @@ pub fn debug_interactions_with_all_chips(
         counts.push((count.clone(), chip.name()));
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+            *final_map.entry(key.clone()).or_insert(0) += babybear_to_int(*value);
         }
     }
 
@@ -164,7 +175,7 @@ pub fn debug_interactions_with_all_chips(
             counts.push((count.clone(), chip.name()));
             tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
             for (key, value) in count.iter() {
-                *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+                *final_map.entry(key.clone()).or_insert(0) += babybear_to_int(*value);
             }
         }
     }

@@ -1,5 +1,4 @@
 use crate::air::CurtaAirBuilder;
-use crate::air::Word;
 use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::MemoryRecord;
 use crate::operations::field::fp_den::FpDenCols;
@@ -11,10 +10,10 @@ use crate::operations::field::params::Ed25519BaseField;
 use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
+use crate::precompiles::PrecompileRuntime;
 use crate::runtime::AccessPosition;
-use crate::runtime::Register;
-use crate::runtime::Runtime;
 use crate::runtime::Segment;
+use crate::utils::ec::EllipticCurve;
 use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -27,6 +26,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
@@ -92,16 +92,20 @@ impl<T: Copy> EdAddAssignCols<T> {
     }
 }
 
-pub struct EdAddAssignChip {}
+pub struct EdAddAssignChip<E> {
+    _marker: PhantomData<E>,
+}
 
-impl EdAddAssignChip {
+impl<E: EllipticCurve> EdAddAssignChip<E> {
     const D: [u16; 32] = [
         30883, 4953, 19914, 30187, 55467, 16705, 2637, 112, 59544, 30585, 16505, 36039, 65139,
         11119, 27886, 20995, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
 
     pub fn new() -> Self {
-        Self {}
+        Self {
+            _marker: PhantomData,
+        }
     }
 
     fn d_biguint() -> BigUint {
@@ -114,121 +118,163 @@ impl EdAddAssignChip {
 
     const NB_ED_ADD_CYCLES: u32 = 8;
 
-    pub fn execute(rt: &mut Runtime) -> (u32, u32, u32) {
-        // Initialize the registers.
-        let t0 = Register::X5;
-        let a0 = Register::X10;
-        let a1 = Register::X11;
+    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+        let a0 = crate::runtime::Register::X10;
+        let a1 = crate::runtime::Register::X11;
 
-        // We have to forward the clk because the memory access in the CPU table should end at that clk cycle
-        rt.clk += Self::NB_ED_ADD_CYCLES;
+        let start_clk = rt.clk;
 
-        // These reads are happening in the CPU table
-        // So we have to make sure that it's set up properly for the ecall
-
-        let opcode = rt.rr(t0, AccessPosition::B);
-        let p_ptr = rt.register(a0);
-        rt.rw(a0, p_ptr);
-
+        // TODO: these will have to be be constrained, but can do it later.
+        let p_ptr = rt.register_unsafe(a0);
         if p_ptr % 4 != 0 {
             panic!();
         }
-
-        // Preserve record for cpu event. It just has p/q + opcode reads.
-        let record = rt.record;
-
-        rt.clk -= Self::NB_ED_ADD_CYCLES;
-
-        let q_ptr = rt.rr(a1, AccessPosition::C);
-        rt.mw(a1 as u32, q_ptr, AccessPosition::C);
-        let q_ptr_record = *rt.record.c.as_ref().unwrap();
-
+        let (q_ptr_record, q_ptr) = rt.mr(a1 as u32);
         if q_ptr % 4 != 0 {
             panic!();
         }
 
-        let mut p = [0; 16];
-        for (i, item) in p.iter_mut().enumerate() {
-            *item = rt.word(p_ptr + (i as u32) * 4);
-        }
-
-        let mut q = [0; 16];
-        let mut q_memory_records = [MemoryRecord::default(); 16];
-        for i in 0..16 {
-            q[i] = rt.mr(q_ptr + (i as u32) * 4, AccessPosition::Memory);
-            q_memory_records[i] = *rt.record.memory.as_ref().unwrap();
-        }
+        let p = rt.slice_unsafe(p_ptr, 16);
+        let (q_records, q) = rt.mr_slice(q_ptr, 16);
+        // When we write to p, we want the clk to be incremented.
         rt.clk += 4;
 
-        let p_bytes = p.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>();
-        let q_bytes = q.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>();
+        let p_affine = AffinePoint::<E>::from_words_le(&p);
+        let q_affine = AffinePoint::<E>::from_words_le(&q);
+        let result_affine = p_affine + q_affine;
+        let result_words = result_affine.to_words_le();
 
-        let p_x = BigUint::from_bytes_le(&p_bytes[0..32]);
-        let p_y = BigUint::from_bytes_le(&p_bytes[32..64]);
-        let q_x = BigUint::from_bytes_le(&q_bytes[0..32]);
-        let q_y = BigUint::from_bytes_le(&q_bytes[32..64]);
+        let p_records = rt.mw_slice(p_ptr, result_words);
 
-        let modulus = Ed25519BaseField::modulus();
-        let x3_numerator = (&p_x * &q_y + &q_x * &p_y) % &modulus;
-        let y3_numerator = (&p_y * &q_y + &p_x * &q_x) % &modulus;
-        let f = (p_x * q_x * p_y * q_y) % &modulus;
-        let d_bigint = EdAddAssignChip::d_biguint();
-        let d_mul_f = (f * d_bigint) % &modulus;
-        // x3_denominator = 1 / (1 + d * f)
-        let x3_denominator = ((1u32 + &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
-        // y3_denominator = 1 / (1 - d * f)
-        let y3_denominator =
-            ((1u32 + &modulus - &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
-        let x3 = (&x3_numerator * &x3_denominator) % &modulus;
-        let y3 = (&y3_numerator * &y3_denominator) % &modulus;
-
-        let mut x3_limbs = [0; 32];
-        let mut y3_limbs = [0; 32];
-        let x3_le = x3.to_bytes_le();
-        x3_limbs[0..x3_le.len()].copy_from_slice(x3_le.as_slice());
-        let y3_le = y3.to_bytes_le();
-        y3_limbs[0..y3_le.len()].copy_from_slice(y3_le.as_slice());
-
-        // Create p memory records that read the values of p and write the values of x3 and y3.
-        let mut p_memory_records = [MemoryRecord::default(); 16];
-
-        for i in 0..8 {
-            let u32_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-
-            let u32_value = u32::from_le_bytes(u32_array);
-            rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
-            rt.mw(p_ptr + (i as u32) * 4, u32_value, AccessPosition::Memory);
-            p_memory_records[i] = *rt.record.memory.as_ref().unwrap();
-        }
-        // panic!();
-        for i in 0..8 {
-            let u32_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-            let u32_value = u32::from_le_bytes(u32_array);
-            rt.mr(p_ptr + (i as u32 + 8) * 4, AccessPosition::Memory);
-            rt.mw(
-                p_ptr + (i as u32 + 8) * 4,
-                u32_value,
-                AccessPosition::Memory,
-            );
-            p_memory_records[8 + i] = *rt.record.memory.as_ref().unwrap();
-        }
-        rt.clk += 4;
-
-        rt.segment.ed_add_events.push(EdAddEvent {
-            clk: rt.clk - Self::NB_ED_ADD_CYCLES,
+        rt.segment_mut().ed_add_events.push(EdAddEvent {
+            clk: start_clk,
             p_ptr,
             p,
             q_ptr,
             q,
             q_ptr_record,
-            p_memory_records,
-            q_memory_records,
+            p_records,
+            q_records,
         });
 
-        // Restore record
-        rt.record = record;
-        (p_ptr, opcode, 0)
+        p_ptr
     }
+
+    // pub fn execute(rt: &mut Runtime) -> (u32, u32, u32) {
+    //     // Initialize the registers.
+    //     let t0 = Register::X5;
+    //     let a0 = Register::X10;
+    //     let a1 = Register::X11;
+
+    //     // We have to forward the clk because the memory access in the CPU table should end at that clk cycle
+    //     rt.clk += Self::NB_ED_ADD_CYCLES;
+
+    //     // These reads are happening in the CPU table
+    //     // So we have to make sure that it's set up properly for the ecall
+
+    //     let opcode = rt.rr(t0, AccessPosition::B);
+    //     let p_ptr = rt.register(a0);
+    //     rt.rw(a0, p_ptr);
+
+    //     if p_ptr % 4 != 0 {
+    //         panic!();
+    //     }
+
+    //     // Preserve record for cpu event. It just has p/q + opcode reads.
+    //     let record = rt.record;
+
+    //     rt.clk -= Self::NB_ED_ADD_CYCLES;
+
+    //     let q_ptr = rt.rr(a1, AccessPosition::C);
+    //     rt.mw(a1 as u32, q_ptr, AccessPosition::C);
+    //     let q_ptr_record = *rt.record.c.as_ref().unwrap();
+
+    //     if q_ptr % 4 != 0 {
+    //         panic!();
+    //     }
+
+    //     let mut p = [0; 16];
+    //     for (i, item) in p.iter_mut().enumerate() {
+    //         *item = rt.word(p_ptr + (i as u32) * 4);
+    //     }
+
+    //     let mut q = [0; 16];
+    //     let mut q_memory_records = [MemoryRecord::default(); 16];
+    //     for i in 0..16 {
+    //         q[i] = rt.mr(q_ptr + (i as u32) * 4, AccessPosition::Memory);
+    //         q_memory_records[i] = *rt.record.memory.as_ref().unwrap();
+    //     }
+    //     rt.clk += 4;
+
+    //     let p_bytes = p.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>();
+    //     let q_bytes = q.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>();
+
+    //     let p_x = BigUint::from_bytes_le(&p_bytes[0..32]);
+    //     let p_y = BigUint::from_bytes_le(&p_bytes[32..64]);
+    //     let q_x = BigUint::from_bytes_le(&q_bytes[0..32]);
+    //     let q_y = BigUint::from_bytes_le(&q_bytes[32..64]);
+
+    //     let modulus = Ed25519BaseField::modulus();
+    //     let x3_numerator = (&p_x * &q_y + &q_x * &p_y) % &modulus;
+    //     let y3_numerator = (&p_y * &q_y + &p_x * &q_x) % &modulus;
+    //     let f = (p_x * q_x * p_y * q_y) % &modulus;
+    //     let d_bigint = EdAddAssignChip::d_biguint();
+    //     let d_mul_f = (f * d_bigint) % &modulus;
+    //     // x3_denominator = 1 / (1 + d * f)
+    //     let x3_denominator = ((1u32 + &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
+    //     // y3_denominator = 1 / (1 - d * f)
+    //     let y3_denominator =
+    //         ((1u32 + &modulus - &d_mul_f) % &modulus).modpow(&(&modulus - 2u32), &modulus);
+    //     let x3 = (&x3_numerator * &x3_denominator) % &modulus;
+    //     let y3 = (&y3_numerator * &y3_denominator) % &modulus;
+
+    //     let mut x3_limbs = [0; 32];
+    //     let mut y3_limbs = [0; 32];
+    //     let x3_le = x3.to_bytes_le();
+    //     x3_limbs[0..x3_le.len()].copy_from_slice(x3_le.as_slice());
+    //     let y3_le = y3.to_bytes_le();
+    //     y3_limbs[0..y3_le.len()].copy_from_slice(y3_le.as_slice());
+
+    //     // Create p memory records that read the values of p and write the values of x3 and y3.
+    //     let mut p_memory_records = [MemoryRecord::default(); 16];
+
+    //     for i in 0..8 {
+    //         let u32_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+
+    //         let u32_value = u32::from_le_bytes(u32_array);
+    //         rt.mr(p_ptr + (i as u32) * 4, AccessPosition::Memory);
+    //         rt.mw(p_ptr + (i as u32) * 4, u32_value, AccessPosition::Memory);
+    //         p_memory_records[i] = *rt.record.memory.as_ref().unwrap();
+    //     }
+    //     // panic!();
+    //     for i in 0..8 {
+    //         let u32_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+    //         let u32_value = u32::from_le_bytes(u32_array);
+    //         rt.mr(p_ptr + (i as u32 + 8) * 4, AccessPosition::Memory);
+    //         rt.mw(
+    //             p_ptr + (i as u32 + 8) * 4,
+    //             u32_value,
+    //             AccessPosition::Memory,
+    //         );
+    //         p_memory_records[8 + i] = *rt.record.memory.as_ref().unwrap();
+    //     }
+    //     rt.clk += 4;
+
+    //     rt.segment.ed_add_events.push(EdAddEvent {
+    //         clk: rt.clk - Self::NB_ED_ADD_CYCLES,
+    //         p_ptr,
+    //         p,
+    //         q_ptr,
+    //         q,
+    //         q_ptr_record,
+    //         p_memory_records,
+    //         q_memory_records,
+    //     });
+
+    //     // Restore record
+    //     rt.record = record;
+    //     (p_ptr, opcode, 0)
+    // }
 }
 
 impl<F: Field> Chip<F> for EdAddAssignChip {
