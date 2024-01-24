@@ -7,7 +7,7 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::precompiles::keccak256::constants::R;
 use crate::precompiles::keccak256::{NUM_ROUNDS, RATE_LIMBS, U64_LIMBS};
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Debug)]
 #[repr(C)]
 pub(crate) struct KeccakCols<T> {
     pub segment: T,

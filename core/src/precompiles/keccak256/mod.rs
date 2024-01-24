@@ -21,6 +21,7 @@ pub struct KeccakPermuteEvent {
     pub post_state: [u64; 25],
     pub state_read_records: [Option<MemoryRecord>; 8],
     pub state_write_records: [Option<MemoryRecord>; 8],
+    pub state_addr: u32,
 }
 
 pub struct KeccakPermuteChip;
@@ -115,7 +116,7 @@ pub mod compress_tests {
     //     let config = StarkConfigImpl::new(pcs);
     //     let mut challenger = Challenger::new(perm.clone());
 
-    //     let program = sha_compress_program();
+    //     let program = keccak_permute_program();
     //     let mut runtime = Runtime::new(program);
     //     runtime.write_witness(&[999]);
     //     runtime.run();

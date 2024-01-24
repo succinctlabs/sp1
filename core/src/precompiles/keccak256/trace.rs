@@ -1,7 +1,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use p3_field::{PrimeField, PrimeField64};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
@@ -20,7 +20,7 @@ use super::{
     KeccakPermuteChip, BITS_PER_LIMB, U64_LIMBS,
 };
 
-impl<F: PrimeField> Chip<F> for KeccakPermuteChip {
+impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let num_rows = (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
         let mut trace =
@@ -34,40 +34,75 @@ impl<F: PrimeField> Chip<F> for KeccakPermuteChip {
         const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
         for i in 0..segment.keccak_permute_events.len() {
-            let mut event_rows = rows[i * NUM_ROUNDS..(i + 1) * NUM_ROUNDS];
+            let mut event_rows = &rows[i * NUM_ROUNDS..(i + 1) * NUM_ROUNDS];
 
             let event = &segment.keccak_permute_events[i];
             let clk = event.clk;
 
-            for j in 0..event.state_read_records.len() {
+            for j in 0..event.pre_state.len() {
+                let most_sig = ((event.pre_state[j] >> 32) & 0xFFFFFFFF) as u32;
+                let least_sig = (event.pre_state[j] & 0xFFFFFFFF) as u32;
+
                 let state_current_read = MemoryRecord {
-                    value: event.pre_state[j],
+                    value: least_sig,
                     segment: SEGMENT_NUM,
                     timestamp: clk,
                 };
                 self.populate_access(
-                    &mut rows[0].state_mem[j],
+                    &mut rows[0].state_mem[2 * j],
                     state_current_read,
-                    event.state_read_records[j],
+                    event.state_read_records[2 * j],
                     &mut new_field_events,
                 );
-            }
 
-            generate_trace_rows_for_perm(&mut event_rows, event.state, segment, event.clk);
-
-            for j in 0..event.state_write_records.len() {
-                let state_current_write = MemoryRecord {
-                    value: event.post_state[j],
+                let state_current_read = MemoryRecord {
+                    value: most_sig,
                     segment: SEGMENT_NUM,
-                    timestamp: clk + NUM_ROUNDS as u32 * 4,
+                    timestamp: clk,
                 };
                 self.populate_access(
-                    &mut rows[0].state_mem[j],
-                    state_current_write,
-                    event.state_write_records[j],
+                    &mut rows[0].state_mem[2 * j + 1],
+                    state_current_read,
+                    event.state_read_records[2 * j + 1],
                     &mut new_field_events,
                 );
             }
+            event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
+
+            generate_trace_rows_for_perm(&mut event_rows, event.pre_state, SEGMENT_NUM, event.clk);
+
+            let last_row_num = event_rows.len() - 1;
+
+            for j in 0..event.post_state.len() {
+                let most_sig = ((event.post_state[j] >> 32) & 0xFFFFFFFF) as u32;
+                let least_sig = (event.post_state[j] & 0xFFFFFFFF) as u32;
+
+                let state_current_read = MemoryRecord {
+                    value: least_sig,
+                    segment: SEGMENT_NUM,
+                    timestamp: clk,
+                };
+                self.populate_access(
+                    &mut rows[last_row_num].state_mem[2 * j],
+                    state_current_read,
+                    event.state_read_records[2 * j],
+                    &mut new_field_events,
+                );
+
+                let state_current_read = MemoryRecord {
+                    value: most_sig,
+                    segment: SEGMENT_NUM,
+                    timestamp: clk,
+                };
+                self.populate_access(
+                    &mut rows[last_row_num].state_mem[2 * j + 1],
+                    state_current_read,
+                    event.state_read_records[2 * j + 1],
+                    &mut new_field_events,
+                );
+            }
+
+            event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
         }
 
         trace
@@ -79,7 +114,7 @@ impl<F: PrimeField> Chip<F> for KeccakPermuteChip {
 }
 
 /// `rows` will normally consist of 24 rows, with an exception for the final row.
-fn generate_trace_rows_for_perm<F: PrimeField64>(
+fn generate_trace_rows_for_perm<F: PrimeField32>(
     rows: &mut [KeccakCols<F>],
     input: [u64; 25],
     segment: u32,
@@ -92,7 +127,7 @@ fn generate_trace_rows_for_perm<F: PrimeField64>(
                 let input_xy = input[y * 5 + x];
                 for limb in 0..U64_LIMBS {
                     row.preimage[y][x][limb] =
-                        F::from_canonical_u64((input_xy >> (16 * limb)) & 0xFFFF);
+                        F::from_canonical_u32(((input_xy >> (16 * limb)) & 0xFFFF) as u32);
                 }
             }
         }
@@ -103,13 +138,14 @@ fn generate_trace_rows_for_perm<F: PrimeField64>(
         for x in 0..5 {
             let input_xy = input[y * 5 + x];
             for limb in 0..U64_LIMBS {
-                rows[0].a[y][x][limb] = F::from_canonical_u64((input_xy >> (16 * limb)) & 0xFFFF);
+                rows[0].a[y][x][limb] =
+                    F::from_canonical_u32(((input_xy >> (16 * limb)) & 0xFFFF) as u32);
             }
         }
     }
 
-    rows[0].clk = start_clk;
-    rows[0].segment = segment;
+    rows[0].clk = F::from_canonical_u32(start_clk);
+    rows[0].segment = F::from_canonical_u32(segment);
     generate_trace_row_for_round(&mut rows[0], 0);
 
     for round in 1..rows.len() {
@@ -122,13 +158,13 @@ fn generate_trace_rows_for_perm<F: PrimeField64>(
             }
         }
 
-        rows[round].clk = start_clk + round * 4;
-        rows[round].segment = segment;
+        rows[round].clk = F::from_canonical_u32(start_clk + round as u32 * 4);
+        rows[round].segment = F::from_canonical_u32(segment);
         generate_trace_row_for_round(&mut rows[round], round);
     }
 }
 
-fn generate_trace_row_for_round<F: PrimeField64>(row: &mut KeccakCols<F>, round: usize) {
+fn generate_trace_row_for_round<F: PrimeField32>(row: &mut KeccakCols<F>, round: usize) {
     row.step_flags[round] = F::one();
 
     // Populate C[x] = xor(A[x, 0], A[x, 1], A[x, 2], A[x, 3], A[x, 4]).
@@ -137,7 +173,7 @@ fn generate_trace_row_for_round<F: PrimeField64>(row: &mut KeccakCols<F>, round:
             let limb = z / BITS_PER_LIMB;
             let bit_in_limb = z % BITS_PER_LIMB;
             let a = [0, 1, 2, 3, 4].map(|i| {
-                let a_limb = row.a[i][x][limb].as_canonical_u64() as u16;
+                let a_limb = row.a[i][x][limb].as_canonical_u32() as u16;
                 F::from_bool(((a_limb >> bit_in_limb) & 1) != 0)
             });
             row.c[x][z] = xor(a);

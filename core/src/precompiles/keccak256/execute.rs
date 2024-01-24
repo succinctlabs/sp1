@@ -19,7 +19,7 @@ impl KeccakPermuteChip {
         let a0 = Register::X10;
 
         // The number of cycles it takes to perform this precompile.
-        const NB_KECCAK_PERMUTE_CYCLES: usize = NUM_ROUNDS * 4;
+        const NB_KECCAK_PERMUTE_CYCLES: u32 = NUM_ROUNDS as u32 * 4;
 
         // Temporarily set the clock to the number of cycles it takes to perform
         // this precompile as reading `(pre|post)image_ptr` happens on this clock.
@@ -119,10 +119,11 @@ impl KeccakPermuteChip {
         // Push the Keccak permute event.
         rt.segment.keccak_permute_events.push(KeccakPermuteEvent {
             clk: saved_clk,
-            pre_state: saved_state,
-            post_state: state,
-            state_read_records,
-            state_write_records,
+            pre_state: saved_state.as_slice().try_into().unwrap(),
+            post_state: state.as_slice().try_into().unwrap(),
+            state_read_records: state_read_records.as_slice().try_into().unwrap(),
+            state_write_records: state_write_records.as_slice().try_into().unwrap(),
+            state_addr: state_ptr,
         });
 
         // Restore the original record.
