@@ -6,7 +6,8 @@ Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed. In
 ```
 git clone https://github.com/succinctlabs/vm succinct-vm
 cd succinct-vm
-cd cli && cargo install --locked --path .
+cd cli
+cargo install --locked --path .
 ```
 
 You will need to install our custom toolchain to compile programs. If you are on a supported architecture 
@@ -15,7 +16,8 @@ You will need to install our custom toolchain to compile programs. If you are on
 cargo prove install-toolchain
 ```
 
-Otherwise, you will need to build the toolchain from source.
+Otherwise, you will need to build the toolchain from source. Note that building on MacOS will
+require you to build for x86 not ARM.
 ```
 cargo prove build-toolchain
 ```
