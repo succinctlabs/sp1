@@ -9,6 +9,13 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::precompiles::keccak256::constants::R;
 use crate::precompiles::keccak256::{NUM_ROUNDS, RATE_LIMBS, U64_LIMBS};
 
+/// Note: The ordering of each array is based on the input mapping. As the spec says,
+///
+/// > The mapping between the bits of s and those of a is `s[w(5y + x) + z] = a[x][y][z]`.
+///
+/// Thus, for example, `a_prime` is stored in `y, x, z` order. This departs from the more common
+/// convention of `x, y, z` order, but it has the benefit that input lists map to AIR columns in a
+/// nicer way.
 #[derive(AlignedBorrow, Debug)]
 #[repr(C)]
 pub(crate) struct KeccakCols<T> {
