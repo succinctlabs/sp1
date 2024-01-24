@@ -32,7 +32,7 @@ impl BuildToolchainCmd {
 
         // Checkout the correct branch.
         Command::new("git")
-            .args(["checkout", "succinct"])
+            .args(["checkout", "riscv32im-succinct-zkvm"])
             .current_dir("rust")
             .run()?;
 
