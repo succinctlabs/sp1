@@ -210,7 +210,7 @@ where
         let mut c_byte_sum = zero.clone();
         for i in 0..BYTE_SIZE {
             let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
-            c_byte_sum += val * local.c_least_sig_byte[i].clone();
+            c_byte_sum += val * local.c_least_sig_byte[i];
         }
         builder.assert_eq(c_byte_sum, local.c[0]);
 
@@ -223,14 +223,14 @@ where
         }
         for i in 0..BYTE_SIZE {
             builder
-                .when(local.shift_by_n_bits[i].clone())
+                .when(local.shift_by_n_bits[i])
                 .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
         }
 
         // Check bit_shift_multiplier = 2^num_bits_to_shift by using shift_by_n_bits.
         for i in 0..BYTE_SIZE {
             builder.when(local.shift_by_n_bits[i]).assert_eq(
-                local.bit_shift_multiplier.clone(),
+                local.bit_shift_multiplier,
                 AB::F::from_canonical_usize(1 << i),
             );
         }
@@ -239,7 +239,7 @@ where
         // carry-propagate.
         for i in 0..WORD_SIZE {
             let mut v = local.b[i] * local.bit_shift_multiplier
-                - local.bit_shift_result_carry[i].clone() * base.clone();
+                - local.bit_shift_result_carry[i] * base.clone();
             if i > 0 {
                 v += local.bit_shift_result_carry[i - 1].into();
             }
@@ -269,10 +269,7 @@ where
                     // The first num_bytes_to_shift bytes must be zero.
                     shifting.assert_eq(local.a[i], zero.clone());
                 } else {
-                    shifting.assert_eq(
-                        local.a[i],
-                        local.bit_shift_result[i - num_bytes_to_shift].clone(),
-                    );
+                    shifting.assert_eq(local.a[i], local.bit_shift_result[i - num_bytes_to_shift]);
                 }
             }
         }
@@ -400,7 +397,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

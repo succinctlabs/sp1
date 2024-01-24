@@ -31,11 +31,10 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
@@ -98,81 +97,95 @@ fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
 impl<F: PrimeField> Chip<F> for MulChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
-            .mul_events
-            .par_iter()
-            .map(|event| {
-                assert!(
-                    event.opcode == Opcode::MUL
-                        || event.opcode == Opcode::MULHU
-                        || event.opcode == Opcode::MULH
-                        || event.opcode == Opcode::MULHSU
-                );
-                let mut row = [F::zero(); NUM_MUL_COLS];
-                let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
-                let a_word = event.a.to_le_bytes();
-                let b_word = event.b.to_le_bytes();
-                let c_word = event.c.to_le_bytes();
+        let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
+        let mul_events = segment.mul_events.clone();
+        for event in mul_events.iter() {
+            assert!(
+                event.opcode == Opcode::MUL
+                    || event.opcode == Opcode::MULHU
+                    || event.opcode == Opcode::MULH
+                    || event.opcode == Opcode::MULHSU
+            );
+            let mut row = [F::zero(); NUM_MUL_COLS];
+            let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
+            let a_word = event.a.to_le_bytes();
+            let b_word = event.b.to_le_bytes();
+            let c_word = event.c.to_le_bytes();
 
-                let mut b = b_word.to_vec();
-                let mut c = c_word.to_vec();
+            let mut b = b_word.to_vec();
+            let mut c = c_word.to_vec();
 
+            // Handle b and c's signs.
+            {
                 let b_msb = get_msb(b_word);
                 cols.b_msb = F::from_canonical_u8(b_msb);
                 let c_msb = get_msb(c_word);
                 cols.c_msb = F::from_canonical_u8(c_msb);
                 // Sign extend b and c whenever appropriate.
-                if event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU {
-                    if b_msb == 1 {
-                        // b is signed and it is negative. Sign extend b.
-                        cols.b_sign_extend = F::one();
-                        b.resize(PRODUCT_SIZE, BYTE_MASK);
-                    }
+                if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) && b_msb == 1 {
+                    // b is signed and it is negative. Sign extend b.
+                    cols.b_sign_extend = F::one();
+                    b.resize(PRODUCT_SIZE, BYTE_MASK);
                 }
 
-                if event.opcode == Opcode::MULH {
-                    if c_msb == 1 {
-                        // c is signed and it is negative. Sign extend c.
-                        cols.c_sign_extend = F::one();
-                        c.resize(PRODUCT_SIZE, BYTE_MASK);
-                    }
+                if event.opcode == Opcode::MULH && c_msb == 1 {
+                    // c is signed and it is negative. Sign extend c.
+                    cols.c_sign_extend = F::one();
+                    c.resize(PRODUCT_SIZE, BYTE_MASK);
                 }
 
-                let mut product = [0u32; PRODUCT_SIZE];
+                // Insert the MSB lookup events.
+                {
+                    let words = [b_word, c_word];
+                    let mut blu_events: Vec<ByteLookupEvent> = vec![];
+                    for word in words.iter() {
+                        let most_significant_byte = word[WORD_SIZE - 1];
+                        blu_events.push(ByteLookupEvent {
+                            opcode: ByteOpcode::MSB,
+                            a1: get_msb(*word),
+                            a2: 0,
+                            b: most_significant_byte,
+                            c: 0,
+                        });
+                    }
+                    segment.add_byte_lookup_events(blu_events);
+                }
+            }
 
-                for i in 0..b.len() {
-                    for j in 0..c.len() {
-                        if i + j < PRODUCT_SIZE {
-                            product[i + j] += (b[i] as u32) * (c[j] as u32);
-                        }
+            let mut product = [0u32; PRODUCT_SIZE];
+
+            for i in 0..b.len() {
+                for j in 0..c.len() {
+                    if i + j < PRODUCT_SIZE {
+                        product[i + j] += (b[i] as u32) * (c[j] as u32);
                     }
                 }
+            }
 
-                // Calculate the correct product using the `product` array. We
-                // store the correct carry value for verification.
-                let base = 1 << BYTE_SIZE;
-                for i in 0..PRODUCT_SIZE {
-                    let carry = product[i] / base;
-                    product[i] %= base;
-                    if i + 1 < PRODUCT_SIZE {
-                        product[i + 1] += carry;
-                    }
-                    cols.carry[i] = F::from_canonical_u32(carry);
+            // Calculate the correct product using the `product` array. We
+            // store the correct carry value for verification.
+            let base = 1 << BYTE_SIZE;
+            for i in 0..PRODUCT_SIZE {
+                let carry = product[i] / base;
+                product[i] %= base;
+                if i + 1 < PRODUCT_SIZE {
+                    product[i + 1] += carry;
                 }
+                cols.carry[i] = F::from_canonical_u32(carry);
+            }
 
-                cols.product = product.map(F::from_canonical_u32);
-                cols.a = Word(a_word.map(F::from_canonical_u8));
-                cols.b = Word(b_word.map(F::from_canonical_u8));
-                cols.c = Word(c_word.map(F::from_canonical_u8));
-                cols.is_real = F::one();
-                cols.is_mul = F::from_bool(event.opcode == Opcode::MUL);
-                cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
-                cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
-                cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+            cols.product = product.map(F::from_canonical_u32);
+            cols.a = Word(a_word.map(F::from_canonical_u8));
+            cols.b = Word(b_word.map(F::from_canonical_u8));
+            cols.c = Word(c_word.map(F::from_canonical_u8));
+            cols.is_real = F::one();
+            cols.is_mul = F::from_bool(event.opcode == Opcode::MUL);
+            cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
+            cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
+            cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
 
-                row
-            })
-            .collect::<Vec<_>>();
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -204,13 +217,24 @@ where
         let local: &MulCols<AB::Var> = main.row_slice(0).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
+        let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
         // 0xff
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
 
-        // TODO: Confirm that the MSB's are correct.
-        // lookup(local.b[3], local.is_b_msb_one)
-        // lookup(local.b[3], local.is_b_msb_one)
+        // The MSB's are correct.
+        {
+            let msb_pairs = [
+                (local.b_msb, local.b[WORD_SIZE - 1]),
+                (local.c_msb, local.c[WORD_SIZE - 1]),
+            ];
+            let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
+            for msb_pair in msb_pairs.iter() {
+                let msb = msb_pair.0;
+                let byte = msb_pair.1;
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
+            }
+        }
 
         // MULH or MULHSU
         let is_b_i32 = local.is_mulh + local.is_mulhsu - local.is_mulh * local.is_mulhsu;
@@ -228,8 +252,8 @@ where
                 b[i] = local.b[i].into();
                 c[i] = local.c[i].into();
             } else {
-                b[i] = local.b_sign_extend.clone() * byte_mask;
-                c[i] = local.c_sign_extend.clone() * byte_mask;
+                b[i] = local.b_sign_extend * byte_mask;
+                c[i] = local.c_sign_extend * byte_mask;
             }
         }
 
@@ -267,7 +291,7 @@ where
         let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
         for i in 0..WORD_SIZE {
             builder
-                .when(is_lower.clone())
+                .when(is_lower)
                 .assert_eq(local.product[i], local.a[i]);
             builder
                 .when(is_upper.clone())
@@ -403,7 +427,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

@@ -70,7 +70,7 @@ impl Elf {
             .expect("e_entry was larger than 32 bits");
 
         // Make sure the entrypoint is valid.
-        if entry >= MAXIMUM_MEMORY_SIZE || entry % WORD_SIZE as u32 != 0 {
+        if entry == MAXIMUM_MEMORY_SIZE || entry % WORD_SIZE as u32 != 0 {
             panic!("invalid entrypoint");
         }
 
@@ -90,7 +90,7 @@ impl Elf {
                 .p_filesz
                 .try_into()
                 .expect("filesize was larger than 32 bits");
-            if file_size >= MAXIMUM_MEMORY_SIZE {
+            if file_size == MAXIMUM_MEMORY_SIZE {
                 panic!("invalid segment file_size");
             }
 
@@ -99,7 +99,7 @@ impl Elf {
                 .p_memsz
                 .try_into()
                 .expect("mem_size was larger than 32 bits");
-            if mem_size >= MAXIMUM_MEMORY_SIZE {
+            if mem_size == MAXIMUM_MEMORY_SIZE {
                 panic!("Invalid segment mem_size");
             }
 
@@ -114,10 +114,8 @@ impl Elf {
 
             // If the virtual address is less than the first memory address, then update the first
             // memory address.
-            if (segment.p_flags & PF_X) != 0 {
-                if base_address > vaddr {
-                    base_address = vaddr;
-                }
+            if (segment.p_flags & PF_X) != 0 && base_address > vaddr {
+                base_address = vaddr;
             }
 
             // Get the offset to the segment.
@@ -129,7 +127,7 @@ impl Elf {
             // Read the segment and decode each word as an instruction.
             for i in (0..mem_size).step_by(WORD_SIZE) {
                 let addr = vaddr.checked_add(i).expect("invalid segment vaddr");
-                if addr >= MAXIMUM_MEMORY_SIZE {
+                if addr == MAXIMUM_MEMORY_SIZE {
                     panic!("address [0x{addr:08x}] exceeds maximum address for guest programs [0x{MAXIMUM_MEMORY_SIZE:08x}]");
                 }
 

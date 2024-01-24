@@ -66,10 +66,10 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
         let values = message
             .values
             .into_iter()
-            .map(|v| symbolic_to_virtual_pair(&v.into()))
+            .map(|v| symbolic_to_virtual_pair(&v))
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity.into());
+        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
 
         self.sends
             .push(Interaction::new(values, multiplicity, message.kind));
@@ -79,10 +79,10 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
         let values = message
             .values
             .into_iter()
-            .map(|v| symbolic_to_virtual_pair(&v.into()))
+            .map(|v| symbolic_to_virtual_pair(&v))
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity.into());
+        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
 
         self.receives
             .push(Interaction::new(values, multiplicity, message.kind));
@@ -96,10 +96,7 @@ fn symbolic_to_virtual_pair<F: Field>(expression: &SymbolicExpression<F>) -> Vir
 
     let (column_weights, constant) = eval_symbolic_to_virtual_pair(expression);
 
-    let column_weights = column_weights
-        .into_iter()
-        .map(|(c, w)| (c.into(), w))
-        .collect();
+    let column_weights = column_weights.into_iter().collect();
 
     VirtualPairCol::new(column_weights, constant)
 }
@@ -184,10 +181,7 @@ mod tests {
         println!("column_weights: {:?}", column_weights);
         println!("constant: {:?}", constant);
 
-        let column_weights = column_weights
-            .into_iter()
-            .map(|(c, w)| (c.into(), w))
-            .collect::<Vec<_>>();
+        let column_weights = column_weights.into_iter().collect::<Vec<_>>();
 
         let z = VirtualPairCol::new(column_weights, constant);
 
@@ -250,7 +244,7 @@ mod tests {
             for value in interaction.values {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
-                    &main.row_mut(0),
+                    main.row_mut(0),
                 );
                 print!("{}, ", expr);
             }
@@ -259,7 +253,7 @@ mod tests {
                 .multiplicity
                 .apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
-                    &main.row_mut(0),
+                    main.row_mut(0),
                 );
 
             println!(", multiplicity: {}", multiplicity);
@@ -270,7 +264,7 @@ mod tests {
             for value in interaction.values {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
-                    &main.row_mut(0),
+                    main.row_mut(0),
                 );
                 print!("{}, ", expr);
             }
@@ -279,7 +273,7 @@ mod tests {
                 .multiplicity
                 .apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
-                    &main.row_mut(0),
+                    main.row_mut(0),
                 );
 
             println!(", multiplicity: {}", multiplicity);

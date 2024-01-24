@@ -5,9 +5,10 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::MemoryRecord;
+use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::PrecompileRuntime;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -32,10 +33,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    pub a: Option<MemoryRecord>,
-    pub b: Option<MemoryRecord>,
-    pub c: Option<MemoryRecord>,
-    pub memory: Option<MemoryRecord>,
+    pub a: Option<MemoryRecordEnum>,
+    pub b: Option<MemoryRecordEnum>,
+    pub c: Option<MemoryRecordEnum>,
+    pub memory: Option<MemoryRecordEnum>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -45,7 +46,7 @@ pub struct Record {
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-#[allow(non_snake_case)]
+#[derive(Debug)]
 pub struct Runtime {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
@@ -84,6 +85,9 @@ pub struct Runtime {
 
     /// The maximum size of each segment.
     pub segment_size: u32,
+
+    /// A counter for the number of cycles that have been executed in certain functions.
+    pub cycle_tracker: u32,
 }
 
 impl Runtime {
@@ -92,7 +96,7 @@ impl Runtime {
         let program_rc = Arc::new(program);
         let segment = Segment {
             program: program_rc.clone(),
-            index: 0,
+            index: 1,
             ..Default::default()
         };
         Self {
@@ -108,6 +112,7 @@ impl Runtime {
             record: Record::default(),
             segment_size: 4194304,
             global_segment: Segment::default(),
+            cycle_tracker: 0,
         }
     }
 
@@ -148,15 +153,14 @@ impl Runtime {
 
     pub fn byte(&self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
-        let byte = (word >> (addr % 4) * 8) as u8;
-        byte
+        (word >> ((addr % 4) * 8)) as u8
     }
 
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.clk + *position as u32
     }
 
-    fn current_segment(&self) -> u32 {
+    pub fn current_segment(&self) -> u32 {
         self.segment.index
     }
 
@@ -187,17 +191,19 @@ impl Runtime {
             (self.current_segment(), self.clk_from_position(&position)),
         );
 
-        let record = MemoryRecord {
+        let record = MemoryReadRecord {
             value,
-            segment: prev_segment,
-            timestamp: prev_timestamp,
+            segment: self.current_segment(),
+            timestamp: self.clk_from_position(&position),
+            prev_segment,
+            prev_timestamp,
         };
 
         match position {
-            AccessPosition::A => self.record.a = Some(record),
-            AccessPosition::B => self.record.b = Some(record),
-            AccessPosition::C => self.record.c = Some(record),
-            AccessPosition::Memory => self.record.memory = Some(record),
+            AccessPosition::A => self.record.a = Some(record.into()),
+            AccessPosition::B => self.record.b = Some(record.into()),
+            AccessPosition::C => self.record.c = Some(record.into()),
+            AccessPosition::Memory => self.record.memory = Some(record.into()),
         }
         value
     }
@@ -211,12 +217,44 @@ impl Runtime {
 
         assert!(self.memory_access.contains_key(&addr));
 
-        // Make sure that we have updated the memory records appropriately.
+        // Update the memory records to write records.
         match position {
-            AccessPosition::A => assert!(self.record.a.is_some()),
-            AccessPosition::B => assert!(self.record.b.is_some()),
-            AccessPosition::C => assert!(self.record.c.is_some()),
-            AccessPosition::Memory => assert!(self.record.memory.is_some()),
+            AccessPosition::A => {
+                self.record.a = Some(
+                    self.record
+                        .a
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::B => {
+                self.record.b = Some(
+                    self.record
+                        .b
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::C => {
+                self.record.c = Some(
+                    self.record
+                        .c
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::Memory => {
+                self.record.memory = Some(
+                    self.record
+                        .memory
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
         }
     }
 
@@ -379,7 +417,7 @@ impl Runtime {
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
         let idx = ((self.pc - self.program.pc_base) / 4) as usize;
-        return self.program.instructions[idx];
+        self.program.instructions[idx]
     }
 
     /// Execute the given instruction over the current state of the runtime.
@@ -596,24 +634,26 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
 
+                let init_clk = self.clk;
+                let mut precompile_rt = PrecompileRuntime::new(self);
+
                 match syscall {
                     Syscall::HALT => {
                         a = self.register(a0);
-                        (b, c) = (self.rr(t0, AccessPosition::B), 0);
                         next_pc = 0;
-                        self.rw(a0, a);
                     }
                     Syscall::LWA => {
-                        let witness = self.witness.pop().expect("witness stream is empty");
-                        println!("witness {}", witness);
-                        (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
+                        a = self.witness.pop().expect("witness stream is empty");
                     }
                     Syscall::SHA_EXTEND => {
-                        (a, b, c) = ShaExtendChip::execute(self);
+                        a = ShaExtendChip::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::SHA_COMPRESS => {
-                        (a, b, c) = ShaCompressChip::execute(self);
+                        a = ShaCompressChip::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
@@ -627,18 +667,39 @@ impl Runtime {
                             let slice = bytes.as_slice();
                             let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
-                                print!("STDOUT: {}", s);
+                                if s.contains("cycle-tracker-start:") {
+                                    self.cycle_tracker = self.global_clk
+                                } else if s.contains("cycle-tracker-end:") {
+                                    let fn_name = s
+                                        .split("cycle-tracker-end:")
+                                        .last()
+                                        .unwrap()
+                                        .trim_end()
+                                        .trim_start();
+                                    log::info!(
+                                        "===> {} took {} cycles",
+                                        fn_name,
+                                        self.global_clk - self.cycle_tracker
+                                    );
+                                } else {
+                                    log::info!("stdout: {}", s.trim_end());
+                                }
                             } else {
-                                print!("STDERR: {}", s);
+                                log::info!("stderr: {}", s.trim_end());
                             }
                         }
-                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
+                        a = 0;
                     }
                     Syscall::ED_ADD => {
                         (a, b, c) = EdAddAssignChip::execute(self);
                     }
                 }
+
+                // We have to do this AFTER the precompile execution because the CPU event
+                // gets emitted at the end of this loop with the incremented clock.
+                // TODO: fix this.
+                self.rw(a0, a);
+                (b, c) = (self.rr(t0, AccessPosition::B), 0);
             }
 
             Opcode::EBREAK => {
@@ -742,9 +803,9 @@ impl Runtime {
             let instruction = self.fetch();
 
             let width = 12;
-            log::debug!(
+            log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
-                self.global_clk / 4,
+                self.global_clk,
                 self.pc,
                 instruction,
                 self.register(Register::X0),
@@ -772,7 +833,7 @@ impl Runtime {
             self.execute(instruction);
 
             // Increment the clock.
-            self.global_clk += 4;
+            self.global_clk += 1;
             self.clk += 4;
 
             if self.clk % self.segment_size == 1 {
@@ -807,7 +868,7 @@ impl Runtime {
 
         let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let value = self.memory.remove(&addr).unwrap();
+            let value = *self.memory.get(&addr).unwrap();
             let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
@@ -927,7 +988,6 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
         runtime.run();
-
         assert_eq!(runtime.register(Register::X31), 42);
     }
 

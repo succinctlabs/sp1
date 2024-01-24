@@ -127,7 +127,7 @@ pub fn sys_getenv(
 
 #[no_mangle]
 pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
-    return core::ptr::null_mut();
+    core::ptr::null_mut()
 }
 
 #[no_mangle]

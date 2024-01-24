@@ -28,7 +28,7 @@ pub struct FpInnerProductCols<T> {
 }
 
 impl<F: Field> FpInnerProductCols<F> {
-    pub fn populate<P: FieldParameters>(&mut self, a: &Vec<BigUint>, b: &Vec<BigUint>) -> BigUint {
+    pub fn populate<P: FieldParameters>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
         /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
         /// support that. This is a hack, since we always use BabyBear, to get around that, but
         /// all operations using "PF" should use "F" in the future.
@@ -56,8 +56,8 @@ impl<F: Field> FpInnerProductCols<F> {
         assert_eq!(carry * modulus, inner_product - result);
 
         let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(modulus).into();
-        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
+        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(result).into();
+        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(carry).into();
 
         // Compute the vanishing polynomial.
         let p_inner_product = p_a_vec.into_iter().zip(p_b_vec).fold(
@@ -93,10 +93,10 @@ impl<V: Copy> FpInnerProductCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).clone().into()).collect();
-        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| x.clone().into()).collect();
-        let p_result = self.result.clone().into();
-        let p_carry = self.carry.clone().into();
+        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).into()).collect();
+        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| (*x).into()).collect();
+        let p_result = self.result.into();
+        let p_carry = self.carry.into();
 
         let p_zero = Polynomial::<AB::Expr>::from_coefficients(vec![AB::Expr::zero()]);
 
@@ -179,7 +179,7 @@ mod tests {
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpIpChip<P> {
         fn name(&self) -> String {
-            "FpIp".to_string()
+            "FpInnerProduct".to_string()
         }
 
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
@@ -286,7 +286,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

@@ -436,11 +436,11 @@ where
         let y2 = EdAddAssignCols::limbs_from_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        row.x3_numerator
+        self.x3_numerator
             .eval::<AB, Ed25519BaseField>(builder, &[x1, x2], &[y2, y1]);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        row.y3_numerator
+        self.y3_numerator
             .eval::<AB, Ed25519BaseField>(builder, &[y1, x1], &[y2, x2]);
 
         // f = x1 * x2 * y1 * y2.

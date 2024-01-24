@@ -91,8 +91,8 @@ impl<F: PrimeField> Chip<F> for LtChip {
                 cols.c = Word(c.map(F::from_canonical_u8));
 
                 // If this is SLT, mask the MSB of b & c before computing cols.bits.
-                let mut masked_b = b.clone();
-                let mut masked_c = c.clone();
+                let mut masked_b = b;
+                let mut masked_c = c;
                 masked_b[3] &= 0x7f;
                 masked_c[3] &= 0x7f;
 
@@ -353,7 +353,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

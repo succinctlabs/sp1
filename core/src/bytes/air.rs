@@ -2,8 +2,8 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::{AbstractField, ExtensionField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
@@ -50,21 +50,28 @@ pub struct ByteCols<T> {
     /// The result of the `LTU` operation on `a` and `b`.
     pub ltu: T,
 
+    /// The most significant bit of `b`.
+    pub msb: T,
+
     pub multiplicities: [T; NUM_BYTE_OPS],
 }
 
-impl<F: Field> BaseAir<F> for ByteChip<F> {
+impl<EF: ExtensionField<F>, F: Field> BaseAir<EF> for ByteChip<F> {
     fn width(&self) -> usize {
         NUM_BYTE_COLS
     }
 }
 
-impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
+impl<AB: CurtaAirBuilder, F: Field> Air<AB> for ByteChip<F>
+where
+    AB::F: ExtensionField<F>,
+{
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
+        #[allow(clippy::eq_op)]
         builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
 
         // Send all the lookups for each operation.
@@ -95,6 +102,9 @@ impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
                 ),
                 ByteOpcode::LTU => {
                     builder.receive_byte(field_op, local.ltu, local.b, local.c, mult)
+                }
+                ByteOpcode::MSB => {
+                    builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), mult)
                 }
             }
         }

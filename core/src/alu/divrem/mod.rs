@@ -71,7 +71,9 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::AluEvent;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
+use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -116,10 +118,7 @@ pub struct DivRemCols<T> {
     pub carry: [T; LONG_WORD_SIZE],
 
     /// Flag to indicate division by 0.
-    pub is_c_0: T,
-
-    /// The inverse of `c[0] + c[1] + c[2] + c[3]``, used to verify `is_c_0`.
-    pub c_limb_sum_inverse: T,
+    pub is_c_0: IsZeroWordOperation<T>,
 
     pub is_divu: T,
     pub is_remu: T,
@@ -133,6 +132,14 @@ pub struct DivRemCols<T> {
     /// case, the division result exceeds the maximum positive value representable by a 32-bit
     /// signed integer.
     pub is_overflow: T,
+
+    /// Flag to indicate whether the value of `b` matches the unique overflow case `b = -2^31` and
+    /// `c = -1`.
+    pub is_overflow_b: IsEqualWordOperation<T>,
+
+    /// Flag to indicate whether the value of `c` matches the unique overflow case `b = -2^31` and
+    /// `c = -1`.
+    pub is_overflow_c: IsEqualWordOperation<T>,
 
     /// The most significant bit of `b`.
     pub b_msb: T,
@@ -198,7 +205,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
-        for event in segment.divrem_events.iter() {
+        let divrem_events = segment.divrem_events.clone();
+        for event in divrem_events.iter() {
             assert!(
                 event.opcode == Opcode::DIVU
                     || event.opcode == Opcode::REMU
@@ -217,12 +225,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
                 cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
                 cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
-                if event.c == 0 {
-                    cols.is_c_0 = F::one();
-                } else {
-                    let c_limb_sum = cols.c[0] + cols.c[1] + cols.c[2] + cols.c[3];
-                    cols.c_limb_sum_inverse = F::inverse(&c_limb_sum);
-                }
+                cols.is_c_0.populate(event.c);
             }
 
             let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
@@ -235,6 +238,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
                 cols.b_msb = F::from_canonical_u8(get_msb(event.b));
                 cols.c_msb = F::from_canonical_u8(get_msb(event.c));
+                cols.is_overflow_b.populate(event.b, i32::MIN as u32);
+                cols.is_overflow_c.populate(event.c, -1i32 as u32);
                 if is_signed_operation(event.opcode) {
                     cols.rem_neg = cols.rem_msb;
                     cols.b_neg = cols.b_msb;
@@ -248,6 +253,23 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     cols.abs_remainder = cols.remainder;
                     cols.abs_c = cols.c;
                     cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
+                }
+
+                // Insert the MSB lookup events.
+                {
+                    let words = [event.b, event.c, remainder];
+                    let mut blu_events: Vec<ByteLookupEvent> = vec![];
+                    for word in words.iter() {
+                        let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
+                        blu_events.push(ByteLookupEvent {
+                            opcode: ByteOpcode::MSB,
+                            a1: get_msb(*word),
+                            a2: 0,
+                            b: most_significant_byte,
+                            c: 0,
+                        });
+                    }
+                    segment.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -362,7 +384,8 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             cols.c[0] = F::one();
             cols.abs_c[0] = F::one();
             cols.max_abs_c_or_1[0] = F::one();
-            cols.c_limb_sum_inverse = F::one();
+
+            cols.is_c_0.populate(1);
 
             row
         };
@@ -419,14 +442,13 @@ fn eval_abs_value<AB>(
             }
         });
 
-        builder.when(is_negative.clone()).assert_eq(
-            value[i].clone() + abs_value[i].clone(),
-            exp_sum_if_negative.clone(),
-        );
+        builder
+            .when(*is_negative)
+            .assert_eq(value[i] + abs_value[i], exp_sum_if_negative.clone());
 
         builder
-            .when(AB::Expr::one() - is_negative.clone())
-            .assert_eq(value[i].clone(), abs_value[i].clone());
+            .when(AB::Expr::one() - *is_negative)
+            .assert_eq(value[i], abs_value[i]);
     }
 }
 
@@ -446,15 +468,15 @@ where
             // Negative if and only if op code is signed & MSB = 1.
             let is_signed_type = local.is_div + local.is_rem;
             let msb_sign_pairs = [
-                (local.b_msb.clone(), local.b_neg.clone()),
-                (local.rem_msb.clone(), local.rem_neg.clone()),
-                (local.c_msb.clone(), local.c_neg.clone()),
+                (local.b_msb, local.b_neg),
+                (local.rem_msb, local.rem_neg),
+                (local.c_msb, local.c_neg),
             ];
 
             for msb_sign_pair in msb_sign_pairs.iter() {
-                let msb = msb_sign_pair.0.clone();
-                let is_negative = msb_sign_pair.1.clone();
-                builder.assert_eq(msb.clone() * is_signed_type.clone(), is_negative.clone());
+                let msb = msb_sign_pair.0;
+                let is_negative = msb_sign_pair.1;
+                builder.assert_eq(msb * is_signed_type.clone(), is_negative);
             }
         }
 
@@ -471,9 +493,9 @@ where
             builder.send_alu(
                 AB::Expr::from_canonical_u32(Opcode::MUL as u32),
                 Word(lower_half),
-                local.quotient.clone(),
-                local.c.clone(),
-                local.is_real.clone(),
+                local.quotient,
+                local.c,
+                local.is_real,
             );
 
             let opcode_for_upper_half = {
@@ -494,17 +516,43 @@ where
             builder.send_alu(
                 opcode_for_upper_half,
                 Word(upper_half),
-                local.quotient.clone(),
-                local.c.clone(),
-                local.is_real.clone(),
+                local.quotient,
+                local.c,
+                local.is_real,
             );
         }
 
-        // TODO: calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1).
+        // Calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1) * is_signed
+        {
+            IsEqualWordOperation::<AB::F>::eval(
+                builder,
+                local.b.map(|x| x.into()),
+                Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
+                local.is_overflow_b,
+                local.is_real.into(),
+            );
+
+            IsEqualWordOperation::<AB::F>::eval(
+                builder,
+                local.c.map(|x| x.into()),
+                Word::from(-1i32 as u32).map(|x: AB::F| x.into()),
+                local.is_overflow_c,
+                local.is_real.into(),
+            );
+
+            let is_signed = local.is_div + local.is_rem;
+
+            builder.assert_eq(
+                local.is_overflow,
+                local.is_overflow_b.is_diff_zero.result
+                    * local.is_overflow_c.is_diff_zero.result
+                    * is_signed,
+            );
+        }
 
         // Add remainder to product c * quotient, and compare it to b.
         {
-            let sign_extension = local.rem_neg.clone() * AB::F::from_canonical_u8(u8::MAX);
+            let sign_extension = local.rem_neg * AB::F::from_canonical_u8(u8::MAX);
             let mut c_times_quotient_plus_remainder: Vec<AB::Expr> =
                 vec![AB::F::zero().into(); LONG_WORD_SIZE];
 
@@ -521,7 +569,7 @@ where
                 }
 
                 // Propagate carry.
-                c_times_quotient_plus_remainder[i] -= local.carry[i].clone() * base.clone();
+                c_times_quotient_plus_remainder[i] -= local.carry[i] * base;
                 if i > 0 {
                     c_times_quotient_plus_remainder[i] += local.carry[i - 1].into();
                 }
@@ -531,15 +579,12 @@ where
             for i in 0..LONG_WORD_SIZE {
                 if i < WORD_SIZE {
                     // The lower 4 bytes of the result must match the corresponding bytes in b.
-                    builder.assert_eq(
-                        local.b[i].clone(),
-                        c_times_quotient_plus_remainder[i].clone(),
-                    );
+                    builder.assert_eq(local.b[i], c_times_quotient_plus_remainder[i].clone());
                 } else {
                     // The upper 4 bytes must reflect the sign of b in two's complement:
                     // - All 1s (0xff) for negative b.
                     // - All 0s for non-negative b.
-                    let not_overflow = one.clone() - local.is_overflow.clone();
+                    let not_overflow = one.clone() - local.is_overflow;
                     builder
                         .when(not_overflow.clone())
                         .when(local.b_neg)
@@ -554,7 +599,7 @@ where
 
                     // The only exception to the upper-4-byte check is the overflow case.
                     builder
-                        .when(local.is_overflow.clone())
+                        .when(local.is_overflow)
                         .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
                 }
             }
@@ -598,28 +643,19 @@ where
 
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
-            // Ensure that if c is 0, is_c_0 = true. We utilize the mathematical trick that
-            // if c = 0, then 1 - c_limb_sum * c_limb_sum_inverse is nonzero regardless of what
-            // c_limb_sum_inverse is.
-            let c_limb_sum = local.c[0] + local.c[1] + local.c[2] + local.c[3];
-            builder
-                .when(one.clone() - c_limb_sum * local.c_limb_sum_inverse)
-                .assert_eq(local.is_c_0, one.clone());
+            // Calculate whether c is 0.
+            IsZeroWordOperation::<AB::F>::eval(
+                builder,
+                local.c.map(|x| x.into()),
+                local.is_c_0,
+                local.is_real.into(),
+            );
 
-            // Ensure that if is_c_0 is true, then local.c = 0.
+            // If is_c_0 is true, then quotient must be 0xffffffff = u32::MAX.
             for i in 0..WORD_SIZE {
                 builder
-                    .when(local.is_c_0.clone())
-                    .assert_zero(local.c[i].clone());
-            }
-
-            // We checked that is_c_0 is true if and only if c = 0.
-
-            // Finally, ensure that if is_c_0 is true, then quotient = 0xffffffff = u32::MAX.
-            for i in 0..WORD_SIZE {
-                builder
-                    .when(local.is_c_0.clone())
-                    .when(local.is_divu.clone() + local.is_div.clone())
+                    .when(local.is_c_0.result)
+                    .when(local.is_divu + local.is_div)
                     .assert_eq(local.quotient[i], AB::F::from_canonical_u8(u8::MAX));
             }
         }
@@ -645,17 +681,17 @@ where
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
                 // Set the least significant byte to 1 if is_c_0 is true.
-                v[0] = local.is_c_0.clone() * one.clone()
-                    + (one.clone() - local.is_c_0.clone()) * local.abs_c[0].clone();
+                v[0] = local.is_c_0.result * one.clone()
+                    + (one.clone() - local.is_c_0.result) * local.abs_c[0];
 
                 // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
-                    v[i] = (one.clone() - local.is_c_0.clone()) * local.abs_c[i].clone();
+                    v[i] = (one.clone() - local.is_c_0.result) * local.abs_c[i];
                 }
                 Word(v.try_into().unwrap_or_else(|_| panic!("Incorrect length")))
             };
             for i in 0..WORD_SIZE {
-                builder.assert_eq(local.max_abs_c_or_1[i].clone(), max_abs_c_or_1[i].clone());
+                builder.assert_eq(local.max_abs_c_or_1[i], max_abs_c_or_1[i].clone());
             }
 
             let opcode = {
@@ -673,24 +709,22 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
-                local.is_real.clone(),
+                local.is_real,
             );
         }
 
-        // TODO: Use lookup to constrain the MSBs.
+        // Check that the MSBs are correct.
         {
             let msb_pairs = [
-                (local.b_msb.clone(), local.b[WORD_SIZE - 1].clone()),
-                (local.c_msb.clone(), local.c[WORD_SIZE - 1].clone()),
-                (
-                    local.rem_msb.clone(),
-                    local.remainder[WORD_SIZE - 1].clone(),
-                ),
+                (local.b_msb, local.b[WORD_SIZE - 1]),
+                (local.c_msb, local.c[WORD_SIZE - 1]),
+                (local.rem_msb, local.remainder[WORD_SIZE - 1]),
             ];
+            let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
             for msb_pair in msb_pairs.iter() {
-                let _msb = msb_pair.0.clone();
-                let _byte = msb_pair.1.clone();
-                // _msb must match _byte's msb.
+                let msb = msb_pair.0;
+                let byte = msb_pair.1;
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
             }
         }
 
@@ -724,13 +758,12 @@ where
                 local.rem_neg,
                 local.b_msb,
                 local.rem_msb,
-                local.is_c_0,
                 local.c_neg,
                 local.c_msb,
             ];
 
             for flag in bool_flags.iter() {
-                builder.assert_bool(flag.clone());
+                builder.assert_bool(*flag);
             }
         }
 
@@ -837,7 +870,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, cpu::MemoryRecord, runtime::Segment, utils::Chip};
+use crate::{air::Word, runtime::Segment, utils::Chip};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -14,38 +14,30 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
         for i in 0..segment.sha_compress_events.len() {
-            let mut event = segment.sha_compress_events[i].clone();
+            let mut event = segment.sha_compress_events[i];
 
-            let og_h = event.h.clone();
+            let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);
+
+            let mut octet_num_idx = 0;
 
             // Load a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                cols.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
+                cols.octet_num[octet_num_idx] = F::one();
 
-                let h_current_read = MemoryRecord {
-                    value: event.h[j],
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-                self.populate_access(
-                    &mut cols.mem,
-                    h_current_read,
-                    event.h_read_records[j],
-                    &mut new_field_events,
-                );
+                cols.mem
+                    .populate_read(event.h_read_records[j], &mut new_field_events);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
 
                 cols.a = v[0];
@@ -77,33 +69,28 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 v[6] = cols.g;
                 v[7] = cols.h;
 
-                cols.is_initialize = F::one();
-
+                cols.is_real = F::one();
                 rows.push(row);
             }
 
             // Peforms the compress operation.
             for j in 0..64 {
+                if j % 8 == 0 {
+                    octet_num_idx += 1;
+                }
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                cols.is_compression = F::one();
+                cols.octet[j % 8] = F::one();
+                cols.octet_num[octet_num_idx] = F::one();
+
+                cols.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (8 * 4 + j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
-
-                let w_i_current_record = MemoryRecord {
-                    value: event.w[j],
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-
-                self.populate_access(
-                    &mut cols.mem,
-                    w_i_current_record,
-                    event.w_i_read_records[j],
-                    &mut new_field_events,
-                );
+                cols.mem
+                    .populate_read(event.w_i_read_records[j], &mut new_field_events);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (j * 4) as u32);
 
                 let a = event.h[0];
@@ -126,13 +113,13 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let e_rr_6 = cols.e_rr_6.populate(segment, e, 6);
                 let e_rr_11 = cols.e_rr_11.populate(segment, e, 11);
                 let e_rr_25 = cols.e_rr_25.populate(segment, e, 25);
-                let s1_intermeddiate = cols.s1_intermediate.populate(e_rr_6, e_rr_11);
-                let s1 = cols.s1.populate(s1_intermeddiate, e_rr_25);
+                let s1_intermeddiate = cols.s1_intermediate.populate(segment, e_rr_6, e_rr_11);
+                let s1 = cols.s1.populate(segment, s1_intermeddiate, e_rr_25);
 
-                let e_and_f = cols.e_and_f.populate(e, f);
-                let e_not = cols.e_not.populate(e);
-                let e_not_and_g = cols.e_not_and_g.populate(e_not, g);
-                let ch = cols.ch.populate(e_and_f, e_not_and_g);
+                let e_and_f = cols.e_and_f.populate(segment, e, f);
+                let e_not = cols.e_not.populate(segment, e);
+                let e_not_and_g = cols.e_not_and_g.populate(segment, e_not, g);
+                let ch = cols.ch.populate(segment, e_and_f, e_not_and_g);
 
                 let temp1 = cols
                     .temp1
@@ -141,14 +128,14 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let a_rr_2 = cols.a_rr_2.populate(segment, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(segment, a, 13);
                 let a_rr_22 = cols.a_rr_22.populate(segment, a, 22);
-                let s0_intermediate = cols.s0_intermediate.populate(a_rr_2, a_rr_13);
-                let s0 = cols.s0.populate(s0_intermediate, a_rr_22);
+                let s0_intermediate = cols.s0_intermediate.populate(segment, a_rr_2, a_rr_13);
+                let s0 = cols.s0.populate(segment, s0_intermediate, a_rr_22);
 
-                let a_and_b = cols.a_and_b.populate(a, b);
-                let a_and_c = cols.a_and_c.populate(a, c);
-                let b_and_c = cols.b_and_c.populate(b, c);
-                let maj_intermediate = cols.maj_intermediate.populate(a_and_b, a_and_c);
-                let maj = cols.maj.populate(maj_intermediate, b_and_c);
+                let a_and_b = cols.a_and_b.populate(segment, a, b);
+                let a_and_c = cols.a_and_c.populate(segment, a, c);
+                let b_and_c = cols.b_and_c.populate(segment, b, c);
+                let maj_intermediate = cols.maj_intermediate.populate(segment, a_and_b, a_and_c);
+                let maj = cols.maj.populate(segment, maj_intermediate, b_and_c);
 
                 let temp2 = cols.temp2.populate(segment, s0, maj);
 
@@ -164,7 +151,8 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 event.h[1] = a;
                 event.h[0] = temp1_add_temp2;
 
-                cols.is_compression = F::one();
+                cols.is_real = F::one();
+
                 rows.push(row);
             }
 
@@ -174,30 +162,23 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 .try_into()
                 .unwrap();
 
+            octet_num_idx += 1;
             // Store a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
 
-                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                cols.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (8 * 4 + 64 * 4 + (j * 4)) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                cols.i = F::from_canonical_usize(j);
                 cols.octet[j] = F::one();
+                cols.octet_num[octet_num_idx] = F::one();
 
-                let updated_h_record = MemoryRecord {
-                    value: og_h[j].wrapping_add(event.h[j]),
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-                self.populate_access(
-                    &mut cols.mem,
-                    updated_h_record,
-                    event.h_write_records[j],
-                    &mut new_field_events,
-                );
+                cols.finalize_add.populate(segment, og_h[j], event.h[j]);
+                cols.mem
+                    .populate_write(event.h_write_records[j], &mut new_field_events);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
 
                 v[j] = event.h[j];
@@ -210,7 +191,20 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.g = Word::from(v[6]);
                 cols.h = Word::from(v[7]);
 
-                cols.is_finalize = F::one();
+                match j {
+                    0 => cols.finalized_operand = cols.a,
+                    1 => cols.finalized_operand = cols.b,
+                    2 => cols.finalized_operand = cols.c,
+                    3 => cols.finalized_operand = cols.d,
+                    4 => cols.finalized_operand = cols.e,
+                    5 => cols.finalized_operand = cols.f,
+                    6 => cols.finalized_operand = cols.g,
+                    7 => cols.finalized_operand = cols.h,
+                    _ => panic!("unsupported j"),
+                };
+
+                cols.is_real = F::one();
+
                 rows.push(row);
             }
         }
@@ -229,12 +223,10 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
         }
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
-        );
-
-        trace
+        )
     }
 
     fn name(&self) -> String {
