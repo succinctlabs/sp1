@@ -2,6 +2,7 @@ use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
 use crate::field::FieldLTUChip;
+use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
@@ -130,6 +131,20 @@ impl Runtime {
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces.clone());
 
+        debug_interactions_with_all_chips(
+            &mut self.segments[0],
+            Some(&mut self.global_segment),
+            vec![
+                InteractionKind::Alu,
+                InteractionKind::Program,
+                InteractionKind::Memory,
+                InteractionKind::Field,
+                InteractionKind::Range,
+                InteractionKind::Byte,
+                InteractionKind::Instruction,
+            ],
+        );
+
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
@@ -141,6 +156,7 @@ impl Runtime {
 pub mod tests {
 
     use crate::lookup::debug_interactions_with_all_chips;
+    use crate::lookup::InteractionKind;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -232,10 +248,11 @@ pub mod tests {
         log::info!("sha_extend: {}", runtime.segment.sha_extend_events.len());
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
 
-        debug_interactions_with_all_chips(
-            &mut runtime.segment,
-            crate::lookup::InteractionKind::Alu,
-        );
+        // debug_interactions_with_all_chips(
+        //     &mut runtime.segment,
+        //     Some(&mut runtime.global_segment),
+        //     vec![InteractionKind::Memory],
+        // );
     }
 
     #[test]

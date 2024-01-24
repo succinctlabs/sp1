@@ -20,6 +20,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
 use num::Zero;
+use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -129,6 +130,10 @@ impl EdAddAssignChip {
         let p_ptr = rt.register(a0);
         rt.rw(a0, p_ptr);
 
+        if p_ptr % 4 != 0 {
+            panic!();
+        }
+
         // Preserve record for cpu event. It just has p/q + opcode reads.
         let record = rt.record;
 
@@ -137,6 +142,10 @@ impl EdAddAssignChip {
         let q_ptr = rt.rr(a1, AccessPosition::C);
         rt.mw(a1 as u32, q_ptr, AccessPosition::C);
         let q_ptr_record = *rt.record.c.as_ref().unwrap();
+
+        if q_ptr % 4 != 0 {
+            panic!();
+        }
 
         let mut p = [0; 16];
         for (i, item) in p.iter_mut().enumerate() {
@@ -151,8 +160,8 @@ impl EdAddAssignChip {
         }
         rt.clk += 4;
 
-        let p_bytes: [u8; 64] = unsafe { std::mem::transmute(p) };
-        let q_bytes: [u8; 64] = unsafe { std::mem::transmute(q) };
+        let p_bytes = p.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>();
+        let q_bytes = q.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>();
 
         let p_x = BigUint::from_bytes_le(&p_bytes[0..32]);
         let p_y = BigUint::from_bytes_le(&p_bytes[32..64]);
@@ -232,6 +241,11 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
 
         let mut new_field_events = Vec::new();
 
+        println!(
+            "segment.ed_add_events.len() = {}",
+            segment.ed_add_events.len()
+        );
+
         for i in 0..segment.ed_add_events.len() {
             let event = segment.ed_add_events[i];
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
@@ -296,7 +310,6 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
             y3_limbs.resize(NUM_LIMBS, 0u8);
             for i in 0..8 {
                 let x3_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-                // let x3_value: u32 = unsafe { std::mem::transmute(x3_array) };
                 let x3_value = u32::from_le_bytes(x3_array);
                 let x3_write_record = MemoryRecord {
                     value: x3_value,
@@ -310,7 +323,6 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
                     &mut new_field_events,
                 );
                 let y3_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-                // let y3_value: u32 = unsafe { std::mem::transmute(y3_array) };
                 let y3_value = u32::from_le_bytes(y3_array);
                 let y3_write_record = MemoryRecord {
                     value: y3_value,
@@ -382,14 +394,14 @@ impl<F: Field> Chip<F> for EdAddAssignChip {
             let mut y3_limbs = y3_ins.to_bytes_le();
             y3_limbs.resize(NUM_LIMBS, 0u8);
 
-            for i in 0..8 {
-                let x3_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-                cols.p_access[i].value = Word(x3_array.map(F::from_canonical_u8));
-            }
-            for i in 0..8 {
-                let y3_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
-                cols.p_access[8 + i].value = Word(y3_array.map(F::from_canonical_u8));
-            }
+            // for i in 0..8 {
+            //     let x3_array: [u8; 4] = x3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+            //     cols.p_access[i].value = Word(x3_array.map(F::from_canonical_u8));
+            // }
+            // for i in 0..8 {
+            //     let y3_array: [u8; 4] = y3_limbs[i * 4..(i + 1) * 4].try_into().unwrap();
+            //     cols.p_access[8 + i].value = Word(y3_array.map(F::from_canonical_u8));
+            // }
 
             for _ in nb_rows..padded_nb_rows {
                 rows.push(row);
@@ -463,8 +475,12 @@ where
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
         for i in 0..NUM_LIMBS {
-            builder.assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
-            builder.assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
+            builder
+                .when(row.is_real)
+                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+            builder
+                .when(row.is_real)
+                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
         }
 
         for i in 0..16 {

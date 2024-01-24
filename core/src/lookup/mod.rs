@@ -106,9 +106,14 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
-    mut segment: &mut Segment,
-    interaction_kind: InteractionKind,
+    segment: &mut Segment,
+    global_segment: Option<&mut Segment>,
+    interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
+    if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
+        panic!("Memory interactions requires global segment.");
+    }
+
     // Boilerplate code to set up the chips.
     type Val = BabyBear;
     type Domain = Val;
@@ -131,19 +136,36 @@ pub fn debug_interactions_with_all_chips(
     let segment_chips = Runtime::segment_chips::<MyConfig>();
     let global_chips = Runtime::global_chips::<MyConfig>();
 
-    let all_chips = segment_chips.iter().chain(global_chips.iter());
-
     let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
     let mut final_map = BTreeMap::new();
 
-    for chip in all_chips {
-        let (_, count) =
-            debug_interactions::<BabyBear>(chip.as_ref(), &mut segment, interaction_kind);
+    for chip in segment_chips {
+        let (_, count) = debug_interactions::<BabyBear>(
+            chip.as_ref(),
+            &mut segment.clone(),
+            interaction_kinds.clone(),
+        );
 
         counts.push((count.clone(), chip.name()));
         println!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
             *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+        }
+    }
+
+    if let Some(global_segment) = global_segment {
+        for chip in global_chips {
+            let (_, count) = debug_interactions::<BabyBear>(
+                chip.as_ref(),
+                &mut global_segment.clone(),
+                interaction_kinds.clone(),
+            );
+
+            counts.push((count.clone(), chip.name()));
+            println!("{} chip has {} distinct events", chip.name(), count.len());
+            for (key, value) in count.iter() {
+                *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+            }
         }
     }
 
@@ -177,7 +199,7 @@ pub fn debug_interactions_with_all_chips(
 pub fn debug_interactions<F: Field>(
     chip: &dyn Chip<F>,
     segment: &mut Segment,
-    interaction_kind: InteractionKind,
+    interaction_kinds: Vec<InteractionKind>,
 ) -> (
     BTreeMap<String, Vec<InteractionData<F>>>,
     BTreeMap<String, F>,
@@ -195,7 +217,7 @@ pub fn debug_interactions<F: Field>(
     let height = trace.clone().height();
     for row in 0..height {
         for (m, interaction) in all_interactions.iter().enumerate() {
-            if interaction.kind != interaction_kind {
+            if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
             let is_send = m < nb_send_interactions;

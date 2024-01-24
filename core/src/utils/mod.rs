@@ -12,9 +12,7 @@ use crate::{
 };
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
-    fn name(&self) -> String {
-        "".to_string()
-    }
+    fn name(&self) -> String;
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>;
 

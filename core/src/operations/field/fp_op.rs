@@ -234,6 +234,10 @@ mod tests {
     }
 
     impl<F: Field, P: FieldParameters> Chip<F> for FpOpChip<P> {
+        fn name(&self) -> String {
+            format!("FpOp{:?}", self.operation)
+        }
+
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;

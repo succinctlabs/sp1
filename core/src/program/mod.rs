@@ -37,7 +37,7 @@ impl ProgramChip {
 
 impl<F: PrimeField> Chip<F> for ProgramChip {
     fn name(&self) -> String {
-        "program".to_string()
+        "Program".to_string()
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
