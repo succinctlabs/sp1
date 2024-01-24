@@ -46,6 +46,16 @@ impl<F: Field> FpOpCols<F> {
         /// support that. This is a hack, since we always use BabyBear, to get around that, but
         /// all operations using "PF" should use "F" in the future.
         type PF = BabyBear;
+        println!("a: {:?}", a);
+        println!("b: {:?}", b);
+        println!("op: {:?}", {
+            match op {
+                FpOperation::Add => "Add",
+                FpOperation::Mul => "Mul",
+                FpOperation::Sub => "Sub",
+                FpOperation::Div => "Div",
+            }
+        });
 
         if *a == BigUint::zero() && b.is_zero() && op == FpOperation::Div {
             panic!("Division by zero");
@@ -69,7 +79,9 @@ impl<F: Field> FpOpCols<F> {
 
         // a / b = result is equivalent to a = result * b.
         if op == FpOperation::Div {
-            let result = inverse_mod(b, &modulus);
+            let result = (a * inverse_mod(b, &modulus)) % &modulus;
+            println!("result: {:?}", result);
+            println!();
             // We populate the carry, witness_low, witness_high as if we were doing a multiplication
             // with result * b. But we populate `result` with the actual result of the
             // multiplication because those columns are expected to contain the result by the user.
@@ -104,18 +116,8 @@ impl<F: Field> FpOpCols<F> {
         let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
         let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
 
-        println!("a: {:?}", a);
         println!("p_a: {:?}", p_a);
-        println!("b: {:?}", b);
         println!("p_b: {:?}", p_b);
-        println!("op: {:?}", {
-            match op {
-                FpOperation::Add => "Add",
-                FpOperation::Mul => "Mul",
-                FpOperation::Sub => "Sub",
-                FpOperation::Div => "Div",
-            }
-        });
         println!("p_result: {:?}", p_result);
         println!("p_modulus: {:?}", p_modulus);
         println!("p_carry: {:?}", p_carry);
@@ -246,9 +248,11 @@ mod tests {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let num_rows = 1 << 8;
 
+            let modulus = P::modulus();
+            println!("modulus: {:?}", modulus);
             // this is where i set my test cases.
-            let a = BigUint::from(3023u32);
-            let b = BigUint::from(3252u32);
+            let a = BigUint::from(8u32);
+            let b = BigUint::from(2u32);
             let operands: Vec<(BigUint, BigUint)> =
                 (0..num_rows).map(|_| (a.clone(), b.clone())).collect();
             let rows = operands
