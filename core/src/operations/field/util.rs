@@ -2,8 +2,36 @@ use std::cmp::{max, min};
 
 use crate::air::polynomial::Polynomial;
 
-use num::BigUint;
+use num::{BigUint, One, Zero};
 use p3_field::PrimeField32;
+
+/// Computes the difference between `a` and `b` modulo `n`.
+pub fn subtract_mod(a: &BigUint, b: &BigUint, n: &BigUint) -> BigUint {
+    if a < b {
+        (n + a) - b
+    } else {
+        a - b
+    }
+}
+/// Computes the inverse of `a` modulo `n` using the same idea as the extended Euclidean algorithm.
+/// See https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers
+pub fn inverse_mod(a: &BigUint, n: &BigUint) -> BigUint {
+    let mut t = BigUint::zero();
+    let mut new_t = BigUint::one();
+    let mut r = n.clone();
+    let mut new_r = a.clone();
+
+    while !new_r.is_zero() {
+        let quotient = &r / &new_r;
+        (t, new_t) = (new_t.clone(), subtract_mod(&t, &(&quotient * new_t), n));
+        (r, new_r) = (new_r.clone(), subtract_mod(&r, &(&quotient * new_r), n));
+    }
+
+    // The GCD has to be 1 for a to be invertible.
+    assert_eq!(r, BigUint::one());
+
+    t
+}
 
 fn biguint_to_field<F: PrimeField32>(num: BigUint) -> F {
     let mut x = F::zero();

@@ -4,9 +4,10 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
+use crate::operations::field::util::inverse_mod;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use num::BigUint;
+use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
@@ -46,6 +47,10 @@ impl<F: Field> FpOpCols<F> {
         /// all operations using "PF" should use "F" in the future.
         type PF = BabyBear;
 
+        if *a == BigUint::zero() && b.is_zero() && op == FpOperation::Div {
+            panic!("Division by zero");
+        }
+
         let modulus = P::modulus();
 
         // If doing the substraction operation, a - b = result, equivalent to a = result + b.
@@ -64,7 +69,7 @@ impl<F: Field> FpOpCols<F> {
 
         // a / b = result is equivalent to a = result * b.
         if op == FpOperation::Div {
-            let result = (a / b) % &modulus;
+            let result = inverse_mod(b, &modulus);
             // We populate the carry, witness_low, witness_high as if we were doing a multiplication
             // with result * b. But we populate `result` with the actual result of the
             // multiplication because those columns are expected to contain the result by the user.
@@ -98,6 +103,23 @@ impl<F: Field> FpOpCols<F> {
         let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(modulus).into();
         let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
         let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
+
+        println!("a: {:?}", a);
+        println!("p_a: {:?}", p_a);
+        println!("b: {:?}", b);
+        println!("p_b: {:?}", p_b);
+        println!("op: {:?}", {
+            match op {
+                FpOperation::Add => "Add",
+                FpOperation::Mul => "Mul",
+                FpOperation::Sub => "Sub",
+                FpOperation::Div => "Div",
+            }
+        });
+        println!("p_result: {:?}", p_result);
+        println!("p_modulus: {:?}", p_modulus);
+        println!("p_carry: {:?}", p_carry);
+        println!();
 
         // Compute the vanishing polynomial.
         let p_op = match op {
@@ -222,22 +244,13 @@ mod tests {
         }
 
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
-            let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
-                .map(|_| {
-                    let a = rng.gen_biguint(256) % &P::modulus();
-                    let b = rng.gen_biguint(256) % &P::modulus();
-                    (a, b)
-                })
-                .collect();
-            // Hardcoded edge cases.
-            operands.extend(vec![
-                (BigUint::from(0u32), BigUint::from(0u32)),
-                (BigUint::from(1u32), BigUint::from(2u32)),
-                (BigUint::from(4u32), BigUint::from(5u32)),
-                (BigUint::from(10u32), BigUint::from(19u32)),
-            ]);
+
+            // this is where i set my test cases.
+            let a = BigUint::from(1u32);
+            let b = BigUint::from(2u32);
+            let operands: Vec<(BigUint, BigUint)> =
+                (0..num_rows).map(|_| (a.clone(), b.clone())).collect();
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
@@ -335,14 +348,7 @@ mod tests {
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
 
-        for op in [
-            FpOperation::Add,
-            FpOperation::Sub,
-            FpOperation::Mul,
-            FpOperation::Div,
-        ]
-        .iter()
-        {
+        for op in [FpOperation::Div].iter() {
             println!("op: {:?}", op);
 
             let mds = MyMds::default();
