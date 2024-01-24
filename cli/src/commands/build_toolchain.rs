@@ -1,9 +1,9 @@
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use anyhow::Result;
 use clap::Parser;
 
-const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
+use crate::{CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
 
 #[derive(Parser)]
 #[command(name = "build-toolchain", about = "Build the cargo-prove toolchain.")]
@@ -16,27 +16,25 @@ impl BuildToolchainCmd {
 
         // Clone our rust fork.
         let repo_url = match github_access_token {
-            Ok(github_access_token) => format!(
-                "https://{}@github.com/succinctlabs/rust",
-                github_access_token
-            ),
-            Err(_) => "https://github.com/succinctlabs/rust".to_string(),
+            Ok(github_access_token) => {
+                println!("Detected GITHUB_ACCESS_TOKEN, using it to clone rust.");
+                format!(
+                    "https://{}@github.com/succinctlabs/rust",
+                    github_access_token
+                )
+            }
+            Err(_) => {
+                println!("No GITHUB_ACCESS_TOKEN detected. If you get throttled by Github, set it to bypass the rate limit.");
+                "https://github.com/succinctlabs/rust".to_string()
+            }
         };
-        Command::new("git")
-            .args(["clone", &repo_url])
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()?;
+        Command::new("git").args(["clone", &repo_url]).run()?;
 
         // Checkout the correct branch.
         Command::new("git")
             .args(["checkout", "succinct"])
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
             .current_dir("rust")
-            .output()?;
+            .run()?;
 
         // Install our config.toml.
         let config_toml = include_str!("config.toml");
@@ -49,11 +47,8 @@ impl BuildToolchainCmd {
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build"])
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
             .current_dir("rust")
-            .output()?;
+            .run()?;
 
         // Build the toolchain (stage 2).
         Command::new("python3")
@@ -62,19 +57,12 @@ impl BuildToolchainCmd {
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build", "--stage", "2"])
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .current_dir("rust")
-            .output()?;
+            .run()?;
 
         // Remove the existing toolchain from rustup, if it exists.
         match Command::new("rustup")
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
+            .run()
         {
             Ok(_) => println!("Succesfully removed existing toolchain."),
             Err(_) => println!("No existing toolchain to remove."),
@@ -92,7 +80,7 @@ impl BuildToolchainCmd {
         }
         let toolchain_dir = toolchain_dir.unwrap();
         println!(
-            "Found toolchain directory at {}",
+            "Found built toolchain directory at {}",
             toolchain_dir.as_path().to_str().unwrap()
         );
 
@@ -100,10 +88,8 @@ impl BuildToolchainCmd {
         Command::new("rustup")
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
             .arg(toolchain_dir)
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()?;
+            .run()?;
+        println!("Succesfully linked the toolchain to rustup.");
 
         Ok(())
     }
