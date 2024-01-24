@@ -14,6 +14,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
 
@@ -116,27 +117,23 @@ impl<V: Copy> EdDecompressCols<V> {
         let y = limbs_from_memory_access(&self.p_access[1..]);
         self.yy.eval::<AB, P>(builder, &y, &y, FpOperation::Sub);
         self.u
-            .eval::<AB, P>(builder, &self.yy.result, &AB::Expr::one(), FpOperation::Sub);
+            .eval_const::<AB, P>(builder, &self.yy.result, &AB::Expr::one(), FpOperation::Sub);
         self.dyy
-            .eval::<AB, P>(builder, &P::D, &self.yy.result, FpOperation::Mul);
-        self.v.eval::<AB, P>(
+            .eval_const::<AB, P>(builder, &self.yy.result, &P::D, FpOperation::Mul);
+        self.v.eval_const::<AB, P>(
             builder,
-            &AB::Expr::one(),
             &self.dyy.result,
+            &AB::Expr::one(),
             FpOperation::Add,
         );
-        self.u_div_v.eval::<AB, P>(
+        self.u_div_v.eval_const::<AB, P>(
             builder,
-            &AB::Expr::one(),
             &self.dyy.result,
+            &AB::Expr::one(),
             FpOperation::Div,
         );
-        self.x.eval::<AB, P>(
-            builder,
-            &self.u_div_v.result,
-            &AB::Expr::one(),
-            FpOperation::Sqrt,
-        );
+        self.x
+            .eval::<AB, P>(builder, &self.u_div_v.result, FpOperation::Sqrt);
         self.neg_x
             .eval::<AB, P>(builder, &AB::Expr::zero(), &self.x.result, FpOperation::Sub);
 
