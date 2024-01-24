@@ -68,7 +68,9 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        // TODO: do we have to set the cols.op_a_access.value regardless here?
+        cols.op_a_access.value = event.a.into();
+        cols.op_b_access.value = event.b.into();
+        cols.op_c_access.value = event.c.into();
         if let Some(record) = event.a_record {
             cols.op_a_access.populate(record, new_field_events)
         }

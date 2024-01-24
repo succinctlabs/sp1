@@ -1,3 +1,6 @@
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
 pub mod ed_add;
 pub mod ed_scalar_mul;
 

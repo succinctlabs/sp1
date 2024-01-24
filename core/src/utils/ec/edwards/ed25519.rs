@@ -142,6 +142,7 @@ mod tests {
     use core::str::FromStr;
 
     use super::*;
+    use hex;
     use num::BigUint;
 
     const NUM_TEST_CASES: usize = 51;

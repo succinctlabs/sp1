@@ -137,7 +137,6 @@ mod tests {
     use rand::thread_rng;
 
     use super::bn254;
-    use super::*;
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {

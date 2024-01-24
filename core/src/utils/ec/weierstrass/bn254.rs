@@ -22,12 +22,20 @@ impl FieldParameters for Bn254BaseField {
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
-    // Base field modulus:
-    //  21888242871839275222246405745257275088696311157297823662689037894645226208583
-    // TODO: fixme
-    const MODULUS: [u8; MAX_NB_LIMBS] = [0u8; MAX_NB_LIMBS];
+    const MODULUS: [u8; MAX_NB_LIMBS] = [
+        71, 253, 124, 216, 22, 140, 32, 60, 141, 202, 113, 104, 145, 106, 129, 151, 93, 88, 129,
+        129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
+    ];
 
     const WITNESS_OFFSET: usize = 1usize << 20;
+
+    fn modulus() -> BigUint {
+        BigUint::from_str_radix(
+            "21888242871839275222246405745257275088696311157297823662689037894645226208583",
+            10,
+        )
+        .unwrap()
+    }
 }
 
 impl EllipticCurveParameters for Bn254Parameters {
@@ -64,5 +72,20 @@ impl WeierstrassParameters for Bn254Parameters {
 
     fn b_int() -> BigUint {
         BigUint::from(3u32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::utils::ec::utils::biguint_from_limbs;
+
+    #[test]
+    fn test_weierstrass_biguint_scalar_mul() {
+        assert_eq!(
+            biguint_from_limbs(&Bn254BaseField::MODULUS),
+            Bn254BaseField::modulus()
+        );
     }
 }

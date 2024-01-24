@@ -27,7 +27,7 @@ impl<E> AffinePoint<E> {
         }
     }
 
-    pub fn from_words_le(words: &[u32]) -> Self {
+    pub fn from_words_le(_: &[u32]) -> Self {
         todo!();
     }
 

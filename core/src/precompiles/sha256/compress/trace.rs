@@ -176,7 +176,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
-                let finalized_sum = cols.finalize_add.populate(segment, og_h[j], event.h[j]);
+                cols.finalize_add.populate(segment, og_h[j], event.h[j]);
                 cols.mem
                     .populate_write(event.h_write_records[j], &mut new_field_events);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);

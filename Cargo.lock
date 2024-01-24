@@ -2571,6 +2571,7 @@ dependencies = [
  "curve25519-dalek",
  "elf",
  "env_logger",
+ "hex",
  "itertools 0.12.0",
  "log",
  "nohash-hasher",

@@ -42,6 +42,7 @@ tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
 curve25519-dalek = "4.1.1"
+hex = "0.4.3"
 
 [dev-dependencies]
 criterion = "0.5.1"
