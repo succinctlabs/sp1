@@ -35,6 +35,14 @@ impl BuildToolchainCmd {
             .args(["checkout", "riscv32im-succinct-zkvm"])
             .current_dir("rust")
             .run()?;
+        Command::new("git")
+            .args(["reset", "--hard"])
+            .current_dir("rust")
+            .run()?;
+        Command::new("git")
+            .args(["submodule", "update", "--init", "--recursive", "--progress"])
+            .current_dir("rust")
+            .run()?;
 
         // Install our config.toml.
         let config_toml = include_str!("config.toml");
