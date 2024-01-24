@@ -25,7 +25,8 @@ use p3_field::AbstractField;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AccessPosition {
     Memory = 0,
-    // C always needs to be read before B.
+    // Note that these AccessPositions mean that when when read/writing registers, they must be
+    // read/written in the following order: C, B, A.
     C = 1,
     B = 2,
     A = 3,
@@ -929,7 +930,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/ed25519")
+        Program::from_elf("../programs/fib_malloc.s")
     }
 
     pub fn ecall_lwa_program() -> Program {
