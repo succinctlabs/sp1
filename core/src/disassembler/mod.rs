@@ -54,7 +54,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci() {
-        // utils::setup_logger();
+        utils::setup_logger();
         let program = Program::from_elf("../programs/fib_malloc.s");
         prove(program.clone());
     }
