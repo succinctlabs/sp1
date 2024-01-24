@@ -30,7 +30,9 @@ pub struct LtCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// b[i] < c[i].
+    /// Values of b < c for each byte. Assumes each byte is unsigned. Note: If b or c are negative
+    /// in SLT, unsigned_b_lt_c could be the opposite of the correct result. This is handled in
+    /// eval.
     pub unsigned_b_lt_c: [T; 4],
 
     /// Boolean flag to indicate which byte pair differs
