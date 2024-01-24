@@ -47,6 +47,21 @@ fn biguint_to_field<F: PrimeField32>(num: BigUint) -> F {
     x
 }
 
+/// Asserts that two polynomials are equal while ignoring leading 0's.
+pub fn assert_eq_polynomial<F: PrimeField32>(p1: &Polynomial<F>, p2: &Polynomial<F>) {
+    let coef1 = p1.coefficients();
+    let coef2 = p2.coefficients();
+    for i in 0..max(coef1.len(), coef2.len()) {
+        if i < min(coef1.len(), coef2.len()) {
+            assert_eq!(coef1[i], coef2[i]);
+        } else if i < coef1.len() {
+            assert_eq!(coef1[i], F::zero());
+        } else {
+            assert_eq!(coef2[i], F::zero());
+        }
+    }
+}
+
 #[inline]
 pub fn compute_root_quotient_and_shift<F: PrimeField32>(
     p_vanishing: &Polynomial<F>,
@@ -77,22 +92,7 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
 
     // Sanity Check #2: w(x) * (x - 2^nb_bits_per_limb) = vanishing(x).
     let x_minus_root = Polynomial::<F>::from_coefficients_slice(&[-root_monomial, F::one()]);
-    {
-        let prod = &p_quotient * &x_minus_root;
-        let p1 = prod.coefficients();
-        let p2 = p_vanishing.coefficients();
-        for i in 0..min(p1.len(), p2.len()) {
-            debug_assert_eq!(p1[i], p2[i]);
-        }
-        for i in min(p1.len(), p2.len())..max(p1.len(), p2.len()) {
-            if i < p1.len() {
-                debug_assert_eq!(p1[i], F::zero());
-            }
-            if i < p2.len() {
-                debug_assert_eq!(p2[i], F::zero());
-            }
-        }
-    }
+    assert_eq_polynomial(&(&p_quotient * &x_minus_root), p_vanishing);
 
     // Shifting the witness polynomial to make it positive
     p_quotient
