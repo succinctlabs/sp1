@@ -598,7 +598,6 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
 
-                (b, c) = (self.rr(t0, AccessPosition::B), 0);
                 let mut precompile_rt = PrecompileRuntime::new(
                     self.current_segment(),
                     self.clk,
@@ -618,12 +617,16 @@ impl Runtime {
                     Syscall::SHA_EXTEND => {
                         // a = ShaExtendChip::execute(self);
                         a = ShaExtendChip::execute(&mut precompile_rt);
+                        let peeks = precompile_rt.peeks.len();
+                        assert_eq!(peeks, 0, "peeks is not empty");
                         let init_clk = self.clk;
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::SHA_COMPRESS => {
                         a = ShaCompressChip::execute(&mut precompile_rt);
+                        let peeks = precompile_rt.peeks.len();
+                        assert_eq!(peeks, 0, "peeks is not empty");
                         let init_clk = self.clk;
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
@@ -664,9 +667,9 @@ impl Runtime {
                         a = 0;
                     }
                 }
-                // Assert that all the peeks were written.
-                // assert_eq!(precompile_rt.peeks.len(), 0);
+
                 self.rw(a0, a);
+                (b, c) = (self.rr(t0, AccessPosition::B), 0);
             }
 
             Opcode::EBREAK => {

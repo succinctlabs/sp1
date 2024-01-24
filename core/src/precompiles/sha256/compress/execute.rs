@@ -27,7 +27,7 @@ impl ShaCompressChip {
         let mut hx = [0u32; 8];
         for i in 0..8 {
             let (record, value) = rt.mr(w_ptr + (H_START_IDX + i as u32) * 4);
-            h_read_records.push(Some(record));
+            h_read_records.push(record);
             hx[i] = value;
             rt.clk += 4;
         }
@@ -47,7 +47,7 @@ impl ShaCompressChip {
             let ch = (e & f) ^ (!e & g);
             let (record, w_i) = rt.mr(w_ptr + i * 4);
             original_w.push(w_i);
-            w_i_read_records.push(Some(record));
+            w_i_read_records.push(record);
             let temp1 = h
                 .wrapping_add(s1)
                 .wrapping_add(ch)
@@ -72,12 +72,11 @@ impl ShaCompressChip {
         // Execute the "finalize" phase.
         let v = [a, b, c, d, e, f, g, h];
         for i in 0..8 {
-            rt.peek(w_ptr + (H_START_IDX + i as u32) * 4);
             let record = rt.mw(
                 w_ptr.wrapping_add((H_START_IDX + i as u32) * 4),
                 hx[i].wrapping_add(v[i]),
             );
-            h_write_records.push(Some(record));
+            h_write_records.push(record);
             rt.clk += 4;
         }
 

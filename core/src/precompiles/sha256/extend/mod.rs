@@ -6,18 +6,17 @@ mod trace;
 
 pub use columns::*;
 
-use crate::cpu::MemoryRecord;
+use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaExtendEvent {
     pub clk: u32,
     pub w_ptr: u32,
-    pub w: [u32; 64],
-    pub w_i_minus_15_reads: [Option<MemoryRecord>; 48],
-    pub w_i_minus_2_reads: [Option<MemoryRecord>; 48],
-    pub w_i_minus_16_reads: [Option<MemoryRecord>; 48],
-    pub w_i_minus_7_reads: [Option<MemoryRecord>; 48],
-    pub w_i_writes: [Option<MemoryRecord>; 48],
+    pub w_i_minus_15_reads: [MemoryReadRecord; 48],
+    pub w_i_minus_2_reads: [MemoryReadRecord; 48],
+    pub w_i_minus_16_reads: [MemoryReadRecord; 48],
+    pub w_i_minus_7_reads: [MemoryReadRecord; 48],
+    pub w_i_writes: [MemoryWriteRecord; 48],
 }
 
 pub struct ShaExtendChip;

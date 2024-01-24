@@ -12,7 +12,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord},
+    cpu::{cols::cpu_cols::MemoryAccessCols, MemoryReadRecord, MemoryRecord, MemoryWriteRecord},
     field::event::FieldEvent,
     lookup::{Interaction, InteractionBuilder},
     runtime::Segment,
@@ -47,6 +47,44 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         let (mut sends, receives) = builder.interactions();
         sends.extend(receives);
         sends
+    }
+
+    fn populate_read(
+        &self,
+        cols: &mut MemoryAccessCols<F>,
+        record: MemoryReadRecord,
+        new_field_events: &mut Vec<FieldEvent>,
+    ) {
+        let current_record = MemoryRecord {
+            value: record.value,
+            segment: record.segment,
+            timestamp: record.timestamp,
+        };
+        let prev_record = MemoryRecord {
+            value: record.value,
+            segment: record.prev_segment,
+            timestamp: record.prev_timestamp,
+        };
+        self.populate_access(cols, current_record, Some(prev_record), new_field_events);
+    }
+
+    fn populate_write(
+        &self,
+        cols: &mut MemoryAccessCols<F>,
+        write_record: MemoryWriteRecord,
+        new_field_events: &mut Vec<FieldEvent>,
+    ) {
+        let current_record = MemoryRecord {
+            value: write_record.value,
+            segment: write_record.segment,
+            timestamp: write_record.timestamp,
+        };
+        let prev_record = MemoryRecord {
+            value: write_record.prev_value,
+            segment: write_record.prev_segment,
+            timestamp: write_record.prev_timestamp,
+        };
+        self.populate_access(cols, current_record, Some(prev_record), new_field_events);
     }
 
     fn populate_access(

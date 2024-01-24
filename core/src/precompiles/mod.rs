@@ -2,7 +2,7 @@ pub mod edwards;
 pub mod sha256;
 
 use crate::runtime::Register;
-use crate::{cpu::MemoryRecord, runtime::Segment};
+use crate::{cpu::MemoryReadRecord, cpu::MemoryRecord, cpu::MemoryWriteRecord, runtime::Segment};
 use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
 pub struct PrecompileRuntime<'a> {
@@ -34,7 +34,7 @@ impl<'a> PrecompileRuntime<'a> {
         }
     }
 
-    pub fn mr(&mut self, addr: u32) -> (MemoryRecord, u32) {
+    pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
         let value = self.memory.entry(addr).or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
@@ -43,41 +43,62 @@ impl<'a> PrecompileRuntime<'a> {
             .insert(addr, (self.segment_number, self.clk));
 
         (
-            MemoryRecord {
+            MemoryReadRecord {
                 value: *value,
-                segment: prev_segment,
-                timestamp: prev_timestamp,
+                segment: self.segment_number,
+                timestamp: self.clk,
+                prev_segment,
+                prev_timestamp,
             },
             *value,
         )
     }
 
-    pub fn peek(&mut self, addr: u32) -> u32 {
+    // pub fn peek(&mut self, addr: u32) -> u32 {
+    //     // All peeks must be accompanied by a write.
+    //     let value = self.memory.entry(addr).or_insert(0);
+    //     let (prev_segment, prev_timestamp) =
+    //         self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+
+    //     let record = MemoryRecord {
+    //         value: *value,
+    //         segment: prev_segment,
+    //         timestamp: prev_timestamp,
+    //     };
+    //     self.peeks.insert(addr, record.clone());
+    //     *value
+    // }
+
+    //
+
+    pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
         // All peeks must be accompanied by a write.
-        let value = self.memory.entry(addr).or_insert(0);
+        let prev_value = self.memory.entry(addr).or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
         let record = MemoryRecord {
-            value: *value,
+            value: *prev_value,
             segment: prev_segment,
             timestamp: prev_timestamp,
         };
-        self.peeks.insert(addr, record.clone());
-        *value
-    }
-
-    pub fn mw(&mut self, addr: u32, value: u32) -> MemoryRecord {
-        // All writes must be accompanied by a peek.
-        let record = self
-            .peeks
-            .remove(&addr)
-            .expect("A write must be peeked before");
+        // // All writes must be accompanied by a peek.
+        // let record = self
+        //     .peeks
+        //     .remove(&addr)
+        //     .expect("A write must be peeked before");
         self.memory_access
             .insert(addr, (self.segment_number, self.clk));
         self.memory.insert(addr, value);
         // TODO: can do some checks on the record clk and self.clk at this point
-        record
+        MemoryWriteRecord {
+            value,
+            segment: self.segment_number,
+            timestamp: self.clk,
+            prev_value: record.value,
+            prev_segment: record.segment,
+            prev_timestamp: record.timestamp,
+        }
     }
 
     pub fn increment_clk(&mut self, cycles: u32) {

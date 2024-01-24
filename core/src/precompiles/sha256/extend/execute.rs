@@ -13,17 +13,11 @@ impl ShaExtendChip {
         let a0 = Register::X10;
 
         // Read `w_ptr` from register a0 or x5.
-        // TODO: this is unsafe.
+        // TODO: this is underconstrained.
         let w_ptr = rt.register(a0);
-        let w: [u32; 64] = (0..64)
-            .map(|i| rt.peek(w_ptr + i * 4))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
 
         let clk_init = rt.clk;
         let w_ptr_init = w_ptr;
-        let w_init = w;
         let mut w_i_minus_15_reads = Vec::new();
         let mut w_i_minus_2_reads = Vec::new();
         let mut w_i_minus_16_reads = Vec::new();
@@ -32,7 +26,7 @@ impl ShaExtendChip {
         for i in 16..64 {
             // Read w[i-15].
             let (record, w_i_minus_15) = rt.mr(w_ptr + (i - 15) * 4);
-            w_i_minus_15_reads.push(Some(record));
+            w_i_minus_15_reads.push(record);
             rt.clk += 4;
 
             // Compute `s0`.
@@ -41,7 +35,7 @@ impl ShaExtendChip {
 
             // Read w[i-2].
             let (record, w_i_minus_2) = rt.mr(w_ptr + (i - 2) * 4);
-            w_i_minus_2_reads.push(Some(record));
+            w_i_minus_2_reads.push(record);
             rt.clk += 4;
 
             // Compute `s1`.
@@ -50,12 +44,12 @@ impl ShaExtendChip {
 
             // Read w[i-16].
             let (record, w_i_minus_16) = rt.mr(w_ptr + (i - 16) * 4);
-            w_i_minus_16_reads.push(Some(record));
+            w_i_minus_16_reads.push(record);
             rt.clk += 4;
 
             // Read w[i-7].
             let (record, w_i_minus_7) = rt.mr(w_ptr + (i - 7) * 4);
-            w_i_minus_7_reads.push(Some(record));
+            w_i_minus_7_reads.push(record);
             rt.clk += 4;
 
             // Compute `w_i`.
@@ -65,7 +59,7 @@ impl ShaExtendChip {
                 .wrapping_add(w_i_minus_7);
 
             // Write w[i].
-            w_i_writes.push(Some(rt.mw(w_ptr + i * 4, w_i)));
+            w_i_writes.push(rt.mw(w_ptr + i * 4, w_i));
             rt.clk += 4;
         }
 
@@ -73,7 +67,6 @@ impl ShaExtendChip {
         rt.segment.sha_extend_events.push(ShaExtendEvent {
             clk: clk_init,
             w_ptr: w_ptr_init,
-            w: w_init,
             w_i_minus_15_reads: w_i_minus_15_reads.try_into().unwrap(),
             w_i_minus_2_reads: w_i_minus_2_reads.try_into().unwrap(),
             w_i_minus_16_reads: w_i_minus_16_reads.try_into().unwrap(),

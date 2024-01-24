@@ -27,6 +27,25 @@ pub struct MemoryRecord {
     pub timestamp: u32,
 }
 
+#[derive(Debug, Copy, Clone, Default)]
+pub struct MemoryReadRecord {
+    pub value: u32,
+    pub segment: u32,
+    pub timestamp: u32,
+    pub prev_segment: u32,
+    pub prev_timestamp: u32,
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+pub struct MemoryWriteRecord {
+    pub value: u32,
+    pub segment: u32,
+    pub timestamp: u32,
+    pub prev_value: u32,
+    pub prev_segment: u32,
+    pub prev_timestamp: u32,
+}
+
 pub struct CpuChip;
 
 impl CpuChip {
