@@ -18,6 +18,7 @@ pub enum FpOperation {
     Add,
     Mul,
     Sub,
+    // TODO: Add Div
 }
 
 /// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
