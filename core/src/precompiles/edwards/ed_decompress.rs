@@ -12,12 +12,12 @@ use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-/// A set of columns to compute `EdAdd` where a, b are field elements.
+/// A set of columns to compute `EdDecompress` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct EdAddCols<T> {
+pub struct EdDecompressCols<T> {
     pub p_ptr: T,
     // This is 8 elements, as it's 8 words for the 32 byte compressed point.
     pub p_access: [MemoryAccess<T>; 8],
@@ -33,13 +33,13 @@ pub struct EdAddCols<T> {
     pub(crate) neg_x: FpOpCols<T>,
 }
 
-impl<F: Field> EdAddCols<F> {
+impl<F: Field> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters>(&mut self) {
         todo!();
     }
 }
 
-impl<V: Copy> EdAddCols<V> {
+impl<V: Copy> EdDecompressCols<V> {
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(&self)
     where
@@ -88,3 +88,5 @@ impl<V: Copy> EdAddCols<V> {
             .eval::<AB, P>(builder, &self.y3_numerator.result, &d_mul_f, false);
     }
 }
+// TODO: MIGRATE TESTS FOR THE ED_DECOMPRESS FROM THE OLD AIR:
+// https://github.com/succinctlabs/curta/blob/ebbd97c0f4f91bfa792fa5746e1d3f5334316189/curta/src/chip/ec/edwards/ed25519/decompress.rs#L99
