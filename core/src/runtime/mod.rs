@@ -194,7 +194,6 @@ impl Runtime {
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
         self.memory_access.insert(addr, (segment, clk));
         self.memory.insert(addr, value);
-        println!("addr {} value {}", addr, value);
         MemoryWriteRecord::new(
             value,
             segment,
@@ -227,7 +226,6 @@ impl Runtime {
     /// Write to memory.
     pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
-        println!("addr {} value {} position {:?}", addr, value, position);
 
         let record = self.mw_core(
             addr,
@@ -788,11 +786,6 @@ impl Runtime {
         {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
-
-            // >473 <=474
-            if self.global_clk > 474 {
-                break;
-            }
 
             let width = 12;
             log::trace!(

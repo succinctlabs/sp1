@@ -55,13 +55,13 @@ pub struct MemoryRecord {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
+#[non_exhaustive]
 pub struct MemoryReadRecord {
     pub value: u32,
     pub segment: u32,
     pub timestamp: u32,
     pub prev_segment: u32,
     pub prev_timestamp: u32,
-    _private: (),
 }
 
 impl MemoryReadRecord {
@@ -81,12 +81,12 @@ impl MemoryReadRecord {
             timestamp,
             prev_segment,
             prev_timestamp,
-            _private: (),
         }
     }
 }
 
 #[derive(Debug, Copy, Clone, Default)]
+#[non_exhaustive]
 pub struct MemoryWriteRecord {
     pub value: u32,
     pub segment: u32,
@@ -94,7 +94,6 @@ pub struct MemoryWriteRecord {
     pub prev_value: u32,
     pub prev_segment: u32,
     pub prev_timestamp: u32,
-    _private: (),
 }
 
 impl MemoryWriteRecord {
@@ -106,10 +105,6 @@ impl MemoryWriteRecord {
         prev_segment: u32,
         prev_timestamp: u32,
     ) -> Self {
-        println!(
-            "{} {} {} {} {} {}",
-            value, segment, timestamp, prev_value, prev_segment, prev_timestamp
-        );
         assert!(
             segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp)),
         );
@@ -120,7 +115,6 @@ impl MemoryWriteRecord {
             prev_value,
             prev_segment,
             prev_timestamp,
-            _private: (),
         }
     }
 }
