@@ -5,7 +5,7 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum};
+use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -177,26 +177,42 @@ impl Runtime {
         }
     }
 
-    /// Read from memory, assuming that all addresses are aligned.
-    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
-        self.validate_memory_access(addr, position);
-
+    pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
         let value = *self.memory.entry(addr).or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
-        self.memory_access.insert(
-            addr,
-            (self.current_segment(), self.clk_from_position(&position)),
-        );
+        self.memory_access.insert(addr, (segment, clk));
 
-        let record = MemoryReadRecord {
+        MemoryReadRecord::new(value, segment, clk, prev_segment, prev_timestamp)
+    }
+
+    pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
+        let prev_value = *self.memory.entry(addr).or_insert(0);
+        let (prev_segment, prev_timestamp) =
+            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+        self.memory_access.insert(addr, (segment, clk));
+        self.memory.insert(addr, value);
+
+        MemoryWriteRecord::new(
             value,
-            segment: self.current_segment(),
-            timestamp: self.clk_from_position(&position),
+            segment,
+            clk,
+            prev_value,
             prev_segment,
             prev_timestamp,
-        };
+        )
+    }
+
+    /// Read from memory, assuming that all addresses are aligned.
+    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+        self.validate_memory_access(addr, position);
+
+        let record = self.mr_core(
+            addr,
+            self.current_segment(),
+            self.clk_from_position(&position),
+        );
 
         match position {
             AccessPosition::A => self.record.a = Some(record.into()),
@@ -204,55 +220,37 @@ impl Runtime {
             AccessPosition::C => self.record.c = Some(record.into()),
             AccessPosition::Memory => self.record.memory = Some(record.into()),
         }
-        value
+        record.value
     }
 
     /// Write to memory.
-    /// We assume that we have called `mr` before on this addr before writing to memory for record keeping purposes.
     pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
-        // Just update the value, since we assume that in the `mr` function we have updated the memory_access map appropriately.
-        self.memory.insert(addr, value);
 
-        assert!(self.memory_access.contains_key(&addr));
+        let record = self.mw_core(
+            addr,
+            value,
+            self.current_segment(),
+            self.clk_from_position(&position),
+        );
 
-        // Update the memory records to write records.
+        // Set the records.
         match position {
             AccessPosition::A => {
-                self.record.a = Some(
-                    self.record
-                        .a
-                        .expect("record should be read before writing")
-                        .to_write_record(value)
-                        .into(),
-                )
+                assert!(self.record.a.is_none());
+                self.record.a = Some(record.into());
             }
             AccessPosition::B => {
-                self.record.b = Some(
-                    self.record
-                        .b
-                        .expect("record should be read before writing")
-                        .to_write_record(value)
-                        .into(),
-                )
+                assert!(self.record.b.is_none());
+                self.record.b = Some(record.into());
             }
             AccessPosition::C => {
-                self.record.c = Some(
-                    self.record
-                        .c
-                        .expect("record should be read before writing")
-                        .to_write_record(value)
-                        .into(),
-                )
+                assert!(self.record.c.is_none());
+                self.record.c = Some(record.into());
             }
             AccessPosition::Memory => {
-                self.record.memory = Some(
-                    self.record
-                        .memory
-                        .expect("record should be read before writing")
-                        .to_write_record(value)
-                        .into(),
-                )
+                assert!(self.record.memory.is_none());
+                self.record.memory = Some(record.into());
             }
         }
     }
@@ -269,8 +267,6 @@ impl Runtime {
             // P.18 of the RISC-V spec.
             return;
         }
-        // Only for register writes, do we not read it before, so we put in the read here.
-        self.mr(register as u32, AccessPosition::A);
         // The only time we are writing to a register is when it is register A.
         self.mw(register as u32, value, AccessPosition::A)
     }
@@ -383,7 +379,7 @@ impl Runtime {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
+        let memory_value = self.word(self.align(addr));
         (rd, b, c, addr, memory_value)
     }
 
@@ -397,7 +393,7 @@ impl Runtime {
             imm,
         );
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
+        let memory_value = self.word(self.align(addr));
         (a, b, c, addr, memory_value)
     }
 

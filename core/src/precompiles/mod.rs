@@ -28,24 +28,8 @@ impl<'a> PrecompileRuntime<'a> {
     }
 
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
-        let value = self.rt.memory.entry(addr).or_insert(0);
-        let (prev_segment, prev_timestamp) =
-            self.rt.memory_access.get(&addr).cloned().unwrap_or((0, 0));
-
-        self.rt
-            .memory_access
-            .insert(addr, (self.current_segment, self.clk));
-
-        (
-            MemoryReadRecord {
-                value: *value,
-                segment: self.current_segment,
-                timestamp: self.clk,
-                prev_segment,
-                prev_timestamp,
-            },
-            *value,
-        )
+        let record = self.rt.mr_core(addr, self.current_segment, self.clk);
+        (record, record.value)
     }
 
     pub fn mr_slice(&mut self, addr: u32, len: usize) -> (Vec<MemoryReadRecord>, Vec<u32>) {
@@ -60,23 +44,7 @@ impl<'a> PrecompileRuntime<'a> {
     }
 
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        let prev_value = *self.rt.memory.entry(addr).or_insert(0);
-        let (prev_segment, prev_timestamp) =
-            self.rt.memory_access.get(&addr).cloned().unwrap_or((0, 0));
-        self.rt
-            .memory_access
-            .insert(addr, (self.current_segment, self.clk));
-        self.rt.memory.insert(addr, value);
-
-        // TODO: can do some checks on the record clk and self.clk at this point
-        MemoryWriteRecord {
-            value,
-            segment: self.current_segment,
-            timestamp: self.clk,
-            prev_value,
-            prev_segment,
-            prev_timestamp,
-        }
+        self.rt.mw_core(addr, value, self.current_segment, self.clk)
     }
 
     pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {
