@@ -16,7 +16,7 @@ pub fn subtract_mod(a: &BigUint, b: &BigUint, n: &BigUint) -> BigUint {
     }
 }
 /// Computes the inverse of `a` modulo `n` using the same idea as the extended Euclidean algorithm.
-/// See https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers
+/// See https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers for details.
 pub fn inverse_mod(a: &BigUint, n: &BigUint) -> BigUint {
     let mut t = BigUint::zero();
     let mut new_t = BigUint::one();
@@ -24,13 +24,17 @@ pub fn inverse_mod(a: &BigUint, n: &BigUint) -> BigUint {
     let mut new_r = a.clone();
 
     while !new_r.is_zero() {
+        // The invariant of the loop is that a * t = r (mod n) and a * new_t = new_r (mod n). And
+        // new_r is set to r % new_r, so r continues to get smaller and smaller. Therefore, the loop
+        // must terminate, and when it terminates we have a * t = 1 (mod n). If r becomes 0 at one
+        // point, that implies that a and n had a common factor, which is not allowed.
+
         let quotient = &r / &new_r;
         (t, new_t) = (new_t.clone(), subtract_mod(&t, &(&quotient * new_t), n));
         (r, new_r) = (new_r.clone(), subtract_mod(&r, &(&quotient * new_r), n));
     }
 
-    // The GCD has to be 1 for a to be invertible.
-    assert_eq!(r, BigUint::one());
+    assert_eq!(r, BigUint::one(), "a and n must be coprime");
 
     t
 }
