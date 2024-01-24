@@ -19,8 +19,10 @@ use valida_derive::AlignedBorrow;
 #[repr(C)]
 pub struct EdAddCols<T> {
     pub p_ptr: T,
+    // This is 8 elements, as it's 8 words for the 32 byte compressed point.
     pub p_access: [MemoryAccess<T>; 8],
     pub result: T,
+    // This is 16 elements, 256 bits for each Edwards field element (2 * 256 / 32) = 16.
     pub result_access: [MemoryAccess<T>; 16],
     pub(crate) yy: FpOpCols<T>,
     pub(crate) u: FpOpCols<T>,
