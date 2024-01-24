@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, cpu::MemoryRecord, runtime::Segment, utils::Chip};
+use crate::{air::Word, runtime::Segment, utils::Chip};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},

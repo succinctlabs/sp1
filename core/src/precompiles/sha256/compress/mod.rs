@@ -1,4 +1,4 @@
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
+use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 mod air;
 mod columns;

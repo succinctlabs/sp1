@@ -87,6 +87,7 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         self.populate_access(cols, current_record, Some(prev_record), new_field_events);
     }
 
+    #[deprecated]
     fn populate_access(
         &self,
         cols: &mut MemoryAccessCols<F>,

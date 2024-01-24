@@ -6,7 +6,7 @@ mod trace;
 
 pub use columns::*;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
+use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaExtendEvent {

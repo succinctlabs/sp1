@@ -5,6 +5,8 @@ use crate::runtime::Register;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryRecord, cpu::MemoryWriteRecord, runtime::Segment};
 use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
+
+/// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct PrecompileRuntime<'a> {
     pub segment_number: u32,
     pub clk: u32,
@@ -54,22 +56,20 @@ impl<'a> PrecompileRuntime<'a> {
         )
     }
 
-    // pub fn peek(&mut self, addr: u32) -> u32 {
-    //     // All peeks must be accompanied by a write.
-    //     let value = self.memory.entry(addr).or_insert(0);
-    //     let (prev_segment, prev_timestamp) =
-    //         self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+    pub fn peek(&mut self, addr: u32) -> u32 {
+        // All peeks must be accompanied by a write.
+        let value = self.memory.entry(addr).or_insert(0);
+        let (prev_segment, prev_timestamp) =
+            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
-    //     let record = MemoryRecord {
-    //         value: *value,
-    //         segment: prev_segment,
-    //         timestamp: prev_timestamp,
-    //     };
-    //     self.peeks.insert(addr, record.clone());
-    //     *value
-    // }
-
-    //
+        let record = MemoryRecord {
+            value: *value,
+            segment: prev_segment,
+            timestamp: prev_timestamp,
+        };
+        self.peeks.insert(addr, record.clone());
+        *value
+    }
 
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
         // All peeks must be accompanied by a write.
@@ -99,10 +99,6 @@ impl<'a> PrecompileRuntime<'a> {
             prev_segment: record.segment,
             prev_timestamp: record.timestamp,
         }
-    }
-
-    pub fn increment_clk(&mut self, cycles: u32) {
-        self.clk += cycles;
     }
 
     /// TODO: this should not be used, it is a hack!

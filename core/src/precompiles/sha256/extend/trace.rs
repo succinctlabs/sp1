@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, cpu::MemoryRecord, runtime::Segment, utils::Chip};
+use crate::{runtime::Segment, utils::Chip};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
@@ -13,10 +13,8 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
 
         const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
-        let i_start = 16;
-        let nb_cycles_per_extend = 20;
         for i in 0..segment.sha_extend_events.len() {
-            let mut event = segment.sha_extend_events[i];
+            let event = segment.sha_extend_events[i];
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
@@ -25,7 +23,6 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.segment = F::from_canonical_u32(SEGMENT_NUM);
                 cols.clk = F::from_canonical_u32(event.clk);
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
-                let i = 16 + (j % 48);
 
                 self.populate_read(
                     &mut cols.w_i_minus_15,
@@ -76,7 +73,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 // Compute `s2`.
                 let w_i_minus_7 = event.w_i_minus_7_reads[j].value;
                 let w_i_minus_16 = event.w_i_minus_16_reads[j].value;
-                let s2 = cols.s2.populate(segment, w_i_minus_16, s0, w_i_minus_7, s1);
+                cols.s2.populate(segment, w_i_minus_16, s0, w_i_minus_7, s1);
 
                 self.populate_write(&mut cols.w_i, event.w_i_writes[j], &mut new_field_events);
 
