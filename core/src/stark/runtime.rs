@@ -280,7 +280,6 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
-        env_logger::init();
         let program = fibonacci_program();
         prove(program);
     }
