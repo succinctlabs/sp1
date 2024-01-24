@@ -33,15 +33,6 @@ impl MemoryRecordEnum {
             MemoryRecordEnum::Write(record) => record.value,
         }
     }
-
-    pub fn to_write_record(&self, value: u32) -> MemoryWriteRecord {
-        match self {
-            MemoryRecordEnum::Read(record) => record.to_write_record(value),
-            MemoryRecordEnum::Write(_) => {
-                panic!("Cannot convert write record to write record")
-            }
-        }
-    }
 }
 
 impl From<MemoryReadRecord> for MemoryRecordEnum {
@@ -64,6 +55,7 @@ pub struct MemoryRecord {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
+#[non_exhaustive]
 pub struct MemoryReadRecord {
     pub value: u32,
     pub segment: u32,
@@ -73,19 +65,28 @@ pub struct MemoryReadRecord {
 }
 
 impl MemoryReadRecord {
-    fn to_write_record(self, value: u32) -> MemoryWriteRecord {
-        MemoryWriteRecord {
+    pub fn new(
+        value: u32,
+        segment: u32,
+        timestamp: u32,
+        prev_segment: u32,
+        prev_timestamp: u32,
+    ) -> Self {
+        assert!(
+            segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp))
+        );
+        Self {
             value,
-            segment: self.segment,
-            timestamp: self.timestamp,
-            prev_value: self.value,
-            prev_segment: self.prev_segment,
-            prev_timestamp: self.prev_timestamp,
+            segment,
+            timestamp,
+            prev_segment,
+            prev_timestamp,
         }
     }
 }
 
 #[derive(Debug, Copy, Clone, Default)]
+#[non_exhaustive]
 pub struct MemoryWriteRecord {
     pub value: u32,
     pub segment: u32,
@@ -93,6 +94,29 @@ pub struct MemoryWriteRecord {
     pub prev_value: u32,
     pub prev_segment: u32,
     pub prev_timestamp: u32,
+}
+
+impl MemoryWriteRecord {
+    pub fn new(
+        value: u32,
+        segment: u32,
+        timestamp: u32,
+        prev_value: u32,
+        prev_segment: u32,
+        prev_timestamp: u32,
+    ) -> Self {
+        assert!(
+            segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp)),
+        );
+        Self {
+            value,
+            segment,
+            timestamp,
+            prev_value,
+            prev_segment,
+            prev_timestamp,
+        }
+    }
 }
 
 pub struct CpuChip;
