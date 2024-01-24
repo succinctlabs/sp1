@@ -11,9 +11,19 @@ pub struct BuildToolchainCmd {}
 
 impl BuildToolchainCmd {
     pub fn run(&self) -> Result<()> {
+        // Get enviroment variables.
+        let github_access_token = std::env::var("GITHUB_ACCESS_TOKEN");
+
         // Clone our rust fork.
+        let repo_url = match github_access_token {
+            Ok(github_access_token) => format!(
+                "https://{}@github.com/succinctlabs/rust",
+                github_access_token
+            ),
+            Err(_) => "https://github.com/succinctlabs/rust".to_string(),
+        };
         Command::new("git")
-            .args(["clone", "https://github.com/succinctlabs/rust.git"])
+            .args(["clone", &repo_url])
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
