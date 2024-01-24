@@ -5,8 +5,9 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::MemoryRecord;
+use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::PrecompileRuntime;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -31,10 +32,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    pub a: Option<MemoryRecord>,
-    pub b: Option<MemoryRecord>,
-    pub c: Option<MemoryRecord>,
-    pub memory: Option<MemoryRecord>,
+    pub a: Option<MemoryRecordEnum>,
+    pub b: Option<MemoryRecordEnum>,
+    pub c: Option<MemoryRecordEnum>,
+    pub memory: Option<MemoryRecordEnum>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -158,7 +159,7 @@ impl Runtime {
         self.clk + *position as u32
     }
 
-    fn current_segment(&self) -> u32 {
+    pub fn current_segment(&self) -> u32 {
         self.segment.index
     }
 
@@ -189,17 +190,19 @@ impl Runtime {
             (self.current_segment(), self.clk_from_position(&position)),
         );
 
-        let record = MemoryRecord {
+        let record = MemoryReadRecord {
             value,
-            segment: prev_segment,
-            timestamp: prev_timestamp,
+            segment: self.current_segment(),
+            timestamp: self.clk_from_position(&position),
+            prev_segment,
+            prev_timestamp,
         };
 
         match position {
-            AccessPosition::A => self.record.a = Some(record),
-            AccessPosition::B => self.record.b = Some(record),
-            AccessPosition::C => self.record.c = Some(record),
-            AccessPosition::Memory => self.record.memory = Some(record),
+            AccessPosition::A => self.record.a = Some(record.into()),
+            AccessPosition::B => self.record.b = Some(record.into()),
+            AccessPosition::C => self.record.c = Some(record.into()),
+            AccessPosition::Memory => self.record.memory = Some(record.into()),
         }
         value
     }
@@ -212,12 +215,45 @@ impl Runtime {
         self.memory.insert(addr, value);
 
         assert!(self.memory_access.contains_key(&addr));
-        // Make sure that we have updated the memory records appropriately.
+
+        // Update the memory records to write records.
         match position {
-            AccessPosition::A => assert!(self.record.a.is_some()),
-            AccessPosition::B => assert!(self.record.b.is_some()),
-            AccessPosition::C => assert!(self.record.c.is_some()),
-            AccessPosition::Memory => assert!(self.record.memory.is_some()),
+            AccessPosition::A => {
+                self.record.a = Some(
+                    self.record
+                        .a
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::B => {
+                self.record.b = Some(
+                    self.record
+                        .b
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::C => {
+                self.record.c = Some(
+                    self.record
+                        .c
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
+            AccessPosition::Memory => {
+                self.record.memory = Some(
+                    self.record
+                        .memory
+                        .expect("record should be read before writing")
+                        .to_write_record(value)
+                        .into(),
+                )
+            }
         }
     }
 
@@ -597,23 +633,26 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 let syscall = Syscall::from_u32(syscall_id);
 
+                let init_clk = self.clk;
+                let mut precompile_rt = PrecompileRuntime::new(self);
+
                 match syscall {
                     Syscall::HALT => {
                         a = self.register(a0);
-                        (b, c) = (self.rr(t0, AccessPosition::B), 0);
                         next_pc = 0;
-                        self.rw(a0, a);
                     }
                     Syscall::LWA => {
-                        let witness = self.witness.pop().expect("witness stream is empty");
-                        (a, b, c) = (witness, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
+                        a = self.witness.pop().expect("witness stream is empty");
                     }
                     Syscall::SHA_EXTEND => {
-                        (a, b, c) = ShaExtendChip::execute(self);
+                        a = ShaExtendChip::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::SHA_COMPRESS => {
-                        (a, b, c) = ShaCompressChip::execute(self);
+                        a = ShaCompressChip::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
@@ -648,10 +687,15 @@ impl Runtime {
                                 log::info!("stderr: {}", s.trim_end());
                             }
                         }
-                        (a, b, c) = (0, self.rr(t0, AccessPosition::B), 0);
-                        self.rw(a0, a);
+                        a = 0;
                     }
                 }
+
+                // We have to do this AFTER the precompile execution because the CPU event
+                // gets emitted at the end of this loop with the incremented clock.
+                // TODO: fix this.
+                self.rw(a0, a);
+                (b, c) = (self.rr(t0, AccessPosition::B), 0);
             }
 
             Opcode::EBREAK => {
