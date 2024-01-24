@@ -246,15 +246,31 @@ mod tests {
         }
 
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
+            let mut rng = thread_rng();
             let num_rows = 1 << 8;
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
+                .map(|_| {
+                    let a = rng.gen_biguint(256) % &P::modulus();
+                    let b = rng.gen_biguint(256) % &P::modulus();
+                    (a, b)
+                })
+                .collect();
 
-            let modulus = P::modulus();
-            println!("modulus: {:?}", modulus);
-            // this is where i set my test cases.
-            let a = BigUint::from(8u32);
-            let b = BigUint::from(2u32);
-            let operands: Vec<(BigUint, BigUint)> =
-                (0..num_rows).map(|_| (a.clone(), b.clone())).collect();
+            // Hardcoded edge cases. Use (0, 0) for add, mul, sub, but (0, 1) for div to avoid
+            // division by zero.
+            operands.extend(vec![
+                (BigUint::from(0u32), {
+                    if self.operation == FpOperation::Div {
+                        BigUint::from(1u32)
+                    } else {
+                        BigUint::from(0u32)
+                    }
+                }),
+                (BigUint::from(1u32), BigUint::from(2u32)),
+                (BigUint::from(4u32), BigUint::from(5u32)),
+                (BigUint::from(10u32), BigUint::from(19u32)),
+            ]);
+
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
@@ -352,7 +368,7 @@ mod tests {
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
 
-        for op in [FpOperation::Div].iter() {
+        for op in [FpOperation::Add, FpOperation::Sub, FpOperation::Mul].iter() {
             println!("op: {:?}", op);
 
             let mds = MyMds::default();
