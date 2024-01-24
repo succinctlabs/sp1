@@ -1,7 +1,6 @@
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder, VirtualPairCol};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
-use p3_maybe_rayon::IndexedParallelIterator;
 
 use crate::utils::Chip;
 

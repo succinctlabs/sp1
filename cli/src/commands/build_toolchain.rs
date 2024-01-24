@@ -27,6 +27,7 @@ impl BuildToolChainCmd {
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
+            .current_dir("rust")
             .output()?;
 
         // Build the toolchain (stage 2).
@@ -35,11 +36,12 @@ impl BuildToolChainCmd {
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
+            .current_dir("rust")
             .output()?;
 
         // Link the toolchain to rustup.
         Command::new("rustup")
-            .args(["toolchain", "link", "riscv32im-succinct-zkvm-elf", "."])
+            .args(["toolchain", "link", "riscv32im-succinct-zkvm-elf", "build/"])
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
