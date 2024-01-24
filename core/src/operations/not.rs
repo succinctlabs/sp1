@@ -27,10 +27,7 @@ impl<F: Field> NotOperation<F> {
         for i in 0..WORD_SIZE {
             self.value[i] = F::from_canonical_u8(!x_bytes[i]);
         }
-        // Pass two bytes to range check at a time.
-        for i in (0..x_bytes.len()).step_by(2) {
-            segment.add_byte_range_checks(x_bytes[i], x_bytes[i + 1]);
-        }
+        segment.add_byte_range_checks(&x_bytes);
         expected
     }
 
