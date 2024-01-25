@@ -108,7 +108,6 @@ mod tests {
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
-        pub b: Limbs<T>,
         pub sqrt: EdSqrtCols<T>,
     }
 
@@ -154,11 +153,10 @@ mod tests {
 
             let rows = operands
                 .iter()
-                .map(|(a, b)| {
+                .map(|(a, _b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -194,7 +192,7 @@ mod tests {
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
-                local.a[0] * local.b[0] * local.a[0] - local.a[0] * local.b[0] * local.a[0],
+                local.a[0] * local.a[0] * local.a[0] - local.a[0] * local.a[0] * local.a[0],
             )
         }
     }
