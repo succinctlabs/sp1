@@ -18,7 +18,6 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
     }
 
-    // assert iter is eq
     fn assert_all_eq<
         I1: Into<Self::Expr>,
         I2: Into<Self::Expr>,

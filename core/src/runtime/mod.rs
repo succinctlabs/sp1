@@ -700,6 +700,7 @@ impl Runtime {
                     Syscall::ED_DECOMPRESS => {
                         a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk, self.clk);
                     }
                 }
 
