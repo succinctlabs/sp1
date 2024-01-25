@@ -114,7 +114,7 @@ impl Runtime {
             segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 4194304,
+            segment_size: 1048576,
             global_segment: Segment::default(),
             cycle_tracker: 0,
         }
