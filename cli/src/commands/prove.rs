@@ -70,9 +70,8 @@ impl ProveCmd {
 
             println!("elf path {:?}", elf_path);
 
-            // curta_core::prover::runtime::tests::prove(curta_core::runtime::Program::from_elf(
-            //     elf_path.as_str(),
-            // ))
+            let program = succinct_core::runtime::Program::from_elf(elf_path.as_str());
+            succinct_core::utils::prove(program);
         }
 
         Ok(())

@@ -7,3 +7,5 @@ edition = "2021"
 [dependencies]
 succinct-zkvm = { path = "../../zkvm" }
 succinct-derive = { path = "../../derive" }
+serde = { version = "1.0.195", features = ["derive"] }
+

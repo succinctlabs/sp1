@@ -767,6 +767,7 @@ dependencies = [
 name = "cycle-tracker"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "succinct-derive",
  "succinct-zkvm",
 ]
@@ -2674,6 +2675,10 @@ dependencies = [
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
 
 [[package]]
 name = "syn"

@@ -8,6 +8,7 @@ use core::alloc::{GlobalAlloc, Layout};
 
 extern crate alloc;
 
+pub mod env;
 mod memory;
 #[allow(clippy::missing_safety_doc)]
 pub mod syscall;

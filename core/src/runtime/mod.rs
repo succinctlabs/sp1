@@ -635,7 +635,12 @@ impl Runtime {
                         next_pc = 0;
                     }
                     Syscall::LWA => {
+                        let fd = self.register(a0);
+                        let addr = self.register(a1);
+                        assert!(addr % 4 == 0, "addr is not aligned");
                         a = self.witness.pop().expect("witness stream is empty");
+                        // TODO: this might mess with memory init?
+                        self.memory.insert(addr, a);
                     }
                     Syscall::SHA_EXTEND => {
                         a = ShaExtendChip::execute(&mut precompile_rt);
