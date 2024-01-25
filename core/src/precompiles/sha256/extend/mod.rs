@@ -133,7 +133,7 @@ pub mod extend_tests {
 
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[10]);
+        runtime.add_input_slice(&[10]);
         runtime.run();
 
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);

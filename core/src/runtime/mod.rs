@@ -1,4 +1,5 @@
 mod instruction;
+mod io;
 mod opcode;
 mod program;
 mod register;
@@ -18,8 +19,6 @@ pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 pub use syscall::*;
@@ -72,12 +71,16 @@ pub struct Runtime {
     /// Maps a memory address to (segment, timestamp) that it was touched.
     pub memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
 
-    /// A stream of witnessed values (global to the entire program).
+    /// A stream of input values (global to the entire program).
     pub input_stream: Vec<u8>,
 
+    /// A ptr to the current position in the input stream incremented by LWA opcode.
     pub input_stream_ptr: usize,
 
+    /// A stream of output values from the program (global to entire program).
     pub output_stream: Vec<u8>,
+
+    /// A ptr to the current position in the output stream, incremented when reading from output_stream.
     pub output_stream_ptr: usize,
 
     /// Segments
@@ -99,13 +102,6 @@ pub struct Runtime {
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: u32,
-}
-
-impl std::io::Read for Runtime {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.get_output_slice(buf);
-        Ok(buf.len())
-    }
 }
 
 impl Runtime {
@@ -135,35 +131,6 @@ impl Runtime {
             global_segment: Segment::default(),
             cycle_tracker: 0,
         }
-    }
-
-    /// Write to the witness stream.
-    pub fn write_witness(&mut self, witness: &[u8]) {
-        self.input_stream.extend(witness);
-    }
-
-    pub fn add_input_slice(&mut self, input: &[u8]) {
-        self.input_stream.extend(input);
-    }
-
-    pub fn add_input<T: Serialize>(&mut self, input: &T) {
-        let mut buf = Vec::new();
-        bincode::serialize_into(&mut buf, input).expect("Serialization failed");
-        self.input_stream.extend(buf);
-    }
-
-    pub fn get_output_slice(&mut self, buf: &mut [u8]) {
-        let len = buf.len();
-        let start = self.output_stream_ptr;
-        let end = start + len;
-        assert!(end <= self.output_stream.len());
-        buf.copy_from_slice(&self.output_stream[start..end]);
-        self.output_stream_ptr = end;
-    }
-
-    pub fn get_output<T: DeserializeOwned>(&mut self) -> T {
-        let result = bincode::deserialize_from::<_, T>(self);
-        result.unwrap()
     }
 
     /// Get the current values of the registers.
@@ -1028,21 +995,8 @@ pub mod tests {
         }
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
-        #[derive(Serialize, Deserialize, Debug, PartialEq)]
-        struct MyPoint {
-            pub x: usize,
-            pub y: usize,
-        }
-        let p1 = MyPoint { x: 3, y: 5 };
-        let serialized = bincode::serialize(&p1).unwrap();
-        runtime.add_input_slice(&serialized);
-        let p2 = MyPoint { x: 8, y: 19 };
-        runtime.add_input(&p2);
         runtime.run();
-        let added_point: MyPoint = runtime.get_output();
-        assert_eq!(added_point, MyPoint { x: 11, y: 24 });
-
-        // assert_eq!(runtime.registers()[Register::X10 as usize], 144);
+        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
     }
 
     #[test]
