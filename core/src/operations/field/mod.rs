@@ -1,3 +1,4 @@
+pub mod ed_sqrt;
 pub mod fp_den;
 pub mod fp_inner_product;
 pub mod fp_op;
