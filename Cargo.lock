@@ -487,9 +487,9 @@ dependencies = [
 
 [[package]]
 name = "ciborium"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "effd91f6c78e5a4ace8a5d3c0b6bfaec9e2baaef55f3efc00e45fb2e477ee926"
+checksum = "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e"
 dependencies = [
  "ciborium-io",
  "ciborium-ll",
@@ -498,15 +498,15 @@ dependencies = [
 
 [[package]]
 name = "ciborium-io"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdf919175532b369853f5d5e20b26b43112613fd6fe7aee757e35f7a44642656"
+checksum = "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757"
 
 [[package]]
 name = "ciborium-ll"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "defaa24ecc093c77630e6c15e17c51f5e187bf35ee514f4e2d67baaa96dae22b"
+checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
 dependencies = [
  "ciborium-io",
  "half",
@@ -705,23 +705,7 @@ checksum = "e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "curve25519-dalek-derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "fiat-crypto",
- "platforms",
- "rustc_version 0.4.0",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek"
-version = "4.1.1"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive 0.1.1 (git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00)",
- "digest 0.10.7",
+ "curve25519-dalek-derive",
  "fiat-crypto",
  "platforms",
  "rustc_version 0.4.0",
@@ -741,13 +725,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.1"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
+name = "curve25519-dalek-ng"
+version = "4.1.1"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.48",
+ "byteorder",
+ "digest 0.9.0",
+ "rand_core",
+ "subtle-ng",
+ "zeroize",
 ]
 
 [[package]]
@@ -894,7 +879,7 @@ dependencies = [
 name = "ed25519"
 version = "0.1.0"
 dependencies = [
- "ed25519-dalek",
+ "ed25519-consensus 2.1.0",
  "hex-literal",
  "succinct-zkvm",
 ]
@@ -912,26 +897,26 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
 dependencies = [
- "curve25519-dalek-ng",
+ "curve25519-dalek-ng 4.1.1",
  "hex",
  "rand_core",
+ "serde",
  "sha2 0.9.8",
+ "thiserror",
  "zeroize",
 ]
 
 [[package]]
-name = "ed25519-dalek"
+name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
 dependencies = [
- "curve25519-dalek 4.1.1 (git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00)",
- "ed25519 2.2.3",
- "serde",
- "sha2 0.10.8",
- "subtle",
+ "curve25519-dalek-ng 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hex",
+ "rand_core",
+ "sha2 0.9.8",
  "zeroize",
 ]
 
@@ -1179,9 +1164,13 @@ dependencies = [
 
 [[package]]
 name = "half"
-version = "1.8.2"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
+checksum = "bc52e53916c08643f1b56ec082790d1e86a32e58dc5268f897f313fbae7b4872"
+dependencies = [
+ "cfg-if",
+ "crunchy",
+]
 
 [[package]]
 name = "hashbrown"
@@ -2416,9 +2405,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f58c3a1b3e418f61c25b2aeb43fc6c95eaa252b8cecdda67f401943e9e08d33f"
+checksum = "f5c9fdb6b00a489875b22efd4b78fe2b363b72265cc5f6eb2e2b9ee270e6140c"
 dependencies = [
  "base64",
  "chrono",
@@ -2433,9 +2422,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2068b437a31fc68f25dd7edc296b078f04b45145c199d8eed9866e45f1ff274"
+checksum = "dbff351eb4b33600a2e138dfa0b10b65a238ea8ff8fb2387c422c5022a3e8298"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2625,7 +2614,7 @@ dependencies = [
  "bincode",
  "clap",
  "criterion",
- "curve25519-dalek 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "curve25519-dalek",
  "elf",
  "env_logger",
  "hex",
@@ -2736,7 +2725,7 @@ dependencies = [
  "bytes",
  "digest 0.10.7",
  "ed25519 2.2.3",
- "ed25519-consensus",
+ "ed25519-consensus 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "flex-error",
  "futures",
  "num-traits",
@@ -3017,7 +3006,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 [[package]]
 name = "valida-derive"
 version = "0.1.0"
-source = "git+https://github.com/valida-xyz/valida.git#301943132f1e9fa4c1dd109752add72888b7747e"
+source = "git+https://github.com/valida-xyz/valida.git#eab735e58047dee73caa2ff7e37840cf9128455a"
 dependencies = [
  "proc-macro2",
  "quote",
