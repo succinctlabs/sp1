@@ -1,22 +1,18 @@
 use super::fp_op::FpOpCols;
-use super::params::{convert_polynomial, convert_vec, FieldParameters, Limbs};
-use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
-use super::util_air::eval_field_operation;
-use crate::air::polynomial::Polynomial;
+use super::params::{FieldParameters, Limbs};
 use crate::air::CurtaAirBuilder;
-use crate::operations::field::params::{Ed25519BaseField, NUM_LIMBS};
+use crate::operations::field::params::NUM_LIMBS;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
-use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::edwards::EdwardsParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use num::{BigUint, Zero};
-use p3_air::AirBuilder;
+use num::BigUint;
 use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-/// A set of columns to compute the square root in the ed25519 curve.
+/// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
+/// limb lives.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct EdSqrtCols<T> {
@@ -29,11 +25,21 @@ pub struct EdSqrtCols<T> {
 }
 
 impl<F: Field> EdSqrtCols<F> {
+    /// `P` is the field parameter of each limb. `E` is the base field of Curve25519.
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(&mut self, a: &BigUint) -> BigUint {
         let result = ed25519_sqrt(a.clone());
         println!("a = {}, result = {}", a, result,);
-        self.multiplication
-            .populate::<P>(&result, &result, super::fp_op::FpOperation::Mul);
+
+        // TODO: I think I need to pass in E here, but this doesn't compile. I think I need to pass
+        // in E here because when we calculate (result * result) % M, we want M to be the modulus
+        // from the Ed25519 base field. We are expressing the Ed25519 base field using the Babybear
+        // 32-bit field by creating 32 limbs. The base field is 255 bits, and each limb is 8 bits.
+        // Therefore 8 * 32 = 256 bits, which is enough to express the base field.
+        //
+        // Use FpOpCols to compute result * result.
+        // self.multiplication
+        //     .populate::<E>(&result, &result, super::fp_op::FpOperation::Mul);
+
         result
     }
 }
@@ -46,6 +52,7 @@ impl<V: Copy> EdSqrtCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
+        // Compute result * result.
         self.multiplication.eval::<AB, P>(
             builder,
             &self.result,
@@ -53,6 +60,7 @@ impl<V: Copy> EdSqrtCols<V> {
             super::fp_op::FpOperation::Mul,
         );
 
+        // Compare a to the result of self.result * self.result.
         for i in 0..NUM_LIMBS {
             builder.assert_eq(a[i], self.multiplication.result[i]);
         }
@@ -61,22 +69,19 @@ impl<V: Copy> EdSqrtCols<V> {
 
 #[cfg(test)]
 mod tests {
-    use num::{BigUint, One, Zero};
+    use num::{BigUint, One};
     use p3_air::BaseAir;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
-    use super::{EdSqrtCols, FpOpCols, Limbs};
-    use crate::operations::field::fp_op::FpOperation;
+    use super::{EdSqrtCols, Limbs};
     use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     use crate::utils::ec::edwards::EdwardsParameters;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::pad_to_power_of_two;
     use crate::{
-        air::CurtaAirBuilder,
-        operations::field::params::{Ed25519BaseField, FieldParameters},
-        runtime::Segment,
+        air::CurtaAirBuilder, operations::field::params::Ed25519BaseField, runtime::Segment,
         utils::Chip,
     };
     use core::borrow::{Borrow, BorrowMut};
@@ -176,6 +181,7 @@ mod tests {
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
 
             // TODO: Obviously, I need this but i'm not sure what type to pass here.
+            // eval verifies that local.sqrt.result is indeed the square root of local.a.
             // local.sqrt.eval::<AB, AB::F, E>(builder, &local.a);
 
             // A dummy constraint to keep the degree 3.
@@ -194,7 +200,7 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        type Val = Ed25519BaseField;
+        type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
         type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
@@ -234,7 +240,7 @@ mod tests {
         let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
         let mut challenger = Challenger::new(perm.clone());
 
-        let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
+        let chip: EdSqrtChip<Ed25519Parameters> = EdSqrtChip::new();
         let mut segment = Segment::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
