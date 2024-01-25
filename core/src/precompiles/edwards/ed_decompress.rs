@@ -4,6 +4,7 @@ use crate::air::WORD_SIZE;
 use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
+use crate::operations::field::ed_sqrt::EdSqrtCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::precompiles::PrecompileRuntime;
@@ -68,7 +69,7 @@ pub struct EdDecompressCols<T> {
     pub(crate) dyy: FpOpCols<T>,
     pub(crate) v: FpOpCols<T>,
     pub(crate) u_div_v: FpOpCols<T>,
-    pub(crate) x: FpOpCols<T>,
+    pub(crate) x: EdSqrtCols<T>,
     pub(crate) neg_x: FpOpCols<T>,
 }
 
@@ -105,10 +106,9 @@ impl<F: Field> EdDecompressCols<F> {
             .populate::<P>(&E::d_biguint(), &yy, FpOperation::Mul);
         let v = self.v.populate::<P>(&one, &dyy, FpOperation::Add);
         let u_div_v = self.u_div_v.populate::<P>(&u, &v, FpOperation::Div);
-        // let mut x = self.x.populate::<P>(&u_div_v, &one, FpOperation::Sqrt);
-        // let neg_x = self
-        //     .neg_x
-        //     .populate::<P>(&BigUint::zero(), &x, FpOperation::Sub);
+        let x = self.x.populate::<P>(&u_div_v);
+        self.neg_x
+            .populate::<P>(&BigUint::zero(), &x, FpOperation::Sub);
     }
 }
 
@@ -149,16 +149,11 @@ impl<V: Copy> EdDecompressCols<V> {
             &[AB::Expr::one()].iter(),
             FpOperation::Div,
         );
-        // self.x.eval::<AB, P, _, _>(
-        //     builder,
-        //     &self.u_div_v.result,
-        //     &[AB::Expr::one()].iter(),
-        //     FpOperation::Sqrt,
-        // );
+        self.x.eval::<AB>(builder, &self.u_div_v.result);
         self.neg_x.eval::<AB, P, _, _>(
             builder,
             &[AB::Expr::one()].iter(),
-            &self.x.result,
+            &self.x.multiplication.result,
             FpOperation::Sub,
         );
 
@@ -170,7 +165,7 @@ impl<V: Copy> EdDecompressCols<V> {
         builder
             .when(self.is_real)
             .when(AB::Expr::one() - sign.clone())
-            .assert_all_eq(self.x.result, x_limbs);
+            .assert_all_eq(self.x.multiplication.result, x_limbs);
     }
 }
 
@@ -205,8 +200,6 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         // This unsafe read is okay because we do mw_slice into the first 8 words later.
         let sign = rt.byte_unsafe(slice_ptr + (COMPRESSED_POINT_BYTES as u32) - 1);
         let sign_bool = sign != 0;
-
-        println!("sign: {}", sign_bool);
 
         let mut y_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&y_vec);
         // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
@@ -296,29 +289,11 @@ where
 #[cfg(test)]
 pub mod tests {
 
-    use curve25519_dalek::edwards::CompressedEdwardsY;
-
-    use crate::utils::ec::edwards::ed25519::decompress;
     use crate::{runtime::Program, utils::prove};
 
     #[test]
-    fn test_ed_add() {
-        let key = hex::decode("ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf")
-            .unwrap();
-        println!("key: {:?}", key);
-        let compressed_y = CompressedEdwardsY(key.as_slice().try_into().unwrap());
-        let decompressed = decompress(&compressed_y);
-        let mut bytes = decompressed.x.to_bytes_le();
-        bytes.resize(32, 0u8);
-        println!("decompressed: {:?}", bytes);
-    }
-
-    #[test]
-    fn test_ed_add2() {
-        tracing_subscriber::fmt::init();
-        let program = Program::from_elf("/Users/ctian/Documents/workspace/curta-vm/target/riscv32im-risc0-zkvm-elf/release/ed_decompress");
+    fn test_ed_decompress() {
+        let program = Program::from_elf("../programs/ed_decompress");
         prove(program);
     }
 }
-
-// [47, 252, 114, 91, 153, 234, 110, 201, 201, 153, 152, 14, 68, 231, 90, 221, 137, 110, 250, 67, 10, 64, 37, 70, 163, 101, 111, 223, 185, 1, 180, 88]

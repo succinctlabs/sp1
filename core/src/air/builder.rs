@@ -1,5 +1,4 @@
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
-use tracing_subscriber::field::debug;
 
 use super::bool::Bool;
 use super::interaction::AirInteraction;
