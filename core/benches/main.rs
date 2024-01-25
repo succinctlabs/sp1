@@ -8,7 +8,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     #[cfg(not(feature = "perf"))]
     unreachable!("--features=perf must be enabled to run this benchmark");
 
-    let programs = ["../programs/sha2", "../programs/ssz_withdrawals"];
+    let programs = ["../programs/fibonacci"];
     for p in programs {
         let program = Program::from_elf(p);
         let cycles = {
