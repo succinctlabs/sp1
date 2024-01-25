@@ -79,8 +79,8 @@ impl<V: Copy> EdSqrtCols<V> {
         // Compute sqrt * sqrt. We pass in ed25519 base field since we want that to be the mod.
         multiplication.eval::<AB, Ed25519BaseField>(
             builder,
-            &self.result,
-            &self.result,
+            &sqrt,
+            &sqrt,
             super::fp_op::FpOperation::Mul,
         );
 
