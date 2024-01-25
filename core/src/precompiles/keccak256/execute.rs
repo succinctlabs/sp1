@@ -18,6 +18,8 @@ const PI: [usize; 24] = [
 
 impl KeccakPermuteChip {
     pub const NUM_CYCLES: u32 = NUM_ROUNDS as u32 * 4;
+    // The permutation state is 25 u64s.  Our word size is 32 bits, so it is 50 words.
+    pub const STATE_NUM_WORDS: usize = 25 * 2;
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         // Read `state_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
@@ -27,11 +29,13 @@ impl KeccakPermuteChip {
         let mut state_write_records = Vec::new();
 
         let mut state = Vec::new();
-        for i in (0..(25 * 2)).step_by(2) {
-            let (record, least_sig) = rt.mr(state_ptr + i * 4);
-            state_read_records.push(record);
-            let (record, most_sig) = rt.mr(state_ptr + (i + 1) * 4);
-            state_read_records.push(record);
+
+        let (state_records, state_values) = rt.mr_slice(state_ptr, Self::STATE_NUM_WORDS);
+        state_read_records.extend_from_slice(&state_records);
+
+        for values in state_values.chunks_exact(2) {
+            let least_sig = values[0];
+            let most_sig = values[1];
             state.push(least_sig as u64 + ((most_sig as u64) << 32));
         }
 
@@ -79,14 +83,17 @@ impl KeccakPermuteChip {
         }
 
         rt.clk += Self::NUM_CYCLES - 4;
+        let mut values_to_write = Vec::new();
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
             let least_sig = (state[i] & 0xFFFFFFFF) as u32;
-            let record = rt.mw(state_ptr + (2 * i as u32) * 4, least_sig);
-            state_write_records.push(record);
-            let record = rt.mw(state_ptr + (2 * i as u32 + 1) * 4, most_sig);
-            state_write_records.push(record);
+            values_to_write.push(least_sig);
+            values_to_write.push(most_sig);
         }
+
+        let write_records = rt.mw_slice(state_ptr, values_to_write.as_slice());
+        state_write_records.extend_from_slice(&write_records);
+
         rt.clk += 4;
 
         // Push the Keccak permute event.

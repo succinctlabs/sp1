@@ -26,8 +26,6 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
-use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-
 pub const NUM_CHIPS: usize = 15;
 
 impl Runtime {
