@@ -57,6 +57,7 @@ harness = false
 [[bin]]
 name = "profile"
 path = "profiles/main.rs"
+bench = false
 
 [lib]
 bench = false
