@@ -40,6 +40,8 @@ impl<F: Field> EdSqrtCols<F> {
             super::fp_op::FpOperation::Mul,
         );
 
+        self.result = P::to_limbs_field::<F>(&result);
+
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(result_squared, a.clone());
 
@@ -147,7 +149,7 @@ mod tests {
                     // Take the square of a random number to make sure that the square root exists.
                     // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
 
-                    let a = BigUint::zero();
+                    let a = BigUint::from(2342423u32);
                     let sq = a.clone() * a.clone();
                     // We want to mod by the ed25519 modulus.
                     sq % &Ed25519BaseField::modulus()
