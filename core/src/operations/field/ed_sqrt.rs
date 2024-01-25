@@ -42,21 +42,27 @@ impl<F: Field> EdSqrtCols<F> {
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(result_squared, a.clone());
+        let a_limbs = P::to_limbs_field::<F>(a);
+        for i in 0..NUM_LIMBS {
+            assert_eq!(self.multiplication.result[i], a_limbs[i]);
+        }
 
         result
     }
 }
 
 impl<V: Copy> EdSqrtCols<V> {
+    /// Calculates the square root of `a` and stores it in `self.result` while verifying that the
+    /// result is indeed the square root of `a`.
     pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB, a: &Limbs<AB::Var>)
     where
         V: Into<AB::Expr>,
     {
-        // Compute result * result.
+        // Compute result * result. I'm not sure why, but this seems to fail.
         self.multiplication.eval::<AB, Ed25519BaseField>(
             builder,
-            &self.result,
-            &self.result,
+            &self.result.clone(),
+            &self.result.clone(),
             super::fp_op::FpOperation::Mul,
         );
 
@@ -143,7 +149,7 @@ mod tests {
                 })
                 .collect();
 
-            operands.extend(vec![BigUint::zero(), BigUint::zero()]);
+            operands.extend(vec![BigUint::zero(), BigUint::one()]);
 
             let rows = operands
                 .iter()
@@ -151,7 +157,8 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    cols.sqrt.populate::<P>(a);
+                    let res = cols.sqrt.populate::<P>(a);
+                    println!("within generate_trace, a = {}, res = {}", a, res);
                     row
                 })
                 .collect::<Vec<_>>();
