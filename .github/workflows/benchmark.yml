@@ -59,8 +59,3 @@ jobs:
           tool: 'cargo'
           output-file-path: output.txt 
           external-data-json-path: ./cache/benchmark-data.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-alert: true
-          summary-always: true
-          comment-always: true
-          alert-comment-cc-users: '@jtguibas'
