@@ -52,6 +52,7 @@ impl<F: Field> EdSqrtCols<F> {
         }
 
         self.result = P::to_limbs_field::<F>(&sqrt);
+        self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
 
         // This is a hack to save a column in EdSqrtCols. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
@@ -83,9 +84,9 @@ impl<V: Copy> EdSqrtCols<V> {
             super::fp_op::FpOperation::Mul,
         );
 
-        // Compare a to the result of self.result * self.result.
+        // Compare a to the result of squaring.
         for i in 0..NUM_LIMBS {
-            builder.assert_eq(a[i], self.multiplication.result[i]);
+            builder.assert_eq(a[i], multiplication.result[i]);
         }
     }
 }
