@@ -1,7 +1,7 @@
 use super::fp_op::FpOpCols;
 use super::params::{FieldParameters, Limbs};
 use crate::air::CurtaAirBuilder;
-use crate::operations::field::params::{Ed25519BaseField, NUM_LIMBS};
+use crate::operations::field::params::Ed25519BaseField;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
