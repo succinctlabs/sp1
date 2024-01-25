@@ -31,6 +31,8 @@ where
         let local: &KeccakCols<AB::Var> = main.row_slice(0).borrow();
         let next: &KeccakCols<AB::Var> = main.row_slice(1).borrow();
 
+        // Verify that local.a values are equal to the memory values when local.step_flags[0] == 1
+
         for i in 0..STATE_NUM_WORDS as u32 {
             // Note that for the padded columns, local.step_flags elements are all zero.
             builder.constraint_memory_access(
@@ -190,5 +192,7 @@ where
                 }
             }
         }
+
+        // Verify that the memory values are the same as a_prime_prime_prime when local.step_flags[23] == 1
     }
 }
