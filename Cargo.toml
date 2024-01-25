@@ -33,8 +33,8 @@ p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 [patch.crates-io]
 # Patch sha2 so we can use sha precompiles
 sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", branch = "v0.9.8" }
-# Patch time because newer version breaks with older toolchains
-time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
+
+time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" } # Patch time because newer version breaks with older toolchains
 
 [patch."https://github.com/penumbra-zone/ed25519-consensus.git"]
 ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git", branch = "tamir/zkvm" }
