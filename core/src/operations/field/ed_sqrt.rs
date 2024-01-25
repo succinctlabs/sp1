@@ -71,21 +71,24 @@ impl<V: Copy> EdSqrtCols<V> {
 
 #[cfg(test)]
 mod tests {
-    use num::{BigUint, One};
+    use num::BigUint;
     use p3_air::BaseAir;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
-    use super::{EdSqrtCols, Limbs};
-    use crate::utils::ec::field::FieldParameters;
+    use super::{EdSqrtCols, FpOpCols, Limbs};
+    use crate::operations::field::fp_op::FpOperation;
     use crate::utils::pad_to_power_of_two;
     use crate::{
-        air::CurtaAirBuilder, operations::field::params::Ed25519BaseField, runtime::Segment,
+        air::CurtaAirBuilder,
+        operations::field::params::{Ed25519BaseField, FieldParameters},
+        runtime::Segment,
         utils::Chip,
     };
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
+    use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_commit::ExtensionMmcs;
@@ -105,6 +108,7 @@ mod tests {
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
+        pub b: Limbs<T>,
         pub sqrt: EdSqrtCols<T>,
     }
 
@@ -130,30 +134,34 @@ mod tests {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let operands: Vec<BigUint> = (0..num_rows)
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 5)
                 .map(|_| {
-                    // Take the square of a random number to make sure that the square root exists.
-                    let a = BigUint::one();
-                    let sq = a.clone() * a.clone();
-                    sq
-                    // TODO: Fix this
-                    // sq % &E::BaseField::modulus()
+                    let a = rng.gen_biguint(256) % &P::modulus();
+                    let b = rng.gen_biguint(256) % &P::modulus();
+                    (a, b)
                 })
                 .collect();
 
+            // Hardcoded edge cases. We purposely include 0 / 0. While mathematically, that is not
+            // allowed, we allow it in our implementation so padded rows can be all 0.
+            operands.extend(vec![
+                (BigUint::from(0u32), BigUint::from(0u32)),
+                (BigUint::from(0u32), BigUint::from(1u32)),
+                (BigUint::from(1u32), BigUint::from(2u32)),
+                (BigUint::from(4u32), BigUint::from(5u32)),
+                (BigUint::from(10u32), BigUint::from(19u32)),
+            ]);
+
             let rows = operands
                 .iter()
-                .map(|a| {
+                .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
-                    // TODO: Obviously, I need this, but is to_limbs_field implemented?
-                    // cols.a = P::to_limbs_field::<F>(a);
-                    // TODO: Obviously, I need this, but I don't know what types to pass.
-                    // cols.sqrt.populate::<F, E>(a);
+                    cols.a = P::to_limbs_field::<F>(a);
+                    cols.b = P::to_limbs_field::<F>(b);
                     row
                 })
                 .collect::<Vec<_>>();
-
             // Convert the trace to a row major matrix.
             let mut trace = RowMajorMatrix::new(
                 rows.into_iter().flatten().collect::<Vec<_>>(),
@@ -180,23 +188,23 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-
-            // TODO: Obviously, I need this but i'm not sure what type to pass here.
-            // eval verifies that local.sqrt.result is indeed the square root of local.a.
-            // local.sqrt.eval::<AB, AB::F, E>(builder, &local.a);
+            // local
+            //     .a_op_b
+            //     .eval::<AB, P>(builder, &local.a, &local.b, self.operation);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
-                local.a[0] * local.a[0] * local.a[0] - local.a[0] * local.a[0] * local.a[0],
+                local.a[0] * local.b[0] * local.a[0] - local.a[0] * local.b[0] * local.a[0],
             )
         }
     }
 
     #[test]
     fn generate_trace() {
-        // let chip: EdSqrtChip<Ed25519Parameters> = EdSqrtChip::<Ed25519Parameters>::new();
-        // let mut segment = Segment::default();
-        // let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
+        let mut segment = Segment::default();
+        let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        // println!("{:?}", trace.values)
     }
 
     #[test]
