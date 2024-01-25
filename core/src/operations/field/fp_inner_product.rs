@@ -1,9 +1,10 @@
 use super::params::NUM_WITNESS_LIMBS;
-use super::params::{convert_polynomial, convert_vec, FieldParameters, Limbs};
+use super::params::{convert_polynomial, convert_vec, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
+use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
@@ -129,13 +130,10 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpInnerProductCols, Limbs};
+    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::pad_to_power_of_two;
-    use crate::{
-        air::CurtaAirBuilder,
-        operations::field::params::{Ed25519BaseField, FieldParameters},
-        runtime::Segment,
-        utils::Chip,
-    };
+    use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
     use num::bigint::RandBigInt;

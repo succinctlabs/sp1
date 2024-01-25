@@ -244,6 +244,29 @@ impl<T: AbstractField> Mul<T> for &Polynomial<T> {
     }
 }
 
+impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
+    fn eq(&self, other: &Polynomial<T>) -> bool {
+        // Handle tailing zeroes
+        if self.coefficients.len() != other.coefficients.len() {
+            let (shorter, longer) = if self.coefficients.len() < other.coefficients.len() {
+                (self, other)
+            } else {
+                (other, self)
+            };
+            for i in 0..longer.coefficients.len() {
+                if (i < shorter.coefficients.len()
+                    && shorter.coefficients[i] != longer.coefficients[i])
+                    || (i >= shorter.coefficients.len() && longer.coefficients[i] != T::zero())
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        self.coefficients == other.coefficients
+    }
+}
+
 impl Polynomial<u8> {
     pub fn as_field<F: Field>(self) -> Polynomial<F> {
         Polynomial {

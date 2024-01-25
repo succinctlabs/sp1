@@ -7,8 +7,8 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField64;
 use p3_fri::{FriBasedPcs, FriConfigImpl};
 use p3_keccak::Keccak256Hash;
 use p3_ldt::QuotientMmcs;
@@ -103,12 +103,27 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     result
 }
 
+fn babybear_to_int(n: BabyBear) -> i32 {
+    let modulus = BabyBear::ORDER_U64;
+    let val = n.as_canonical_u64();
+    if val > modulus / 2 {
+        val as i32 - modulus as i32
+    } else {
+        val as i32
+    }
+}
+
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
     segment: &mut Segment,
-    interaction_kind: InteractionKind,
+    global_segment: Option<&mut Segment>,
+    interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
+    if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
+        panic!("Memory interactions requires global segment.");
+    }
+
     // Boilerplate code to set up the chips.
     type Val = BabyBear;
     type Domain = Val;
@@ -131,18 +146,36 @@ pub fn debug_interactions_with_all_chips(
     let segment_chips = Runtime::segment_chips::<MyConfig>();
     let global_chips = Runtime::global_chips::<MyConfig>();
 
-    let all_chips = segment_chips.iter().chain(global_chips.iter());
-
     let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
     let mut final_map = BTreeMap::new();
 
-    for chip in all_chips {
-        let (_, count) = debug_interactions::<BabyBear>(chip.as_ref(), segment, interaction_kind);
+    for chip in segment_chips {
+        let (_, count) = debug_interactions::<BabyBear>(
+            chip.as_ref(),
+            &mut segment.clone(),
+            interaction_kinds.clone(),
+        );
 
         counts.push((count.clone(), chip.name()));
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
-            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
+            *final_map.entry(key.clone()).or_insert(0) += babybear_to_int(*value);
+        }
+    }
+
+    if let Some(global_segment) = global_segment {
+        for chip in global_chips {
+            let (_, count) = debug_interactions::<BabyBear>(
+                chip.as_ref(),
+                &mut global_segment.clone(),
+                interaction_kinds.clone(),
+            );
+
+            counts.push((count.clone(), chip.name()));
+            tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+            for (key, value) in count.iter() {
+                *final_map.entry(key.clone()).or_insert(0) += babybear_to_int(*value);
+            }
         }
     }
 
@@ -151,7 +184,7 @@ pub fn debug_interactions_with_all_chips(
 
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
-        if !value.is_zero() {
+        if value != 0 {
             tracing::debug!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,
@@ -176,7 +209,6 @@ pub fn debug_interactions_with_all_chips(
     } else {
         tracing::debug!("Positive values mean sent more than received.");
         tracing::debug!("Negative values mean received more than sent.");
-        tracing::debug!("Every discrepancy is mod 2013265921. e.g., 2013265919 = -2");
     }
 
     !any_nonzero
@@ -185,7 +217,7 @@ pub fn debug_interactions_with_all_chips(
 pub fn debug_interactions<F: Field>(
     chip: &dyn Chip<F>,
     segment: &mut Segment,
-    interaction_kind: InteractionKind,
+    interaction_kinds: Vec<InteractionKind>,
 ) -> (
     BTreeMap<String, Vec<InteractionData<F>>>,
     BTreeMap<String, F>,
@@ -203,7 +235,7 @@ pub fn debug_interactions<F: Field>(
     let height = trace.clone().height();
     for row in 0..height {
         for (m, interaction) in all_interactions.iter().enumerate() {
-            if interaction.kind != interaction_kind {
+            if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
             let is_send = m < nb_send_interactions;
