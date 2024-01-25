@@ -6,7 +6,7 @@ use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
-use crate::air::{CurtaAirBuilder, FieldAirBuilder, WORD_SIZE};
+use crate::air::{CurtaAirBuilder, FieldAirBuilder};
 
 use super::FieldLTUChip;
 
@@ -58,10 +58,10 @@ impl<AB: CurtaAirBuilder> Air<AB> for FieldLTUChip {
 
         // Verify the decomposition of b - c.
         let mut diff = AB::Expr::zero();
-        for i in 0..WORD_SIZE {
+        for i in 0..local.diff_bits.len() {
             diff += local.diff_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
-        builder.assert_eq(
+        builder.when(local.is_real).assert_eq(
             local.b - local.c + AB::F::from_canonical_u32(1 << LTU_NB_BITS),
             diff,
         );
