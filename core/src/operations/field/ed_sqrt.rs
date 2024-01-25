@@ -3,8 +3,6 @@ use super::params::{FieldParameters, Limbs};
 use crate::air::CurtaAirBuilder;
 use crate::operations::field::params::{Ed25519BaseField, NUM_LIMBS};
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
-use crate::utils::ec::edwards::EdwardsParameters;
-use crate::{operations, utils};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
@@ -30,7 +28,6 @@ impl<F: Field> EdSqrtCols<F> {
     /// `P` is the parameter of the field that each limb lives in.
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
         let sqrt = ed25519_sqrt(a.clone());
-        println!("a = {}, result = {}", a, sqrt);
 
         // Use FpOpCols to compute result * result.
         let sqrt_squared = self.multiplication.populate::<Ed25519BaseField>(
@@ -42,12 +39,6 @@ impl<F: Field> EdSqrtCols<F> {
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
 
-        // Double check that `self.multiplication.result` is set correctly.
-        let a_limbs = P::to_limbs_field::<F>(a);
-        for i in 0..NUM_LIMBS {
-            assert_eq!(self.multiplication.result[i], a_limbs[i]);
-        }
-
         // This is a hack to save a column in EdSqrtCols. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
         // self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
@@ -58,8 +49,7 @@ impl<F: Field> EdSqrtCols<F> {
 }
 
 impl<V: Copy> EdSqrtCols<V> {
-    /// Calculates the square root of `a` and stores it in `self.result` while verifying that the
-    /// result is indeed the square root of `a`.
+    /// Calculates the square root of `a`.
     pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB, a: &Limbs<AB::Var>)
     where
         V: Into<AB::Expr>,
@@ -78,11 +68,6 @@ impl<V: Copy> EdSqrtCols<V> {
             &sqrt,
             super::fp_op::FpOperation::Mul,
         );
-
-        // Compare a to the result of squaring.
-        for i in 0..NUM_LIMBS {
-            builder.assert_eq(a[i], multiplication.result[i]);
-        }
     }
 }
 
@@ -94,10 +79,7 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
-    use super::{EdSqrtCols, FpOpCols, Limbs};
-    use crate::operations::field::fp_op::FpOperation;
-    use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-    use crate::utils::ec::edwards::EdwardsParameters;
+    use super::{EdSqrtCols, Limbs};
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
