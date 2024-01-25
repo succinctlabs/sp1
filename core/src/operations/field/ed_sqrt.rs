@@ -136,11 +136,10 @@ mod tests {
             let mut operands: Vec<BigUint> = (0..num_rows - 2)
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
+                    // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
                     let a = BigUint::one();
                     let sq = a.clone() * a.clone();
-                    sq
-                    // TODO: Fix this
-                    // sq % &E::BaseField::modulus()
+                    sq % &Ed25519BaseField::modulus()
                 })
                 .collect();
 
