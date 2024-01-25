@@ -42,6 +42,8 @@ impl<F: Field> EdSqrtCols<F> {
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(result_squared, a.clone());
+
+        // Double check that `self.multiplication.result` is set correctly.
         let a_limbs = P::to_limbs_field::<F>(a);
         for i in 0..NUM_LIMBS {
             assert_eq!(self.multiplication.result[i], a_limbs[i]);
@@ -58,7 +60,8 @@ impl<V: Copy> EdSqrtCols<V> {
     where
         V: Into<AB::Expr>,
     {
-        // Compute result * result. I'm not sure why, but this seems to fail.
+        // Compute result * result. I'm not sure why, but this seems to fail. I pass in ed25519 base
+        // field since i want that to be the mod.
         self.multiplication.eval::<AB, Ed25519BaseField>(
             builder,
             &self.result.clone(),
@@ -143,8 +146,10 @@ mod tests {
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
                     // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
+
                     let a = BigUint::zero();
                     let sq = a.clone() * a.clone();
+                    // We want to mod by the ed25519 modulus.
                     sq % &Ed25519BaseField::modulus()
                 })
                 .collect();
@@ -157,6 +162,14 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
+                    // We pass in P = Ed25519BaseField in the test, so I pass it to populate as well.
+                    //
+                    // Although I'm not sure if this is correct? That's what we do in fp_op.rs, so
+                    // I am just trying to follow that to avoid any bugs, but maybe it doesn't work
+                    // here? Maybe it makes more sense to pass in babybear?
+                    //
+                    // TODO: Ask Uma if this is correct. Maybe this is wrong. We need to pass in the
+                    // field where each limb lives in?
                     let res = cols.sqrt.populate::<P>(a);
                     println!("within generate_trace, a = {}, res = {}", a, res);
                     row
