@@ -1,3 +1,4 @@
+pub mod ec;
 mod logger;
 mod prove;
 mod tracer;
@@ -12,9 +13,9 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::{cols::cpu_cols::MemoryAccessCols, MemoryRecord},
-    field::event::FieldEvent,
+    cpu::cols::cpu_cols::MemoryAccessCols,
     lookup::{Interaction, InteractionBuilder},
+    operations::field::params::{Limbs, NUM_LIMBS},
     runtime::Segment,
     stark::{
         folder::{ProverConstraintFolder, VerifierConstraintFolder},
@@ -47,42 +48,6 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
         let (mut sends, receives) = builder.interactions();
         sends.extend(receives);
         sends
-    }
-
-    fn populate_access(
-        &self,
-        cols: &mut MemoryAccessCols<F>,
-        current_record: MemoryRecord,
-        prev_record: Option<MemoryRecord>,
-        new_field_events: &mut Vec<FieldEvent>,
-    ) {
-        cols.value = current_record.value.into();
-        // If `imm_b` or `imm_c` is set, then the record won't exist since we're not accessing from memory.
-        if let Some(prev_record) = prev_record {
-            cols.prev_value = prev_record.value.into();
-            cols.prev_segment = F::from_canonical_u32(prev_record.segment);
-            cols.prev_clk = F::from_canonical_u32(prev_record.timestamp);
-
-            // Fill columns used for verifying current memory access time value is greater than previous's.
-            let use_clk_comparison = prev_record.segment == current_record.segment;
-            cols.use_clk_comparison = F::from_bool(use_clk_comparison);
-            let prev_time_value = if use_clk_comparison {
-                prev_record.timestamp
-            } else {
-                prev_record.segment
-            };
-            cols.prev_time_value = F::from_canonical_u32(prev_time_value);
-            let current_time_value = if use_clk_comparison {
-                current_record.timestamp
-            } else {
-                current_record.segment
-            };
-            cols.current_time_value = F::from_canonical_u32(current_time_value);
-
-            // Add a field op event for the prev_time_value < current_time_value constraint.
-            let field_event = FieldEvent::new(true, prev_time_value, current_time_value);
-            new_field_events.push(field_event);
-        }
     }
 }
 
@@ -122,4 +87,17 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
         n_real_rows = 8;
     }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
+}
+
+pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+    let vec = cols
+        .iter()
+        .flat_map(|access| access.prev_value.0)
+        .collect::<Vec<T>>();
+    assert_eq!(vec.len(), NUM_LIMBS);
+
+    let sized = vec
+        .try_into()
+        .unwrap_or_else(|_| panic!("failed to convert to limbs"));
+    Limbs(sized)
 }

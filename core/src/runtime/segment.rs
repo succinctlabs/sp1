@@ -7,6 +7,7 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
+use crate::precompiles::edwards::ed_add::EdAddEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::runtime::MemoryRecord;
 
@@ -54,6 +55,8 @@ pub struct Segment {
 
     pub sha_compress_events: Vec<ShaCompressEvent>,
 
+    pub ed_add_events: Vec<EdAddEvent>,
+
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
@@ -62,28 +65,52 @@ pub struct Segment {
 }
 
 impl Segment {
+    pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
+        self.byte_lookups
+            .entry(blu_event)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+    }
+
     pub fn add_byte_lookup_events(&mut self, blu_events: Vec<ByteLookupEvent>) {
         for blu_event in blu_events.iter() {
-            self.byte_lookups
-                .entry(*blu_event)
-                .and_modify(|i| *i += 1)
-                .or_insert(1);
+            self.add_byte_lookup_event(*blu_event);
         }
     }
 
-    /// Adds a ByteLookupEvent to verify `a` and `b are indeed bytes to the segment.
-    pub fn add_byte_range_checks(&mut self, a: u8, b: u8) {
-        let byte_event = ByteLookupEvent {
+    /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
+    pub fn add_byte_range_check(&mut self, a: u8, b: u8) {
+        self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::Range,
             a1: 0,
             a2: 0,
             b: a,
             c: b,
-        };
-        self.byte_lookups
-            .entry(byte_event)
-            .and_modify(|j| *j += 1)
-            .or_insert(1);
+        });
+    }
+
+    /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
+    pub fn add_byte_range_checks(&mut self, ls: &[u8]) {
+        let mut index = 0;
+        while index + 1 < ls.len() {
+            self.add_byte_range_check(ls[index], ls[index + 1]);
+            index += 2;
+        }
+        if index < ls.len() {
+            // If the input slice's length is odd, we need to add a check for the last byte.
+            self.add_byte_range_check(ls[index], 0);
+        }
+    }
+
+    /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
+    pub fn lookup_or(&mut self, b: u8, c: u8) {
+        self.add_byte_lookup_event(ByteLookupEvent {
+            opcode: ByteOpcode::OR,
+            a1: b | c,
+            a2: 0,
+            b,
+            c,
+        });
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
