@@ -292,7 +292,6 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
-        tracing_subscriber::fmt::init();
         let program = fibonacci_program();
         prove(program);
     }

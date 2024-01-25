@@ -8,17 +8,6 @@ extern "C" {
     fn syscall_ed_add(p: *mut u32, q: *const u32);
 }
 
-// let p_ptr = self.bytes.as_mut_ptr() as *mut u32;
-// let q_ptr = other.bytes.as_ptr() as *const u32;
-
-fn double(p: &mut [u8; 64]) {
-    let p_ptr = p.as_mut_ptr() as *mut u32;
-
-    unsafe {
-        syscall_ed_add(p_ptr, p_ptr);
-    }
-}
-
 pub fn main() {
     // 90393249858788985237231628593243673548167146579814268721945474994541877372611
     // 33321104029277118100578831462130550309254424135206412570121538923759338004303
