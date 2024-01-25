@@ -171,13 +171,7 @@ impl CpuChip {
         &self,
         opcode_selectors: &OpcodeSelectors<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.is_add
-            + opcode_selectors.is_sub
-            + opcode_selectors.is_mul
-            + opcode_selectors.is_divrem
-            + opcode_selectors.is_shift
-            + opcode_selectors.is_bitwise
-            + opcode_selectors.is_lt
+        opcode_selectors.is_alu.into()
     }
 
     pub(crate) fn jump_ops_eval<AB: CurtaAirBuilder>(
