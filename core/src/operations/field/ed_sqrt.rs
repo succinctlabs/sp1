@@ -137,13 +137,13 @@ mod tests {
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
                     // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
-                    let a = BigUint::one();
+                    let a = BigUint::zero();
                     let sq = a.clone() * a.clone();
                     sq % &Ed25519BaseField::modulus()
                 })
                 .collect();
 
-            operands.extend(vec![BigUint::zero(), BigUint::one()]);
+            operands.extend(vec![BigUint::zero(), BigUint::zero()]);
 
             let rows = operands
                 .iter()
