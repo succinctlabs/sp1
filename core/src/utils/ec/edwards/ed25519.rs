@@ -3,8 +3,8 @@ use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-use crate::operations::field::params::{Ed25519BaseField, FieldParameters, NUM_LIMBS};
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
+use crate::utils::ec::field::{Ed25519BaseField, FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
@@ -17,7 +17,7 @@ impl EllipticCurveParameters for Ed25519Parameters {
 }
 
 impl EdwardsParameters for Ed25519Parameters {
-    const D: [u16; NUM_LIMBS] = [
+    const D: [u16; MAX_NB_LIMBS] = [
         30883, 4953, 19914, 30187, 55467, 16705, 2637, 112, 59544, 30585, 16505, 36039, 65139,
         11119, 27886, 20995, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];

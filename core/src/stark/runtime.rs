@@ -2,7 +2,6 @@ use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
 use crate::field::FieldLTUChip;
-use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 use crate::memory::MemoryGlobalChip;
 
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
@@ -165,20 +164,6 @@ impl Runtime {
             .flat_map(|proof| proof.permutation_traces)
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces);
-
-        debug_interactions_with_all_chips(
-            &mut self.segments[0],
-            Some(&mut self.global_segment),
-            vec![
-                InteractionKind::Alu,
-                InteractionKind::Program,
-                InteractionKind::Memory,
-                InteractionKind::Field,
-                InteractionKind::Range,
-                InteractionKind::Byte,
-                InteractionKind::Instruction,
-            ],
-        );
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.

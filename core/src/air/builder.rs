@@ -63,7 +63,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // 6, 0, 0, 103, 102
         self.send(AirInteraction::new(
             vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
             multiplicity.into(),

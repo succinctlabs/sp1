@@ -1,14 +1,16 @@
 pub mod edwards;
+pub mod field;
 pub mod scalar_mul;
 pub mod utils;
 pub mod weierstrass;
 
+use field::FieldParameters;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::ops::{Add, Neg};
 
-use crate::operations::field::params::{FieldParameters, NUM_LIMBS};
+use crate::operations::field::params::NUM_LIMBS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffinePoint<E> {

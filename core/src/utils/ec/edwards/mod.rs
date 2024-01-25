@@ -3,14 +3,11 @@ pub mod ed25519;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::operations::field::params::FieldParameters;
-use crate::{
-    operations::field::params::NUM_LIMBS,
-    utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters},
-};
+use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 pub trait EdwardsParameters: EllipticCurveParameters {
-    const D: [u16; NUM_LIMBS];
+    const D: [u16; MAX_NB_LIMBS];
 
     fn generator() -> (BigUint, BigUint);
 
@@ -105,8 +102,7 @@ mod tests {
     use num::BigUint;
     use rand::thread_rng;
 
-    use super::EdwardsParameters;
-    use crate::operations::field::params::FieldParameters;
+    use super::{EdwardsParameters, *};
     use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
     use crate::utils::ec::{EllipticCurve, EllipticCurveParameters};
 

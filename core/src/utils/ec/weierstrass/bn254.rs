@@ -2,10 +2,8 @@ use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::{SWCurve, WeierstrassParameters};
-use crate::{
-    operations::field::params::{FieldParameters, NUM_LIMBS},
-    utils::ec::EllipticCurveParameters,
-};
+use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bn254 curve parameter
@@ -24,7 +22,7 @@ impl FieldParameters for Bn254BaseField {
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
-    const MODULUS: [u8; NUM_LIMBS] = [
+    const MODULUS: [u8; MAX_NB_LIMBS] = [
         71, 253, 124, 216, 22, 140, 32, 60, 141, 202, 113, 104, 145, 106, 129, 151, 93, 88, 129,
         129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
     ];
@@ -45,12 +43,12 @@ impl EllipticCurveParameters for Bn254Parameters {
 }
 
 impl WeierstrassParameters for Bn254Parameters {
-    const A: [u16; NUM_LIMBS] = [
+    const A: [u16; MAX_NB_LIMBS] = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
     ];
 
-    const B: [u16; NUM_LIMBS] = [
+    const B: [u16; MAX_NB_LIMBS] = [
         3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
     ];
