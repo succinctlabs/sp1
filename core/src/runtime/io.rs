@@ -79,6 +79,7 @@ pub mod tests {
         let program = io_program();
         let mut runtime = Runtime::new(program);
         add_inputs(&mut runtime);
+        runtime.run();
         prove_core(&mut runtime);
     }
 }
