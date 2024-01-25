@@ -241,8 +241,8 @@ pub mod tests {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
         for mul_op in mul_ops.iter() {
             let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+                Instruction::new(Opcode::ADD, 29, 0, 0xffff, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, 0xffff, false, true),
                 Instruction::new(*mul_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
