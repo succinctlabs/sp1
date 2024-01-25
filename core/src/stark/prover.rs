@@ -66,7 +66,7 @@ impl<SC: StarkConfig> Prover<SC> {
         SC: Send + Sync,
     {
         // Get the traces.
-        let traces = main_data.traces;
+        let mut traces = main_data.traces;
 
         // For each trace, compute the degree.
         let degrees = traces
@@ -94,12 +94,12 @@ impl<SC: StarkConfig> Prover<SC> {
         let permutation_traces =
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
-                    .par_iter()
+                    .iter()
                     .enumerate()
                     .map(|(i, chip)| {
                         generate_permutation_trace(
                             chip.as_ref(),
-                            &traces[i],
+                            &mut traces[i],
                             permutation_challenges.clone(),
                         )
                     })
@@ -160,24 +160,28 @@ impl<SC: StarkConfig> Prover<SC> {
 
         // Compute the quotient values.
         let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
-            (0..chips.len()).into_par_iter().map(|i| {
-                Self::quotient_values(
-                    config,
-                    &*chips[i],
-                    commulative_sums[i],
-                    log_degrees[i],
-                    log_quotient_degree,
-                    &main_ldes[i],
-                    &permutation_ldes[i],
-                    &permutation_challenges,
-                    alpha,
-                )
-            })
+            (0..chips.len())
+                .into_par_iter()
+                .map(|i| {
+                    Self::quotient_values(
+                        config,
+                        &*chips[i],
+                        commulative_sums[i],
+                        log_degrees[i],
+                        log_quotient_degree,
+                        &main_ldes[i],
+                        &permutation_ldes[i],
+                        &permutation_challenges,
+                        alpha,
+                    )
+                })
+                .collect::<Vec<_>>()
         });
 
         // Compute the quotient chunks.
         let quotient_chunks = tracing::debug_span!("decompose and flatten").in_scope(|| {
             quotient_values
+                .into_iter()
                 .map(|values| {
                     decompose_and_flatten::<SC>(
                         values,
