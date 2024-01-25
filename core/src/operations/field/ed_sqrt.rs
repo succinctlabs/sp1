@@ -155,15 +155,14 @@ mod tests {
             let mut operands: Vec<BigUint> = (0..num_rows - 2)
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
-                    // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
-
-                    let a = BigUint::from(2343242u32);
+                    let a = rng.gen_biguint(256);
                     let sq = a.clone() * a.clone();
                     // We want to mod by the ed25519 modulus.
                     sq % &Ed25519BaseField::modulus()
                 })
                 .collect();
 
+            // hardcoded edge cases.
             operands.extend(vec![BigUint::zero(), BigUint::one()]);
 
             let rows = operands
@@ -172,16 +171,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    // We pass in P = Ed25519BaseField in the test, so I pass it to populate as well.
-                    //
-                    // Although I'm not sure if this is correct? That's what we do in fp_op.rs, so
-                    // I am just trying to follow that to avoid any bugs, but maybe it doesn't work
-                    // here? Maybe it makes more sense to pass in babybear?
-                    //
-                    // TODO: Ask Uma if this is correct. Maybe this is wrong. We need to pass in the
-                    // field where each limb lives in?
-                    let res = cols.sqrt.populate::<P>(a);
-                    println!("within generate_trace, a = {}, res = {}", a, res);
+                    cols.sqrt.populate::<P>(a);
                     row
                 })
                 .collect::<Vec<_>>();
