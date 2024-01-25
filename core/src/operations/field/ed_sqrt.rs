@@ -4,6 +4,7 @@ use crate::air::CurtaAirBuilder;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::EdwardsParameters;
+use crate::{operations, utils};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
@@ -26,19 +27,20 @@ pub struct EdSqrtCols<T> {
 
 impl<F: Field> EdSqrtCols<F> {
     /// `P` is the field parameter of each limb. `E` is the base field of Curve25519.
-    pub fn populate<P: FieldParameters, E: EdwardsParameters>(&mut self, a: &BigUint) -> BigUint {
+    pub fn populate<P: FieldParameters, E: EdwardsParameters>(&mut self, a: &BigUint) -> BigUint
+    where
+        <E as utils::ec::EllipticCurveParameters>::BaseField:
+            operations::field::params::FieldParameters,
+    {
         let result = ed25519_sqrt(a.clone());
         println!("a = {}, result = {}", a, result,);
 
-        // TODO: I think I need to pass in E here, but this doesn't compile. I think I need to pass
-        // in E here because when we calculate (result * result) % M, we want M to be the modulus
-        // from the Ed25519 base field. We are expressing the Ed25519 base field using the Babybear
-        // 32-bit field by creating 32 limbs. The base field is 255 bits, and each limb is 8 bits.
-        // Therefore 8 * 32 = 256 bits, which is enough to express the base field.
-        //
         // Use FpOpCols to compute result * result.
-        // self.multiplication
-        //     .populate::<E>(&result, &result, super::fp_op::FpOperation::Mul);
+        self.multiplication.populate::<E::BaseField>(
+            &result,
+            &result,
+            super::fp_op::FpOperation::Mul,
+        );
 
         result
     }
