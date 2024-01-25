@@ -28,9 +28,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-primitives"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3729132072f369bc4e8e6e070f9cf4deb3490fc9b9eea6f71f75ec19406df811"
+checksum = "f4b6fb2b432ff223d513db7f908937f63c252bee0af9b82bfd25b0a5dd1eb0d8"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -474,9 +474,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.32"
+version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41daef31d7a747c5c847246f36de49ced6f7403b4cdabc807a97b5cc184cda7a"
+checksum = "9f13690e35a5e4ace198e7beea2895d29f3a9cc55015fcebe6336bd2010af9eb"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -738,18 +738,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek-ng"
-version = "4.1.1"
-source = "git+https://github.com/succinctlabs/dalek-ng-private.git?branch=tamir/ecall#a342cc28f7d237b05996dcf406726657d65dd159"
-dependencies = [
- "byteorder",
- "digest 0.9.0",
- "rand_core",
- "subtle-ng",
- "zeroize",
-]
-
-[[package]]
 name = "cycle-tracker"
 version = "0.1.0"
 dependencies = [
@@ -880,7 +868,7 @@ dependencies = [
 name = "ed25519"
 version = "0.1.0"
 dependencies = [
- "ed25519-consensus 2.1.0 (git+https://github.com/succinctlabs/ed25519-consensus-private.git?branch=tamir/zkvm)",
+ "ed25519-consensus 2.1.0 (git+https://github.com/penumbra-zone/ed25519-consensus.git)",
  "hex-literal",
  "succinct-zkvm",
 ]
@@ -901,7 +889,7 @@ version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
 dependencies = [
- "curve25519-dalek-ng 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "curve25519-dalek-ng",
  "hex",
  "rand_core",
  "sha2 0.9.8",
@@ -911,9 +899,9 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/succinctlabs/ed25519-consensus-private.git?branch=tamir/zkvm#43f4392878b6eede7e208839acbde05e9ff6720c"
+source = "git+https://github.com/penumbra-zone/ed25519-consensus.git#78f83b21767077f602f30148e513a52e844abbb6"
 dependencies = [
- "curve25519-dalek-ng 4.1.1 (git+https://github.com/succinctlabs/dalek-ng-private.git?branch=tamir/ecall)",
+ "curve25519-dalek-ng",
  "hex",
  "rand_core",
  "serde",
@@ -2147,7 +2135,7 @@ checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.4",
+ "regex-automata 0.4.5",
  "regex-syntax 0.8.2",
 ]
 
@@ -2162,9 +2150,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b7fa1134405e2ec9353fd416b17f8dacd46c473d7d3fd1cf202706a14eb792a"
+checksum = "5bb987efffd3c6d0d8f5f89510bb458559eab11e4f869acb20bf845e016259cd"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -3008,7 +2996,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 [[package]]
 name = "valida-derive"
 version = "0.1.0"
-source = "git+https://github.com/valida-xyz/valida.git#eab735e58047dee73caa2ff7e37840cf9128455a"
+source = "git+https://github.com/valida-xyz/valida.git#84ea7d21efd61666febfff8d668ec84aa3f7dea9"
 dependencies = [
  "proc-macro2",
  "quote",
