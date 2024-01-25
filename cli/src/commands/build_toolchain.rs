@@ -17,8 +17,12 @@ impl BuildToolchainCmd {
 
         // Clone our rust fork.
         let rust_dir = match build_dir {
-            Ok(build_dir) => PathBuf::from(build_dir).join("rust"),
+            Ok(build_dir) => {
+                println!("Detected SUCCINCT_BUILD_DIR, skipping cloning rust.");
+                PathBuf::from(build_dir).join("rust")
+            }
             Err(_) => {
+                println!("No SUCCINCT_BUILD_DIR detected, cloning rust.");
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
                         println!("Detected GITHUB_ACCESS_TOKEN, using it to clone rust.");
