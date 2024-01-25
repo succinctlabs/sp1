@@ -9,7 +9,7 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::precompiles::keccak256::constants::R;
 use crate::precompiles::keccak256::{NUM_ROUNDS, RATE_LIMBS, U64_LIMBS};
 
-use super::STATE_WORD_SIZE;
+use super::STATE_NUM_WORDS;
 
 /// Note: The ordering of each array is based on the input mapping. As the spec says,
 ///
@@ -24,7 +24,7 @@ pub(crate) struct KeccakCols<T> {
     pub segment: T,
     pub clk: T,
 
-    pub state_mem: [MemoryAccessCols<T>; STATE_WORD_SIZE],
+    pub state_mem: [MemoryAccessCols<T>; STATE_NUM_WORDS],
     pub state_addr: T,
 
     /// The `i`th value is set to 1 if we are in the `i`th round, otherwise 0.

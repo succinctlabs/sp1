@@ -11,8 +11,8 @@ mod trace;
 const NUM_ROUNDS: usize = 24;
 const STATE_SIZE: usize = 25;
 
-// The permutation state is 25 u64s.  Our word size is 32 bits, so it is 50 words.
-const STATE_WORD_SIZE: usize = 25 * 2;
+// The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
+const STATE_NUM_WORDS: usize = 25 * 2;
 
 const BITS_PER_LIMB: usize = 16;
 const U64_LIMBS: usize = 64 / BITS_PER_LIMB;
@@ -24,8 +24,8 @@ pub struct KeccakPermuteEvent {
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],
-    pub state_read_records: [MemoryReadRecord; STATE_WORD_SIZE],
-    pub state_write_records: [MemoryWriteRecord; STATE_WORD_SIZE],
+    pub state_read_records: [MemoryReadRecord; STATE_NUM_WORDS],
+    pub state_write_records: [MemoryWriteRecord; STATE_NUM_WORDS],
     pub state_addr: u32,
 }
 
@@ -38,7 +38,7 @@ impl KeccakPermuteChip {
 }
 
 #[cfg(test)]
-pub mod compress_tests {
+pub mod permute_tests {
     use log::debug;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;

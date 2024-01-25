@@ -6,7 +6,7 @@ use crate::{
     runtime::Register,
 };
 
-use super::{KeccakPermuteChip, STATE_WORD_SIZE};
+use super::{KeccakPermuteChip, STATE_NUM_WORDS};
 
 const RHO: [u32; 24] = [
     1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14, 27, 41, 56, 8, 25, 43, 62, 18, 39, 61, 20, 44,
@@ -28,7 +28,7 @@ impl KeccakPermuteChip {
 
         let mut state = Vec::new();
 
-        let (state_records, state_values) = rt.mr_slice(state_ptr, STATE_WORD_SIZE);
+        let (state_records, state_values) = rt.mr_slice(state_ptr, STATE_NUM_WORDS);
         state_read_records.extend_from_slice(&state_records);
 
         for values in state_values.chunks_exact(2) {

@@ -11,7 +11,7 @@ use super::{
     constants::rc_value_bit,
     logic::{andn_gen, xor3_gen, xor_gen},
     round_flags::eval_round_flags,
-    KeccakPermuteChip, BITS_PER_LIMB, NUM_ROUNDS, STATE_WORD_SIZE, U64_LIMBS,
+    KeccakPermuteChip, BITS_PER_LIMB, NUM_ROUNDS, STATE_NUM_WORDS, U64_LIMBS,
 };
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
@@ -31,7 +31,7 @@ where
         let local: &KeccakCols<AB::Var> = main.row_slice(0).borrow();
         let next: &KeccakCols<AB::Var> = main.row_slice(1).borrow();
 
-        for i in 0..STATE_WORD_SIZE as u32 {
+        for i in 0..STATE_NUM_WORDS as u32 {
             // Note that for the padded columns, local.step_flags elements are all zero.
             builder.constraint_memory_access(
                 local.segment,
