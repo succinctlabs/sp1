@@ -1,6 +1,6 @@
-use super::params::FieldParameters;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
+use crate::utils::ec::field::FieldParameters;
 use p3_field::AbstractField;
 
 pub fn eval_field_operation<AB: CurtaAirBuilder, P: FieldParameters>(

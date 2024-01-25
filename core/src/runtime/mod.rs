@@ -6,9 +6,12 @@ mod segment;
 mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
+use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
+use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+use crate::utils::ec::edwards::EdwardsCurve;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -685,6 +688,20 @@ impl Runtime {
                         }
                         a = 0;
                     }
+                    Syscall::ED_ADD => {
+                        a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::execute(
+                            &mut precompile_rt,
+                        );
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(
+                            init_clk
+                                + EdAddAssignChip::<
+                                    EdwardsCurve<Ed25519Parameters>,
+                                    Ed25519Parameters,
+                                >::NUM_CYCLES,
+                            self.clk
+                        );
+                    }
                 }
 
                 // We have to do this AFTER the precompile execution because the CPU event
@@ -969,6 +986,17 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         // assert_eq!(runtime.registers()[Register::X10 as usize], 144);
+    }
+
+    #[test]
+    fn test_ed_add() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
+        let program = fibonacci_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
     }
 
     #[test]
