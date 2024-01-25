@@ -56,7 +56,10 @@ pub mod permute_tests {
     use p3_uni_stark::StarkConfigImpl;
     use rand::thread_rng;
 
-    use crate::runtime::{Instruction, Opcode, Program, Runtime};
+    use crate::{
+        runtime::{Instruction, Opcode, Program, Runtime},
+        utils::prove,
+    };
     use p3_commit::ExtensionMmcs;
 
     pub fn keccak_permute_program() -> Program {
@@ -142,5 +145,11 @@ pub mod permute_tests {
         tracing::info_span!("runtime.prove(...)").in_scope(|| {
             runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
         });
+    }
+
+    #[test]
+    fn test_keccak_permute_program_prove() {
+        let program = Program::from_elf("../programs/keccak_permute");
+        prove(program);
     }
 }
