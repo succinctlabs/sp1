@@ -11,7 +11,7 @@ use super::{
     constants::rc_value_bit,
     logic::{andn_gen, xor3_gen, xor_gen},
     round_flags::eval_round_flags,
-    KeccakPermuteChip, BITS_PER_LIMB, NUM_ROUNDS, STATE_NUM_WORDS, U64_LIMBS,
+    KeccakPermuteChip, BITS_PER_LIMB, NUM_ROUNDS, STATE_NUM_WORDS, STATE_SIZE, U64_LIMBS,
 };
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
@@ -31,8 +31,7 @@ where
         let local: &KeccakCols<AB::Var> = main.row_slice(0).borrow();
         let next: &KeccakCols<AB::Var> = main.row_slice(1).borrow();
 
-        // Verify that local.a values are equal to the memory values when local.step_flags[0] == 1
-
+        // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
             // Note that for the padded columns, local.step_flags elements are all zero.
             builder.constraint_memory_access(
@@ -42,6 +41,31 @@ where
                 local.state_mem[i as usize],
                 local.step_flags[0] + local.step_flags[23],
             );
+        }
+
+        // Verify that local.a values are equal to the memory values when local.step_flags[0] == 1
+        // Memory values are 32 bit values (encoded as 4 8-bit columns).
+        // local.a values are 64 bit values (encoded as 4 16 bit columns).
+        for i in 0..STATE_SIZE as u32 {
+            let most_sig_word = local.state_mem[(i * 2) as usize].value;
+            let least_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
+            let memory_limbs = vec![
+                least_sig_word.0[0]
+                    + least_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                least_sig_word.0[2]
+                    + least_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                most_sig_word.0[0] + most_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                most_sig_word.0[2] + most_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+            ];
+
+            let y_idx = i / 5;
+            let x_idx = i % 5;
+            let a_value_limbs = local.a[y_idx as usize][x_idx as usize];
+            for i in 0..U64_LIMBS {
+                builder
+                    .when(local.step_flags[0])
+                    .assert_eq(memory_limbs[i].clone(), a_value_limbs[i]);
+            }
         }
 
         // The export flag must be 0 or 1.
