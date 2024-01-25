@@ -1,10 +1,9 @@
 use std::ops::{Add, Mul};
 
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::{lookup::Interaction, utils::Chip};
 
