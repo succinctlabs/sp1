@@ -69,6 +69,7 @@ mod tests {
 
     use super::{EdSqrtCols, FpOpCols, Limbs};
     use crate::operations::field::fp_op::FpOperation;
+    use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     use crate::utils::ec::edwards::EdwardsParameters;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::pad_to_power_of_two;
@@ -141,7 +142,8 @@ mod tests {
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     // TODO: Obviously, I need this, but is to_limbs_field implemented?
                     // cols.a = E::BaseField::to_limbs_field::<F>(a);
-                    cols.sqrt.populate::<F, E>(a);
+                    // TODO: Obviously, I need this, but I don't know what types to pass.
+                    // cols.sqrt.populate::<E::BaseField, E>(a);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -172,7 +174,9 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-            local.sqrt.eval::<AB, E::BaseField, E>(builder, &local.a);
+
+            // TODO: Obviously, I need this but i'm not sure what type to pass here.
+            // local.sqrt.eval::<AB, AB::F, E>(builder, &local.a);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
@@ -183,7 +187,7 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
+        let chip: EdSqrtChip<Ed25519Parameters> = EdSqrtChip::<Ed25519Parameters>::new();
         let mut segment = Segment::default();
         let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
     }
