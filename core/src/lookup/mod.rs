@@ -210,7 +210,7 @@ pub fn debug_interactions_with_all_chips(
             for count in counts.iter() {
                 if count.0.contains_key(&key) {
                     tracing::debug!(
-                        "{} chip's send-receive discrepancy for this key is {}",
+                        " {} chip's send-receive discrepancy for this key is {}",
                         count.1,
                         babybear_to_int(count.0[&key])
                     );
