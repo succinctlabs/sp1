@@ -12,58 +12,42 @@ on:
       - "**"
 
 jobs:
-  runBenchmark:
-    name: run benchmark
+   benchmark:
+    name: Performance Regression Check
     runs-on: buildjet-32vcpu-ubuntu-2204
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
       - name: Set up git private repo access
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
 
-      - uses: actions/checkout@v3
-
-      - uses: boa-dev/criterion-compare-action@v3
+      - name: rust-cache
+        uses: buildjet/cache@v3
         with:
-          package: "succinct-core"
-          features: "perf"
-          branchName: ${{ github.base_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-  #  benchmark:
-  #   name: Performance Regression Check
-  #   runs-on: buildjet-32vcpu-ubuntu-2204
-  #   steps:
-  #     - name: Checkout sources
-  #       uses: actions/checkout@v2
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ~/.rustup/
+          key: test-rust-nightly-2023-12-19-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: rust-nightly-2023-12-19-
 
-  #     - name: Set up git private repo access
-  #       run: |
-  #         git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
+      - name: Run benchmark
+        run: cargo bench --package succinct-core --features perf --bench main -- --output-format bencher | tee output.txt
 
-  #     - name: rust-cache
-  #       uses: buildjet/cache@v3
-  #       with:
-  #         path: |
-  #           ~/.cargo/bin/
-  #           ~/.cargo/registry/index/
-  #           ~/.cargo/registry/cache/
-  #           ~/.cargo/git/db/
-  #           target/
-  #           ~/.rustup/
-  #         key: test-rust-nightly-2023-12-19-${{ hashFiles('**/Cargo.toml') }}
-  #         restore-keys: rust-nightly-2023-12-19-
-
-  #     - name: Run benchmark
-  #       run: cargo bench --package succinct-core --features perf --bench main -- --output-format bencher | tee output.txt
-
-  #     - name: Store benchmark result
-  #       uses: benchmark-action/github-action-benchmark@v1
-  #       with:
-  #         tool: 'cargo'
-  #         output-file-path: output.txt 
-  #         external-data-json-path: ./cache/benchmark-data.json
-  #         github-token: ${{ secrets.GITHUB_TOKEN }}
-  #         comment-on-alert: true
-  #         summary-always: true
-  #         comment-always: true
-  #         alert-comment-cc-users: '@jtguibas'
-  #         alert-threshold: 0%
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt 
+          external-data-json-path: ./cache/benchmark-data.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          summary-always: true
+          comment-always: true
+          alert-comment-cc-users: '@jtguibas'
+          alert-threshold: 100%
