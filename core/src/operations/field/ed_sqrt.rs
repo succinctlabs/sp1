@@ -31,14 +31,17 @@ impl<F: Field> EdSqrtCols<F> {
     /// `P` is the parameter of the field that each limb lives in.
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
         let result = ed25519_sqrt(a.clone());
-        println!("a = {}, result = {}", a, result,);
+        println!("a = {}, result = {}", a, result);
 
         // Use FpOpCols to compute result * result.
-        self.multiplication.populate::<Ed25519BaseField>(
+        let result_squared = self.multiplication.populate::<Ed25519BaseField>(
             &result,
             &result,
             super::fp_op::FpOperation::Mul,
         );
+
+        // If the result is indeed the square root of a, then result * result = a.
+        assert_eq!(result_squared, a.clone());
 
         result
     }
