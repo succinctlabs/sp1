@@ -66,7 +66,7 @@ impl<SC: StarkConfig> Prover<SC> {
         SC: Send + Sync,
     {
         // Get the traces.
-        let traces = main_data.traces;
+        let mut traces = main_data.traces;
 
         // For each trace, compute the degree.
         let degrees = traces
@@ -94,12 +94,12 @@ impl<SC: StarkConfig> Prover<SC> {
         let permutation_traces =
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
-                    .par_iter()
+                    .iter()
                     .enumerate()
                     .map(|(i, chip)| {
                         generate_permutation_trace(
                             chip.as_ref(),
-                            &traces[i],
+                            &mut traces[i],
                             permutation_challenges.clone(),
                         )
                     })
