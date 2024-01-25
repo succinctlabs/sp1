@@ -117,7 +117,7 @@ struct GithubAsset {
 }
 
 async fn get_toolchain_download_url(client: &Client, asset_name: &str) -> Result<String> {
-    let tag = "v2024-01-25.4";
+    let tag = "v2024-01-25.6";
     let release_url = format!(
         "https://api.github.com/repos/succinctlabs/rust/releases/tags/{}",
         tag
