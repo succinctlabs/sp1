@@ -1,0 +1,46 @@
+name: Benchmark
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "core/**"
+  workflow_dispatch:
+    branches:
+      - "**"
+
+jobs:
+  benchmark:
+    name: Performance regression check
+    runs-on: buildjet-32vcpu-ubuntu-2204
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Set up git private repo access
+        run: |
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
+
+      - name: rust-cache
+        uses: buildjet/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ~/.rustup/
+          key: test-rust-nightly-2023-12-19-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: rust-nightly-2023-12-19-
+
+      - name: Run benchmark
+        run: cargo bench --package succinct-core --features perf | tee output.txt
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt 
