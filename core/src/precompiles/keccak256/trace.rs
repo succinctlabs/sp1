@@ -57,7 +57,8 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
                 event_rows[last_row_num].state_mem[i]
                     .populate_write(*write_record, &mut new_field_events);
             }
-            event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
+
+            event_rows[last_row_num].state_addr = F::from_canonical_u32(event.state_addr);
         }
 
         segment.field_events.extend(new_field_events);

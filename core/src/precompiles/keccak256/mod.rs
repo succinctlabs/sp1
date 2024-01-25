@@ -64,7 +64,7 @@ pub mod permute_tests {
 
     pub fn keccak_permute_program() -> Program {
         let digest_ptr = 100;
-        let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
+        let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 1, false, true)];
         for i in 0..(25 * 8) {
             instructions.extend(vec![
                 Instruction::new(Opcode::ADD, 30, 0, digest_ptr + i * 4, false, true),

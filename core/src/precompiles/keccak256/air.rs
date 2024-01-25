@@ -218,5 +218,26 @@ where
         }
 
         // Verify that the memory values are the same as a_prime_prime_prime when local.step_flags[23] == 1
+        for i in 0..STATE_SIZE as u32 {
+            let least_sig_word = local.state_mem[(i * 2) as usize].value;
+            let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
+            let memory_limbs = vec![
+                least_sig_word.0[0]
+                    + least_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                least_sig_word.0[2]
+                    + least_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                most_sig_word.0[0] + most_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                most_sig_word.0[2] + most_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+            ];
+
+            let y_idx = i / 5;
+            let x_idx = i % 5;
+            for i in 0..U64_LIMBS {
+                builder.when(local.step_flags[23]).assert_eq(
+                    memory_limbs[i].clone(),
+                    local.a_prime_prime_prime(x_idx as usize, y_idx as usize, i),
+                )
+            }
+        }
     }
 }
