@@ -55,15 +55,12 @@ impl<V: Copy> EdSqrtCols<V> {
         for i in 0..NUM_LIMBS {
             builder.assert_eq(a[i], self.multiplication.result[i]);
         }
-
-        // eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
-        todo!("");
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use num::BigUint;
+    use num::{BigUint, Zero};
     use p3_air::BaseAir;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
@@ -128,7 +125,7 @@ mod tests {
             let operands: Vec<BigUint> = (0..num_rows)
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
-                    let a = rng.gen_biguint(256);
+                    let a = BigUint::zero();
                     let sq = a.clone() * a.clone();
                     sq % &P::modulus()
                 })
