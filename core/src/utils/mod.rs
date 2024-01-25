@@ -13,7 +13,9 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
+    cpu::cols::cpu_cols::MemoryAccessCols,
     lookup::{Interaction, InteractionBuilder},
+    operations::field::params::{Limbs, NUM_LIMBS},
     runtime::Segment,
     stark::{
         folder::{ProverConstraintFolder, VerifierConstraintFolder},
@@ -85,4 +87,17 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
         n_real_rows = 8;
     }
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
+}
+
+pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+    let vec = cols
+        .iter()
+        .flat_map(|access| access.prev_value.0)
+        .collect::<Vec<T>>();
+    assert_eq!(vec.len(), NUM_LIMBS);
+
+    let sized = vec
+        .try_into()
+        .unwrap_or_else(|_| panic!("failed to convert to limbs"));
+    Limbs(sized)
 }

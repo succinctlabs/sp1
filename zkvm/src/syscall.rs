@@ -15,6 +15,9 @@ pub const SHA_EXTEND: u32 = 102;
 /// Executes `SHA_COMPRESS`.
 pub const SHA_COMPRESS: u32 = 103;
 
+/// Executes `ED_ADD`.
+pub const ED_ADD: u32 = 104;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -87,6 +90,23 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
             *state.add(i) = w_and_h[64 + i];
         }
     }
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_ed_add(p: *mut u32, q: *mut u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") ED_ADD,
+            in("a0") p,
+            in("a1") q
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
 }
 
 #[no_mangle]
