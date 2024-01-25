@@ -137,7 +137,8 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpDenCols, Limbs};
-    use crate::utils::ec::field::{Ed25519BaseField, FieldParameters};
+    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
+    use crate::utils::ec::field::FieldParameters;
     use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};

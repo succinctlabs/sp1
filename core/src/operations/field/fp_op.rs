@@ -184,7 +184,8 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpOpCols, FpOperation, Limbs};
-    use crate::utils::ec::field::{Ed25519BaseField, FieldParameters};
+    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::pad_to_power_of_two;
     use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
     use core::borrow::{Borrow, BorrowMut};
@@ -206,6 +207,7 @@ mod tests {
     use p3_uni_stark::{prove, verify, StarkConfigImpl};
     use rand::thread_rng;
     use valida_derive::AlignedBorrow;
+
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,

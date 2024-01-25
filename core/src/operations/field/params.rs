@@ -75,8 +75,7 @@ pub fn convert_vec<F: Field>(value: Vec<BabyBear>) -> Vec<F> {
 mod tests {
     use num::BigUint;
 
-    use crate::utils::ec::field::Ed25519BaseField;
-    use crate::utils::ec::field::FieldParameters;
+    use crate::utils::ec::{edwards::ed25519::Ed25519BaseField, field::FieldParameters};
 
     #[test]
     fn test_modulus() {

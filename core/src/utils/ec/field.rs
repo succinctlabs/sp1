@@ -4,10 +4,9 @@ use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::operations::field::params::NUM_LIMBS;
 use num::bigint::RandBigInt;
 use num::BigUint;
-use num::One;
 use p3_field::Field;
 use rand::rngs::OsRng;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 
 pub const MAX_NB_LIMBS: usize = 32;
@@ -58,23 +57,5 @@ pub trait FieldParameters:
                 .try_into()
                 .unwrap(),
         )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Ed25519BaseField;
-
-impl FieldParameters for Ed25519BaseField {
-    const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-    const NB_LIMBS: usize = NUM_LIMBS;
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-    const MODULUS: [u8; NUM_LIMBS] = [
-        237, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
-    ];
-    const WITNESS_OFFSET: usize = 1usize << 13;
-
-    fn modulus() -> BigUint {
-        (BigUint::one() << 255) - BigUint::from(19u32)
     }
 }

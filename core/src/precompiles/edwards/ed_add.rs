@@ -128,6 +128,40 @@ impl<E: EllipticCurve> EdAddAssignChip<E> {
 
         p_ptr
     }
+
+    fn populate_fp_ops<F: Field>(
+        cols: &mut EdAddAssignCols<F>,
+        p_x: BigUint,
+        p_y: BigUint,
+        q_x: BigUint,
+        q_y: BigUint,
+    ) {
+        let x3_numerator = cols
+            .x3_numerator
+            .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
+        let y3_numerator = cols
+            .y3_numerator
+            .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
+        let x1_mul_y1 = cols
+            .x1_mul_y1
+            .populate::<E::BaseField>(&p_x, &p_y, FpOperation::Mul);
+        let x2_mul_y2 = cols
+            .x2_mul_y2
+            .populate::<E::BaseField>(&q_x, &q_y, FpOperation::Mul);
+        let f = cols
+            .f
+            .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+
+        let d = Ed25519Parameters::d_biguint();
+        let d_mul_f = cols
+            .d_mul_f
+            .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
+
+        cols.x3_ins
+            .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
+        cols.y3_ins
+            .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
+    }
 }
 
 impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
@@ -144,51 +178,34 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
             let event = segment.ed_add_events[i];
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
-            cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(segment.index);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
-            for i in 0..16 {
-                cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
-            }
+
+            // Decode affine points.
             let p = &event.p;
             let q = &event.q;
             let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
             let q = AffinePoint::<E>::from_words_le(q);
             let (q_x, q_y) = (q.x, q.y);
-            let x3_numerator = cols
-                .x3_numerator
-                .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
-            let y3_numerator = cols
-                .y3_numerator
-                .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
-            let x1_mul_y1 = cols
-                .x1_mul_y1
-                .populate::<E::BaseField>(&p_x, &p_y, FpOperation::Mul);
-            let x2_mul_y2 = cols
-                .x2_mul_y2
-                .populate::<E::BaseField>(&q_x, &q_y, FpOperation::Mul);
-            let f = cols
-                .f
-                .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-            let d = Ed25519Parameters::d_biguint();
-            let d_mul_f = cols
-                .d_mul_f
-                .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
+            // Populate basic columns.
+            cols.is_real = F::one();
+            cols.segment = F::from_canonical_u32(segment.index);
+            cols.clk = F::from_canonical_u32(event.clk);
+            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-            cols.x3_ins
-                .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
-            cols.y3_ins
-                .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
+            Self::populate_fp_ops(cols, p_x, p_y, q_x, q_y);
 
+            // Populate the memory access columns.
+            for i in 0..16 {
+                cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
+            }
             for i in 0..16 {
                 cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
             }
             cols.q_ptr_access
                 .populate_read(event.q_ptr_record, &mut new_field_events);
+
             rows.push(row);
         }
         segment.field_events.extend(new_field_events);
@@ -203,37 +220,8 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
             let zero = BigUint::zero();
-            let x1_mul_y1 = cols
-                .x1_mul_y1
-                .populate::<E::BaseField>(&zero, &zero, FpOperation::Mul);
-            let x2_mul_y2 = cols
-                .x2_mul_y2
-                .populate::<E::BaseField>(&zero, &zero, FpOperation::Mul);
-            let f = cols
-                .f
-                .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
-            let d = Ed25519Parameters::d_biguint();
-            let d_mul_f = cols
-                .d_mul_f
-                .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
-            let x3_numerator = cols.x3_numerator.populate::<E::BaseField>(
-                &[zero.clone(), zero.clone()],
-                &[zero.clone(), zero.clone()],
-            );
-            let y3_numerator = cols.y3_numerator.populate::<E::BaseField>(
-                &[zero.clone(), zero.clone()],
-                &[zero.clone(), zero.clone()],
-            );
-            let x3_ins = cols
-                .x3_ins
-                .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
-            let y3_ins = cols
-                .y3_ins
-                .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
-            let mut x3_limbs = x3_ins.to_bytes_le();
-            x3_limbs.resize(NUM_LIMBS, 0u8);
-            let mut y3_limbs = y3_ins.to_bytes_le();
-            y3_limbs.resize(NUM_LIMBS, 0u8);
+
+            Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
 
             for _ in nb_rows..padded_nb_rows {
                 rows.push(row);
@@ -349,7 +337,7 @@ pub mod tests {
     use crate::{runtime::Program, utils::prove};
 
     #[test]
-    fn test_ed25519_verify() {
+    fn test_ed_add() {
         let program = Program::from_elf("../programs/ed_add");
         prove(program);
     }
