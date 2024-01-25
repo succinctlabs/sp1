@@ -133,7 +133,7 @@ mod tests {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<BigUint> = (0..num_rows - 5)
+            let mut operands: Vec<BigUint> = (0..num_rows - 2)
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
                     let a = BigUint::one();
@@ -152,7 +152,8 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    // todo: do something with sqrt
+                    // TODO: Obviously, I need this, but I don't know what types to pass.
+                    // cols.sqrt.populate::<F, E>(a);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -182,9 +183,9 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-            // local
-            //     .a_op_b
-            //     .eval::<AB, P>(builder, &local.a, &local.b, self.operation);
+            // TODO: Obviously, I need this but i'm not sure what type to pass here.
+            // eval verifies that local.sqrt.result is indeed the square root of local.a.
+            // local.sqrt.eval::<AB, AB::F, E>(builder, &local.a);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
