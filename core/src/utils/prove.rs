@@ -17,7 +17,7 @@ use rand::thread_rng;
 
 use crate::runtime::{Program, Runtime};
 
-#[cfg(not(feature = "perf"))]
+// #[cfg(not(feature = "perf"))]
 use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
 pub fn get_cycles(program: Program) -> u64 {
@@ -80,9 +80,17 @@ pub fn prove(program: Program) {
         runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
     });
 
-    #[cfg(not(feature = "perf"))]
+    // #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(&mut runtime.segment, None, vec![InteractionKind::Alu])
+        debug_interactions_with_all_chips(
+            &mut runtime.segment,
+            Some(&mut runtime.global_segment),
+            vec![
+                InteractionKind::Field,
+                InteractionKind::Range,
+                InteractionKind::Byte,
+            ],
+        );
     });
 
     let cycles = runtime.global_clk;
