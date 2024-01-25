@@ -37,7 +37,7 @@ jobs:
           restore-keys: rust-nightly-2023-12-19-
 
       - name: Run benchmark
-        run: cargo bench --package succinct-core --features perf | tee output.txt
+        run: cargo bench --package succinct-core --features perf --bench main -- --output-format bencher | tee output.txt
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
