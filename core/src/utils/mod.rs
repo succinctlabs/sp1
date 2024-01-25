@@ -8,7 +8,7 @@ use p3_uni_stark::StarkConfig;
 pub use prove::*;
 pub use tracer::*;
 
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -22,6 +22,8 @@ use crate::{
         DebugConstraintBuilder,
     },
 };
+
+use self::ec::field::FieldParameters;
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
@@ -94,10 +96,22 @@ pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
         .iter()
         .flat_map(|access| access.prev_value.0)
         .collect::<Vec<T>>();
-    assert_eq!(vec.len(), NUM_LIMBS);
 
     let sized = vec
         .try_into()
         .unwrap_or_else(|_| panic!("failed to convert to limbs"));
     Limbs(sized)
+}
+
+pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl Fn() -> [T; N]) {
+    let nb_rows = rows.len();
+    let mut padded_nb_rows = nb_rows.next_power_of_two();
+    if padded_nb_rows == 2 || padded_nb_rows == 1 {
+        padded_nb_rows = 4;
+    }
+    if padded_nb_rows == nb_rows {
+        return;
+    }
+    let dummy_row = row_fn();
+    rows.resize(padded_nb_rows, dummy_row);
 }

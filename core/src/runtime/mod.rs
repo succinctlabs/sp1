@@ -7,6 +7,7 @@ mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
+use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
@@ -695,6 +696,10 @@ impl Runtime {
                                 >::NUM_CYCLES,
                             self.clk
                         );
+                    }
+                    Syscall::ED_DECOMPRESS => {
+                        a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
                     }
                 }
 

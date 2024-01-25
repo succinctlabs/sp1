@@ -18,6 +18,9 @@ pub const SHA_COMPRESS: u32 = 103;
 /// Executes `ED_ADD`.
 pub const ED_ADD: u32 = 104;
 
+/// Executes `ED_DECOMPRESS`.
+pub const ED_DECOMPRESS: u32 = 105;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -103,6 +106,28 @@ pub extern "C" fn syscall_ed_add(p: *mut u32, q: *mut u32) {
             in("a0") p,
             in("a1") q
         );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_ed_decompress(slice: &mut [u8; 64]) {
+    #[cfg(target_os = "zkvm")]
+    {
+        let sign = slice[63] >> 7;
+        slice[63] &= 0x7f;
+        slice[31] = sign;
+        let p = slice.as_mut_ptr() as *mut u32;
+        unsafe {
+            asm!(
+                "ecall",
+                in("t0") ED_DECOMPRESS,
+                in("a0") p,
+            );
+        }
     }
 
     #[cfg(not(target_os = "zkvm"))]
