@@ -4,13 +4,13 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
-use crate::operations::field::params::NUM_LIMBS;
+use crate::operations::field::params::{Ed25519BaseField, NUM_LIMBS};
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
+use crate::utils::ec::edwards::EdwardsParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
-use p3_baby_bear::BabyBear;
 use p3_field::Field;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
@@ -28,9 +28,9 @@ pub struct EdSqrtCols<T> {
 }
 
 impl<F: Field> EdSqrtCols<F> {
-    pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
+    pub fn populate<P: FieldParameters, E: EdwardsParameters>(&mut self, a: &BigUint) -> BigUint {
         let result = ed25519_sqrt(a.clone());
-        println!("a = {}, result = {}", a, result);
+        println!("a = {}, result = {}", a, result,);
         self.multiplication
             .populate::<P>(&result, &result, super::fp_op::FpOperation::Mul);
         result
@@ -38,7 +38,7 @@ impl<F: Field> EdSqrtCols<F> {
 }
 
 impl<V: Copy> EdSqrtCols<V> {
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var>,
@@ -60,7 +60,7 @@ impl<V: Copy> EdSqrtCols<V> {
 
 #[cfg(test)]
 mod tests {
-    use num::{BigUint, Zero};
+    use num::{BigUint, One, Zero};
     use p3_air::BaseAir;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
@@ -114,7 +114,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> Chip<F> for EdSqrtChip<P> {
+    impl<F: Field, E: EdwardsParameters> Chip<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
@@ -125,7 +125,7 @@ mod tests {
             let operands: Vec<BigUint> = (0..num_rows)
                 .map(|_| {
                     // Take the square of a random number to make sure that the square root exists.
-                    let a = BigUint::zero();
+                    let a = BigUint::one();
                     let sq = a.clone() * a.clone();
                     sq % &P::modulus()
                 })
@@ -137,7 +137,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    cols.sqrt.populate::<P>(a);
+                    cols.sqrt.populate::<F, P>(a);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -155,7 +155,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for EdSqrtChip<P> {
+    impl<F, E: EdwardsParameters> BaseAir<F> for EdSqrtChip<E> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        type Val = BabyBear;
+        type Val = Ed25519BaseField;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
         type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
