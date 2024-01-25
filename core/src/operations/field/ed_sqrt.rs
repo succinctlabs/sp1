@@ -17,6 +17,9 @@ use valida_derive::AlignedBorrow;
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct EdSqrtCols<T> {
+    /// TODO: Try to remove this by storing the result in `multiplication.result`.
+    pub result: Limbs<T>,
+
     /// The multiplication operation to verify that the sqrt and the input match.
     ///
     /// In order to save space, we actually store the sqrt of the input in `multiplication.result`
@@ -48,9 +51,11 @@ impl<F: Field> EdSqrtCols<F> {
             assert_eq!(self.multiplication.result[i], a_limbs[i]);
         }
 
+        self.result = P::to_limbs_field::<F>(&sqrt);
+
         // This is a hack to save a column in EdSqrtCols. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
-        self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
+        // self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
 
         sqrt
     }
@@ -68,13 +73,13 @@ impl<V: Copy> EdSqrtCols<V> {
         // retrieve that value and overwrite that member variable with a.
         let sqrt = self.multiplication.result;
         let mut multiplication = self.multiplication.clone();
-        multiplication.result = *a;
+        // multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in ed25519 base field since we want that to be the mod.
         multiplication.eval::<AB, Ed25519BaseField>(
             builder,
-            &sqrt,
-            &sqrt,
+            &self.result,
+            &self.result,
             super::fp_op::FpOperation::Mul,
         );
 
@@ -156,7 +161,7 @@ mod tests {
                     // Take the square of a random number to make sure that the square root exists.
                     // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
 
-                    let a = BigUint::from(2342423u32);
+                    let a = BigUint::from(0u32);
                     let sq = a.clone() * a.clone();
                     // We want to mod by the ed25519 modulus.
                     sq % &Ed25519BaseField::modulus()
