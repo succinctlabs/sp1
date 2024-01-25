@@ -45,7 +45,6 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
         );
 
         // Pad the trace to a power of two.
-        println!("trace height: {}", trace.values.len() / NUM_FIELD_COLS);
         pad_to_power_of_two::<NUM_FIELD_COLS, F>(&mut trace.values);
 
         trace
