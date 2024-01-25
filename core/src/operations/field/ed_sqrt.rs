@@ -78,18 +78,14 @@ mod tests {
     use p3_field::Field;
 
     use super::{EdSqrtCols, Limbs};
-    use crate::operations;
-    use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-    use crate::utils::ec::edwards::EdwardsParameters;
     use crate::utils::ec::field::FieldParameters;
-    use crate::utils::{self, pad_to_power_of_two};
+    use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder, operations::field::params::Ed25519BaseField, runtime::Segment,
         utils::Chip,
     };
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
-    use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_commit::ExtensionMmcs;
