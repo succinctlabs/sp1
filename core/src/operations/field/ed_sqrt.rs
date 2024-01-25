@@ -4,6 +4,8 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
+use crate::operations::field::params::NUM_LIMBS;
+use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
@@ -28,7 +30,10 @@ pub struct EdSqrtCols<T> {
 impl<F: Field> EdSqrtCols<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
         // TODO: a lot to do.
-        todo!("");
+        let result = ed25519_sqrt(a.clone());
+        self.multiplication
+            .populate::<P>(&result, &result, super::fp_op::FpOperation::Mul);
+        result
     }
 }
 
@@ -40,6 +45,17 @@ impl<V: Copy> EdSqrtCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
+        self.multiplication.eval::<AB, P>(
+            builder,
+            &self.result,
+            &self.result,
+            super::fp_op::FpOperation::Mul,
+        );
+
+        for i in 0..NUM_LIMBS {
+            builder.assert_eq(a[i], self.multiplication.result[i]);
+        }
+
         // eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
         todo!("");
     }
