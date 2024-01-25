@@ -73,7 +73,7 @@ impl<V: Copy> EdSqrtCols<V> {
         // retrieve that value and overwrite that member variable with a.
         let sqrt = self.multiplication.result;
         let mut multiplication = self.multiplication.clone();
-        // multiplication.result = *a;
+        multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in ed25519 base field since we want that to be the mod.
         multiplication.eval::<AB, Ed25519BaseField>(
@@ -161,7 +161,7 @@ mod tests {
                     // Take the square of a random number to make sure that the square root exists.
                     // TODO: Use the RNG here, for debugging purposes, i'm putting a constant.
 
-                    let a = BigUint::from(0u32);
+                    let a = BigUint::from(2343242u32);
                     let sq = a.clone() * a.clone();
                     // We want to mod by the ed25519 modulus.
                     sq % &Ed25519BaseField::modulus()
