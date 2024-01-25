@@ -65,16 +65,20 @@ pub struct Segment {
 }
 
 impl Segment {
+    pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
+        self.byte_lookups
+            .entry(blu_event)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+    }
+
     pub fn add_byte_lookup_events(&mut self, blu_events: Vec<ByteLookupEvent>) {
         for blu_event in blu_events.iter() {
-            self.byte_lookups
-                .entry(*blu_event)
-                .and_modify(|i| *i += 1)
-                .or_insert(1);
+            self.add_byte_lookup_event(*blu_event);
         }
     }
 
-    /// Adds a ByteLookupEvent to verify `a` and `b are indeed bytes to the segment.
+    /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
     pub fn add_byte_range_checks(&mut self, a: u8, b: u8) {
         let byte_event = ByteLookupEvent {
             opcode: ByteOpcode::Range,
@@ -87,6 +91,17 @@ impl Segment {
             .entry(byte_event)
             .and_modify(|j| *j += 1)
             .or_insert(1);
+    }
+
+    /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
+    pub fn lookup_or(&mut self, b: u8, c: u8) {
+        self.add_byte_lookup_event(ByteLookupEvent {
+            opcode: ByteOpcode::OR,
+            a1: b | c,
+            a2: 0,
+            b,
+            c,
+        });
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {

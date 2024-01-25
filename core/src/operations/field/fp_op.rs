@@ -6,7 +6,7 @@ use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use num::BigUint;
+use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
@@ -18,6 +18,7 @@ pub enum FpOperation {
     Add,
     Mul,
     Sub,
+    Div, // We don't constrain that the divisor is non-zero.
 }
 
 /// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
@@ -45,9 +46,18 @@ impl<F: Field> FpOpCols<F> {
         /// all operations using "PF" should use "F" in the future.
         type PF = BabyBear;
 
+        if b == &BigUint::zero() && op == FpOperation::Div {
+            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
+            assert_eq!(
+                *a,
+                BigUint::zero(),
+                "division by zero is allowed only when dividing zero"
+            );
+        }
+
         let modulus = P::modulus();
 
-        // If doing the substraction operation, a - b = result, equivalent to a = result + b.
+        // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
         if op == FpOperation::Sub {
             let result = (modulus.clone() + a - b) % &modulus;
             // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
@@ -61,6 +71,24 @@ impl<F: Field> FpOpCols<F> {
             return result;
         }
 
+        // a / b = result is equivalent to a = result * b.
+        if op == FpOperation::Div {
+            // As modulus is prime, we can use Fermat's little theorem to compute the
+            // inverse.
+            let result =
+                (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+
+            // We populate the carry, witness_low, witness_high as if we were doing a multiplication
+            // with result * b. But we populate `result` with the actual result of the
+            // multiplication because those columns are expected to contain the result by the user.
+            // Note that this reversal means we have to flip result, a correspondingly in the `eval`
+            // function.
+            self.populate::<P>(&result, b, FpOperation::Mul);
+            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
+            self.result = convert_polynomial(p_result);
+            return result;
+        }
+
         let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
         let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
 
@@ -69,14 +97,14 @@ impl<F: Field> FpOpCols<F> {
         let (result, carry) = match op {
             FpOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
             FpOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
-            FpOperation::Sub => unreachable!(),
+            FpOperation::Sub | FpOperation::Div => unreachable!(),
         };
         debug_assert!(&result < modulus);
         debug_assert!(&carry < modulus);
         match op {
             FpOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
             FpOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
-            FpOperation::Sub => unreachable!(),
+            FpOperation::Sub | FpOperation::Div => unreachable!(),
         }
 
         // Make little endian polynomial limbs.
@@ -88,7 +116,7 @@ impl<F: Field> FpOpCols<F> {
         let p_op = match op {
             FpOperation::Add => &p_a + &p_b,
             FpOperation::Mul => &p_a * &p_b,
-            FpOperation::Sub => unreachable!(),
+            FpOperation::Sub | FpOperation::Div => unreachable!(),
         };
         let p_vanishing: Polynomial<PF> = &p_op - &p_result - &p_carry * &p_modulus;
         debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
@@ -122,14 +150,14 @@ impl<V: Copy> FpOpCols<V> {
     {
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
             FpOperation::Add | FpOperation::Mul => ((*a).into(), self.result.into()),
-            FpOperation::Sub => (self.result.into(), (*a).into()),
+            FpOperation::Sub | FpOperation::Div => (self.result.into(), (*a).into()),
         };
 
         let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).into();
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
         let p_op = match op {
             FpOperation::Add | FpOperation::Sub => p_a + p_b,
-            FpOperation::Mul => p_a * p_b,
+            FpOperation::Mul | FpOperation::Div => p_a * p_b,
         };
         let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
@@ -209,20 +237,24 @@ mod tests {
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 5)
                 .map(|_| {
                     let a = rng.gen_biguint(256) % &P::modulus();
                     let b = rng.gen_biguint(256) % &P::modulus();
                     (a, b)
                 })
                 .collect();
-            // Hardcoded edge cases.
+
+            // Hardcoded edge cases. We purposely include 0 / 0. While mathematically, that is not
+            // allowed, we allow it in our implementation so padded rows can be all 0.
             operands.extend(vec![
                 (BigUint::from(0u32), BigUint::from(0u32)),
+                (BigUint::from(0u32), BigUint::from(1u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
                 (BigUint::from(10u32), BigUint::from(19u32)),
             ]);
+
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
@@ -311,7 +343,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
@@ -320,7 +352,14 @@ mod tests {
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
 
-        for op in [FpOperation::Add, FpOperation::Sub, FpOperation::Mul].iter() {
+        for op in [
+            FpOperation::Add,
+            FpOperation::Sub,
+            FpOperation::Mul,
+            FpOperation::Div,
+        ]
+        .iter()
+        {
             println!("op: {:?}", op);
 
             let mds = MyMds::default();

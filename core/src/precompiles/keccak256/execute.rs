@@ -1,6 +1,9 @@
 use crate::{
-    precompiles::keccak256::{constants::RC, KeccakPermuteEvent, NUM_ROUNDS},
-    runtime::{AccessPosition, Register, Runtime},
+    precompiles::{
+        keccak256::{constants::RC, KeccakPermuteEvent, NUM_ROUNDS},
+        PrecompileRuntime,
+    },
+    runtime::Register,
 };
 
 use super::KeccakPermuteChip;
@@ -14,41 +17,21 @@ const PI: [usize; 24] = [
 ];
 
 impl KeccakPermuteChip {
-    pub fn execute(rt: &mut Runtime) -> (u32, u32, u32) {
-        let t0 = Register::X5;
-        let a0 = Register::X10;
-
-        // The number of cycles it takes to perform this precompile.
-        const NB_KECCAK_PERMUTE_CYCLES: u32 = NUM_ROUNDS as u32 * 4;
-
-        // Temporarily set the clock to the number of cycles it takes to perform
-        // this precompile as reading `(pre|post)image_ptr` happens on this clock.
-        rt.clk += NB_KECCAK_PERMUTE_CYCLES;
-        let state_ptr = rt.register(a0);
-
-        // Set the CPU table values with some dummy values.
-        let (fa, fb, fc) = (state_ptr, rt.rr(t0, AccessPosition::B), 0);
-        rt.rw(a0, fa);
-
-        // We'll save the current record and restore it later so that the CPU
-        // event gets emitted correctly.
-        let t = rt.record;
-
-        // Set the clock back to the original value and begin executing the
-        // precompile.
-        rt.clk -= NB_KECCAK_PERMUTE_CYCLES;
+    pub const NUM_CYCLES: u32 = NUM_ROUNDS as u32 * 4;
+    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+        // Read `state_ptr` from register a0.
+        let state_ptr = rt.register_unsafe(Register::X10);
 
         let saved_clk = rt.clk;
         let mut state_read_records = Vec::new();
         let mut state_write_records = Vec::new();
 
-        // Read `preimage_ptr` from register a0 or x5.
         let mut state = Vec::new();
         for i in (0..(25 * 2)).step_by(2) {
-            let least_sig = rt.mr(state_ptr + i * 4, AccessPosition::Memory);
-            state_read_records.push(rt.record.memory);
-            let most_sig = rt.mr(state_ptr + (i + 1) * 4, AccessPosition::Memory);
-            state_read_records.push(rt.record.memory);
+            let (record, least_sig) = rt.mr(state_ptr + i * 4);
+            state_read_records.push(record);
+            let (record, most_sig) = rt.mr(state_ptr + (i + 1) * 4);
+            state_read_records.push(record);
             state.push(least_sig as u64 + ((most_sig as u64) << 32));
         }
 
@@ -95,39 +78,28 @@ impl KeccakPermuteChip {
             state[0] ^= RC[i];
         }
 
-        rt.clk += NB_KECCAK_PERMUTE_CYCLES;
+        rt.clk += Self::NUM_CYCLES;
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
             let least_sig = (state[i] & 0xFFFFFFFF) as u32;
-            rt.mr(state_ptr + (2 * i as u32) * 4, AccessPosition::Memory);
-            rt.mw(
-                state_ptr + (2 * i as u32) * 4,
-                least_sig,
-                AccessPosition::Memory,
-            );
-            state_write_records.push(rt.record.memory);
-            rt.mr(state_ptr + (2 * i as u32 + 1) * 4, AccessPosition::Memory);
-            rt.mw(
-                state_ptr + (2 * i as u32 + 1) * 4,
-                most_sig,
-                AccessPosition::Memory,
-            );
-            state_write_records.push(rt.record.memory);
+            let record = rt.mw(state_ptr + (2 * i as u32) * 4, least_sig);
+            state_write_records.push(record);
+            let record = rt.mw(state_ptr + (2 * i as u32 + 1) * 4, most_sig);
+            state_write_records.push(record);
         }
 
         // Push the Keccak permute event.
-        rt.segment.keccak_permute_events.push(KeccakPermuteEvent {
-            clk: saved_clk,
-            pre_state: saved_state.as_slice().try_into().unwrap(),
-            post_state: state.as_slice().try_into().unwrap(),
-            state_read_records: state_read_records.as_slice().try_into().unwrap(),
-            state_write_records: state_write_records.as_slice().try_into().unwrap(),
-            state_addr: state_ptr,
-        });
+        rt.segment_mut()
+            .keccak_permute_events
+            .push(KeccakPermuteEvent {
+                clk: saved_clk,
+                pre_state: saved_state.as_slice().try_into().unwrap(),
+                post_state: state.as_slice().try_into().unwrap(),
+                state_read_records: state_read_records.as_slice().try_into().unwrap(),
+                state_write_records: state_write_records.as_slice().try_into().unwrap(),
+                state_addr: state_ptr,
+            });
 
-        // Restore the original record.
-        rt.record = t;
-
-        (fa, fb, fc)
+        state_ptr
     }
 }

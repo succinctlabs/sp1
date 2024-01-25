@@ -1,4 +1,4 @@
-use crate::cpu::MemoryRecord;
+use crate::precompiles::{MemoryReadRecord, MemoryWriteRecord};
 
 mod air;
 pub mod columns;
@@ -19,8 +19,8 @@ pub struct KeccakPermuteEvent {
     pub clk: u32,
     pub pre_state: [u64; 25],
     pub post_state: [u64; 25],
-    pub state_read_records: [Option<MemoryRecord>; 25 * 2],
-    pub state_write_records: [Option<MemoryRecord>; 25 * 2],
+    pub state_read_records: [MemoryReadRecord; 25 * 2],
+    pub state_write_records: [MemoryWriteRecord; 25 * 2],
     pub state_addr: u32,
 }
 
@@ -111,7 +111,7 @@ pub mod compress_tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

@@ -6,18 +6,17 @@ mod trace;
 
 pub use columns::*;
 
-use crate::cpu::MemoryRecord;
+use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaExtendEvent {
     pub clk: u32,
     pub w_ptr: u32,
-    pub w: [u32; 64],
-    pub w_i_minus_15_reads: [Option<MemoryRecord>; 48],
-    pub w_i_minus_2_reads: [Option<MemoryRecord>; 48],
-    pub w_i_minus_16_reads: [Option<MemoryRecord>; 48],
-    pub w_i_minus_7_reads: [Option<MemoryRecord>; 48],
-    pub w_i_writes: [Option<MemoryRecord>; 48],
+    pub w_i_minus_15_reads: [MemoryReadRecord; 48],
+    pub w_i_minus_2_reads: [MemoryReadRecord; 48],
+    pub w_i_minus_16_reads: [MemoryReadRecord; 48],
+    pub w_i_minus_7_reads: [MemoryReadRecord; 48],
+    pub w_i_writes: [MemoryWriteRecord; 48],
 }
 
 pub struct ShaExtendChip;
@@ -122,7 +121,7 @@ pub mod extend_tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

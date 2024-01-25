@@ -20,6 +20,12 @@ use crate::runtime::{Program, Runtime};
 #[cfg(not(feature = "perf"))]
 use crate::lookup::debug_interactions_with_all_chips;
 
+pub fn get_cycles(program: Program) -> u64 {
+    let mut runtime = Runtime::new(program);
+    runtime.run();
+    runtime.global_clk as u64
+}
+
 pub fn prove(program: Program) {
     type Val = BabyBear;
     type Domain = Val;
@@ -51,7 +57,7 @@ pub fn prove(program: Program) {
 
     type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
     type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    let fri_config = MyFriConfig::new(40, challenge_mmcs);
+    let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
     let ldt = FriLdt { config: fri_config };
 
     type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
@@ -79,7 +85,7 @@ pub fn prove(program: Program) {
         debug_interactions_with_all_chips(&mut runtime.segment, crate::lookup::InteractionKind::Alu)
     });
 
-    let cycles = runtime.global_clk / 4;
+    let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();
     tracing::info!(
         "cycles={}, e2e={}, khz={:.2}",

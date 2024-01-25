@@ -26,7 +26,7 @@ p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
-p3-maybe-rayon = { workspace = true }
+p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 rand = "0.8.5"
 p3-util = { workspace = true }
 itertools = "0.12.0"
@@ -41,6 +41,8 @@ tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
+curve25519-dalek = "4.1.1"
+hex = "0.4.3"
 
 [dev-dependencies]
 criterion = "0.5.1"

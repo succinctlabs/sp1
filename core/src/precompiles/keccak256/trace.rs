@@ -5,7 +5,6 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::MemoryRecord,
     precompiles::keccak256::{
         columns::{KeccakCols, NUM_KECCAK_COLS},
         NUM_ROUNDS,
@@ -41,38 +40,11 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             println!("clk cycle for keccak read is {:?}", clk);
 
             for j in 0..event.pre_state.len() {
-                let most_sig = ((event.pre_state[j] >> 32) & 0xFFFFFFFF) as u32;
-                let least_sig = (event.pre_state[j] & 0xFFFFFFFF) as u32;
+                event_rows[0].state_mem[2 * j]
+                    .populate_read(event.state_read_records[2 * j], &mut new_field_events);
 
-                let state_current_read = MemoryRecord {
-                    value: least_sig,
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-
-                println!("state_read_records: {:?}", event.state_read_records[2 * j]);
-                self.populate_access(
-                    &mut event_rows[0].state_mem[2 * j],
-                    state_current_read,
-                    event.state_read_records[2 * j],
-                    &mut new_field_events,
-                );
-
-                let state_current_read = MemoryRecord {
-                    value: most_sig,
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-                println!(
-                    "state_read_records: {:?}",
-                    event.state_read_records[2 * j + 1]
-                );
-                self.populate_access(
-                    &mut event_rows[0].state_mem[2 * j + 1],
-                    state_current_read,
-                    event.state_read_records[2 * j + 1],
-                    &mut new_field_events,
-                );
+                event_rows[0].state_mem[2 * j + 1]
+                    .populate_read(event.state_read_records[2 * j + 1], &mut new_field_events);
             }
             event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
 
@@ -84,40 +56,11 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             println!("clk cycle for keccak write is {:?}", clk);
 
             for j in 0..event.post_state.len() {
-                let most_sig = ((event.post_state[j] >> 32) & 0xFFFFFFFF) as u32;
-                let least_sig = (event.post_state[j] & 0xFFFFFFFF) as u32;
+                event_rows[last_row_num].state_mem[2 * j]
+                    .populate_write(event.state_write_records[2 * j], &mut new_field_events);
 
-                let state_current_read = MemoryRecord {
-                    value: least_sig,
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-                println!(
-                    "state_write_records: {:?}",
-                    event.state_write_records[2 * j]
-                );
-                self.populate_access(
-                    &mut event_rows[last_row_num].state_mem[2 * j],
-                    state_current_read,
-                    event.state_write_records[2 * j],
-                    &mut new_field_events,
-                );
-
-                let state_current_read = MemoryRecord {
-                    value: most_sig,
-                    segment: SEGMENT_NUM,
-                    timestamp: clk,
-                };
-                println!(
-                    "state_write_records: {:?}",
-                    event.state_write_records[2 * j + 1]
-                );
-                self.populate_access(
-                    &mut event_rows[last_row_num].state_mem[2 * j + 1],
-                    state_current_read,
-                    event.state_write_records[2 * j + 1],
-                    &mut new_field_events,
-                );
+                event_rows[last_row_num].state_mem[2 * j + 1]
+                    .populate_write(event.state_write_records[2 * j + 1], &mut new_field_events);
             }
 
             event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
