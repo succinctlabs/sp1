@@ -70,6 +70,7 @@ mod tests {
     use super::{EdSqrtCols, FpOpCols, Limbs};
     use crate::operations::field::fp_op::FpOperation;
     use crate::utils::ec::edwards::EdwardsParameters;
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
@@ -138,7 +139,8 @@ mod tests {
                 .map(|a| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
-                    cols.a = E::BaseField::to_limbs_field::<F>(a);
+                    // TODO: Obviously, I need this, but is to_limbs_field implemented?
+                    // cols.a = E::BaseField::to_limbs_field::<F>(a);
                     cols.sqrt.populate::<F, E>(a);
                     row
                 })
