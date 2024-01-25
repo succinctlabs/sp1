@@ -767,6 +767,7 @@ dependencies = [
 name = "cycle-tracker"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "serde",
  "succinct-derive",
  "succinct-zkvm",

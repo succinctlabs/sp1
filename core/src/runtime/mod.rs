@@ -18,6 +18,8 @@ pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 pub use syscall::*;
@@ -71,7 +73,12 @@ pub struct Runtime {
     pub memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
 
     /// A stream of witnessed values (global to the entire program).
-    pub witness: Vec<u32>,
+    pub input_stream: Vec<u8>,
+
+    pub input_stream_ptr: usize,
+
+    pub output_stream: Vec<u8>,
+    pub output_stream_ptr: usize,
 
     /// Segments
     pub segments: Vec<Segment>,
@@ -94,6 +101,13 @@ pub struct Runtime {
     pub cycle_tracker: u32,
 }
 
+impl std::io::Read for Runtime {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.get_output_slice(buf);
+        Ok(buf.len())
+    }
+}
+
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
@@ -110,7 +124,10 @@ impl Runtime {
             program: program_rc,
             memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
             memory_access: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
-            witness: Vec::new(),
+            input_stream: Vec::new(),
+            input_stream_ptr: 0,
+            output_stream: Vec::new(),
+            output_stream_ptr: 0,
             segments: Vec::new(),
             segment,
             record: Record::default(),
@@ -121,8 +138,32 @@ impl Runtime {
     }
 
     /// Write to the witness stream.
-    pub fn write_witness(&mut self, witness: &[u32]) {
-        self.witness.extend(witness);
+    pub fn write_witness(&mut self, witness: &[u8]) {
+        self.input_stream.extend(witness);
+    }
+
+    pub fn add_input_slice(&mut self, input: &[u8]) {
+        self.input_stream.extend(input);
+    }
+
+    pub fn add_input<T: Serialize>(&mut self, input: &T) {
+        let mut buf = Vec::new();
+        bincode::serialize_into(&mut buf, input).expect("Serialization failed");
+        self.input_stream.extend(buf);
+    }
+
+    pub fn get_output_slice(&mut self, buf: &mut [u8]) {
+        let len = buf.len();
+        let start = self.output_stream_ptr;
+        let end = start + len;
+        assert!(end <= self.output_stream.len());
+        buf.copy_from_slice(&self.output_stream[start..end]);
+        self.output_stream_ptr = end;
+    }
+
+    pub fn get_output<T: DeserializeOwned>(&mut self) -> T {
+        let result = bincode::deserialize_from::<_, T>(self);
+        result.unwrap()
     }
 
     /// Get the current values of the registers.
@@ -636,11 +677,14 @@ impl Runtime {
                     }
                     Syscall::LWA => {
                         let fd = self.register(a0);
-                        let addr = self.register(a1);
-                        assert!(addr % 4 == 0, "addr is not aligned");
-                        a = self.witness.pop().expect("witness stream is empty");
-                        // TODO: this might mess with memory init?
-                        self.memory.insert(addr, a);
+                        let num_bytes = self.register(a1) as usize;
+                        let mut read_bytes = [0u8; 4];
+                        for i in 0..num_bytes {
+                            read_bytes[i] = self.input_stream[self.input_stream_ptr];
+                            self.input_stream_ptr += 1;
+                        }
+                        let word = u32::from_le_bytes(read_bytes);
+                        a = word;
                     }
                     Syscall::SHA_EXTEND => {
                         a = ShaExtendChip::execute(&mut precompile_rt);
@@ -654,7 +698,7 @@ impl Runtime {
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
-                        if fd == 1 || fd == 2 {
+                        if fd == 1 || fd == 2 || fd == 3 {
                             let write_buf = self.register(a1);
                             let nbytes = self.register(a2);
                             // Read nbytes from memory starting at write_buf.
@@ -681,8 +725,13 @@ impl Runtime {
                                 } else {
                                     log::info!("stdout: {}", s.trim_end());
                                 }
-                            } else {
+                            } else if fd == 2 {
                                 log::info!("stderr: {}", s.trim_end());
+                            } else if fd == 3 {
+                                log::info!("io::write: {:?}", slice);
+                                self.output_stream.extend_from_slice(slice);
+                            } else {
+                                unreachable!()
                             }
                         }
                         a = 0;
@@ -939,6 +988,7 @@ pub mod tests {
     use log::debug;
 
     use crate::runtime::Register;
+    use serde::{Deserialize, Serialize};
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -952,7 +1002,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fib_malloc.s")
+        Program::from_elf("/Users/umaroy/Documents/curta-vm/target/riscv32im-risc0-zkvm-elf/release/cycle-tracker")
     }
 
     pub fn ecall_lwa_program() -> Program {
@@ -978,8 +1028,21 @@ pub mod tests {
         }
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        struct MyPoint {
+            pub x: usize,
+            pub y: usize,
+        }
+        let p1 = MyPoint { x: 3, y: 5 };
+        let serialized = bincode::serialize(&p1).unwrap();
+        runtime.add_input_slice(&serialized);
+        let p2 = MyPoint { x: 8, y: 19 };
+        runtime.add_input(&p2);
         runtime.run();
-        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
+        let added_point: MyPoint = runtime.get_output();
+        assert_eq!(added_point, MyPoint { x: 11, y: 24 });
+
+        // assert_eq!(runtime.registers()[Register::X10 as usize], 144);
     }
 
     #[test]
