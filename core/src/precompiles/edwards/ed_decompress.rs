@@ -229,15 +229,15 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         y_bytes[31] &= 0b0111_1111;
         y_bytes[31] |= sign << 7;
 
-        println!("y_bytes: {:?}", y_bytes);
-        println!("sign: {:?}", sign_bool);
+        // println!("y_bytes: {:?}", y_bytes);
+        // println!("sign: {:?}", sign_bool);
 
         let compressed_y = CompressedEdwardsY(y_bytes);
         let decompressed = decompress(&compressed_y);
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
         decompressed_x_bytes.resize(32, 0u8);
-        println!("decompressed: {:?}", decompressed_x_bytes);
+        // println!("decompressed: {:?}", decompressed_x_bytes);
         let mut decompressed_x_words = [0_u32; 8];
         for i in 0..8 {
             let word =
@@ -343,7 +343,7 @@ pub mod tests {
     #[test]
     fn test_ed_add2() {
         tracing_subscriber::fmt::init();
-        let program = Program::from_elf("/Users/ctian/Documents/workspace/curta-vm/target/riscv32im-risc0-zkvm-elf/release/ed_decompress");
+        let program = Program::from_elf("/Users/ctian/Documents/workspace/curta-vm/target/riscv32im-risc0-zkvm-elf/release/tendermint");
         prove(program);
     }
 }
