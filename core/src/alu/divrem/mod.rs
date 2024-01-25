@@ -293,12 +293,15 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 };
 
                 // Add remainder to product.
-                let mut carry = 0u32;
+                let mut carry = [0u8; 8];
                 let base = 1 << BYTE_SIZE;
                 for i in 0..LONG_WORD_SIZE {
-                    let x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32 + carry;
-                    carry = x / base;
-                    cols.carry[i] = F::from_canonical_u32(carry);
+                    let mut x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32;
+                    if i > 0 {
+                        x += carry[i - 1] as u32;
+                    }
+                    carry[i] = (x / base) as u8;
+                    cols.carry[i] = F::from_canonical_u8(carry[i]);
                 }
 
                 // Insert the necessary multiplication & LT events.
@@ -361,7 +364,16 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     };
                     segment.lt_events.push(lt_event);
                 }
+
+                // Range check.
+                {
+                    segment.add_byte_range_checks(&quotient.to_le_bytes());
+                    segment.add_byte_range_checks(&remainder.to_le_bytes());
+                    segment.add_byte_range_checks(&c_times_quotient);
+                    segment.add_byte_range_checks(&carry);
+                }
             }
+
             rows.push(row);
         }
 
@@ -728,21 +740,17 @@ where
             }
         }
 
-        // TODO: Range check all the bytes.
+        // Range check all the bytes.
         {
-            let words = [local.a, local.b, local.c, local.quotient, local.remainder];
+            builder.range_check_word(local.quotient, local.is_real);
+            builder.range_check_word(local.remainder, local.is_real);
+
             let long_words = [local.c_times_quotient, local.carry];
-
-            for word in words.iter() {
-                for _byte in word.0.iter() {
-                    // byte must be in [0, 255].
-                }
-            }
-
             for long_word in long_words.iter() {
-                for _byte in long_word.iter() {
-                    // byte must be in [0, 255].
-                }
+                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                builder.range_check_word(Word(first_half), local.is_real);
+                builder.range_check_word(Word(second_half), local.is_real);
             }
         }
 
@@ -870,7 +878,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

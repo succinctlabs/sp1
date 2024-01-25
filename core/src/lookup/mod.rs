@@ -152,11 +152,19 @@ pub fn debug_interactions_with_all_chips(
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
         if !value.is_zero() {
-            tracing::debug!("Key {} Value {}", key, value);
+            tracing::debug!(
+                "Interaction key: {} Send-Receive Discrepancy: {}",
+                key,
+                value
+            );
             any_nonzero = true;
             for count in counts.iter() {
                 if count.0.contains_key(&key) {
-                    tracing::debug!("{} chip's value for this key is {}", count.1, count.0[&key]);
+                    tracing::debug!(
+                        "{} chip's send-receive discrepancy for this key is {}",
+                        count.1,
+                        count.0[&key]
+                    );
                 }
             }
         }
@@ -168,6 +176,7 @@ pub fn debug_interactions_with_all_chips(
     } else {
         tracing::debug!("Positive values mean sent more than received.");
         tracing::debug!("Negative values mean received more than sent.");
+        tracing::debug!("Every discrepancy is mod 2013265921. e.g., 2013265919 = -2");
     }
 
     !any_nonzero

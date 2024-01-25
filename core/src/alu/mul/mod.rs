@@ -165,13 +165,14 @@ impl<F: PrimeField> Chip<F> for MulChip {
             // Calculate the correct product using the `product` array. We
             // store the correct carry value for verification.
             let base = 1 << BYTE_SIZE;
+            let mut carry = [0u32; PRODUCT_SIZE];
             for i in 0..PRODUCT_SIZE {
-                let carry = product[i] / base;
+                carry[i] = product[i] / base;
                 product[i] %= base;
                 if i + 1 < PRODUCT_SIZE {
-                    product[i + 1] += carry;
+                    product[i + 1] += carry[i];
                 }
-                cols.carry[i] = F::from_canonical_u32(carry);
+                cols.carry[i] = F::from_canonical_u32(carry[i]);
             }
 
             cols.product = product.map(F::from_canonical_u32);
@@ -183,6 +184,12 @@ impl<F: PrimeField> Chip<F> for MulChip {
             cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
             cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
             cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+
+            // Range check.
+            {
+                segment.add_byte_range_checks(&carry.map(|x| x as u8));
+                segment.add_byte_range_checks(&product.map(|x| x as u8));
+            }
 
             rows.push(row);
         }
@@ -341,9 +348,18 @@ where
                 + local.is_mulhsu * mulhsu
         };
 
+        // Range check.
+        {
+            for long_word in [local.carry, local.product].iter() {
+                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                builder.range_check_word(Word(first_half), local.is_real);
+                builder.range_check_word(Word(second_half), local.is_real);
+            }
+        }
+
         // Receive the arguments.
         builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
-        // TODO: Range check the carry column.
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(
@@ -427,7 +443,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

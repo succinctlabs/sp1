@@ -1,12 +1,12 @@
 use super::cols::cpu_cols::{AUIPCColumns, BranchColumns, JumpColumns, CPU_COL_MAP, NUM_CPU_COLS};
-use super::{CpuChip, CpuEvent, MemoryRecord};
+use super::{CpuChip, CpuEvent};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::cols::cpu_cols::{CpuCols, MemoryColumns};
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
-use crate::runtime::{AccessPosition, Opcode, Segment};
+use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
 use core::mem::transmute;
@@ -68,60 +68,28 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        let current_a_record = MemoryRecord {
-            value: event.a,
-            segment: event.segment,
-            timestamp: event.clk + AccessPosition::A as u32,
-        };
-        self.populate_access(
-            &mut cols.op_a_access,
-            current_a_record,
-            event.a_record,
-            new_field_events,
-        );
-
-        let current_b_record = MemoryRecord {
-            value: event.b,
-            segment: event.segment,
-            timestamp: event.clk + AccessPosition::B as u32,
-        };
-        self.populate_access(
-            &mut cols.op_b_access,
-            current_b_record,
-            event.b_record,
-            new_field_events,
-        );
-
-        let current_c_record = MemoryRecord {
-            value: event.c,
-            segment: event.segment,
-            timestamp: event.clk + AccessPosition::C as u32,
-        };
-        self.populate_access(
-            &mut cols.op_c_access,
-            current_c_record,
-            event.c_record,
-            new_field_events,
-        );
+        cols.op_a_access.value = event.a.into();
+        cols.op_b_access.value = event.b.into();
+        cols.op_c_access.value = event.c.into();
+        if let Some(record) = event.a_record {
+            cols.op_a_access.populate(record, new_field_events)
+        }
+        if let Some(record) = event.b_record {
+            cols.op_b_access.populate(record, new_field_events)
+        }
+        if let Some(record) = event.c_record {
+            cols.op_c_access.populate(record, new_field_events)
+        }
 
         // If there is a memory record, then event.memory should be set and vice-versa.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
 
         let memory_columns: &mut MemoryColumns<F> =
             unsafe { transmute(&mut cols.opcode_specific_columns) };
-        if let Some(memory) = event.memory {
-            let current_mem_record = MemoryRecord {
-                value: memory,
-                segment: event.segment,
-                timestamp: event.clk + AccessPosition::Memory as u32,
-            };
-
-            self.populate_access(
-                &mut memory_columns.memory_access,
-                current_mem_record,
-                event.memory_record,
-                new_field_events,
-            )
+        if let Some(record) = event.memory_record {
+            memory_columns
+                .memory_access
+                .populate(record, new_field_events)
         }
 
         self.populate_memory(cols, event, new_alu_events, new_blu_events);
@@ -178,7 +146,7 @@ impl CpuChip {
             memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
 
             // If it is a load instruction, set the unsigned_mem_val column
-            let mem_value = event.memory_record.unwrap().value;
+            let mem_value = event.memory_record.unwrap().value();
             if matches!(
                 event.instruction.opcode,
                 Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
@@ -558,7 +526,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

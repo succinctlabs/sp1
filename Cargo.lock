@@ -474,15 +474,15 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.31"
+version = "0.4.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
+checksum = "41daef31d7a747c5c847246f36de49ced6f7403b4cdabc807a97b5cc184cda7a"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
  "num-traits",
  "serde",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.0",
 ]
 
 [[package]]
@@ -739,6 +739,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve25519-dalek"
+version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "curve25519-dalek-derive",
+ "fiat-crypto",
+ "platforms",
+ "rustc_version 0.4.0",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+]
+
+[[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -749,6 +776,14 @@ dependencies = [
  "rand_core",
  "subtle-ng",
  "zeroize",
+]
+
+[[package]]
+name = "cycle-tracker"
+version = "0.1.0"
+dependencies = [
+ "succinct-derive",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -1029,11 +1064,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fiat-crypto"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27573eac26f4dd11e2b1916c3fe1baa56407c83c71a773a8ba17ec0bca03b6b7"
+
+[[package]]
 name = "fibonacci"
 version = "0.1.0"
-dependencies = [
- "succinct-zkvm",
-]
 
 [[package]]
 name = "filetime"
@@ -1912,7 +1950,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1921,7 +1959,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "rand",
@@ -1931,7 +1969,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "p3-symmetric",
@@ -1940,7 +1978,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1951,7 +1989,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1962,7 +2000,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "itertools 0.12.0",
  "p3-util",
@@ -1973,7 +2011,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "itertools 0.12.0",
  "p3-challenger",
@@ -1990,7 +2028,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -2001,7 +2039,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2011,7 +2049,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -2020,7 +2058,7 @@ dependencies = [
 [[package]]
 name = "p3-ldt"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "itertools 0.12.0",
  "p3-challenger",
@@ -2037,18 +2075,19 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
  "p3-util",
  "rand",
+ "serde",
 ]
 
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "rayon",
 ]
@@ -2056,7 +2095,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -2072,7 +2111,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "itertools 0.12.0",
  "p3-commit",
@@ -2088,7 +2127,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "criterion",
  "itertools 0.12.0",
@@ -2104,7 +2143,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -2118,7 +2157,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "itertools 0.12.0",
  "p3-field",
@@ -2127,7 +2166,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "itertools 0.12.0",
  "p3-air",
@@ -2145,7 +2184,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#b1f9ef8427e4ff10028814d5d18084c494e1fd4d"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#5a913246abc8b27267c8c5f11f5a11ddd6955d34"
 dependencies = [
  "serde",
 ]
@@ -2251,6 +2290,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2900ede94e305130c13ddd391e0ab7cbaeb783945ae07a279c268cb05109c6cb"
 
 [[package]]
+name = "platforms"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "626dec3cac7cc0e1577a2ec3fc496277ec2baa084bebad95bb6fdbfae235f84c"
+
+[[package]]
 name = "plotters"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2341,9 +2386,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.76"
+version = "1.0.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95fc56cda0b5c3325f5fbbd7ff9fda9e02bb00bb3dac51252d2f1bfa1cb8cc8c"
+checksum = "e2422ad645d89c99f8f3e6b88a9fdeca7fabeac836b1002371c4367c8f984aae"
 dependencies = [
  "unicode-ident",
 ]
@@ -2502,13 +2547,13 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.10.2"
+version = "1.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "380b951a9c5e80ddfd6136919eef32310721aa4aacd4889a8d39124b026ab343"
+checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.3",
+ "regex-automata 0.4.4",
  "regex-syntax 0.8.2",
 ]
 
@@ -2523,9 +2568,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f804c7828047e88b2d32e2d7fe5a105da8ee3264f01902f796c8e067dc2483f"
+checksum = "3b7fa1134405e2ec9353fd416b17f8dacd46c473d7d3fd1cf202706a14eb792a"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -2918,9 +2963,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.4.0"
+version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64cd236ccc1b7a29e7e2739f27c0b2dd199804abc4290e32f59f3b68d6405c23"
+checksum = "f58c3a1b3e418f61c25b2aeb43fc6c95eaa252b8cecdda67f401943e9e08d33f"
 dependencies = [
  "base64",
  "chrono",
@@ -2935,9 +2980,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.4.0"
+version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93634eb5f75a2323b16de4748022ac4297f9e76b6dced2be287a099f41b5e788"
+checksum = "d2068b437a31fc68f25dd7edc296b078f04b45145c199d8eed9866e45f1ff274"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -3161,8 +3206,10 @@ dependencies = [
  "bincode",
  "clap",
  "criterion",
+ "curve25519-dalek",
  "elf",
  "env_logger",
+ "hex",
  "itertools 0.12.0",
  "log",
  "nohash-hasher",
@@ -3194,6 +3241,15 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "valida-derive",
+]
+
+[[package]]
+name = "succinct-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -3703,7 +3759,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 [[package]]
 name = "valida-derive"
 version = "0.1.0"
-source = "git+https://github.com/valida-xyz/valida.git#50f0505e336a1d5988b6d9075da4ca22c682986c"
+source = "git+https://github.com/valida-xyz/valida.git#301943132f1e9fa4c1dd109752add72888b7747e"
 dependencies = [
  "proc-macro2",
  "quote",

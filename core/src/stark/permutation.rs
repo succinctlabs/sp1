@@ -1,27 +1,26 @@
+use std::ops::{Add, Mul};
+
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder, VirtualPairCol};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::utils::Chip;
+use crate::{lookup::Interaction, utils::Chip};
 
 use super::util::batch_multiplicative_inverse;
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-fn generate_interaction_rlc_elements<C, F: PrimeField, EF: AbstractExtensionField<F>>(
-    chip: &C,
+pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>>(
+    interactions: &[Interaction<F>],
     random_element: EF,
-) -> Vec<EF>
-where
-    C: Chip<F> + ?Sized,
-{
+) -> Vec<EF> {
     random_element
         .powers()
         .skip(1)
         .take(
-            chip.all_interactions()
-                .into_iter()
+            interactions
+                .iter()
                 .map(|interaction| interaction.argument_index())
                 .max()
                 .unwrap_or(0)
@@ -43,7 +42,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     let all_interactions = chip.all_interactions();
 
     // Generate the RLC elements to uniquely identify each interaction.
-    let alphas = generate_interaction_rlc_elements(chip, random_elements[0]);
+    let alphas = generate_interaction_rlc_elements(&all_interactions, random_elements[0]);
 
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
@@ -126,8 +125,10 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 ///     - The running sum column ends at the (currently) given cumalitive sum.
 pub fn eval_permutation_constraints<F, C, AB>(chip: &C, builder: &mut AB, cumulative_sum: AB::EF)
 where
-    F: PrimeField,
+    F: Field,
     C: Chip<F> + Air<AB> + ?Sized,
+    AB::EF: ExtensionField<F>,
+    AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
     AB: PermutationAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
@@ -151,23 +152,23 @@ where
 
     let all_interactions = chip.all_interactions();
 
-    let alphas = generate_interaction_rlc_elements(chip, alpha);
+    let alphas = generate_interaction_rlc_elements(&all_interactions, alpha);
     let betas = beta.powers();
 
-    let lhs = phi_next - phi_local;
-    let mut rhs = AB::ExprEF::from_base(AB::Expr::zero());
-    let mut phi_0 = AB::ExprEF::from_base(AB::Expr::zero());
+    let lhs: AB::ExprEF = phi_next.into() - phi_local.into();
+    let mut rhs = AB::ExprEF::zero();
+    let mut phi_0 = AB::ExprEF::zero();
 
     let nb_send_iteractions = chip.sends().len();
     for (m, interaction) in all_interactions.iter().enumerate() {
         // Ensure that the recipricals of the RLC's were properly calculated.
-        let mut rlc = AB::ExprEF::from_base(AB::Expr::zero());
+        let mut rlc = AB::ExprEF::zero();
         for (field, beta) in interaction.values.iter().zip(betas.clone()) {
             let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
-            rlc += AB::ExprEF::from(beta) * elem;
+            rlc += AB::ExprEF::from_f(beta) * elem;
         }
-        rlc = rlc + alphas[interaction.argument_index()];
-        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m]);
+        rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
+        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m].into());
 
         let mult_local = interaction
             .multiplicity
@@ -178,11 +179,11 @@ where
 
         // Ensure that the running sum is computed correctly.
         if m < nb_send_iteractions {
-            phi_0 += AB::ExprEF::from_base(mult_local) * perm_local[m];
-            rhs += AB::ExprEF::from_base(mult_next) * perm_next[m];
+            phi_0 += perm_local[m].into() * mult_local;
+            rhs += perm_next[m].into() * mult_next;
         } else {
-            phi_0 -= AB::ExprEF::from_base(mult_local) * perm_local[m];
-            rhs -= AB::ExprEF::from_base(mult_next) * perm_next[m];
+            phi_0 -= perm_local[m].into() * mult_local;
+            rhs -= perm_next[m].into() * mult_next;
         }
     }
 
@@ -195,7 +196,7 @@ where
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
     builder.when_last_row().assert_eq_ext(
         *perm_local.last().unwrap(),
-        AB::ExprEF::from(cumulative_sum),
+        AB::ExprEF::from_f(cumulative_sum),
     );
 }
 

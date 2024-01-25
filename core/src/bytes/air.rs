@@ -2,8 +2,8 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::{AbstractField, ExtensionField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
@@ -56,13 +56,16 @@ pub struct ByteCols<T> {
     pub multiplicities: [T; NUM_BYTE_OPS],
 }
 
-impl<F: Field> BaseAir<F> for ByteChip<F> {
+impl<EF: ExtensionField<F>, F: Field> BaseAir<EF> for ByteChip<F> {
     fn width(&self) -> usize {
         NUM_BYTE_COLS
     }
 }
 
-impl<AB: CurtaAirBuilder> Air<AB> for ByteChip<AB::F> {
+impl<AB: CurtaAirBuilder, F: Field> Air<AB> for ByteChip<F>
+where
+    AB::F: ExtensionField<F>,
+{
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
