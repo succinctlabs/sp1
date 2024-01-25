@@ -17,11 +17,10 @@ use valida_derive::AlignedBorrow;
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct EdSqrtCols<T> {
-    /// The result of `sqrt(a)`.
-    pub result: Limbs<T>,
-
-    // The following columns are used to verify that the product of the result with itself is equal
-    // to the input.
+    /// The multiplication operation to verify that the sqrt and the input match.
+    ///
+    /// In order to save space, we actually store the sqrt of the input in `multiplication.result`
+    /// since we'll receive the input again in the `eval` function.
     pub multiplication: FpOpCols<T>,
 }
 
@@ -30,20 +29,18 @@ impl<F: Field> EdSqrtCols<F> {
     ///
     /// `P` is the parameter of the field that each limb lives in.
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
-        let result = ed25519_sqrt(a.clone());
-        println!("a = {}, result = {}", a, result);
+        let sqrt = ed25519_sqrt(a.clone());
+        println!("a = {}, result = {}", a, sqrt);
 
         // Use FpOpCols to compute result * result.
-        let result_squared = self.multiplication.populate::<Ed25519BaseField>(
-            &result,
-            &result,
+        let sqrt_squared = self.multiplication.populate::<Ed25519BaseField>(
+            &sqrt,
+            &sqrt,
             super::fp_op::FpOperation::Mul,
         );
 
-        self.result = P::to_limbs_field::<F>(&result);
-
         // If the result is indeed the square root of a, then result * result = a.
-        assert_eq!(result_squared, a.clone());
+        assert_eq!(sqrt_squared, a.clone());
 
         // Double check that `self.multiplication.result` is set correctly.
         let a_limbs = P::to_limbs_field::<F>(a);
@@ -51,7 +48,11 @@ impl<F: Field> EdSqrtCols<F> {
             assert_eq!(self.multiplication.result[i], a_limbs[i]);
         }
 
-        result
+        // This is a hack to save a column in EdSqrtCols. We will receive the value a again in the
+        // eval function, so we'll overwrite it with the sqrt.
+        self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
+
+        sqrt
     }
 }
 
@@ -62,12 +63,18 @@ impl<V: Copy> EdSqrtCols<V> {
     where
         V: Into<AB::Expr>,
     {
-        // Compute result * result. I'm not sure why, but this seems to fail. I pass in ed25519 base
-        // field since i want that to be the mod.
-        self.multiplication.eval::<AB, Ed25519BaseField>(
+        // As a space-saving hack, we store the sqrt of the input in `self.multiplication.result`
+        // even though it's technically not the result of the multiplication. Now, we should
+        // retrieve that value and overwrite that member variable with a.
+        let sqrt = self.multiplication.result;
+        let mut multiplication = self.multiplication.clone();
+        multiplication.result = *a;
+
+        // Compute sqrt * sqrt. We pass in ed25519 base field since we want that to be the mod.
+        multiplication.eval::<AB, Ed25519BaseField>(
             builder,
-            &self.result.clone(),
-            &self.result.clone(),
+            &sqrt,
+            &sqrt,
             super::fp_op::FpOperation::Mul,
         );
 
