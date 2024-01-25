@@ -29,7 +29,7 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 15;
+pub const NUM_CHIPS: usize = 16;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -51,7 +51,7 @@ impl Runtime {
         let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();      
+        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         let keccak_permute = KeccakPermuteChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
@@ -62,6 +62,7 @@ impl Runtime {
             Box::new(sha_extend),
             Box::new(sha_compress),
             Box::new(ed_add),
+            Box::new(keccak_permute),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -70,9 +71,6 @@ impl Runtime {
             Box::new(shift_right),
             Box::new(shift_left),
             Box::new(lt),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            Box::new(keccak_permute),
             Box::new(field),
             Box::new(bytes),
         ]
