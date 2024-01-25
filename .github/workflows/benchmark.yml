@@ -49,3 +49,4 @@ jobs:
           fail-on-alert: true
           comment-on-alert: true
           summary-always: true
+          skip-fetch-gh-pages: true
