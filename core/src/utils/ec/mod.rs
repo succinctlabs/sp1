@@ -10,7 +10,12 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::ops::{Add, Neg};
 
+use crate::air::WORD_SIZE;
 use crate::operations::field::params::NUM_LIMBS;
+
+pub const NUM_WORDS_POINT: usize = 32;
+pub const COMPRESSED_POINT_BYTES: usize = 32;
+pub const COMPRESSED_POINT_WORDS: usize = COMPRESSED_POINT_BYTES / WORD_SIZE;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffinePoint<E> {

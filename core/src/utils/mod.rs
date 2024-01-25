@@ -8,22 +8,20 @@ use p3_uni_stark::StarkConfig;
 pub use prove::*;
 pub use tracer::*;
 
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     cpu::cols::cpu_cols::MemoryAccessCols,
     lookup::{Interaction, InteractionBuilder},
-    operations::field::params::{Limbs, NUM_LIMBS},
+    operations::field::params::Limbs,
     runtime::Segment,
     stark::{
         folder::{ProverConstraintFolder, VerifierConstraintFolder},
         DebugConstraintBuilder,
     },
 };
-
-use self::ec::field::FieldParameters;
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
@@ -114,4 +112,26 @@ pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl F
     }
     let dummy_row = row_fn();
     rows.resize(padded_nb_rows, dummy_row);
+}
+
+/// Converts a slice of words to a byte array in little endian.
+pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
+    debug_assert_eq!(words.len() * 4, B);
+    words
+        .iter()
+        .flat_map(|word| word.to_le_bytes().to_vec())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
+}
+
+/// Converts a byte array in little endian to a slice of words.
+pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
+    debug_assert_eq!(bytes.len(), W * 4);
+    bytes
+        .chunks_exact(4)
+        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
 }

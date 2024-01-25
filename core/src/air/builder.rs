@@ -1,4 +1,5 @@
 use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
+use tracing_subscriber::field::debug;
 
 use super::bool::Bool;
 use super::interaction::AirInteraction;
@@ -16,6 +17,23 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
     /// Returns a sub-builder whose constraints are enforced only when condition is one.
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
+    }
+
+    // assert iter is eq
+    fn assert_all_eq<
+        I1: Into<Self::Expr>,
+        I2: Into<Self::Expr>,
+        I1I: IntoIterator<Item = I1> + Copy,
+        I2I: IntoIterator<Item = I2> + Copy,
+    >(
+        &mut self,
+        left: I1I,
+        right: I2I,
+    ) {
+        debug_assert_eq!(left.into_iter().count(), right.into_iter().count());
+        for (left, right) in left.into_iter().zip(right) {
+            self.assert_eq(left, right);
+        }
     }
 }
 

@@ -1,19 +1,23 @@
+use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::WORD_SIZE;
 use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryRecordEnum;
 use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
+use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::COMPRESSED_POINT_BYTES;
+use crate::utils::ec::COMPRESSED_POINT_WORDS;
+use crate::utils::ec::NUM_WORDS_POINT;
 use crate::utils::limbs_from_access;
 use crate::utils::pad_rows;
+use crate::utils::words_to_bytes_le;
 use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -31,12 +35,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-const COMPRESSED_POINT_BYTES: usize = 32;
-const COMPRESSED_POINT_WORDS: usize = COMPRESSED_POINT_BYTES / WORD_SIZE;
-
-// TODO: this should be moved to utils/ec/utils.rs
-const AFFINE_POINT_WORDS: usize = 2 * COMPRESSED_POINT_WORDS;
-
 #[derive(Debug, Clone, Copy)]
 pub struct EdDecompressEvent {
     pub segment: u32,
@@ -51,19 +49,19 @@ pub struct EdDecompressEvent {
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
 
-/// A set of columns to compute `EdDecompress` where a, b are field elements.
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
-/// or made generic in the future.
+/// A set of columns to compute `EdDecompress` given a pointer to a 16 word slice formatted as such:
+/// The 31st byte of the slice is the sign bit. The second half of the slice is the 255-bit
+/// compressed Y (without sign bit).
+///
+/// After `EdDecompress`, the first 32 bytes of the slice are overwritten with the decompressed X.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct EdDecompressCols<T> {
     pub is_real: T,
     pub segment: T,
     pub clk: T,
-    // ptr points to a 16 word slice of memory. The last 8 words are the compressed y point.
-    // The bit right before the last 8 words is the sign bit.
     pub ptr: T,
-    pub x_access: [MemoryAccessCols<T>; COMPRESSED_POINT_WORDS],
+    pub x_access: [MemoryAccessCols<T>; NUM_WORDS_POINT],
     pub y_access: [MemoryAccessCols<T>; COMPRESSED_POINT_WORDS],
     pub(crate) yy: FpOpCols<T>,
     pub(crate) u: FpOpCols<T>,
@@ -86,26 +84,16 @@ impl<F: Field> EdDecompressCols<F> {
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         for i in 0..COMPRESSED_POINT_WORDS {
-            self.x_access[i].populate(
-                MemoryRecordEnum::Write(event.x_memory_records[i]),
-                &mut new_field_events,
-            );
+            self.x_access[i].populate_write(event.x_memory_records[i], &mut new_field_events);
         }
         for i in 0..COMPRESSED_POINT_WORDS {
-            self.y_access[i].populate(
-                MemoryRecordEnum::Read(event.y_memory_records[i]),
-                &mut new_field_events,
-            );
+            self.y_access[i].populate_read(event.y_memory_records[i], &mut new_field_events);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_fp_ops::<P, E>(y);
 
         segment.field_events.append(&mut new_field_events);
-
-        // As a sanity check, we should check that
-        // q_access is set properly to the decompressed point, which is if sign: neg_x, else x.
-        // Otherwise the eval will fail.
     }
 
     fn populate_fp_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
@@ -131,6 +119,7 @@ impl<V: Copy> EdDecompressCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
+        // Get the 31st byte of the slice, which should be the sign bit.
         let sign: AB::Expr =
             self.x_access[COMPRESSED_POINT_WORDS - 1].prev_value[WORD_SIZE - 1].into();
         builder.assert_bool(sign.clone());
@@ -138,7 +127,6 @@ impl<V: Copy> EdDecompressCols<V> {
         let y = limbs_from_access(&self.y_access);
         self.yy
             .eval::<AB, P, _, _>(builder, &y, &y, FpOperation::Sub);
-        // let const_poly = Polynomial::from_coefficients(vec![AB::Expr::one()]);
         self.u.eval::<AB, P, _, _>(
             builder,
             &self.yy.result,
@@ -174,16 +162,15 @@ impl<V: Copy> EdDecompressCols<V> {
             FpOperation::Sub,
         );
 
-        for i in 0..NUM_LIMBS {
-            builder
-                .when(self.is_real.clone())
-                .when(sign.clone())
-                .assert_eq(self.neg_x.result[i], self.x_access[i / 4].value[i % 4]);
-            builder
-                .when(self.is_real.clone())
-                .when(AB::Expr::one() - sign.clone())
-                .assert_eq(self.x.result[i], self.x_access[i / 4].value[i % 4]);
-        }
+        let x_limbs = limbs_from_access(&self.x_access);
+        builder
+            .when(self.is_real)
+            .when(sign.clone())
+            .assert_all_eq(self.neg_x.result, x_limbs);
+        builder
+            .when(self.is_real)
+            .when(AB::Expr::one() - sign.clone())
+            .assert_all_eq(self.x.result, x_limbs);
     }
 }
 
@@ -200,51 +187,42 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         let a0 = crate::runtime::Register::X10;
-        let a1 = crate::runtime::Register::X11;
 
         let start_clk = rt.clk;
 
-        // TODO: these will have to be be constrained, but can do it later.
+        // TODO: this will have to be be constrained, but can do it later.
         let slice_ptr = rt.register_unsafe(a0);
         if slice_ptr % 4 != 0 {
             panic!();
         }
 
-        let slice: [u32; 16] = rt.slice_unsafe(slice_ptr, 16).try_into().unwrap();
-        let (y_memory_records_vec, y_vec) = rt.mr_slice(slice_ptr + 32, 8);
+        let (y_memory_records_vec, y_vec) = rt.mr_slice(
+            slice_ptr + (COMPRESSED_POINT_BYTES as u32),
+            COMPRESSED_POINT_WORDS,
+        );
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
 
-        let mut slice_bytes = [0u8; 64];
-        for i in 0..16 {
-            let word = slice[i];
-            slice_bytes[4 * i..4 * (i + 1)].copy_from_slice(&word.to_le_bytes());
-        }
-
-        let sign = slice_bytes[31];
+        // This unsafe read is okay because we do mw_slice into the first 8 words later.
+        let sign = rt.byte_unsafe(slice_ptr + (COMPRESSED_POINT_BYTES as u32) - 1);
         let sign_bool = sign != 0;
 
-        // Separate y_bytes array with readded sign bit for CompressedEdwardsY format
-        let mut y_bytes = [0_u8; 32];
-        y_bytes.copy_from_slice(&slice_bytes[32..]);
-        y_bytes[31] &= 0b0111_1111;
-        y_bytes[31] |= sign << 7;
+        println!("sign: {}", sign_bool);
 
-        // println!("y_bytes: {:?}", y_bytes);
-        // println!("sign: {:?}", sign_bool);
+        let mut y_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&y_vec);
+        // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
+        y_bytes[y_bytes.len() - 1] &= 0b0111_1111;
+        y_bytes[y_bytes.len() - 1] |= (sign as u8) << 7;
 
+        // Compute actual decompressed X
         let compressed_y = CompressedEdwardsY(y_bytes);
         let decompressed = decompress(&compressed_y);
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
         decompressed_x_bytes.resize(32, 0u8);
-        // println!("decompressed: {:?}", decompressed_x_bytes);
-        let mut decompressed_x_words = [0_u32; 8];
-        for i in 0..8 {
-            let word =
-                u32::from_le_bytes(decompressed_x_bytes[4 * i..4 * (i + 1)].try_into().unwrap());
-            decompressed_x_words[i] = word;
-        }
+        let decompressed_x_words: [u32; COMPRESSED_POINT_WORDS] =
+            bytes_to_words_le(&decompressed_x_bytes);
 
+        // Write decompressed X into slice
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records = x_memory_records_vec.try_into().unwrap();
 
@@ -256,7 +234,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
                 clk: start_clk,
                 ptr: slice_ptr,
                 sign: sign_bool,
-                y_bytes: slice_bytes[32..].try_into().unwrap(),
+                y_bytes,
                 decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
                 x_memory_records,
                 y_memory_records,
@@ -315,15 +293,10 @@ where
     }
 }
 
-// TODO: MIGRATE TESTS FOR THE ED_DECOMPRESS FROM THE OLD AIR:
-// https://github.com/succinctlabs/curta/blob/ebbd97c0f4f91bfa792fa5746e1d3f5334316189/curta/src/chip/ec/edwards/ed25519/decompress.rs#L99
-
 #[cfg(test)]
 pub mod tests {
 
     use curve25519_dalek::edwards::CompressedEdwardsY;
-    use tracing::Level;
-    use tracing_subscriber::EnvFilter;
 
     use crate::utils::ec::edwards::ed25519::decompress;
     use crate::{runtime::Program, utils::prove};
@@ -343,7 +316,7 @@ pub mod tests {
     #[test]
     fn test_ed_add2() {
         tracing_subscriber::fmt::init();
-        let program = Program::from_elf("/Users/ctian/Documents/workspace/curta-vm/target/riscv32im-risc0-zkvm-elf/release/tendermint");
+        let program = Program::from_elf("/Users/ctian/Documents/workspace/curta-vm/target/riscv32im-risc0-zkvm-elf/release/ed_decompress");
         prove(program);
     }
 }

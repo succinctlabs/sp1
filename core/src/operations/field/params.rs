@@ -21,6 +21,15 @@ impl<T> Index<usize> for Limbs<T> {
     }
 }
 
+impl<T> IntoIterator for Limbs<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, NUM_LIMBS>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 impl<Var: Into<Expr> + Clone, Expr: Clone> From<Limbs<Var>> for Polynomial<Expr> {
     fn from(value: Limbs<Var>) -> Self {
         Polynomial::from_coefficients_slice(
