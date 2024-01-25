@@ -35,8 +35,3 @@ p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", branch = "v0.9.8" }
 # Patch time because newer version breaks with older toolchains
 time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
-ed25519-consensus = { path = "../ed25519-consensus-private" }
-
-# [patch."https://github.com/penumbra-zone/ed25519-consensus.git"]
-# [patch."https://github.com/penumbra-zone/ed25519-consensus.git"]
-# ed25519-consensus = { git = "ssh://git@github.com/succinctlabs/ed25519-consensus-private.git", branch = "tamir/zkvm" }

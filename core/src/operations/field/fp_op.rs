@@ -20,7 +20,6 @@ pub enum FpOperation {
     Mul,
     Sub,
     Div, // We don't constrain that the divisor is non-zero.
-         // Sqrt,
 }
 
 /// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
