@@ -324,11 +324,24 @@ where
 #[cfg(test)]
 pub mod tests {
 
+    use tracing::Level;
+
     use crate::{runtime::Program, utils::prove};
 
     #[test]
-    fn test_ed_add() {
-        let program = Program::from_elf("../programs/ed_add");
+    fn test_ed_add3() {
+        tracing_subscriber::fmt::init();
+        // let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        //     // All events at or above DEBUG level will be logged
+        //     .with_max_level(Level::TRACE)
+        //     .finish();
+
+        // Set the subscriber as the global default
+        // tracing::subscriber::set_global_default(subscriber)
+        //     .expect("setting default subscriber failed");
+
+        tracing::debug!("hi");
+        let program = Program::from_elf("../programs/ed25519");
         prove(program);
     }
 }

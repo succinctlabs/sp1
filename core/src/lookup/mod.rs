@@ -7,6 +7,7 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
+use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField64;
 use p3_fri::{FriBasedPcs, FriConfigImpl};
@@ -22,6 +23,7 @@ use p3_uni_stark::StarkConfigImpl;
 
 use std::collections::BTreeMap;
 use std::fmt::Debug;
+use std::fmt::Display;
 mod builder;
 
 pub use builder::InteractionBuilder;
@@ -61,6 +63,20 @@ pub enum InteractionKind {
     Range = 6,
     /// Interaction with the field op table for field operations.
     Field = 7,
+}
+
+impl Display for InteractionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InteractionKind::Memory => write!(f, "Memory"),
+            InteractionKind::Program => write!(f, "Program"),
+            InteractionKind::Instruction => write!(f, "Instruction"),
+            InteractionKind::Alu => write!(f, "Alu"),
+            InteractionKind::Byte => write!(f, "Byte"),
+            InteractionKind::Range => write!(f, "Range"),
+            InteractionKind::Field => write!(f, "Field"),
+        }
+    }
 }
 
 impl<F: Field> Interaction<F> {
@@ -149,32 +165,32 @@ pub fn debug_interactions_with_all_chips(
     let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
     let mut final_map = BTreeMap::new();
 
+    let mut segment = segment.clone();
+
     for chip in segment_chips {
-        let (_, count) = debug_interactions::<BabyBear>(
-            chip.as_ref(),
-            &mut segment.clone(),
-            interaction_kinds.clone(),
-        );
+        let (_, count) =
+            debug_interactions::<BabyBear>(chip.as_ref(), &mut segment, interaction_kinds.clone());
 
         counts.push((count.clone(), chip.name()));
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
-            *final_map.entry(key.clone()).or_insert(0) += babybear_to_int(*value);
+            *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
         }
     }
 
     if let Some(global_segment) = global_segment {
+        let mut global_segment = global_segment.clone();
         for chip in global_chips {
             let (_, count) = debug_interactions::<BabyBear>(
                 chip.as_ref(),
-                &mut global_segment.clone(),
+                &mut global_segment,
                 interaction_kinds.clone(),
             );
 
             counts.push((count.clone(), chip.name()));
             tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
             for (key, value) in count.iter() {
-                *final_map.entry(key.clone()).or_insert(0) += babybear_to_int(*value);
+                *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
             }
         }
     }
@@ -184,19 +200,19 @@ pub fn debug_interactions_with_all_chips(
 
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
-        if value != 0 {
+        if !BabyBear::is_zero(&value) {
             tracing::debug!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,
-                value
+                babybear_to_int(value)
             );
             any_nonzero = true;
             for count in counts.iter() {
                 if count.0.contains_key(&key) {
                     tracing::debug!(
-                        "{} chip's send-receive discrepancy for this key is {}",
+                        " {} chip's send-receive discrepancy for this key is {}",
                         count.1,
-                        count.0[&key]
+                        babybear_to_int(count.0[&key])
                     );
                 }
             }
@@ -249,7 +265,11 @@ pub fn debug_interactions<F: Field>(
                     let expr = value.apply::<F, F>(&[], main.row_mut(row));
                     values.push(expr);
                 }
-                let key = vec_to_string(values);
+                let key = format!(
+                    "{} {}",
+                    &interaction.kind.to_string(),
+                    vec_to_string(values)
+                );
                 key_to_vec_data
                     .entry(key.clone())
                     .or_insert_with(Vec::new)
