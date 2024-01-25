@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -21,7 +23,10 @@ use super::{
 
 impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        let num_rows = (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
+        let num_rows = max(
+            (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two(),
+            4,
+        );
         let mut trace =
             RowMajorMatrix::new(vec![F::zero(); num_rows * NUM_KECCAK_COLS], NUM_KECCAK_COLS);
 

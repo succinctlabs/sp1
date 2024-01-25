@@ -69,7 +69,7 @@ pub mod permute_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 104, false, true),
+            Instruction::new(Opcode::ADD, 5, 0, 105, false, true),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
             Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
