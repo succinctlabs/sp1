@@ -683,13 +683,16 @@ impl Runtime {
                         a = 0;
                     }
                     Syscall::ED_ADD => {
-                        a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::execute(
+                        a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::execute(
                             &mut precompile_rt,
                         );
                         self.clk = precompile_rt.clk;
                         assert_eq!(
                             init_clk
-                                + EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::NUM_CYCLES,
+                                + EdAddAssignChip::<
+                                    EdwardsCurve<Ed25519Parameters>,
+                                    Ed25519Parameters,
+                                >::NUM_CYCLES,
                             self.clk
                         );
                     }

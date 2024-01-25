@@ -50,7 +50,7 @@ impl Runtime {
         let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
+        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.

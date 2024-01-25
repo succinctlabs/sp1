@@ -700,21 +700,6 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.1"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive 0.1.1",
- "digest 0.10.7",
- "fiat-crypto",
- "platforms",
- "rustc_version 0.4.0",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek"
-version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c"
 dependencies = [
@@ -729,8 +714,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve25519-dalek"
+version = "4.1.1"
+source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "curve25519-dalek-derive 0.1.1 (git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00)",
+ "digest 0.10.7",
+ "fiat-crypto",
+ "platforms",
+ "rustc_version 0.4.0",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -740,8 +743,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
+source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -923,8 +925,9 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.0"
+source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
 dependencies = [
- "curve25519-dalek 4.1.1",
+ "curve25519-dalek 4.1.1 (git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00)",
  "ed25519 2.2.3",
  "serde",
  "sha2 0.10.8",

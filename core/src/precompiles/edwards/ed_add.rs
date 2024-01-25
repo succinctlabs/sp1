@@ -69,11 +69,11 @@ pub struct EdAddAssignCols<T> {
     pub(crate) y3_ins: FpDenCols<T>,
 }
 
-pub struct EdAddAssignChip<E> {
-    _marker: PhantomData<E>,
+pub struct EdAddAssignChip<E, EP> {
+    _marker: PhantomData<(E, EP)>,
 }
 
-impl<E: EllipticCurve> EdAddAssignChip<E> {
+impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
     pub const NUM_CYCLES: u32 = 8;
 
     pub fn new() -> Self {
@@ -152,7 +152,7 @@ impl<E: EllipticCurve> EdAddAssignChip<E> {
             .f
             .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-        let d = Ed25519Parameters::d_biguint();
+        let d = EP::d_biguint();
         let d_mul_f = cols
             .d_mul_f
             .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
@@ -164,7 +164,7 @@ impl<E: EllipticCurve> EdAddAssignChip<E> {
     }
 }
 
-impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
+impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignChip<E, EP> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
@@ -236,13 +236,13 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
     }
 }
 
-impl<F, E: EllipticCurve> BaseAir<F> for EdAddAssignChip<E> {
+impl<F, E: EllipticCurve, EP: EdwardsParameters> BaseAir<F> for EdAddAssignChip<E, EP> {
     fn width(&self) -> usize {
         NUM_ED_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve> Air<AB> for EdAddAssignChip<E>
+impl<AB, E: EllipticCurve, EP: EdwardsParameters> Air<AB> for EdAddAssignChip<E, EP>
 where
     AB: CurtaAirBuilder,
 {
