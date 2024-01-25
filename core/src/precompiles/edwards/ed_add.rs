@@ -10,9 +10,12 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
+use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
+use crate::utils::limbs_from_access;
 use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -40,9 +43,6 @@ pub struct EdAddEvent {
     pub q_memory_records: [MemoryReadRecord; 16],
 }
 
-// NUM_LIMBS = 32 -> 32 / 4 = 8 Words
-// 2 Limbs<> per affine point => 16 words
-
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.
@@ -69,21 +69,6 @@ pub struct EdAddAssignCols<T> {
     pub(crate) y3_ins: FpDenCols<T>,
 }
 
-impl<T: Copy> EdAddAssignCols<T> {
-    pub fn limbs_from_access(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
-        let vec = cols
-            .iter()
-            .flat_map(|access| access.prev_value.0)
-            .collect::<Vec<T>>();
-        assert_eq!(vec.len(), NUM_LIMBS);
-
-        let sized = vec
-            .try_into()
-            .unwrap_or_else(|_| panic!("failed to convert to limbs"));
-        Limbs(sized)
-    }
-}
-
 pub struct EdAddAssignChip<E> {
     _marker: PhantomData<E>,
 }
@@ -91,23 +76,10 @@ pub struct EdAddAssignChip<E> {
 impl<E: EllipticCurve> EdAddAssignChip<E> {
     pub const NUM_CYCLES: u32 = 8;
 
-    const D: [u16; 32] = [
-        30883, 4953, 19914, 30187, 55467, 16705, 2637, 112, 59544, 30585, 16505, 36039, 65139,
-        11119, 27886, 20995, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
-
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
         }
-    }
-
-    fn d_biguint() -> BigUint {
-        let mut modulus = BigUint::from(0_u32);
-        for (i, limb) in Self::D.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (16 * i);
-        }
-        modulus
     }
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
@@ -182,10 +154,10 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
             }
             let p = &event.p;
             let q = &event.q;
-            let p_x = BigUint::from_slice(&p[0..8]);
-            let p_y = BigUint::from_slice(&p[8..16]);
-            let q_x = BigUint::from_slice(&q[0..8]);
-            let q_y = BigUint::from_slice(&q[8..16]);
+            let p = AffinePoint::<E>::from_words_le(p);
+            let (p_x, p_y) = (p.x, p.y);
+            let q = AffinePoint::<E>::from_words_le(q);
+            let (q_x, q_y) = (q.x, q.y);
             let x3_numerator = cols
                 .x3_numerator
                 .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
@@ -202,22 +174,16 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
                 .f
                 .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-            let d = Self::d_biguint();
+            let d = Ed25519Parameters::d_biguint();
             let d_mul_f = cols
                 .d_mul_f
                 .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
 
-            let x3_ins = cols
-                .x3_ins
+            cols.x3_ins
                 .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
-            let y3_ins = cols
-                .y3_ins
+            cols.y3_ins
                 .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
 
-            let mut x3_limbs = x3_ins.to_bytes_le();
-            x3_limbs.resize(NUM_LIMBS, 0u8);
-            let mut y3_limbs = y3_ins.to_bytes_le();
-            y3_limbs.resize(NUM_LIMBS, 0u8);
             for i in 0..16 {
                 cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
             }
@@ -246,7 +212,7 @@ impl<F: Field, E: EllipticCurve> Chip<F> for EdAddAssignChip<E> {
             let f = cols
                 .f
                 .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
-            let d = Self::d_biguint();
+            let d = Ed25519Parameters::d_biguint();
             let d_mul_f = cols
                 .d_mul_f
                 .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
@@ -296,10 +262,10 @@ where
         let main = builder.main();
         let row: &EdAddAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let x1 = EdAddAssignCols::limbs_from_access(&row.p_access[0..8]);
-        let x2 = EdAddAssignCols::limbs_from_access(&row.q_access[0..8]);
-        let y1 = EdAddAssignCols::limbs_from_access(&row.p_access[8..16]);
-        let y2 = EdAddAssignCols::limbs_from_access(&row.q_access[8..16]);
+        let x1 = limbs_from_access(&row.p_access[0..8]);
+        let x2 = limbs_from_access(&row.q_access[0..8]);
+        let y1 = limbs_from_access(&row.p_access[8..16]);
+        let y2 = limbs_from_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         row.x3_numerator
@@ -311,22 +277,22 @@ where
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, E::BaseField>(builder, &x1, &y1, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &x1, &y1, FpOperation::Mul);
         row.x2_mul_y2
-            .eval::<AB, E::BaseField>(builder, &x2, &y2, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &x2, &y2, FpOperation::Mul);
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
         row.f
-            .eval::<AB, E::BaseField>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
         // d * f.
         let f = row.f.result;
-        let d_biguint = Self::d_biguint();
+        let d_biguint = Ed25519Parameters::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
         row.d_mul_f
-            .eval_expr::<AB, E::BaseField>(builder, &f, &d_const_expr, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FpOperation::Mul);
 
         let d_mul_f = row.d_mul_f.result;
 
@@ -374,5 +340,17 @@ where
                 row.is_real,
             );
         }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+
+    use crate::{runtime::Program, utils::prove};
+
+    #[test]
+    fn test_ed25519_verify() {
+        let program = Program::from_elf("../programs/ed_add");
+        prove(program);
     }
 }

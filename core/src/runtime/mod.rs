@@ -944,7 +944,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/ed25519")
+        Program::from_elf("../programs/fib_malloc.s")
     }
 
     pub fn ecall_lwa_program() -> Program {
@@ -965,6 +965,17 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_run() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
+        let program = fibonacci_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
+    }
+
+    #[test]
+    fn test_ed_add() {
         if env_logger::try_init().is_err() {
             debug!("Logger already initialized")
         }

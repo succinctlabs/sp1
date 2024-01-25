@@ -1,5 +1,7 @@
 use super::utils::biguint_from_limbs;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::params::NB_BITS_PER_LIMB;
+use crate::operations::field::params::NUM_LIMBS;
 use num::bigint::RandBigInt;
 use num::BigUint;
 use num::One;
@@ -8,8 +10,6 @@ use rand::rngs::OsRng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 
-pub const NB_BITS_PER_LIMB: usize = 8;
-pub const NUM_LIMBS: usize = 32;
 pub const MAX_NB_LIMBS: usize = 32;
 
 pub trait FieldParameters:

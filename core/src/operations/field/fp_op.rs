@@ -112,55 +112,28 @@ impl<F: Field> FpOpCols<F> {
 
 impl<V: Copy> FpOpCols<V> {
     #[allow(unused_variables)]
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<
+        AB: CurtaAirBuilder<Var = V>,
+        P: FieldParameters,
+        A: Into<Polynomial<AB::Expr>> + Clone,
+        B: Into<Polynomial<AB::Expr>> + Clone,
+    >(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
-        b: &Limbs<AB::Var>,
+        a: &A,
+        b: &B,
         op: FpOperation,
     ) where
         V: Into<AB::Expr>,
     {
-        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
-            FpOperation::Add | FpOperation::Mul => ((*a).into(), self.result.into()),
-            FpOperation::Sub => (self.result.into(), (*a).into()),
-        };
+        let p_a_param: Polynomial<AB::Expr> = (*a).clone().into();
+        let p_b: Polynomial<AB::Expr> = (*b).clone().into();
 
-        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).into();
+        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
+            FpOperation::Add | FpOperation::Mul => (p_a_param, self.result.into()),
+            FpOperation::Sub => (self.result.into(), p_a_param),
+        };
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
-        let p_op = match op {
-            FpOperation::Add | FpOperation::Sub => p_a + p_b,
-            FpOperation::Mul => p_a * p_b,
-        };
-        let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
-        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-
-        let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
-
-        let p_witness_low = self.witness_low.iter().into();
-        let p_witness_high = self.witness_high.iter().into();
-
-        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
-    }
-
-    #[allow(unused_variables)]
-    pub fn eval_expr<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
-        &self,
-        builder: &mut AB,
-        a: &Limbs<AB::Var>,
-        b: &Limbs<AB::Expr>,
-        op: FpOperation,
-    ) where
-        V: Into<AB::Expr>,
-    {
-        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
-            FpOperation::Add | FpOperation::Mul => {
-                ((*a).clone().into(), self.result.clone().into())
-            }
-            FpOperation::Sub => (self.result.clone().into(), (*a).clone().into()),
-        };
-        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).clone().into();
-        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.clone().into();
         let p_op = match op {
             FpOperation::Add | FpOperation::Sub => p_a + p_b,
             FpOperation::Mul => p_a * p_b,
@@ -289,7 +262,7 @@ mod tests {
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
             local
                 .a_op_b
-                .eval::<AB, P>(builder, &local.a, &local.b, self.operation);
+                .eval::<AB, P, _, _>(builder, &local.a, &local.b, self.operation);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
