@@ -26,7 +26,9 @@ pub struct EdSqrtCols<T> {
 }
 
 impl<F: Field> EdSqrtCols<F> {
-    /// `P` is the field parameter of each limb. `E` is the base field of Curve25519.
+    /// Populates the trace.
+    ///
+    /// `P` is the parameter of the field that each limb lives in.
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
         let result = ed25519_sqrt(a.clone());
         println!("a = {}, result = {}", a, result,);
