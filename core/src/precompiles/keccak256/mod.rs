@@ -34,6 +34,7 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod compress_tests {
+    use log::debug;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -81,6 +82,10 @@ pub mod compress_tests {
 
     #[test]
     fn prove_babybear() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
+
         type Val = BabyBear;
         type Domain = Val;
         type Challenge = BinomialExtensionField<Val, 4>;
@@ -122,10 +127,15 @@ pub mod compress_tests {
         let mut challenger = Challenger::new(perm.clone());
 
         let program = keccak_permute_program();
-        let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[999]);
-        runtime.run();
+        let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+            let mut runtime = Runtime::new(program);
+            runtime.write_witness(&[999]);
+            runtime.run();
+            runtime
+        });
 
-        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        tracing::info_span!("runtime.prove(...)").in_scope(|| {
+            runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        });
     }
 }

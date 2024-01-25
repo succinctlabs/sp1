@@ -78,7 +78,7 @@ impl KeccakPermuteChip {
             state[0] ^= RC[i];
         }
 
-        rt.clk += Self::NUM_CYCLES;
+        rt.clk += Self::NUM_CYCLES - 4;
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
             let least_sig = (state[i] & 0xFFFFFFFF) as u32;
@@ -87,6 +87,7 @@ impl KeccakPermuteChip {
             let record = rt.mw(state_ptr + (2 * i as u32 + 1) * 4, most_sig);
             state_write_records.push(record);
         }
+        rt.clk += 4;
 
         // Push the Keccak permute event.
         rt.segment_mut()

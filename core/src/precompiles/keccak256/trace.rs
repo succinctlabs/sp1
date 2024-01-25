@@ -36,8 +36,6 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             let event_rows = &mut rows[i * NUM_ROUNDS..(i + 1) * NUM_ROUNDS];
 
             let event = &segment.keccak_permute_events[i];
-            let mut clk = event.clk;
-            println!("clk cycle for keccak read is {:?}", clk);
 
             for j in 0..event.pre_state.len() {
                 event_rows[0].state_mem[2 * j]
@@ -51,9 +49,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             generate_trace_rows_for_perm(event_rows, event.pre_state, SEGMENT_NUM, event.clk);
 
             let last_row_num = event_rows.len() - 1;
-            clk += (NUM_ROUNDS - 1) as u32 * 4;
             event_rows[last_row_num].state_addr = F::from_canonical_u32(event.state_addr);
-            println!("clk cycle for keccak write is {:?}", clk);
 
             for j in 0..event.post_state.len() {
                 event_rows[last_row_num].state_mem[2 * j]
@@ -65,6 +61,8 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
 
             event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
         }
+
+        segment.field_events.extend(new_field_events);
 
         trace
     }

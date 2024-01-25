@@ -26,6 +26,8 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
+use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+
 pub const NUM_CHIPS: usize = 15;
 
 impl Runtime {
@@ -155,6 +157,14 @@ impl Runtime {
             .flat_map(|proof| proof.permutation_traces)
             .collect::<Vec<_>>();
         all_permutation_traces.extend(global_proof.permutation_traces);
+
+        tracing::info_span!("debug interactions with all chips").in_scope(|| {
+            debug_interactions_with_all_chips(
+                &mut self.segment,
+                Some(&mut self.global_segment),
+                vec![InteractionKind::Memory],
+            )
+        });
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
