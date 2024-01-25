@@ -1,7 +1,7 @@
 use super::fp_op::FpOpCols;
 use super::params::{FieldParameters, Limbs};
 use crate::air::CurtaAirBuilder;
-use crate::operations::field::params::NUM_LIMBS;
+use crate::operations::field::params::{Ed25519BaseField, NUM_LIMBS};
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::{operations, utils};
@@ -27,16 +27,12 @@ pub struct EdSqrtCols<T> {
 
 impl<F: Field> EdSqrtCols<F> {
     /// `P` is the field parameter of each limb. `E` is the base field of Curve25519.
-    pub fn populate<P: FieldParameters, E: EdwardsParameters>(&mut self, a: &BigUint) -> BigUint
-    where
-        <E as utils::ec::EllipticCurveParameters>::BaseField:
-            operations::field::params::FieldParameters,
-    {
+    pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
         let result = ed25519_sqrt(a.clone());
         println!("a = {}, result = {}", a, result,);
 
         // Use FpOpCols to compute result * result.
-        self.multiplication.populate::<E::BaseField>(
+        self.multiplication.populate::<Ed25519BaseField>(
             &result,
             &result,
             super::fp_op::FpOperation::Mul,
@@ -79,6 +75,8 @@ mod tests {
 
     use super::{EdSqrtCols, FpOpCols, Limbs};
     use crate::operations::field::fp_op::FpOperation;
+    use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+    use crate::utils::ec::edwards::EdwardsParameters;
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
@@ -152,7 +150,7 @@ mod tests {
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
                     // TODO: Obviously, I need this, but I don't know what types to pass.
-                    cols.sqrt.populate::<P, _>(a);
+                    cols.sqrt.populate::<P>(a);
                     row
                 })
                 .collect::<Vec<_>>();
