@@ -79,18 +79,27 @@ impl Segment {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
-    pub fn add_byte_range_checks(&mut self, a: u8, b: u8) {
-        let byte_event = ByteLookupEvent {
+    pub fn add_byte_range_check(&mut self, a: u8, b: u8) {
+        self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::Range,
             a1: 0,
             a2: 0,
             b: a,
             c: b,
-        };
-        self.byte_lookups
-            .entry(byte_event)
-            .and_modify(|j| *j += 1)
-            .or_insert(1);
+        });
+    }
+
+    /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
+    pub fn add_byte_range_checks(&mut self, ls: &[u8]) {
+        let mut index = 0;
+        while index + 1 < ls.len() {
+            self.add_byte_range_check(ls[index], ls[index + 1]);
+            index += 2;
+        }
+        if index < ls.len() {
+            // If the input slice's length is odd, we need to add a check for the last byte.
+            self.add_byte_range_check(ls[index], 0);
+        }
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.

@@ -206,6 +206,9 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 }
                 let carry_multiplier = 1 << (8 - num_bits_to_shift);
                 let mut last_carry = 0u32;
+                let mut bit_shift_result = [0u8; LONG_WORD_SIZE];
+                let mut shr_carry_output_carry = [0u8; LONG_WORD_SIZE];
+                let mut shr_carry_output_shifted_byte = [0u8; LONG_WORD_SIZE];
                 for i in (0..LONG_WORD_SIZE).rev() {
                     let (shift, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
 
@@ -222,15 +225,24 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                         .and_modify(|j| *j += 1)
                         .or_insert(1);
 
-                    cols.shr_carry_output_carry[i] = F::from_canonical_u8(carry);
-                    cols.shr_carry_output_shifted_byte[i] = F::from_canonical_u8(shift);
-                    cols.bit_shift_result[i] =
-                        F::from_canonical_u32(shift as u32 + last_carry * carry_multiplier);
+                    shr_carry_output_carry[i] = carry;
+                    shr_carry_output_shifted_byte[i] = shift;
+                    bit_shift_result[i] =
+                        ((shift as u32 + last_carry * carry_multiplier) & 0xff) as u8;
                     last_carry = carry as u32;
-                    if i < WORD_SIZE {
-                        debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
-                    }
                 }
+                cols.bit_shift_result = bit_shift_result.map(F::from_canonical_u8);
+                cols.shr_carry_output_carry = shr_carry_output_carry.map(F::from_canonical_u8);
+                cols.shr_carry_output_shifted_byte =
+                    shr_carry_output_shifted_byte.map(F::from_canonical_u8);
+                for i in 0..WORD_SIZE {
+                    debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
+                }
+                // Range checks.
+                segment.add_byte_range_checks(&byte_shift_result);
+                segment.add_byte_range_checks(&bit_shift_result);
+                segment.add_byte_range_checks(&shr_carry_output_carry);
+                segment.add_byte_range_checks(&shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
@@ -431,7 +443,6 @@ where
 
         // Range check bytes.
         {
-            let words = [local.a, local.b, local.c];
             let long_words = [
                 local.byte_shift_result,
                 local.bit_shift_result,
@@ -439,16 +450,11 @@ where
                 local.shr_carry_output_shifted_byte,
             ];
 
-            for word in words.iter() {
-                for _byte in word.0.iter() {
-                    // byte must be in [0, 255].
-                }
-            }
-
             for long_word in long_words.iter() {
-                for _byte in long_word.iter() {
-                    // byte must be in [0, 255].
-                }
+                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
+                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
+                builder.range_check_word(Word(first_half), local.is_real);
+                builder.range_check_word(Word(second_half), local.is_real);
             }
         }
 
