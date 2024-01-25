@@ -244,7 +244,11 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-        debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Memory);
+        debug_interactions_with_all_chips(
+            &mut runtime.segment,
+            Some(&mut runtime.global_segment),
+            vec![InteractionKind::Memory],
+        );
     }
 
     #[test]
@@ -256,6 +260,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_witness(&[999]);
         runtime.run();
-        debug_interactions_with_all_chips(&mut runtime.segment, InteractionKind::Byte);
+        debug_interactions_with_all_chips(&mut runtime.segment, None, vec![InteractionKind::Byte]);
     }
 }
