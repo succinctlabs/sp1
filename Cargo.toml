@@ -37,4 +37,4 @@ sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", branch = 
 time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
 
 [patch."https://github.com/penumbra-zone/ed25519-consensus.git"]
-ed25519-consensus = { path = "../ed25519-consensus" }
+ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git", branch = "tamir/zkvm" }

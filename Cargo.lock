@@ -727,6 +727,8 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c359b7249347e46fb28804470d071c921156ad62b3eef5d34e2ba867533dec8"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -738,8 +740,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c359b7249347e46fb28804470d071c921156ad62b3eef5d34e2ba867533dec8"
+source = "git+https://github.com/succinctlabs/dalek-ng-private.git?branch=tamir/ecall#a342cc28f7d237b05996dcf406726657d65dd159"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -879,7 +880,7 @@ dependencies = [
 name = "ed25519"
 version = "0.1.0"
 dependencies = [
- "ed25519-consensus 2.1.0",
+ "ed25519-consensus 2.1.0 (git+https://github.com/succinctlabs/ed25519-consensus-private.git?branch=tamir/zkvm)",
  "hex-literal",
  "succinct-zkvm",
 ]
@@ -897,19 +898,6 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-dependencies = [
- "curve25519-dalek-ng 4.1.1",
- "hex",
- "rand_core",
- "serde",
- "sha2 0.9.8",
- "thiserror",
- "zeroize",
-]
-
-[[package]]
-name = "ed25519-consensus"
-version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
 dependencies = [
@@ -917,6 +905,20 @@ dependencies = [
  "hex",
  "rand_core",
  "sha2 0.9.8",
+ "zeroize",
+]
+
+[[package]]
+name = "ed25519-consensus"
+version = "2.1.0"
+source = "git+https://github.com/succinctlabs/ed25519-consensus-private.git?branch=tamir/zkvm#43f4392878b6eede7e208839acbde05e9ff6720c"
+dependencies = [
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/succinctlabs/dalek-ng-private.git?branch=tamir/ecall)",
+ "hex",
+ "rand_core",
+ "serde",
+ "sha2 0.9.8",
+ "thiserror",
  "zeroize",
 ]
 

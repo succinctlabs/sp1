@@ -184,6 +184,7 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils::prove;
+    use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
@@ -299,6 +300,13 @@ pub mod tests {
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_eddsa_signature() {
+        setup_logger();
+        let program = Program::from_elf("../programs/ed25519");
         prove(program);
     }
 }
