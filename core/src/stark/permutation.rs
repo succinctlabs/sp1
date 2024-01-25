@@ -42,8 +42,8 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
 
-    // Get the preprocessed trace.
-    let preprocessed = chip.preprocessed_trace();
+    // TODO: Get the preprocessed trace and handle it properly.
+    // let preprocessed = chip.preprocessed_trace();
 
     // Iterate over the rows of the main trace to compute the permutation trace values. In
     // particular, for each row i, interaction j, and columns c_0, ..., c_{k-1} we compute the sum:
