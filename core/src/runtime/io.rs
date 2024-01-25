@@ -39,7 +39,7 @@ impl Runtime {
 pub mod tests {
     use super::*;
     use crate::runtime::program::Program;
-    use crate::utils::prove;
+    use crate::utils::prove_core;
     use log::debug;
     use serde::Deserialize;
 
@@ -53,6 +53,14 @@ pub mod tests {
         Program::from_elf("../programs/io")
     }
 
+    pub fn add_inputs(runtime: &mut Runtime) {
+        let p1 = MyPoint { x: 3, y: 5 };
+        let serialized = bincode::serialize(&p1).unwrap();
+        runtime.add_input_slice(&serialized);
+        let p2 = MyPoint { x: 8, y: 19 };
+        runtime.add_input(&p2);
+    }
+
     #[test]
     fn test_io_run() {
         if env_logger::try_init().is_err() {
@@ -60,12 +68,7 @@ pub mod tests {
         }
         let program = io_program();
         let mut runtime = Runtime::new(program);
-
-        let p1 = MyPoint { x: 3, y: 5 };
-        let serialized = bincode::serialize(&p1).unwrap();
-        runtime.add_input_slice(&serialized);
-        let p2 = MyPoint { x: 8, y: 19 };
-        runtime.add_input(&p2);
+        add_inputs(&mut runtime);
         runtime.run();
         let added_point: MyPoint = runtime.get_output();
         assert_eq!(added_point, MyPoint { x: 11, y: 24 });
@@ -74,6 +77,8 @@ pub mod tests {
     #[test]
     fn test_io_prove() {
         let program = io_program();
-        prove(program);
+        let mut runtime = Runtime::new(program);
+        add_inputs(&mut runtime);
+        prove_core(&mut runtime);
     }
 }

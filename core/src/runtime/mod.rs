@@ -955,7 +955,6 @@ pub mod tests {
     use log::debug;
 
     use crate::runtime::Register;
-    use serde::{Deserialize, Serialize};
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -969,7 +968,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("/Users/umaroy/Documents/curta-vm/target/riscv32im-risc0-zkvm-elf/release/cycle-tracker")
+        Program::from_elf("../programs/fib_malloc.s")
     }
 
     pub fn ecall_lwa_program() -> Program {
