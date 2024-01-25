@@ -47,8 +47,8 @@ where
         // Memory values are 32 bit values (encoded as 4 8-bit columns).
         // local.a values are 64 bit values (encoded as 4 16 bit columns).
         for i in 0..STATE_SIZE as u32 {
-            let most_sig_word = local.state_mem[(i * 2) as usize].value;
-            let least_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
+            let least_sig_word = local.state_mem[(i * 2) as usize].value;
+            let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
             let memory_limbs = vec![
                 least_sig_word.0[0]
                     + least_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
