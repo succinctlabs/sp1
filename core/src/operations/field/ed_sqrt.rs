@@ -7,6 +7,7 @@ use crate::air::CurtaAirBuilder;
 use crate::operations::field::params::{Ed25519BaseField, NUM_LIMBS};
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::EdwardsParameters;
+use crate::utils::ec::edwards::EdwardsParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
@@ -68,6 +69,7 @@ mod tests {
 
     use super::{EdSqrtCols, FpOpCols, Limbs};
     use crate::operations::field::fp_op::FpOperation;
+    use crate::utils::ec::edwards::EdwardsParameters;
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
@@ -102,11 +104,11 @@ mod tests {
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
-    struct EdSqrtChip<P: FieldParameters> {
-        pub _phantom: std::marker::PhantomData<P>,
+    struct EdSqrtChip<E> {
+        pub _phantom: std::marker::PhantomData<E>,
     }
 
-    impl<P: FieldParameters> EdSqrtChip<P> {
+    impl<E: EdwardsParameters> EdSqrtChip<E> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -114,7 +116,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, E: EdwardsParameters> Chip<F> for EdSqrtChip<P> {
+    impl<F: Field, E: EdwardsParameters> Chip<F> for EdSqrtChip<E> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
@@ -127,7 +129,7 @@ mod tests {
                     // Take the square of a random number to make sure that the square root exists.
                     let a = BigUint::one();
                     let sq = a.clone() * a.clone();
-                    sq % &P::modulus()
+                    sq % &E::BaseField::modulus()
                 })
                 .collect();
 
@@ -136,8 +138,8 @@ mod tests {
                 .map(|a| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.sqrt.populate::<F, P>(a);
+                    cols.a = E::BaseField::to_limbs_field::<F>(a);
+                    cols.sqrt.populate::<F, E>(a);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -161,14 +163,14 @@ mod tests {
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for EdSqrtChip<P>
+    impl<AB, E: EdwardsParameters> Air<AB> for EdSqrtChip<E>
     where
         AB: CurtaAirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-            local.sqrt.eval::<AB, P>(builder, &local.a);
+            local.sqrt.eval::<AB, E::BaseField, E>(builder, &local.a);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
