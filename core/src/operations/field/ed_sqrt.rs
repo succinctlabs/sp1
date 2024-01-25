@@ -43,15 +43,12 @@ impl<F: Field> EdSqrtCols<F> {
 }
 
 impl<V: Copy> EdSqrtCols<V> {
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
-        &self,
-        builder: &mut AB,
-        a: &Limbs<AB::Var>,
-    ) where
+    pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB, a: &Limbs<AB::Var>)
+    where
         V: Into<AB::Expr>,
     {
         // Compute result * result.
-        self.multiplication.eval::<AB, P>(
+        self.multiplication.eval::<AB, Ed25519BaseField>(
             builder,
             &self.result,
             &self.result,
@@ -149,7 +146,6 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    // TODO: Obviously, I need this, but I don't know what types to pass.
                     cols.sqrt.populate::<P>(a);
                     row
                 })
@@ -180,9 +176,9 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-            // TODO: Obviously, I need this but i'm not sure what type to pass here.
+
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
-            // local.sqrt.eval::<AB, AB::F, E>(builder, &local.a);
+            local.sqrt.eval::<AB>(builder, &local.a);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
