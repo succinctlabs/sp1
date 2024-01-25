@@ -7,7 +7,9 @@ use sha2::{Digest, Sha256};
 succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
+    println!("cycle-tracker-start: sha256");
     let hash = Sha256::digest(b"hello world");
+    println!("cycle-tracker-end: sha256");
     let mut ret = [0u8; 32];
     ret.copy_from_slice(&hash);
     println!("{}", hex::encode(ret));

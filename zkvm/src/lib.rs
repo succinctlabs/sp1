@@ -12,7 +12,7 @@ mod memory;
 #[allow(clippy::missing_safety_doc)]
 pub mod syscall;
 
-pub const WORD_SIZE: usize = core::mem::size_of::<u32>();
+pub const WORD_SIZE: usize = 4;
 
 #[macro_export]
 macro_rules! entrypoint {
