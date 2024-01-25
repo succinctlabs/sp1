@@ -29,8 +29,8 @@ pub struct EdSqrtCols<T> {
 
 impl<F: Field> EdSqrtCols<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
-        // TODO: a lot to do.
         let result = ed25519_sqrt(a.clone());
+        println!("a = {}, result = {}", a, result);
         self.multiplication
             .populate::<P>(&result, &result, super::fp_op::FpOperation::Mul);
         result
@@ -126,7 +126,12 @@ mod tests {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let operands: Vec<BigUint> = (0..num_rows)
-                .map(|_| rng.gen_biguint(256) % &P::modulus())
+                .map(|_| {
+                    // Take the square of a random number to make sure that the square root exists.
+                    let a = rng.gen_biguint(256);
+                    let sq = a.clone() * a.clone();
+                    sq % &P::modulus()
+                })
                 .collect();
 
             let rows = operands
@@ -135,9 +140,11 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
+                    cols.sqrt.populate::<P>(a);
                     row
                 })
                 .collect::<Vec<_>>();
+
             // Convert the trace to a row major matrix.
             let mut trace = RowMajorMatrix::new(
                 rows.into_iter().flatten().collect::<Vec<_>>(),
