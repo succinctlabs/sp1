@@ -700,7 +700,7 @@ impl Runtime {
                     Syscall::ED_DECOMPRESS => {
                         a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
-                        assert_eq!(init_clk, self.clk);
+                        assert_eq!(init_clk + 4, self.clk);
                     }
                 }
 
@@ -810,11 +810,6 @@ impl Runtime {
         {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
-
-            // 498< x <=500
-            if self.global_clk > 499 {
-                break;
-            }
 
             let width = 12;
             log::trace!(

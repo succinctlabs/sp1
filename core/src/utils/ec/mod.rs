@@ -13,7 +13,7 @@ use std::ops::{Add, Neg};
 use crate::air::WORD_SIZE;
 use crate::operations::field::params::NUM_LIMBS;
 
-pub const NUM_WORDS_POINT: usize = 32;
+pub const NUM_WORDS_FIELD_ELEMENT: usize = 32;
 pub const COMPRESSED_POINT_BYTES: usize = 32;
 pub const COMPRESSED_POINT_WORDS: usize = COMPRESSED_POINT_BYTES / WORD_SIZE;
 

@@ -15,7 +15,7 @@ use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::COMPRESSED_POINT_WORDS;
-use crate::utils::ec::NUM_WORDS_POINT;
+use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
@@ -62,7 +62,7 @@ pub struct EdDecompressCols<T> {
     pub segment: T,
     pub clk: T,
     pub ptr: T,
-    pub x_access: [MemoryAccessCols<T>; NUM_WORDS_POINT],
+    pub x_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryAccessCols<T>; COMPRESSED_POINT_WORDS],
     pub(crate) yy: FpOpCols<T>,
     pub(crate) u: FpOpCols<T>,
@@ -84,7 +84,7 @@ impl<F: Field> EdDecompressCols<F> {
         self.segment = F::from_canonical_u32(event.segment);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
-        for i in 0..COMPRESSED_POINT_WORDS {
+        for i in 0..NUM_WORDS_FIELD_ELEMENT {
             self.x_access[i].populate_write(event.x_memory_records[i], &mut new_field_events);
         }
         for i in 0..COMPRESSED_POINT_WORDS {
@@ -185,11 +185,14 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 
         let start_clk = rt.clk;
 
+        println!("clk: {}", rt.clk);
+
         // TODO: this will have to be be constrained, but can do it later.
         let slice_ptr = rt.register_unsafe(a0);
         if slice_ptr % 4 != 0 {
             panic!();
         }
+        println!("ptr: {}", slice_ptr);
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
@@ -232,6 +235,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
                 x_memory_records,
                 y_memory_records,
             });
+
+        rt.clk += 4;
 
         slice_ptr
     }
@@ -293,6 +298,7 @@ pub mod tests {
 
     #[test]
     fn test_ed_decompress() {
+        tracing_subscriber::fmt::init();
         let program = Program::from_elf("../programs/ed_decompress");
         prove(program);
     }

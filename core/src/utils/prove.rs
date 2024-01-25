@@ -89,6 +89,10 @@ pub fn prove(program: Program) {
                 InteractionKind::Field,
                 InteractionKind::Range,
                 InteractionKind::Byte,
+                InteractionKind::Alu,
+                InteractionKind::Memory,
+                InteractionKind::Program,
+                InteractionKind::Instruction,
             ],
         );
     });
