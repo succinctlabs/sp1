@@ -1,8 +1,6 @@
-name: Benchmark
+name: Performance CIA
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches:
       - "**"
@@ -12,16 +10,24 @@ on:
     branches:
       - "**"
 
-permissions: 
+permissions:
   contents: write
-  pull-requests: write 
+  pull-requests: write
 
 jobs:
   benchmark:
-    runs-on: macos-latest-large
+    runs-on: [benchmarker-linux-x64-1]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+        with:
+          path: vm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          repository: jtguibas/criterion-table
+          path: criterion-table
 
       - name: Set up git private repo access
         run: |
@@ -39,7 +45,7 @@ jobs:
             ~/.rustup/
           key: test-rust-nightly-2023-12-19-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: rust-nightly-2023-12-19-
-          
+
       - name: Install nightly toolchain
         id: rustc-toolchain
         uses: actions-rs/toolchain@v1
@@ -49,16 +55,28 @@ jobs:
           override: true
 
       - name: Install cargo criterion
-        run: cargo install cargo-criterion
-      
-      - name: Install criterion table
-        run: cargo install criterion-table
+        run: cd vm && cargo install cargo-criterion --force
 
-      - name: Run benchmark
-        run: cd core && cargo criterion --message-format=json --features perf | criterion-table > BENCHMARKS.md
+      - name: Cache main.json
+        uses: actions/cache@v2
+        with:
+          path: vm/core/main.json
+          key: perf-pr-${{ github.sha }}
+          restore-keys: |
+            perf-main-
+
+      - name: Run pr benchmark
+        run: cd vm/core && cargo criterion --message-format=json --features perf > ci.json
+
+      - name: Modify and write to file using Python
+        run: |
+          python -c "import re; print(re.sub(r'main', 'pr', open('vm/core/ci.json').read()), end='')" > vm/core/cix.json
+
+      - name: Run pr benchmark
+        run: cd criterion-table && cat ../vm/core/main.json ../vm/core/cix.json && cat ../vm/core/main.json ../vm/core/cix.json | cargo run --release > BENCHMARKS.md
 
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@v2
         with:
-          filePath: core/BENCHMARKS.md
+          filePath: criterion-table/BENCHMARKS.md
           comment_tag: execution
