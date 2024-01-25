@@ -104,6 +104,16 @@ impl BuildToolchainCmd {
             toolchain_dir.as_path().to_str().unwrap()
         );
 
+        // Copy over the stage2-tools-bin directory to the toolchain bin directory.
+        let tools_bin_dir = toolchain_dir.parent().unwrap().join("stage2-tools-bin");
+        let target_bin_dir = toolchain_dir.join("bin");
+        for tool in tools_bin_dir.read_dir()? {
+            let tool = tool?;
+            let tool_name = tool.file_name();
+            println!("copy tool: {:?}", tool_name);
+            std::fs::copy(&tool.path(), target_bin_dir.join(tool_name))?;
+        }
+
         // Link the toolchain to rustup.
         Command::new("rustup")
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
