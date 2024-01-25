@@ -6,7 +6,7 @@ use crate::{
     runtime::Register,
 };
 
-use super::KeccakPermuteChip;
+use super::{KeccakPermuteChip, STATE_WORD_SIZE};
 
 const RHO: [u32; 24] = [
     1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14, 27, 41, 56, 8, 25, 43, 62, 18, 39, 61, 20, 44,
@@ -18,8 +18,6 @@ const PI: [usize; 24] = [
 
 impl KeccakPermuteChip {
     pub const NUM_CYCLES: u32 = NUM_ROUNDS as u32 * 4;
-    // The permutation state is 25 u64s.  Our word size is 32 bits, so it is 50 words.
-    pub const STATE_NUM_WORDS: usize = 25 * 2;
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         // Read `state_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
@@ -30,7 +28,7 @@ impl KeccakPermuteChip {
 
         let mut state = Vec::new();
 
-        let (state_records, state_values) = rt.mr_slice(state_ptr, Self::STATE_NUM_WORDS);
+        let (state_records, state_values) = rt.mr_slice(state_ptr, STATE_WORD_SIZE);
         state_read_records.extend_from_slice(&state_records);
 
         for values in state_values.chunks_exact(2) {

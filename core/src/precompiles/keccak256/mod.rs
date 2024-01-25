@@ -9,6 +9,11 @@ mod round_flags;
 mod trace;
 
 const NUM_ROUNDS: usize = 24;
+const STATE_SIZE: usize = 25;
+
+// The permutation state is 25 u64s.  Our word size is 32 bits, so it is 50 words.
+const STATE_WORD_SIZE: usize = 25 * 2;
+
 const BITS_PER_LIMB: usize = 16;
 const U64_LIMBS: usize = 64 / BITS_PER_LIMB;
 const RATE_BITS: usize = 1088;
@@ -17,10 +22,10 @@ const RATE_LIMBS: usize = RATE_BITS / BITS_PER_LIMB;
 #[derive(Debug, Clone, Copy)]
 pub struct KeccakPermuteEvent {
     pub clk: u32,
-    pub pre_state: [u64; 25],
-    pub post_state: [u64; 25],
-    pub state_read_records: [MemoryReadRecord; 25 * 2],
-    pub state_write_records: [MemoryWriteRecord; 25 * 2],
+    pub pre_state: [u64; STATE_SIZE],
+    pub post_state: [u64; STATE_SIZE],
+    pub state_read_records: [MemoryReadRecord; STATE_WORD_SIZE],
+    pub state_write_records: [MemoryWriteRecord; STATE_WORD_SIZE],
     pub state_addr: u32,
 }
 

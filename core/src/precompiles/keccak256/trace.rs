@@ -37,13 +37,10 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
 
             let event = &segment.keccak_permute_events[i];
 
-            for j in 0..event.pre_state.len() {
-                event_rows[0].state_mem[2 * j]
-                    .populate_read(event.state_read_records[2 * j], &mut new_field_events);
-
-                event_rows[0].state_mem[2 * j + 1]
-                    .populate_read(event.state_read_records[2 * j + 1], &mut new_field_events);
+            for (i, read_record) in event.state_read_records.iter().enumerate() {
+                event_rows[0].state_mem[i].populate_read(*read_record, &mut new_field_events);
             }
+
             event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
 
             generate_trace_rows_for_perm(event_rows, event.pre_state, SEGMENT_NUM, event.clk);
@@ -51,14 +48,10 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             let last_row_num = event_rows.len() - 1;
             event_rows[last_row_num].state_addr = F::from_canonical_u32(event.state_addr);
 
-            for j in 0..event.post_state.len() {
-                event_rows[last_row_num].state_mem[2 * j]
-                    .populate_write(event.state_write_records[2 * j], &mut new_field_events);
-
-                event_rows[last_row_num].state_mem[2 * j + 1]
-                    .populate_write(event.state_write_records[2 * j + 1], &mut new_field_events);
+            for (i, write_record) in event.state_write_records.iter().enumerate() {
+                event_rows[last_row_num].state_mem[i]
+                    .populate_write(*write_record, &mut new_field_events);
             }
-
             event_rows[0].state_addr = F::from_canonical_u32(event.state_addr);
         }
 
