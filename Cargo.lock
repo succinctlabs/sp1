@@ -1543,16 +1543,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num_cpus"
-version = "1.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
-dependencies = [
- "hermit-abi",
- "libc",
-]
-
-[[package]]
 name = "num_enum"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2150,15 +2140,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayon-scan"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad58ba229c16c5f9af523198e81518d33fcdf6b1c25bd902d7678c9e0147cb70"
-dependencies = [
- "rayon",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2652,7 +2633,6 @@ dependencies = [
  "log",
  "nohash-hasher",
  "num",
- "num_cpus",
  "p3-air",
  "p3-baby-bear",
  "p3-challenger",
@@ -2673,7 +2653,6 @@ dependencies = [
  "p3-util",
  "rand",
  "rayon",
- "rayon-scan",
  "rrs-lib",
  "serde",
  "tracing",
