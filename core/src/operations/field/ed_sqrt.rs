@@ -152,7 +152,7 @@ mod tests {
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
                     // TODO: Obviously, I need this, but I don't know what types to pass.
-                    // cols.sqrt.populate::<F, E>(a);
+                    cols.sqrt.populate::<P, _>(a);
                     row
                 })
                 .collect::<Vec<_>>();
