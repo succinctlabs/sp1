@@ -1,4 +1,4 @@
-use super::params::NUM_WITNESS_LIMBS;
+use super::fp_op::FpOpCols;
 use super::params::{convert_polynomial, convert_vec, FieldParameters, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
@@ -28,7 +28,7 @@ pub struct EdSqrtCols<T> {
 impl<F: Field> EdSqrtCols<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: &BigUint) -> BigUint {
         // TODO: a lot to do.
-        a
+        todo!("");
     }
 }
 
@@ -41,6 +41,7 @@ impl<V: Copy> EdSqrtCols<V> {
         V: Into<AB::Expr>,
     {
         // eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        todo!("");
     }
 }
 
@@ -52,7 +53,8 @@ mod tests {
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
 
-    use super::{FpOpCols, FpOperation, Limbs};
+    use super::{EdSqrtCols, FpOpCols, Limbs};
+    use crate::operations::field::fp_op::FpOperation;
     use crate::utils::pad_to_power_of_two;
     use crate::{
         air::CurtaAirBuilder,
@@ -82,21 +84,18 @@ mod tests {
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
-        pub b: Limbs<T>,
-        pub a_op_b: FpOpCols<T>,
+        pub sqrt: EdSqrtCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
     struct EdSqrtChip<P: FieldParameters> {
-        pub operation: FpOperation,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
     impl<P: FieldParameters> EdSqrtChip<P> {
-        pub fn new(operation: FpOperation) -> Self {
+        pub fn new() -> Self {
             Self {
-                operation,
                 _phantom: std::marker::PhantomData,
             }
         }
@@ -104,38 +103,22 @@ mod tests {
 
     impl<F: Field, P: FieldParameters> Chip<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
-            format!("EdSqrtChip({:?})", self.operation)
+            "EdSqrtChip".to_string()
         }
 
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 5)
-                .map(|_| {
-                    let a = rng.gen_biguint(256) % &P::modulus();
-                    let b = rng.gen_biguint(256) % &P::modulus();
-                    (a, b)
-                })
+            let operands: Vec<BigUint> = (0..num_rows)
+                .map(|_| rng.gen_biguint(256) % &P::modulus())
                 .collect();
-
-            // Hardcoded edge cases. We purposely include 0 / 0. While mathematically, that is not
-            // allowed, we allow it in our implementation so padded rows can be all 0.
-            operands.extend(vec![
-                (BigUint::from(0u32), BigUint::from(0u32)),
-                (BigUint::from(0u32), BigUint::from(1u32)),
-                (BigUint::from(1u32), BigUint::from(2u32)),
-                (BigUint::from(4u32), BigUint::from(5u32)),
-                (BigUint::from(10u32), BigUint::from(19u32)),
-            ]);
 
             let rows = operands
                 .iter()
-                .map(|(a, b)| {
+                .map(|a| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
                     cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
-                    cols.a_op_b.populate::<P>(a, b, self.operation);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -165,26 +148,20 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-            local
-                .a_op_b
-                .eval::<AB, P>(builder, &local.a, &local.b, self.operation);
+            local.sqrt.eval::<AB, P>(builder, &local.a);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
-                local.a[0] * local.b[0] * local.a[0] - local.a[0] * local.b[0] * local.a[0],
+                local.a[0] * local.a[0] * local.a[0] - local.a[0] * local.a[0] * local.a[0],
             )
         }
     }
 
     #[test]
     fn generate_trace() {
-        for op in [FpOperation::Add, FpOperation::Mul, FpOperation::Sub].iter() {
-            println!("op: {:?}", op);
-            let chip: EdSqrtChip<Ed25519BaseField> = FpOpChip::new(*op);
-            let mut segment = Segment::default();
-            let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-            // println!("{:?}", trace.values)
-        }
+        let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
+        let mut segment = Segment::default();
+        let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
     }
 
     #[test]
@@ -225,27 +202,16 @@ mod tests {
         let pcs = Pcs::new(dft, val_mmcs, ldt);
         let config = StarkConfigImpl::new(pcs);
 
-        for op in [
-            FpOperation::Add,
-            FpOperation::Sub,
-            FpOperation::Mul,
-            FpOperation::Div,
-        ]
-        .iter()
-        {
-            println!("op: {:?}", op);
+        let mds = MyMds::default();
+        let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
+        let mut challenger = Challenger::new(perm.clone());
 
-            let mds = MyMds::default();
-            let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
-            let mut challenger = Challenger::new(perm.clone());
+        let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
+        let mut segment = Segment::default();
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
 
-            let chip: EdSqrtChip<Ed25519BaseField> = FpOpChip::new(*op);
-            let mut segment = Segment::default();
-            let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
-            let proof = prove::<MyConfig, _>(&config, &chip, &mut challenger, trace);
-
-            let mut challenger = Challenger::new(perm.clone());
-            verify(&config, &chip, &mut challenger, &proof).unwrap();
-        }
+        let mut challenger = Challenger::new(perm.clone());
+        verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }
