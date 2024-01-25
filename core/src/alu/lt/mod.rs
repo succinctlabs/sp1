@@ -6,7 +6,7 @@ use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use p3_maybe_rayon::prelude::*;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};

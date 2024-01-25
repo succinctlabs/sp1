@@ -3,7 +3,7 @@ use std::ops::{Add, Mul};
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use p3_maybe_rayon::prelude::*;
 
 use crate::{lookup::Interaction, utils::Chip};
 

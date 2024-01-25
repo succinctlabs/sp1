@@ -5,7 +5,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use p3_maybe_rayon::prelude::*;
 
 use std::mem::transmute;
 use valida_derive::AlignedBorrow;

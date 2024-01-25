@@ -2656,7 +2656,6 @@ dependencies = [
  "p3-uni-stark",
  "p3-util",
  "rand",
- "rayon",
  "rrs-lib",
  "serde",
  "tracing",
