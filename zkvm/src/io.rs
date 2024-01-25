@@ -20,7 +20,6 @@ impl std::io::Write for MyReader {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let nbytes = buf.len();
         let write_buf = buf.as_ptr();
-        println!("writing: {} {:?}", nbytes, buf);
         syscall_write(FILE_DESCRIPTOR, write_buf, nbytes);
         Ok(nbytes)
     }
