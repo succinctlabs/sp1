@@ -198,17 +198,16 @@ where
     }
 
     // Running sum constraints.
-    // builder
-    //     .when_transition()
-    //     .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
-    // builder
-    //     .when_first_row()
-    //     .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
-    // builder.when_last_row().assert_eq_ext(
-    //     *perm_local.last().unwrap(),
-    //     AB::ExprEF::from_f(cumulative_sum),
-    // );
-    builder.assert_eq_ext(perm_local[0], perm_local[0]);
+    builder
+        .when_transition()
+        .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
+    builder
+        .when_first_row()
+        .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
+    builder.when_last_row().assert_eq_ext(
+        *perm_local.last().unwrap(),
+        AB::ExprEF::from_f(cumulative_sum),
+    );
 }
 
 #[inline]
