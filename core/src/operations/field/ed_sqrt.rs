@@ -1,8 +1,8 @@
 use super::fp_op::FpOpCols;
-use super::params::{FieldParameters, Limbs};
+use super::params::Limbs;
 use crate::air::CurtaAirBuilder;
-use crate::operations::field::params::Ed25519BaseField;
-use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
+use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
+use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
@@ -62,7 +62,7 @@ impl<V: Copy> EdSqrtCols<V> {
         multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in ed25519 base field since we want that to be the mod.
-        multiplication.eval::<AB, Ed25519BaseField>(
+        multiplication.eval::<AB, Ed25519BaseField, Limbs<V>, Limbs<V>>(
             builder,
             &sqrt,
             &sqrt,
@@ -80,13 +80,10 @@ mod tests {
     use p3_field::Field;
 
     use super::{EdSqrtCols, Limbs};
+    use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::pad_to_power_of_two;
-    use crate::{
-        air::CurtaAirBuilder,
-        operations::field::params::{Ed25519BaseField, FieldParameters},
-        runtime::Segment,
-        utils::Chip,
-    };
+    use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
     use num::bigint::RandBigInt;
