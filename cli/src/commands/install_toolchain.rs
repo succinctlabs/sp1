@@ -46,7 +46,7 @@ impl InstallToolchainCmd {
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
         let target = get_target();
-        let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
+        let toolchain_asset_name = format!("rust-toolchain-.tar.gz");
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(target);
         let rt = tokio::runtime::Runtime::new()?;
@@ -117,7 +117,7 @@ struct GithubAsset {
 }
 
 async fn get_toolchain_download_url(client: &Client, asset_name: &str) -> Result<String> {
-    let tag = "the-final-saga-1";
+    let tag = "v2024-01-24.13";
     let release_url = format!(
         "https://api.github.com/repos/succinctlabs/rust/releases/tags/{}",
         tag
