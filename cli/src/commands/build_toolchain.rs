@@ -1,10 +1,7 @@
-use std::{fs::File, path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command};
 
 use anyhow::Result;
 use clap::Parser;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use tar::Builder;
 
 use crate::{get_target, CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
 
@@ -101,7 +98,7 @@ impl BuildToolchainCmd {
         }
         let toolchain_dir = toolchain_dir.unwrap();
         println!(
-            "Found built toolchain directory at {}",
+            "Found built toolchain directory at {}.",
             toolchain_dir.as_path().to_str().unwrap()
         );
 
@@ -124,11 +121,15 @@ impl BuildToolchainCmd {
         // Compressing toolchain directory to tar.gz.
         let target = get_target();
         let tar_gz_path = format!("rust-toolchain-{}.tar.gz", target);
-        let tar_gz = File::create(&tar_gz_path)?;
-        let enc = GzEncoder::new(tar_gz, Compression::default());
-        let mut tar = Builder::new(enc);
-        tar.append_dir_all(".", toolchain_dir)?;
-        drop(tar);
+        Command::new("tar")
+            .args([
+                "-czvf",
+                &tar_gz_path,
+                "-C",
+                toolchain_dir.to_str().unwrap(),
+                ".",
+            ])
+            .run()?;
         println!("Succesfully compressed the toolchain to {}.", tar_gz_path);
 
         Ok(())

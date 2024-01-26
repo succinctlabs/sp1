@@ -62,7 +62,7 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
 }
 
 #[allow(unreachable_code)]
-pub fn get_toolchain_download_url() -> &'static str {
+pub fn get_target() -> &'static str {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
     return "x86_64-unknown-linux-gnu";
 
@@ -73,7 +73,7 @@ pub fn get_toolchain_download_url() -> &'static str {
 }
 
 #[allow(unreachable_code)]
-pub fn get_target() -> &'static str {
+pub fn get_toolchain_download_url() -> &'static str {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
     return "https://succinct-vm-toolchain.s3.amazonaws.com/riscv32im-succinct-zkvm-v2024-01-25.tar.gz";
 
