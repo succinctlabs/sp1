@@ -1314,6 +1314,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "io"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "succinct-derive",
+ "succinct-zkvm",
+]
+
+[[package]]
 name = "is-terminal"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2682,6 +2692,10 @@ dependencies = [
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
 
 [[package]]
 name = "syn"

@@ -242,7 +242,7 @@ mod tests {
         }
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[999]);
+        runtime.add_input_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(
             &runtime.segment,
@@ -258,7 +258,7 @@ mod tests {
         }
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[999]);
+        runtime.add_input_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(&runtime.segment, None, vec![InteractionKind::Byte]);
     }

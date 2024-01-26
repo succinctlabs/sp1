@@ -56,6 +56,58 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
 }
 
 #[allow(unused_variables)]
+pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
+    let whole_words: usize = nbytes / 4;
+    let remaining_bytes = nbytes % 4;
+
+    for i in 0..whole_words {
+        let offset = i * 4;
+        #[cfg(target_os = "zkvm")]
+        unsafe {
+            let mut word = 0u32;
+            asm!(
+                "ecall",
+                in("t0") LWA,
+                in("a0") fd,
+                in("a1") 4, // The number of bytes we're requesting
+                lateout("a0") word,
+            );
+
+            // Copy the word into the read buffer
+            let word_ptr = &mut word as *mut u32 as *mut u8;
+            for j in 0..4 {
+                *read_buf.add(offset + j) = *word_ptr.add(j);
+            }
+        }
+    }
+
+    // Handle the remaining bytes for the last partial word
+    if remaining_bytes > 0 {
+        let offset = whole_words * 4;
+        #[cfg(target_os = "zkvm")]
+        unsafe {
+            let mut word = 0u32;
+            asm!(
+                "ecall",
+                in("t0") LWA,
+                in("a0") fd,
+                in("a1") remaining_bytes, // Request the remaining bytes
+                lateout("a0") word,
+            );
+
+            // Copy the necessary bytes of the word into the read buffer
+            let word_ptr = &mut word as *mut u32 as *mut u8;
+            for j in 0..remaining_bytes {
+                *read_buf.add(offset + j) = *word_ptr.add(j);
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_sha256_extend(w: *mut u32) {
     #[cfg(target_os = "zkvm")]
