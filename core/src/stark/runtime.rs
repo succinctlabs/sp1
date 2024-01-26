@@ -311,9 +311,7 @@ pub mod tests {
         ];
         for div_rem_op in div_rem_ops.iter() {
             for op in operands.iter() {
-                // Add a no-op instruction in the beginning to have at least 4 instructions.
                 let instructions = vec![
-                    Instruction::new(Opcode::ADD, 28, 0, 0, false, true),
                     Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
                     Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
