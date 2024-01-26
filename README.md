@@ -11,13 +11,12 @@ cargo install --locked --path .
 ```
 
 You will need to install our custom toolchain to compile programs. If you are on a supported architecture 
-(i.e., MacOS, Linux, or ARM), install the toolchain using a prebuilt release.
+(i.e., MacOS or Linux), install the toolchain using a prebuilt release.
 ```
 cargo prove install-toolchain
 ```
 
-Otherwise, you will need to build the toolchain from source. Note that building on MacOS will
-require you to build for x86 not ARM.
+Otherwise, you will need to build the toolchain from source.
 ```
 cargo prove build-toolchain
 ```
