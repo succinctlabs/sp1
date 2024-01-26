@@ -157,6 +157,25 @@ impl<V: Copy> EdDecompressCols<V> {
             FpOperation::Sub,
         );
 
+        for i in 0..NUM_WORDS_FIELD_ELEMENT {
+            builder.constraint_memory_access(
+                self.segment,
+                self.clk,
+                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
+                self.x_access[i],
+                self.is_real,
+            );
+        }
+        for i in 0..COMPRESSED_POINT_WORDS {
+            builder.constraint_memory_access(
+                self.segment,
+                self.clk,
+                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
+                self.y_access[i],
+                self.is_real,
+            );
+        }
+
         let x_limbs = limbs_from_access(&self.x_access);
         builder
             .when(self.is_real)
@@ -221,6 +240,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         // Write decompressed X into slice
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records = x_memory_records_vec.try_into().unwrap();
+        println!("x records: {:?}", x_memory_records);
+        println!("y records: {:?}", y_memory_records);
 
         let segment = rt.current_segment;
         rt.segment_mut()

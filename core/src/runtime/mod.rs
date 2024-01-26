@@ -849,7 +849,7 @@ impl Runtime {
                 let segment = std::mem::take(&mut self.segment);
                 self.segments.push(segment);
                 // Set up new segment
-                self.segment.index = self.segments.len() as u32 + 1;
+                self.segment.index = self.segments.len() as u32;
                 self.segment.program = self.program.clone();
                 self.clk = 1;
             }
