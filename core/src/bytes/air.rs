@@ -71,7 +71,8 @@ where
                     builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), mult)
                 }
                 ByteOpcode::U16Range => {
-                    builder.receive_byte(field_op, AB::F::zero(), local.b, AB::F::zero(), mult)
+                    // TODO: Figure out why this is local.c. I feel like this should be local.b.
+                    builder.receive_byte(field_op, AB::F::zero(), local.c, AB::F::zero(), mult)
                 }
             }
         }
