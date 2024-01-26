@@ -239,14 +239,23 @@ pub mod tests {
     #[test]
     fn test_mul_prove() {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (8765, 4321),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+        ];
         for mul_op in mul_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 0xffff, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 0xffff, false, true),
-                Instruction::new(*mul_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for operand in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, operand.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, operand.1, false, true),
+                    Instruction::new(*mul_op, 31, 30, 29, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
@@ -282,14 +291,23 @@ pub mod tests {
     #[test]
     fn test_divrem_prove() {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (8765, 4321),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+        ];
         for div_rem_op in div_rem_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*div_rem_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for op in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
+                    Instruction::new(*div_rem_op, 31, 30, 29, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
