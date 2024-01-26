@@ -58,15 +58,13 @@ impl InstallToolchainCmd {
             Ok(_) => println!("Succesfully uninstalled existing toolchain."),
             Err(_) => println!("No existing toolchain to uninstall."),
         }
-        std::thread::sleep(Duration::from_secs(3));
 
         // Unpack the toolchain.
-        fs::create_dir_all(&toolchain_dir)?;
+        fs::create_dir_all(toolchain_dir)?;
         Command::new("tar")
             .current_dir(&root_dir)
             .args(["-xzf", &toolchain_asset_name, "-C", target])
             .run()?;
-        std::thread::sleep(Duration::from_secs(3));
 
         // Move the toolchain to a random directory (avoid rustup bugs).
         let random_string: String = rand::thread_rng()
@@ -86,11 +84,12 @@ impl InstallToolchainCmd {
             .arg(&random_string)
             .run()?;
         println!("Succesfully linked toolchain to rustup.");
-        std::thread::sleep(Duration::from_secs(3));
 
         // Ensure permissions.
-        let bin_dir = root_dir.join(random_string).join("bin");
-        let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
+        let bin_dir = root_dir.join(&random_string).join("bin");
+        let rustlib_bin_dir = root_dir
+            .join(&random_string)
+            .join(format!("lib/rustlib/{target}/bin"));
         for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
             let entry = wrapped_entry?;
             if entry.file_type()?.is_file() {
