@@ -1,5 +1,8 @@
 use std::sync::Once;
 
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
+
 static INIT: Once = Once::new();
 
 /// A simple logger.
@@ -7,8 +10,10 @@ static INIT: Once = Once::new();
 /// Set the `RUST_LOG` environment variable to be set to `info` or `debug`.
 pub fn setup_logger() {
     INIT.call_once(|| {
-        env_logger::Builder::from_default_env()
-            .format_timestamp(None)
+        tracing_subscriber::fmt::Subscriber::builder()
+            .without_time()
+            .with_env_filter(EnvFilter::from_default_env())
+            .finish()
             .init();
     });
 }

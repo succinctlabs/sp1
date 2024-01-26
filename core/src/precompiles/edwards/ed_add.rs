@@ -14,7 +14,7 @@ use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_access;
+use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
@@ -240,10 +240,10 @@ where
         let main = builder.main();
         let row: &EdAddAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let x1 = limbs_from_access(&row.p_access[0..8]);
-        let x2 = limbs_from_access(&row.q_access[0..8]);
-        let y1 = limbs_from_access(&row.p_access[8..16]);
-        let y2 = limbs_from_access(&row.q_access[8..16]);
+        let x1 = limbs_from_prev_access(&row.p_access[0..8]);
+        let x2 = limbs_from_prev_access(&row.q_access[0..8]);
+        let y1 = limbs_from_prev_access(&row.p_access[8..16]);
+        let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         row.x3_numerator

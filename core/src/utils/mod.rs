@@ -89,10 +89,22 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
-pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+pub fn limbs_from_prev_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
     let vec = cols
         .iter()
         .flat_map(|access| access.prev_value.0)
+        .collect::<Vec<T>>();
+
+    let sized = vec
+        .try_into()
+        .unwrap_or_else(|_| panic!("failed to convert to limbs"));
+    Limbs(sized)
+}
+
+pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+    let vec = cols
+        .iter()
+        .flat_map(|access| access.value.0)
         .collect::<Vec<T>>();
 
     let sized = vec

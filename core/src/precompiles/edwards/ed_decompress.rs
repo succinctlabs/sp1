@@ -17,6 +17,7 @@ use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_access;
+use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
 use crate::utils::Chip;
@@ -122,9 +123,9 @@ impl<V: Copy> EdDecompressCols<V> {
             self.x_access[NUM_WORDS_FIELD_ELEMENT - 1].prev_value[WORD_SIZE - 1].into();
         builder.assert_bool(sign.clone());
 
-        let y = limbs_from_access(&self.y_access);
+        let y = limbs_from_prev_access(&self.y_access);
         self.yy
-            .eval::<AB, P, _, _>(builder, &y, &y, FpOperation::Sub);
+            .eval::<AB, P, _, _>(builder, &y, &y, FpOperation::Mul);
         self.u.eval::<AB, P, _, _>(
             builder,
             &self.yy.result,
@@ -134,23 +135,19 @@ impl<V: Copy> EdDecompressCols<V> {
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         self.dyy
-            .eval::<AB, P, _, _>(builder, &self.yy.result, &d_const, FpOperation::Mul);
+            .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FpOperation::Mul);
         self.v.eval::<AB, P, _, _>(
             builder,
-            &self.dyy.result,
             &[AB::Expr::one()].iter(),
+            &self.dyy.result,
             FpOperation::Add,
         );
-        self.u_div_v.eval::<AB, P, _, _>(
-            builder,
-            &self.dyy.result,
-            &[AB::Expr::one()].iter(),
-            FpOperation::Div,
-        );
+        self.u_div_v
+            .eval::<AB, P, _, _>(builder, &self.u.result, &self.v.result, FpOperation::Div);
         self.x.eval::<AB>(builder, &self.u_div_v.result);
         self.neg_x.eval::<AB, P, _, _>(
             builder,
-            &[AB::Expr::one()].iter(),
+            &[AB::Expr::zero()].iter(),
             &self.x.multiplication.result,
             FpOperation::Sub,
         );
@@ -312,10 +309,14 @@ where
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{runtime::Program, utils::prove};
+    use crate::{
+        runtime::Program,
+        utils::{prove, setup_logger},
+    };
 
     #[test]
     fn test_ed_decompress() {
+        setup_logger();
         let program = Program::from_elf("../programs/ed_decompress");
         prove(program);
     }
