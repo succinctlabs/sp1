@@ -23,12 +23,8 @@ where
     AB: CurtaAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let mut sub_builder = SubAirBuilder::<AB, KeccakAir, AB::Var>::new(builder, self.p3_keccak);
-
         let main = builder.main();
         let local: &KeccakCols<AB::Var> = main.row_slice(0).borrow();
-
-        self.p3_keccak.eval(&mut sub_builder);
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
@@ -91,5 +87,10 @@ where
                 )
             }
         }
+
+        let mut sub_builder =
+            SubAirBuilder::<AB, KeccakAir, AB::Var>::new(builder, &self.p3_keccak);
+
+        self.p3_keccak.eval(&mut sub_builder);
     }
 }

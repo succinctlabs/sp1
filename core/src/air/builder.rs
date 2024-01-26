@@ -466,12 +466,12 @@ impl<M: MatrixRowSlices<T>, T> MatrixRowSlices<T> for SubMatrixRowSlices<M, T> {
 
 pub struct SubAirBuilder<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> {
     inner: &'a mut AB,
-    sub_air: SubAir,
+    sub_air: &'a SubAir,
     _phantom: std::marker::PhantomData<(SubAir, T)>,
 }
 
 impl<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> SubAirBuilder<'a, AB, SubAir, T> {
-    pub fn new(inner: &'a mut AB, sub_air: SubAir) -> Self {
+    pub fn new(inner: &'a mut AB, sub_air: &'a SubAir) -> Self {
         Self {
             inner,
             sub_air,
