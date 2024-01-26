@@ -329,7 +329,7 @@ pub mod tests {
     use crate::{runtime::Program, utils::prove};
 
     #[test]
-    fn test_ed_add3() {
+    fn test_ed_add_simple() {
         tracing_subscriber::fmt::init();
         // let subscriber = tracing_subscriber::FmtSubscriber::builder()
         //     // All events at or above DEBUG level will be logged
@@ -341,7 +341,7 @@ pub mod tests {
         //     .expect("setting default subscriber failed");
 
         tracing::debug!("hi");
-        let program = Program::from_elf("../programs/ed25519");
+        let program = Program::from_elf("../programs/ed_add");
         prove(program);
     }
 }

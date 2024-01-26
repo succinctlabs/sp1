@@ -122,7 +122,7 @@ pub extern "C" fn syscall_ed_decompress(slice: &mut [u8; 64]) {
     #[cfg(target_os = "zkvm")]
     {
         let sign = slice[63] >> 7;
-        slice[63] &= 0x7f;
+        slice[63] &= 0b0111_1111;
         slice[31] = sign;
         let p = slice.as_mut_ptr() as *mut u32;
         unsafe {

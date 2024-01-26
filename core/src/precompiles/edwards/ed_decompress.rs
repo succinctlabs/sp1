@@ -7,6 +7,7 @@ use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::ed_sqrt::EdSqrtCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
+use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
@@ -84,10 +85,10 @@ impl<F: Field> EdDecompressCols<F> {
         self.segment = F::from_canonical_u32(event.segment);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
-        for i in 0..NUM_WORDS_FIELD_ELEMENT {
+        println!("event x_records: {:?}", event.x_memory_records);
+        println!("event y_records: {:?}", event.y_memory_records);
+        for i in 0..8 {
             self.x_access[i].populate_write(event.x_memory_records[i], &mut new_field_events);
-        }
-        for i in 0..COMPRESSED_POINT_WORDS {
             self.y_access[i].populate_read(event.y_memory_records[i], &mut new_field_events);
         }
 
@@ -99,6 +100,7 @@ impl<F: Field> EdDecompressCols<F> {
 
     fn populate_fp_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
         let one = BigUint::one();
+        println!("y: {}", y);
         let yy = self.yy.populate::<P>(y, y, FpOperation::Mul);
         let u = self.u.populate::<P>(&yy, &one, FpOperation::Sub);
         let dyy = self
@@ -227,6 +229,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
         y_bytes[y_bytes.len() - 1] &= 0b0111_1111;
         y_bytes[y_bytes.len() - 1] |= (sign as u8) << 7;
+
+        println!("exec y bytes: {:?}", y_bytes);
 
         // Compute actual decompressed X
         let compressed_y = CompressedEdwardsY(y_bytes);

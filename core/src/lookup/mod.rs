@@ -132,8 +132,8 @@ fn babybear_to_int(n: BabyBear) -> i32 {
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
-    segment: &mut Segment,
-    global_segment: Option<&mut Segment>,
+    segment: &Segment,
+    global_segment: Option<&Segment>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
     if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
