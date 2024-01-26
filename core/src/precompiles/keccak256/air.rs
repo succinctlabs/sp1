@@ -85,6 +85,7 @@ where
         let mut sub_builder =
             SubAirBuilder::<AB, KeccakAir, AB::Var>::new(builder, self.p3_keccak_col_range.clone());
 
+        // Eval the plonky3 keccak air
         self.p3_keccak.eval(&mut sub_builder);
     }
 }

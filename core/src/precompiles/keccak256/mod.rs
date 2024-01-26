@@ -11,7 +11,6 @@ pub mod columns;
 mod execute;
 mod trace;
 
-const NUM_ROUNDS: usize = 24;
 const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.

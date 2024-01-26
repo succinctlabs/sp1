@@ -3,13 +3,13 @@ use std::mem::transmute;
 use alloc::vec::Vec;
 
 use p3_field::PrimeField32;
-use p3_keccak_air::generate_trace_rows;
+use p3_keccak_air::{generate_trace_rows, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     precompiles::keccak256::{
         columns::{KeccakCols, NUM_KECCAK_COLS},
-        NUM_ROUNDS, STATE_SIZE,
+        STATE_SIZE,
     },
     runtime::Segment,
     utils::Chip,
