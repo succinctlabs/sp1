@@ -157,9 +157,9 @@ impl<F: PrimeField> Chip<F> for MulChip {
                         let most_significant_byte = word[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
                             opcode: ByteOpcode::MSB,
-                            a1: get_msb(*word),
+                            a1: get_msb(*word) as u32,
                             a2: 0,
-                            b: most_significant_byte,
+                            b: most_significant_byte as u32,
                             c: 0,
                         });
                     }

@@ -155,9 +155,9 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
                 segment.add_byte_lookup_events(vec![ByteLookupEvent {
                     opcode: ByteOpcode::MSB,
-                    a1: (most_significant_byte >> 7) & 1,
+                    a1: ((most_significant_byte >> 7) & 1) as u32,
                     a2: 0,
-                    b: most_significant_byte,
+                    b: most_significant_byte as u32,
                     c: 0,
                 }]);
             }
@@ -203,10 +203,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
 
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::ShrCarry,
-                        a1: shift,
-                        a2: carry,
-                        b: byte_shift_result[i],
-                        c: num_bits_to_shift as u8,
+                        a1: shift as u32,
+                        a2: carry as u32,
+                        b: byte_shift_result[i] as u32,
+                        c: num_bits_to_shift as u32,
                     };
                     segment
                         .byte_lookups

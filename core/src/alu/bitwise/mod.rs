@@ -69,10 +69,10 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::from(event.opcode),
-                        a1: b_a,
+                        a1: b_a as u32,
                         a2: 0,
-                        b: b_b,
-                        c: b_c,
+                        b: b_b as u32,
+                        c: b_c as u32,
                     };
                     segment
                         .byte_lookups
