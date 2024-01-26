@@ -20,7 +20,10 @@ use super::KeccakPermuteChip;
 impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Figure out number of total rows.
-        let num_rows = (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
+        let mut num_rows = (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
+        if num_rows < 4 {
+            num_rows = 4;
+        }
         let mut num_total_permutations = num_rows / NUM_ROUNDS;
         if num_rows % NUM_ROUNDS != 0 {
             num_total_permutations += 1;

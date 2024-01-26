@@ -8,7 +8,8 @@
     clippy::type_complexity,
     clippy::unnecessary_unwrap
 )]
-#![feature(offset_of)]
+// This is needed for debug_interations
+#![feature(trait_upcasting)]
 
 pub mod air;
 pub mod alu;
