@@ -324,15 +324,11 @@ where
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{
-        runtime::Program,
-        utils::{prove, setup_logger},
-    };
+    use crate::{runtime::Program, utils::prove};
 
     #[test]
     fn test_ed_add_simple() {
-        setup_logger();
-        let program = Program::from_elf("../programs/tendermint");
+        let program = Program::from_elf("../programs/ed_add");
         prove(program);
     }
 }
