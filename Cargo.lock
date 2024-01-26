@@ -795,7 +795,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+ssh://git@github.com/succinctlabs/dalek-ng-private.git?branch=tamir/ecall#e2d3cd4094ea5b30c3c2a8c52313c97c6db81066"
+source = "git+ssh://git@github.com/succinctlabs/dalek-ng-private.git#01f43665631d2c33385708d41d0c26dbb1baa0ea"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -986,7 +986,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/succinctlabs/ed25519-consensus-private.git?branch=tamir/zkvm#cf23d2b7f36509ba48a76e76af6df2a32b48d874"
+source = "git+https://github.com/succinctlabs/ed25519-consensus-private.git#e9f03604509ceabedaf31f66a70c28297d7af6c2"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
