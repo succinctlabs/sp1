@@ -25,11 +25,11 @@ pub fn main() {
 
     println!("result: {}", result);
 
-    #[cfg(target_os = "zkvm")]
-    unsafe {
-        asm!(
-            "ecall",
-            in("t0") result,
-        );
-    }
+    // #[cfg(target_os = "zkvm")]
+    // unsafe {
+    //     asm!(
+    //         "ecall",
+    //         in("t0") result,
+    //     );
+    // }
 }
