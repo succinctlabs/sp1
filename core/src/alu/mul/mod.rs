@@ -188,10 +188,6 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 }
                 cols.carry[i] = F::from_canonical_u32(carry[i]);
             }
-            println!(
-                "b = {:?}, c = {:?}, product = {:?},  carry = {:?}",
-                b, c, product, carry
-            );
 
             cols.product = product.map(F::from_canonical_u32);
             cols.a = Word(a_word.map(F::from_canonical_u8));
