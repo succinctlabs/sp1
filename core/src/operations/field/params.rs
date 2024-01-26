@@ -1,9 +1,7 @@
 use crate::air::polynomial::Polynomial;
-use num::{BigUint, One};
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Index;
 use std::slice::Iter;
@@ -23,66 +21,12 @@ impl<T> Index<usize> for Limbs<T> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct AffinePoint<T> {
-    pub x: Limbs<T>,
-    pub y: Limbs<T>,
-}
+impl<T> IntoIterator for Limbs<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, NUM_LIMBS>;
 
-pub trait FieldParameters:
-    Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
-{
-    const NB_BITS_PER_LIMB: usize;
-    const NB_LIMBS: usize;
-    const NB_WITNESS_LIMBS: usize;
-    const MODULUS: [u8; NUM_LIMBS];
-    const WITNESS_OFFSET: usize;
-
-    fn modulus() -> BigUint;
-
-    fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
-        Self::MODULUS
-            .into_iter()
-            .map(|x| F::from_canonical_u8(x))
-            .take(Self::NB_LIMBS)
-    }
-
-    fn to_limbs(x: &BigUint) -> Limbs<u8> {
-        let mut bytes = x.to_bytes_le();
-        bytes.resize(NUM_LIMBS, 0u8);
-        let mut limbs = [0u8; NUM_LIMBS];
-        limbs.copy_from_slice(&bytes);
-        Limbs(limbs)
-    }
-
-    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F> {
-        Limbs(
-            Self::to_limbs(x)
-                .0
-                .into_iter()
-                .map(|x| F::from_canonical_u8(x))
-                .collect::<Vec<F>>()
-                .try_into()
-                .unwrap(),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Ed25519BaseField;
-
-impl FieldParameters for Ed25519BaseField {
-    const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-    const NB_LIMBS: usize = NUM_LIMBS;
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-    const MODULUS: [u8; NUM_LIMBS] = [
-        237, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
-    ];
-    const WITNESS_OFFSET: usize = 1usize << 13;
-
-    fn modulus() -> BigUint {
-        (BigUint::one() << 255) - BigUint::from(19u32)
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -138,7 +82,9 @@ pub fn convert_vec<F: Field>(value: Vec<BabyBear>) -> Vec<F> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use num::BigUint;
+
+    use crate::utils::ec::{edwards::ed25519::Ed25519BaseField, field::FieldParameters};
 
     #[test]
     fn test_modulus() {

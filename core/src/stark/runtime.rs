@@ -7,9 +7,13 @@ use crate::memory::MemoryGlobalChip;
 use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
+use crate::precompiles::edwards::ed_add::EdAddAssignChip;
+use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
+use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
@@ -25,7 +29,7 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 14;
+pub const NUM_CHIPS: usize = 16;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -47,12 +51,18 @@ impl Runtime {
         let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
+        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
+        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
         [
             Box::new(program),
             Box::new(cpu),
+            Box::new(sha_extend),
+            Box::new(sha_compress),
+            Box::new(ed_add),
+            Box::new(ed_decompress),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -61,8 +71,6 @@ impl Runtime {
             Box::new(shift_right),
             Box::new(shift_left),
             Box::new(lt),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
             Box::new(field),
             Box::new(bytes),
         ]
@@ -94,7 +102,14 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
-        tracing::info!("nb_segments: {}", self.segments.len());
+        tracing::info!(
+            "total_cycles: {}, segments: {}",
+            self.segments
+                .iter()
+                .map(|s| s.cpu_events.len())
+                .sum::<usize>(),
+            self.segments.len()
+        );
         let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {

@@ -62,6 +62,10 @@ impl<'a> PrecompileRuntime<'a> {
         self.rt.register(register)
     }
 
+    pub fn byte_unsafe(&self, addr: u32) -> u8 {
+        self.rt.byte(addr)
+    }
+
     pub fn word_unsafe(&self, addr: u32) -> u32 {
         self.rt.word(addr)
     }

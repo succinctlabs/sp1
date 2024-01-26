@@ -7,6 +7,8 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
+use crate::precompiles::edwards::ed_add::EdAddEvent;
+use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::runtime::MemoryRecord;
 
@@ -53,6 +55,10 @@ pub struct Segment {
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
     pub sha_compress_events: Vec<ShaCompressEvent>,
+
+    pub ed_add_events: Vec<EdAddEvent>,
+
+    pub ed_decompress_events: Vec<EdDecompressEvent>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.

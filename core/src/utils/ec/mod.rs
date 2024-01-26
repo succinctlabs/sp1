@@ -10,6 +10,13 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::ops::{Add, Neg};
 
+use crate::air::WORD_SIZE;
+use crate::operations::field::params::NUM_LIMBS;
+
+pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
+pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;
+pub const COMPRESSED_POINT_BYTES: usize = 32;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffinePoint<E> {
     pub x: BigUint,
@@ -27,12 +34,46 @@ impl<E> AffinePoint<E> {
         }
     }
 
-    pub fn from_words_le(_: &[u32]) -> Self {
-        todo!();
+    pub fn from_words_le(words: &[u32]) -> Self {
+        let x_bytes = words[0..words.len() / 2]
+            .iter()
+            .flat_map(|n| n.to_le_bytes())
+            .collect::<Vec<_>>();
+        let y_bytes = &words[words.len() / 2..]
+            .iter()
+            .flat_map(|n| n.to_le_bytes())
+            .collect::<Vec<_>>();
+        let x = BigUint::from_bytes_le(x_bytes.as_slice());
+        let y = BigUint::from_bytes_le(y_bytes.as_slice());
+        Self {
+            x,
+            y,
+            _marker: std::marker::PhantomData,
+        }
     }
 
-    pub fn to_words_le(&self) -> &[u32] {
-        todo!();
+    pub fn to_words_le(&self) -> [u32; 16] {
+        let mut x_bytes = self.x.to_bytes_le();
+        x_bytes.resize(NUM_LIMBS, 0u8);
+        let mut y_bytes = self.y.to_bytes_le();
+        y_bytes.resize(NUM_LIMBS, 0u8);
+
+        let mut words = [0u32; 16];
+        for i in 0..8 {
+            words[i] = u32::from_le_bytes([
+                x_bytes[i * 4],
+                x_bytes[i * 4 + 1],
+                x_bytes[i * 4 + 2],
+                x_bytes[i * 4 + 3],
+            ]);
+            words[i + 8] = u32::from_le_bytes([
+                y_bytes[i * 4],
+                y_bytes[i * 4 + 1],
+                y_bytes[i * 4 + 2],
+                y_bytes[i * 4 + 3],
+            ]);
+        }
+        words
     }
 }
 

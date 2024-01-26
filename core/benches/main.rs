@@ -8,7 +8,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     #[cfg(not(feature = "perf"))]
     unreachable!("--features=perf must be enabled to run this benchmark");
 
-    let programs = ["../programs/sha2", "../programs/ssz_withdrawals"];
+    let mut group = c.benchmark_group("prove");
+    group.sample_size(10);
+    let programs = ["../programs/fibonacci"];
     for p in programs {
         let program = Program::from_elf(p);
         let cycles = {
@@ -16,9 +18,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             runtime.run();
             runtime.global_clk
         };
-        println!("program={} cycles={}", p, cycles);
-        c.bench_function(p, |b| b.iter(|| prove(black_box(program.clone()))));
+        group.bench_function(
+            format!("main:{}:{}", p.split('/').last().unwrap(), cycles),
+            |b| b.iter(|| prove(black_box(program.clone()))),
+        );
     }
+    group.finish();
 }
 
 criterion_group!(benches, criterion_benchmark);

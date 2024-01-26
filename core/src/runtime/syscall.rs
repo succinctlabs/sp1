@@ -14,6 +14,11 @@ pub enum Syscall {
     /// Executes the `SHA_COMPRESS` precompile.
     SHA_COMPRESS = 103,
 
+    /// Executes the `ED_ADD` precompile.
+    ED_ADD = 104,
+
+    ED_DECOMPRESS = 105,
+
     WRITE = 999,
 }
 
@@ -25,6 +30,8 @@ impl Syscall {
             101 => Syscall::LWA,
             102 => Syscall::SHA_EXTEND,
             103 => Syscall::SHA_COMPRESS,
+            104 => Syscall::ED_ADD,
+            105 => Syscall::ED_DECOMPRESS,
             999 => Syscall::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }

@@ -16,13 +16,7 @@ pub struct OpcodeSelectors<T> {
     pub imm_c: T,
 
     // Table selectors for opcodes.
-    pub is_add: T,
-    pub is_sub: T,
-    pub is_mul: T,
-    pub is_divrem: T,
-    pub is_shift: T,
-    pub is_bitwise: T,
-    pub is_lt: T,
+    pub is_alu: T,
 
     // Memory operation selectors.
     pub is_lb: T,
@@ -59,35 +53,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
         self.imm_c = F::from_bool(instruction.imm_c);
 
         if instruction.is_alu_instruction() {
-            match instruction.opcode {
-                Opcode::ADD => {
-                    self.is_add = F::one();
-                }
-                Opcode::SUB => {
-                    self.is_sub = F::one();
-                }
-                Opcode::XOR | Opcode::OR | Opcode::AND => {
-                    self.is_bitwise = F::one();
-                }
-                Opcode::SLL | Opcode::SRL | Opcode::SRA => {
-                    self.is_shift = F::one();
-                }
-                Opcode::SLT | Opcode::SLTU => {
-                    self.is_lt = F::one();
-                }
-                Opcode::MUL | Opcode::MULH | Opcode::MULHU | Opcode::MULHSU => {
-                    self.is_mul = F::one();
-                }
-                Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU => {
-                    self.is_divrem = F::one();
-                }
-                _ => {
-                    panic!(
-                        "unexpected opcode {} in register instruction table processing",
-                        instruction.opcode
-                    )
-                }
-            }
+            self.is_alu = F::one();
         } else if instruction.is_memory_instruction() {
             match instruction.opcode {
                 Opcode::LB => self.is_lb = F::one(),
@@ -141,13 +107,7 @@ impl<T> IntoIterator for OpcodeSelectors<T> {
         vec![
             self.imm_b,
             self.imm_c,
-            self.is_add,
-            self.is_sub,
-            self.is_mul,
-            self.is_divrem,
-            self.is_shift,
-            self.is_bitwise,
-            self.is_lt,
+            self.is_alu,
             self.is_lb,
             self.is_lbu,
             self.is_lh,

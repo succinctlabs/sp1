@@ -1,4 +1,4 @@
-name: tests
+name: Tests
 
 on:
   push:
@@ -8,9 +8,6 @@ on:
       - "**"
     paths:
       - "core/**"
-  workflow_dispatch:
-    branches:
-      - "**"
 
 jobs:  
   test:
