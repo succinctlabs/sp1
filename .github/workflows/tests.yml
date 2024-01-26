@@ -50,8 +50,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p succinct-core --release --features "debug_assertions"
+          args: -p succinct-core --release
         env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 
           RUST_LOG: 1
           RUST_BACKTRACE: 1
 
