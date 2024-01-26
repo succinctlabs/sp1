@@ -212,7 +212,7 @@ mod tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, 8, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
