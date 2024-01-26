@@ -295,8 +295,8 @@ pub mod tests {
             (1, 1),
             (1234, 5678),
             (8765, 4321),
-            (0xffff, 0xffff - 1),
-            (u32::MAX - 1, u32::MAX),
+            (0xffff * (0xffff - 1), 0xffff),
+            (u32::MAX - 5, u32::MAX - 7),
         ];
         for div_rem_op in div_rem_ops.iter() {
             for op in operands.iter() {
@@ -305,7 +305,7 @@ pub mod tests {
                     Instruction::new(Opcode::ADD, 28, 0, 0, false, true),
                     Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
                     Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
-                    Instruction::new(*div_rem_op, 31, 30, 29, false, false),
+                    Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
                 prove(program);
