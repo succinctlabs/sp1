@@ -123,7 +123,7 @@ impl BuildToolchainCmd {
         let tar_gz_path = format!("rust-toolchain-{}.tar.gz", target);
         Command::new("tar")
             .args([
-                "-czvf",
+                "-hczvf",
                 &tar_gz_path,
                 "-C",
                 toolchain_dir.to_str().unwrap(),
