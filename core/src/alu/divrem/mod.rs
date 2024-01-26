@@ -349,10 +349,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 // Range check.
                 {
-                    segment.add_byte_range_checks(&quotient.to_le_bytes());
-                    segment.add_byte_range_checks(&remainder.to_le_bytes());
-                    segment.add_byte_range_checks(&c_times_quotient);
-                    segment.add_byte_range_checks(&carry);
+                    segment.add_u8_range_checks(&quotient.to_le_bytes());
+                    segment.add_u8_range_checks(&remainder.to_le_bytes());
+                    segment.add_u8_range_checks(&c_times_quotient);
+                    segment.add_u8_range_checks(&carry);
                 }
             }
 

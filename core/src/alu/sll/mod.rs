@@ -142,8 +142,8 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
 
             // Range checks.
             {
-                segment.add_byte_range_checks(&bit_shift_result);
-                segment.add_byte_range_checks(&bit_shift_result_carry);
+                segment.add_u8_range_checks(&bit_shift_result);
+                segment.add_u8_range_checks(&bit_shift_result_carry);
             }
 
             // Sanity check.

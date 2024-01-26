@@ -52,9 +52,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check
         {
-            segment.add_byte_range_checks(&a);
-            segment.add_byte_range_checks(&b);
-            segment.add_byte_range_checks(&expected.to_le_bytes());
+            segment.add_u8_range_checks(&a);
+            segment.add_u8_range_checks(&b);
+            segment.add_u8_range_checks(&expected.to_le_bytes());
         }
         expected
     }

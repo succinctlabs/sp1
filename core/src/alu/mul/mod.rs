@@ -205,8 +205,8 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
             // Range check.
             {
-                segment.add_byte_range_checks(&carry.map(|x| x as u8));
-                segment.add_byte_range_checks(&product.map(|x| x as u8));
+                segment.add_u8_range_checks(&carry.map(|x| x as u8));
+                segment.add_u8_range_checks(&product.map(|x| x as u8));
             }
 
             rows.push(row);

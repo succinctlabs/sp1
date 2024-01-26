@@ -82,7 +82,7 @@ impl Segment {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
-    pub fn add_byte_range_check(&mut self, a: u8, b: u8) {
+    pub fn add_u8_range_check(&mut self, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::U8Range,
             a1: 0,
@@ -92,17 +92,33 @@ impl Segment {
         });
     }
 
+    /// Adds a `ByteLookupEvent` to verify `a` is indeed u16.
+    pub fn add_u16_range_check(&mut self, a: u32) {
+        self.add_byte_lookup_event(ByteLookupEvent {
+            opcode: ByteOpcode::U16Range,
+            a1: 0,
+            a2: 0,
+            b: a as u32,
+            c: 0,
+        });
+    }
+
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    pub fn add_byte_range_checks(&mut self, ls: &[u8]) {
+    pub fn add_u8_range_checks(&mut self, ls: &[u8]) {
         let mut index = 0;
         while index + 1 < ls.len() {
-            self.add_byte_range_check(ls[index], ls[index + 1]);
+            self.add_u8_range_check(ls[index], ls[index + 1]);
             index += 2;
         }
         if index < ls.len() {
             // If the input slice's length is odd, we need to add a check for the last byte.
-            self.add_byte_range_check(ls[index], 0);
+            self.add_u8_range_check(ls[index], 0);
         }
+    }
+
+    /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
+    pub fn add_u16_range_checks(&mut self, ls: &[u32]) {
+        ls.iter().for_each(|x| self.add_u16_range_check(*x));
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.

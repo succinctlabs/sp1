@@ -228,10 +228,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                segment.add_byte_range_checks(&byte_shift_result);
-                segment.add_byte_range_checks(&bit_shift_result);
-                segment.add_byte_range_checks(&shr_carry_output_carry);
-                segment.add_byte_range_checks(&shr_carry_output_shifted_byte);
+                segment.add_u8_range_checks(&byte_shift_result);
+                segment.add_u8_range_checks(&bit_shift_result);
+                segment.add_u8_range_checks(&shr_carry_output_carry);
+                segment.add_u8_range_checks(&shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
