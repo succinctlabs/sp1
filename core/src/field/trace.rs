@@ -26,7 +26,7 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
             .map(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
                 let cols: &mut FieldLTUCols<F> = unsafe { transmute(&mut row) };
-                let diff = event.b - event.c + (1 << LTU_NB_BITS);
+                let diff = event.b.wrapping_sub(event.c) + (1 << LTU_NB_BITS);
                 cols.b = F::from_canonical_u32(event.b);
                 cols.c = F::from_canonical_u32(event.c);
                 for i in 0..cols.diff_bits.len() {

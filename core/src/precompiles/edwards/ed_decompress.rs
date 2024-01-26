@@ -217,7 +217,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
             COMPRESSED_POINT_WORDS,
         );
-        let y_memory_records = y_memory_records_vec.try_into().unwrap();
+        let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
         // This unsafe read is okay because we do mw_slice into the first 8 words later.
         let sign = rt.byte_unsafe(slice_ptr + (COMPRESSED_POINT_BYTES as u32) - 1);
@@ -238,10 +238,13 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
             bytes_to_words_le(&decompressed_x_bytes);
 
         // Write decompressed X into slice
+        println!("decompressed words len: {}", decompressed_x_words.len());
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
-        let x_memory_records = x_memory_records_vec.try_into().unwrap();
+        let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
         println!("x records: {:?}", x_memory_records);
+        println!("x records len: {:?}", x_memory_records.len());
         println!("y records: {:?}", y_memory_records);
+        println!("y records len: {:?}", y_memory_records.len());
 
         let segment = rt.current_segment;
         rt.segment_mut()
