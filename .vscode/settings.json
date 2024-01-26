@@ -18,4 +18,8 @@
         "-A",
         "incomplete-features"
     ],
+    "rust-analyzer.linkedProjects": [
+        "Cargo.toml",
+        "examples/Cargo.toml"
+    ]
 }
