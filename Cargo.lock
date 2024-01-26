@@ -945,6 +945,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed_decompress"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "succinct-zkvm",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1307,6 +1315,16 @@ dependencies = [
  "equivalent",
  "hashbrown 0.14.3",
  "serde",
+]
+
+[[package]]
+name = "io"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "succinct-derive",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -2677,6 +2695,10 @@ dependencies = [
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
 
 [[package]]
 name = "syn"

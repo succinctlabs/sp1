@@ -1,4 +1,5 @@
 mod instruction;
+mod io;
 mod opcode;
 mod program;
 mod register;
@@ -7,6 +8,7 @@ mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
+use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
@@ -70,8 +72,17 @@ pub struct Runtime {
     /// Maps a memory address to (segment, timestamp) that it was touched.
     pub memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
 
-    /// A stream of witnessed values (global to the entire program).
-    pub witness: Vec<u32>,
+    /// A stream of input values (global to the entire program).
+    pub input_stream: Vec<u8>,
+
+    /// A ptr to the current position in the input stream incremented by LWA opcode.
+    pub input_stream_ptr: usize,
+
+    /// A stream of output values from the program (global to entire program).
+    pub output_stream: Vec<u8>,
+
+    /// A ptr to the current position in the output stream, incremented when reading from output_stream.
+    pub output_stream_ptr: usize,
 
     /// Segments
     pub segments: Vec<Segment>,
@@ -110,7 +121,10 @@ impl Runtime {
             program: program_rc,
             memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
             memory_access: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
-            witness: Vec::new(),
+            input_stream: Vec::new(),
+            input_stream_ptr: 0,
+            output_stream: Vec::new(),
+            output_stream_ptr: 0,
             segments: Vec::new(),
             segment,
             record: Record::default(),
@@ -118,11 +132,6 @@ impl Runtime {
             global_segment: Segment::default(),
             cycle_tracker: 0,
         }
-    }
-
-    /// Write to the witness stream.
-    pub fn write_witness(&mut self, witness: &[u32]) {
-        self.witness.extend(witness);
     }
 
     /// Get the current values of the registers.
@@ -635,7 +644,16 @@ impl Runtime {
                         next_pc = 0;
                     }
                     Syscall::LWA => {
-                        a = self.witness.pop().expect("witness stream is empty");
+                        // TODO: in the future this will be used for private vs. public inputs.
+                        let _ = self.register(a0);
+                        let num_bytes = self.register(a1) as usize;
+                        let mut read_bytes = [0u8; 4];
+                        for i in 0..num_bytes {
+                            read_bytes[i] = self.input_stream[self.input_stream_ptr];
+                            self.input_stream_ptr += 1;
+                        }
+                        let word = u32::from_le_bytes(read_bytes);
+                        a = word;
                     }
                     Syscall::SHA_EXTEND => {
                         a = ShaExtendChip::execute(&mut precompile_rt);
@@ -649,7 +667,7 @@ impl Runtime {
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
-                        if fd == 1 || fd == 2 {
+                        if fd == 1 || fd == 2 || fd == 3 {
                             let write_buf = self.register(a1);
                             let nbytes = self.register(a2);
                             // Read nbytes from memory starting at write_buf.
@@ -676,8 +694,13 @@ impl Runtime {
                                 } else {
                                     log::info!("stdout: {}", s.trim_end());
                                 }
-                            } else {
+                            } else if fd == 2 {
                                 log::info!("stderr: {}", s.trim_end());
+                            } else if fd == 3 {
+                                log::info!("io::write: {:?}", slice);
+                                self.output_stream.extend_from_slice(slice);
+                            } else {
+                                unreachable!()
                             }
                         }
                         a = 0;
@@ -695,6 +718,11 @@ impl Runtime {
                                 >::NUM_CYCLES,
                             self.clk
                         );
+                    }
+                    Syscall::ED_DECOMPRESS => {
+                        a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + 4, self.clk);
                     }
                 }
 
@@ -931,9 +959,7 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use log::debug;
-
-    use crate::runtime::Register;
+    use crate::{runtime::Register, utils::setup_logger};
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -968,9 +994,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_run() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -979,9 +1003,7 @@ pub mod tests {
 
     #[test]
     fn test_ed_add() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();

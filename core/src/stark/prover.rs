@@ -328,7 +328,6 @@ impl<SC: StarkConfig> Prover<SC> {
                 )
             }
         });
-
         (
             SegmentDebugProof {
                 main_commit: main_data.main_commit.clone(),
