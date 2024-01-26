@@ -28,6 +28,7 @@ impl InstallToolchainCmd {
 
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
+        fs::create_dir_all(&root_dir)?;
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
@@ -48,6 +49,7 @@ impl InstallToolchainCmd {
         let tar = GzDecoder::new(tar_gz);
         let mut archive = Archive::new(tar);
         archive.unpack(&toolchain_dir)?;
+        fs::remove_file(&toolchain_archive_path)?;
 
         // Remove the existing toolchain from rustup, if it exists.
         match Command::new("rustup")
