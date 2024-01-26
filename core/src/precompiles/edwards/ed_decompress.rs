@@ -7,7 +7,6 @@ use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::ed_sqrt::EdSqrtCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
@@ -15,7 +14,7 @@ use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
-use crate::utils::ec::COMPRESSED_POINT_WORDS;
+use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_access;
 use crate::utils::pad_rows;
@@ -44,9 +43,9 @@ pub struct EdDecompressEvent {
     pub ptr: u32,
     pub sign: bool,
     pub y_bytes: [u8; COMPRESSED_POINT_BYTES],
-    pub decompressed_x_bytes: [u8; COMPRESSED_POINT_BYTES],
-    pub x_memory_records: [MemoryWriteRecord; COMPRESSED_POINT_WORDS],
-    pub y_memory_records: [MemoryReadRecord; COMPRESSED_POINT_WORDS],
+    pub decompressed_x_bytes: [u8; NUM_BYTES_FIELD_ELEMENT],
+    pub x_memory_records: [MemoryWriteRecord; NUM_WORDS_FIELD_ELEMENT],
+    pub y_memory_records: [MemoryReadRecord; NUM_WORDS_FIELD_ELEMENT],
 }
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
@@ -64,7 +63,7 @@ pub struct EdDecompressCols<T> {
     pub clk: T,
     pub ptr: T,
     pub x_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub y_access: [MemoryAccessCols<T>; COMPRESSED_POINT_WORDS],
+    pub y_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub(crate) yy: FpOpCols<T>,
     pub(crate) u: FpOpCols<T>,
     pub(crate) dyy: FpOpCols<T>,
@@ -120,7 +119,7 @@ impl<V: Copy> EdDecompressCols<V> {
     {
         // Get the 31st byte of the slice, which should be the sign bit.
         let sign: AB::Expr =
-            self.x_access[COMPRESSED_POINT_WORDS - 1].prev_value[WORD_SIZE - 1].into();
+            self.x_access[NUM_WORDS_FIELD_ELEMENT - 1].prev_value[WORD_SIZE - 1].into();
         builder.assert_bool(sign.clone());
 
         let y = limbs_from_access(&self.y_access);
@@ -165,7 +164,7 @@ impl<V: Copy> EdDecompressCols<V> {
                 self.is_real,
             );
         }
-        for i in 0..COMPRESSED_POINT_WORDS {
+        for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
                 self.segment,
                 self.clk,
@@ -211,7 +210,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
-            COMPRESSED_POINT_WORDS,
+            NUM_WORDS_FIELD_ELEMENT,
         );
         let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
@@ -234,7 +233,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
         decompressed_x_bytes.resize(32, 0u8);
-        let decompressed_x_words: [u32; COMPRESSED_POINT_WORDS] =
+        let decompressed_x_words: [u32; NUM_WORDS_FIELD_ELEMENT] =
             bytes_to_words_le(&decompressed_x_bytes);
 
         // Write decompressed X into slice
