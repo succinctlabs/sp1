@@ -352,7 +352,6 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     segment.add_u8_range_checks(&quotient.to_le_bytes());
                     segment.add_u8_range_checks(&remainder.to_le_bytes());
                     segment.add_u8_range_checks(&c_times_quotient);
-                    segment.add_u16_range_checks(&carry);
                 }
             }
 
@@ -679,20 +678,9 @@ where
             builder.word_range_check_u8(local.quotient, local.is_real);
             builder.word_range_check_u8(local.remainder, local.is_real);
 
-            let first_half = [
-                local.carry[0],
-                local.carry[1],
-                local.carry[2],
-                local.carry[3],
-            ];
-            let second_half = [
-                local.carry[4],
-                local.carry[5],
-                local.carry[6],
-                local.carry[7],
-            ];
-            builder.word_range_check_u16(Word(first_half), local.is_real);
-            builder.word_range_check_u16(Word(second_half), local.is_real);
+            local.carry.iter().for_each(|carry| {
+                builder.assert_bool(*carry);
+            });
 
             let long_words = [local.c_times_quotient];
             for long_word in long_words.iter() {
