@@ -60,29 +60,16 @@ where
 
             let y_idx = i / 5;
             let x_idx = i % 5;
+
+            // When step_flags[0] == 1, then verify memory matches with local.p3_keccak_cols.a
             let a_value_limbs = local.p3_keccak_cols.a[y_idx as usize][x_idx as usize];
             for i in 0..U64_LIMBS {
                 builder
                     .when(local.p3_keccak_cols.step_flags[0] * local.is_real)
                     .assert_eq(memory_limbs[i].clone(), a_value_limbs[i]);
             }
-        }
 
-        // Verify that the memory values are the same as a_prime_prime_prime when local.step_flags[23] == 1
-        for i in 0..STATE_SIZE as u32 {
-            let least_sig_word = local.state_mem[(i * 2) as usize].value;
-            let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
-            let memory_limbs = vec![
-                least_sig_word.0[0]
-                    + least_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-                least_sig_word.0[2]
-                    + least_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-                most_sig_word.0[0] + most_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-                most_sig_word.0[2] + most_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-            ];
-
-            let y_idx = i / 5;
-            let x_idx = i % 5;
+            // When step_flags[23] == 1, then verify memory matches with local.p3_keccak_cols.a_prime_prime_prime
             for i in 0..U64_LIMBS {
                 builder
                     .when(local.p3_keccak_cols.step_flags[23] * local.is_real)
