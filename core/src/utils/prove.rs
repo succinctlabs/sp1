@@ -6,12 +6,11 @@ use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::{extension::BinomialExtensionField, Field};
 use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-use p3_keccak::Keccak256Hash;
 use p3_ldt::QuotientMmcs;
 use p3_mds::coset_mds::CosetMds;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use p3_uni_stark::StarkConfigImpl;
 use rand::thread_rng;
 
