@@ -8,6 +8,7 @@ use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChi
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
+use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
@@ -28,7 +29,7 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 15;
+pub const NUM_CHIPS: usize = 16;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -51,6 +52,7 @@ impl Runtime {
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
+        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -60,6 +62,7 @@ impl Runtime {
             Box::new(sha_extend),
             Box::new(sha_compress),
             Box::new(ed_add),
+            Box::new(ed_decompress),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),

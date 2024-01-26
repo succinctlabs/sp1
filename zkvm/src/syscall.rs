@@ -18,6 +18,9 @@ pub const SHA_COMPRESS: u32 = 103;
 /// Executes `ED_ADD`.
 pub const ED_ADD: u32 = 104;
 
+/// Executes `ED_DECOMPRESS`.
+pub const ED_DECOMPRESS: u32 = 105;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -146,6 +149,7 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
 
 #[allow(unused_variables)]
 #[no_mangle]
+/// Adds two Edwards points. The result is stored in the first point.
 pub extern "C" fn syscall_ed_add(p: *mut u32, q: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -155,6 +159,31 @@ pub extern "C" fn syscall_ed_add(p: *mut u32, q: *mut u32) {
             in("a0") p,
             in("a1") q
         );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+/// Decompresses a compressed Edwards point. The second half of the input array should contain the
+/// compressed Y point with the final bit as the sign bit. The first half of the input array will
+/// be overwritten with the decompressed point, and the sign bit will be removed.
+pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
+    #[cfg(target_os = "zkvm")]
+    {
+        let sign = point[63] >> 7;
+        point[63] &= 0b0111_1111;
+        point[31] = sign;
+        let p = point.as_mut_ptr() as *mut u8;
+        unsafe {
+            asm!(
+                "ecall",
+                in("t0") ED_DECOMPRESS,
+                in("a0") p,
+            );
+        }
     }
 
     #[cfg(not(target_os = "zkvm"))]

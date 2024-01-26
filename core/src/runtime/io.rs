@@ -39,8 +39,7 @@ impl Runtime {
 pub mod tests {
     use super::*;
     use crate::runtime::program::Program;
-    use crate::utils::prove_core;
-    use log::debug;
+    use crate::utils::{prove_core, setup_logger};
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -91,9 +90,7 @@ pub mod tests {
 
     #[test]
     fn test_io_run() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = io_program();
         let mut runtime = Runtime::new(program);
         add_inputs(&mut runtime);
@@ -113,9 +110,7 @@ pub mod tests {
 
     #[test]
     fn test_io_unaligned_run() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = io_program_unaligned();
         let mut runtime = Runtime::new(program);
         add_inputs_unaligned(&mut runtime);
