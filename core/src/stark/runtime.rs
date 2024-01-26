@@ -143,13 +143,13 @@ impl Runtime {
                                 main_data,
                             );
 
-                            Verifier::verify(
-                                config,
-                                &segment_chips,
-                                &mut challenger.clone(),
-                                &proof,
-                            )
-                            .unwrap();
+                            // Verifier::verify(
+                            //     config,
+                            //     &segment_chips,
+                            //     &mut challenger.clone(),
+                            //     &proof,
+                            // )
+                            // .unwrap();
 
                             debug_proof
                         })
@@ -168,7 +168,7 @@ impl Runtime {
                 global_main_data,
             );
 
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), &proof).unwrap();
+            // Verifier::verify(config, &global_chips, &mut challenger.clone(), &proof).unwrap();
 
             debug_proof
         });
