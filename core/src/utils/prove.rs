@@ -22,6 +22,45 @@ pub fn prove(program: Program) {
         let mut runtime = Runtime::new(program);
         runtime.add_input_slice(&[1, 2]);
         runtime.run();
+
+        // Sum ed_add and ed_decompress events
+        let sums = runtime
+            .segments
+            .iter()
+            .map(|segment| {
+                let count = (
+                    segment.ed_add_events.len(),
+                    segment.ed_decompress_events.len(),
+                    segment.sha_compress_events.len(),
+                    segment.sha_extend_events.len(),
+                );
+                tracing::info!(
+                    "{}: ed_add={}, ed_decompress={}, sha_compress={}, sha_extend={}",
+                    segment.index,
+                    count.0,
+                    count.1,
+                    count.2,
+                    count.3
+                );
+                count
+            })
+            .fold((0, 0, 0, 0), |acc, count| {
+                (
+                    acc.0 + count.0,
+                    acc.1 + count.1,
+                    acc.2 + count.2,
+                    acc.3 + count.3,
+                )
+            });
+
+        tracing::info!(
+            "ed_add={}, ed_decompress={}, sha_compress={}, sha_extend={}",
+            sums.0,
+            sums.1,
+            sums.2,
+            sums.3
+        );
+
         runtime
     });
     prove_core(&mut runtime)
