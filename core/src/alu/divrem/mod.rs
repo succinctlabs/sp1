@@ -275,15 +275,15 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 };
 
                 // Add remainder to product.
-                let mut carry = [0u8; 8];
+                let mut carry = [0u32; 8];
                 let base = 1 << BYTE_SIZE;
                 for i in 0..LONG_WORD_SIZE {
                     let mut x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32;
                     if i > 0 {
-                        x += carry[i - 1] as u32;
+                        x += carry[i - 1];
                     }
-                    carry[i] = (x / base) as u8;
-                    cols.carry[i] = F::from_canonical_u8(carry[i]);
+                    carry[i] = x / base;
+                    cols.carry[i] = F::from_canonical_u32(carry[i]);
                 }
 
                 // Insert the necessary multiplication & LT events.
@@ -352,7 +352,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     segment.add_u8_range_checks(&quotient.to_le_bytes());
                     segment.add_u8_range_checks(&remainder.to_le_bytes());
                     segment.add_u8_range_checks(&c_times_quotient);
-                    segment.add_u8_range_checks(&carry);
+                    segment.add_u16_range_checks(&carry);
                 }
             }
 
@@ -679,7 +679,22 @@ where
             builder.word_range_check_u8(local.quotient, local.is_real);
             builder.word_range_check_u8(local.remainder, local.is_real);
 
-            let long_words = [local.c_times_quotient, local.carry];
+            let first_half = [
+                local.carry[0],
+                local.carry[1],
+                local.carry[2],
+                local.carry[3],
+            ];
+            let second_half = [
+                local.carry[4],
+                local.carry[5],
+                local.carry[6],
+                local.carry[7],
+            ];
+            builder.word_range_check_u16(Word(first_half), local.is_real);
+            builder.word_range_check_u16(Word(second_half), local.is_real);
+
+            let long_words = [local.c_times_quotient];
             for long_word in long_words.iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
