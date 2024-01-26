@@ -1,9 +1,12 @@
-use std::{path::PathBuf, process::Command};
+use std::{fs::File, path::PathBuf, process::Command};
 
 use anyhow::Result;
 use clap::Parser;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use tar::Builder;
 
-use crate::{CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
+use crate::{get_target, CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
 
 #[derive(Parser)]
 #[command(name = "build-toolchain", about = "Build the cargo-prove toolchain.")]
@@ -15,7 +18,7 @@ impl BuildToolchainCmd {
         let github_access_token = std::env::var("GITHUB_ACCESS_TOKEN");
         let build_dir = std::env::var("SUCCINCT_BUILD_DIR");
 
-        // Clone our rust fork.
+        // Clone our rust fork, if necessary.
         let rust_dir = match build_dir {
             Ok(build_dir) => {
                 println!("Detected SUCCINCT_BUILD_DIR, skipping cloning rust.");
@@ -37,8 +40,6 @@ impl BuildToolchainCmd {
                     }
                 };
                 Command::new("git").args(["clone", &repo_url]).run()?;
-
-                // Checkout the correct branch.
                 Command::new("git")
                     .args(["checkout", "riscv32im-succinct-zkvm"])
                     .current_dir("rust")
@@ -110,16 +111,25 @@ impl BuildToolchainCmd {
         for tool in tools_bin_dir.read_dir()? {
             let tool = tool?;
             let tool_name = tool.file_name();
-            println!("copy tool: {:?}", tool_name);
             std::fs::copy(&tool.path(), target_bin_dir.join(tool_name))?;
         }
 
         // Link the toolchain to rustup.
         Command::new("rustup")
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(toolchain_dir)
+            .arg(&toolchain_dir)
             .run()?;
         println!("Succesfully linked the toolchain to rustup.");
+
+        // Compressing toolchain directory to tar.gz.
+        let target = get_target();
+        let tar_gz_path = format!("rust-toolchain-{}.tar.gz", target);
+        let tar_gz = File::create(&tar_gz_path)?;
+        let enc = GzEncoder::new(tar_gz, Compression::default());
+        let mut tar = Builder::new(enc);
+        tar.append_dir_all(".", toolchain_dir)?;
+        drop(tar);
+        println!("Succesfully compressed the toolchain to {}.", tar_gz_path);
 
         Ok(())
     }
