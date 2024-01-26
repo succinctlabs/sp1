@@ -247,11 +247,34 @@ pub mod tests {
     }
 
     #[test]
+    fn test_mul_prove_fail() {
+        let mul_ops = [Opcode::MUL];
+        utils::setup_logger();
+        let operands = [
+            // (1, 1),
+            // (1234, 5678),
+            // (8765, 4321),
+            (0xffff, 0xffff - 1),
+            // (u32::MAX - 1, u32::MAX),
+        ];
+        for mul_op in mul_ops.iter() {
+            for operand in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, operand.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, operand.1, false, true),
+                    Instruction::new(*mul_op, 31, 30, 29, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
+        }
+    }
+    #[test]
     fn test_mul_prove() {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
         utils::setup_logger();
         let operands = [
-            // (1, 1),
+            (1, 1),
             (1234, 5678),
             // (8765, 4321),
             // (0xffff, 0xffff - 1),
