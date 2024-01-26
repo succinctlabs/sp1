@@ -29,15 +29,14 @@ impl InstallToolchainCmd {
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
         match fs::remove_dir_all(&root_dir) {
-            Ok(_) => println!("Succesfully removed existing toolchain."),
-            Err(_) => println!("No existing toolchain to remove."),
+            Ok(_) => println!("Succesfully removed existing ~/.cargo-prove directory.."),
+            Err(_) => println!("No existing ~/.cargo-prove directory to remove."),
         }
         fs::create_dir_all(&root_dir)?;
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(target);
-        println!("{}", toolchain_dir.to_str().unwrap());
         let toolchain_download_url = get_toolchain_download_url();
 
         // Download the toolchain.
@@ -56,17 +55,16 @@ impl InstallToolchainCmd {
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .run()
         {
-            Ok(_) => println!("Succesfully removed existing toolchain."),
-            Err(_) => println!("No existing toolchain to remove."),
+            Ok(_) => println!("Succesfully uninstalled existing toolchain."),
+            Err(_) => println!("No existing toolchain to uninstall."),
         }
         std::thread::sleep(Duration::from_secs(3));
 
         // Unpack the toolchain.
         fs::create_dir_all(&toolchain_dir)?;
-        println!("{}", toolchain_archive_path.to_str().unwrap());
         Command::new("tar")
             .current_dir(&root_dir)
-            .args(["-xzvf", &toolchain_asset_name, "-C", target])
+            .args(["-xzf", &toolchain_asset_name, "-C", target])
             .run()?;
         std::thread::sleep(Duration::from_secs(3));
 
@@ -85,13 +83,13 @@ impl InstallToolchainCmd {
         Command::new("rustup")
             .current_dir(&root_dir)
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(random_string)
+            .arg(&random_string)
             .run()?;
         println!("Succesfully linked toolchain to rustup.");
         std::thread::sleep(Duration::from_secs(3));
 
         // Ensure permissions.
-        let bin_dir = toolchain_dir.join("bin");
+        let bin_dir = root_dir.join(random_string).join("bin");
         let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
         for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
             let entry = wrapped_entry?;
