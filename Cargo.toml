@@ -13,26 +13,26 @@ inherits = "release"
 debug = true
 
 [workspace.dependencies]
-p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
+p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
 valida-derive = { git = "https://github.com/valida-xyz/valida.git" }
 
-p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
-p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/update-jan-23-2" }
+p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
+p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/verifier" }
 
 [patch.crates-io]
 # Patch sha2 so we can use sha precompiles
