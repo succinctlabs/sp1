@@ -1,6 +1,8 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use cli::commands::prove::ProveCmd;
+use cli::commands::{
+    build_toolchain::BuildToolchainCmd, install_toolchain::InstallToolchainCmd, prove::ProveCmd,
+};
 
 #[derive(Parser)]
 #[command(name = "cargo", bin_name = "cargo")]
@@ -21,6 +23,8 @@ pub struct ProveCli {
 #[derive(Subcommand)]
 pub enum ProveCliCommands {
     Prove(ProveCmd),
+    BuildToolchain(BuildToolchainCmd),
+    InstallToolchain(InstallToolchainCmd),
 }
 
 fn main() -> Result<()> {
@@ -28,5 +32,7 @@ fn main() -> Result<()> {
     let command = args.command.unwrap_or(ProveCliCommands::Prove(args.prove));
     match command {
         ProveCliCommands::Prove(cmd) => cmd.run(),
+        ProveCliCommands::BuildToolchain(cmd) => cmd.run(),
+        ProveCliCommands::InstallToolchain(cmd) => cmd.run(),
     }
 }
