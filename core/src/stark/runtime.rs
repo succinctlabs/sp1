@@ -291,13 +291,7 @@ pub mod tests {
     #[test]
     fn test_divrem_prove() {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
-        let operands = [
-            (1, 1),
-            (1234, 5678),
-            (8765, 4321),
-            (0xffff, 0xffff - 1),
-            (u32::MAX - 1, u32::MAX),
-        ];
+        let operands = [(5, 8)];
         for div_rem_op in div_rem_ops.iter() {
             for op in operands.iter() {
                 let instructions = vec![

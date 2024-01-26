@@ -199,8 +199,8 @@ pub fn debug_interactions_with_all_chips(
         }
     }
 
-    tracing::debug!("Final counts below.");
-    tracing::debug!("==================");
+    println!("Final counts below.");
+    println!("==================");
 
     let mut any_nonzero = false;
     for (key, value) in final_map.clone() {
@@ -223,12 +223,12 @@ pub fn debug_interactions_with_all_chips(
         }
     }
 
-    tracing::debug!("==================");
+    println!("==================");
     if !any_nonzero {
-        tracing::debug!("All chips have the same number of sends and receives.");
+        println!("All chips have the same number of sends and receives.");
     } else {
-        tracing::debug!("Positive values mean sent more than received.");
-        tracing::debug!("Negative values mean received more than sent.");
+        println!("Positive values mean sent more than received.");
+        println!("Negative values mean received more than sent.");
     }
 
     !any_nonzero
