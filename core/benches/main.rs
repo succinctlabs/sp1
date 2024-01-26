@@ -19,7 +19,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             runtime.global_clk
         };
         group.bench_function(
-            format!("{}: cycles={}", p.split('/').last().unwrap(), cycles),
+            format!("main:{}:{}", p.split('/').last().unwrap(), cycles),
             |b| b.iter(|| prove(black_box(program.clone()))),
         );
     }
