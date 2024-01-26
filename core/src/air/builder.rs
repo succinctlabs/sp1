@@ -189,15 +189,13 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
-    /// Check that each limb of the given `Word` is a u16.
-    fn word_range_check_u16<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    /// Check that each limb of the given slice is a u16.
+    fn slice_range_check_u16<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
-        input: Word<EWord>,
+        input: &[EWord],
         mult: EMult,
     ) {
-        for limb in input.0.iter() {
-            // Changing this `limb` to some random number didn't remove 252. Idk where 508 is
-            // converted to 252, but it's not before this.
+        input.iter().for_each(|limb| {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
                 *limb,
@@ -205,7 +203,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 mult.clone(),
             );
-        }
+        });
     }
 }
 

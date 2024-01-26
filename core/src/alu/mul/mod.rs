@@ -367,20 +367,7 @@ where
             // Ensure that the carry is at most 2^16. This ensures that
             // product_before_carry_propagation - carry * base + last_carry never overflows or
             // underflows enough to "wrap" around to create a second solution.
-            let first_half = [
-                local.carry[0],
-                local.carry[1],
-                local.carry[2],
-                local.carry[3],
-            ];
-            let second_half = [
-                local.carry[4],
-                local.carry[5],
-                local.carry[6],
-                local.carry[7],
-            ];
-            builder.word_range_check_u16(Word(first_half), local.is_real);
-            builder.word_range_check_u16(Word(second_half), local.is_real);
+            builder.slice_range_check_u16(&local.carry, local.is_real);
             {
                 let long_word = &local.product;
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
