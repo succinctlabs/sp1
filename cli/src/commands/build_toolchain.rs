@@ -128,6 +128,13 @@ impl BuildToolchainCmd {
                 "-C",
                 toolchain_dir.to_str().unwrap(),
                 ".",
+                "--exclude",
+                toolchain_dir.join("lib/rustlib/src").to_str().unwrap(),
+                "--exclude",
+                toolchain_dir
+                    .join("lib/rustlib/rustc-src")
+                    .to_str()
+                    .unwrap(),
             ])
             .run()?;
         println!("Succesfully compressed the toolchain to {}.", tar_gz_path);
