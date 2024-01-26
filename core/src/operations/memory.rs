@@ -48,11 +48,6 @@ impl<F: Field> MemoryAccessCols<F> {
             segment: write_record.prev_segment,
             timestamp: write_record.prev_timestamp,
         };
-        if write_record.value == 1534262319 {
-            println!("write_record.value == 1534262319");
-            println!("current_record = {:?}", current_record);
-            println!("prev_record = {:?}", prev_record);
-        }
         self.populate_access(current_record, prev_record, new_field_events);
     }
 
