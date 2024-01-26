@@ -7,6 +7,7 @@ use crate::cpu::cols::cpu_cols::MemoryAccessCols;
 
 use super::STATE_NUM_WORDS;
 
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct KeccakCols<T> {
     pub p3_keccak_cols: P3KeccakCols<T>,
@@ -16,6 +17,8 @@ pub(crate) struct KeccakCols<T> {
 
     pub state_mem: [MemoryAccessCols<T>; STATE_NUM_WORDS],
     pub state_addr: T,
+
+    pub is_real: T,
 }
 
 pub const NUM_KECCAK_COLS: usize = size_of::<KeccakCols<u8>>();

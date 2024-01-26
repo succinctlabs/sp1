@@ -19,16 +19,14 @@ use super::KeccakPermuteChip;
 
 impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
-
         const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
+        let mut rows = Vec::new();
         for event in segment.keccak_permute_events.iter() {
             // First get the trace for the plonky3 keccak air.
             let p3_keccak_trace = generate_trace_rows::<F>(vec![event.pre_state]);
 
             // Create all the rows for the permutation.
-            let mut rows = Vec::new();
             for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
                 let mut row = [F::zero(); NUM_KECCAK_COLS];
                 let col: &mut KeccakCols<F> = unsafe { transmute(&mut row) };

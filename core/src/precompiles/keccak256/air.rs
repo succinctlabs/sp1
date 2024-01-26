@@ -28,13 +28,13 @@ where
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
-            // Note that for the padded columns, local.step_flags elements are all zero.
             builder.constraint_memory_access(
                 local.segment,
                 local.clk,
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 local.state_mem[i as usize],
-                local.p3_keccak_cols.step_flags[0] + local.p3_keccak_cols.step_flags[23],
+                (local.p3_keccak_cols.step_flags[0] + local.p3_keccak_cols.step_flags[23])
+                    * local.is_real,
             );
         }
 
@@ -58,7 +58,7 @@ where
             let a_value_limbs = local.p3_keccak_cols.a[y_idx as usize][x_idx as usize];
             for i in 0..U64_LIMBS {
                 builder
-                    .when(local.p3_keccak_cols.step_flags[0])
+                    .when(local.p3_keccak_cols.step_flags[0] * local.is_real)
                     .assert_eq(memory_limbs[i].clone(), a_value_limbs[i]);
             }
         }
@@ -79,12 +79,14 @@ where
             let y_idx = i / 5;
             let x_idx = i % 5;
             for i in 0..U64_LIMBS {
-                builder.when(local.p3_keccak_cols.step_flags[23]).assert_eq(
-                    memory_limbs[i].clone(),
-                    local
-                        .p3_keccak_cols
-                        .a_prime_prime_prime(x_idx as usize, y_idx as usize, i),
-                )
+                builder
+                    .when(local.p3_keccak_cols.step_flags[23] * local.is_real)
+                    .assert_eq(
+                        memory_limbs[i].clone(),
+                        local
+                            .p3_keccak_cols
+                            .a_prime_prime_prime(x_idx as usize, y_idx as usize, i),
+                    )
             }
         }
 
