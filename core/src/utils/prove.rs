@@ -27,6 +27,16 @@ pub fn get_cycles(program: Program) -> u64 {
 }
 
 pub fn prove(program: Program) {
+    let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program);
+        runtime.add_input_slice(&[1, 2]);
+        runtime.run();
+        runtime
+    });
+    prove_core(&mut runtime)
+}
+
+pub fn prove_core(runtime: &mut Runtime) {
     type Val = BabyBear;
     type Domain = Val;
     type Challenge = BinomialExtensionField<Val, 4>;
@@ -66,13 +76,6 @@ pub fn prove(program: Program) {
     let pcs = Pcs::new(dft, val_mmcs, ldt);
     let config = StarkConfigImpl::new(pcs);
     let mut challenger = Challenger::new(perm.clone());
-
-    let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[1, 2]);
-        runtime.run();
-        runtime
-    });
 
     let start = Instant::now();
 
