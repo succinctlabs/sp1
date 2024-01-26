@@ -18,6 +18,8 @@ pub(crate) struct KeccakCols<T> {
     pub state_mem: [MemoryAccessCols<T>; STATE_NUM_WORDS],
     pub state_addr: T,
 
+    pub do_memory_check: T,
+
     pub is_real: T,
 }
 

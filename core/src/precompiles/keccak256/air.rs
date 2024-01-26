@@ -26,6 +26,12 @@ where
         let main = builder.main();
         let local: &KeccakCols<AB::Var> = main.row_slice(0).borrow();
 
+        builder.assert_eq(
+            (local.p3_keccak_cols.step_flags[0] + local.p3_keccak_cols.step_flags[23])
+                * local.is_real,
+            local.do_memory_check,
+        );
+
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
             builder.constraint_memory_access(
@@ -33,8 +39,7 @@ where
                 local.clk,
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 local.state_mem[i as usize],
-                (local.p3_keccak_cols.step_flags[0] + local.p3_keccak_cols.step_flags[23])
-                    * local.is_real,
+                local.do_memory_check,
             );
         }
 
