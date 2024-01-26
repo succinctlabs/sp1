@@ -203,14 +203,23 @@ pub mod tests {
     #[test]
     fn test_shift_prove() {
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (8765, 4321),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+        ];
         for shift_op in shift_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*shift_op, 31, 29, 3, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for op in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
+                    Instruction::new(*shift_op, 31, 29, 3, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
