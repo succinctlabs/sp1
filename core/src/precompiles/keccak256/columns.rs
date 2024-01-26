@@ -1,5 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 use p3_keccak_air::KeccakCols as P3KeccakCols;
 
@@ -19,6 +19,7 @@ pub(crate) struct KeccakCols<T> {
 }
 
 pub const NUM_KECCAK_COLS: usize = size_of::<KeccakCols<u8>>();
+pub const P3_KECCAK_COLS_OFFSET: usize = offset_of!(KeccakCols<u8>, p3_keccak_cols);
 
 impl<T> Borrow<KeccakCols<T>> for [T] {
     fn borrow(&self) -> &KeccakCols<T> {

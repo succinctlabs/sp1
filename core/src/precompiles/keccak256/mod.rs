@@ -1,11 +1,14 @@
+use std::ops::Range;
+
 use crate::precompiles::{MemoryReadRecord, MemoryWriteRecord};
 
-use p3_keccak_air::KeccakAir;
+use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS as P3_NUM_KECCAK_COLS};
+
+use self::columns::P3_KECCAK_COLS_OFFSET;
 
 mod air;
 pub mod columns;
 mod execute;
-// mod logic;
 mod trace;
 
 const NUM_ROUNDS: usize = 24;
@@ -13,11 +16,6 @@ const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
 const STATE_NUM_WORDS: usize = 25 * 2;
-
-const BITS_PER_LIMB: usize = 16;
-const U64_LIMBS: usize = 64 / BITS_PER_LIMB;
-const RATE_BITS: usize = 1088;
-const RATE_LIMBS: usize = RATE_BITS / BITS_PER_LIMB;
 
 #[derive(Debug, Clone, Copy)]
 pub struct KeccakPermuteEvent {
@@ -31,12 +29,17 @@ pub struct KeccakPermuteEvent {
 
 pub struct KeccakPermuteChip {
     p3_keccak: KeccakAir,
+    p3_keccak_col_range: Range<usize>,
 }
 
 impl KeccakPermuteChip {
     pub fn new() -> Self {
+        // Get offset of p3_keccak_cols in KeccakCols
+        let p3_keccak_air = KeccakAir {};
         Self {
-            p3_keccak: KeccakAir {},
+            p3_keccak: p3_keccak_air,
+            p3_keccak_col_range: P3_KECCAK_COLS_OFFSET
+                ..(P3_KECCAK_COLS_OFFSET + P3_NUM_KECCAK_COLS),
         }
     }
 }

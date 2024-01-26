@@ -8,6 +8,7 @@
     clippy::type_complexity,
     clippy::unnecessary_unwrap
 )]
+#![feature(offset_of)]
 
 pub mod air;
 pub mod alu;

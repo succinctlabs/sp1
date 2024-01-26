@@ -2,14 +2,14 @@ use core::borrow::Borrow;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_keccak_air::KeccakAir;
+use p3_keccak_air::{KeccakAir, U64_LIMBS};
 use p3_matrix::MatrixRowSlices;
 
 use crate::air::{CurtaAirBuilder, SubAirBuilder};
 
 use super::{
     columns::{KeccakCols, NUM_KECCAK_COLS},
-    KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE, U64_LIMBS,
+    KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
 };
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
@@ -89,7 +89,7 @@ where
         }
 
         let mut sub_builder =
-            SubAirBuilder::<AB, KeccakAir, AB::Var>::new(builder, &self.p3_keccak);
+            SubAirBuilder::<AB, KeccakAir, AB::Var>::new(builder, self.p3_keccak_col_range.clone());
 
         self.p3_keccak.eval(&mut sub_builder);
     }

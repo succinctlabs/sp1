@@ -11,6 +11,7 @@ use crate::cpu::cols::opcode_cols::OpcodeSelectors;
 use crate::lookup::InteractionKind;
 use p3_field::AbstractField;
 use std::iter::once;
+use std::ops::Range;
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
@@ -401,15 +402,15 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder 
 
 pub struct SubMatrixRowSlices<M: MatrixRowSlices<T>, T> {
     inner: M,
-    width: usize,
+    column_range: Range<usize>,
     _phantom: std::marker::PhantomData<T>,
 }
 
 impl<M: MatrixRowSlices<T>, T> SubMatrixRowSlices<M, T> {
-    pub fn new(inner: M, width: usize) -> Self {
+    pub fn new(inner: M, column_range: Range<usize>) -> Self {
         Self {
             inner,
-            width,
+            column_range,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -460,21 +461,21 @@ impl<M: MatrixRowSlices<T>, T> MatrixRows<T> for SubMatrixRowSlices<M, T> {
 impl<M: MatrixRowSlices<T>, T> MatrixRowSlices<T> for SubMatrixRowSlices<M, T> {
     fn row_slice(&self, r: usize) -> &[T] {
         let entry = self.inner.row_slice(r);
-        return &entry[..self.width];
+        &entry[self.column_range.start..self.column_range.end]
     }
 }
 
 pub struct SubAirBuilder<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> {
     inner: &'a mut AB,
-    sub_air: &'a SubAir,
+    column_range: Range<usize>,
     _phantom: std::marker::PhantomData<(SubAir, T)>,
 }
 
 impl<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> SubAirBuilder<'a, AB, SubAir, T> {
-    pub fn new(inner: &'a mut AB, sub_air: &'a SubAir) -> Self {
+    pub fn new(inner: &'a mut AB, column_range: Range<usize>) -> Self {
         Self {
             inner,
-            sub_air,
+            column_range,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -488,10 +489,8 @@ impl<'a, AB: AirBuilder, SubAir: BaseAir<F>, F> AirBuilder for SubAirBuilder<'a,
 
     fn main(&self) -> Self::M {
         let matrix = self.inner.main();
-        let width = self.sub_air.width();
 
-        let sub_matrix = SubMatrixRowSlices::new(matrix, width);
-        sub_matrix
+        SubMatrixRowSlices::new(matrix, self.column_range.clone())
     }
 
     fn is_first_row(&self) -> Self::Expr {
