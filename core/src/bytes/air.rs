@@ -53,7 +53,7 @@ where
                 ByteOpcode::SLL => {
                     builder.receive_byte(field_op, local.sll, local.b, local.c, mult)
                 }
-                ByteOpcode::Range => {
+                ByteOpcode::U8Range => {
                     builder.receive_byte(field_op, AB::F::zero(), local.b, local.c, mult)
                 }
                 ByteOpcode::ShrCarry => builder.receive_byte_pair(
@@ -69,6 +69,9 @@ where
                 }
                 ByteOpcode::MSB => {
                     builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), mult)
+                }
+                ByteOpcode::U16Range => {
+                    builder.receive_byte(field_op, AB::F::zero(), local.b, AB::F::zero(), mult)
                 }
             }
         }

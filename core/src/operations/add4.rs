@@ -109,7 +109,7 @@ impl<F: Field> Add4Operation<F> {
             // Pass two bytes to range check at a time.
             for i in (0..bytes.len()).step_by(2) {
                 builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
+                    AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
                     AB::F::zero(),
                     AB::F::zero(),
                     bytes[i],

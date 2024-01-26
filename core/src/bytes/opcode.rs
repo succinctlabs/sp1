@@ -17,8 +17,8 @@ pub enum ByteOpcode {
     /// Shift Left.
     SLL = 3,
 
-    /// Range check.
-    Range = 4,
+    /// U8 Range check.
+    U8Range = 4,
 
     /// Shift right with carry.
     ShrCarry = 5,
@@ -28,6 +28,9 @@ pub enum ByteOpcode {
 
     /// The most significant bit of the given byte.
     MSB = 7,
+
+    /// U16 Range check.
+    U16Range = 8,
 }
 
 impl ByteOpcode {
@@ -38,10 +41,11 @@ impl ByteOpcode {
             ByteOpcode::OR,
             ByteOpcode::XOR,
             ByteOpcode::SLL,
-            ByteOpcode::Range,
+            ByteOpcode::U8Range,
             ByteOpcode::ShrCarry,
             ByteOpcode::LTU,
             ByteOpcode::MSB,
+            ByteOpcode::U16Range,
         ];
         assert_eq!(opcodes.len(), NUM_BYTE_OPS);
         opcodes

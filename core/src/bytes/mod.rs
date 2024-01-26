@@ -19,7 +19,7 @@ use self::utils::shr_carry;
 use crate::bytes::trace::NUM_ROWS;
 
 /// The number of different byte operations.
-pub const NUM_BYTE_OPS: usize = 8;
+pub const NUM_BYTE_OPS: usize = 9;
 
 /// A chip for computing byte operations.
 ///
@@ -86,7 +86,7 @@ impl<F: Field> ByteChip<F> {
                         col.sll = F::from_canonical_u8(sll);
                         ByteLookupEvent::new(*opcode, sll as u32, 0, b as u32, c as u32)
                     }
-                    ByteOpcode::Range => ByteLookupEvent::new(*opcode, 0, 0, b as u32, c as u32),
+                    ByteOpcode::U8Range => ByteLookupEvent::new(*opcode, 0, 0, b as u32, c as u32),
                     ByteOpcode::ShrCarry => {
                         let (res, carry) = shr_carry(b, c);
                         col.shr = F::from_canonical_u8(res);
@@ -102,6 +102,11 @@ impl<F: Field> ByteChip<F> {
                         let msb = (b & 0b1000_0000) != 0;
                         col.msb = F::from_bool(msb);
                         ByteLookupEvent::new(*opcode, msb as u32, 0, b as u32, 0 as u32)
+                    }
+                    ByteOpcode::U16Range => {
+                        // For U16 range checks, only use the b field.
+                        let v = ((b as u32) << 8) + c as u32;
+                        ByteLookupEvent::new(*opcode, 0, 0, v, 0)
                     }
                 };
                 event_map.insert(event, (row_index, i));

@@ -84,11 +84,11 @@ impl Segment {
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
     pub fn add_byte_range_check(&mut self, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
-            opcode: ByteOpcode::Range,
+            opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
-            b: a,
-            c: b,
+            b: a as u32,
+            c: b as u32,
         });
     }
 
@@ -109,10 +109,10 @@ impl Segment {
     pub fn lookup_or(&mut self, b: u8, c: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::OR,
-            a1: b | c,
+            a1: (b | c) as u32,
             a2: 0,
-            b,
-            c,
+            b: b as u32,
+            c: c as u32,
         });
     }
 

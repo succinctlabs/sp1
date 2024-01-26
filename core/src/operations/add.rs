@@ -108,7 +108,7 @@ impl<F: Field> AddOperation<F> {
                     .collect::<Vec<_>>();
             for i in (0..bytes.len()).step_by(2) {
                 builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
+                    AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
                     AB::F::zero(),
                     AB::F::zero(),
                     bytes[i],

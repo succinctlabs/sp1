@@ -180,7 +180,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
     ) {
         for byte_pair in input.0.chunks_exact(2) {
             self.send_byte(
-                Self::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
                 byte_pair[0],
                 byte_pair[1],
