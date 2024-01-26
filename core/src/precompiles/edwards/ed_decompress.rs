@@ -317,7 +317,6 @@ pub mod tests {
 
     #[test]
     fn test_ed_decompress() {
-        tracing_subscriber::fmt::init();
         let program = Program::from_elf("../programs/ed_decompress");
         prove(program);
     }
