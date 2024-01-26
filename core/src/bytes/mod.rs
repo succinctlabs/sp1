@@ -106,7 +106,8 @@ impl<F: Field> ByteChip<F> {
                     ByteOpcode::U16Range => {
                         // For U16 range checks, only use the b field.
                         let v = ((b as u32) << 8) + c as u32;
-                        ByteLookupEvent::new(*opcode, 0, 0, v, 0)
+                        col.value_u16 = F::from_canonical_u32(v);
+                        ByteLookupEvent::new(*opcode, v, 0, 0, 0)
                     }
                 };
                 event_map.insert(event, (row_index, i));

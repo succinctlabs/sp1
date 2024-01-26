@@ -196,10 +196,12 @@ pub trait WordAirBuilder: ByteAirBuilder {
         mult: EMult,
     ) {
         for limb in input.0.iter() {
+            // Changing this `limb` to some random number didn't remove 252. Idk where 508 is
+            // converted to 252, but it's not before this.
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-                Self::Expr::zero(),
                 *limb,
+                Self::Expr::zero(),
                 Self::Expr::zero(),
                 mult.clone(),
             );

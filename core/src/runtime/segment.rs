@@ -94,11 +94,12 @@ impl Segment {
 
     /// Adds a `ByteLookupEvent` to verify `a` is indeed u16.
     pub fn add_u16_range_check(&mut self, a: u32) {
+        println!("adding {} to u16 range check", a);
         self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::U16Range,
-            a1: 0,
+            a1: a,
             a2: 0,
-            b: a as u32,
+            b: 0,
             c: 0,
         });
     }
