@@ -3,14 +3,6 @@ name: Performance
 on:
   push:
     branches: [main]
-  pull_request:
-    branches:
-      - "**"
-    paths:
-      - "**"
-  workflow_dispatch:
-    branches:
-      - "**"
 
 permissions:
   contents: write
