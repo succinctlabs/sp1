@@ -28,10 +28,10 @@ impl InstallToolchainCmd {
         let mut headers = HeaderMap::new();
         match std::env::var("GITHUB_ACCESS_TOKEN") {
             Ok(github_access_token) => {
-                headers.insert(
-                    "Authorization",
-                    format!("Bearer {}", github_access_token).parse()?,
-                );
+                // headers.insert(
+                //     "Authorization",
+                //     format!("Bearer {}", github_access_token).parse()?,
+                // );
                 println!("GITHUB_ACCESS_TOKEN found. Using authenticated requests.")
             }
             Err(_) => {
@@ -46,20 +46,21 @@ impl InstallToolchainCmd {
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
         let target = get_target();
-        let toolchain_asset_name = format!("rust-toolchain-.tar.gz");
+        let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(target);
-        let rt = tokio::runtime::Runtime::new()?;
-        let toolchain_download_url = rt.block_on(get_toolchain_download_url(
-            &client,
-            &toolchain_asset_name.clone(),
-        ))?;
+        // let rt = tokio::runtime::Runtime::new()?;
+        // let toolchain_download_url = rt.block_on(get_toolchain_download_url(
+        //     &client,
+        //     &toolchain_asset_name.clone(),
+        // ))?;
+        let toolchain_download_url = "https://succinct-vm-toolchain.s3.amazonaws.com/riscv32im-succinct-zkvm-v2024-01-25.tar.gz";
 
         // Download the toolchain.
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(download_file(
             &client,
-            &toolchain_download_url,
+            toolchain_download_url,
             toolchain_archive_path.to_str().unwrap(),
         ))
         .unwrap();
