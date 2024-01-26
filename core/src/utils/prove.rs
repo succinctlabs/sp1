@@ -48,13 +48,13 @@ pub fn prove_core(runtime: &mut Runtime) {
     type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
     let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
 
-    type MyHash = SerializingHasher32<Keccak256Hash>;
-    let hash = MyHash::new(Keccak256Hash {});
+    type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
+    let hash = MyHash::new(perm.clone());
 
-    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
-    let compress = MyCompress::new(hash);
+    type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    let compress = MyCompress::new(perm.clone());
 
-    type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    type ValMmcs = FieldMerkleTreeMmcs<<Val as Field>::Packing, MyHash, MyCompress, 8>;
     let val_mmcs = ValMmcs::new(hash, compress);
 
     type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
@@ -67,7 +67,7 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
     type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
+    let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
     let ldt = FriLdt { config: fri_config };
 
     type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
