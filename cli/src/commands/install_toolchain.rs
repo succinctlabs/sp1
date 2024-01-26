@@ -28,6 +28,7 @@ impl InstallToolchainCmd {
 
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
+        fs::remove_dir_all(&root_dir)?;
         fs::create_dir_all(&root_dir)?;
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
