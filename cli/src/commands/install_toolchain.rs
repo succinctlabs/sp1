@@ -2,8 +2,10 @@ use anyhow::Result;
 use clap::Parser;
 use dirs::home_dir;
 use flate2::read::GzDecoder;
+use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use std::fs::{self, File};
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 use tar::Archive;
@@ -52,7 +54,8 @@ impl InstallToolchainCmd {
         std::thread::sleep(Duration::from_secs(3));
 
         // Remove the existing toolchain from rustup, if it exists.
-        match Command::new("/Users/jtguibas/.cargo/bin/rustup")
+        match Command::new("rustup")
+            .current_dir(&root_dir)
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .run()
         {
@@ -63,21 +66,29 @@ impl InstallToolchainCmd {
 
         // Unpack the toolchain.
         fs::create_dir_all(&toolchain_dir)?;
-        Command::new("/usr/bin/tar")
-            .args([
-                "-xzf",
-                &toolchain_archive_path.to_str().unwrap(),
-                "-C",
-                &toolchain_dir.to_str().unwrap(),
-            ])
+        println!("{}", toolchain_archive_path.to_str().unwrap());
+        Command::new("tar")
+            .current_dir(&root_dir)
+            .args(["-xzvf", &toolchain_asset_name, "-C", target])
             .run()?;
         std::thread::sleep(Duration::from_secs(3));
 
-        // Link the toolchain to rustup.
+        // Move the toolchain to a random directory (avoid rustup bugs).
+        let random_string: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect();
+        Command::new("mv")
+            .current_dir(&root_dir)
+            .args([target, &random_string])
+            .run()?;
 
-        Command::new("/Users/jtguibas/.cargo/bin/rustup")
+        // Link the toolchain to rustup.
+        Command::new("rustup")
+            .current_dir(&root_dir)
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(toolchain_dir.to_str().unwrap())
+            .arg(random_string)
             .run()?;
         println!("Succesfully linked toolchain to rustup.");
         std::thread::sleep(Duration::from_secs(3));

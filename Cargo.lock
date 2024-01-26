@@ -564,6 +564,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "indicatif",
+ "rand",
  "reqwest",
  "serde",
  "succinct-core",
