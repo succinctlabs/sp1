@@ -90,12 +90,10 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         });
 
     // The permutation trace is actually the multiplicative inverse of the RLC's we computed above.
-    tracing::debug_span!("batch multiplicative inverse").in_scope(|| {
-        permutation_trace_values
-            .chunks_mut(chunk_rate)
-            .par_bridge()
-            .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
-    });
+    permutation_trace_values
+        .chunks_mut(chunk_rate)
+        .par_bridge()
+        .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
     let mut permutation_trace =
         RowMajorMatrix::new(permutation_trace_values, permutation_trace_width);
 
@@ -103,26 +101,24 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     let mut phi = vec![EF::zero(); permutation_trace.height()];
     let nb_send_iteractions = chip.sends().len();
 
-    tracing::debug_span!("calculate phi").in_scope(|| {
-        for (i, (main_row, permutation_row)) in main
-            .rows()
-            .zip(permutation_trace.as_view_mut().rows_mut())
-            .enumerate()
-        {
-            if i > 0 {
-                phi[i] = phi[i - 1];
-            }
-            for (j, interaction) in all_interactions.iter().enumerate() {
-                let mult = interaction.multiplicity.apply::<F, F>(&[], main_row);
-                if j < nb_send_iteractions {
-                    phi[i] += EF::from_base(mult) * permutation_row[j];
-                } else {
-                    phi[i] -= EF::from_base(mult) * permutation_row[j];
-                }
-            }
-            *permutation_row.last_mut().unwrap() = phi[i];
+    for (i, (main_row, permutation_row)) in main
+        .rows()
+        .zip(permutation_trace.as_view_mut().rows_mut())
+        .enumerate()
+    {
+        if i > 0 {
+            phi[i] = phi[i - 1];
         }
-    });
+        for (j, interaction) in all_interactions.iter().enumerate() {
+            let mult = interaction.multiplicity.apply::<F, F>(&[], main_row);
+            if j < nb_send_iteractions {
+                phi[i] += EF::from_base(mult) * permutation_row[j];
+            } else {
+                phi[i] -= EF::from_base(mult) * permutation_row[j];
+            }
+        }
+        *permutation_row.last_mut().unwrap() = phi[i];
+    }
 
     permutation_trace
 }
