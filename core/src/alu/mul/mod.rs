@@ -367,8 +367,8 @@ where
             for long_word in [local.carry, local.product].iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.assert_word(Word(first_half), local.is_real);
-                builder.assert_word(Word(second_half), local.is_real);
+                builder.word_range_check_u8(Word(first_half), local.is_real);
+                builder.word_range_check_u8(Word(second_half), local.is_real);
             }
         }
 

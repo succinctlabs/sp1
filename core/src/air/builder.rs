@@ -172,8 +172,8 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
-    /// Range checks a word.
-    fn assert_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    /// Check that each limb of the given `Word` is a u8.
+    fn word_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
         input: Word<EWord>,
         mult: EMult,
@@ -184,6 +184,23 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 byte_pair[0],
                 byte_pair[1],
+                mult.clone(),
+            );
+        }
+    }
+
+    /// Check that each limb of the given `Word` is a u16.
+    fn word_range_check_u16<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+        &mut self,
+        input: Word<EWord>,
+        mult: EMult,
+    ) {
+        for limb in input.0.iter() {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+                Self::Expr::zero(),
+                *limb,
+                Self::Expr::zero(),
                 mult.clone(),
             );
         }

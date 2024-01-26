@@ -125,7 +125,7 @@ where
             );
 
         // Check that each addr_word element is a byte
-        builder.assert_word(memory_columns.addr_word, is_memory_instruction.clone());
+        builder.word_range_check_u8(memory_columns.addr_word, is_memory_instruction.clone());
 
         // Send to the ALU table to verify correct calculation of addr_word
         builder.send_alu(
