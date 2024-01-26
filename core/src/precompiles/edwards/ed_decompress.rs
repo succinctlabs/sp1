@@ -85,8 +85,6 @@ impl<F: Field> EdDecompressCols<F> {
         self.segment = F::from_canonical_u32(event.segment);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
-        println!("event x_records: {:?}", event.x_memory_records);
-        println!("event y_records: {:?}", event.y_memory_records);
         for i in 0..8 {
             self.x_access[i].populate_write(event.x_memory_records[i], &mut new_field_events);
             self.y_access[i].populate_read(event.y_memory_records[i], &mut new_field_events);
@@ -100,7 +98,6 @@ impl<F: Field> EdDecompressCols<F> {
 
     fn populate_fp_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
         let one = BigUint::one();
-        println!("y: {}", y);
         let yy = self.yy.populate::<P>(y, y, FpOperation::Mul);
         let u = self.u.populate::<P>(&yy, &one, FpOperation::Sub);
         let dyy = self
@@ -206,14 +203,11 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 
         let start_clk = rt.clk;
 
-        println!("clk: {}", rt.clk);
-
         // TODO: this will have to be be constrained, but can do it later.
         let slice_ptr = rt.register_unsafe(a0);
         if slice_ptr % 4 != 0 {
             panic!();
         }
-        println!("ptr: {}", slice_ptr);
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
@@ -225,15 +219,17 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         let sign = rt.byte_unsafe(slice_ptr + (COMPRESSED_POINT_BYTES as u32) - 1);
         let sign_bool = sign != 0;
 
-        let mut y_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&y_vec);
-        // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
-        y_bytes[y_bytes.len() - 1] &= 0b0111_1111;
-        y_bytes[y_bytes.len() - 1] |= (sign as u8) << 7;
+        let y_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&y_vec);
 
-        println!("exec y bytes: {:?}", y_bytes);
+        // Copy bytes into another array so we can modify the last byte and make CompressedEdwardsY,
+        // which we'll use to compute the expected X.
+        // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
+        let mut compressed_edwards_y: [u8; COMPRESSED_POINT_BYTES] = y_bytes;
+        compressed_edwards_y[compressed_edwards_y.len() - 1] &= 0b0111_1111;
+        compressed_edwards_y[compressed_edwards_y.len() - 1] |= (sign as u8) << 7;
 
         // Compute actual decompressed X
-        let compressed_y = CompressedEdwardsY(y_bytes);
+        let compressed_y = CompressedEdwardsY(compressed_edwards_y);
         let decompressed = decompress(&compressed_y);
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
@@ -242,13 +238,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
             bytes_to_words_le(&decompressed_x_bytes);
 
         // Write decompressed X into slice
-        println!("decompressed words len: {}", decompressed_x_words.len());
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
-        println!("x records: {:?}", x_memory_records);
-        println!("x records len: {:?}", x_memory_records.len());
-        println!("y records: {:?}", y_memory_records);
-        println!("y records len: {:?}", y_memory_records.len());
 
         let segment = rt.current_segment;
         rt.segment_mut()
