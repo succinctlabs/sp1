@@ -304,8 +304,8 @@ pub mod tests {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
         let operands = [
             (1, 1),
-            (1234, 5678),
-            (8765, 4321),
+            (123, 456 * 789),
+            (123 * 456, 789),
             (0xffff * (0xffff - 1), 0xffff),
             (u32::MAX - 5, u32::MAX - 7),
         ];
