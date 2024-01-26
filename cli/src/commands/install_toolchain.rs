@@ -5,6 +5,7 @@ use flate2::read::GzDecoder;
 use reqwest::Client;
 use std::fs::{self, File};
 use std::process::Command;
+use std::time::Duration;
 use tar::Archive;
 
 use crate::{
@@ -28,12 +29,16 @@ impl InstallToolchainCmd {
 
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
-        fs::remove_dir_all(&root_dir)?;
+        match fs::remove_dir_all(&root_dir) {
+            Ok(_) => println!("Succesfully removed existing toolchain."),
+            Err(_) => println!("No existing toolchain to remove."),
+        }
         fs::create_dir_all(&root_dir)?;
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(target);
+        println!("{}", toolchain_dir.to_str().unwrap());
         let toolchain_download_url = get_toolchain_download_url();
 
         // Download the toolchain.
@@ -44,41 +49,50 @@ impl InstallToolchainCmd {
             toolchain_archive_path.to_str().unwrap(),
         ))
         .unwrap();
-
-        // Unpack the toolchain.
-        let tar_gz = File::open(&toolchain_archive_path)?;
-        let tar = GzDecoder::new(tar_gz);
-        let mut archive = Archive::new(tar);
-        archive.unpack(&toolchain_dir)?;
-        fs::remove_file(&toolchain_archive_path)?;
+        std::thread::sleep(Duration::from_secs(3));
 
         // Remove the existing toolchain from rustup, if it exists.
-        match Command::new("rustup")
+        match Command::new("/Users/jtguibas/.cargo/bin/rustup")
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .run()
         {
             Ok(_) => println!("Succesfully removed existing toolchain."),
             Err(_) => println!("No existing toolchain to remove."),
         }
+        std::thread::sleep(Duration::from_secs(3));
+
+        // Unpack the toolchain.
+        fs::create_dir_all(&toolchain_dir)?;
+        Command::new("/usr/bin/tar")
+            .args([
+                "-xzf",
+                &toolchain_archive_path.to_str().unwrap(),
+                "-C",
+                &toolchain_dir.to_str().unwrap(),
+            ])
+            .run()?;
+        std::thread::sleep(Duration::from_secs(3));
 
         // Link the toolchain to rustup.
-        Command::new("rustup")
+
+        Command::new("/Users/jtguibas/.cargo/bin/rustup")
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(&toolchain_dir)
+            .arg(toolchain_dir.to_str().unwrap())
             .run()?;
         println!("Succesfully linked toolchain to rustup.");
+        std::thread::sleep(Duration::from_secs(3));
 
         // Ensure permissions.
-        let bin_dir = toolchain_dir.join("bin");
-        let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
-        for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
-            let entry = wrapped_entry?;
-            if entry.file_type()?.is_file() {
-                let mut perms = entry.metadata()?.permissions();
-                perms.set_mode(0o755);
-                fs::set_permissions(entry.path(), perms)?;
-            }
-        }
+        // let bin_dir = toolchain_dir.join("bin");
+        // let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
+        // for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
+        //     let entry = wrapped_entry?;
+        //     if entry.file_type()?.is_file() {
+        //         let mut perms = entry.metadata()?.permissions();
+        //         perms.set_mode(0o755);
+        //         fs::set_permissions(entry.path(), perms)?;
+        //     }
+        // }
 
         Ok(())
     }
