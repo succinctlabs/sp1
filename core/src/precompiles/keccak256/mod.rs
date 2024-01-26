@@ -79,7 +79,7 @@ pub mod permute_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 105, false, true),
+            Instruction::new(Opcode::ADD, 5, 0, 106, false, true),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
             Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
@@ -91,7 +91,7 @@ pub mod permute_tests {
     pub fn test_keccak_permute_program_execute() {
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_witness(&[999]);
+        runtime.add_input_slice(&[10]);
         runtime.run()
     }
 
@@ -144,7 +144,7 @@ pub mod permute_tests {
         let program = keccak_permute_program();
         let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
             let mut runtime = Runtime::new(program);
-            runtime.write_witness(&[999]);
+            runtime.add_input_slice(&[10]);
             runtime.run();
             runtime
         });
