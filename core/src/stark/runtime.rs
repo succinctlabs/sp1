@@ -291,10 +291,18 @@ pub mod tests {
     #[test]
     fn test_divrem_prove() {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
-        let operands = [(5, 8)];
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (8765, 4321),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+        ];
         for div_rem_op in div_rem_ops.iter() {
             for op in operands.iter() {
+                // Add a no-op instruction in the beginning to have at least 4 instructions.
                 let instructions = vec![
+                    Instruction::new(Opcode::ADD, 28, 0, 0, false, true),
                     Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
                     Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
                     Instruction::new(*div_rem_op, 31, 30, 29, false, false),
