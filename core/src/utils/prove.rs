@@ -1,20 +1,12 @@
 use std::time::Instant;
 
-use p3_baby_bear::BabyBear;
-use p3_challenger::DuplexChallenger;
-use p3_commit::ExtensionMmcs;
-use p3_dft::Radix2DitParallel;
-use p3_field::{extension::BinomialExtensionField, Field};
-use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-use p3_ldt::QuotientMmcs;
-use p3_mds::coset_mds::CosetMds;
-use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use p3_uni_stark::StarkConfigImpl;
-use rand::thread_rng;
+use p3_uni_stark::StarkConfig;
 
 use crate::runtime::{Program, Runtime};
+
+pub trait StarkUtils: StarkConfig {
+    fn challenger(&self) -> Self::Challenger;
+}
 
 #[cfg(not(feature = "perf"))]
 use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
@@ -36,50 +28,13 @@ pub fn prove(program: Program) {
 }
 
 pub fn prove_core(runtime: &mut Runtime) {
-    type Val = BabyBear;
-    type Domain = Val;
-    type Challenge = BinomialExtensionField<Val, 4>;
-    type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-
-    type MyMds = CosetMds<Val, 16>;
-    let mds = MyMds::default();
-
-    type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-    let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, &mut thread_rng());
-
-    type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
-    let hash = MyHash::new(perm.clone());
-
-    type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
-    let compress = MyCompress::new(perm.clone());
-
-    type ValMmcs = FieldMerkleTreeMmcs<<Val as Field>::Packing, MyHash, MyCompress, 8>;
-    let val_mmcs = ValMmcs::new(hash, compress);
-
-    type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-    let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
-
-    type Dft = Radix2DitParallel;
-    let dft = Dft {};
-
-    type Challenger = DuplexChallenger<Val, Perm, 16>;
-
-    type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
-    let ldt = FriLdt { config: fri_config };
-
-    type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
-    type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
-
-    let pcs = Pcs::new(dft, val_mmcs, ldt);
-    let config = StarkConfigImpl::new(pcs);
-    let mut challenger = Challenger::new(perm.clone());
+    let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+    let mut challenger = config.challenger();
 
     let start = Instant::now();
 
     tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        runtime.prove::<_, _, MyConfig>(&config, &mut challenger);
+        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
     });
 
     #[cfg(not(feature = "perf"))]
@@ -107,4 +62,97 @@ pub fn prove_core(runtime: &mut Runtime) {
         time,
         (cycles as f64 / time as f64),
     );
+}
+
+pub use baby_bear_poseidon2::BabyBearPoseidon2;
+
+pub(super) mod baby_bear_poseidon2 {
+
+    use p3_baby_bear::BabyBear;
+    use p3_challenger::DuplexChallenger;
+    use p3_commit::ExtensionMmcs;
+    use p3_dft::Radix2DitParallel;
+    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+    use p3_ldt::QuotientMmcs;
+    use p3_mds::coset_mds::CosetMds;
+    use p3_merkle_tree::FieldMerkleTreeMmcs;
+    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
+    use p3_uni_stark::StarkConfig;
+    use rand::Rng;
+
+    use super::StarkUtils;
+
+    pub type Val = BabyBear;
+    pub type Domain = Val;
+    pub type Challenge = BinomialExtensionField<Val, 4>;
+    pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+
+    pub type MyMds = CosetMds<Val, 16>;
+
+    pub type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+    pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
+
+    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+
+    pub type ValMmcs = FieldMerkleTreeMmcs<<Val as Field>::Packing, MyHash, MyCompress, 8>;
+    pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+
+    pub type Dft = Radix2DitParallel;
+
+    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+
+    pub type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
+    pub type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
+
+    pub type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+
+    pub struct BabyBearPoseidon2 {
+        perm: Perm,
+        pcs: Pcs,
+    }
+
+    impl BabyBearPoseidon2 {
+        pub fn new<R: Rng>(rng: &mut R) -> Self {
+            let mds = MyMds::default();
+            let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, rng);
+
+            let hash = MyHash::new(perm.clone());
+
+            let compress = MyCompress::new(perm.clone());
+
+            let val_mmcs = ValMmcs::new(hash, compress);
+
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+
+            let dft = Dft {};
+
+            let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
+            let ldt = FriLdt { config: fri_config };
+
+            let pcs = Pcs::new(dft, val_mmcs, ldt);
+
+            Self { pcs, perm }
+        }
+    }
+
+    impl StarkUtils for BabyBearPoseidon2 {
+        fn challenger(&self) -> Self::Challenger {
+            Challenger::new(self.perm.clone())
+        }
+    }
+
+    impl StarkConfig for BabyBearPoseidon2 {
+        type Val = Val;
+        type Challenge = Challenge;
+        type PackedChallenge = PackedChallenge;
+        type Pcs = Pcs;
+        type Challenger = Challenger;
+        type PackedVal = <Val as Field>::Packing;
+
+        fn pcs(&self) -> &Self::Pcs {
+            &self.pcs
+        }
+    }
 }
