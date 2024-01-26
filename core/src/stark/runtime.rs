@@ -186,6 +186,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::utils;
     use crate::utils::prove;
 
     #[test]
