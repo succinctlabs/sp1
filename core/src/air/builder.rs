@@ -172,18 +172,29 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
-    /// Check that each limb of the given `Word` is a u8.
-    fn word_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    /// Check that each limb of the given slice is a u8.
+    fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
-        input: Word<EWord>,
+        input: &[EWord],
         mult: EMult,
     ) {
-        for byte_pair in input.0.chunks_exact(2) {
+        let mut index = 0;
+        while index + 1 < input.len() {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                byte_pair[0],
-                byte_pair[1],
+                input[index],
+                input[index + 1],
+                mult.clone(),
+            );
+            index += 2;
+        }
+        if index < input.len() {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                Self::Expr::zero(),
+                input[index],
+                Self::Expr::zero(),
                 mult.clone(),
             );
         }

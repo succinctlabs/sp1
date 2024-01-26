@@ -675,20 +675,14 @@ where
 
         // Range check all the bytes.
         {
-            builder.word_range_check_u8(local.quotient, local.is_real);
-            builder.word_range_check_u8(local.remainder, local.is_real);
+            builder.slice_range_check_u8(&local.quotient.0, local.is_real);
+            builder.slice_range_check_u8(&local.remainder.0, local.is_real);
 
             local.carry.iter().for_each(|carry| {
                 builder.assert_bool(*carry);
             });
 
-            let long_words = [local.c_times_quotient];
-            for long_word in long_words.iter() {
-                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
-                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.word_range_check_u8(Word(first_half), local.is_real);
-                builder.word_range_check_u8(Word(second_half), local.is_real);
-            }
+            builder.slice_range_check_u8(&local.c_times_quotient, local.is_real);
         }
 
         // Check that the flags are boolean.
