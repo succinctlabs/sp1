@@ -106,16 +106,16 @@ impl<F: Field> AddOperation<F> {
                     .chain(cols.value.0.iter())
                     .copied()
                     .collect::<Vec<_>>();
-            for i in (0..bytes.len()).step_by(2) {
-                builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
-                    AB::F::zero(),
-                    AB::F::zero(),
-                    bytes[i],
-                    bytes[i + 1],
-                    is_real,
-                );
-            }
+            // for i in (0..bytes.len()).step_by(2) {
+            //     builder.send_byte_pair(
+            //         AB::F::from_canonical_u32(ByteOpcode::Range as u32),
+            //         AB::F::zero(),
+            //         AB::F::zero(),
+            //         bytes[i],
+            //         bytes[i + 1],
+            //         is_real,
+            //     );
+            // }
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

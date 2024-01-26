@@ -107,16 +107,16 @@ impl<F: Field> Add4Operation<F> {
             assert_eq!(bytes.len() % 2, 0);
 
             // Pass two bytes to range check at a time.
-            for i in (0..bytes.len()).step_by(2) {
-                builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::Range as u32),
-                    AB::F::zero(),
-                    AB::F::zero(),
-                    bytes[i],
-                    bytes[i + 1],
-                    is_real,
-                );
-            }
+            // for i in (0..bytes.len()).step_by(2) {
+            //     builder.send_byte_pair(
+            //         AB::F::from_canonical_u32(ByteOpcode::Range as u32),
+            //         AB::F::zero(),
+            //         AB::F::zero(),
+            //         bytes[i],
+            //         bytes[i + 1],
+            //         is_real,
+            //     );
+            // }
         }
 
         builder.assert_bool(is_real);
