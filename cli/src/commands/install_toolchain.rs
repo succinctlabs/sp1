@@ -1,14 +1,11 @@
 use anyhow::Result;
 use clap::Parser;
 use dirs::home_dir;
-use flate2::read::GzDecoder;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
-use std::fs::{self, File};
-use std::path::PathBuf;
+use std::fs::{self};
 use std::process::Command;
 use std::time::Duration;
-use tar::Archive;
 
 use crate::{
     download_file, get_target, get_toolchain_download_url, CommandExecutor, RUSTUP_TOOLCHAIN_NAME,
@@ -94,16 +91,16 @@ impl InstallToolchainCmd {
         std::thread::sleep(Duration::from_secs(3));
 
         // Ensure permissions.
-        // let bin_dir = toolchain_dir.join("bin");
-        // let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
-        // for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
-        //     let entry = wrapped_entry?;
-        //     if entry.file_type()?.is_file() {
-        //         let mut perms = entry.metadata()?.permissions();
-        //         perms.set_mode(0o755);
-        //         fs::set_permissions(entry.path(), perms)?;
-        //     }
-        // }
+        let bin_dir = toolchain_dir.join("bin");
+        let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
+        for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
+            let entry = wrapped_entry?;
+            if entry.file_type()?.is_file() {
+                let mut perms = entry.metadata()?.permissions();
+                perms.set_mode(0o755);
+                fs::set_permissions(entry.path(), perms)?;
+            }
+        }
 
         Ok(())
     }
