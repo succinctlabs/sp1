@@ -206,9 +206,9 @@ pub mod tests {
         let operands = [
             (1, 1),
             (1234, 5678),
-            (8765, 4321),
             (0xffff, 0xffff - 1),
             (u32::MAX - 1, u32::MAX),
+            (u32::MAX, 0),
         ];
         for shift_op in shift_ops.iter() {
             for op in operands.iter() {
