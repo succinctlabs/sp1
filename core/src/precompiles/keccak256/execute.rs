@@ -1,10 +1,9 @@
 use crate::{
-    precompiles::{
-        keccak256::{constants::RC, KeccakPermuteEvent, NUM_ROUNDS},
-        PrecompileRuntime,
-    },
+    precompiles::{keccak256::KeccakPermuteEvent, PrecompileRuntime},
     runtime::Register,
 };
+
+use p3_keccak_air::{NUM_ROUNDS, RC};
 
 use super::{KeccakPermuteChip, STATE_NUM_WORDS};
 

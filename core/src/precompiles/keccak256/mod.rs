@@ -1,11 +1,11 @@
 use crate::precompiles::{MemoryReadRecord, MemoryWriteRecord};
 
+use p3_keccak_air::KeccakAir;
+
 mod air;
 pub mod columns;
-mod constants;
 mod execute;
-mod logic;
-mod round_flags;
+// mod logic;
 mod trace;
 
 const NUM_ROUNDS: usize = 24;
@@ -29,11 +29,15 @@ pub struct KeccakPermuteEvent {
     pub state_addr: u32,
 }
 
-pub struct KeccakPermuteChip;
+pub struct KeccakPermuteChip {
+    p3_keccak: KeccakAir,
+}
 
 impl KeccakPermuteChip {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            p3_keccak: KeccakAir {},
+        }
     }
 }
 
@@ -124,7 +128,7 @@ pub mod permute_tests {
 
         type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
         type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-        let fri_config = MyFriConfig::new(1, 40, challenge_mmcs);
+        let fri_config = MyFriConfig::new(1, 40, 8, challenge_mmcs);
         let ldt = FriLdt { config: fri_config };
 
         type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

@@ -9,26 +9,27 @@ opt-level = 3
 opt-level = 3
 
 [workspace.dependencies]
-p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
+p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
 valida-derive = { git = "https://github.com/valida-xyz/valida.git" }
 
-p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
+p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-keccak-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
+p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/make_keccak_public" }
 
 [patch.crates-io]
 # Patch sha2 so we can use sha precompiles
