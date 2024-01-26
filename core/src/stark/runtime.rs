@@ -8,7 +8,7 @@ use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChi
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
-use crate::precompiles::edwards::ed_decompress::{self, EdDecompressChip};
+use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
