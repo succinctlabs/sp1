@@ -8,6 +8,7 @@ mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
+use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
@@ -718,6 +719,11 @@ impl Runtime {
                             self.clk
                         );
                     }
+                    Syscall::ED_DECOMPRESS => {
+                        a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + 4, self.clk);
+                    }
                 }
 
                 // We have to do this AFTER the precompile execution because the CPU event
@@ -953,9 +959,7 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use log::debug;
-
-    use crate::runtime::Register;
+    use crate::{runtime::Register, utils::setup_logger};
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -990,9 +994,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_run() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -1001,9 +1003,7 @@ pub mod tests {
 
     #[test]
     fn test_ed_add() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = fibonacci_program();
         let mut runtime = Runtime::new(program);
         runtime.run();

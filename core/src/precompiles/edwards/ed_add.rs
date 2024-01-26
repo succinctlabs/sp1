@@ -14,7 +14,8 @@ use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::limbs_from_access;
+use crate::utils::limbs_from_prev_access;
+use crate::utils::pad_rows;
 use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -209,23 +210,13 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         }
         segment.field_events.extend(new_field_events);
 
-        let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-
-        if padded_nb_rows > nb_rows {
+        pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
             let zero = BigUint::zero();
-
             Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
-
-            for _ in nb_rows..padded_nb_rows {
-                rows.push(row);
-            }
-        }
+            row
+        });
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
@@ -249,10 +240,10 @@ where
         let main = builder.main();
         let row: &EdAddAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let x1 = limbs_from_access(&row.p_access[0..8]);
-        let x2 = limbs_from_access(&row.q_access[0..8]);
-        let y1 = limbs_from_access(&row.p_access[8..16]);
-        let y2 = limbs_from_access(&row.q_access[8..16]);
+        let x1 = limbs_from_prev_access(&row.p_access[0..8]);
+        let x2 = limbs_from_prev_access(&row.q_access[0..8]);
+        let y1 = limbs_from_prev_access(&row.p_access[8..16]);
+        let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         row.x3_numerator
@@ -336,7 +327,7 @@ pub mod tests {
     use crate::{runtime::Program, utils::prove};
 
     #[test]
-    fn test_ed_add() {
+    fn test_ed_add_simple() {
         let program = Program::from_elf("../programs/ed_add");
         prove(program);
     }
