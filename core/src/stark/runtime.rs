@@ -248,6 +248,7 @@ pub mod tests {
     #[test]
     fn test_mul_prove() {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
+        utils::setup_logger();
         let operands = [
             // (1, 1),
             (1234, 5678),
