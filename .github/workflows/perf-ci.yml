@@ -2,10 +2,9 @@ name: Performance CI
 
 on:
   push:
-    branches-ignore:
-      - 'main'
     branches:
       - '**'
+      - '!main'
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
