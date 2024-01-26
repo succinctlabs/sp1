@@ -1073,6 +1073,9 @@ checksum = "27573eac26f4dd11e2b1916c3fe1baa56407c83c71a773a8ba17ec0bca03b6b7"
 [[package]]
 name = "fibonacci"
 version = "0.1.0"
+dependencies = [
+ "succinct-zkvm",
+]
 
 [[package]]
 name = "filetime"
