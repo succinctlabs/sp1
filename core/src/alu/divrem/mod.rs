@@ -77,11 +77,15 @@ use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
-pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
-
+/// The size of a byte in bits.
 const BYTE_SIZE: usize = 8;
 
+/// The size of a 64-bit in bytes.
 const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
+
+/// A chip that implements addition for the opcodes DIV/REM.
+#[derive(Default)]
+pub struct DivRemChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug)]
@@ -120,10 +124,17 @@ pub struct DivRemCols<T> {
     /// Flag to indicate division by 0.
     pub is_c_0: IsZeroWordOperation<T>,
 
-    pub is_divu: T,
-    pub is_remu: T,
-    pub is_rem: T,
+    /// Flag to indicate whether the opcode is DIV.
     pub is_div: T,
+
+    /// Flag to indicate whether the opcode is DIVU.
+    pub is_divu: T,
+
+    /// Flag to indicate whether the opcode is REM.
+    pub is_rem: T,
+
+    /// Flag to indicate whether the opcode is REMU.
+    pub is_remu: T,
 
     /// Flag to indicate whether the division operation overflows.
     ///
@@ -133,12 +144,10 @@ pub struct DivRemCols<T> {
     /// signed integer.
     pub is_overflow: T,
 
-    /// Flag to indicate whether the value of `b` matches the unique overflow case `b = -2^31` and
-    /// `c = -1`.
+    /// Flag for whether the value of `b` matches the unique overflow case `b = -2^31` and `c = -1`.
     pub is_overflow_b: IsEqualWordOperation<T>,
 
-    /// Flag to indicate whether the value of `c` matches the unique overflow case `b = -2^31` and
-    /// `c = -1`.
+    /// Flag for whether the value of `c` matches the unique overflow case `b = -2^31` and `c = -1`.
     pub is_overflow_c: IsEqualWordOperation<T>,
 
     /// The most significant bit of `b`.
@@ -163,14 +172,7 @@ pub struct DivRemCols<T> {
     pub is_real: T,
 }
 
-/// A chip that implements addition for the opcodes DIV/REM.
-pub struct DivRemChip;
-
-impl DivRemChip {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
 
 /// Returns `true` if the given `opcode` is a signed operation.
 fn is_signed_operation(opcode: Opcode) -> bool {
@@ -825,7 +827,7 @@ mod tests {
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
-        let chip = DivRemChip::new();
+        let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -886,7 +888,7 @@ mod tests {
 
         let mut segment = Segment::default();
         segment.divrem_events = divrem_events;
-        let chip = DivRemChip::new();
+        let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

@@ -82,7 +82,7 @@ impl ByteOpcode {
         opcodes
     }
 
-    pub fn to_field<F: Field>(self) -> F {
+    pub fn as_field<F: Field>(self) -> F {
         F::from_canonical_u8(self as u8)
     }
 }

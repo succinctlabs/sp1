@@ -76,7 +76,7 @@ where
 
         // Send all the lookups for each operation.
         for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {
-            let field_op = opcode.to_field::<AB::F>();
+            let field_op = opcode.as_field::<AB::F>();
             let mult = local.multiplicities[i];
             match opcode {
                 ByteOpcode::AND => {

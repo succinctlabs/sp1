@@ -39,11 +39,11 @@ impl Runtime {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let add = AddChip::new();
+        let add = AddChip::default();
         let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
+        let bitwise = BitwiseChip::default();
         let mul = MulChip::new();
-        let divrem = DivRemChip::new();
+        let divrem = DivRemChip::default();
         let shift_right = ShiftRightChip::new();
         let shift_left = ShiftLeft::new();
         let lt = LtChip::new();
