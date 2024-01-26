@@ -49,8 +49,19 @@ pub mod tests {
         pub y: usize,
     }
 
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct MyPointUnaligned {
+        pub x: usize,
+        pub y: usize,
+        pub b: bool,
+    }
+
     pub fn io_program() -> Program {
         Program::from_elf("../programs/io")
+    }
+
+    pub fn io_program_unaligned() -> Program {
+        Program::from_elf("../programs/io_unaligned")
     }
 
     pub fn add_inputs(runtime: &mut Runtime) {
@@ -58,6 +69,23 @@ pub mod tests {
         let serialized = bincode::serialize(&p1).unwrap();
         runtime.add_input_slice(&serialized);
         let p2 = MyPoint { x: 8, y: 19 };
+        runtime.add_input(&p2);
+    }
+
+    pub fn add_inputs_unaligned(runtime: &mut Runtime) {
+        let p1 = MyPointUnaligned {
+            x: 3,
+            y: 5,
+            b: false,
+        };
+        let serialized = bincode::serialize(&p1).unwrap();
+        assert!(serialized.len() % 4 != 0);
+        runtime.add_input_slice(&serialized);
+        let p2 = MyPointUnaligned {
+            x: 8,
+            y: 19,
+            b: true,
+        };
         runtime.add_input(&p2);
     }
 
@@ -79,6 +107,35 @@ pub mod tests {
         let program = io_program();
         let mut runtime = Runtime::new(program);
         add_inputs(&mut runtime);
+        runtime.run();
+        prove_core(&mut runtime);
+    }
+
+    #[test]
+    fn test_io_unaligned_run() {
+        if env_logger::try_init().is_err() {
+            debug!("Logger already initialized")
+        }
+        let program = io_program_unaligned();
+        let mut runtime = Runtime::new(program);
+        add_inputs_unaligned(&mut runtime);
+        runtime.run();
+        let added_point: MyPointUnaligned = runtime.get_output();
+        assert_eq!(
+            added_point,
+            MyPointUnaligned {
+                x: 11,
+                y: 24,
+                b: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_io_unaligned_prove() {
+        let program = io_program_unaligned();
+        let mut runtime = Runtime::new(program);
+        add_inputs_unaligned(&mut runtime);
         runtime.run();
         prove_core(&mut runtime);
     }

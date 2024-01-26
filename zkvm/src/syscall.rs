@@ -53,7 +53,7 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
 }
 
 #[allow(unused_variables)]
-pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
+pub extern "C" fn syscall_read(fd: u32, read_buf: &mut [u8], nbytes: usize) {
     let whole_words: usize = nbytes / 4;
     let remaining_bytes = nbytes % 4;
 
@@ -69,17 +69,11 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
                 in("a1") 4, // The number of bytes we're requesting
                 lateout("a0") word,
             );
-
-            // Copy the word into the read buffer
-            let word_ptr = &mut word as *mut u32 as *mut u8;
-            for j in 0..4 {
-                *read_buf.add(offset + j) = *word_ptr.add(j);
-            }
+            read_buf[offset..offset + 4].copy_from_slice(&word.to_le_bytes());
         }
     }
 
-    // Handle the remaining bytes for the last partial word
-    if remaining_bytes > 0 {
+    if remaining_bytes != 0 {
         let offset = whole_words * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
@@ -88,15 +82,11 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
                 "ecall",
                 in("t0") LWA,
                 in("a0") fd,
-                in("a1") remaining_bytes, // Request the remaining bytes
+                in("a1") remaining_bytes,
                 lateout("a0") word,
             );
-
-            // Copy the necessary bytes of the word into the read buffer
-            let word_ptr = &mut word as *mut u32 as *mut u8;
-            for j in 0..remaining_bytes {
-                *read_buf.add(offset + j) = *word_ptr.add(j);
-            }
+            read_buf[offset..offset + remaining_bytes]
+                .copy_from_slice(&word.to_le_bytes()[0..remaining_bytes]);
         }
     }
 
