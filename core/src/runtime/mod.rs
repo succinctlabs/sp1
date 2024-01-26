@@ -643,7 +643,8 @@ impl Runtime {
                         next_pc = 0;
                     }
                     Syscall::LWA => {
-                        let fd = self.register(a0);
+                        // TODO: in the future this will be used for private vs. public inputs.
+                        let _ = self.register(a0);
                         let num_bytes = self.register(a1) as usize;
                         let mut read_bytes = [0u8; 4];
                         for i in 0..num_bytes {
