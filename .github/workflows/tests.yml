@@ -50,7 +50,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p succinct-core --release
+          args: -p succinct-core --release --features "debug_assertions"
         env:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
