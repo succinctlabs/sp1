@@ -70,16 +70,13 @@ where
                 ByteOpcode::MSB => {
                     builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), mult)
                 }
-                ByteOpcode::U16Range => {
-                    // Okay, the problem occurs before here. This local.c is for some reason already 252.
-                    builder.receive_byte(
-                        field_op,
-                        local.value_u16,
-                        AB::F::zero(),
-                        AB::F::zero(),
-                        mult,
-                    )
-                }
+                ByteOpcode::U16Range => builder.receive_byte(
+                    field_op,
+                    local.value_u16,
+                    AB::F::zero(),
+                    AB::F::zero(),
+                    mult,
+                ),
             }
         }
 
