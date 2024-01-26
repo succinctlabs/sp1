@@ -131,7 +131,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use log::debug;
     use p3_challenger::DuplexChallenger;
     use p3_dft::Radix2DitParallel;
     use p3_field::Field;
@@ -155,7 +154,7 @@ mod tests {
     use super::*;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
-    use crate::utils::Chip;
+    use crate::utils::{setup_logger, Chip};
 
     use p3_commit::ExtensionMmcs;
 
@@ -237,9 +236,7 @@ mod tests {
 
     #[test]
     fn test_memory_lookup_interactions() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
         runtime.add_input_slice(&[10]);
@@ -253,9 +250,7 @@ mod tests {
 
     #[test]
     fn test_byte_lookup_interactions() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        setup_logger();
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
         runtime.add_input_slice(&[10]);
