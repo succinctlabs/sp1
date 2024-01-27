@@ -169,8 +169,6 @@ impl<SC: StarkConfig> Verifier<SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(unused_variables)]
-    // TODO! fix this
     fn verify_constraints<C>(
         chip: &C,
         main_openning: &AirOpenedValues<SC::Challenge>,
