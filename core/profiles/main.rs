@@ -1,5 +1,7 @@
 use clap::{command, Parser};
+#[cfg(feature = "perf")]
 use succinct_core::runtime::Program;
+#[cfg(feature = "perf")]
 use succinct_core::utils::{self, prove};
 
 #[derive(Parser, Debug, Clone)]
