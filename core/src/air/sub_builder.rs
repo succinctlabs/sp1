@@ -3,6 +3,7 @@ use std::ops::Range;
 use p3_air::{AirBuilder, BaseAir};
 use p3_matrix::{Matrix, MatrixRowSlices, MatrixRows};
 
+/// A submatrix of a matrix.  The matrix will contain a subset of the columns of `self.inner`.
 pub struct SubMatrixRowSlices<M: MatrixRowSlices<T>, T> {
     inner: M,
     column_range: Range<usize>,
@@ -19,20 +20,18 @@ impl<M: MatrixRowSlices<T>, T> SubMatrixRowSlices<M, T> {
     }
 }
 
+/// Implement `Matrix` for `SubMatrixRowSlices`.
 impl<M: MatrixRowSlices<T>, T> Matrix<T> for SubMatrixRowSlices<M, T> {
     fn width(&self) -> usize {
-        self.inner.width()
+        self.column_range.end - self.column_range.start
     }
 
     fn height(&self) -> usize {
         self.inner.height()
     }
-
-    fn dimensions(&self) -> p3_matrix::Dimensions {
-        self.inner.dimensions()
-    }
 }
 
+/// Implement `MatrixRows` for `SubMatrixRowSlices`.
 impl<M: MatrixRowSlices<T>, T> MatrixRows<T> for SubMatrixRowSlices<M, T> {
     type Row<'a> = M::Row<'a> where Self: 'a;
 
@@ -61,6 +60,7 @@ impl<M: MatrixRowSlices<T>, T> MatrixRows<T> for SubMatrixRowSlices<M, T> {
     }
 }
 
+/// Implement `MatrixRowSlices` for `SubMatrixRowSlices`.
 impl<M: MatrixRowSlices<T>, T> MatrixRowSlices<T> for SubMatrixRowSlices<M, T> {
     fn row_slice(&self, r: usize) -> &[T] {
         let entry = self.inner.row_slice(r);
@@ -68,6 +68,9 @@ impl<M: MatrixRowSlices<T>, T> MatrixRowSlices<T> for SubMatrixRowSlices<M, T> {
     }
 }
 
+/// A builder used to eval a sub-air.  This will handle enforcing constraints for a subset of a
+/// trace matrix.  E.g. if a particular air needs to be enforced for a subset of the columns of
+/// the trace, then the SubAirBuilder can be used.
 pub struct SubAirBuilder<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> {
     inner: &'a mut AB,
     column_range: Range<usize>,
@@ -84,6 +87,7 @@ impl<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> SubAirBuilder<'a, AB, SubAir, T>
     }
 }
 
+/// Implement `AirBuilder` for `SubAirBuilder`.
 impl<'a, AB: AirBuilder, SubAir: BaseAir<F>, F> AirBuilder for SubAirBuilder<'a, AB, SubAir, F> {
     type F = AB::F;
     type Expr = AB::Expr;
