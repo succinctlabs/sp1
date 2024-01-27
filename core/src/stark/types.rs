@@ -1,7 +1,11 @@
+use std::{fs::File, io::BufReader};
+
+use bincode::{deserialize_from, Error};
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 
 use p3_uni_stark::StarkConfig;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 type Val<SC> = <SC as StarkConfig>::Val;
@@ -24,12 +28,36 @@ pub struct SegmentDebugProof<SC: StarkConfig> {
 #[derive(Serialize, Deserialize)]
 pub struct MainData<SC: StarkConfig> {
     #[serde(bound(serialize = "ValMat<SC>: Serialize"))]
-    #[serde(bound(deserialize = "ValMat<SC>: Deserialize<'de>"))]
+    #[serde(bound(deserialize = "ValMat<SC>: DeserializeOwned"))]
     pub traces: Vec<ValMat<SC>>,
     pub main_commit: Com<SC>,
     #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
-    #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
+    #[serde(bound(deserialize = "PcsProverData<SC>: DeserializeOwned"))]
     pub main_data: PcsProverData<SC>,
+}
+
+pub enum AvailableMainData<SC: StarkConfig> {
+    InMemory(MainData<SC>),
+    TempFile(File),
+    // Remote
+}
+
+impl<SC: StarkConfig> AvailableMainData<SC> {
+    pub fn materialize(self) -> Result<MainData<SC>, Error>
+    where
+        MainData<SC>: DeserializeOwned,
+        PcsProverData<SC>: DeserializeOwned,
+        SC: DeserializeOwned,
+    {
+        match self {
+            Self::InMemory(data) => Ok(data),
+            Self::TempFile(file) => {
+                let reader = BufReader::new(file);
+                let data = deserialize_from(reader)?;
+                Ok(data)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
