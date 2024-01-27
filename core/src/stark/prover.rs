@@ -59,7 +59,7 @@ impl<SC: StarkConfig> Prover<SC> {
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
         main_data: MainData<SC>,
-    ) -> (SegmentDebugProof<SC>, SegmentProof<SC>)
+    ) -> SegmentProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
@@ -303,7 +303,9 @@ impl<SC: StarkConfig> Prover<SC> {
             permutation: permutation_opened_values,
             quotient: quotient_opened_values,
         };
-        let proof = SegmentProof::<SC> {
+
+        #[cfg(feature = "perf")]
+        return SegmentProof::<SC> {
             commitment: SegmentCommitment {
                 main_commit: main_data.main_commit.clone(),
                 permutation_commit,
@@ -327,14 +329,13 @@ impl<SC: StarkConfig> Prover<SC> {
                 )
             }
         });
-        (
-            SegmentDebugProof {
-                main_commit: main_data.main_commit.clone(),
-                traces,
-                permutation_traces,
-            },
-            proof,
-        )
+
+        #[cfg(not(feature = "perf"))]
+        return SegmentProof {
+            main_commit: main_data.main_commit.clone(),
+            traces,
+            permutation_traces,
+        };
     }
 
     #[allow(clippy::too_many_arguments)]

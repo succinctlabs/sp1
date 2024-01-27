@@ -10,17 +10,12 @@ type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>:
 pub type OpenningError<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkConfig>::Challenge;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
+#[allow(dead_code)]
 type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
 type Com<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
 type PcsProverData<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
-
-pub struct SegmentDebugProof<SC: StarkConfig> {
-    pub main_commit: Com<SC>,
-    pub traces: Vec<ValMat<SC>>,
-    pub permutation_traces: Vec<ChallengeMat<SC>>,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct MainData<SC: StarkConfig> {
@@ -53,12 +48,20 @@ pub struct SegmentOpenedValues<T> {
     pub quotient: Vec<QuotientOpenedValues<T>>,
 }
 
+#[cfg(feature = "perf")]
 pub struct SegmentProof<SC: StarkConfig> {
     pub commitment: SegmentCommitment<Com<SC>>,
     pub opened_values: SegmentOpenedValues<Challenge<SC>>,
     pub commulative_sums: Vec<SC::Challenge>,
     pub openning_proof: OpenningProof<SC>,
     pub degree_bits: Vec<usize>,
+}
+
+#[cfg(not(feature = "perf"))]
+pub struct SegmentProof<SC: StarkConfig> {
+    pub main_commit: Com<SC>,
+    pub traces: Vec<ValMat<SC>>,
+    pub permutation_traces: Vec<ChallengeMat<SC>>,
 }
 
 impl<T> SegmentOpenedValues<T> {

@@ -29,6 +29,9 @@ impl<SC: StarkConfig> Verifier<SC> {
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
     ) -> Result<(), VerificationError> {
+        #[cfg(not(feature = "perf"))]
+        return Ok(());
+
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 

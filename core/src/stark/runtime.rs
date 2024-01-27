@@ -27,7 +27,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::prover::Prover;
-use super::{types::*, StarkConfig};
+use super::StarkConfig;
 
 pub const NUM_CHIPS: usize = 16;
 
@@ -128,54 +128,57 @@ impl Runtime {
         });
 
         // We clone the challenger so that each segment can observe the same "global" challenges.
-        let proofs: Vec<SegmentDebugProof<SC>> = tracing::info_span!("proving all segments")
-            .in_scope(|| {
-                segment_main_data
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, main_data)| {
-                        tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            let (debug_proof, proof) = Prover::prove(
-                                config,
-                                &mut challenger.clone(),
-                                &segment_chips,
-                                main_data,
-                            );
-
-                            Verifier::verify(
-                                config,
-                                &segment_chips,
-                                &mut challenger.clone(),
-                                &proof,
-                            )
-                            .unwrap();
-
-                            debug_proof
-                        })
+        let proofs: Vec<_> = tracing::info_span!("proving all segments").in_scope(|| {
+            segment_main_data
+                .into_iter()
+                .enumerate()
+                .map(|(i, main_data)| {
+                    tracing::info_span!("proving segment", segment = i).in_scope(|| {
+                        Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data)
                     })
-                    .collect()
-            });
+                })
+                .collect()
+        });
+
+        // Verify the segment proofs.
+        tracing::info_span!("proving all segments").in_scope(|| {
+            proofs.iter().enumerate().for_each(|(i, proof)| {
+                tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+                    Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
+                        .unwrap()
+                })
+            })
+        });
 
         let global_chips = Self::global_chips::<SC>();
         let global_main_data = tracing::info_span!("commit main for global segments")
             .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            let (debug_proof, proof) = Prover::prove(
+            Prover::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,
                 global_main_data,
-            );
-
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), &proof).unwrap();
-
-            debug_proof
+            )
         });
 
+        // Verify the global proof.
+        tracing::info_span!("verifying global segments").in_scope(|| {
+            Verifier::verify(
+                config,
+                &global_chips,
+                &mut challenger.clone(),
+                &global_proof,
+            )
+            .unwrap()
+        });
+
+        #[cfg(not(feature = "perf"))]
         let mut all_permutation_traces = proofs
             .into_iter()
             .flat_map(|proof| proof.permutation_traces)
             .collect::<Vec<_>>();
+        #[cfg(not(feature = "perf"))]
         all_permutation_traces.extend(global_proof.permutation_traces);
 
         // Compute the cumulative bus sum from all segments
