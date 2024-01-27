@@ -57,8 +57,10 @@ impl<SC: StarkConfig> MainData<SC> {
     where
         MainData<SC>: Serialize,
     {
+        println!("writing to file: {:?}", path);
         let file = File::create(path)?;
         bincode::serialize_into(&file, self)?;
+        println!("done writing to file: {:?}", path);
         // Print size of file in mb
         let metadata = std::fs::metadata(path)?;
         println!(
