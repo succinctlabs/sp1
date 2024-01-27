@@ -77,6 +77,16 @@ pub fn prove_core(runtime: &mut Runtime) {
     let config = StarkConfigImpl::new(pcs);
     let mut challenger = Challenger::new(perm.clone());
 
+    tracing::info!(
+        "total_cycles: {}, segments: {}",
+        runtime
+            .segments
+            .iter()
+            .map(|s| s.cpu_events.len())
+            .sum::<usize>(),
+        runtime.segments.len()
+    );
+
     let start = Instant::now();
 
     tracing::info_span!("runtime.prove(...)").in_scope(|| {

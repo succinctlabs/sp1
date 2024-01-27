@@ -8,7 +8,7 @@ use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChi
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
-use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
+use crate::precompiles::edwards::ed_decompress::{self, EdDecompressChip};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
@@ -30,7 +30,7 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 15;
+pub const NUM_CHIPS: usize = 12;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -48,22 +48,14 @@ impl Runtime {
         let shift_right = ShiftRightChip::new();
         let shift_left = ShiftLeft::new();
         let lt = LtChip::new();
-        let bytes = ByteChip::<SC::Val>::new();
         let field = FieldLTUChip::new();
-        let sha_extend = ShaExtendChip::new();
-        let sha_compress = ShaCompressChip::new();
-        // let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
+        let bytes = ByteChip::<SC::Val>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
         [
             Box::new(program),
             Box::new(cpu),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            // Box::new(ed_add),
-            Box::new(ed_decompress),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
@@ -77,7 +69,7 @@ impl Runtime {
         ]
     }
 
-    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 5]
+    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 9]
     where
         SC::Val: PrimeField32,
     {
@@ -86,14 +78,22 @@ impl Runtime {
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
+        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
+        let sha_extend = ShaExtendChip::new();
+        let sha_compress = ShaCompressChip::new();
         let field = FieldLTUChip::new();
+        let bytes = ByteChip::<SC::Val>::new();
 
         [
             Box::new(memory_init),
             Box::new(memory_finalize),
             Box::new(program_memory_init),
             Box::new(ed_add),
+            Box::new(ed_decompress),
+            Box::new(sha_extend),
+            Box::new(sha_compress),
             Box::new(field), // Because ed_add uses memory access, which uses field table.
+            Box::new(bytes), // SHA uses bytes
         ]
     }
 
