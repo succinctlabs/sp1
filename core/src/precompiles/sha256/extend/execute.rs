@@ -63,8 +63,10 @@ impl ShaExtendChip {
             rt.clk += 4;
         }
 
+        let segment = rt.current_segment();
         // Push the SHA extend event.
         rt.segment_mut().sha_extend_events.push(ShaExtendEvent {
+            segment,
             clk: clk_init,
             w_ptr: w_ptr_init,
             w_i_minus_15_reads: w_i_minus_15_reads.try_into().unwrap(),

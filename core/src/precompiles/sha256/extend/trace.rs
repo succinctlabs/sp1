@@ -11,7 +11,6 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
         for i in 0..segment.sha_extend_events.len() {
             let event = segment.sha_extend_events[i];
@@ -20,7 +19,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
 
                 cols.populate_flags(j);
-                cols.segment = F::from_canonical_u32(SEGMENT_NUM);
+                cols.segment = F::from_canonical_u32(event.segment);
                 cols.clk = F::from_canonical_u32(event.clk);
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 

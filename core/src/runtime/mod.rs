@@ -959,8 +959,22 @@ impl Runtime {
         self.global_segment.ed_add_events = self
             .segments
             .iter()
-            .map(|segment| segment.ed_add_events.clone())
-            .flatten()
+            .flat_map(|segment| segment.ed_add_events.clone())
+            .collect();
+        self.global_segment.ed_decompress_events = self
+            .segments
+            .iter()
+            .flat_map(|segment| segment.ed_decompress_events.clone())
+            .collect();
+        self.global_segment.sha_compress_events = self
+            .segments
+            .iter()
+            .flat_map(|segment| segment.sha_compress_events.clone())
+            .collect();
+        self.global_segment.sha_extend_events = self
+            .segments
+            .iter()
+            .flat_map(|segment| segment.sha_extend_events.clone())
             .collect();
     }
 }
