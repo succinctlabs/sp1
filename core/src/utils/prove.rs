@@ -108,7 +108,6 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
 
-    #[derive(Clone)]
     pub struct BabyBearPoseidon2 {
         perm: Perm,
         pcs: Pcs,

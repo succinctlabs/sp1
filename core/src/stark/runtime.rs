@@ -105,36 +105,49 @@ impl Runtime {
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>::Committment<SC>, ChallengeMat<SC>, PcsProverData<SC>>: Serialize + DeserializeOwned,
+        MainData<SC>: Serialize + DeserializeOwned,
     {
+        let num_segments = self.segments.len();
         tracing::info!(
             "total_cycles: {}, segments: {}",
             self.segments
                 .iter()
                 .map(|s| s.cpu_events.len())
                 .sum::<usize>(),
-            self.segments.len()
+            num_segments
         );
+        let temp_dir = tempfile::tempdir().unwrap();
         let segment_chips = Self::segment_chips::<SC>();
-        let segment_main_data =
+        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                let temp_dir = tempfile::tempdir().unwrap();
+                println!("temp_dir: {:?}", temp_dir);
                 self.segments
                     .par_iter_mut()
                     .map(|segment| {
                         let data = Prover::commit_main(config, &segment_chips, segment);
-                        let file = File::create(temp_dir.path().join(format!("{}", segment.index)))
-                            .expect("failed to create temp file");
-                        data.save(file).expect("failed to save segment main data")
+                        let path = temp_dir.path().join(format!("segment_{}", segment.index));
+                        let commitment = data.main_commit.clone();
+                        // TODO: make this logic configurable?
+                        let data = if num_segments > 0 {
+                            data.save(&path).expect("failed to save segment main data")
+                        } else {
+                            data.to_in_memory()
+                        };
+                        (commitment, data)
                     })
                     .collect::<Vec<_>>()
+                    .into_iter()
+                    .unzip()
             });
+
+        // sleep 10 sec
+        std::thread::sleep(std::time::Duration::from_secs(10));
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segment_main_data.iter().map(|main_data| {
-                challenger.observe(main_data.materialize().unwrap().main_commit.clone());
+            commitments.into_iter().map(|commitment| {
+                challenger.observe(commitment);
             });
         });
 
