@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "cli", "zkvm", "examples/*", "derive"]
+members = ["core", "cli", "zkvm", "derive"]
 resolver = "2"
 
 [profile.release]
@@ -33,10 +33,3 @@ p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-
-[patch.crates-io]
-# Patch sha2 so we can use sha precompiles
-sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", branch = "v0.9.8" }
-# Patch time because newer version breaks with older toolchains
-time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
-ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git" }
