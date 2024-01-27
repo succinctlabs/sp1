@@ -12,6 +12,9 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `BitwiseChip`.
+pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
+
 /// A chip that implements bitwise operations for the opcodes XOR, OR, and AND.
 #[derive(Default)]
 pub struct BitwiseChip;
@@ -37,8 +40,6 @@ pub struct BitwiseCols<T> {
     /// If the opcode is AND.
     pub is_and: T,
 }
-
-pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
 impl<F: PrimeField> Chip<F> for BitwiseChip {
     fn name(&self) -> String {

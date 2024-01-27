@@ -34,7 +34,6 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
-
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -42,14 +41,19 @@ use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
-
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
 
+/// The number of bits in a byte.
 pub const BYTE_SIZE: usize = 8;
+
+/// A chip that implements bitwise operations for the opcodes SLL and SLLI.
+#[derive(Default)]
+pub struct ShiftLeft;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug)]
@@ -85,16 +89,11 @@ pub struct ShiftLeftCols<T> {
     pub is_real: T,
 }
 
-/// A chip that implements bitwise operations for the opcodes SLL and SLLI.
-pub struct ShiftLeft;
-
-impl ShiftLeft {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 impl<F: PrimeField> Chip<F> for ShiftLeft {
+    fn name(&self) -> String {
+        "ShiftLeft".to_string()
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
@@ -183,10 +182,6 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
         }
 
         trace
-    }
-
-    fn name(&self) -> String {
-        "ShiftLeft".to_string()
     }
 }
 
@@ -354,7 +349,7 @@ mod tests {
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
-        let chip = ShiftLeft::new();
+        let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -397,7 +392,7 @@ mod tests {
 
         let mut segment = Segment::default();
         segment.shift_left_events = shift_events;
-        let chip = ShiftLeft::new();
+        let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

@@ -12,6 +12,9 @@ use crate::operations::AddOperation;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `AddChip`.
+pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
+
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
 pub struct AddChip;
@@ -32,8 +35,6 @@ pub struct AddCols<T> {
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 }
-
-pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
 
 impl<F: PrimeField> Chip<F> for AddChip {
     fn name(&self) -> String {
