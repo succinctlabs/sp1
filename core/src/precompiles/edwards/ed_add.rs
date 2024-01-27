@@ -33,6 +33,7 @@ use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EdAddEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -115,7 +116,9 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
 
         rt.clk += 4;
 
+        let current_segment = rt.current_segment();
         rt.segment_mut().ed_add_events.push(EdAddEvent {
+            segment: current_segment,
             clk: start_clk,
             p_ptr,
             p,
@@ -189,7 +192,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(segment.index);
+            cols.segment = F::from_canonical_u32(event.segment);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
             cols.q_ptr = F::from_canonical_u32(event.q_ptr);

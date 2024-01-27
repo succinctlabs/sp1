@@ -17,6 +17,7 @@ use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
+use std::iter::once;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -29,7 +30,7 @@ use p3_maybe_rayon::prelude::*;
 use super::prover::Prover;
 use super::types::*;
 
-pub const NUM_CHIPS: usize = 16;
+pub const NUM_CHIPS: usize = 15;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -51,7 +52,7 @@ impl Runtime {
         let field = FieldLTUChip::new();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
+        // let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
@@ -61,7 +62,7 @@ impl Runtime {
             Box::new(cpu),
             Box::new(sha_extend),
             Box::new(sha_compress),
-            Box::new(ed_add),
+            // Box::new(ed_add),
             Box::new(ed_decompress),
             Box::new(add),
             Box::new(sub),
@@ -76,7 +77,7 @@ impl Runtime {
         ]
     }
 
-    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
+    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 5]
     where
         SC::Val: PrimeField32,
     {
@@ -84,10 +85,15 @@ impl Runtime {
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
+        let field = FieldLTUChip::new();
+
         [
             Box::new(memory_init),
             Box::new(memory_finalize),
             Box::new(program_memory_init),
+            Box::new(ed_add),
+            Box::new(field), // Because ed_add uses memory access, which uses field table.
         ]
     }
 
@@ -118,13 +124,19 @@ impl Runtime {
                     .map(|segment| Prover::commit_main(config, &segment_chips, segment))
                     .collect::<Vec<_>>()
             });
+        let global_chips = Self::global_chips::<SC>();
+        let global_main_data = tracing::info_span!("commit main for global segments")
+            .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segment_main_data.iter().map(|main_data| {
-                challenger.observe(main_data.main_commit.clone());
-            });
+            segment_main_data
+                .iter()
+                .chain(once(&global_main_data))
+                .map(|main_data| {
+                    challenger.observe(main_data.main_commit.clone());
+                });
         });
 
         // We clone the challenger so that each segment can observe the same "global" challenges.
@@ -148,9 +160,6 @@ impl Runtime {
                     .collect()
             });
 
-        let global_chips = Self::global_chips::<SC>();
-        let global_main_data = tracing::info_span!("commit main for global segments")
-            .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
             let (debug_proof, _) = Prover::prove(
                 config,

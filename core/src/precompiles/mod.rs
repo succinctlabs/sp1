@@ -23,6 +23,10 @@ impl<'a> PrecompileRuntime<'a> {
         }
     }
 
+    pub fn current_segment(&self) -> u32 {
+        self.current_segment
+    }
+
     pub fn segment_mut(&mut self) -> &mut Segment {
         &mut self.rt.segment
     }

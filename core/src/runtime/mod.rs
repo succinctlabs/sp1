@@ -953,6 +953,15 @@ impl Runtime {
         self.global_segment.first_memory_record = first_memory_record;
         self.global_segment.last_memory_record = last_memory_record;
         self.global_segment.program_memory_record = program_memory_record;
+
+        // For deferred tables, we just iterate through all the current segments, but this could be done at runtime as well
+        // for better efficiency.
+        self.global_segment.ed_add_events = self
+            .segments
+            .iter()
+            .map(|segment| segment.ed_add_events.clone())
+            .flatten()
+            .collect();
     }
 }
 
