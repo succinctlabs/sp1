@@ -12,12 +12,15 @@ use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::PackedField;
 use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
 use p3_field::{PrimeField32, TwoAdicField};
+use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRows;
 use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
 
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use super::folder::ProverConstraintFolder;
 use super::permutation::eval_permutation_constraints;
@@ -28,15 +31,23 @@ use p3_uni_stark::StarkConfig;
 
 pub(crate) struct Prover<SC>(PhantomData<SC>);
 
+type Val<SC> = <SC as StarkConfig>::Val;
+type ValMat<SC> = RowMajorMatrix<Val<SC>>;
+type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
+type Com<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
+type PcsProverData<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
+
 impl<SC: StarkConfig> Prover<SC> {
     /// Commit to the main data
     pub fn commit_main(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
         segment: &mut Segment,
-    ) -> MainData<SC>
+    ) -> MainData<Com<SC>, ChallengeMat<SC>, PcsProverData<SC>>
     where
         SC::Val: PrimeField32,
+        MainData<Com<SC>, ChallengeMat<SC>, PcsProverData<SC>>: Serialize + DeserializeOwned,
+        PcsProverData<SC>: Serialize + DeserializeOwned,
     {
         // For each chip, generate the trace.
         let traces = chips
@@ -59,13 +70,18 @@ impl<SC: StarkConfig> Prover<SC> {
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
-        main_data: MainData<SC>,
+        wrapped_main_data: MainDataWrapper<Com<SC>, ChallengeMat<SC>, PcsProverData<SC>>,
     ) -> (SegmentDebugProof<SC>, SegmentProof<SC>)
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
+        MainData<Com<SC>, ChallengeMat<SC>, PcsProverData<SC>>: Serialize + DeserializeOwned,
+        PcsProverData<SC>: Serialize + DeserializeOwned,
     {
         // Get the traces.
+        let main_data = wrapped_main_data
+            .materialize()
+            .expect("failed to load segment main data");
         let mut traces = main_data.traces;
 
         // For each trace, compute the degree.

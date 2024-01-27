@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
@@ -17,6 +19,8 @@ use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -101,6 +105,7 @@ impl Runtime {
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        MainData<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>::Committment<SC>, ChallengeMat<SC>, PcsProverData<SC>>: Serialize + DeserializeOwned,
     {
         tracing::info!(
             "total_cycles: {}, segments: {}",
@@ -113,9 +118,15 @@ impl Runtime {
         let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {
+                let temp_dir = tempfile::tempdir().unwrap();
                 self.segments
                     .par_iter_mut()
-                    .map(|segment| Prover::commit_main(config, &segment_chips, segment))
+                    .map(|segment| {
+                        let data = Prover::commit_main(config, &segment_chips, segment);
+                        let file = File::create(temp_dir.path().join(format!("{}", segment.index)))
+                            .expect("failed to create temp file");
+                        data.save(file).expect("failed to save segment main data")
+                    })
                     .collect::<Vec<_>>()
             });
 
@@ -123,7 +134,7 @@ impl Runtime {
         // in a map-reduce recursion setting.
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
             segment_main_data.iter().map(|main_data| {
-                challenger.observe(main_data.main_commit.clone());
+                challenger.observe(main_data.materialize().unwrap().main_commit.clone());
             });
         });
 
@@ -149,8 +160,10 @@ impl Runtime {
             });
 
         let global_chips = Self::global_chips::<SC>();
-        let global_main_data = tracing::info_span!("commit main for global segments")
-            .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
+        let global_main_data =
+            tracing::info_span!("commit main for global segments").in_scope(|| {
+                Prover::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory()
+            });
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
             let (debug_proof, _) = Prover::prove(
                 config,

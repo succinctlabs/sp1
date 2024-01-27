@@ -5,8 +5,7 @@ use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 
 use p3_uni_stark::StarkConfig;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 type Val<SC> = <SC as StarkConfig>::Val;
 type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
@@ -26,28 +25,58 @@ pub struct SegmentDebugProof<SC: StarkConfig> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MainData<SC: StarkConfig> {
-    #[serde(bound(serialize = "ValMat<SC>: Serialize"))]
-    #[serde(bound(deserialize = "ValMat<SC>: DeserializeOwned"))]
-    pub traces: Vec<ValMat<SC>>,
-    pub main_commit: Com<SC>,
-    #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
-    #[serde(bound(deserialize = "PcsProverData<SC>: DeserializeOwned"))]
-    pub main_data: PcsProverData<SC>,
+pub struct MainData<Com, Mat, ProverData>
+where
+    Mat: Serialize + DeserializeOwned,
+    ProverData: Serialize + DeserializeOwned,
+{
+    pub traces: Vec<Mat>,
+    pub main_commit: Com,
+    #[serde(bound(serialize = "ProverData: Serialize"))]
+    #[serde(bound(deserialize = "ProverData: Deserialize<'de>"))]
+    pub main_data: ProverData,
+}
+// pub struct MainData<SC: StarkConfig> {
+//     pub traces: Vec<ValMat<SC>>,
+//     pub main_commit: Com<SC>,
+//     #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
+//     #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
+//     pub main_data: PcsProverData<SC>,
+// }
+
+// impl<SC: StarkConfig> MainData<SC> {
+impl<Com, Mat, ProverData> MainData<Com, Mat, ProverData> {
+    pub fn new(traces: Vec<Mat>, main_commit: Com, main_data: ProverData) -> Self {
+        Self {
+            traces,
+            main_commit,
+            main_data,
+        }
+    }
+
+    pub fn save(&self, file: File) -> Result<MainDataWrapper<Com, Mat, ProverData>, Error>
+    where
+        MainData<Com, Mat, ProverData>: Serialize,
+    {
+        bincode::serialize_into(&file, self)?;
+        Ok(MainDataWrapper::TempFile(file))
+    }
+
+    pub fn to_in_memory(self) -> MainDataWrapper<Com, Mat, ProverData> {
+        MainDataWrapper::InMemory(self)
+    }
 }
 
-pub enum AvailableMainData<SC: StarkConfig> {
-    InMemory(MainData<SC>),
+pub enum MainDataWrapper<Com, Mat, ProverData> {
+    InMemory(MainData<Com, Mat, ProverData>),
     TempFile(File),
     // Remote
 }
 
-impl<SC: StarkConfig> AvailableMainData<SC> {
-    pub fn materialize(self) -> Result<MainData<SC>, Error>
+impl<Com, Mat, ProverData> MainDataWrapper<Com, Mat, ProverData> {
+    pub fn materialize(self) -> Result<MainData<Com, Mat, ProverData>, Error>
     where
-        MainData<SC>: DeserializeOwned,
-        PcsProverData<SC>: DeserializeOwned,
-        SC: DeserializeOwned,
+        MainData<Com, Mat, ProverData>: DeserializeOwned,
     {
         match self {
             Self::InMemory(data) => Ok(data),
