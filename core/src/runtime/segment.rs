@@ -7,12 +7,12 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
-use crate::precompiles::edwards::ed_add::EdAddEvent;
 use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
 use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddEvent;
 use crate::runtime::MemoryRecord;
+use crate::utils::ec::add::EllipticCurveAddEvent;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
@@ -60,7 +60,7 @@ pub struct Segment {
 
     pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
-    pub ed_add_events: Vec<EdAddEvent>,
+    pub ed_add_events: Vec<EllipticCurveAddEvent>,
 
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
