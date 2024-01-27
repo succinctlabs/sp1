@@ -49,8 +49,9 @@ criterion = "0.5.1"
 [features]
 perf = ["parallel"]
 parallel = ["p3-maybe-rayon/parallel"]
-default = ["parallel", "perf"]
+default = ["parallel"]
 debug = ["parallel"]
+debug-proof = ["parallel", "perf"]
 serial = []
 
 [[bench]]

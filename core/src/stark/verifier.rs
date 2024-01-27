@@ -23,15 +23,13 @@ pub struct Verifier<SC>(PhantomData<SC>);
 
 impl<SC: StarkConfig> Verifier<SC> {
     /// Verify a proof for a collection of air chips.
+    #[cfg(feature = "perf")]
     pub fn verify(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
     ) -> Result<(), VerificationError> {
-        #[cfg(not(feature = "perf"))]
-        return Ok(());
-
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
@@ -90,7 +88,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
 
+        #[cfg(feature = "perf")]
         challenger.observe(permutation_commit.clone());
+
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
 
         // Observe the quotient commitments.
@@ -168,6 +168,16 @@ impl<SC: StarkConfig> Verifier<SC> {
             })?;
         }
 
+        Ok(())
+    }
+
+    #[cfg(not(feature = "perf"))]
+    pub fn verify(
+        _config: &SC,
+        _chips: &[Box<dyn AirChip<SC>>],
+        _challenger: &mut SC::Challenger,
+        _proof: &SegmentProof<SC>,
+    ) -> Result<(), VerificationError> {
         Ok(())
     }
 

@@ -278,44 +278,46 @@ impl<SC: StarkConfig> Prover<SC> {
             }
         }
 
-        // Collect the opened values for each chip.
-        let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
-        let main_opened_values = main_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
-        let permutation_opened_values = permutation_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
-        let quotient_opened_values = quotient_values
-            .into_iter()
-            .map(|mut op| op.pop().unwrap())
-            .collect::<Vec<_>>();
-        let opened_values = SegmentOpenedValues {
-            main: main_opened_values,
-            permutation: permutation_opened_values,
-            quotient: quotient_opened_values,
-        };
-
         #[cfg(feature = "perf")]
-        return SegmentProof::<SC> {
-            commitment: SegmentCommitment {
-                main_commit: main_data.main_commit.clone(),
-                permutation_commit,
-                quotient_commit,
-            },
-            opened_values,
-            commulative_sums,
-            openning_proof,
-            degree_bits: log_degrees,
-        };
+        {
+            // Collect the opened values for each chip.
+            let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
+            let main_opened_values = main_values
+                .into_iter()
+                .map(|op| {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                })
+                .collect::<Vec<_>>();
+            let permutation_opened_values = permutation_values
+                .into_iter()
+                .map(|op| {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                })
+                .collect::<Vec<_>>();
+            let quotient_opened_values = quotient_values
+                .into_iter()
+                .map(|mut op| op.pop().unwrap())
+                .collect::<Vec<_>>();
+            let opened_values = SegmentOpenedValues {
+                main: main_opened_values,
+                permutation: permutation_opened_values,
+                quotient: quotient_opened_values,
+            };
+
+            SegmentProof::<SC> {
+                commitment: SegmentCommitment {
+                    main_commit: main_data.main_commit.clone(),
+                    permutation_commit,
+                    quotient_commit,
+                },
+                opened_values,
+                commulative_sums,
+                openning_proof,
+                degree_bits: log_degrees,
+            }
+        }
 
         // Check that the table-specific constraints are correct for each chip.
         #[cfg(not(feature = "perf"))]
