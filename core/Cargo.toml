@@ -44,6 +44,7 @@ clap = { version = "4.4.0", features = ["derive"] }
 curve25519-dalek = "4.1.1"
 hex = "0.4.3"
 tempfile = "3.9.0"
+flate2 = "1.0.28"
 
 [dev-dependencies]
 criterion = "0.5.1"

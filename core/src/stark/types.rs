@@ -7,6 +7,8 @@ use std::{
 };
 
 use bincode::{deserialize_from, Error};
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -59,7 +61,9 @@ impl<SC: StarkConfig> MainData<SC> {
     {
         println!("writing to file: {:?}", path);
         let file = File::create(path)?;
-        bincode::serialize_into(&file, self)?;
+        let mut gz = GzEncoder::new(file, Compression::default());
+        bincode::serialize_into(&mut gz, self)?;
+        gz.finish()?;
         println!("done writing to file: {:?}", path);
         // Print size of file in mb
         let metadata = std::fs::metadata(path)?;

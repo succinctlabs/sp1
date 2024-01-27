@@ -3294,6 +3294,7 @@ dependencies = [
  "curve25519-dalek 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "elf",
  "env_logger",
+ "flate2",
  "hex",
  "itertools 0.12.0",
  "log",
