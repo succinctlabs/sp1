@@ -1,11 +1,22 @@
 use std::time::Instant;
 
-use p3_uni_stark::StarkConfig;
-
-use crate::runtime::{Program, Runtime};
+use crate::{
+    runtime::{Program, Runtime},
+    stark::StarkConfig,
+};
 
 pub trait StarkUtils: StarkConfig {
+    type UniConfig: p3_uni_stark::StarkConfig<
+        Val = Self::Val,
+        PackedVal = Self::PackedVal,
+        Challenge = Self::Challenge,
+        PackedChallenge = Self::PackedChallenge,
+        Pcs = Self::Pcs,
+        Challenger = Self::Challenger,
+    >;
     fn challenger(&self) -> Self::Challenger;
+
+    fn uni_stark_config(&self) -> &Self::UniConfig;
 }
 
 #[cfg(not(feature = "perf"))]
@@ -64,7 +75,40 @@ pub fn prove_core(runtime: &mut Runtime) {
     );
 }
 
+pub fn uni_stark_prove<SC, A>(
+    config: &SC,
+    air: &A,
+    challenger: &mut SC::Challenger,
+    trace: RowMajorMatrix<SC::Val>,
+) -> Proof<SC::UniConfig>
+where
+    SC: StarkUtils,
+    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
+        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, SC::UniConfig>>
+        + for<'a> Air<p3_uni_stark::check_constraints::DebugConstraintBuilder<'a, SC::Val>>,
+{
+    p3_uni_stark::prove(config.uni_stark_config(), air, challenger, trace)
+}
+
+pub fn uni_stark_verify<SC, A>(
+    config: &SC,
+    air: &A,
+    challenger: &mut SC::Challenger,
+    proof: &Proof<SC::UniConfig>,
+) -> Result<(), p3_uni_stark::VerificationError>
+where
+    SC: StarkUtils,
+    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
+        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, SC::Challenge>>
+        + for<'a> Air<p3_uni_stark::check_constraints::DebugConstraintBuilder<'a, SC::Val>>,
+{
+    p3_uni_stark::verify(config.uni_stark_config(), air, challenger, proof)
+}
+
 pub use baby_bear_poseidon2::BabyBearPoseidon2;
+use p3_air::Air;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::Proof;
 
 pub(super) mod baby_bear_poseidon2 {
 
@@ -72,15 +116,19 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_field::{
+        extension::{BinomialExtensionAlgebra, BinomialExtensionField},
+        Field,
+    };
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_ldt::QuotientMmcs;
     use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-    use p3_uni_stark::StarkConfig;
     use rand::Rng;
+
+    use crate::stark::StarkConfig;
 
     use super::StarkUtils;
 
@@ -88,6 +136,7 @@ pub(super) mod baby_bear_poseidon2 {
     pub type Domain = Val;
     pub type Challenge = BinomialExtensionField<Val, 4>;
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    pub type ChallengeAlgebra = BinomialExtensionAlgebra<Val, 4>;
 
     pub type MyMds = CosetMds<Val, 16>;
 
@@ -138,12 +187,32 @@ pub(super) mod baby_bear_poseidon2 {
     }
 
     impl StarkUtils for BabyBearPoseidon2 {
+        type UniConfig = Self;
+
         fn challenger(&self) -> Self::Challenger {
             Challenger::new(self.perm.clone())
+        }
+
+        fn uni_stark_config(&self) -> &Self::UniConfig {
+            self
         }
     }
 
     impl StarkConfig for BabyBearPoseidon2 {
+        type Val = Val;
+        type Challenge = Challenge;
+        type PackedChallenge = PackedChallenge;
+        type ChallengeAlgebra = ChallengeAlgebra;
+        type Pcs = Pcs;
+        type Challenger = Challenger;
+        type PackedVal = <Val as Field>::Packing;
+
+        fn pcs(&self) -> &Self::Pcs {
+            &self.pcs
+        }
+    }
+
+    impl p3_uni_stark::StarkConfig for BabyBearPoseidon2 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;

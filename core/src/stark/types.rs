@@ -1,8 +1,9 @@
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 
-use p3_uni_stark::StarkConfig;
 use serde::{Deserialize, Serialize};
+
+use super::StarkConfig;
 
 type Val<SC> = <SC as StarkConfig>::Val;
 type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;

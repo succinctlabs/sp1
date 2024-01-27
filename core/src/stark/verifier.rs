@@ -6,6 +6,7 @@ use p3_commit::UnivariatePcs;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::Res;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 
@@ -16,7 +17,7 @@ use std::marker::PhantomData;
 use super::folder::VerifierConstraintFolder;
 use super::permutation::eval_permutation_constraints;
 use super::types::*;
-use p3_uni_stark::StarkConfig;
+use super::StarkConfig;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
@@ -194,6 +195,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         let monomials = (0..SC::Challenge::D)
             .map(SC::Challenge::monomial)
             .collect::<Vec<_>>();
+
         let embed = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
                 .map(|chunk| {
@@ -206,6 +208,24 @@ impl<SC: StarkConfig> Verifier<SC> {
                 .collect::<Vec<SC::Challenge>>()
         };
 
+        let res = |v: &[SC::Challenge]| {
+            v.iter()
+                .map(|x| Res::from_inner(*x))
+                .collect::<Vec<Res<SC::Val, SC::Challenge>>>()
+        };
+
+        let embed_alg = |v: &[SC::Challenge]| {
+            v.chunks_exact(SC::Challenge::D)
+                .map(|chunk| {
+                    let res_chunk = chunk
+                        .iter()
+                        .map(|x| Res::from_inner(*x))
+                        .collect::<Vec<Res<SC::Val, SC::Challenge>>>();
+                    SC::ChallengeAlgebra::from_base_slice(&res_chunk)
+                })
+                .collect::<Vec<SC::ChallengeAlgebra>>()
+        };
+
         let mut quotient_parts = embed(quotient_openning);
         reverse_slice_index_bits(&mut quotient_parts);
         let quotient: SC::Challenge = zeta
@@ -215,8 +235,8 @@ impl<SC: StarkConfig> Verifier<SC> {
             .sum();
 
         let perm_openning = AirOpenedValues {
-            local: embed(&permutation_openning.local),
-            next: embed(&permutation_openning.next),
+            local: embed_alg(&permutation_openning.local),
+            next: embed_alg(&permutation_openning.next),
         };
 
         let mut folder = VerifierConstraintFolder {
@@ -225,8 +245,8 @@ impl<SC: StarkConfig> Verifier<SC> {
                 next: &[],
             },
             main: TwoRowMatrixView {
-                local: &main_openning.local,
-                next: &main_openning.next,
+                local: &res(&main_openning.local),
+                next: &res(&main_openning.next),
             },
             perm: TwoRowMatrixView {
                 local: &perm_openning.local,
@@ -237,12 +257,12 @@ impl<SC: StarkConfig> Verifier<SC> {
             is_last_row,
             is_transition,
             alpha,
-            accumulator: SC::Challenge::zero(),
+            accumulator: Res::zero(),
         };
-        // chip.eval(&mut folder);
+        chip.eval(&mut folder);
         eval_permutation_constraints(chip, &mut folder, commulative_sum);
 
-        let folded_constraints = folder.accumulator;
+        let folded_constraints = folder.accumulator.into_inner();
 
         match folded_constraints == z_h * quotient {
             true => Ok(()),

@@ -21,10 +21,9 @@ use p3_util::log2_strict_usize;
 
 use super::folder::ProverConstraintFolder;
 use super::permutation::eval_permutation_constraints;
-use super::types::*;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
-use p3_uni_stark::StarkConfig;
+use super::{types::*, StarkConfig};
 
 pub(crate) struct Prover<SC>(PhantomData<SC>);
 

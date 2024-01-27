@@ -131,6 +131,7 @@ mod tests {
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::{size_of, transmute};
@@ -139,7 +140,6 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
     use valida_derive::AlignedBorrow;
 

@@ -17,7 +17,6 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
-use p3_uni_stark::StarkConfig;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -28,7 +27,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::prover::Prover;
-use super::types::*;
+use super::{types::*, StarkConfig};
 
 pub const NUM_CHIPS: usize = 16;
 
