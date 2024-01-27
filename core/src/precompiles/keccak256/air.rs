@@ -44,18 +44,19 @@ where
         }
 
         // Verify that local.a values are equal to the memory values when local.step_flags[0] == 1
+        // (for the permutation input) and when local.step_flags[23] == 1 (for the permutation output).
         // Memory values are 32 bit values (encoded as 4 8-bit columns).
         // local.a values are 64 bit values (encoded as 4 16 bit columns).
+        let expr_2_pow_8 = AB::Expr::from_canonical_u32(2u32.pow(8));
+
         for i in 0..STATE_SIZE as u32 {
             let least_sig_word = local.state_mem[(i * 2) as usize].value;
             let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
             let memory_limbs = [
-                least_sig_word.0[0]
-                    + least_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-                least_sig_word.0[2]
-                    + least_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-                most_sig_word.0[0] + most_sig_word.0[1] * AB::Expr::from_canonical_u32(2u32.pow(8)),
-                most_sig_word.0[2] + most_sig_word.0[3] * AB::Expr::from_canonical_u32(2u32.pow(8)),
+                least_sig_word.0[0] + least_sig_word.0[1] * expr_2_pow_8.clone(),
+                least_sig_word.0[2] + least_sig_word.0[3] * expr_2_pow_8.clone(),
+                most_sig_word.0[0] + most_sig_word.0[1] * expr_2_pow_8.clone(),
+                most_sig_word.0[2] + most_sig_word.0[3] * expr_2_pow_8.clone(),
             ];
 
             let y_idx = i / 5;
