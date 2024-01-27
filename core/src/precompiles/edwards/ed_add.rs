@@ -329,18 +329,13 @@ pub mod tests {
 
     use crate::{
         runtime::Program,
-        utils::{self, prove},
+        utils::{prove, setup_logger},
     };
 
     #[test]
     fn test_ed_add_simple() {
-        std::env::set_var("RUST_LOG", "info");
-        std::env::set_var("RUST_TRACER", "info");
-        // utils::setup_logger();
-        utils::setup_tracer();
-        let program = Program::from_elf(
-            "/Users/umaroy/Documents/curta-vm/target/riscv32im-risc0-zkvm-elf/release/ed25519",
-        );
+        setup_logger();
+        let program = Program::from_elf("../programs/ed_add");
         prove(program);
     }
 }
