@@ -1,5 +1,5 @@
-use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
+use crate::air::Polynomial;
 use crate::utils::ec::field::FieldParameters;
 use p3_field::AbstractField;
 
@@ -18,10 +18,10 @@ pub fn eval_field_operation<AB: CurtaAirBuilder, P: FieldParameters>(
     // coefficient w_i of the witness polynomial satisfies |w_i| < 2^WITNESS_OFFSET.
     let offset: AB::Expr = AB::F::from_canonical_u32(P::WITNESS_OFFSET as u32).into();
     let len = p_witness_shifted.coefficients().len();
-    let p_witness = p_witness_shifted - Polynomial::from_coefficients(vec![offset; len]);
+    let p_witness = p_witness_shifted - Polynomial::new(vec![offset; len]);
 
     // Multiply by (x-2^NB_BITS_PER_LIMB) and make the constraint
-    let root_monomial = Polynomial::from_coefficients(vec![-limb, AB::F::one().into()]);
+    let root_monomial = Polynomial::new(vec![-limb, AB::F::one().into()]);
 
     let constraints = p_vanishing - &(p_witness * root_monomial);
     for constr in constraints.as_coefficients() {

@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::cpu::cols::instruction_cols::InstructionCols;
-use crate::cpu::cols::opcode_cols::OpcodeSelectors;
+use crate::cpu::columns::instruction::InstructionCols;
+use crate::cpu::columns::opcode::OpcodeSelectorCols;
 use crate::runtime::Segment;
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -22,7 +22,7 @@ pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 pub struct ProgramCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
-    pub selectors: OpcodeSelectors<T>,
+    pub selectors: OpcodeSelectorCols<T>,
     pub multiplicity: T,
 }
 
