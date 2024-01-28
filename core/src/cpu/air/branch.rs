@@ -114,7 +114,7 @@ impl CpuChip {
             // When the opcode is BGE or BGEU and we are branching, assert that a_gt_b is true.
             builder
                 .when((local.selectors.is_bge + local.selectors.is_bgeu) * local.branching)
-                .assert_one(branch_cols.a_gt_b);
+                .assert_one(branch_cols.a_gt_b + branch_cols.a_eq_b);
 
             // When the opcode is BGE or BGEU and we are not branching, assert that either a_eq_b
             // or a_lt_b is true.
