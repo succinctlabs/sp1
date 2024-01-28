@@ -6,16 +6,19 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-
 use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
-
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `SubChip`.
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
+
+/// A chip that implements subtraction for the opcode SUB.
+#[derive(Default)]
+pub struct SubChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -34,15 +37,6 @@ pub struct SubCols<T> {
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
-}
-
-/// A chip that implements subtraction for the opcode SUB.
-pub struct SubChip;
-
-impl SubChip {
-    pub fn new() -> Self {
-        Self {}
-    }
 }
 
 impl<F: PrimeField> Chip<F> for SubChip {
@@ -166,13 +160,12 @@ mod tests {
     use p3_uni_stark::{prove, verify};
     use rand::{thread_rng, Rng};
 
+    use super::SubChip;
     use crate::{
         alu::AluEvent,
         runtime::{Opcode, Segment},
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
-
-    use super::SubChip;
 
     #[test]
     fn generate_trace() {
@@ -199,7 +192,7 @@ mod tests {
                 .sub_events
                 .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
         }
-        let chip = SubChip::new();
+        let chip = SubChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

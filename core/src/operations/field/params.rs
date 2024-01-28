@@ -1,4 +1,4 @@
-use crate::air::polynomial::Polynomial;
+use crate::air::Polynomial;
 use p3_baby_bear::BabyBear;
 use p3_field::Field;
 use p3_field::PrimeField32;
@@ -32,21 +32,19 @@ impl<T> IntoIterator for Limbs<T> {
 
 impl<Var: Into<Expr> + Clone, Expr: Clone> From<Limbs<Var>> for Polynomial<Expr> {
     fn from(value: Limbs<Var>) -> Self {
-        Polynomial::from_coefficients_slice(
-            &value.0.into_iter().map(|x| x.into()).collect::<Vec<_>>(),
-        )
+        Polynomial::from_coefficients(&value.0.into_iter().map(|x| x.into()).collect::<Vec<_>>())
     }
 }
 
 impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomial<Expr> {
     fn from(value: Iter<'a, Var>) -> Self {
-        Polynomial::from_coefficients_slice(&value.map(|x| (*x).clone().into()).collect::<Vec<_>>())
+        Polynomial::from_coefficients(&value.map(|x| (*x).clone().into()).collect::<Vec<_>>())
     }
 }
 
 impl<T: Debug + Default + Clone> From<Polynomial<T>> for Limbs<T> {
     fn from(value: Polynomial<T>) -> Self {
-        let inner = value.coefficients.try_into().unwrap();
+        let inner = value.as_coefficients().try_into().unwrap();
         Self(inner)
     }
 }
@@ -62,7 +60,7 @@ impl<'a, T: Debug + Default + Clone> From<Iter<'a, T>> for Limbs<T> {
 // TODO: we probably won't need this in the future when we do things properly.
 pub fn convert_polynomial<F: Field>(value: Polynomial<BabyBear>) -> Limbs<F> {
     let inner_u8 = value
-        .coefficients
+        .as_coefficients()
         .iter()
         .map(|x| x.as_canonical_u32() as u8)
         .map(|x| F::from_canonical_u8(x))

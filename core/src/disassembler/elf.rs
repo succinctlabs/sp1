@@ -1,11 +1,9 @@
-use std::cmp::min;
-use std::collections::BTreeMap;
-
-use elf::ElfBytes;
-
 use elf::abi::{EM_RISCV, ET_EXEC, PF_X, PT_LOAD};
 use elf::endian::LittleEndian;
 use elf::file::Class;
+use elf::ElfBytes;
+use std::cmp::min;
+use std::collections::BTreeMap;
 
 /// The maximum size of the memory in bytes.
 pub const MAXIMUM_MEMORY_SIZE: u32 = u32::MAX;

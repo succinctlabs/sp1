@@ -1,7 +1,7 @@
 use crate::runtime::Instruction;
 
-pub mod airs;
-pub mod cols;
+pub mod air;
+pub mod columns;
 pub mod trace;
 
 #[derive(Debug, Copy, Clone)]
