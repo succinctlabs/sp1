@@ -1,9 +1,9 @@
-use super::cols::cpu_cols::{AUIPCColumns, BranchColumns, JumpColumns, CPU_COL_MAP, NUM_CPU_COLS};
+use super::columns::{AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::cols::cpu_cols::{CpuCols, MemoryColumns};
+use crate::cpu::columns::{CpuCols, MemoryColumns};
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::runtime::{Opcode, Segment};
@@ -226,7 +226,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_branch_instruction() {
-            let branch_columns: &mut BranchColumns<F> =
+            let branch_columns: &mut BranchCols<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
             let a_eq_b = event.a == event.b;
@@ -321,7 +321,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_jump_instruction() {
-            let jump_columns: &mut JumpColumns<F> =
+            let jump_columns: &mut JumpCols<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
             match event.instruction.opcode {
@@ -372,7 +372,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns: &mut AUIPCColumns<F> =
+            let auipc_columns: &mut AUIPCCols<F> =
                 unsafe { transmute(&mut cols.opcode_specific_columns) };
 
             auipc_columns.pc = event.pc.into();

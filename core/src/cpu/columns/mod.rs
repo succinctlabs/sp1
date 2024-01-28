@@ -1,3 +1,9 @@
+pub mod instruction;
+pub mod opcode;
+
+pub use instruction::*;
+pub use opcode::*;
+
 use core::borrow::{Borrow, BorrowMut};
 use std::mem::{size_of, transmute};
 
@@ -6,8 +12,6 @@ use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-
-use super::{instruction_cols::InstructionCols, opcode_cols::OpcodeSelectors};
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -58,7 +62,7 @@ pub struct MemoryColumns<T> {
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct BranchColumns<T> {
+pub struct BranchCols<T> {
     pub pc: Word<T>,
     pub next_pc: Word<T>,
 
@@ -69,14 +73,14 @@ pub struct BranchColumns<T> {
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct JumpColumns<T> {
+pub struct JumpCols<T> {
     pub pc: Word<T>, // These are needed for JAL
     pub next_pc: Word<T>,
 }
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct AUIPCColumns<T> {
+pub struct AUIPCCols<T> {
     pub pc: Word<T>,
 }
 
@@ -94,7 +98,7 @@ pub struct CpuCols<T> {
     // Columns related to the instruction.
     pub instruction: InstructionCols<T>,
     // Selectors for the opcode.
-    pub selectors: OpcodeSelectors<T>,
+    pub selectors: OpcodeSelectorCols<T>,
 
     // Operand values, either from registers or immediate values.
     pub op_a_access: MemoryAccessCols<T>,
@@ -153,9 +157,9 @@ pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_colum
 // struct size.
 const fn get_opcode_specific_columns_offset() -> usize {
     let memory_columns_size = size_of::<MemoryColumns<u8>>();
-    let branch_columns_size = size_of::<BranchColumns<u8>>();
-    let jump_columns_size = size_of::<JumpColumns<u8>>();
-    let aui_pc_columns_size = size_of::<AUIPCColumns<u8>>();
+    let branch_columns_size = size_of::<BranchCols<u8>>();
+    let jump_columns_size = size_of::<JumpCols<u8>>();
+    let aui_pc_columns_size = size_of::<AUIPCCols<u8>>();
 
     let return_val = memory_columns_size;
 
@@ -186,16 +190,16 @@ impl CpuCols<u32> {
     }
 }
 
-impl<T> CpuCols<T> {
-    pub fn op_a_val(&self) -> &Word<T> {
-        &self.op_a_access.value
+impl<T: Clone> CpuCols<T> {
+    pub fn op_a_val(&self) -> Word<T> {
+        self.op_a_access.value.clone()
     }
 
-    pub fn op_b_val(&self) -> &Word<T> {
-        &self.op_b_access.value
+    pub fn op_b_val(&self) -> Word<T> {
+        self.op_b_access.value.clone()
     }
 
-    pub fn op_c_val(&self) -> &Word<T> {
-        &self.op_c_access.value
+    pub fn op_c_val(&self) -> Word<T> {
+        self.op_c_access.value.clone()
     }
 }

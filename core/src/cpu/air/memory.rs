@@ -3,17 +3,10 @@ use std::mem::transmute_copy;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::{
-    air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder},
-    cpu::{
-        cols::{
-            cpu_cols::{CpuCols, MemoryColumns},
-            opcode_cols::OpcodeSelectors,
-        },
-        CpuChip,
-    },
-    runtime::Opcode,
-};
+use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
+use crate::cpu::CpuChip;
+use crate::runtime::Opcode;
 
 impl CpuChip {
     pub(crate) fn load_memory_eval<AB: CurtaAirBuilder>(
@@ -57,7 +50,7 @@ impl CpuChip {
 
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::SUB as u32),
-            *local.op_a_val(),
+            local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
             local.mem_value_is_neg,
@@ -66,7 +59,7 @@ impl CpuChip {
         builder
             .when(is_load)
             .when_not(local.mem_value_is_neg)
-            .assert_word_eq(local.unsigned_mem_val, *local.op_a_val());
+            .assert_word_eq(local.unsigned_mem_val, local.op_a_val());
     }
 
     pub(crate) fn store_memory_eval<AB: CurtaAirBuilder>(
@@ -88,7 +81,7 @@ impl CpuChip {
 
         let one = AB::Expr::one();
 
-        let a_val = *local.op_a_val();
+        let a_val = local.op_a_val();
         let prev_mem_val = memory_columns.memory_access.prev_value;
 
         let sb_expected_stored_value = Word([
@@ -250,7 +243,7 @@ impl CpuChip {
 
     pub(crate) fn is_memory_instruction<AB: CurtaAirBuilder>(
         &self,
-        opcode_selectors: &OpcodeSelectors<AB::Var>,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_lb
             + opcode_selectors.is_lbu
@@ -264,7 +257,7 @@ impl CpuChip {
 
     pub(crate) fn is_store<AB: CurtaAirBuilder>(
         &self,
-        opcode_selectors: &OpcodeSelectors<AB::Var>,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
     }

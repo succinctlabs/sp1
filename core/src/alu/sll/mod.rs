@@ -295,7 +295,7 @@ where
         // Range check.
         {
             for word in [local.bit_shift_result, local.bit_shift_result_carry].iter() {
-                builder.range_check_word(Word(*word), local.is_real);
+                builder.assert_word(Word(*word), local.is_real);
             }
         }
 

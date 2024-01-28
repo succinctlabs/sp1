@@ -13,7 +13,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::cols::cpu_cols::MemoryAccessCols,
+    cpu::columns::MemoryAccessCols,
     lookup::{Interaction, InteractionBuilder},
     operations::field::params::Limbs,
     runtime::Segment,

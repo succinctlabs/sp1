@@ -9,7 +9,7 @@ use crate::runtime::{Instruction, Opcode};
 
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
-pub struct OpcodeSelectors<T> {
+pub struct OpcodeSelectorCols<T> {
     // // Whether op_b is an immediate value.
     pub imm_b: T,
     // Whether op_c is an immediate value.
@@ -47,7 +47,7 @@ pub struct OpcodeSelectors<T> {
     pub reg_0_write: T,
 }
 
-impl<F: PrimeField> OpcodeSelectors<F> {
+impl<F: PrimeField> OpcodeSelectorCols<F> {
     pub fn populate(&mut self, instruction: Instruction) {
         self.imm_b = F::from_bool(instruction.imm_b);
         self.imm_c = F::from_bool(instruction.imm_c);
@@ -99,7 +99,7 @@ impl<F: PrimeField> OpcodeSelectors<F> {
     }
 }
 
-impl<T> IntoIterator for OpcodeSelectors<T> {
+impl<T> IntoIterator for OpcodeSelectorCols<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
