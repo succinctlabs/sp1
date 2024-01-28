@@ -10,6 +10,7 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
+use crate::utils::ec::add::create_elliptic_curve_add_event;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
@@ -82,52 +83,9 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         }
     }
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        let a0 = crate::runtime::Register::X10;
-        let a1 = crate::runtime::Register::X11;
-
-        let start_clk = rt.clk;
-
-        // TODO: these will have to be be constrained, but can do it later.
-        let p_ptr = rt.register_unsafe(a0);
-        if p_ptr % 4 != 0 {
-            panic!();
-        }
-
-        let (q_ptr_record, q_ptr) = rt.mr(a1 as u32);
-        if q_ptr % 4 != 0 {
-            panic!();
-        }
-
-        let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
-        let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);
-        let q_memory_records = q_memory_records_vec.try_into().unwrap();
-        let q: [u32; 16] = q_vec.try_into().unwrap();
-        // When we write to p, we want the clk to be incremented.
-        rt.clk += 4;
-
-        let p_affine = AffinePoint::<E>::from_words_le(&p);
-        let q_affine = AffinePoint::<E>::from_words_le(&q);
-        let result_affine = p_affine + q_affine;
-        let result_words = result_affine.to_words_le();
-
-        let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
-
-        rt.clk += 4;
-
-        rt.segment_mut()
-            .weierstrass_add_events
-            .push(WeierstrassAddEvent {
-                clk: start_clk,
-                p_ptr,
-                p,
-                q_ptr,
-                q,
-                q_ptr_record,
-                p_memory_records,
-                q_memory_records,
-            });
-
-        p_ptr
+        let event = create_elliptic_curve_add_event::<E>(rt);
+        rt.segment_mut().weierstrass_add_events.push(event);
+        event.p_ptr + 1
     }
 
     fn populate_fp_ops<F: Field>(

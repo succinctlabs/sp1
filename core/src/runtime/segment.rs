@@ -64,7 +64,7 @@ pub struct Segment {
 
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
-    pub weierstrass_add_events: Vec<WeierstrassAddEvent>,
+    pub weierstrass_add_events: Vec<EllipticCurveAddEvent>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.

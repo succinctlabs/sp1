@@ -74,7 +74,7 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         let event = create_elliptic_curve_add_event::<E>(rt);
         rt.segment_mut().ed_add_events.push(event);
-        event.p_ptr
+        event.p_ptr + 1
     }
 
     fn populate_fp_ops<F: Field>(
