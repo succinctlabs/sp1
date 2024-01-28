@@ -9,6 +9,7 @@ struct ProfileArgs {
     pub program: String,
 }
 
+#[allow(unreachable_code)]
 fn main() {
     #[cfg(not(feature = "perf"))]
     unreachable!("--features=perf must be enabled to run this program");

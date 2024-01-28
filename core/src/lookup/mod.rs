@@ -1,15 +1,14 @@
-use crate::runtime::Runtime;
+mod builder;
 
-use crate::utils::Chip;
+pub use builder::InteractionBuilder;
+
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField64;
+use p3_field::{AbstractField, Field, PrimeField64};
 use p3_fri::{FriBasedPcs, FriConfigImpl};
 use p3_keccak::Keccak256Hash;
 use p3_ldt::QuotientMmcs;
@@ -20,15 +19,12 @@ use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
 use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
 use p3_uni_stark::StarkConfigImpl;
-
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fmt::Display;
-mod builder;
 
-pub use builder::InteractionBuilder;
-
-use crate::runtime::Segment;
+use crate::runtime::{Runtime, Segment};
+use crate::utils::Chip;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
@@ -51,16 +47,22 @@ impl<F: Field> Debug for Interaction<F> {
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
     Memory = 1,
+
     /// Interaction with the program table, loading an instruction at a given pc address.
     Program = 2,
+
     /// Interaction with instruction oracle.
     Instruction = 3,
+
     /// Interaction with the ALU operations
     Alu = 4,
+
     /// Interaction with the byte lookup table for byte operations.
     Byte = 5,
+
     /// Requesting a range check for a given value and range.
     Range = 6,
+
     /// Interaction with the field op table for field operations.
     Field = 7,
 }
@@ -80,6 +82,7 @@ impl Display for InteractionKind {
 }
 
 impl<F: Field> Interaction<F> {
+    /// Create a new interaction.
     pub fn new(
         values: Vec<VirtualPairCol<F>>,
         multiplicity: VirtualPairCol<F>,
@@ -92,6 +95,7 @@ impl<F: Field> Interaction<F> {
         }
     }
 
+    /// The index of the argument in the lookup table.
     pub fn argument_index(&self) -> usize {
         self.kind as usize
     }

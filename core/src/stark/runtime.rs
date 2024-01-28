@@ -48,7 +48,7 @@ impl Runtime {
         let shift_left = ShiftLeft::default();
         let lt = LtChip::default();
         let bytes = ByteChip::<SC::Val>::new();
-        let field = FieldLTUChip::new();
+        let field = FieldLTUChip::default();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
