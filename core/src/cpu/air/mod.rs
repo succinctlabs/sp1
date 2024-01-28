@@ -75,7 +75,7 @@ where
         );
 
         builder
-            .when(is_branch_instruction.clone() + self.is_store::<AB>(&local.selectors))
+            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         // // We always read to register b and register c unless the imm_b or imm_c flags are set.
@@ -136,9 +136,9 @@ where
             is_memory_instruction.clone(),
         );
 
-        self.load_memory_eval::<AB>(builder, local);
+        self.eval_memory_load::<AB>(builder, local);
 
-        self.store_memory_eval::<AB>(builder, local);
+        self.eval_memory_store::<AB>(builder, local);
 
         //////////////////////////////////////////
 

@@ -1,3 +1,8 @@
+use core::mem::transmute;
+use p3_field::PrimeField;
+use p3_matrix::dense::RowMajorMatrix;
+use std::collections::HashMap;
+
 use super::columns::{AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 
@@ -8,12 +13,6 @@ use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
-
-use core::mem::transmute;
-use std::collections::HashMap;
-
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn name(&self) -> String {

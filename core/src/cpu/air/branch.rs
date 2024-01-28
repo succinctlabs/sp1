@@ -143,9 +143,8 @@ impl CpuChip {
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
         builder.send_alu(
-            use_signed_comparison.clone() * AB::Expr::from_canonical_u8(Opcode::SLT as u8)
-                + (AB::Expr::one() - use_signed_comparison)
-                    * AB::Expr::from_canonical_u8(Opcode::SLTU as u8),
+            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
+                + (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_gt_b),
             local.op_b_val(),
             local.op_a_val(),

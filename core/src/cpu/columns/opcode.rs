@@ -1,24 +1,25 @@
 use core::borrow::{Borrow, BorrowMut};
-use std::mem::size_of;
-
 use p3_field::PrimeField;
+use std::mem::size_of;
 use std::vec::IntoIter;
 use valida_derive::AlignedBorrow;
 
 use crate::runtime::{Instruction, Opcode};
 
+/// The column layout for opcode selectors.
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
 pub struct OpcodeSelectorCols<T> {
-    // // Whether op_b is an immediate value.
+    /// Whether op_b is an immediate value.
     pub imm_b: T,
-    // Whether op_c is an immediate value.
+
+    /// Whether op_c is an immediate value.
     pub imm_c: T,
 
-    // Table selectors for opcodes.
+    /// Table selectors for opcodes.
     pub is_alu: T,
 
-    // Memory operation selectors.
+    /// Memory Instructions.
     pub is_lb: T,
     pub is_lbu: T,
     pub is_lh: T,
@@ -28,7 +29,7 @@ pub struct OpcodeSelectorCols<T> {
     pub is_sh: T,
     pub is_sw: T,
 
-    // Branch operation selectors.
+    /// Branch Instructions.
     pub is_beq: T,
     pub is_bne: T,
     pub is_blt: T,
@@ -36,13 +37,12 @@ pub struct OpcodeSelectorCols<T> {
     pub is_bltu: T,
     pub is_bgeu: T,
 
-    // Jump instruction selectors.
+    /// Jump Instructions.
     pub is_jalr: T,
     pub is_jal: T,
 
+    /// Miscellaneous.
     pub is_auipc: T,
-
-    // Whether this is a no-op.
     pub is_noop: T,
     pub reg_0_write: T,
 }
@@ -86,15 +86,14 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
             self.is_noop = F::one();
         }
 
-        if instruction.op_a == 0 {
-            // If op_a is 0 and we're writing to the register, then we don't do a write.
-            // We are always writing to the first register UNLESS it is a branch, is_store.
-            if !(instruction.is_branch_instruction()
+        // If op_a is 0 and we're writing to the register, then we don't do a write. We are always
+        // writing to the first register UNLESS it is a branch, is_store.
+        if instruction.op_a == 0
+            && !(instruction.is_branch_instruction()
                 || (self.is_sb + self.is_sh + self.is_sw) == F::one()
                 || self.is_noop == F::one())
-            {
-                self.reg_0_write = F::one();
-            }
+        {
+            self.reg_0_write = F::one();
         }
     }
 }

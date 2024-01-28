@@ -5,10 +5,9 @@ pub use instruction::*;
 pub use opcode::*;
 
 use core::borrow::{Borrow, BorrowMut};
-use std::mem::{size_of, transmute};
-
 use p3_field::PrimeField32;
 use p3_util::indices_arr;
+use std::mem::{size_of, transmute};
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
