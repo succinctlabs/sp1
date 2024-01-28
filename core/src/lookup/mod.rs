@@ -169,7 +169,7 @@ pub fn debug_interactions_with_all_chips(
 
     for chip in segment_chips {
         let (_, count) =
-            debug_interactions::<BabyBear>(chip.as_ref(), &mut segment, interaction_kinds.clone());
+            debug_interactions::<BabyBear>(chip.as_chip(), &mut segment, interaction_kinds.clone());
 
         counts.push((count.clone(), chip.name()));
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
@@ -182,7 +182,7 @@ pub fn debug_interactions_with_all_chips(
         let mut global_segment = global_segment.clone();
         for chip in global_chips {
             let (_, count) = debug_interactions::<BabyBear>(
-                chip.as_ref(),
+                chip.as_chip(),
                 &mut global_segment,
                 interaction_kinds.clone(),
             );

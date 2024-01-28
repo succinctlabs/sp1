@@ -60,14 +60,20 @@ pub trait AirChip<SC: StarkConfig>:
     fn air_width(&self) -> usize {
         <Self as BaseAir<SC::Val>>::width(self)
     }
+
+    fn as_chip(&self) -> &dyn Chip<SC::Val>;
 }
 
-impl<SC: StarkConfig, T> AirChip<SC> for T where
+impl<SC: StarkConfig, T> AirChip<SC> for T
+where
     T: Chip<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC::Challenge>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
 {
+    fn as_chip(&self) -> &dyn Chip<SC::Val> {
+        self
+    }
 }
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
