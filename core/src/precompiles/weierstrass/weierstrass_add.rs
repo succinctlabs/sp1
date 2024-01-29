@@ -80,12 +80,14 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     pub const NUM_CYCLES: u32 = 8;
 
     pub fn new() -> Self {
+        println!("WeierstrassAddAssignChip::new");
         Self {
             _marker: PhantomData,
         }
     }
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+        println!("WeierstrassAddAssignChip::execute");
         let event = create_ec_add_event::<E>(rt);
         rt.segment_mut().weierstrass_add_events.push(event);
         event.p_ptr + 1

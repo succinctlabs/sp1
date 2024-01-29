@@ -11,11 +11,14 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::weierstrass::weierstrass_add::{self, WeierstrassAddAssignChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
+use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 
@@ -31,7 +34,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 17;
+pub const NUM_CHIPS: usize = 18;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -56,6 +59,8 @@ impl Runtime {
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
         let keccak_permute = KeccakPermuteChip::new();
+        let weierstrass_add =
+            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -77,6 +82,7 @@ impl Runtime {
             Box::new(lt),
             Box::new(field),
             Box::new(bytes),
+            Box::new(weierstrass_add),
         ]
     }
 
