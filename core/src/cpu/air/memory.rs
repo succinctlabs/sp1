@@ -3,38 +3,65 @@ use std::mem::transmute_copy;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::{
-    air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder},
-    cpu::{
-        cols::{
-            cpu_cols::{CpuCols, MemoryColumns},
-            opcode_cols::OpcodeSelectors,
-        },
-        CpuChip,
-    },
-    runtime::Opcode,
-};
+use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
+use crate::cpu::CpuChip;
+use crate::runtime::Opcode;
 
 impl CpuChip {
-    pub(crate) fn load_memory_eval<AB: CurtaAirBuilder>(
+    /// Computes whether the opcode is a memory instruction.
+    pub(crate) fn is_memory_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_lb
+            + opcode_selectors.is_lbu
+            + opcode_selectors.is_lh
+            + opcode_selectors.is_lhu
+            + opcode_selectors.is_lw
+            + opcode_selectors.is_sb
+            + opcode_selectors.is_sh
+            + opcode_selectors.is_sw
+    }
+
+    /// Computes whether the opcode is a load instruction.
+    pub(crate) fn is_load_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_lb
+            + opcode_selectors.is_lbu
+            + opcode_selectors.is_lh
+            + opcode_selectors.is_lhu
+            + opcode_selectors.is_lw
+    }
+
+    /// Computes whether the opcode is a store instruction.
+    pub(crate) fn is_store_instruction<AB: CurtaAirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
+    }
+
+    /// Evaluates constraints related to loading from memory.
+    pub(crate) fn eval_memory_load<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
     ) {
+        // Get the memory specific columns.
         let memory_columns: MemoryColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
-        let is_load = local.selectors.is_lb
-            + local.selectors.is_lbu
-            + local.selectors.is_lh
-            + local.selectors.is_lhu
-            + local.selectors.is_lw;
+        // Compute whether this is a load instruction.
+        let is_load = self.is_load_instruction::<AB>(&local.selectors);
 
-        self.verify_unsigned_mem_value(builder, &memory_columns, local);
+        self.eval_unsigned_mem_value(builder, &memory_columns, local);
 
         // If it's a signed operation (LB or LH), then we need verify the bit decomposition of the
         // most significant byte
-        self.verify_most_sig_byte_bit_decomp(
+        self.eval_most_sig_byte_bit_decomp(
             builder,
             &memory_columns,
             local,
@@ -56,8 +83,8 @@ impl CpuChip {
         ]);
 
         builder.send_alu(
-            AB::Expr::from_canonical_u32(Opcode::SUB as u32),
-            *local.op_a_val(),
+            Opcode::SUB.as_field::<AB::F>(),
+            local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
             local.mem_value_is_neg,
@@ -66,10 +93,11 @@ impl CpuChip {
         builder
             .when(is_load)
             .when_not(local.mem_value_is_neg)
-            .assert_word_eq(local.unsigned_mem_val, *local.op_a_val());
+            .assert_word_eq(local.unsigned_mem_val, local.op_a_val());
     }
 
-    pub(crate) fn store_memory_eval<AB: CurtaAirBuilder>(
+    /// Evaluates constraints related to storing to memory.
+    pub(crate) fn eval_memory_store<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -79,7 +107,7 @@ impl CpuChip {
 
         let mem_val = memory_columns.memory_access.value;
 
-        self.verify_offset_value_flags(builder, &memory_columns, local);
+        self.eval_offset_value_flags(builder, &memory_columns, local);
 
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
@@ -88,7 +116,7 @@ impl CpuChip {
 
         let one = AB::Expr::one();
 
-        let a_val = *local.op_a_val();
+        let a_val = local.op_a_val();
         let prev_mem_val = memory_columns.memory_access.prev_value;
 
         let sb_expected_stored_value = Word([
@@ -127,7 +155,7 @@ impl CpuChip {
             .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
-    pub(crate) fn verify_unsigned_mem_value<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_unsigned_mem_value<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -135,7 +163,7 @@ impl CpuChip {
     ) {
         let mem_val = memory_columns.memory_access.value;
 
-        self.verify_offset_value_flags(builder, memory_columns, local);
+        self.eval_offset_value_flags(builder, memory_columns, local);
 
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
@@ -173,7 +201,7 @@ impl CpuChip {
             .assert_word_eq(mem_val, local.unsigned_mem_val);
     }
 
-    pub(crate) fn verify_most_sig_byte_bit_decomp<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_most_sig_byte_bit_decomp<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -195,7 +223,7 @@ impl CpuChip {
             .assert_eq(recomposed_byte, unsigned_mem_val[1]);
     }
 
-    pub(crate) fn verify_offset_value_flags<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_offset_value_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -246,26 +274,5 @@ impl CpuChip {
         builder
             .when(is_mem_op * memory_columns.offset_is_three)
             .assert_eq(memory_columns.addr_offset, AB::Expr::from_canonical_u8(3));
-    }
-
-    pub(crate) fn is_memory_instruction<AB: CurtaAirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectors<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_lb
-            + opcode_selectors.is_lbu
-            + opcode_selectors.is_lh
-            + opcode_selectors.is_lhu
-            + opcode_selectors.is_lw
-            + opcode_selectors.is_sb
-            + opcode_selectors.is_sh
-            + opcode_selectors.is_sw
-    }
-
-    pub(crate) fn is_store<AB: CurtaAirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectors<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
     }
 }

@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use p3_field::Field;
+
 /// An opcode specifies which operation to execute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -107,5 +109,11 @@ impl Opcode {
             Opcode::REMU => "remu",
             Opcode::UNIMP => "unimp",
         }
+    }
+}
+
+impl Opcode {
+    pub fn as_field<F: Field>(self) -> F {
+        F::from_canonical_u32(self as u32)
     }
 }

@@ -2,8 +2,8 @@ use super::params::NUM_WITNESS_LIMBS;
 use super::params::{convert_polynomial, convert_vec, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
-use crate::air::polynomial::Polynomial;
 use crate::air::CurtaAirBuilder;
+use crate::air::Polynomial;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
@@ -61,10 +61,12 @@ impl<F: Field> FpInnerProductCols<F> {
         let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(carry).into();
 
         // Compute the vanishing polynomial.
-        let p_inner_product = p_a_vec.into_iter().zip(p_b_vec).fold(
-            Polynomial::<PF>::from_coefficients(vec![PF::zero()]),
-            |acc, (c, d)| acc + &c * &d,
-        );
+        let p_inner_product = p_a_vec
+            .into_iter()
+            .zip(p_b_vec)
+            .fold(Polynomial::<PF>::new(vec![PF::zero()]), |acc, (c, d)| {
+                acc + &c * &d
+            });
         let p_vanishing = p_inner_product - &p_result - &p_carry * &p_modulus;
         assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
@@ -99,7 +101,7 @@ impl<V: Copy> FpInnerProductCols<V> {
         let p_result = self.result.into();
         let p_carry = self.carry.into();
 
-        let p_zero = Polynomial::<AB::Expr>::from_coefficients(vec![AB::Expr::zero()]);
+        let p_zero = Polynomial::<AB::Expr>::new(vec![AB::Expr::zero()]);
 
         let p_inner_product = p_a_vec
             .iter()

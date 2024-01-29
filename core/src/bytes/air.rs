@@ -1,60 +1,28 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::borrow::Borrow;
 use core::mem::transmute;
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
 use p3_field::{AbstractField, ExtensionField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
-use valida_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
-
+use super::columns::ByteCols;
+use super::columns::NUM_BYTE_COLS;
 use super::NUM_BYTE_OPS;
 use super::{ByteChip, ByteOpcode};
+use crate::air::CurtaAirBuilder;
 
-pub const NUM_BYTE_COLS: usize = size_of::<ByteCols<u8>>();
-pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
-pub(crate) const BYTE_MULT_INDICES: [usize; NUM_BYTE_OPS] = BYTE_COL_MAP.multiplicities;
-
+/// Makes the column map for the byte chip.
 const fn make_col_map() -> ByteCols<usize> {
     let indices_arr = indices_arr::<NUM_BYTE_COLS>();
     unsafe { transmute::<[usize; NUM_BYTE_COLS], ByteCols<usize>>(indices_arr) }
 }
 
-#[derive(Debug, Clone, Copy, AlignedBorrow)]
-#[repr(C)]
-pub struct ByteCols<T> {
-    /// The first byte operand.
-    pub b: T,
+/// The column map for the byte chip.
+pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
 
-    /// The second byte operand.
-    pub c: T,
-
-    /// The result of the `AND` operation on `a` and `b`
-    pub and: T,
-
-    /// The result of the `OR` operation on `a` and `b`
-    pub or: T,
-
-    /// The result of the `XOR` operation on `a` and `b`
-    pub xor: T,
-
-    /// The result of the `SLL` operation on `a` and `b`
-    pub sll: T,
-
-    /// The result of the `ShrCarry` operation on `a` and `b`.
-    pub shr: T,
-    pub shr_carry: T,
-
-    /// The result of the `LTU` operation on `a` and `b`.
-    pub ltu: T,
-
-    /// The most significant bit of `b`.
-    pub msb: T,
-
-    pub multiplicities: [T; NUM_BYTE_OPS],
-}
+/// The multiplicity indices for each byte operation.
+pub(crate) const BYTE_MULT_INDICES: [usize; NUM_BYTE_OPS] = BYTE_COL_MAP.multiplicities;
 
 impl<EF: ExtensionField<F>, F: Field> BaseAir<EF> for ByteChip<F> {
     fn width(&self) -> usize {
@@ -70,13 +38,9 @@ where
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
 
-        // Dummy constraint for normalizing to degree 3.
-        #[allow(clippy::eq_op)]
-        builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
-
         // Send all the lookups for each operation.
-        for (i, opcode) in ByteOpcode::get_all().iter().enumerate() {
-            let field_op = opcode.to_field::<AB::F>();
+        for (i, opcode) in ByteOpcode::all().iter().enumerate() {
+            let field_op = opcode.as_field::<AB::F>();
             let mult = local.multiplicities[i];
             match opcode {
                 ByteOpcode::AND => {
@@ -108,5 +72,8 @@ where
                 }
             }
         }
+
+        // Dummy constraint for normalizing to degree 3.
+        builder.assert_zero(local.b * local.b * local.b - local.b * local.b * local.b);
     }
 }

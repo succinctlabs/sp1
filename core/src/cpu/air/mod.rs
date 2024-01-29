@@ -1,7 +1,11 @@
+pub mod branch;
+pub mod memory;
+
 use crate::air::{CurtaAirBuilder, WordAirBuilder};
-use crate::cpu::cols::cpu_cols::{AUIPCColumns, CpuCols, JumpColumns, MemoryColumns, NUM_CPU_COLS};
-use crate::cpu::cols::opcode_cols::OpcodeSelectors;
+use crate::cpu::columns::opcode::OpcodeSelectorCols;
+use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
+use crate::runtime::{AccessPosition, Opcode};
 
 use core::borrow::Borrow;
 use p3_air::Air;
@@ -10,8 +14,6 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use std::mem::transmute_copy;
-
-use crate::runtime::{AccessPosition, Opcode};
 
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {
@@ -57,10 +59,10 @@ where
         // Constraint the op_b_val and op_c_val columns when imm_b and imm_c are true.
         builder
             .when(local.selectors.imm_b)
-            .assert_word_eq(*local.op_b_val(), local.instruction.op_b);
+            .assert_word_eq(local.op_b_val(), local.instruction.op_b);
         builder
             .when(local.selectors.imm_c)
-            .assert_word_eq(*local.op_c_val(), local.instruction.op_c);
+            .assert_word_eq(local.op_c_val(), local.instruction.op_c);
 
         // // We always write to the first register unless we are doing a branch_op or a store_op.
         // // The multiplicity is 1-selectors.noop-selectors.reg_0_write (the case where we're trying to write to register 0).
@@ -73,8 +75,8 @@ where
         );
 
         builder
-            .when(is_branch_instruction.clone() + self.is_store::<AB>(&local.selectors))
-            .assert_word_eq(*local.op_a_val(), local.op_a_access.prev_value);
+            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
+            .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         // // We always read to register b and register c unless the imm_b or imm_c flags are set.
         // TODO: for these, we could save the "op_b_access.prev_value" column because it's always
@@ -88,7 +90,7 @@ where
         );
         builder
             .when(AB::Expr::one() - local.selectors.imm_b)
-            .assert_word_eq(*local.op_b_val(), local.op_b_access.prev_value);
+            .assert_word_eq(local.op_b_val(), local.op_b_access.prev_value);
 
         builder.constraint_memory_access(
             local.segment,
@@ -99,7 +101,7 @@ where
         );
         builder
             .when(AB::Expr::one() - local.selectors.imm_c)
-            .assert_word_eq(*local.op_c_val(), local.op_c_access.prev_value);
+            .assert_word_eq(local.op_c_val(), local.op_c_access.prev_value);
 
         let memory_columns: MemoryColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
@@ -123,20 +125,20 @@ where
             );
 
         // Check that each addr_word element is a byte
-        builder.range_check_word(memory_columns.addr_word, is_memory_instruction.clone());
+        builder.assert_word(memory_columns.addr_word, is_memory_instruction.clone());
 
         // Send to the ALU table to verify correct calculation of addr_word
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             memory_columns.addr_word,
-            *local.op_b_val(),
-            *local.op_c_val(),
+            local.op_b_val(),
+            local.op_c_val(),
             is_memory_instruction.clone(),
         );
 
-        self.load_memory_eval::<AB>(builder, local);
+        self.eval_memory_load::<AB>(builder, local);
 
-        self.store_memory_eval::<AB>(builder, local);
+        self.eval_memory_store::<AB>(builder, local);
 
         //////////////////////////////////////////
 
@@ -152,9 +154,9 @@ where
         //// ALU instructions
         builder.send_alu(
             local.instruction.opcode,
-            *local.op_a_val(),
-            *local.op_b_val(),
-            *local.op_c_val(),
+            local.op_a_val(),
+            local.op_b_val(),
+            local.op_c_val(),
             is_alu_instruction,
         );
 
@@ -169,7 +171,7 @@ where
 impl CpuChip {
     pub(crate) fn is_alu_instruction<AB: CurtaAirBuilder>(
         &self,
-        opcode_selectors: &OpcodeSelectors<AB::Var>,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
     }
@@ -181,7 +183,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the jump specific columns
-        let jump_columns: JumpColumns<AB::Var> =
+        let jump_columns: JumpCols<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
@@ -207,7 +209,7 @@ impl CpuChip {
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
-            *local.op_b_val(),
+            local.op_b_val(),
             local.selectors.is_jal,
         );
 
@@ -215,8 +217,8 @@ impl CpuChip {
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
-            *local.op_b_val(),
-            *local.op_c_val(),
+            local.op_b_val(),
+            local.op_c_val(),
             local.selectors.is_jalr,
         );
     }
@@ -227,7 +229,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         // Get the auipc specific columns
-        let auipc_columns: AUIPCColumns<AB::Var> =
+        let auipc_columns: AUIPCCols<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
 
         // Verify that the word form of local.pc is correct.
@@ -238,9 +240,9 @@ impl CpuChip {
         // Verify that op_a == pc + op_b.
         builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            *local.op_a_val(),
+            local.op_a_val(),
             auipc_columns.pc,
-            *local.op_b_val(),
+            local.op_b_val(),
             local.selectors.is_auipc,
         );
     }

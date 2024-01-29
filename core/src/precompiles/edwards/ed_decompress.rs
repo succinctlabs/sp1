@@ -1,7 +1,7 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::WORD_SIZE;
-use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::columns::MemoryAccessCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::ed_sqrt::EdSqrtCols;
