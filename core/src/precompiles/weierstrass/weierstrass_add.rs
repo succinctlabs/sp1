@@ -286,6 +286,7 @@ where
         {
             row.p_x_minus_x
                 .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FpOperation::Sub);
+
             let slope_times_p_x_minus_x =
                 row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
                     builder,
@@ -293,6 +294,7 @@ where
                     &row.p_x_minus_x.result,
                     FpOperation::Mul,
                 );
+
             row.y3_ins.eval::<AB, E::BaseField, _, _>(
                 builder,
                 &slope_times_p_x_minus_x,
