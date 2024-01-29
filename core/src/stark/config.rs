@@ -13,6 +13,7 @@ pub trait StarkConfig {
     /// The field from which most random challenges are drawn.
     type Challenge: ExtensionField<Self::Val> + TwoAdicField;
     type PackedChallenge: AbstractExtensionField<Self::PackedVal, F = Self::Challenge> + Copy;
+    /// The challenge algebra `Challenge[X]/f(X)`, where `Challenge = Val[X]/f(X)`.
     type ChallengeAlgebra: AbstractExtensionField<Res<Self::Val, Self::Challenge>, F = Self::Challenge>
         + Copy;
 
