@@ -64,8 +64,8 @@ pub struct WeierstrassAddAssignCols<T> {
     pub(crate) lambda_numerator: FpOpCols<T>,
     pub(crate) lambda: FpDenCols<T>,
     pub(crate) lambda_squared: FpOpCols<T>,
-    pub(crate) x_3_ins: FpOpCols<T>,
-    pub(crate) y_3_ins: FpOpCols<T>,
+    pub(crate) x3_ins: FpOpCols<T>,
+    pub(crate) y3_ins: FpOpCols<T>,
     pub(crate) p_x_minus_x: FpOpCols<T>,
     pub(crate) lambda_times_p_x_minus_x: FpOpCols<T>,
 }
@@ -120,7 +120,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             let lambda_squared =
                 cols.lambda_squared
                     .populate::<E::BaseField>(&lambda, &lambda, FpOperation::Mul);
-            cols.x_3_ins
+            cols.x3_ins
                 .populate::<E::BaseField>(&lambda_squared, &p_x, FpOperation::Sub)
         };
 
@@ -134,11 +134,8 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
                 &p_x_minus_x,
                 FpOperation::Mul,
             );
-            cols.y_3_ins.populate::<E::BaseField>(
-                &lambda_times_p_x_minus_x,
-                &p_y,
-                FpOperation::Sub,
-            );
+            cols.y3_ins
+                .populate::<E::BaseField>(&lambda_times_p_x_minus_x, &p_y, FpOperation::Sub);
         }
     }
 }
