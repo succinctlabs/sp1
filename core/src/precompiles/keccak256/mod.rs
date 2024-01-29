@@ -45,8 +45,6 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod permute_tests {
-    use log::debug;
-
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
         utils::{self, prove, BabyBearPoseidon2, StarkUtils},
