@@ -43,16 +43,16 @@ impl Runtime {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let add = AddChip::new();
-        let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
-        let mul = MulChip::new();
-        let divrem = DivRemChip::new();
-        let shift_right = ShiftRightChip::new();
-        let shift_left = ShiftLeft::new();
-        let lt = LtChip::new();
+        let add = AddChip::default();
+        let sub = SubChip::default();
+        let bitwise = BitwiseChip::default();
+        let mul = MulChip::default();
+        let divrem = DivRemChip::default();
+        let shift_right = ShiftRightChip::default();
+        let shift_left = ShiftLeft::default();
+        let lt = LtChip::default();
         let bytes = ByteChip::<SC::Val>::new();
-        let field = FieldLTUChip::new();
+        let field = FieldLTUChip::default();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();

@@ -1,4 +1,4 @@
-use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::columns::MemoryAccessCols;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::field::event::FieldEvent;
 use p3_field::Field;

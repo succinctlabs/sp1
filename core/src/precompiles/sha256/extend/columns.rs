@@ -4,7 +4,7 @@ use std::mem::size_of;
 
 use valida_derive::AlignedBorrow;
 
-use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::columns::MemoryAccessCols;
 use crate::operations::Add4Operation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::FixedShiftRightOperation;

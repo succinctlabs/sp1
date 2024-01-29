@@ -1,7 +1,7 @@
-use rrs_lib::{
-    instruction_formats::{BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType},
-    process_instruction, InstructionProcessor,
+use rrs_lib::instruction_formats::{
+    BType, IType, ITypeCSR, ITypeShamt, JType, RType, SType, UType,
 };
+use rrs_lib::{process_instruction, InstructionProcessor};
 
 use crate::runtime::{Instruction, Opcode, Register};
 
