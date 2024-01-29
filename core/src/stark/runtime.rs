@@ -20,7 +20,7 @@ use p3_uni_stark::StarkConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
-use tracing::info;
+use tracing::debug;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -119,7 +119,7 @@ impl Runtime {
         let segment_chips = Self::segment_chips::<SC>();
 
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(16) // specify the number of threads here
+            .num_threads(16)
             .build()
             .unwrap();
 
@@ -162,7 +162,7 @@ impl Runtime {
             })
             .sum::<u64>();
         if bytes_written > 0 {
-            info!(
+            debug!(
                 "total main data written to disk: {}",
                 Size::from_bytes(bytes_written)
             );
