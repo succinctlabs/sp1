@@ -9,7 +9,6 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use p3_uni_stark::StarkConfig;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tracing::debug;
 
 type Val<SC> = <SC as StarkConfig>::Val;
 type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
@@ -58,10 +57,9 @@ impl<SC: StarkConfig> MainData<SC> {
         let mut gz = GzEncoder::new(&file, Compression::default());
         bincode::serialize_into(&mut gz, self)?;
         gz.finish()?;
-        // Print size of file in mb
-        let metadata = file.metadata().unwrap();
-        debug!("wrote {} MB", metadata.len() as f64 / 1024.0 / 1024.0,);
-        Ok(MainDataWrapper::TempFile(file))
+        let metadata = file.metadata()?;
+        let bytes_written = metadata.len();
+        Ok(MainDataWrapper::TempFile(file, bytes_written))
     }
 
     pub fn to_in_memory(self) -> MainDataWrapper<SC> {
@@ -71,7 +69,7 @@ impl<SC: StarkConfig> MainData<SC> {
 
 pub enum MainDataWrapper<SC: StarkConfig> {
     InMemory(MainData<SC>),
-    TempFile(File),
+    TempFile(File, u64),
 }
 
 impl<SC: StarkConfig> MainDataWrapper<SC> {
@@ -81,7 +79,7 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
     {
         match self {
             Self::InMemory(data) => Ok(data),
-            Self::TempFile(mut file) => {
+            Self::TempFile(mut file, _) => {
                 file.seek(std::io::SeekFrom::Start(0))?;
                 let mut gz = GzDecoder::new(file);
                 let data = deserialize_from(&mut gz)?;

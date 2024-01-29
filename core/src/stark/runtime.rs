@@ -19,6 +19,8 @@ use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use size::Size;
+use tracing::info;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -151,6 +153,20 @@ impl Runtime {
                 challenger.observe(commitment);
             });
         });
+
+        let bytes_written = segment_main_data
+            .iter()
+            .map(|data| match data {
+                MainDataWrapper::InMemory(_) => 0,
+                MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+            })
+            .sum::<u64>();
+        if bytes_written > 0 {
+            info!(
+                "total main data written to disk: {}",
+                Size::from_bytes(bytes_written)
+            );
+        }
 
         // We clone the challenger so that each segment can observe the same "global" challenges.
         let proofs: Vec<SegmentDebugProof<SC>> = tracing::info_span!("proving all segments")
