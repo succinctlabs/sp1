@@ -60,14 +60,14 @@ pub struct WeierstrassAddAssignCols<T> {
     pub q_ptr_access: MemoryAccessCols<T>,
     pub p_access: [MemoryAccessCols<T>; 16],
     pub q_access: [MemoryAccessCols<T>; 16],
-    pub(crate) x3_numerator: FpInnerProductCols<T>,
-    pub(crate) y3_numerator: FpInnerProductCols<T>,
-    pub(crate) x1_mul_y1: FpOpCols<T>,
-    pub(crate) x2_mul_y2: FpOpCols<T>,
-    pub(crate) f: FpOpCols<T>,
-    pub(crate) d_mul_f: FpOpCols<T>,
-    pub(crate) x3_ins: FpDenCols<T>,
-    pub(crate) y3_ins: FpDenCols<T>,
+    pub(crate) q_x_minus_p_x: FpOpCols<T>,
+    pub(crate) lambda_numerator: FpOpCols<T>,
+    pub(crate) lambda: FpDenCols<T>,
+    pub(crate) lambda_squared: FpOpCols<T>,
+    pub(crate) x_3_ins: FpOpCols<T>,
+    pub(crate) y_3_ins: FpOpCols<T>,
+    pub(crate) p_x_minus_x: FpOpCols<T>,
+    pub(crate) lambda_times_p_x_minus_x: FpOpCols<T>,
 }
 
 pub struct WeierstrassAddAssignChip<E, WP> {
@@ -100,28 +100,46 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         // let x3_numerator = cols
         //     .x3_numerator
         //     .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
-        // let y3_numerator = cols
-        //     .y3_numerator
-        //     .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
-        // let x1_mul_y1 = cols
-        //     .x1_mul_y1
-        //     .populate::<E::BaseField>(&p_x, &p_y, FpOperation::Mul);
-        // let x2_mul_y2 = cols
-        //     .x2_mul_y2
-        //     .populate::<E::BaseField>(&q_x, &q_y, FpOperation::Mul);
-        // let f = cols
-        //     .f
-        //     .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-        // let d = WP::d_biguint();
-        // let d_mul_f = cols
-        //     .d_mul_f
-        //     .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
+        // q_x - p_x is used in multiple places.
+        let q_x_minus_p_x =
+            cols.q_x_minus_p_x
+                .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
 
-        // cols.x3_ins
-        //     .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
-        // cols.y3_ins
-        //     .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
+        // lambda = (q_y - p_y) / (q_x - p_x)
+        let lambda = {
+            let lambda_numerator =
+                cols.lambda_numerator
+                    .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
+            cols.lambda
+                .populate::<E::BaseField>(&lambda_numerator, &q_x_minus_p_x, false)
+        };
+
+        // x = lambda^2 - p_x - q_x
+        let x = {
+            let lambda_squared =
+                cols.lambda_squared
+                    .populate::<E::BaseField>(&lambda, &lambda, FpOperation::Mul);
+            cols.x_3_ins
+                .populate::<E::BaseField>(&lambda_squared, &p_x, FpOperation::Sub)
+        };
+
+        // y = lambda * (p_x - x) - p_y
+        {
+            let p_x_minus_x = cols
+                .p_x_minus_x
+                .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
+            let lambda_times_p_x_minus_x = cols.lambda_times_p_x_minus_x.populate::<E::BaseField>(
+                &lambda,
+                &p_x_minus_x,
+                FpOperation::Mul,
+            );
+            cols.y_3_ins.populate::<E::BaseField>(
+                &lambda_times_p_x_minus_x,
+                &p_y,
+                FpOperation::Sub,
+            );
+        }
     }
 }
 
