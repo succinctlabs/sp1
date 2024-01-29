@@ -44,7 +44,7 @@ pub struct WeierstrassAddEvent {
     pub q_memory_records: [MemoryReadRecord; 16],
 }
 
-pub const NUM_ED_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
+pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
 
 /// A set of columns to compute `WeierstrassAdd` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
@@ -153,9 +153,9 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..segment.ed_add_events.len() {
-            let event = segment.ed_add_events[i];
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
+        for i in 0..segment.weierstrass_add_events.len() {
+            let event = segment.weierstrass_add_events[i];
+            let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
 
             // Decode affine points.
@@ -190,7 +190,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         segment.field_events.extend(new_field_events);
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
+            let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
             let zero = BigUint::zero();
             Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
@@ -200,7 +200,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_ADD_COLS,
+            NUM_WEIERSTRASS_ADD_COLS,
         )
     }
 }
@@ -209,7 +209,7 @@ impl<F, E: EllipticCurve, WP: WeierstrassParameters> BaseAir<F>
     for WeierstrassAddAssignChip<E, WP>
 {
     fn width(&self) -> usize {
-        NUM_ED_ADD_COLS
+        NUM_WEIERSTRASS_ADD_COLS
     }
 }
 
