@@ -61,14 +61,15 @@ pub struct WeierstrassAddAssignCols<T> {
     pub q_ptr_access: MemoryAccessCols<T>,
     pub p_access: [MemoryAccessCols<T>; 16],
     pub q_access: [MemoryAccessCols<T>; 16],
-    pub(crate) q_x_minus_p_x: FpOpCols<T>,
-    pub(crate) lambda_numerator: FpOpCols<T>,
-    pub(crate) lambda: FpDenCols<T>,
-    pub(crate) lambda_squared: FpOpCols<T>,
+    pub(crate) slope_denominator: FpOpCols<T>,
+    pub(crate) slope_numerator: FpOpCols<T>,
+    pub(crate) slope: FpOpCols<T>,
+    pub(crate) slope_squared: FpOpCols<T>,
+    pub(crate) p_x_plus_q_x: FpOpCols<T>,
     pub(crate) x3_ins: FpOpCols<T>,
     pub(crate) y3_ins: FpOpCols<T>,
     pub(crate) p_x_minus_x: FpOpCols<T>,
-    pub(crate) lambda_times_p_x_minus_x: FpOpCols<T>,
+    pub(crate) slope_times_p_x_minus_x: FpOpCols<T>,
 }
 
 pub struct WeierstrassAddAssignChip<E, WP> {
@@ -98,44 +99,52 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         q_y: BigUint,
     ) {
         // This populates necessary field operations to calculate the addition of two points on a
-        // Weierrstrass curve.
+        // Weierstrass curve.
 
-        // q_x - p_x is used in multiple places.
-        let q_x_minus_p_x =
-            cols.q_x_minus_p_x
-                .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
-
-        // lambda = (q_y - p_y) / (q_x - p_x)
-        let lambda = {
-            let lambda_numerator =
-                cols.lambda_numerator
+        // Given two points `p` and `q`, compute the slope of the line passing through them.
+        //
+        // The slope is given by the formula `(q.y - p.y) / (q.x - p.x)`. This function assumes that
+        // `p` and `q` are different points
+        let slope = {
+            let slope_numerator =
+                cols.slope_numerator
                     .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
-            // TODO: The den is `a / (1 + b)` instead of `a / b`, so I need to double check this.
-            cols.lambda
-                .populate::<E::BaseField>(&lambda_numerator, &q_x_minus_p_x, false)
+
+            let slope_denominator =
+                cols.slope_denominator
+                    .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
+
+            cols.slope.populate::<E::BaseField>(
+                &slope_numerator,
+                &slope_denominator,
+                FpOperation::Div,
+            )
         };
 
-        // x = lambda^2 - p_x - q_x
+        // x = slope * slope + - self.x - other.x
         let x = {
-            let lambda_squared =
-                cols.lambda_squared
-                    .populate::<E::BaseField>(&lambda, &lambda, FpOperation::Mul);
+            let slope_squared =
+                cols.slope_squared
+                    .populate::<E::BaseField>(&slope, &slope, FpOperation::Mul);
+            let p_x_plus_q_x =
+                cols.p_x_minus_x
+                    .populate::<E::BaseField>(&p_x, &q_x, FpOperation::Add);
             cols.x3_ins
-                .populate::<E::BaseField>(&lambda_squared, &p_x, FpOperation::Sub)
+                .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
         };
 
-        // y = lambda * (p_x - x) - p_y
+        // y = slope * (p + self.x - x_3n) + p - self.y
         {
             let p_x_minus_x = cols
                 .p_x_minus_x
                 .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
-            let lambda_times_p_x_minus_x = cols.lambda_times_p_x_minus_x.populate::<E::BaseField>(
-                &lambda,
+            let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate::<E::BaseField>(
+                &slope,
                 &p_x_minus_x,
                 FpOperation::Mul,
             );
             cols.y3_ins
-                .populate::<E::BaseField>(&lambda_times_p_x_minus_x, &p_y, FpOperation::Sub);
+                .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub);
         }
     }
 }
