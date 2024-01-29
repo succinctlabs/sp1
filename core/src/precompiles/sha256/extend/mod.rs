@@ -45,6 +45,7 @@ pub mod extend_tests {
     use crate::{
         alu::AluEvent,
         runtime::{Instruction, Opcode, Program, Runtime, Segment},
+        stark::prover::LocalProver,
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 
@@ -86,6 +87,6 @@ pub mod extend_tests {
         runtime.add_input_slice(&[10]);
         runtime.run();
 
-        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
     }
 }
