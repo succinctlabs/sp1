@@ -4,7 +4,7 @@ use core::mem::{offset_of, size_of};
 use p3_keccak_air::KeccakCols as P3KeccakCols;
 use valida_derive::AlignedBorrow;
 
-use crate::cpu::cols::cpu_cols::MemoryAccessCols;
+use crate::cpu::columns::MemoryAccessCols;
 
 use super::STATE_NUM_WORDS;
 
