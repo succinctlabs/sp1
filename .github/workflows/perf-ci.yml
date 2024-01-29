@@ -41,15 +41,15 @@ jobs:
             ~/.cargo/git/db/
             target/
             ~/.rustup/
-          key: test-rust-nightly-2023-12-19-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2023-12-19-
+          key: test-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: rust-nightly-2024-01-25-
 
       - name: Install nightly toolchain
         id: rustc-toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2023-12-19
+          toolchain: nightly-2024-01-25
           override: true
 
       - name: Install cargo criterion
