@@ -1,12 +1,7 @@
-use std::{
-    fs::File,
-    io::{BufReader, Read},
-    marker::PhantomData,
-    path::Path,
-    sync::Arc,
-};
+use std::fs::File;
 
 use bincode::{deserialize_from, Error};
+use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use p3_commit::{OpenedValues, Pcs};
@@ -55,25 +50,21 @@ impl<SC: StarkConfig> MainData<SC> {
         }
     }
 
-    pub fn save(&self, path: &Path) -> Result<MainDataWrapper<SC>, Error>
+    pub fn save(&self, file: File) -> Result<MainDataWrapper<SC>, Error>
     where
         MainData<SC>: Serialize,
     {
-        println!("writing to file: {:?}", path);
-        let file = File::create(path)?;
-        let mut gz = GzEncoder::new(file, Compression::default());
+        let mut gz = GzEncoder::new(&file, Compression::default());
         bincode::serialize_into(&mut gz, self)?;
         gz.finish()?;
-        println!("done writing to file: {:?}", path);
+        println!("done writing to file: {:?}", file);
         // Print size of file in mb
-        let metadata = std::fs::metadata(path)?;
+        let metadata = file.metadata().unwrap();
         println!(
             "Main data size: {} mb",
             metadata.len() as f64 / 1024.0 / 1024.0
         );
-        Ok(MainDataWrapper::TempFile(
-            path.to_str().unwrap().to_string(),
-        ))
+        Ok(MainDataWrapper::TempFile(file))
     }
 
     pub fn to_in_memory(self) -> MainDataWrapper<SC> {
@@ -83,7 +74,7 @@ impl<SC: StarkConfig> MainData<SC> {
 
 pub enum MainDataWrapper<SC: StarkConfig> {
     InMemory(MainData<SC>),
-    TempFile(String),
+    TempFile(File),
     // Remote
 }
 
@@ -94,10 +85,10 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
     {
         match self {
             Self::InMemory(data) => Ok(data),
-            Self::TempFile(path) => {
-                let file = File::open(path)?;
-                let reader = BufReader::new(file);
-                let data = deserialize_from(reader)?;
+            Self::TempFile(file) => {
+                let mut gz = GzDecoder::new(file);
+                let data = deserialize_from(&mut gz)?;
+
                 Ok(data)
                 // Ok(data)
             }

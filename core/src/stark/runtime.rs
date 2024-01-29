@@ -1,5 +1,3 @@
-use std::fs::File;
-
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
@@ -116,7 +114,7 @@ impl Runtime {
                 .sum::<usize>(),
             num_segments
         );
-        let temp_dir = tempfile::tempdir().unwrap();
+        // let temp_dir = tempfile::tempdir().unwrap();
         let segment_chips = Self::segment_chips::<SC>();
 
         let pool = rayon::ThreadPoolBuilder::new()
@@ -126,17 +124,18 @@ impl Runtime {
 
         let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                println!("temp_dir: {:?}", temp_dir);
+                // println!("temp_dir: {:?}", temp_dir);
                 pool.install(|| {
                     self.segments
                         .par_iter_mut()
                         .map(|segment| {
                             let data = Prover::commit_main(config, &segment_chips, segment);
-                            let path = temp_dir.path().join(format!("segment_{}", segment.index));
+                            // let path = temp_dir.path().join(format!("segment_{}", segment.index));
                             let commitment = data.main_commit.clone();
                             // TODO: make this logic configurable?
+                            let file = tempfile::tempfile().unwrap();
                             let data = if num_segments > 0 {
-                                data.save(&path).expect("failed to save segment main data")
+                                data.save(file).expect("failed to save segment main data")
                             } else {
                                 data.to_in_memory()
                             };
