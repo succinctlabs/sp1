@@ -12,6 +12,7 @@ use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
+use crate::stark::prover::Prover;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
@@ -19,8 +20,6 @@ use p3_challenger::CanObserve;
 use p3_uni_stark::StarkConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use size::Size;
-use tracing::debug;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -28,9 +27,8 @@ use crate::stark::debug_cumulative_sums;
 use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::*;
 
-use super::prover::Prover;
+use super::prover::BaseProver;
 use super::types::*;
 
 pub const NUM_CHIPS: usize = 16;
@@ -118,33 +116,11 @@ impl Runtime {
         );
         let segment_chips = Self::segment_chips::<SC>();
 
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(16)
-            .build()
-            .unwrap();
-
-        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
-            tracing::info_span!("commit main for all segments").in_scope(|| {
-                pool.install(|| {
-                    self.segments
-                        .par_iter_mut()
-                        .map(|segment| {
-                            let data = Prover::commit_main(config, &segment_chips, segment);
-                            let commitment = data.main_commit.clone();
-                            // TODO: make this logic configurable?
-                            let file = tempfile::tempfile().unwrap();
-                            let data = if num_segments > 8 {
-                                data.save(file).expect("failed to save segment main data")
-                            } else {
-                                data.to_in_memory()
-                            };
-                            (commitment, data)
-                        })
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .unzip()
-                })
-            });
+        let (commitments, segment_main_data) = BaseProver::generate_segment_traces::<F, EF>(
+            config,
+            &mut self.segments,
+            &segment_chips,
+        );
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
@@ -154,20 +130,6 @@ impl Runtime {
             });
         });
 
-        let bytes_written = segment_main_data
-            .iter()
-            .map(|data| match data {
-                MainDataWrapper::InMemory(_) => 0,
-                MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
-            })
-            .sum::<u64>();
-        if bytes_written > 0 {
-            debug!(
-                "total main data written to disk: {}",
-                Size::from_bytes(bytes_written)
-            );
-        }
-
         // We clone the challenger so that each segment can observe the same "global" challenges.
         let proofs: Vec<SegmentDebugProof<SC>> = tracing::info_span!("proving all segments")
             .in_scope(|| {
@@ -176,7 +138,7 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            let (debug_proof, _) = Prover::prove(
+                            let (debug_proof, _) = BaseProver::prove(
                                 config,
                                 &mut challenger.clone(),
                                 &segment_chips,
@@ -192,10 +154,11 @@ impl Runtime {
         let global_chips = Self::global_chips::<SC>();
         let global_main_data =
             tracing::info_span!("commit main for global segments").in_scope(|| {
-                Prover::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory()
+                BaseProver::commit_main(config, &global_chips, &mut self.global_segment)
+                    .to_in_memory()
             });
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            let (debug_proof, _) = Prover::prove(
+            let (debug_proof, _) = BaseProver::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,
