@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, io::Seek};
 
 use bincode::{deserialize_from, Error};
 use flate2::read::GzDecoder;
@@ -85,7 +85,8 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
     {
         match self {
             Self::InMemory(data) => Ok(data),
-            Self::TempFile(file) => {
+            Self::TempFile(mut file) => {
+                file.seek(std::io::SeekFrom::Start(0))?;
                 let mut gz = GzDecoder::new(file);
                 let data = deserialize_from(&mut gz)?;
 
