@@ -332,7 +332,7 @@ pub mod tests {
     #[test]
     fn test_ed_add_simple() {
         setup_logger();
-        let program = Program::from_elf("../programs/tendermint");
+        let program = Program::from_elf("../programs/ssz_withdrawals");
         prove(program);
     }
 }

@@ -55,6 +55,7 @@ impl<SC: StarkConfig> MainData<SC> {
         MainData<SC>: Serialize,
     {
         let mut gz = GzEncoder::new(&file, Compression::default());
+        println!("writing to file: {:?}", file);
         bincode::serialize_into(&mut gz, self)?;
         gz.finish()?;
         println!("done writing to file: {:?}", file);
@@ -75,7 +76,6 @@ impl<SC: StarkConfig> MainData<SC> {
 pub enum MainDataWrapper<SC: StarkConfig> {
     InMemory(MainData<SC>),
     TempFile(File),
-    // Remote
 }
 
 impl<SC: StarkConfig> MainDataWrapper<SC> {
@@ -90,20 +90,10 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
                 let data = deserialize_from(&mut gz)?;
 
                 Ok(data)
-                // Ok(data)
             }
         }
     }
 }
-
-// impl<SC: StarkConfig> Clone for MainDataWrapper<SC> {
-//     fn clone(&self) -> Self {
-//         match self {
-//             Self::InMemory(data) => Self::InMemory(data.clone()),
-//             Self::TempFile(file) => Self::TempFile(file.clone()),
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub struct SegmentCommitment<C> {
