@@ -335,4 +335,11 @@ pub mod tests {
         let program = Program::from_elf("../programs/ed_add");
         prove(program);
     }
+
+    #[test]
+    fn test_ed25519_program() {
+        setup_logger();
+        let program = Program::from_elf("../programs/ed25519");
+        prove(program);
+    }
 }
