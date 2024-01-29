@@ -12,12 +12,15 @@ use p3_matrix::Dimensions;
 
 use p3_util::log2_ceil_usize;
 use p3_util::reverse_slice_index_bits;
+use std::fmt::Formatter;
 use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
 use super::permutation::eval_permutation_constraints;
 use super::types::*;
 use super::StarkConfig;
+
+use core::fmt::Display;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
@@ -45,6 +48,29 @@ impl<SC: StarkConfig> Verifier<SC> {
             openning_proof,
             degree_bits,
         } = proof;
+
+        // Verify the proof shapes.
+        for ((((chip, interactions), main), perm), quotient) in chips
+            .iter()
+            .zip(chips_interactions.iter())
+            .zip(opened_values.main.iter())
+            .zip(opened_values.permutation.iter())
+            .zip(opened_values.quotient.iter())
+        {
+            Self::verify_proof_shape(
+                chip.as_ref(),
+                interactions.len(),
+                &AirOpenedValues {
+                    local: vec![],
+                    next: vec![],
+                },
+                main,
+                perm,
+                quotient,
+                log_quotient_degree,
+            )
+            .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
+        }
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
         let dims = &[
@@ -160,12 +186,7 @@ impl<SC: StarkConfig> Verifier<SC> {
                 alpha,
                 &permutation_challenges,
             )
-            .map_err(|_| {
-                VerificationError::OodEvaluationMismatch(format!(
-                    "Odd Evaluation mismatch on chip {}",
-                    chip.name()
-                ))
-            })?;
+            .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
 
         Ok(())
@@ -178,6 +199,53 @@ impl<SC: StarkConfig> Verifier<SC> {
         _challenger: &mut SC::Challenger,
         _proof: &SegmentProof<SC>,
     ) -> Result<(), VerificationError> {
+        Ok(())
+    }
+
+    /// Verify the shape of openning arguments and permutation chalelnges.
+    ///
+    /// This function checks that the preprocessed_openning, main openning, permutation openning,
+    /// quotient openning have the expected dimensions.
+    fn verify_proof_shape<C>(
+        chip: &C,
+        num_interactions: usize,
+        preprocessed_openning: &AirOpenedValues<SC::Challenge>,
+        main_openning: &AirOpenedValues<SC::Challenge>,
+        permutation_openning: &AirOpenedValues<SC::Challenge>,
+        quotient_openning: &QuotientOpenedValues<SC::Challenge>,
+        log_quotient_degree: usize,
+    ) -> Result<(), ProofShapeError>
+    where
+        C: AirChip<SC> + ?Sized,
+    {
+        // Todo : check preprocessed shape.
+        let preprocesses_width = 0;
+        if preprocessed_openning.local.len() != preprocesses_width
+            || preprocessed_openning.next.len() != preprocesses_width
+        {
+            return Err(ProofShapeError::Preprocessed);
+        }
+
+        // Check that the main openning rows have lengths that match the chip width.
+        let main_width = chip.air_width();
+        if main_openning.local.len() != main_width || main_openning.next.len() != main_width {
+            return Err(ProofShapeError::MainTrace);
+        }
+
+        // Check that the permutation openninps have lengths that match the number of interactions.
+        let perm_width = SC::Challenge::D * (num_interactions + 1);
+        if permutation_openning.local.len() != perm_width
+            || permutation_openning.next.len() != perm_width
+        {
+            return Err(ProofShapeError::Permuation);
+        }
+
+        // Check that the quotient openning has the expected length for the given degree.
+        let quotient_width = SC::Challenge::D << log_quotient_degree;
+        if quotient_openning.len() != quotient_width {
+            return Err(ProofShapeError::Quotient);
+        }
+
         Ok(())
     }
 
@@ -280,20 +348,42 @@ impl<SC: StarkConfig> Verifier<SC> {
             false => Err(OodEvaluationMismatch),
         }
     }
-
-    // fn verify_proof_shape(chips: &[Box<dyn AirChip<SC>>], proof: &SegmentProof<SC>) {}
 }
 
 #[derive(Debug)]
 pub enum ProofShapeError {
-    InvalidProofShape,
+    Preprocessed,
+    MainTrace,
+    Permuation,
+    Quotient,
 }
 
 pub struct OodEvaluationMismatch;
 
 #[derive(Debug)]
 pub enum VerificationError {
-    InvalidProofShape(ProofShapeError),
+    /// The shape of opennings does not match the chip shapes.
+    InvalidProofShape(ProofShapeError, String),
+    /// Openning proof is invalid.
     InvalidOpenningArgument,
+    /// Out-of-domain evaluation mismatch.
+    ///
+    /// `constraints(zeta)` did not match `quotient(zeta) Z_H(zeta)`.
     OodEvaluationMismatch(String),
+}
+
+impl Display for VerificationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            VerificationError::InvalidProofShape(err, chip) => {
+                write!(f, "Invalid proof shape for chip {}: {:?}", chip, err)
+            }
+            VerificationError::InvalidOpenningArgument => {
+                write!(f, "Invalid openning argument")
+            }
+            VerificationError::OodEvaluationMismatch(chip) => {
+                write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
+            }
+        }
+    }
 }
