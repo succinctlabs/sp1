@@ -40,6 +40,7 @@ pub mod compress_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
+        stark::prover::LocalProver,
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
@@ -70,6 +71,6 @@ pub mod compress_tests {
         runtime.add_input_slice(&[10]);
         runtime.run();
 
-        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
     }
 }

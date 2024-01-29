@@ -28,7 +28,6 @@ use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
-use super::prover::BaseProver;
 use super::types::*;
 
 pub const NUM_CHIPS: usize = 16;
@@ -95,7 +94,7 @@ impl Runtime {
 
     /// Prove the program.
     #[allow(unused)]
-    pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+    pub fn prove<F, EF, SC, P>(&mut self, config: &SC, challenger: &mut SC::Challenger)
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -104,6 +103,7 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         MainData<SC>: Serialize + DeserializeOwned,
+        P: Prover<SC>,
     {
         let num_segments = self.segments.len();
         tracing::info!(
@@ -116,11 +116,8 @@ impl Runtime {
         );
         let segment_chips = Self::segment_chips::<SC>();
 
-        let (commitments, segment_main_data) = BaseProver::generate_segment_traces::<F, EF>(
-            config,
-            &mut self.segments,
-            &segment_chips,
-        );
+        let (commitments, segment_main_data) =
+            P::generate_segment_traces::<F, EF>(config, &mut self.segments, &segment_chips);
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
@@ -138,7 +135,7 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            let (debug_proof, _) = BaseProver::prove(
+                            let (debug_proof, _) = P::prove(
                                 config,
                                 &mut challenger.clone(),
                                 &segment_chips,
@@ -154,11 +151,10 @@ impl Runtime {
         let global_chips = Self::global_chips::<SC>();
         let global_main_data =
             tracing::info_span!("commit main for global segments").in_scope(|| {
-                BaseProver::commit_main(config, &global_chips, &mut self.global_segment)
-                    .to_in_memory()
+                P::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory()
             });
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            let (debug_proof, _) = BaseProver::prove(
+            let (debug_proof, _) = P::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,

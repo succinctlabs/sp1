@@ -28,7 +28,7 @@ use size::Size;
 use std::marker::PhantomData;
 use tracing::debug;
 
-pub(crate) trait Prover<SC>
+pub trait Prover<SC>
 where
     SC: StarkConfig,
 {
@@ -55,86 +55,6 @@ where
         segment: &mut Segment,
     ) -> MainData<SC>
     where
-        SC::Val: PrimeField32;
-}
-
-pub(crate) struct BaseProver<SC>(PhantomData<SC>);
-
-impl<SC> Prover<SC> for BaseProver<SC>
-where
-    SC: StarkConfig,
-{
-    fn generate_segment_traces<F, EF>(
-        config: &SC,
-        segments: &mut Vec<Segment>,
-        chips: &[Box<dyn AirChip<SC>>],
-    ) -> (
-        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
-    )
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
-    {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(16)
-            .build()
-            .unwrap();
-
-        let num_segments = segments.len();
-
-        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
-            tracing::info_span!("commit main for all segments").in_scope(|| {
-                pool.install(|| {
-                    segments
-                        .par_iter_mut()
-                        .map(|segment| {
-                            let data = Self::commit_main(config, chips, segment);
-                            let commitment = data.main_commit.clone();
-                            // TODO: make this logic configurable?
-                            let file = tempfile::tempfile().unwrap();
-                            let data = if num_segments > 8 {
-                                data.save(file).expect("failed to save segment main data")
-                            } else {
-                                data.to_in_memory()
-                            };
-                            (commitment, data)
-                        })
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .unzip()
-                })
-            });
-
-        let bytes_written = segment_main_data
-            .iter()
-            .map(|data| match data {
-                MainDataWrapper::InMemory(_) => 0,
-                MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
-            })
-            .sum::<u64>();
-        if bytes_written > 0 {
-            debug!(
-                "total main data written to disk: {}",
-                Size::from_bytes(bytes_written)
-            );
-        }
-
-        (commitments, segment_main_data)
-    }
-
-    /// Commit to the main data
-    fn commit_main(
-        config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
-        segment: &mut Segment,
-    ) -> MainData<SC>
-    where
         SC::Val: PrimeField32,
     {
         // For each chip, generate the trace.
@@ -152,11 +72,9 @@ where
             main_data,
         }
     }
-}
 
-impl<SC: StarkConfig> BaseProver<SC> {
     /// Prove the program for the given segment and given a commitment to the main data.
-    pub fn prove(
+    fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
@@ -217,14 +135,14 @@ impl<SC: StarkConfig> BaseProver<SC> {
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
             tracing::debug!(
-                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
-                chips[i].name(),
-                total_width,
-                traces[i].height(),
-                total_width * traces[i].height(),
-                (100f32 * trace_width as f32) / total_width as f32,
-                (100f32 * permutation_width as f32) / total_width as f32,
-            );
+                    "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                    chips[i].name(),
+                    total_width,
+                    traces[i].height(),
+                    total_width * traces[i].height(),
+                    (100f32 * trace_width as f32) / total_width as f32,
+                    (100f32 * permutation_width as f32) / total_width as f32,
+                );
         }
 
         // Get the commulutative sums of the permutation traces.
@@ -444,7 +362,7 @@ impl<SC: StarkConfig> BaseProver<SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn quotient_values<C, Mat>(
+    fn quotient_values<C, Mat>(
         config: &SC,
         chip: &C,
         commulative_sum: SC::Challenge,
@@ -576,5 +494,76 @@ impl<SC: StarkConfig> BaseProver<SC> {
                 })
             })
             .collect()
+    }
+}
+
+pub struct LocalProver<SC>(PhantomData<SC>);
+
+impl<SC> Prover<SC> for LocalProver<SC>
+where
+    SC: StarkConfig,
+{
+    fn generate_segment_traces<F, EF>(
+        config: &SC,
+        segments: &mut Vec<Segment>,
+        chips: &[Box<dyn AirChip<SC>>],
+    ) -> (
+        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
+        Vec<MainDataWrapper<SC>>,
+    )
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC::Challenger: Clone,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        MainData<SC>: Serialize + DeserializeOwned,
+    {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(16)
+            .build()
+            .unwrap();
+
+        let num_segments = segments.len();
+
+        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
+            tracing::info_span!("commit main for all segments").in_scope(|| {
+                pool.install(|| {
+                    segments
+                        .par_iter_mut()
+                        .map(|segment| {
+                            let data = Self::commit_main(config, chips, segment);
+                            let commitment = data.main_commit.clone();
+                            // TODO: make this logic configurable?
+                            let file = tempfile::tempfile().unwrap();
+                            let data = if num_segments > 8 {
+                                data.save(file).expect("failed to save segment main data")
+                            } else {
+                                data.to_in_memory()
+                            };
+                            (commitment, data)
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .unzip()
+                })
+            });
+
+        let bytes_written = segment_main_data
+            .iter()
+            .map(|data| match data {
+                MainDataWrapper::InMemory(_) => 0,
+                MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+            })
+            .sum::<u64>();
+        if bytes_written > 0 {
+            debug!(
+                "total main data written to disk: {}",
+                Size::from_bytes(bytes_written)
+            );
+        }
+
+        (commitments, segment_main_data)
     }
 }

@@ -2,7 +2,10 @@ use std::time::Instant;
 
 use p3_uni_stark::StarkConfig;
 
-use crate::runtime::{Program, Runtime};
+use crate::{
+    runtime::{Program, Runtime},
+    stark::prover::LocalProver,
+};
 
 pub trait StarkUtils: StarkConfig {
     fn challenger(&self) -> Self::Challenger;
@@ -34,7 +37,7 @@ pub fn prove_core(runtime: &mut Runtime) {
     let start = Instant::now();
 
     tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
     });
 
     #[cfg(not(feature = "perf"))]
