@@ -9,6 +9,7 @@ mod syscall;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
+use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
@@ -664,6 +665,11 @@ impl Runtime {
                         a = ShaCompressChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
+                    }
+                    Syscall::KECCAK_PERMUTE => {
+                        a = KeccakPermuteChip::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + KeccakPermuteChip::NUM_CYCLES, self.clk);
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);

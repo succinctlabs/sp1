@@ -26,6 +26,7 @@ p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
+p3-keccak-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
