@@ -114,7 +114,6 @@ impl Runtime {
                 .sum::<usize>(),
             num_segments
         );
-        // let temp_dir = tempfile::tempdir().unwrap();
         let segment_chips = Self::segment_chips::<SC>();
 
         let pool = rayon::ThreadPoolBuilder::new()
@@ -124,13 +123,11 @@ impl Runtime {
 
         let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                // println!("temp_dir: {:?}", temp_dir);
                 pool.install(|| {
                     self.segments
                         .par_iter_mut()
                         .map(|segment| {
                             let data = Prover::commit_main(config, &segment_chips, segment);
-                            // let path = temp_dir.path().join(format!("segment_{}", segment.index));
                             let commitment = data.main_commit.clone();
                             // TODO: make this logic configurable?
                             let file = tempfile::tempfile().unwrap();

@@ -9,6 +9,7 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use p3_uni_stark::StarkConfig;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use tracing::debug;
 
 type Val<SC> = <SC as StarkConfig>::Val;
 type OpenningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
@@ -55,16 +56,11 @@ impl<SC: StarkConfig> MainData<SC> {
         MainData<SC>: Serialize,
     {
         let mut gz = GzEncoder::new(&file, Compression::default());
-        println!("writing to file: {:?}", file);
         bincode::serialize_into(&mut gz, self)?;
         gz.finish()?;
-        println!("done writing to file: {:?}", file);
         // Print size of file in mb
         let metadata = file.metadata().unwrap();
-        println!(
-            "Main data size: {} mb",
-            metadata.len() as f64 / 1024.0 / 1024.0
-        );
+        debug!("wrote {} MB", metadata.len() as f64 / 1024.0 / 1024.0,);
         Ok(MainDataWrapper::TempFile(file))
     }
 
