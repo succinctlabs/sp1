@@ -49,7 +49,7 @@ pub mod permute_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        utils::{prove, BabyBearPoseidon2, StarkUtils},
+        utils::{self, prove, BabyBearPoseidon2, StarkUtils},
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -80,9 +80,7 @@ pub mod permute_tests {
 
     #[test]
     fn prove_babybear() {
-        if env_logger::try_init().is_err() {
-            debug!("Logger already initialized")
-        }
+        utils::setup_logger();
         let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
         let mut challenger = config.challenger();
 
