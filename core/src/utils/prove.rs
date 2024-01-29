@@ -122,10 +122,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{
-        extension::{BinomialExtensionAlgebra, BinomialExtensionField},
-        Field,
-    };
+    use p3_field::{extension::BinomialExtensionField, Field, Res};
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_ldt::QuotientMmcs;
     use p3_mds::coset_mds::CosetMds;
@@ -142,7 +139,7 @@ pub(super) mod baby_bear_poseidon2 {
     pub type Domain = Val;
     pub type Challenge = BinomialExtensionField<Val, 4>;
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-    pub type ChallengeAlgebra = BinomialExtensionAlgebra<Val, 4>;
+    pub type ChallengeAlgebra = BinomialExtensionField<Res<Val, BinomialExtensionField<Val, 4>>, 4>;
 
     pub type MyMds = CosetMds<Val, 16>;
 
