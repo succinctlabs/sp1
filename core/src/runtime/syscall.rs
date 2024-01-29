@@ -23,6 +23,9 @@ pub enum Syscall {
     /// Executes the `KECCAK_PERMUTE` precompile.
     KECCAK_PERMUTE = 106,
 
+    /// Executes the `SECP_ADD` precompile.
+    SECP_ADD = 107,
+
     WRITE = 999,
 }
 
