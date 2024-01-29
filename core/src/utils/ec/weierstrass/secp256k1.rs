@@ -31,11 +31,10 @@ impl FieldParameters for Secp256k1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 20;
 
     fn modulus() -> BigUint {
-        BigUint::from_str_radix(
-            "21888242871839275222246405745257275088696311157297823662689037894645226208583",
-            10,
-        )
-        .unwrap()
+        BigUint::from_slice(&[
+            0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+            0xFFFFFFFF,
+        ])
     }
 }
 
@@ -61,11 +60,10 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 
     fn prime_group_order() -> num::BigUint {
-        BigUint::from_str_radix(
-            "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-            10,
-        )
-        .unwrap()
+        BigUint::from_slice(&[
+            0xD0364141, 0xBFD25E8C, 0xAF48A03B, 0xBAAEDCE6, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF,
+            0xFFFFFFFF,
+        ])
     }
 
     fn a_int() -> BigUint {

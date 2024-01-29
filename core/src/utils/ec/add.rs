@@ -5,8 +5,9 @@ use crate::{
 
 use super::{AffinePoint, EllipticCurve};
 
+/// Elliptic curve add event.
 #[derive(Debug, Clone, Copy)]
-pub struct EllipticCurveAddEvent {
+pub struct ECAddEvent {
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -17,9 +18,7 @@ pub struct EllipticCurveAddEvent {
     pub q_memory_records: [MemoryReadRecord; 16],
 }
 
-pub fn create_elliptic_curve_add_event<E: EllipticCurve>(
-    rt: &mut PrecompileRuntime,
-) -> EllipticCurveAddEvent {
+pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAddEvent {
     let a0 = crate::runtime::Register::X10;
     let a1 = crate::runtime::Register::X11;
 
@@ -52,7 +51,7 @@ pub fn create_elliptic_curve_add_event<E: EllipticCurve>(
 
     rt.clk += 4;
 
-    EllipticCurveAddEvent {
+    ECAddEvent {
         clk: start_clk,
         p_ptr,
         p,

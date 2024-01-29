@@ -10,7 +10,7 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
-use crate::utils::ec::add::create_elliptic_curve_add_event;
+use crate::utils::ec::add::create_ec_add_event;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
@@ -86,7 +86,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     }
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        let event = create_elliptic_curve_add_event::<E>(rt);
+        let event = create_ec_add_event::<E>(rt);
         rt.segment_mut().weierstrass_add_events.push(event);
         event.p_ptr + 1
     }

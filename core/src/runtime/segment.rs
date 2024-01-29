@@ -12,7 +12,7 @@ use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddEvent;
 use crate::runtime::MemoryRecord;
-use crate::utils::ec::add::EllipticCurveAddEvent;
+use crate::utils::ec::add::ECAddEvent;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
@@ -60,11 +60,11 @@ pub struct Segment {
 
     pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
-    pub ed_add_events: Vec<EllipticCurveAddEvent>,
+    pub ed_add_events: Vec<ECAddEvent>,
 
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
-    pub weierstrass_add_events: Vec<EllipticCurveAddEvent>,
+    pub weierstrass_add_events: Vec<ECAddEvent>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.
