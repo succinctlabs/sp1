@@ -131,7 +131,7 @@ impl Runtime {
                             let commitment = data.main_commit.clone();
                             // TODO: make this logic configurable?
                             let file = tempfile::tempfile().unwrap();
-                            let data = if num_segments > 0 {
+                            let data = if num_segments > 8 {
                                 data.save(file).expect("failed to save segment main data")
                             } else {
                                 data.to_in_memory()
@@ -143,8 +143,6 @@ impl Runtime {
                         .unzip()
                 })
             });
-        // sleep 10 sec
-        std::thread::sleep(std::time::Duration::from_secs(10));
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
