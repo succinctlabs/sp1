@@ -47,6 +47,7 @@ pub struct WeierstrassAddEvent {
 pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
 
 /// A set of columns to compute `WeierstrassAdd` where a, b are field elements.
+///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -82,6 +83,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             _marker: PhantomData,
         }
     }
+
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         let event = create_elliptic_curve_add_event::<E>(rt);
         rt.segment_mut().weierstrass_add_events.push(event);
@@ -95,11 +97,8 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         q_x: BigUint,
         q_y: BigUint,
     ) {
-        // This copied & pasted code can help me figure out the syntax, but the logic is likely
-        // completely different.
-        // let x3_numerator = cols
-        //     .x3_numerator
-        //     .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
+        // This populates necessary field operations to calculate the addition of two points on a
+        // Weierrstrass curve.
 
         // q_x - p_x is used in multiple places.
         let q_x_minus_p_x =
@@ -111,6 +110,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             let lambda_numerator =
                 cols.lambda_numerator
                     .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
+            // TODO: The den is `a / (1 + b)` instead of `a / b`, so I need to double check this.
             cols.lambda
                 .populate::<E::BaseField>(&lambda_numerator, &q_x_minus_p_x, false)
         };
@@ -148,7 +148,8 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        // This is wrong.
+        // This has been copied and pasted from ed_add.rs and I updated this so this is for
+        // Weierstrass curves.
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
@@ -227,7 +228,9 @@ where
         let y1 = limbs_from_prev_access(&row.p_access[8..16]);
         let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
-        // TODO: This FP stuff is likely irrelevant.
+        // TODO: This F_p stuff has been copied and pasted from ed_add.rs, so this needs to be
+        // updated to match populate_fp_ops.
+
         // // x3_numerator = x1 * y2 + x2 * y1.
         // row.x3_numerator
         //     .eval::<AB, E::BaseField>(builder, &[x1, x2], &[y2, y1]);
