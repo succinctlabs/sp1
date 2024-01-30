@@ -60,7 +60,17 @@ where
         // For each chip, generate the trace.
         let traces = chips
             .iter()
-            .map(|chip| chip.generate_trace(segment))
+            .map(|chip| {
+                let start = Instant::now();
+                let trace = chip.generate_trace(segment);
+                let elasped = start.elapsed();
+                println!(
+                    "{} trace generated in {}ms",
+                    chip.name(),
+                    elasped.as_millis()
+                );
+                trace
+            })
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
