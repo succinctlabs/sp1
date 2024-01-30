@@ -63,8 +63,8 @@ pub struct WeierstrassAddAssignCols<T> {
     pub(crate) slope_squared: FpOpCols<T>,
     pub(crate) p_x_plus_q_x: FpOpCols<T>,
     pub(crate) x3_ins: FpOpCols<T>,
-    pub(crate) y3_ins: FpOpCols<T>,
     pub(crate) p_x_minus_x: FpOpCols<T>,
+    pub(crate) y3_ins: FpOpCols<T>,
     pub(crate) slope_times_p_x_minus_x: FpOpCols<T>,
 }
 
@@ -120,19 +120,19 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             )
         };
 
-        // x = slope * slope + - self.x - other.x
+        // x = slope * slope - (self.x + other.x)
         let x = {
             let slope_squared =
                 cols.slope_squared
                     .populate::<E::BaseField>(&slope, &slope, FpOperation::Mul);
             let p_x_plus_q_x =
-                cols.p_x_minus_x
+                cols.p_x_plus_q_x
                     .populate::<E::BaseField>(&p_x, &q_x, FpOperation::Add);
             cols.x3_ins
                 .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
         };
 
-        // y = slope * (p + self.x - x_3n) + p - self.y
+        // y = slope * (self.x - x_3n) - self.y
         {
             let p_x_minus_x = cols
                 .p_x_minus_x
@@ -264,7 +264,7 @@ where
             row.slope.result
         };
 
-        // x = slope * slope + - self.x - other.x
+        // x = slope * slope - self.x - other.x
         let x = {
             row.slope_squared.eval::<AB, E::BaseField, _, _>(
                 builder,
