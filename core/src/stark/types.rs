@@ -59,10 +59,12 @@ impl<SC: StarkConfig> MainData<SC> {
     {
         println!("file: {:?}", file);
         let start = std::time::Instant::now();
-        let writer = BufWriter::new(&file);
-        let mut gz = GzEncoder::new(&writer, Compression::default());
-        bincode::serialize_into(&gz, self)?;
+        let mut writer = BufWriter::new(&file);
+        let mut gz = GzEncoder::new(&mut writer, Compression::default());
+        bincode::serialize_into(&mut gz, self)?;
         gz.finish()?;
+        // writer.drop();
+        drop(writer);
         let elapsed = start.elapsed();
         println!("elapsed: {:?}", elapsed);
         let metadata = file.metadata()?;
