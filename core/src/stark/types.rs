@@ -93,8 +93,8 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
             Self::InMemory(data) => Ok(data),
             Self::TempFile(mut file, _) => {
                 file.seek(std::io::SeekFrom::Start(0))?;
-                let mut gz = GzDecoder::new(file);
-                let data = deserialize_from(&mut gz)?;
+                // let mut gz = GzDecoder::new(file);
+                let data = deserialize_from(&mut file)?;
 
                 Ok(data)
             }

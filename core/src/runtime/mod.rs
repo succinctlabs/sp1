@@ -844,9 +844,9 @@ impl Runtime {
             if self.global_clk % 1000000 == 0 {
                 log::info!("global_clk={}", self.global_clk);
             }
-            if self.global_clk > 10000000 {
-                break;
-            }
+            // if self.global_clk > 10000000 {
+            //     break;
+            // }
 
             let width = 12;
             log::trace!(
