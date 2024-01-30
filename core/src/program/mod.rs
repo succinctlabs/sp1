@@ -57,6 +57,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         let rows = segment
             .program
             .instructions
+            .clone()
             .into_iter()
             .enumerate()
             .map(|(i, instruction)| {
