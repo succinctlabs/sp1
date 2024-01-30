@@ -53,7 +53,7 @@ pub struct SegmentProof<SC: StarkConfig> {
     pub commitment: SegmentCommitment<Com<SC>>,
     pub opened_values: SegmentOpenedValues<Challenge<SC>>,
     pub commulative_sums: Vec<SC::Challenge>,
-    pub opening_proof: openingProof<SC>,
+    pub opening_proof: OpeningProof<SC>,
     pub degree_bits: Vec<usize>,
 }
 
