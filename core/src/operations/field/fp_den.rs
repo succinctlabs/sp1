@@ -46,6 +46,7 @@ impl<F: Field> FpDenCols<F> {
         let denominator = (b_signed + 1u32) % &(p.clone());
         let den_inv = denominator.modpow(&(&p - 2u32), &p);
         let result = (a * &den_inv) % &p;
+        println!("result = {}", result);
         debug_assert_eq!(&den_inv * &denominator % &p, BigUint::from(1u32));
         debug_assert!(result < p);
 
