@@ -12,7 +12,9 @@ use zeth_lib::{
 
 fn main() {
     // Read the input previous block and transaction data
+    println!("cycle-tracker-start: read input");
     let input = io::read::<Input<EthereumTxEssence>>();
+    println!("cycle-tracker-end: read input");
     // Build the resulting block
     let (header, state) = EthereumStrategy::build_from(&ETH_MAINNET_CHAIN_SPEC, input)
         .expect("Failed to build the resulting block");
