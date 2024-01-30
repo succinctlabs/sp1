@@ -671,7 +671,6 @@ impl Runtime {
                         a = KeccakPermuteChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + KeccakPermuteChip::NUM_CYCLES, self.clk);
-                        println!("keccak");
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
@@ -855,7 +854,7 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            if self.global_clk % 1000000 == 0 {
+            if self.global_clk % 10000000 == 0 {
                 log::info!("global_clk={}", self.global_clk);
             }
             // if self.global_clk > 10000000 {

@@ -110,12 +110,20 @@ impl Runtime {
     {
         let num_segments = self.segments.len();
         tracing::info!(
-            "total_cycles: {}, segments: {}",
+            "total_cycles: {}, segments: {}, keccak: {}, sha: {}",
             self.segments
                 .iter()
                 .map(|s| s.cpu_events.len())
                 .sum::<usize>(),
-            num_segments
+            num_segments,
+            self.segments
+                .iter()
+                .map(|s| s.keccak_permute_events.len())
+                .sum::<usize>(),
+            self.segments
+                .iter()
+                .map(|s| s.sha_compress_events.len())
+                .sum::<usize>(),
         );
         let segment_chips = Self::segment_chips::<SC>();
 
