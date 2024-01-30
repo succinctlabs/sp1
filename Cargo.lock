@@ -57,9 +57,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7079075b41f533b8c61d2a4d073c4676e1f8b249ff94a393b0595db304e0dd87"
+checksum = "2faccea4cc4ab4a667ce676a30e8ec13922a692c99bb8f5b11f1502c72e04220"
 
 [[package]]
 name = "anstyle-parse"
@@ -1245,7 +1245,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1254,7 +1254,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "rand",
@@ -1264,7 +1264,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1275,7 +1275,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1286,7 +1286,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1297,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -1308,7 +1308,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1325,7 +1325,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1336,7 +1336,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1346,7 +1346,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1355,7 +1355,7 @@ dependencies = [
 [[package]]
 name = "p3-ldt"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1372,7 +1372,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1384,7 +1384,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "rayon",
 ]
@@ -1392,7 +1392,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1408,7 +1408,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -1424,7 +1424,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "criterion",
  "itertools 0.12.1",
@@ -1440,7 +1440,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1454,7 +1454,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1463,7 +1463,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -1481,7 +1481,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#af6ca964ccf2e0ef1ca255aa790c0aff4db3595e"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
 dependencies = [
  "serde",
 ]

@@ -199,17 +199,18 @@ impl<SC: StarkConfig> Prover<SC> {
         }
 
         let num_quotient_chunks = quotient_chunks.len();
-        let coset_shift = tracing::debug_span!("coset shift").in_scope(|| {
-            config
+        let coset_shifts = tracing::debug_span!("coset shift").in_scope(|| {
+            let shift = config
                 .pcs()
                 .coset_shift()
-                .exp_power_of_2(log_quotient_degree)
+                .exp_power_of_2(log_quotient_degree);
+            vec![shift; chips.len()]
         });
         let (quotient_commit, quotient_data) = tracing::debug_span!("commit shifted batches")
             .in_scope(|| {
                 config
                     .pcs()
-                    .commit_shifted_batches(quotient_chunks, coset_shift)
+                    .commit_shifted_batches(quotient_chunks, &coset_shifts)
             });
 
         // Observe the quotient commitments.
