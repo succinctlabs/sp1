@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::StarkConfig;
 
 type Val<SC> = <SC as StarkConfig>::Val;
-type openingProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
+type OpeningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkConfig>::Challenge;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
