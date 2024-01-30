@@ -59,6 +59,7 @@ impl<SC: StarkConfig> MainData<SC> {
         // gz.finish()?;
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
+        println!("bytes_written: {}", bytes_written);
         Ok(MainDataWrapper::TempFile(file, bytes_written))
     }
 
