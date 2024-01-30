@@ -2,29 +2,21 @@ mod builder;
 
 pub use builder::InteractionBuilder;
 
+use crate::utils::BabyBearPoseidon2;
+use crate::utils::Chip;
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
-use p3_challenger::DuplexChallenger;
-use p3_commit::ExtensionMmcs;
-use p3_dft::Radix2DitParallel;
-use p3_field::extension::BinomialExtensionField;
-use p3_field::{AbstractField, Field, PrimeField64};
-use p3_fri::{FriBasedPcs, FriConfigImpl};
-use p3_keccak::Keccak256Hash;
-use p3_ldt::QuotientMmcs;
+use p3_field::AbstractField;
+use p3_field::Field;
+use p3_field::PrimeField64;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_mds::coset_mds::CosetMds;
-use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
-use p3_uni_stark::StarkConfigImpl;
+
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fmt::Display;
 
 use crate::runtime::{Runtime, Segment};
-use crate::utils::Chip;
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
@@ -144,27 +136,9 @@ pub fn debug_interactions_with_all_chips(
         panic!("Memory interactions requires global segment.");
     }
 
-    // Boilerplate code to set up the chips.
-    type Val = BabyBear;
-    type Domain = Val;
-    type Challenge = BinomialExtensionField<Val, 4>;
-    type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-    type MyMds = CosetMds<Val, 16>;
-    type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
-    type MyHash = SerializingHasher32<Keccak256Hash>;
-    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
-    type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
-    type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-    type Dft = Radix2DitParallel;
-    type Challenger = DuplexChallenger<Val, Perm, 16>;
-    type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
-    type MyConfig = StarkConfigImpl<Val, Challenge, PackedChallenge, Pcs, Challenger>;
-
     // Here, we collect all the chips.
-    let segment_chips = Runtime::segment_chips::<MyConfig>();
-    let global_chips = Runtime::global_chips::<MyConfig>();
+    let segment_chips = Runtime::segment_chips::<BabyBearPoseidon2>();
+    let global_chips = Runtime::global_chips::<BabyBearPoseidon2>();
 
     let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
     let mut final_map = BTreeMap::new();

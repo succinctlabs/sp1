@@ -1,9 +1,10 @@
-use p3_air::{
-    AirBuilder, EmptyMessageBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
-};
-use p3_field::{AbstractField, Field};
+use p3_air::{AirBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
+use p3_field::{AbstractExtensionField, AbstractField, Field};
+use p3_field::{ExtensionField, Res};
 
-use p3_uni_stark::StarkConfig;
+use crate::air::EmptyMessageBuilder;
+
+use super::StarkConfig;
 
 pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
     pub preprocessed: TwoRowMatrixView<'a, SC::PackedVal>,
@@ -17,16 +18,16 @@ pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
     pub accumulator: SC::PackedChallenge,
 }
 
-pub struct VerifierConstraintFolder<'a, Challenge> {
-    pub preprocessed: TwoRowMatrixView<'a, Challenge>,
-    pub main: TwoRowMatrixView<'a, Challenge>,
-    pub perm: TwoRowMatrixView<'a, Challenge>,
-    pub perm_challenges: &'a [Challenge],
-    pub is_first_row: Challenge,
-    pub is_last_row: Challenge,
-    pub is_transition: Challenge,
-    pub alpha: Challenge,
-    pub accumulator: Challenge,
+pub struct VerifierConstraintFolder<'a, F, EF, EA> {
+    pub preprocessed: TwoRowMatrixView<'a, Res<F, EF>>,
+    pub main: TwoRowMatrixView<'a, Res<F, EF>>,
+    pub perm: TwoRowMatrixView<'a, EA>,
+    pub perm_challenges: &'a [EF],
+    pub is_first_row: EF,
+    pub is_last_row: EF,
+    pub is_transition: EF,
+    pub alpha: EF,
+    pub accumulator: Res<F, EF>,
 }
 
 impl<'a, SC: StarkConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
@@ -88,47 +89,54 @@ impl<'a, SC: StarkConfig> PairBuilder for ProverConstraintFolder<'a, SC> {
 
 impl<'a, SC: StarkConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
-impl<'a, Challenge: Field> AirBuilder for VerifierConstraintFolder<'a, Challenge> {
-    type F = Challenge;
-    type Expr = Challenge;
-    type Var = Challenge;
-    type M = TwoRowMatrixView<'a, Challenge>;
+impl<'a, F: Field, EF: ExtensionField<F>, EA: AbstractExtensionField<Res<F, EF>, F = EF>> AirBuilder
+    for VerifierConstraintFolder<'a, F, EF, EA>
+{
+    type F = F;
+    type Expr = Res<F, EF>;
+    type Var = Res<F, EF>;
+    type M = TwoRowMatrixView<'a, Res<F, EF>>;
 
     fn main(&self) -> Self::M {
         self.main
     }
 
     fn is_first_row(&self) -> Self::Expr {
-        self.is_first_row
+        Res::from_inner(self.is_first_row)
     }
 
     fn is_last_row(&self) -> Self::Expr {
-        self.is_last_row
+        Res::from_inner(self.is_last_row)
     }
 
     fn is_transition_window(&self, size: usize) -> Self::Expr {
         if size == 2 {
-            self.is_transition
+            Res::from_inner(self.is_transition)
         } else {
             panic!("uni-stark only supports a window size of 2")
         }
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let x: Challenge = x.into();
-        self.accumulator *= self.alpha;
+        let x: Res<F, EF> = x.into();
+        self.accumulator *= Self::Expr::from_inner(self.alpha);
         self.accumulator += x;
     }
 }
 
-impl<'a, Challenge: Field> PermutationAirBuilder for VerifierConstraintFolder<'a, Challenge> {
-    type EF = Challenge;
+impl<'a, F, EF, EA> PermutationAirBuilder for VerifierConstraintFolder<'a, F, EF, EA>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    EA: AbstractExtensionField<Res<F, EF>, F = EF> + Copy,
+{
+    type EF = EF;
 
-    type ExprEF = Challenge;
+    type ExprEF = EA;
 
-    type VarEF = Challenge;
+    type VarEF = EA;
 
-    type MP = TwoRowMatrixView<'a, Challenge>;
+    type MP = TwoRowMatrixView<'a, EA>;
 
     fn permutation(&self) -> Self::MP {
         self.perm
@@ -139,10 +147,21 @@ impl<'a, Challenge: Field> PermutationAirBuilder for VerifierConstraintFolder<'a
     }
 }
 
-impl<'a, Challenge: Field> PairBuilder for VerifierConstraintFolder<'a, Challenge> {
+impl<'a, F, EF, EA> PairBuilder for VerifierConstraintFolder<'a, F, EF, EA>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    EA: AbstractExtensionField<Res<F, EF>, F = EF> + Copy,
+{
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
     }
 }
 
-impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
+impl<'a, F, EF, EA> EmptyMessageBuilder for VerifierConstraintFolder<'a, F, EF, EA>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    EA: AbstractExtensionField<Res<F, EF>, F = EF> + Copy,
+{
+}

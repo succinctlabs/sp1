@@ -13,11 +13,11 @@ use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
+use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
-use p3_uni_stark::StarkConfig;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
@@ -28,7 +28,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::prover::Prover;
-use super::types::*;
+use super::types::SegmentProof;
+use super::{StarkConfig, VerificationError};
 
 pub const NUM_CHIPS: usize = 17;
 
@@ -95,8 +96,13 @@ impl Runtime {
     }
 
     /// Prove the program.
-    #[allow(unused)]
-    pub fn prove<F, EF, SC>(&mut self, config: &SC, challenger: &mut SC::Challenger)
+    ///
+    /// The function returns a vector of segment proofs, one for each segment, and a global proof.
+    pub fn prove<F, EF, SC>(
+        &mut self,
+        config: &SC,
+        challenger: &mut SC::Challenger,
+    ) -> (Vec<SegmentProof<SC>>, SegmentProof<SC>)
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -125,57 +131,158 @@ impl Runtime {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segment_main_data.iter().map(|main_data| {
+            segment_main_data.iter().for_each(|main_data| {
                 challenger.observe(main_data.main_commit.clone());
             });
         });
 
         // We clone the challenger so that each segment can observe the same "global" challenges.
-        let proofs: Vec<SegmentDebugProof<SC>> = tracing::info_span!("proving all segments")
-            .in_scope(|| {
+        let local_segment_proofs: Vec<_> =
+            tracing::info_span!("proving all segments").in_scope(|| {
                 segment_main_data
                     .into_iter()
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            let (debug_proof, _) = Prover::prove(
+                            Prover::prove(
                                 config,
                                 &mut challenger.clone(),
                                 &segment_chips,
                                 main_data,
-                            );
-
-                            debug_proof
+                            )
                         })
                     })
                     .collect()
             });
 
+        #[cfg(feature = "proof-debug")]
+        // Verify the segment proofs.
+        tracing::info_span!("proving all segments").in_scope(|| {
+            local_segment_proofs
+                .iter()
+                .enumerate()
+                .for_each(|(i, proof)| {
+                    tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+                        Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
+                            .unwrap()
+                    })
+                })
+        });
+
         let global_chips = Self::global_chips::<SC>();
         let global_main_data = tracing::info_span!("commit main for global segments")
             .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            let (debug_proof, _) = Prover::prove(
+            Prover::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,
                 global_main_data,
-            );
-
-            debug_proof
+            )
         });
 
-        let mut all_permutation_traces = proofs
+        #[cfg(feature = "proof-debug")]
+        // Verify the global proof.
+        tracing::info_span!("verifying global segments").in_scope(|| {
+            Verifier::verify(
+                config,
+                &global_chips,
+                &mut challenger.clone(),
+                &global_proof,
+            )
+            .unwrap()
+        });
+
+        #[cfg(not(feature = "perf"))]
+        let mut all_permutation_traces = local_segment_proofs
             .into_iter()
             .flat_map(|proof| proof.permutation_traces)
             .collect::<Vec<_>>();
-        all_permutation_traces.extend(global_proof.permutation_traces);
+        #[cfg(not(feature = "perf"))]
+        all_permutation_traces.extend_from_slice(&global_proof.permutation_traces);
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
         #[cfg(not(feature = "perf"))]
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
+
+        #[cfg(feature = "perf")]
+        return (local_segment_proofs, global_proof);
+
+        #[cfg(not(feature = "perf"))]
+        (vec![], global_proof)
     }
+
+    pub fn verify<F, EF, SC>(
+        &mut self,
+        config: &SC,
+        challenger: &mut SC::Challenger,
+        segments_proofs: &[SegmentProof<SC>],
+        global_proof: &SegmentProof<SC>,
+    ) -> Result<(), ProgramVerificationError>
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC::Challenger: Clone,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+    {
+        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
+        // in a map-reduce recursion setting.
+        #[cfg(feature = "perf")]
+        tracing::info_span!("observe challenges for all segments").in_scope(|| {
+            segments_proofs.iter().for_each(|proof| {
+                challenger.observe(proof.commitment.main_commit.clone());
+            });
+        });
+
+        // Verify the segment proofs.
+        let segment_chips = Self::segment_chips::<SC>();
+        for (i, proof) in segments_proofs.iter().enumerate() {
+            tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+                Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
+                    .map_err(ProgramVerificationError::InvalidSegmentProof)
+            })?;
+        }
+
+        // Verifiy the global proof.
+        let global_chips = Self::global_chips::<SC>();
+        tracing::info_span!("verifying global segment").in_scope(|| {
+            Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
+                .map_err(ProgramVerificationError::InvalidGlobalProof)
+        })?;
+
+        // Verify the cumulative sum is 0.
+        let mut sum = SC::Challenge::zero();
+        #[cfg(feature = "perf")]
+        {
+            for proof in segments_proofs.iter() {
+                sum += proof
+                    .commulative_sums
+                    .iter()
+                    .copied()
+                    .sum::<SC::Challenge>();
+            }
+            sum += global_proof
+                .commulative_sums
+                .iter()
+                .copied()
+                .sum::<SC::Challenge>();
+        }
+
+        match sum.is_zero() {
+            true => Ok(()),
+            false => Err(ProgramVerificationError::NonZeroCommulativeSum),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ProgramVerificationError {
+    InvalidSegmentProof(VerificationError),
+    InvalidGlobalProof(VerificationError),
+    NonZeroCommulativeSum,
 }
 
 #[cfg(test)]

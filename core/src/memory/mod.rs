@@ -135,9 +135,9 @@ mod tests {
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
     use crate::precompiles::sha256::extend_tests::sha_extend_program;
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
 
     use super::*;

@@ -3,7 +3,7 @@ use std::ops::{Add, Mul};
 use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use p3_maybe_rayon::prelude::*;
 
 use crate::{lookup::Interaction, utils::Chip};
 
@@ -135,7 +135,7 @@ where
     C: Chip<F> + Air<AB> + ?Sized,
     AB::EF: ExtensionField<F>,
     AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
-    AB: PermutationAirBuilder<F = F> + PairBuilder,
+    AB: PermutationAirBuilder + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);

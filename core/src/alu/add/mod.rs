@@ -109,7 +109,8 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
+
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use rand::{thread_rng, Rng};
 
     use super::AddChip;

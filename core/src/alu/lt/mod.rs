@@ -6,7 +6,7 @@ use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use p3_maybe_rayon::prelude::*;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -286,9 +286,10 @@ where
 
 #[cfg(test)]
 mod tests {
+
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
 
     use crate::{
