@@ -538,41 +538,47 @@ where
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         MainData<SC>: Serialize + DeserializeOwned,
     {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(4)
-            .build()
-            .unwrap();
+        // let pool = rayon::ThreadPoolBuilder::new()
+        //     .num_threads(16)
+        //     .build()
+        //     .unwrap();
 
         let num_segments = segments.len();
-
+        let chunk_size = segments.len() / 16;
         let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                pool.install(|| {
-                    segments
-                        .iter_mut()
-                        .map(|segment| {
-                            let start_time = std::time::Instant::now();
-                            let data = Self::commit_main(config, chips, segment);
-                            let elapsed = start_time.elapsed();
-                            debug!(
-                                "main data for segment {} generated in {}ms",
-                                segment.index,
-                                elapsed.as_millis()
-                            );
-                            let commitment = data.main_commit.clone();
-                            // TODO: make this logic configurable?
-                            let file = tempfile::tempfile().unwrap();
-                            let data = if num_segments > 1 {
-                                data.save(file).expect("failed to save segment main data")
-                            } else {
-                                data.to_in_memory()
-                            };
-                            (commitment, data)
-                        })
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .unzip()
-                })
+                // pool.install(|| {
+                segments
+                    .chunks_mut(chunk_size)
+                    .par_bridge()
+                    .flat_map(|segments| {
+                        segments
+                            .into_iter()
+                            .map(|segment| {
+                                let start_time = std::time::Instant::now();
+                                let data = Self::commit_main(config, chips, segment);
+                                let elapsed = start_time.elapsed();
+                                debug!(
+                                    "main data for segment {} generated in {}ms",
+                                    segment.index,
+                                    elapsed.as_millis()
+                                );
+                                let commitment = data.main_commit.clone();
+                                // TODO: make this logic configurable?
+                                let file = tempfile::tempfile().unwrap();
+                                let data = if num_segments > 1 {
+                                    data.save(file).expect("failed to save segment main data")
+                                } else {
+                                    data.to_in_memory()
+                                };
+                                (commitment, data)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .unzip()
+                //     })
             });
 
         let bytes_written = segment_main_data
