@@ -21,5 +21,5 @@ sha2-v0-10-6 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", p
 time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
 ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git" }
 crypto-bigint = { git = "https://github.com/succinctlabs/crypto-bigint-private", branch="patch-v0.5.5" }
-alloy-primitives-v0-6-0 = { git = "https://github.com/succinctlabs/alloy-core-private", package = "alloy-primitives", branch = "patch-v0.6.0" }
+# alloy-primitives-v0-6-0 = { git = "https://github.com/succinctlabs/alloy-core-private", package = "alloy-primitives", branch = "patch-v0.6.0" }
 alloy-primitives-v0-6-2 = { git = "https://github.com/succinctlabs/alloy-core-private", package = "alloy-primitives", branch = "patch-v0.6.2" }

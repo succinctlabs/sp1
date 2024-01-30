@@ -103,7 +103,7 @@ pub struct Runtime {
     pub segment_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: u32,
+    pub cycle_tracker: HashMap<String, u32>,
 }
 
 impl Runtime {
@@ -131,7 +131,7 @@ impl Runtime {
             record: Record::default(),
             segment_size: 1048576,
             global_segment: Segment::default(),
-            cycle_tracker: 0,
+            cycle_tracker: HashMap::new(),
         }
     }
 
@@ -685,7 +685,14 @@ impl Runtime {
                             if fd == 1 {
                                 let s = core::str::from_utf8(slice).unwrap();
                                 if s.contains("cycle-tracker-start:") {
-                                    self.cycle_tracker = self.global_clk
+                                    let fn_name = s
+                                        .split("cycle-tracker-start:")
+                                        .last()
+                                        .unwrap()
+                                        .trim_end()
+                                        .trim_start();
+                                    self.cycle_tracker
+                                        .insert(fn_name.to_string(), self.global_clk);
                                 } else if s.contains("cycle-tracker-end:") {
                                     let fn_name = s
                                         .split("cycle-tracker-end:")
@@ -693,10 +700,11 @@ impl Runtime {
                                         .unwrap()
                                         .trim_end()
                                         .trim_start();
+                                    let start = self.cycle_tracker.get(fn_name).unwrap_or(&0);
                                     log::info!(
                                         "===> {} took {} cycles",
                                         fn_name,
-                                        self.global_clk - self.cycle_tracker
+                                        self.global_clk - start
                                     );
                                 } else {
                                     log::info!("stdout: {}", s.trim_end());

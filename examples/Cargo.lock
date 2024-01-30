@@ -4119,8 +4119,3 @@ dependencies = [
  "sha3",
  "thiserror",
 ]
-
-[[patch.unused]]
-name = "alloy-primitives"
-version = "0.6.0"
-source = "git+https://github.com/succinctlabs/alloy-core-private?branch=patch-v0.6.0#d1bee667943859badcc5d98d10179ed1ee62c189"
