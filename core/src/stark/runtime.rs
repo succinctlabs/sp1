@@ -71,6 +71,7 @@ impl Runtime {
             Box::new(sha_compress),
             Box::new(ed_add),
             Box::new(ed_decompress),
+            Box::new(weierstrass_add),
             Box::new(keccak_permute),
             Box::new(add),
             Box::new(sub),
@@ -82,7 +83,6 @@ impl Runtime {
             Box::new(lt),
             Box::new(field),
             Box::new(bytes),
-            Box::new(weierstrass_add),
         ]
     }
 
