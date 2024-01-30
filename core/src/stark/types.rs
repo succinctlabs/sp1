@@ -54,9 +54,9 @@ impl<SC: StarkConfig> MainData<SC> {
     where
         MainData<SC>: Serialize,
     {
-        let mut gz = GzEncoder::new(&file, Compression::default());
-        bincode::serialize_into(&mut gz, self)?;
-        gz.finish()?;
+        // let mut gz = GzEncoder::new(&file, Compression::default());
+        bincode::serialize_into(&file, self)?;
+        // gz.finish()?;
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
         Ok(MainDataWrapper::TempFile(file, bytes_written))
