@@ -1,4 +1,7 @@
-use std::{fs::File, io::Seek};
+use std::{
+    fs::File,
+    io::{BufWriter, Seek},
+};
 
 use bincode::{deserialize_from, Error};
 use flate2::read::GzDecoder;
@@ -56,7 +59,8 @@ impl<SC: StarkConfig> MainData<SC> {
     {
         println!("file: {:?}", file);
         // let mut gz = GzEncoder::new(&file, Compression::default());
-        bincode::serialize_into(&file, self)?;
+        let writer = BufWriter::new(&file);
+        bincode::serialize_into(writer, self)?;
         // gz.finish()?;
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
