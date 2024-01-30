@@ -18,11 +18,11 @@ pub type Secp256k1 = SWCurve<Secp256k1Parameters>;
 pub struct Secp256k1BaseField;
 
 impl FieldParameters for Secp256k1BaseField {
-    // TODO: The parameters are all wrong, I just copied and pasted them from bn254.rs.
     const NB_BITS_PER_LIMB: usize = 16;
 
     const NB_LIMBS: usize = 16;
 
+    // TODO: I'm not sure what NB_WITNESS_LIMBS is, I just copied and pasted them from bn254.rs.
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
     const MODULUS: [u8; MAX_NB_LIMBS] = [
@@ -43,7 +43,6 @@ impl EllipticCurveParameters for Secp256k1Parameters {
 }
 
 impl WeierstrassParameters for Secp256k1Parameters {
-    // TODO: Double check these using credible references.
     const A: [u16; MAX_NB_LIMBS] = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
