@@ -539,7 +539,7 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
     {
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(32)
+            .num_threads(4)
             .build()
             .unwrap();
 
@@ -549,7 +549,7 @@ where
             tracing::info_span!("commit main for all segments").in_scope(|| {
                 pool.install(|| {
                     segments
-                        .par_iter_mut()
+                        .iter_mut()
                         .map(|segment| {
                             let start_time = std::time::Instant::now();
                             let data = Self::commit_main(config, chips, segment);
