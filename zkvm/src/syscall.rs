@@ -21,6 +21,9 @@ pub const ED_ADD: u32 = 104;
 /// Executes `ED_DECOMPRESS`.
 pub const ED_DECOMPRESS: u32 = 105;
 
+/// Executes `KECCAK_PERMUTE`.
+pub const KECCAK_PERMUTE: u32 = 106;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -184,6 +187,22 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
                 in("a0") p,
             );
         }
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_keccak256_permute(state: *mut u64) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") KECCAK_PERMUTE,
+            in("a0") state
+        );
     }
 
     #[cfg(not(target_os = "zkvm"))]

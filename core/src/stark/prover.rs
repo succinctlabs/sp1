@@ -121,7 +121,7 @@ where
                     .enumerate()
                     .map(|(i, chip)| {
                         generate_permutation_trace(
-                            chip.as_ref(),
+                            chip.as_chip(),
                             &mut traces[i],
                             permutation_challenges.clone(),
                         )

@@ -9,6 +9,7 @@ use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
 use crate::precompiles::edwards::ed_add::EdAddEvent;
 use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
+use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::runtime::MemoryRecord;
 
@@ -55,6 +56,8 @@ pub struct Segment {
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
     pub sha_compress_events: Vec<ShaCompressEvent>,
+
+    pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
     pub ed_add_events: Vec<EdAddEvent>,
 
