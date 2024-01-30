@@ -26,6 +26,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
 use std::marker::PhantomData;
+use std::time::Instant;
 use tracing::debug;
 
 pub trait Prover<SC>
