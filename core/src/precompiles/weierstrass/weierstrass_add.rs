@@ -98,6 +98,10 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     ) {
         // This populates necessary field operations to calculate the addition of two points on a
         // Weierstrass curve.
+        println!("p_x = {}", p_x);
+        println!("p_y = {}", p_y);
+        println!("q_x = {}", q_x);
+        println!("q_y = {}", q_y);
 
         // Slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
