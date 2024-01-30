@@ -275,18 +275,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(SC::Challenge::monomial)
             .collect::<Vec<_>>();
 
-        let embed = |v: &[SC::Challenge]| {
-            v.chunks_exact(SC::Challenge::D)
-                .map(|chunk| {
-                    chunk
-                        .iter()
-                        .zip(monomials.iter())
-                        .map(|(x, m)| *x * *m)
-                        .sum()
-                })
-                .collect::<Vec<SC::Challenge>>()
-        };
-
         let res = |v: &[SC::Challenge]| {
             v.iter()
                 .map(|x| Res::from_inner(*x))
@@ -305,7 +293,17 @@ impl<SC: StarkConfig> Verifier<SC> {
                 .collect::<Vec<SC::ChallengeAlgebra>>()
         };
 
-        let mut quotient_parts = embed(quotient_openning);
+        let mut quotient_parts = quotient_openning
+            .chunks_exact(SC::Challenge::D)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .zip(monomials.iter())
+                    .map(|(x, m)| *x * *m)
+                    .sum()
+            })
+            .collect::<Vec<SC::Challenge>>();
+
         reverse_slice_index_bits(&mut quotient_parts);
         let quotient: SC::Challenge = zeta
             .powers()
