@@ -75,7 +75,14 @@ where
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
+        let start = Instant::now();
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+        let end = start.elapsed();
+        debug!(
+            "main data for segment {} committed in {}ms",
+            segment.index,
+            end.as_millis()
+        );
 
         MainData {
             traces,
