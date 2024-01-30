@@ -844,7 +844,7 @@ impl Runtime {
             if self.global_clk % 1000000 == 0 {
                 log::info!("global_clk={}", self.global_clk);
             }
-            if self.global_clk > 5000000 {
+            if self.global_clk > 10000000 {
                 break;
             }
 

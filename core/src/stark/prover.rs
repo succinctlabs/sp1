@@ -539,7 +539,7 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
     {
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(16)
+            .num_threads(32)
             .build()
             .unwrap();
 
