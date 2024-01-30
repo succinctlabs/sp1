@@ -99,12 +99,6 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         // This populates necessary field operations to calculate the addition of two points on a
         // Weierstrass curve.
 
-        // These print out 0's for the padded rows as expected.
-        println!("p_x = {}", p_x);
-        println!("p_y = {}", p_y);
-        println!("q_x = {}", q_x);
-        println!("q_y = {}", q_y);
-
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             let slope_numerator =
@@ -147,8 +141,6 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             cols.y3_ins
                 .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
         };
-        println!("added result x = {}", x);
-        println!("added result y = {}", y);
     }
 }
 

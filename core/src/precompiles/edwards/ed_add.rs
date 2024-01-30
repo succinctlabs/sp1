@@ -107,11 +107,6 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
             .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
         cols.y3_ins
             .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
-        println!("p.x = {:?}", p_x);
-        println!("p.y = {:?}", p_y);
-        println!("q.x = {:?}", q_x);
-        println!("q.y = {:?}", q_y);
-        println!();
     }
 }
 
