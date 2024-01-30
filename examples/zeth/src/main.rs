@@ -17,7 +17,9 @@ fn main() {
     let (header, state) = EthereumStrategy::build_from(&ETH_MAINNET_CHAIN_SPEC, input)
         .expect("Failed to build the resulting block");
     // Output the resulting block's hash to the journal
-    io::write(&header.hash());
+    let hash = header.hash();
+    println!("Resulting block hash: {:x}", hash);
+    io::write_slice(&hash.0);
     // Leak memory, save cycles
     core::mem::forget((header, state));
 }

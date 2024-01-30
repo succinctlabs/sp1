@@ -681,8 +681,8 @@ impl Runtime {
                                 .map(|i| self.byte(write_buf + i))
                                 .collect::<Vec<u8>>();
                             let slice = bytes.as_slice();
-                            let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
+                                let s = core::str::from_utf8(slice).unwrap();
                                 if s.contains("cycle-tracker-start:") {
                                     self.cycle_tracker = self.global_clk
                                 } else if s.contains("cycle-tracker-end:") {
@@ -701,6 +701,7 @@ impl Runtime {
                                     log::info!("stdout: {}", s.trim_end());
                                 }
                             } else if fd == 2 {
+                                let s = core::str::from_utf8(slice).unwrap();
                                 log::info!("stderr: {}", s.trim_end());
                             } else if fd == 3 {
                                 log::info!("io::write: {:?}", slice);
@@ -838,6 +839,10 @@ impl Runtime {
         {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
+
+            if self.global_clk % 1000000 == 0 {
+                log::info!("global_clk={}", self.global_clk);
+            }
 
             let width = 12;
             log::trace!(
