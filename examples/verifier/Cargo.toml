@@ -1,0 +1,10 @@
+[package]
+name = "verifier"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
+succinct-core = { path = "../../core" }
+rand = "0.8.5"
