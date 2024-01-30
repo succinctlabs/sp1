@@ -8,8 +8,6 @@ extern "C" {
     fn syscall_secp_add(p: *mut u32, q: *const u32);
 }
 
-// TODO: Update the constants
-
 pub fn main() {
     // generator.
     // 55066263022277343669578718895168534326250603453777594175500187360389116729240
