@@ -1,4 +1,6 @@
-use num::{BigUint, Num, Zero};
+use std::str::FromStr;
+
+use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::{SWCurve, WeierstrassParameters};
@@ -24,7 +26,7 @@ impl FieldParameters for Secp256k1BaseField {
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
     const MODULUS: [u8; MAX_NB_LIMBS] = [
-        0x2f, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0x2f, 0xfc, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff,
     ];
@@ -32,10 +34,15 @@ impl FieldParameters for Secp256k1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 20;
 
     fn modulus() -> BigUint {
-        BigUint::from_slice(&[
+        println!("calculating the modulus");
+        let modulus = BigUint::from_bytes_le(&Self::MODULUS);
+        let modulus2 = BigUint::from_slice(&[
             0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
             0xFFFFFFFF,
-        ])
+        ]);
+        println!("modulus:  {:?}", modulus);
+        println!("modulus2: {:?}", modulus2);
+        modulus2
     }
 }
 
@@ -44,19 +51,25 @@ impl EllipticCurveParameters for Secp256k1Parameters {
 }
 
 impl WeierstrassParameters for Secp256k1Parameters {
-    // TODO: These are all wrong, I just copied and pasted it from bn245.rs.
+    // TODO: Double check these using credible references.
     const A: [u16; MAX_NB_LIMBS] = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
     ];
 
     const B: [u16; MAX_NB_LIMBS] = [
-        3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
     ];
     fn generator() -> (BigUint, BigUint) {
-        let x = BigUint::from(1u32);
-        let y = BigUint::from(2u32);
+        let x = BigUint::from_str(
+            "55066263022277343669578718895168534326250603453777594175500187360389116729240",
+        )
+        .unwrap();
+        let y = BigUint::from_str(
+            "32670510020758816978083085130507043184471273380659243275938904335757337482424",
+        )
+        .unwrap();
         (x, y)
     }
 
@@ -72,7 +85,7 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 
     fn b_int() -> BigUint {
-        BigUint::from(3u32)
+        BigUint::from(7u32)
     }
 }
 

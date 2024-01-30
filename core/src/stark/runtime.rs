@@ -11,7 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::precompiles::weierstrass::weierstrass_add::{self, WeierstrassAddAssignChip};
+use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
 use crate::stark::Verifier;

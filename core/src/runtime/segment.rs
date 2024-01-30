@@ -10,7 +10,6 @@ use crate::field::event::FieldEvent;
 use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
 use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
-use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddEvent;
 use crate::precompiles::ECAddEvent;
 use crate::runtime::MemoryRecord;
 
