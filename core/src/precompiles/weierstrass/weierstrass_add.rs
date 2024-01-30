@@ -105,51 +105,50 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         println!("q_x = {}", q_x);
         println!("q_y = {}", q_y);
 
-        // Commented out everything except this for debugging.
-        let slope_numerator =
-            cols.slope_numerator
-                .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
+        // Slope = (q.y - p.y) / (q.x - p.x).
+        let slope = {
+            let slope_numerator =
+                cols.slope_numerator
+                    .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
 
-        // // Slope = (q.y - p.y) / (q.x - p.x).
-        // let slope = {
-        //     let slope_denominator =
-        //         cols.slope_denominator
-        //             .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
+            let slope_denominator =
+                cols.slope_denominator
+                    .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
 
-        //     cols.slope.populate::<E::BaseField>(
-        //         &slope_numerator,
-        //         &slope_denominator,
-        //         FpOperation::Div,
-        //     )
-        // };
+            cols.slope.populate::<E::BaseField>(
+                &slope_numerator,
+                &slope_denominator,
+                FpOperation::Div,
+            )
+        };
 
-        // // x = slope * slope - (p.x + q.x)
-        // let x = {
-        //     let slope_squared =
-        //         cols.slope_squared
-        //             .populate::<E::BaseField>(&slope, &slope, FpOperation::Mul);
-        //     let p_x_plus_q_x =
-        //         cols.p_x_plus_q_x
-        //             .populate::<E::BaseField>(&p_x, &q_x, FpOperation::Add);
-        //     cols.x3_ins
-        //         .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
-        // };
+        // x = slope * slope - (p.x + q.x)
+        let x = {
+            let slope_squared =
+                cols.slope_squared
+                    .populate::<E::BaseField>(&slope, &slope, FpOperation::Mul);
+            let p_x_plus_q_x =
+                cols.p_x_plus_q_x
+                    .populate::<E::BaseField>(&p_x, &q_x, FpOperation::Add);
+            cols.x3_ins
+                .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
+        };
 
-        // // y = slope * (p.x - x_3n) - p.y
-        // let y = {
-        //     let p_x_minus_x = cols
-        //         .p_x_minus_x
-        //         .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
-        //     let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate::<E::BaseField>(
-        //         &slope,
-        //         &p_x_minus_x,
-        //         FpOperation::Mul,
-        //     );
-        //     cols.y3_ins
-        //         .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
-        // };
-        // println!("added result x = {}", x);
-        // println!("added result y = {}", y);
+        // y = slope * (p.x - x_3n) - p.y
+        let y = {
+            let p_x_minus_x = cols
+                .p_x_minus_x
+                .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
+            let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate::<E::BaseField>(
+                &slope,
+                &p_x_minus_x,
+                FpOperation::Mul,
+            );
+            cols.y3_ins
+                .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
+        };
+        println!("added result x = {}", x);
+        println!("added result y = {}", y);
     }
 }
 
@@ -243,95 +242,73 @@ where
         let q_x = limbs_from_prev_access(&row.q_access[0..8]);
         let q_y = limbs_from_prev_access(&row.q_access[8..16]);
 
-        // *Printf
-        //
-        // This Secp eval fails even for padded rows, so i'm just double checking everything.
-        //
-        // This checks whether p, q, slope_numerators are all 0.
-        //
-        // This check passes (i.e., they are indeed all 0). And the slope_numerator.eval below fails
-        // for padded rows.
-        for i in 0..8 {
-            builder
-                .assert_zero(p_x.0[4 * i] + p_x.0[4 * i + 1] + p_x.0[4 * i + 2] + p_x.0[4 * i + 3]);
-            builder
-                .assert_zero(p_y.0[4 * i] + p_y.0[4 * i + 1] + p_y.0[4 * i + 2] + p_y.0[4 * i + 3]);
-            builder
-                .assert_zero(q_x.0[4 * i] + q_x.0[4 * i + 1] + q_x.0[4 * i + 2] + q_x.0[4 * i + 3]);
-            builder
-                .assert_zero(q_y.0[4 * i] + q_y.0[4 * i + 1] + q_y.0[4 * i + 2] + q_y.0[4 * i + 3]);
-            builder.assert_zero(
-                row.slope_numerator.result.0[4 * i]
-                    + row.slope_numerator.result.0[4 * i + 1]
-                    + row.slope_numerator.result.0[4 * i + 2]
-                    + row.slope_numerator.result.0[4 * i + 3],
+        // Slope = (q.y - p.y) / (q.x - p.x).
+        let slope = {
+            row.slope_numerator.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &q_y,
+                &p_y,
+                FpOperation::Sub,
+            );
+
+            row.slope_denominator.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &q_x,
+                &p_x,
+                FpOperation::Sub,
+            );
+
+            row.slope.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &row.slope_numerator.result,
+                &row.slope_denominator.result,
+                FpOperation::Div,
+            );
+
+            row.slope.result
+        };
+
+        // x = slope * slope - self.x - other.x
+        let x = {
+            row.slope_squared.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &slope,
+                &slope,
+                FpOperation::Mul,
+            );
+
+            row.p_x_plus_q_x
+                .eval::<AB, E::BaseField, _, _>(builder, &p_x, &q_x, FpOperation::Add);
+
+            row.x3_ins.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &row.slope_squared.result,
+                &row.p_x_plus_q_x.result,
+                FpOperation::Sub,
+            );
+
+            row.x3_ins.result
+        };
+
+        // y = slope * (p.x - x_3n) - q.y
+        {
+            row.p_x_minus_x
+                .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FpOperation::Sub);
+
+            row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &slope,
+                &row.p_x_minus_x.result,
+                FpOperation::Mul,
+            );
+
+            row.y3_ins.eval::<AB, E::BaseField, _, _>(
+                builder,
+                &row.slope_times_p_x_minus_x.result,
+                &p_y,
+                FpOperation::Sub,
             );
         }
-
-        // For whatever reason, this fails! The above check ensures that q_y = p_y = 0.
-        row.slope_numerator
-            .eval::<AB, E::BaseField, _, _>(builder, &q_y, &p_y, FpOperation::Sub);
-
-        // // Slope = (q.y - p.y) / (q.x - p.x).
-        // let slope = {
-        //     row.slope_denominator.eval::<AB, E::BaseField, _, _>(
-        //         builder,
-        //         &q_x,
-        //         &p_x,
-        //         FpOperation::Sub,
-        //     );
-
-        //     row.slope.eval::<AB, E::BaseField, _, _>(
-        //         builder,
-        //         &row.slope_numerator.result,
-        //         &row.slope_denominator.result,
-        //         FpOperation::Div,
-        //     );
-
-        //     row.slope.result
-        // };
-
-        // // x = slope * slope - self.x - other.x
-        // let x = {
-        //     row.slope_squared.eval::<AB, E::BaseField, _, _>(
-        //         builder,
-        //         &slope,
-        //         &slope,
-        //         FpOperation::Mul,
-        //     );
-
-        //     row.p_x_plus_q_x
-        //         .eval::<AB, E::BaseField, _, _>(builder, &p_x, &q_x, FpOperation::Add);
-
-        //     row.x3_ins.eval::<AB, E::BaseField, _, _>(
-        //         builder,
-        //         &row.slope_squared.result,
-        //         &row.p_x_plus_q_x.result,
-        //         FpOperation::Sub,
-        //     );
-
-        //     row.x3_ins.result
-        // };
-
-        // // y = slope * (p.x - x_3n) - q.y
-        // {
-        //     row.p_x_minus_x
-        //         .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FpOperation::Sub);
-
-        //     row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
-        //         builder,
-        //         &slope,
-        //         &row.p_x_minus_x.result,
-        //         FpOperation::Mul,
-        //     );
-
-        //     row.y3_ins.eval::<AB, E::BaseField, _, _>(
-        //         builder,
-        //         &row.slope_times_p_x_minus_x.result,
-        //         &p_y,
-        //         FpOperation::Sub,
-        //     );
-        // }
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
