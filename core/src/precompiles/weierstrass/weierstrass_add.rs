@@ -42,10 +42,10 @@ pub struct WeierstrassAddEvent {
 
 pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
 
-/// A set of columns to compute `WeierstrassAdd` where a, b are field elements.
+/// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
 ///
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
-/// or made generic in the future.
+/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed or
+/// made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct WeierstrassAddAssignCols<T> {
