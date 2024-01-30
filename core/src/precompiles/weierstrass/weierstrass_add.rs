@@ -120,7 +120,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             )
         };
 
-        // x = slope * slope - (self.x + other.x)
+        // x = slope * slope - (p.x + q.x)
         let x = {
             let slope_squared =
                 cols.slope_squared
@@ -132,7 +132,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
                 .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
         };
 
-        // y = slope * (self.x - x_3n) - self.y
+        // y = slope * (p.x - x_3n) - p.y
         {
             let p_x_minus_x = cols
                 .p_x_minus_x
