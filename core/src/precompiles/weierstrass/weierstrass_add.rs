@@ -103,50 +103,50 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         println!("q_x = {}", q_x);
         println!("q_y = {}", q_y);
 
-        // Slope = (q.y - p.y) / (q.x - p.x).
-        let slope = {
-            let slope_numerator =
-                cols.slope_numerator
-                    .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
+        let slope_numerator =
+            cols.slope_numerator
+                .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
 
-            let slope_denominator =
-                cols.slope_denominator
-                    .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
+        // // Slope = (q.y - p.y) / (q.x - p.x).
+        // let slope = {
+        //     let slope_denominator =
+        //         cols.slope_denominator
+        //             .populate::<E::BaseField>(&q_x, &p_x, FpOperation::Sub);
 
-            cols.slope.populate::<E::BaseField>(
-                &slope_numerator,
-                &slope_denominator,
-                FpOperation::Div,
-            )
-        };
+        //     cols.slope.populate::<E::BaseField>(
+        //         &slope_numerator,
+        //         &slope_denominator,
+        //         FpOperation::Div,
+        //     )
+        // };
 
-        // x = slope * slope - (p.x + q.x)
-        let x = {
-            let slope_squared =
-                cols.slope_squared
-                    .populate::<E::BaseField>(&slope, &slope, FpOperation::Mul);
-            let p_x_plus_q_x =
-                cols.p_x_plus_q_x
-                    .populate::<E::BaseField>(&p_x, &q_x, FpOperation::Add);
-            cols.x3_ins
-                .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
-        };
+        // // x = slope * slope - (p.x + q.x)
+        // let x = {
+        //     let slope_squared =
+        //         cols.slope_squared
+        //             .populate::<E::BaseField>(&slope, &slope, FpOperation::Mul);
+        //     let p_x_plus_q_x =
+        //         cols.p_x_plus_q_x
+        //             .populate::<E::BaseField>(&p_x, &q_x, FpOperation::Add);
+        //     cols.x3_ins
+        //         .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
+        // };
 
-        // y = slope * (p.x - x_3n) - p.y
-        let y = {
-            let p_x_minus_x = cols
-                .p_x_minus_x
-                .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
-            let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate::<E::BaseField>(
-                &slope,
-                &p_x_minus_x,
-                FpOperation::Mul,
-            );
-            cols.y3_ins
-                .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
-        };
-        println!("added result x = {}", x);
-        println!("added result y = {}", y);
+        // // y = slope * (p.x - x_3n) - p.y
+        // let y = {
+        //     let p_x_minus_x = cols
+        //         .p_x_minus_x
+        //         .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
+        //     let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate::<E::BaseField>(
+        //         &slope,
+        //         &p_x_minus_x,
+        //         FpOperation::Mul,
+        //     );
+        //     cols.y3_ins
+        //         .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
+        // };
+        // println!("added result x = {}", x);
+        // println!("added result y = {}", y);
     }
 }
 
@@ -259,74 +259,69 @@ where
                     + row.slope_numerator.result.0[4 * i + 3],
             );
         }
+        row.slope_numerator
+            .eval::<AB, E::BaseField, _, _>(builder, &q_y, &p_y, FpOperation::Sub);
 
-        // Slope = (q.y - p.y) / (q.x - p.x).
-        let slope = {
-            row.slope_numerator.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &q_y,
-                &p_y,
-                FpOperation::Sub,
-            );
+        // // Slope = (q.y - p.y) / (q.x - p.x).
+        // let slope = {
+        //     row.slope_denominator.eval::<AB, E::BaseField, _, _>(
+        //         builder,
+        //         &q_x,
+        //         &p_x,
+        //         FpOperation::Sub,
+        //     );
 
-            row.slope_denominator.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &q_x,
-                &p_x,
-                FpOperation::Sub,
-            );
+        //     row.slope.eval::<AB, E::BaseField, _, _>(
+        //         builder,
+        //         &row.slope_numerator.result,
+        //         &row.slope_denominator.result,
+        //         FpOperation::Div,
+        //     );
 
-            row.slope.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &row.slope_numerator.result,
-                &row.slope_denominator.result,
-                FpOperation::Div,
-            );
+        //     row.slope.result
+        // };
 
-            row.slope.result
-        };
+        // // x = slope * slope - self.x - other.x
+        // let x = {
+        //     row.slope_squared.eval::<AB, E::BaseField, _, _>(
+        //         builder,
+        //         &slope,
+        //         &slope,
+        //         FpOperation::Mul,
+        //     );
 
-        // x = slope * slope - self.x - other.x
-        let x = {
-            row.slope_squared.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &slope,
-                &slope,
-                FpOperation::Mul,
-            );
+        //     row.p_x_plus_q_x
+        //         .eval::<AB, E::BaseField, _, _>(builder, &p_x, &q_x, FpOperation::Add);
 
-            row.p_x_plus_q_x
-                .eval::<AB, E::BaseField, _, _>(builder, &p_x, &q_x, FpOperation::Add);
+        //     row.x3_ins.eval::<AB, E::BaseField, _, _>(
+        //         builder,
+        //         &row.slope_squared.result,
+        //         &row.p_x_plus_q_x.result,
+        //         FpOperation::Sub,
+        //     );
 
-            row.x3_ins.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &row.slope_squared.result,
-                &row.p_x_plus_q_x.result,
-                FpOperation::Sub,
-            );
+        //     row.x3_ins.result
+        // };
 
-            row.x3_ins.result
-        };
+        // // y = slope * (p.x - x_3n) - q.y
+        // {
+        //     row.p_x_minus_x
+        //         .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FpOperation::Sub);
 
-        // y = slope * (p.x - x_3n) - q.y
-        {
-            row.p_x_minus_x
-                .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FpOperation::Sub);
+        //     row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
+        //         builder,
+        //         &slope,
+        //         &row.p_x_minus_x.result,
+        //         FpOperation::Mul,
+        //     );
 
-            row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &slope,
-                &row.p_x_minus_x.result,
-                FpOperation::Mul,
-            );
-
-            row.y3_ins.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &row.slope_times_p_x_minus_x.result,
-                &p_y,
-                FpOperation::Sub,
-            );
-        }
+        //     row.y3_ins.eval::<AB, E::BaseField, _, _>(
+        //         builder,
+        //         &row.slope_times_p_x_minus_x.result,
+        //         &p_y,
+        //         FpOperation::Sub,
+        //     );
+        // }
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
