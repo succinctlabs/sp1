@@ -240,6 +240,26 @@ where
         let q_x = limbs_from_prev_access(&row.q_access[0..8]);
         let q_y = limbs_from_prev_access(&row.q_access[8..16]);
 
+        // This checks whether p, q, slope_numerators are all 0. This passes if this is for the
+        // padded row. I'm adding this for debugging since for whatever reason, this check passes
+        // (i.e., they are all 0) but the slope_numerator.eval fails for padded rows.
+        for i in 0..8 {
+            builder
+                .assert_zero(p_x.0[4 * i] + p_x.0[4 * i + 1] + p_x.0[4 * i + 2] + p_x.0[4 * i + 3]);
+            builder
+                .assert_zero(p_y.0[4 * i] + p_y.0[4 * i + 1] + p_y.0[4 * i + 2] + p_y.0[4 * i + 3]);
+            builder
+                .assert_zero(q_x.0[4 * i] + q_x.0[4 * i + 1] + q_x.0[4 * i + 2] + q_x.0[4 * i + 3]);
+            builder
+                .assert_zero(q_y.0[4 * i] + q_y.0[4 * i + 1] + q_y.0[4 * i + 2] + q_y.0[4 * i + 3]);
+            builder.assert_zero(
+                row.slope_numerator.result.0[4 * i]
+                    + row.slope_numerator.result.0[4 * i + 1]
+                    + row.slope_numerator.result.0[4 * i + 2]
+                    + row.slope_numerator.result.0[4 * i + 3],
+            );
+        }
+
         // Slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             row.slope_numerator.eval::<AB, E::BaseField, _, _>(

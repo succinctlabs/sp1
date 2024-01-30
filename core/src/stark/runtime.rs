@@ -303,6 +303,7 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils::prove;
+    use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
@@ -343,6 +344,7 @@ pub mod tests {
 
     #[test]
     fn test_add_prove() {
+        setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
