@@ -533,7 +533,14 @@ where
                     segments
                         .par_iter_mut()
                         .map(|segment| {
+                            let start_time = std::time::Instant::now();
                             let data = Self::commit_main(config, chips, segment);
+                            let elapsed = start_time.elapsed();
+                            debug!(
+                                "main data for segment {} generated in {}ms",
+                                segment.index,
+                                elapsed.as_millis()
+                            );
                             let commitment = data.main_commit.clone();
                             // TODO: make this logic configurable?
                             let file = tempfile::tempfile().unwrap();
