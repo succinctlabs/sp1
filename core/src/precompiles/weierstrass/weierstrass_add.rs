@@ -170,6 +170,8 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
             // Decode affine points.
             let p = &event.p;
             let q = &event.q;
+            println!("p = {:?}", p);
+            println!("q = {:?}", q);
             let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
             let q = AffinePoint::<E>::from_words_le(q);
