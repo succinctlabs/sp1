@@ -40,6 +40,7 @@ impl Syscall {
             104 => Syscall::ED_ADD,
             105 => Syscall::ED_DECOMPRESS,
             106 => Syscall::KECCAK_PERMUTE,
+            107 => Syscall::SECP_ADD,
             999 => Syscall::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
