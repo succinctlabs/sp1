@@ -555,7 +555,7 @@ where
                             let commitment = data.main_commit.clone();
                             // TODO: make this logic configurable?
                             let file = tempfile::tempfile().unwrap();
-                            let data = if num_segments > 8 {
+                            let data = if num_segments > 10000 {
                                 data.save(file).expect("failed to save segment main data")
                             } else {
                                 data.to_in_memory()
