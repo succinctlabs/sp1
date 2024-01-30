@@ -219,7 +219,7 @@ impl<SC: StarkConfig> Prover<SC> {
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
-        let trace_openning_points =
+        let trace_opening_points =
             tracing::debug_span!("compute trace opening points").in_scope(|| {
                 g_subgroups
                     .iter()
@@ -228,33 +228,32 @@ impl<SC: StarkConfig> Prover<SC> {
             });
 
         let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
-        let quotient_openning_points = (0..num_quotient_chunks)
+        let quotient_opening_points = (0..num_quotient_chunks)
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
-        let (openings, openning_proof) =
-            tracing::debug_span!("open multi batches").in_scope(|| {
-                config.pcs().open_multi_batches(
-                    &[
-                        (&main_data.main_data, &trace_openning_points),
-                        (&permutation_data, &trace_openning_points),
-                        (&quotient_data, &quotient_openning_points),
-                    ],
-                    challenger,
-                )
-            });
+        let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
+            config.pcs().open_multi_batches(
+                &[
+                    (&main_data.main_data, &trace_opening_points),
+                    (&permutation_data, &trace_opening_points),
+                    (&quotient_data, &quotient_opening_points),
+                ],
+                challenger,
+            )
+        });
 
-        // Checking the shapes of opennings match our expectations.
+        // Checking the shapes of openings match our expectations.
         //
         // This is a sanity check to make sure we are using the API correctly. We should remove this
         // once everything is stable.
 
         #[cfg(not(feature = "perf"))]
         {
-            // Check for the correct number of openning collections.
+            // Check for the correct number of opening collections.
             assert_eq!(openings.len(), 3);
 
-            // Check the shape of the main trace opennings.
+            // Check the shape of the main trace openings.
             assert_eq!(openings[0].len(), chips.len());
             for (chip, opening) in chips.iter().zip(openings[0].iter()) {
                 let width = chip.air_width();
@@ -262,7 +261,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 assert_eq!(opening[0].len(), width);
                 assert_eq!(opening[1].len(), width);
             }
-            // Check the shape of the permutation trace opennings.
+            // Check the shape of the permutation trace openings.
             assert_eq!(openings[1].len(), chips.len());
             for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
                 let width = perm.width() * SC::Challenge::D;
@@ -270,7 +269,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 assert_eq!(opening[0].len(), width);
                 assert_eq!(opening[1].len(), width);
             }
-            // Check the shape of the quotient opennings.
+            // Check the shape of the quotient openings.
             assert_eq!(openings[2].len(), chips.len());
             for opening in openings[2].iter() {
                 let width = SC::Challenge::D << log_quotient_degree;
@@ -315,7 +314,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 },
                 opened_values,
                 commulative_sums,
-                openning_proof,
+                opening_proof,
                 degree_bits: log_degrees,
             }
         }
