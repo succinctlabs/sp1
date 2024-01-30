@@ -11,7 +11,6 @@ p3-air = { workspace = true }
 p3-matrix = { workspace = true }
 valida-derive = { workspace = true }
 p3-baby-bear = { workspace = true }
-rayon = "1.8.0"
 elf = "0.7.4"
 
 p3-commit = { workspace = true }
@@ -27,7 +26,7 @@ p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
-p3-maybe-rayon = { workspace = true, features = ["parallel"] }
+p3-maybe-rayon = { workspace = true }
 rand = "0.8.5"
 p3-util = { workspace = true }
 itertools = "0.12.0"
@@ -49,7 +48,12 @@ hex = "0.4.3"
 criterion = "0.5.1"
 
 [features]
-perf = []
+perf = ["parallel"]
+parallel = ["p3-maybe-rayon/parallel"]
+default = ["parallel", "perf"]
+debug = ["parallel"]
+debug-proof = ["parallel", "perf"]
+serial = []
 
 [[bench]]
 name = "main"

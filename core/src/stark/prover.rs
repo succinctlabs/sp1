@@ -21,10 +21,9 @@ use p3_util::log2_strict_usize;
 
 use super::folder::ProverConstraintFolder;
 use super::permutation::eval_permutation_constraints;
-use super::types::*;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
-use p3_uni_stark::StarkConfig;
+use super::{types::*, StarkConfig};
 
 pub(crate) struct Prover<SC>(PhantomData<SC>);
 
@@ -60,7 +59,7 @@ impl<SC: StarkConfig> Prover<SC> {
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
         main_data: MainData<SC>,
-    ) -> (SegmentDebugProof<SC>, SegmentProof<SC>)
+    ) -> SegmentProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
@@ -200,17 +199,18 @@ impl<SC: StarkConfig> Prover<SC> {
         }
 
         let num_quotient_chunks = quotient_chunks.len();
-        let coset_shift = tracing::debug_span!("coset shift").in_scope(|| {
-            config
+        let coset_shifts = tracing::debug_span!("coset shift").in_scope(|| {
+            let shift = config
                 .pcs()
                 .coset_shift()
-                .exp_power_of_2(log_quotient_degree)
+                .exp_power_of_2(log_quotient_degree);
+            vec![shift; chips.len()]
         });
         let (quotient_commit, quotient_data) = tracing::debug_span!("commit shifted batches")
             .in_scope(|| {
                 config
                     .pcs()
-                    .commit_shifted_batches(quotient_chunks, coset_shift)
+                    .commit_shifted_batches(quotient_chunks, &coset_shifts)
             });
 
         // Observe the quotient commitments.
@@ -219,7 +219,7 @@ impl<SC: StarkConfig> Prover<SC> {
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
-        let trace_openning_points =
+        let trace_opening_points =
             tracing::debug_span!("compute trace opening points").in_scope(|| {
                 g_subgroups
                     .iter()
@@ -228,33 +228,32 @@ impl<SC: StarkConfig> Prover<SC> {
             });
 
         let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
-        let quotient_openning_points = (0..num_quotient_chunks)
+        let quotient_opening_points = (0..num_quotient_chunks)
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
-        let (openings, openning_proof) =
-            tracing::debug_span!("open multi batches").in_scope(|| {
-                config.pcs().open_multi_batches(
-                    &[
-                        (&main_data.main_data, &trace_openning_points),
-                        (&permutation_data, &trace_openning_points),
-                        (&quotient_data, &quotient_openning_points),
-                    ],
-                    challenger,
-                )
-            });
+        let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
+            config.pcs().open_multi_batches(
+                &[
+                    (&main_data.main_data, &trace_opening_points),
+                    (&permutation_data, &trace_opening_points),
+                    (&quotient_data, &quotient_opening_points),
+                ],
+                challenger,
+            )
+        });
 
-        // Checking the shapes of opennings match our expectations.
+        // Checking the shapes of openings match our expectations.
         //
         // This is a sanity check to make sure we are using the API correctly. We should remove this
         // once everything is stable.
 
         #[cfg(not(feature = "perf"))]
         {
-            // Check for the correct number of openning collections.
+            // Check for the correct number of opening collections.
             assert_eq!(openings.len(), 3);
 
-            // Check the shape of the main trace opennings.
+            // Check the shape of the main trace openings.
             assert_eq!(openings[0].len(), chips.len());
             for (chip, opening) in chips.iter().zip(openings[0].iter()) {
                 let width = chip.air_width();
@@ -262,7 +261,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 assert_eq!(opening[0].len(), width);
                 assert_eq!(opening[1].len(), width);
             }
-            // Check the shape of the permutation trace opennings.
+            // Check the shape of the permutation trace openings.
             assert_eq!(openings[1].len(), chips.len());
             for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
                 let width = perm.width() * SC::Challenge::D;
@@ -270,7 +269,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 assert_eq!(opening[0].len(), width);
                 assert_eq!(opening[1].len(), width);
             }
-            // Check the shape of the quotient opennings.
+            // Check the shape of the quotient openings.
             assert_eq!(openings[2].len(), chips.len());
             for opening in openings[2].iter() {
                 let width = SC::Challenge::D << log_quotient_degree;
@@ -279,42 +278,46 @@ impl<SC: StarkConfig> Prover<SC> {
             }
         }
 
-        // Collect the opened values for each chip.
-        let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
-        let main_opened_values = main_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
-        let permutation_opened_values = permutation_values
-            .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
-            })
-            .collect::<Vec<_>>();
-        let quotient_opened_values = quotient_values
-            .into_iter()
-            .map(|mut op| op.pop().unwrap())
-            .collect::<Vec<_>>();
-        let opened_values = SegmentOpenedValues {
-            main: main_opened_values,
-            permutation: permutation_opened_values,
-            quotient: quotient_opened_values,
-        };
-        let proof = SegmentProof::<SC> {
-            commitment: SegmentCommitment {
-                main_commit: main_data.main_commit.clone(),
-                permutation_commit,
-                quotient_commit,
-            },
-            opened_values,
-            commulative_sums,
-            openning_proof,
-            degree_bits: log_degrees,
-        };
+        #[cfg(feature = "perf")]
+        {
+            // Collect the opened values for each chip.
+            let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
+            let main_opened_values = main_values
+                .into_iter()
+                .map(|op| {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                })
+                .collect::<Vec<_>>();
+            let permutation_opened_values = permutation_values
+                .into_iter()
+                .map(|op| {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                })
+                .collect::<Vec<_>>();
+            let quotient_opened_values = quotient_values
+                .into_iter()
+                .map(|mut op| op.pop().unwrap())
+                .collect::<Vec<_>>();
+            let opened_values = SegmentOpenedValues {
+                main: main_opened_values,
+                permutation: permutation_opened_values,
+                quotient: quotient_opened_values,
+            };
+
+            SegmentProof::<SC> {
+                commitment: SegmentCommitment {
+                    main_commit: main_data.main_commit.clone(),
+                    permutation_commit,
+                    quotient_commit,
+                },
+                opened_values,
+                commulative_sums,
+                opening_proof,
+                degree_bits: log_degrees,
+            }
+        }
 
         // Check that the table-specific constraints are correct for each chip.
         #[cfg(not(feature = "perf"))]
@@ -328,32 +331,32 @@ impl<SC: StarkConfig> Prover<SC> {
                 )
             }
         });
-        (
-            SegmentDebugProof {
-                main_commit: main_data.main_commit.clone(),
-                traces,
-                permutation_traces,
-            },
-            proof,
-        )
+
+        #[cfg(not(feature = "perf"))]
+        return SegmentProof {
+            main_commit: main_data.main_commit.clone(),
+            traces,
+            permutation_traces,
+        };
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn quotient_values<C, Mat>(
+    pub fn quotient_values<C, MainLde, PermLde>(
         config: &SC,
         chip: &C,
         commulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,
-        main_lde: &Mat,
-        permutation_lde: &Mat,
+        main_lde: &MainLde,
+        permutation_lde: &PermLde,
         perm_challenges: &[SC::Challenge],
         alpha: SC::Challenge,
     ) -> Vec<SC::Challenge>
     where
         SC: StarkConfig,
         C: AirChip<SC> + ?Sized,
-        Mat: MatrixGet<SC::Val> + Sync,
+        MainLde: MatrixGet<SC::Val> + Sync,
+        PermLde: MatrixGet<SC::Val> + Sync,
     {
         let degree = 1 << degree_bits;
         let quotient_size_bits = degree_bits + quotient_degree_bits;

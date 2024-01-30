@@ -2,6 +2,7 @@ use p3_air::{Air, BaseAir, TwoRowMatrixView};
 use p3_field::{ExtensionField, Field, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
+mod config;
 pub mod debug;
 pub(crate) mod folder;
 pub(crate) mod permutation;
@@ -12,6 +13,7 @@ pub mod util;
 mod verifier;
 pub mod zerofier_coset;
 
+pub use config::*;
 pub use debug::*;
 pub use verifier::{VerificationError, Verifier};
 

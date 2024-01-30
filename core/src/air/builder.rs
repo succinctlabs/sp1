@@ -1,4 +1,7 @@
-use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
+use p3_air::{AirBuilder, FilteredAirBuilder};
+use p3_uni_stark::{
+    ProverConstraintFolder, StarkConfig, SymbolicAirBuilder, VerifierConstraintFolder,
+};
 
 use super::bool::Bool;
 use super::interaction::AirInteraction;
@@ -8,8 +11,26 @@ use crate::cpu::columns::instruction::InstructionCols;
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
 use crate::cpu::columns::MemoryAccessCols;
 use crate::lookup::InteractionKind;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, Field};
+use p3_uni_stark::check_constraints::DebugConstraintBuilder;
 use std::iter::once;
+
+/// A Builder with the ability to encode the existance of interactions with other AIRs by sending
+/// and receiving messages.
+pub trait MessageBuilder<M> {
+    fn send(&mut self, message: M);
+
+    fn receive(&mut self, message: M);
+}
+
+impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
+    fn send(&mut self, _message: M) {}
+
+    fn receive(&mut self, _message: M) {}
+}
+
+/// A message builder for which sending and receiving messages is a no-op.
+pub trait EmptyMessageBuilder: AirBuilder {}
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
@@ -414,3 +435,21 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder fo
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
+
+impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
+    fn send(&mut self, message: M) {
+        self.inner.send(message);
+    }
+
+    fn receive(&mut self, message: M) {
+        self.inner.receive(message);
+    }
+}
+
+impl<'a, SC: StarkConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
+
+impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
+
+impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
+
+impl<'a, F: Field> EmptyMessageBuilder for DebugConstraintBuilder<'a, F> {}
