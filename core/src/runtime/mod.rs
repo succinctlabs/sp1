@@ -670,6 +670,7 @@ impl Runtime {
                         a = KeccakPermuteChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + KeccakPermuteChip::NUM_CYCLES, self.clk);
+                        println!("keccak");
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
