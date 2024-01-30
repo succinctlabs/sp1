@@ -53,8 +53,7 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 [[package]]
 name = "alloy-primitives"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4b6fb2b432ff223d513db7f908937f63c252bee0af9b82bfd25b0a5dd1eb0d8"
+source = "git+https://github.com/succinctlabs/alloy-core-private?branch=patch-v0.6.2#8884619d9fc0f28344d015752985863afbeaeeba"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -69,7 +68,7 @@ dependencies = [
  "rand",
  "ruint",
  "serde",
- "tiny-keccak",
+ "tiny-keccak 2.0.2 (git+ssh://git@github.com/succinctlabs/tiny-keccak-private.git)",
 ]
 
 [[package]]
@@ -108,7 +107,7 @@ dependencies = [
  "quote",
  "syn 2.0.48",
  "syn-solidity",
- "tiny-keccak",
+ "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1000,7 +999,7 @@ dependencies = [
  "impl-rlp",
  "impl-serde",
  "scale-info",
- "tiny-keccak",
+ "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1042,7 +1041,7 @@ dependencies = [
  "strum",
  "tempfile",
  "thiserror",
- "tiny-keccak",
+ "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-xid",
 ]
 
@@ -3400,6 +3399,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tiny-keccak"
+version = "2.0.2"
+source = "git+ssh://git@github.com/succinctlabs/tiny-keccak-private.git#7ff8a065b9f1414adb60d9aef3859f28705863ea"
+dependencies = [
+ "cfg-if",
+ "crunchy",
+]
+
+[[package]]
 name = "tinyvec"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4104,3 +4112,8 @@ dependencies = [
  "sha3",
  "thiserror",
 ]
+
+[[patch.unused]]
+name = "alloy-primitives"
+version = "0.6.0"
+source = "git+https://github.com/succinctlabs/alloy-core-private?branch=patch-v0.6.0#d1bee667943859badcc5d98d10179ed1ee62c189"
