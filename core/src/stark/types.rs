@@ -54,6 +54,7 @@ impl<SC: StarkConfig> MainData<SC> {
     where
         MainData<SC>: Serialize,
     {
+        println!("file: {:?}", file);
         // let mut gz = GzEncoder::new(&file, Compression::default());
         bincode::serialize_into(&file, self)?;
         // gz.finish()?;
