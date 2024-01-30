@@ -12,7 +12,6 @@ impl std::io::Read for SyscallReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let len = buf.len();
         syscall_read(3, buf.as_mut_ptr(), len);
-        println!("read: {:?}", buf);
         Ok(len)
     }
 }
