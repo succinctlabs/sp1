@@ -705,9 +705,9 @@ impl Runtime {
                                     let (start, depth) =
                                         self.cycle_tracker.get(fn_name).unwrap_or(&(0, 0));
                                     // Leftpad by 2 spaces for each depth.
-                                    let depth_str = (0..*depth).map(|_| "  ").collect::<String>();
+                                    let depth_str = (0..*depth).map(|_| " ").collect::<String>();
                                     log::info!(
-                                        "{}===> {} took {} cycles",
+                                        "{}=> {}: {} cycles",
                                         depth_str,
                                         fn_name,
                                         u32_to_comma_separated(self.global_clk - start)
