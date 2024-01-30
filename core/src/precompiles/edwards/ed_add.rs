@@ -128,6 +128,8 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
             // Decode affine points.
             let p = &event.p;
             let q = &event.q;
+            println!("p: {:?}", BigUint::from_slice(p));
+            println!("q: {:?}", BigUint::from_slice(q));
             let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
             let q = AffinePoint::<E>::from_words_le(q);

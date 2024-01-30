@@ -34,15 +34,7 @@ impl FieldParameters for Secp256k1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 20;
 
     fn modulus() -> BigUint {
-        println!("calculating the modulus");
-        let modulus = BigUint::from_bytes_le(&Self::MODULUS);
-        let modulus2 = BigUint::from_slice(&[
-            0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-            0xFFFFFFFF,
-        ]);
-        println!("modulus:  {:?}", modulus);
-        println!("modulus2: {:?}", modulus2);
-        modulus2
+        BigUint::from_bytes_le(&Self::MODULUS)
     }
 }
 
