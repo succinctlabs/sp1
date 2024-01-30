@@ -1,27 +1,25 @@
 pub mod air;
-mod event;
-mod trace;
+pub mod columns;
+pub mod event;
+pub mod opcode;
+pub mod trace;
 pub mod utils;
 
-use core::borrow::BorrowMut;
+pub use opcode::*;
 
 use alloc::collections::BTreeMap;
-
+use core::borrow::BorrowMut;
 pub use event::ByteLookupEvent;
 use itertools::Itertools;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    bytes::{
-        air::{ByteCols, NUM_BYTE_COLS},
-        trace::NUM_ROWS,
-    },
-    runtime::{Opcode, Segment},
-    utils::Chip,
-};
-
+use self::columns::{ByteCols, NUM_BYTE_COLS};
 use self::utils::shr_carry;
+use crate::bytes::trace::NUM_ROWS;
+
+/// The number of different byte operations.
+pub const NUM_BYTE_OPS: usize = 8;
 
 /// A chip for computing byte operations.
 ///
@@ -32,6 +30,7 @@ pub struct ByteChip<F> {
     //// A map from a byte lookup to the corresponding row it appears in the table and the index of
     /// the result in the array of multiplicities.
     event_map: BTreeMap<ByteLookupEvent, (usize, usize)>,
+
     /// The trace containing the enumeration of all byte operations.
     ///
     /// The rows of the matrix loop over all pairs of bytes and record the results of all byte
@@ -39,52 +38,6 @@ pub struct ByteChip<F> {
     /// of times that result was looked up in the program. The multiplicities are initialized at
     /// zero.
     initial_trace: RowMajorMatrix<F>,
-}
-
-pub const NUM_BYTE_OPS: usize = 8;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ByteOpcode {
-    /// Bitwise AND.
-    AND = 0,
-    /// Bitwise OR.
-    OR = 1,
-    /// Bitwise XOR.
-    XOR = 2,
-    /// Bit-shift Left.
-    ///
-    /// This operation shifts by the first three least significant bits of the second byte.
-    SLL = 3,
-    /// Range check.
-    Range = 4,
-    ShrCarry = 5,
-    /// Byte less than unsigned.
-    LTU = 6,
-    /// The most significant bit of the given byte.
-    MSB = 7,
-}
-
-impl ByteOpcode {
-    pub fn get_all() -> Vec<Self> {
-        let opcodes = vec![
-            ByteOpcode::AND,
-            ByteOpcode::OR,
-            ByteOpcode::XOR,
-            ByteOpcode::SLL,
-            ByteOpcode::Range,
-            ByteOpcode::ShrCarry,
-            ByteOpcode::LTU,
-            ByteOpcode::MSB,
-        ];
-        // Make sure we included all the enum variants.
-        assert_eq!(opcodes.len(), NUM_BYTE_OPS);
-
-        opcodes
-    }
-
-    pub fn to_field<F: Field>(self) -> F {
-        F::from_canonical_u8(self as u8)
-    }
 }
 
 impl<F: Field> ByteChip<F> {
@@ -98,7 +51,7 @@ impl<F: Field> ByteChip<F> {
             RowMajorMatrix::new(vec![F::zero(); NUM_ROWS * NUM_BYTE_COLS], NUM_BYTE_COLS);
 
         // Record all the necessary operations for each byte lookup.
-        let opcodes = ByteOpcode::get_all();
+        let opcodes = ByteOpcode::all();
 
         // Iterate over all options for pairs of bytes `a` and `b`.
         for (row_index, (b, c)) in (0..=u8::MAX).cartesian_product(0..=u8::MAX).enumerate() {
@@ -106,7 +59,7 @@ impl<F: Field> ByteChip<F> {
             let c = c as u8;
             let col: &mut ByteCols<F> = initial_trace.row_mut(row_index).borrow_mut();
 
-            // Set the values of `a` and `b`.
+            // Set the values of `b` and `c`.
             col.b = F::from_canonical_u8(b);
             col.c = F::from_canonical_u8(c);
 
@@ -158,28 +111,6 @@ impl<F: Field> ByteChip<F> {
         Self {
             event_map,
             initial_trace,
-        }
-    }
-}
-
-impl<F: Field> Chip<F> for ByteChip<F> {
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        self.generate_trace_from_events(&segment.byte_lookups)
-    }
-
-    fn name(&self) -> String {
-        "Byte".to_string()
-    }
-}
-
-impl From<Opcode> for ByteOpcode {
-    fn from(value: Opcode) -> Self {
-        match value {
-            Opcode::AND => Self::AND,
-            Opcode::OR => Self::OR,
-            Opcode::XOR => Self::XOR,
-            Opcode::SLL => Self::SLL,
-            _ => panic!("Invalid opcode for ByteChip: {:?}", value),
         }
     }
 }

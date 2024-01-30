@@ -1,11 +1,11 @@
-//! Implementation to check that b * c = product. (no `mod N`, no truncation)
+//! Implementation to check that b * c = product (no `mod N`, no truncation).
 //!
 //! Decompose b, c, product into u8's. Perform the appropriate range checks.
 //!
-//! 1. Use m[i] to denote the convolution (i.e., b[i]c[0] + b[i - 1]c[1] +
-//!    ... + b[1]c[i - 1] + b[0]c[i]).
-//! 2. carry[i]: "overflow" from calculating the i-th term. More
-//!    specifically, carry[i] = floor((m[i] + carry[i - 1]) / 256).
+//! 1. Use m[i] to denote the convolution
+//!     (i.e., b[i]c[0] + b[i - 1]c[1] + ... + b[1]c[i - 1] + b[0]c[i]).
+//! 2. carry[i]: "overflow" from calculating the i-th term. More specifically,
+//!     carry[i] = floor((m[i] + carry[i - 1]) / 256).
 //
 //! local.product[i] = m[i] + carry[i - 1] (mod 256)
 //! <=> local.product[i] = m[i] + carry[i - 1] - 256K for some integer K
@@ -14,15 +14,16 @@
 //
 //! Conveniently, this value of K is equivalent to carry[i].
 //!
-//! Finally, we verify that the result `a` matches the appropriate bits.
-//! (e.g., For MUL, `a` matches the low word of `local.product`)
+//! Finally, we verify that the result `a` matches the appropriate bits (e.g., For MUL, `a` matches
+//! the low word of `local.product`).
 //!
-//! For signed multiplication, we only need to extend the sign from 32 bits
-//! to 64 bits. This is done by sign extending the multiplicands. The actual
-//! multiplication can be done as usual since RISC-V uses two's complement.
-//! More specifically, when the sign is extended, the value "-n" is represented
-//! as (2^64 - n) in the bit representation. Therefore, when multiplied,
-//! unnecessary terms all disappear mod 2^64.
+//! For signed multiplication, we only need to extend the sign from 32 bits to 64 bits. This is done
+//! by sign extending the multiplicands. The actual multiplication can be done as usual since RISC-V
+//! uses two's complement. More specifically, when the sign is extended, the value "-n" is
+//! represented as (2^64 - n) in the bit representation. Therefore, when multiplied, unnecessary
+//! terms all disappear mod 2^64.
+
+mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
@@ -34,19 +35,28 @@ use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
+use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
 
-// The number of digits in the product is at most the sum of the number of
-// digits in the multiplicands.
+/// The number of digits in the product is at most the sum of the number of digits in the
+/// multiplicands.
 const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
 
+/// The number of bits in a byte.
 const BYTE_SIZE: usize = 8;
+
+/// The mask for a byte.
 const BYTE_MASK: u8 = 0xff;
+
+/// A chip that implements addition for the opcodes MUL.
+#[derive(Default)]
+pub struct MulChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug)]
@@ -67,34 +77,39 @@ pub struct MulCols<T> {
     /// `product` stores the actual product of b * c without truncating.
     pub product: [T; PRODUCT_SIZE],
 
+    /// The most significant bit of b.
     pub b_msb: T,
+
+    /// The most significant bit of c.
     pub c_msb: T,
+
+    /// The sign extension of b.
     pub b_sign_extend: T,
+
+    /// The sign extension of c.
     pub c_sign_extend: T,
 
-    pub is_mul: T,    // u32 x u32 (sign doesn't matter)
-    pub is_mulh: T,   // i32 x i32, upper half
-    pub is_mulhu: T,  // u32 x u32, upper half
-    pub is_mulhsu: T, // i32 x u32, upper half
+    /// If the opcode is MUL (u32 x u32).
+    pub is_mul: T,
+
+    /// If the opcode is MULH (i32 x i32, upper half).
+    pub is_mulh: T,
+
+    /// If the opcode is MULHU (u32 x u32, upper half).
+    pub is_mulhu: T,
+
+    /// If the opcode is MULHSU (i32 x u32, upper half).
+    pub is_mulhsu: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 }
 
-/// A chip that implements addition for the opcodes MUL.
-pub struct MulChip;
-
-impl MulChip {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-fn get_msb(a: [u8; WORD_SIZE]) -> u8 {
-    (a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)) & 1
-}
-
 impl<F: PrimeField> Chip<F> for MulChip {
+    fn name(&self) -> String {
+        "Mul".to_string()
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
@@ -121,15 +136,15 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 cols.b_msb = F::from_canonical_u8(b_msb);
                 let c_msb = get_msb(c_word);
                 cols.c_msb = F::from_canonical_u8(c_msb);
-                // Sign extend b and c whenever appropriate.
+
+                // If b is signed and it is negative, sign extend b.
                 if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) && b_msb == 1 {
-                    // b is signed and it is negative. Sign extend b.
                     cols.b_sign_extend = F::one();
                     b.resize(PRODUCT_SIZE, BYTE_MASK);
                 }
 
+                // If c is signed and it is negative, sign extend c.
                 if event.opcode == Opcode::MULH && c_msb == 1 {
-                    // c is signed and it is negative. Sign extend c.
                     cols.c_sign_extend = F::one();
                     c.resize(PRODUCT_SIZE, BYTE_MASK);
                 }
@@ -153,7 +168,6 @@ impl<F: PrimeField> Chip<F> for MulChip {
             }
 
             let mut product = [0u32; PRODUCT_SIZE];
-
             for i in 0..b.len() {
                 for j in 0..c.len() {
                     if i + j < PRODUCT_SIZE {
@@ -162,8 +176,8 @@ impl<F: PrimeField> Chip<F> for MulChip {
                 }
             }
 
-            // Calculate the correct product using the `product` array. We
-            // store the correct carry value for verification.
+            // Calculate the correct product using the `product` array. We store the correct carry
+            // value for verification.
             let base = 1 << BYTE_SIZE;
             let mut carry = [0u32; PRODUCT_SIZE];
             for i in 0..PRODUCT_SIZE {
@@ -202,10 +216,6 @@ impl<F: PrimeField> Chip<F> for MulChip {
         pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
 
         trace
-    }
-
-    fn name(&self) -> String {
-        "Mul".to_string()
     }
 }
 
@@ -353,8 +363,8 @@ where
             for long_word in [local.carry, local.product].iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.range_check_word(Word(first_half), local.is_real);
-                builder.range_check_word(Word(second_half), local.is_real);
+                builder.assert_word(Word(first_half), local.is_real);
+                builder.assert_word(Word(second_half), local.is_real);
             }
         }
 
@@ -394,7 +404,7 @@ mod tests {
             0x80000000,
             0xffff8000,
         )];
-        let chip = MulChip::new();
+        let chip = MulChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -469,7 +479,7 @@ mod tests {
         }
 
         segment.mul_events = mul_events;
-        let chip = MulChip::new();
+        let chip = MulChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

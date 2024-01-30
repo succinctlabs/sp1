@@ -1,4 +1,6 @@
-use crate::runtime::Runtime;
+mod builder;
+
+pub use builder::InteractionBuilder;
 
 use crate::utils::BabyBearPoseidon2;
 use crate::utils::Chip;
@@ -13,11 +15,8 @@ use p3_matrix::Matrix;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fmt::Display;
-mod builder;
 
-pub use builder::InteractionBuilder;
-
-use crate::runtime::Segment;
+use crate::runtime::{Runtime, Segment};
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
@@ -40,16 +39,22 @@ impl<F: Field> Debug for Interaction<F> {
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
     Memory = 1,
+
     /// Interaction with the program table, loading an instruction at a given pc address.
     Program = 2,
+
     /// Interaction with instruction oracle.
     Instruction = 3,
+
     /// Interaction with the ALU operations
     Alu = 4,
+
     /// Interaction with the byte lookup table for byte operations.
     Byte = 5,
+
     /// Requesting a range check for a given value and range.
     Range = 6,
+
     /// Interaction with the field op table for field operations.
     Field = 7,
 }
@@ -69,6 +74,7 @@ impl Display for InteractionKind {
 }
 
 impl<F: Field> Interaction<F> {
+    /// Create a new interaction.
     pub fn new(
         values: Vec<VirtualPairCol<F>>,
         multiplicity: VirtualPairCol<F>,
@@ -81,6 +87,7 @@ impl<F: Field> Interaction<F> {
         }
     }
 
+    /// The index of the argument in the lookup table.
     pub fn argument_index(&self) -> usize {
         self.kind as usize
     }
@@ -140,7 +147,7 @@ pub fn debug_interactions_with_all_chips(
 
     for chip in segment_chips {
         let (_, count) =
-            debug_interactions::<BabyBear>(chip.as_ref(), &mut segment, interaction_kinds.clone());
+            debug_interactions::<BabyBear>(chip.as_chip(), &mut segment, interaction_kinds.clone());
 
         counts.push((count.clone(), chip.name()));
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
@@ -153,7 +160,7 @@ pub fn debug_interactions_with_all_chips(
         let mut global_segment = global_segment.clone();
         for chip in global_chips {
             let (_, count) = debug_interactions::<BabyBear>(
-                chip.as_ref(),
+                chip.as_chip(),
                 &mut global_segment,
                 interaction_kinds.clone(),
             );

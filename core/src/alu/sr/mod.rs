@@ -41,14 +41,12 @@
 //! # inaccurate.
 //! assert a = result[0..WORD_SIZE]
 
+mod utils;
+
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
-
-use crate::bytes::utils::shr_carry;
-use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::disassembler::WORD_SIZE;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -56,10 +54,14 @@ use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
-
+use crate::alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift};
+use crate::bytes::utils::shr_carry;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `ShiftRightChip`.
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 
 /// The number of bytes necessary to represent a 64-bit integer.
@@ -67,6 +69,10 @@ const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
 /// The number of bits in a byte.
 const BYTE_SIZE: usize = 8;
+
+/// A chip that implements bitwise operations for the opcodes SRL and SRA.
+#[derive(Default)]
+pub struct ShiftRightChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug)]
@@ -105,38 +111,21 @@ pub struct ShiftRightCols<T> {
     /// The least significant byte of `c`. Used to verify `shift_by_n_bits` and `shift_by_n_bytes`.
     pub c_least_sig_byte: [T; BYTE_SIZE],
 
-    /// Selector flags for the operation to perform.
+    /// If the opcode is SRL.
     pub is_srl: T,
+
+    /// If the opcode is SRA.
     pub is_sra: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
 }
 
-/// A chip that implements bitwise operations for the opcodes SRL, SRLI, SRA, and SRAI.
-pub struct ShiftRightChip;
-
-impl ShiftRightChip {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-/// Calculate the number of _bytes_ to shift by. Note that we take the least significant 5 bits per
-/// the RISC-V spec.
-fn nb_bytes_to_shift(shift_amount: u32) -> usize {
-    let n = (shift_amount % 32) as usize;
-    n / BYTE_SIZE
-}
-
-/// Calculate the number of _bits_ shift by. Note that we take the least significant 5 bits per the
-/// RISC-V spec.
-fn nb_bits_to_shift(shift_amount: u32) -> usize {
-    let n = (shift_amount % 32) as usize;
-    n % BYTE_SIZE
-}
-
 impl<F: PrimeField> Chip<F> for ShiftRightChip {
+    fn name(&self) -> String {
+        "ShiftRight".to_string()
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_RIGHT_COLS]> = Vec::new();
@@ -274,10 +263,6 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
         }
 
         trace
-    }
-
-    fn name(&self) -> String {
-        "ShiftRight".to_string()
     }
 }
 
@@ -453,8 +438,8 @@ where
             for long_word in long_words.iter() {
                 let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
                 let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.range_check_word(Word(first_half), local.is_real);
-                builder.range_check_word(Word(second_half), local.is_real);
+                builder.assert_word(Word(first_half), local.is_real);
+                builder.assert_word(Word(second_half), local.is_real);
             }
         }
 
@@ -493,7 +478,7 @@ mod tests {
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
-        let chip = ShiftRightChip::new();
+        let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -546,7 +531,7 @@ mod tests {
         }
         let mut segment = Segment::default();
         segment.shift_right_events = shift_events;
-        let chip = ShiftRightChip::new();
+        let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

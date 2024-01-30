@@ -11,6 +11,7 @@ struct ProfileArgs {
     pub program: String,
 }
 
+#[allow(unreachable_code)]
 fn main() {
     #[cfg(feature = "perf")]
     {

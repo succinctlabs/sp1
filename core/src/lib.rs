@@ -6,7 +6,8 @@
     clippy::cast_abs_to_unsigned,
     clippy::needless_range_loop,
     clippy::type_complexity,
-    clippy::unnecessary_unwrap
+    clippy::unnecessary_unwrap,
+    clippy::default_constructed_unit_structs
 )]
 
 pub mod air;

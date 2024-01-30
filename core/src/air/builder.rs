@@ -7,9 +7,9 @@ use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
 use crate::bytes::ByteOpcode;
-use crate::cpu::cols::cpu_cols::MemoryAccessCols;
-use crate::cpu::cols::instruction_cols::InstructionCols;
-use crate::cpu::cols::opcode_cols::OpcodeSelectors;
+use crate::cpu::columns::instruction::InstructionCols;
+use crate::cpu::columns::opcode::OpcodeSelectorCols;
+use crate::cpu::columns::MemoryAccessCols;
 use crate::lookup::InteractionKind;
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::check_constraints::DebugConstraintBuilder;
@@ -39,6 +39,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         self.when(Self::Expr::from(Self::F::one()) - condition.into())
     }
 
+    /// Asserts that an iterator of expressions are all equal.
     fn assert_all_eq<
         I1: Into<Self::Expr>,
         I2: Into<Self::Expr>,
@@ -193,7 +194,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
     }
 
     /// Range checks a word.
-    fn range_check_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    fn assert_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
         input: Word<EWord>,
         mult: EMult,
@@ -365,7 +366,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
         &mut self,
         pc: EPc,
         instruction: InstructionCols<EInst>,
-        selectors: OpcodeSelectors<ESel>,
+        selectors: OpcodeSelectorCols<ESel>,
         multiplicity: EMult,
     ) where
         EPc: Into<Self::Expr>,
@@ -391,7 +392,7 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
         &mut self,
         pc: EPc,
         instruction: InstructionCols<EInst>,
-        selectors: OpcodeSelectors<ESel>,
+        selectors: OpcodeSelectorCols<ESel>,
         multiplicity: EMult,
     ) where
         EPc: Into<Self::Expr>,

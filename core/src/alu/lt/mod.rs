@@ -14,7 +14,12 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::{pad_to_power_of_two, Chip};
 
+/// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
+
+/// A chip that implements bitwise operations for the opcodes SLT and SLTU.
+#[derive(Default)]
+pub struct LtChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default)]
@@ -38,17 +43,20 @@ pub struct LtCols<T> {
     // Boolean flag to indicate whether the sign bits of b and c are equal.
     pub sign_xor: T,
 
-    /// Boolean flag to indicate whether to do an equality check between the bytes. This should be
-    /// true for all bytes smaller than the first byte pair that differs. With LE bytes, this is all
-    /// bytes after the differing byte pair.
+    /// Boolean flag to indicate whether to do an equality check between the bytes.
+    ///
+    /// This should be true for all bytes smaller than the first byte pair that differs. With LE
+    /// bytes, this is all bytes after the differing byte pair.
     pub byte_equality_check: [T; 4],
 
-    // Bit decomposition of 256 + b[i] - c[i], where i is the index of the largest byte pair that
-    // differs. This value is at most 2^9 - 1, so it can be represented as 10 bits.
+    /// Bit decomposition of 256 + b[i] - c[i], where i is the index of the largest byte pair that
+    /// differs. This value is at most 2^9 - 1, so it can be represented as 10 bits.
     pub bits: [T; 10],
 
-    /// Selector flags for the operation to perform.
+    /// If the opcode is SLT.
     pub is_slt: T,
+
+    /// If the opcode is SLTU.
     pub is_sltu: T,
 }
 
@@ -61,15 +69,6 @@ impl LtCols<u32> {
             .try_into()
             .unwrap();
         unsafe { transmute::<[u32; NUM_LT_COLS], LtCols<u32>>(sized) }
-    }
-}
-
-/// A chip that implements bitwise operations for the opcodes SLT and SLTU.
-pub struct LtChip;
-
-impl LtChip {
-    pub fn new() -> Self {
-        Self {}
     }
 }
 
@@ -305,7 +304,7 @@ mod tests {
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
-        let chip = LtChip::new();
+        let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -314,7 +313,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let chip = LtChip::new();
+        let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

@@ -9,6 +9,7 @@ use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
+use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
@@ -30,7 +31,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 16;
+pub const NUM_CHIPS: usize = 17;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -40,20 +41,21 @@ impl Runtime {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
-        let add = AddChip::new();
-        let sub = SubChip::new();
-        let bitwise = BitwiseChip::new();
-        let mul = MulChip::new();
-        let divrem = DivRemChip::new();
-        let shift_right = ShiftRightChip::new();
-        let shift_left = ShiftLeft::new();
-        let lt = LtChip::new();
+        let add = AddChip::default();
+        let sub = SubChip::default();
+        let bitwise = BitwiseChip::default();
+        let mul = MulChip::default();
+        let divrem = DivRemChip::default();
+        let shift_right = ShiftRightChip::default();
+        let shift_left = ShiftLeft::default();
+        let lt = LtChip::default();
         let bytes = ByteChip::<SC::Val>::new();
-        let field = FieldLTUChip::new();
+        let field = FieldLTUChip::default();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
+        let keccak_permute = KeccakPermuteChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -64,6 +66,7 @@ impl Runtime {
             Box::new(sha_compress),
             Box::new(ed_add),
             Box::new(ed_decompress),
+            Box::new(keccak_permute),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),

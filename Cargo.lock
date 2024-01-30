@@ -1353,6 +1353,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-keccak-air"
+version = "0.1.0"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
+dependencies = [
+ "p3-air",
+ "p3-field",
+ "p3-matrix",
+ "p3-util",
+ "tracing",
+]
+
+[[package]]
 name = "p3-ldt"
 version = "0.1.0"
 source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/verifier-2#312bddf96d2d1016acb756044a2712386d0abd89"
@@ -2049,6 +2061,7 @@ dependencies = [
  "p3-fri",
  "p3-goldilocks",
  "p3-keccak",
+ "p3-keccak-air",
  "p3-ldt",
  "p3-matrix",
  "p3-maybe-rayon",
@@ -2782,13 +2795,3 @@ name = "zeroize"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"
-
-[[patch.unused]]
-name = "sha2"
-version = "0.9.8"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
-
-[[patch.unused]]
-name = "time"
-version = "0.3.28"
-source = "git+https://github.com/time-rs/time.git?rev=v0.3.28#bb9b38e4a444f7b5e0648a1bd16e52003e01cfbd"

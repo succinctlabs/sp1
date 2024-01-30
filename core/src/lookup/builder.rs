@@ -6,6 +6,7 @@ use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
 
 use super::Interaction;
 
+/// A builder for the lookup table interactions.
 pub struct InteractionBuilder<F: Field> {
     main: RowMajorMatrix<SymbolicVariable<F>>,
     sends: Vec<Interaction<F>>,
@@ -13,6 +14,7 @@ pub struct InteractionBuilder<F: Field> {
 }
 
 impl<F: Field> InteractionBuilder<F> {
+    /// Creates a new `InteractionBuilder` with the given width.
     pub fn new(width: usize) -> Self {
         let values = [false, true]
             .into_iter()
@@ -27,6 +29,7 @@ impl<F: Field> InteractionBuilder<F> {
         }
     }
 
+    /// Returns the sends and receives.
     pub fn interactions(self) -> (Vec<Interaction<F>>, Vec<Interaction<F>>) {
         (self.sends, self.receives)
     }
@@ -156,12 +159,12 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use p3_air::{Air, BaseAir, VirtualPairCol};
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, Field};
     use p3_matrix::MatrixRowSlices;
 
+    use super::*;
     use crate::{
         air::CurtaAirBuilder,
         lookup::{InteractionBuilder, InteractionKind},

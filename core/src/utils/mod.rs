@@ -12,7 +12,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::cols::cpu_cols::MemoryAccessCols,
+    cpu::columns::MemoryAccessCols,
     lookup::{Interaction, InteractionBuilder},
     operations::field::params::Limbs,
     runtime::Segment,
@@ -59,14 +59,20 @@ pub trait AirChip<SC: StarkConfig>:
     fn air_width(&self) -> usize {
         <Self as BaseAir<SC::Val>>::width(self)
     }
+
+    fn as_chip(&self) -> &dyn Chip<SC::Val>;
 }
 
-impl<SC: StarkConfig, T> AirChip<SC> for T where
+impl<SC: StarkConfig, T> AirChip<SC> for T
+where
     T: Chip<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge, SC::ChallengeAlgebra>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
 {
+    fn as_chip(&self) -> &dyn Chip<SC::Val> {
+        self
+    }
 }
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
