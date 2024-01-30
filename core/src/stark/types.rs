@@ -4,8 +4,6 @@ use std::{
 };
 
 use bincode::{deserialize_from, Error};
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
 use flate2::Compression;
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;

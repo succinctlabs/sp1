@@ -14,6 +14,7 @@ use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
+use crate::utils::u32_to_comma_separated;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -103,7 +104,7 @@ pub struct Runtime {
     pub segment_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: HashMap<String, u32>,
+    pub cycle_tracker: HashMap<String, (u32, u32)>,
 }
 
 impl Runtime {
@@ -691,8 +692,9 @@ impl Runtime {
                                         .unwrap()
                                         .trim_end()
                                         .trim_start();
+                                    let depth = self.cycle_tracker.len() as u32;
                                     self.cycle_tracker
-                                        .insert(fn_name.to_string(), self.global_clk);
+                                        .insert(fn_name.to_string(), (self.global_clk, depth));
                                 } else if s.contains("cycle-tracker-end:") {
                                     let fn_name = s
                                         .split("cycle-tracker-end:")
@@ -700,11 +702,15 @@ impl Runtime {
                                         .unwrap()
                                         .trim_end()
                                         .trim_start();
-                                    let start = self.cycle_tracker.get(fn_name).unwrap_or(&0);
+                                    let (start, depth) =
+                                        self.cycle_tracker.get(fn_name).unwrap_or(&(0, 0));
+                                    // Leftpad by 2 spaces for each depth.
+                                    let depth_str = (0..*depth).map(|_| "  ").collect::<String>();
                                     log::info!(
-                                        "===> {} took {} cycles",
+                                        "{}===> {} took {} cycles",
+                                        depth_str,
                                         fn_name,
-                                        self.global_clk - start
+                                        u32_to_comma_separated(self.global_clk - start)
                                     );
                                 } else {
                                     log::info!("stdout: {}", s.trim_end());
