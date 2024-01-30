@@ -354,7 +354,6 @@ pub mod tests {
     #[test]
     fn test_secp_add_simple() {
         setup_logger();
-        // TODO: This file doesn't exist.
         let program = Program::from_elf("../programs/secp_add");
         prove(program);
     }
