@@ -98,11 +98,14 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     ) {
         // This populates necessary field operations to calculate the addition of two points on a
         // Weierstrass curve.
+
+        // These print out 0's for the padded rows as expected.
         println!("p_x = {}", p_x);
         println!("p_y = {}", p_y);
         println!("q_x = {}", q_x);
         println!("q_y = {}", q_y);
 
+        // Commented out everything except this for debugging.
         let slope_numerator =
             cols.slope_numerator
                 .populate::<E::BaseField>(&q_y, &p_y, FpOperation::Sub);
@@ -240,9 +243,14 @@ where
         let q_x = limbs_from_prev_access(&row.q_access[0..8]);
         let q_y = limbs_from_prev_access(&row.q_access[8..16]);
 
-        // This checks whether p, q, slope_numerators are all 0. This passes if this is for the
-        // padded row. I'm adding this for debugging since for whatever reason, this check passes
-        // (i.e., they are all 0) but the slope_numerator.eval fails for padded rows.
+        // *Printf
+        //
+        // This Secp eval fails even for padded rows, so i'm just double checking everything.
+        //
+        // This checks whether p, q, slope_numerators are all 0.
+        //
+        // This check passes (i.e., they are indeed all 0). And the slope_numerator.eval below fails
+        // for padded rows.
         for i in 0..8 {
             builder
                 .assert_zero(p_x.0[4 * i] + p_x.0[4 * i + 1] + p_x.0[4 * i + 2] + p_x.0[4 * i + 3]);
@@ -259,6 +267,8 @@ where
                     + row.slope_numerator.result.0[4 * i + 3],
             );
         }
+
+        // For whatever reason, this fails! The above check ensures that q_y = p_y = 0.
         row.slope_numerator
             .eval::<AB, E::BaseField, _, _>(builder, &q_y, &p_y, FpOperation::Sub);
 
