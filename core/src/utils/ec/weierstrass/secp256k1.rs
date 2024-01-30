@@ -19,9 +19,6 @@ pub type Secp256k1 = SWCurve<Secp256k1Parameters>;
 pub struct Secp256k1BaseField;
 
 impl FieldParameters for Secp256k1BaseField {
-    // TODO: I think these three constants are correct, I made them match ed25519.
-    //
-    // But I'm not certain.
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
     const NB_LIMBS: usize = NUM_LIMBS;

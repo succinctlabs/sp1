@@ -105,7 +105,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         println!("q_x = {}", q_x);
         println!("q_y = {}", q_y);
 
-        // Slope = (q.y - p.y) / (q.x - p.x).
+        // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             let slope_numerator =
                 cols.slope_numerator
@@ -122,7 +122,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             )
         };
 
-        // x = slope * slope - (p.x + q.x)
+        // x = slope * slope - (p.x + q.x).
         let x = {
             let slope_squared =
                 cols.slope_squared
@@ -134,7 +134,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
                 .populate::<E::BaseField>(&slope_squared, &p_x_plus_q_x, FpOperation::Sub)
         };
 
-        // y = slope * (p.x - x_3n) - p.y
+        // y = slope * (p.x - x_3n) - p.y.
         let y = {
             let p_x_minus_x = cols
                 .p_x_minus_x
@@ -160,8 +160,6 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
-        // This has been copied and pasted from ed_add.rs and I updated this so this is for
-        // Weierstrass curves.
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
@@ -174,8 +172,6 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
             // Decode affine points.
             let p = &event.p;
             let q = &event.q;
-            println!("p = {:?}", p);
-            println!("q = {:?}", q);
             let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
             let q = AffinePoint::<E>::from_words_le(q);
@@ -242,7 +238,7 @@ where
         let q_x = limbs_from_prev_access(&row.q_access[0..8]);
         let q_y = limbs_from_prev_access(&row.q_access[8..16]);
 
-        // Slope = (q.y - p.y) / (q.x - p.x).
+        // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             row.slope_numerator.eval::<AB, E::BaseField, _, _>(
                 builder,
@@ -268,7 +264,7 @@ where
             row.slope.result
         };
 
-        // x = slope * slope - self.x - other.x
+        // x = slope * slope - self.x - other.x.
         let x = {
             row.slope_squared.eval::<AB, E::BaseField, _, _>(
                 builder,
@@ -290,7 +286,7 @@ where
             row.x3_ins.result
         };
 
-        // y = slope * (p.x - x_3n) - q.y
+        // y = slope * (p.x - x_3n) - q.y.
         {
             row.p_x_minus_x
                 .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FpOperation::Sub);
@@ -310,8 +306,8 @@ where
             );
         }
 
-        // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
-        // This is to ensure that p_access is updated with the new value.
+        // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]. This is to
+        // ensure that p_access is updated with the new value.
         for i in 0..NUM_LIMBS {
             builder
                 .when(row.is_real)
