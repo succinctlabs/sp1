@@ -8,8 +8,8 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
+use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
-use std::borrow::Borrow;
 
 impl<F> BaseAir<F> for ShaCompressChip {
     fn width(&self) -> usize {

@@ -1,4 +1,4 @@
-use std::mem::transmute_copy;
+use core::borrow::Borrow;
 
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
@@ -53,7 +53,7 @@ impl CpuChip {
     ) {
         // Get the memory specific columns.
         let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns.as_slice().borrow();
 
         // Compute whether this is a load instruction.
         let is_load = self.is_load_instruction::<AB>(&local.selectors);
@@ -104,7 +104,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns.as_slice().borrow();
 
         let mem_val = *memory_columns.memory_access.value();
 

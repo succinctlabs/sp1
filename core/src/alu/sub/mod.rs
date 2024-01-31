@@ -21,7 +21,7 @@ pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
 pub struct SubChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 pub struct SubCols<T> {
     /// The output operand.
     pub a: Word<T>,

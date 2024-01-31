@@ -72,7 +72,7 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
     }
 }
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryInitCols<T> {
     pub segment: T,

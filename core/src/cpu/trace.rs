@@ -1,4 +1,3 @@
-use core::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use std::borrow::BorrowMut;
@@ -87,7 +86,7 @@ impl CpuChip {
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
 
         let memory_columns: &mut MemoryColumns<F> =
-            unsafe { transmute(&mut cols.opcode_specific_columns) };
+            cols.opcode_specific_columns.as_mut_slice().borrow_mut();
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
@@ -122,7 +121,7 @@ impl CpuChip {
                 | Opcode::SW
         ) {
             let memory_columns: &mut MemoryColumns<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns.as_mut_slice().borrow_mut();
 
             let memory_addr = event.b.wrapping_add(event.c);
             memory_columns.addr_word = memory_addr.into();
@@ -229,7 +228,7 @@ impl CpuChip {
     ) {
         if event.instruction.is_branch_instruction() {
             let branch_columns: &mut BranchCols<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns.as_mut_slice().borrow_mut();
 
             let a_eq_b = event.a == event.b;
 
@@ -324,7 +323,7 @@ impl CpuChip {
     ) {
         if event.instruction.is_jump_instruction() {
             let jump_columns: &mut JumpCols<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns.as_mut_slice().borrow_mut();
 
             match event.instruction.opcode {
                 Opcode::JAL => {
@@ -375,7 +374,7 @@ impl CpuChip {
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
             let auipc_columns: &mut AUIPCCols<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns.as_mut_slice().borrow_mut();
 
             auipc_columns.pc = event.pc.into();
 

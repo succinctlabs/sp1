@@ -14,7 +14,6 @@ use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
-use std::mem::transmute_copy;
 
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {
@@ -105,7 +104,7 @@ where
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns.as_slice().borrow();
 
         builder.constraint_memory_access(
             local.segment,
@@ -184,8 +183,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the jump specific columns
-        let jump_columns: JumpCols<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+        let jump_columns: JumpCols<AB::Var> = *local.opcode_specific_columns.as_slice().borrow();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
@@ -230,8 +228,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         // Get the auipc specific columns
-        let auipc_columns: AUIPCCols<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+        let auipc_columns: AUIPCCols<AB::Var> = *local.opcode_specific_columns.as_slice().borrow();
 
         // Verify that the word form of local.pc is correct.
         builder

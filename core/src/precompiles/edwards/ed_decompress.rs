@@ -269,7 +269,7 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
         for i in 0..segment.ed_decompress_events.len() {
             let event = segment.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate::<E::BaseField, E>(event, segment);
 
             rows.push(row);
@@ -277,7 +277,7 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             cols.populate_fp_ops::<E::BaseField, E>(&zero);
             row

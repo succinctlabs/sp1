@@ -1,6 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
@@ -22,7 +21,7 @@ pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 pub struct LtChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
     /// The output operand.
@@ -68,7 +67,7 @@ impl LtCols<u32> {
             .collect::<Vec<u32>>()
             .try_into()
             .unwrap();
-        unsafe { transmute::<[u32; NUM_LT_COLS], LtCols<u32>>(sized) }
+        *sized.as_slice().borrow()
     }
 }
 

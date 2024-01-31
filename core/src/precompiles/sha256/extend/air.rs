@@ -6,9 +6,9 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
 };
+use core::borrow::Borrow;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
-use std::borrow::Borrow;
 
 impl<F> BaseAir<F> for ShaExtendChip {
     fn width(&self) -> usize {

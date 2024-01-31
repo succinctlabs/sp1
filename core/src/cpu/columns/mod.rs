@@ -64,7 +64,7 @@ pub struct AUIPCCols<T> {
 }
 
 /// An AIR table for memory accesses.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CpuCols<T> {
     /// The current segment.
@@ -165,7 +165,8 @@ impl CpuCols<u32> {
             .collect::<Vec<u32>>()
             .try_into()
             .unwrap();
-        unsafe { transmute::<[u32; NUM_CPU_COLS], CpuCols<u32>>(sized) }
+
+        *sized.as_slice().borrow()
     }
 }
 

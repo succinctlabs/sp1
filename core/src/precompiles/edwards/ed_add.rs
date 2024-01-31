@@ -125,7 +125,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         for i in 0..segment.ed_add_events.len() {
             let event = segment.ed_add_events[i];
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
             let p = &event.p;
@@ -160,7 +160,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row

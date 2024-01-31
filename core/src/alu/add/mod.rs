@@ -20,7 +20,7 @@ pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
 pub struct AddChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddCols<T> {
     /// Instance of `AddOperation` to handle addition logic in `AddChip`'s ALU operations.
