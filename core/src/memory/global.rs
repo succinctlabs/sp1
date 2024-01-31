@@ -51,7 +51,7 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
             .map(|i| {
                 let (addr, record, multiplicity) = memory_record[i];
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-                let cols: &mut MemoryInitCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
                 cols.segment = F::from_canonical_u32(record.segment);
                 cols.timestamp = F::from_canonical_u32(record.timestamp);
