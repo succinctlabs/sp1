@@ -335,7 +335,7 @@ pub mod tests {
     #[test]
     fn test_ed_add_simple() {
         setup_logger();
-        let file = File::open("../zethinput.bin").unwrap();
+        let file = File::open("../zethinput2.bin").unwrap();
         let input: Input<EthereumTxEssence> = bincode::deserialize_from(file).unwrap();
 
         let program = Program::from_elf("../programs/zeth");

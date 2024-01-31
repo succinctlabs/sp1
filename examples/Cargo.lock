@@ -4078,7 +4078,7 @@ dependencies = [
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#210de41e0648805f2f5b162dbfa4d6daa2afb01f"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#71cb529c299a12ae42f8afc1db0e218b03c3b3b8"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -4104,7 +4104,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#210de41e0648805f2f5b162dbfa4d6daa2afb01f"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#71cb529c299a12ae42f8afc1db0e218b03c3b3b8"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
