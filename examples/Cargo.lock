@@ -1528,6 +1528,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1_double"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "num",
+ "succinct-zkvm",
+]
+
+[[package]]
 name = "secp_add"
 version = "0.1.0"
 dependencies = [

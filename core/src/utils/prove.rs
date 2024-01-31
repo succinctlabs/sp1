@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use crate::{
+    lookup::{debug_interactions_with_all_chips, InteractionKind},
     runtime::{Program, Runtime},
     stark::StarkConfig,
 };
@@ -39,6 +40,22 @@ pub fn prove(program: Program) {
 }
 
 pub fn prove_core(runtime: &mut Runtime) {
+    tracing::info_span!("debug interactions with all chips").in_scope(|| {
+        debug_interactions_with_all_chips(
+            &runtime.segment,
+            Some(&runtime.global_segment),
+            vec![
+                InteractionKind::Field,
+                InteractionKind::Range,
+                InteractionKind::Byte,
+                InteractionKind::Alu,
+                InteractionKind::Memory,
+                InteractionKind::Program,
+                InteractionKind::Instruction,
+            ],
+        );
+    });
+
     let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
 
@@ -53,23 +70,6 @@ pub fn prove_core(runtime: &mut Runtime) {
     runtime
         .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
         .unwrap();
-
-    #[cfg(not(feature = "perf"))]
-    tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(
-            &mut runtime.segment,
-            Some(&mut runtime.global_segment),
-            vec![
-                InteractionKind::Field,
-                InteractionKind::Range,
-                InteractionKind::Byte,
-                InteractionKind::Alu,
-                InteractionKind::Memory,
-                InteractionKind::Program,
-                InteractionKind::Instruction,
-            ],
-        );
-    });
 
     let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();

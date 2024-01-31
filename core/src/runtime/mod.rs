@@ -12,6 +12,7 @@ use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
+use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -742,6 +743,21 @@ impl Runtime {
                         assert_eq!(
                             init_clk
                                 + WeierstrassAddAssignChip::<
+                                    SWCurve<Secp256k1Parameters>,
+                                    Secp256k1Parameters,
+                                >::NUM_CYCLES,
+                            self.clk
+                        );
+                    }
+                    Syscall::SECP256K1_DOUBLE => {
+                        a = WeierstrassDoubleAssignChip::<
+                            SWCurve<Secp256k1Parameters>,
+                            Secp256k1Parameters,
+                        >::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(
+                            init_clk
+                                + WeierstrassDoubleAssignChip::<
                                     SWCurve<Secp256k1Parameters>,
                                     Secp256k1Parameters,
                                 >::NUM_CYCLES,
