@@ -14,6 +14,9 @@ use succinct_core::utils::StarkUtils;
 struct ProverArgs {
     #[arg(long)]
     pub program: String,
+
+    #[arg(long)]
+    pub proof_directory: String,
 }
 
 fn main() {
@@ -35,7 +38,7 @@ fn main() {
         runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
 
     // Attempt to create the directory
-    let directory_name = "proofs";
+    let directory_name = args.proof_directory.as_str();
     match fs::create_dir(directory_name) {
         Ok(_) => (),
         Err(e) => {
@@ -66,9 +69,9 @@ fn main() {
         }
     }
 
-    // // Verify the proof.
-    // let mut challenger = config.challenger();
-    // runtime
-    //     .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
-    //     .unwrap();
+    // Verify the proof.
+    let mut challenger = config.challenger();
+    runtime
+        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
+        .unwrap();
 }

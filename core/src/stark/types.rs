@@ -86,7 +86,7 @@ impl<'de, SC: StarkConfig> Deserialize<'de> for SegmentProof<SC> {
         // Define how the struct should be deserialized
         struct SegmentProofVisitor<SC> {
             _phantom: std::marker::PhantomData<SC>,
-        };
+        }
 
         impl<'de, SC: StarkConfig> serde::de::Visitor<'de> for SegmentProofVisitor<SC> {
             type Value = SegmentProof<SC>;
