@@ -296,6 +296,7 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::utils;
     use crate::utils::prove;
 
     #[test]
@@ -313,14 +314,23 @@ pub mod tests {
     #[test]
     fn test_shift_prove() {
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+            (u32::MAX, 0),
+        ];
         for shift_op in shift_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*shift_op, 31, 29, 3, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for op in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
+                    Instruction::new(*shift_op, 31, 29, 3, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
@@ -349,14 +359,24 @@ pub mod tests {
     #[test]
     fn test_mul_prove() {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
+        utils::setup_logger();
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (8765, 4321),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+        ];
         for mul_op in mul_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*mul_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for operand in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, operand.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, operand.1, false, true),
+                    Instruction::new(*mul_op, 31, 30, 29, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
@@ -392,14 +412,23 @@ pub mod tests {
     #[test]
     fn test_divrem_prove() {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        let operands = [
+            (1, 1),
+            (123, 456 * 789),
+            (123 * 456, 789),
+            (0xffff * (0xffff - 1), 0xffff),
+            (u32::MAX - 5, u32::MAX - 7),
+        ];
         for div_rem_op in div_rem_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*div_rem_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for op in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
+                    Instruction::new(*div_rem_op, 31, 29, 30, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 

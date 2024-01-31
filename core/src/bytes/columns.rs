@@ -39,5 +39,8 @@ pub struct ByteCols<T> {
     /// The most significant bit of `b`.
     pub msb: T,
 
+    /// A u16 value used for `U16Range`.
+    pub value_u16: T,
+
     pub multiplicities: [T; NUM_BYTE_OPS],
 }

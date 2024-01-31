@@ -157,9 +157,9 @@ impl<F: PrimeField> Chip<F> for MulChip {
                         let most_significant_byte = word[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
                             opcode: ByteOpcode::MSB,
-                            a1: get_msb(*word),
+                            a1: get_msb(*word) as u32,
                             a2: 0,
-                            b: most_significant_byte,
+                            b: most_significant_byte as u32,
                             c: 0,
                         });
                     }
@@ -201,8 +201,8 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
             // Range check.
             {
-                segment.add_byte_range_checks(&carry.map(|x| x as u8));
-                segment.add_byte_range_checks(&product.map(|x| x as u8));
+                segment.add_u16_range_checks(&carry);
+                segment.add_u8_range_checks(&product.map(|x| x as u8));
             }
 
             rows.push(row);
@@ -360,12 +360,12 @@ where
 
         // Range check.
         {
-            for long_word in [local.carry, local.product].iter() {
-                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
-                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.assert_word(Word(first_half), local.is_real);
-                builder.assert_word(Word(second_half), local.is_real);
-            }
+            // Ensure that the carry is at most 2^16. This ensures that
+            // product_before_carry_propagation - carry * base + last_carry never overflows or
+            // underflows enough to "wrap" around to create a second solution.
+            builder.slice_range_check_u16(&local.carry, local.is_real);
+
+            builder.slice_range_check_u8(&local.product, local.is_real);
         }
 
         // Receive the arguments.
