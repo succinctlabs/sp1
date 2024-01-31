@@ -695,7 +695,7 @@ impl Runtime {
                                     self.cycle_tracker
                                         .insert(fn_name.to_string(), (self.global_clk, depth));
                                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                                    log::info!("{}┌ {}", padding, fn_name);
+                                    log::info!("{}┌╴{}", padding, fn_name);
                                 } else if s.contains("cycle-tracker-end:") {
                                     let fn_name = s
                                         .split("cycle-tracker-end:")
@@ -708,7 +708,7 @@ impl Runtime {
                                     // Leftpad by 2 spaces for each depth.
                                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
                                     log::info!(
-                                        "{}└ {} cycles",
+                                        "{}└╴{} cycles",
                                         padding,
                                         u32_to_comma_separated(self.global_clk - start)
                                     );
