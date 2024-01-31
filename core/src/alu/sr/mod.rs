@@ -155,9 +155,9 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
                 segment.add_byte_lookup_events(vec![ByteLookupEvent {
                     opcode: ByteOpcode::MSB,
-                    a1: (most_significant_byte >> 7) & 1,
+                    a1: ((most_significant_byte >> 7) & 1) as u32,
                     a2: 0,
-                    b: most_significant_byte,
+                    b: most_significant_byte as u32,
                     c: 0,
                 }]);
             }
@@ -203,10 +203,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
 
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::ShrCarry,
-                        a1: shift,
-                        a2: carry,
-                        b: byte_shift_result[i],
-                        c: num_bits_to_shift as u8,
+                        a1: shift as u32,
+                        a2: carry as u32,
+                        b: byte_shift_result[i] as u32,
+                        c: num_bits_to_shift as u32,
                     };
                     segment
                         .byte_lookups
@@ -228,10 +228,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                segment.add_byte_range_checks(&byte_shift_result);
-                segment.add_byte_range_checks(&bit_shift_result);
-                segment.add_byte_range_checks(&shr_carry_output_carry);
-                segment.add_byte_range_checks(&shr_carry_output_shifted_byte);
+                segment.add_u8_range_checks(&byte_shift_result);
+                segment.add_u8_range_checks(&bit_shift_result);
+                segment.add_u8_range_checks(&shr_carry_output_carry);
+                segment.add_u8_range_checks(&shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
@@ -436,10 +436,7 @@ where
             ];
 
             for long_word in long_words.iter() {
-                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
-                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.assert_word(Word(first_half), local.is_real);
-                builder.assert_word(Word(second_half), local.is_real);
+                builder.slice_range_check_u8(long_word, local.is_real);
             }
         }
 

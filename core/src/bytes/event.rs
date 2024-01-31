@@ -7,21 +7,21 @@ pub struct ByteLookupEvent {
     pub opcode: ByteOpcode,
 
     /// The first output operand.
-    pub a1: u8,
+    pub a1: u32,
 
     /// The second output operand.
-    pub a2: u8,
+    pub a2: u32,
 
     /// The first input operand.
-    pub b: u8,
+    pub b: u32,
 
     /// The second input operand.
-    pub c: u8,
+    pub c: u32,
 }
 
 impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
-    pub fn new(opcode: ByteOpcode, a1: u8, a2: u8, b: u8, c: u8) -> Self {
+    pub fn new(opcode: ByteOpcode, a1: u32, a2: u32, b: u32, c: u32) -> Self {
         Self {
             opcode,
             a1,
