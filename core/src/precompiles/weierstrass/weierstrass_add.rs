@@ -307,14 +307,14 @@ where
         builder.constraint_memory_access_slice(
             row.segment,
             row.clk.into(), // clk + 0 -> Memory
-            row.q_ptr.into(),
+            row.q_ptr,
             &row.q_access,
             row.is_real,
         );
         builder.constraint_memory_access_slice(
             row.segment,
             row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
-            row.p_ptr.into(),
+            row.p_ptr,
             &row.p_access,
             row.is_real,
         );
