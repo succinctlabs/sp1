@@ -49,6 +49,7 @@ pub struct MemoryAccessCols<T> {
     pub current_time_value: T,
 }
 
+/// The common columns for all memory access types.
 pub trait MemoryCols<T> {
     fn access(&self) -> &MemoryAccessCols<T>;
 
