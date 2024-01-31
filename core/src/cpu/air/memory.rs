@@ -4,7 +4,7 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
+use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols, NUM_MEMORY_COLUMNS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::runtime::Opcode;
@@ -53,7 +53,7 @@ impl CpuChip {
     ) {
         // Get the memory specific columns.
         let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns.as_slice().borrow();
+            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
 
         // Compute whether this is a load instruction.
         let is_load = self.is_load_instruction::<AB>(&local.selectors);
@@ -104,7 +104,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns.as_slice().borrow();
+            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
 
         let mem_val = *memory_columns.memory_access.value();
 

@@ -15,6 +15,7 @@ use crate::{
     memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols},
 };
 
+pub(crate) const NUM_MEMORY_COLUMNS: usize = size_of::<MemoryColumns<u8>>();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryColumns<T> {
@@ -39,6 +40,8 @@ pub struct MemoryColumns<T> {
     pub most_sig_byte_decomp: [T; 8],
 }
 
+pub(crate) const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BranchCols<T> {
@@ -50,6 +53,8 @@ pub struct BranchCols<T> {
     pub a_lt_b: T,
 }
 
+pub(crate) const NUM_JUMP_COLS: usize = size_of::<JumpCols<u8>>();
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct JumpCols<T> {
@@ -57,10 +62,46 @@ pub struct JumpCols<T> {
     pub next_pc: Word<T>,
 }
 
+pub(crate) const NUM_AUIPC_COLS: usize = size_of::<AUIPCCols<u8>>();
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct AUIPCCols<T> {
     pub pc: Word<T>,
+}
+
+pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
+
+pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
+const fn make_col_map() -> CpuCols<usize> {
+    let indices_arr = indices_arr::<NUM_CPU_COLS>();
+    unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_columns_offset();
+// This is a constant function, so we can't have it dynamically return the largest opcode specific
+// struct size.
+const fn get_opcode_specific_columns_offset() -> usize {
+    let memory_columns_size = size_of::<MemoryColumns<u8>>();
+    let branch_columns_size = NUM_BRANCH_COLS;
+    let jump_columns_size = NUM_JUMP_COLS;
+    let aui_pc_columns_size = NUM_AUIPC_COLS;
+
+    let return_val = memory_columns_size;
+
+    if branch_columns_size > return_val {
+        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    if jump_columns_size > return_val {
+        panic!("JumpColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    if aui_pc_columns_size > return_val {
+        panic!("AUIPCColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    return_val
 }
 
 /// An AIR table for memory accesses.
@@ -121,40 +162,6 @@ pub struct CpuCols<T> {
     // unsigned_mem_val is the memory value after the offset logic is applied.  This is used for
     // load memory opcodes (LB, LH, LW, LBU, LHU).
     pub unsigned_mem_val: Word<T>,
-}
-
-pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
-
-pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
-const fn make_col_map() -> CpuCols<usize> {
-    let indices_arr = indices_arr::<NUM_CPU_COLS>();
-    unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
-}
-
-pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_columns_offset();
-// This is a constant function, so we can't have it dynamically return the largest opcode specific
-// struct size.
-const fn get_opcode_specific_columns_offset() -> usize {
-    let memory_columns_size = size_of::<MemoryColumns<u8>>();
-    let branch_columns_size = size_of::<BranchCols<u8>>();
-    let jump_columns_size = size_of::<JumpCols<u8>>();
-    let aui_pc_columns_size = size_of::<AUIPCCols<u8>>();
-
-    let return_val = memory_columns_size;
-
-    if branch_columns_size > return_val {
-        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    if jump_columns_size > return_val {
-        panic!("JumpColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    if aui_pc_columns_size > return_val {
-        panic!("AUIPCColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    return_val
 }
 
 impl CpuCols<u32> {

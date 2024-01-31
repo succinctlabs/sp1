@@ -15,6 +15,8 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
+use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
+
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {
         NUM_CPU_COLS
@@ -104,7 +106,7 @@ where
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns.as_slice().borrow();
+            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
 
         builder.constraint_memory_access(
             local.segment,
@@ -183,7 +185,8 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the jump specific columns
-        let jump_columns: JumpCols<AB::Var> = *local.opcode_specific_columns.as_slice().borrow();
+        let jump_columns: JumpCols<AB::Var> =
+            *local.opcode_specific_columns[..NUM_JUMP_COLS].borrow();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
@@ -228,7 +231,8 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         // Get the auipc specific columns
-        let auipc_columns: AUIPCCols<AB::Var> = *local.opcode_specific_columns.as_slice().borrow();
+        let auipc_columns: AUIPCCols<AB::Var> =
+            *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();
 
         // Verify that the word form of local.pc is correct.
         builder
