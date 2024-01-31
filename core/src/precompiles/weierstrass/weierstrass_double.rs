@@ -147,9 +147,6 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E,
                 &p_y,
                 FpOperation::Sub,
             );
-            //TODO: Remove this before opening a PR. This looks correct.
-            println!("[double x] exp: 8956...6597, got = {}", x);
-            println!("[double y] exp = 1215...3930, got = {}", y);
         }
     }
 }
@@ -176,12 +173,6 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
             let p = &event.p;
             let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
-
-            // TODO: Remove this.
-            // It looks like that the inputs are indeed correct.
-            println!("ensure that the input is correct!");
-            println!("p_x: {}", p_x);
-            println!("p_y: {}", p_y);
 
             // Populate basic columns.
             cols.is_real = F::one();
