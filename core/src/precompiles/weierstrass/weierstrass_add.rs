@@ -139,7 +139,6 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
             cols.y3_ins
                 .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
         };
-        tracing::debug!("Weierstrass addition result: ({}, {})", x, y);
     }
 }
 
