@@ -71,10 +71,6 @@ pub fn prove_core(runtime: &mut Runtime) {
         );
     });
 
-    tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
-    });
-
     let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();
     tracing::info!(
