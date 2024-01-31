@@ -331,9 +331,9 @@ pub mod tests {
     };
 
     #[test]
-    fn test_secp_add_simple() {
+    fn test_secp256k1_add_simple() {
         setup_logger();
-        let program = Program::from_elf("../programs/secp_add");
+        let program = Program::from_elf("../programs/secp256k1_add");
         prove(program);
     }
 }

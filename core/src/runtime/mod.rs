@@ -734,7 +734,7 @@ impl Runtime {
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
                     }
-                    Syscall::SECP_ADD => {
+                    Syscall::SECP256K1_ADD => {
                         a = WeierstrassAddAssignChip::<
                             SWCurve<Secp256k1Parameters>,
                             Secp256k1Parameters,

@@ -1528,7 +1528,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "secp256k1_double"
+name = "secp256k1_add"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
@@ -1537,7 +1537,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "secp_add"
+name = "secp256k1_double"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
