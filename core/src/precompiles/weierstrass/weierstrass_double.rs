@@ -160,8 +160,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         for i in 0..segment.weierstrass_double_events.len() {
             let event = segment.weierstrass_double_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-            let cols: &mut WeierstrassDoubleAssignCols<F> =
-                unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
             let p = &event.p;
@@ -187,8 +186,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-            let cols: &mut WeierstrassDoubleAssignCols<F> =
-                unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_fp_ops(cols, zero.clone(), zero.clone());
             row
