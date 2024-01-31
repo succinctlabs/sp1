@@ -1,4 +1,9 @@
+#![no_main]
+
+extern crate succinct_zkvm;
+
 use std::fs;
+use std::hint::black_box;
 
 use clap::{command, Parser};
 use serde_json;
@@ -8,6 +13,8 @@ use succinct_core::stark::types::SegmentProof;
 use succinct_core::utils::BabyBearPoseidon2;
 use succinct_core::utils::StarkUtils;
 
+succinct_zkvm::entrypoint!(main);
+
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Profile a program.")]
 struct VerifierArgs {
@@ -16,6 +23,19 @@ struct VerifierArgs {
 
     #[arg(long)]
     pub proof_directory: String,
+}
+
+#[succinct_derive::cycle_tracker]
+fn verify<F, P, const WIDTH: usize>(
+    runtime: &mut Runtime,
+    config: &BabyBearPoseidon2,
+    challenger: &mut DuplexChallenger<BabyBear, P, WIDTH>,
+    segment_proofs: &[SegmentProof<BabyBearPoseidon2>],
+    global_proof: &GlobalProof<BabyBearPoseidon2>,
+) {
+    runtime
+        .verify::<_, _, BabyBearPoseidon2>(&config, challenger, &segment_proofs, &global_proof)
+        .unwrap();
 }
 
 fn main() {
@@ -40,7 +60,11 @@ fn main() {
 
     let program = Program::from_elf(args.program.as_str());
     let mut runtime = Runtime::new(program);
-    runtime
-        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
-        .unwrap();
+    verify(
+        &mut runtime,
+        &config,
+        &mut challenger,
+        &segment_proofs,
+        &global_proof,
+    );
 }
