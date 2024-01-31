@@ -12,8 +12,8 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::columns::MemoryCols,
     lookup::{Interaction, InteractionBuilder},
+    memory::MemoryCols,
     operations::field::params::Limbs,
     runtime::Segment,
     stark::{

@@ -4,7 +4,7 @@ use p3_field::AbstractField;
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::MemoryCols;
+use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };

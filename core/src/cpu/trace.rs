@@ -8,10 +8,11 @@ use super::{CpuChip, CpuEvent};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::columns::{CpuCols, MemoryCols, MemoryColumns};
+use crate::cpu::columns::{CpuCols, MemoryColumns};
 use crate::cpu::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
+use crate::memory::MemoryCols;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 

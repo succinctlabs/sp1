@@ -1,7 +1,8 @@
-use crate::cpu::columns::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::field::event::FieldEvent;
 use p3_field::Field;
+
+use super::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
 
 impl<F: Field> MemoryWriteCols<F> {
     pub fn populate(&mut self, record: MemoryWriteRecord, new_field_events: &mut Vec<FieldEvent>) {

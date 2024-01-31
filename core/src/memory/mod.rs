@@ -13,6 +13,11 @@ use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use valida_derive::AlignedBorrow;
 
+mod columns;
+pub mod trace;
+
+pub use columns::*;
+
 #[derive(PartialEq)]
 pub enum MemoryChipKind {
     Init,

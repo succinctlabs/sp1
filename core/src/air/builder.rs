@@ -9,7 +9,7 @@ use super::word::Word;
 use crate::cpu::columns::instruction::InstructionCols;
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
-use crate::{bytes::ByteOpcode, cpu::columns::MemoryCols};
+use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::check_constraints::DebugConstraintBuilder;
 use std::iter::once;

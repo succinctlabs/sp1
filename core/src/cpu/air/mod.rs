@@ -5,6 +5,7 @@ use crate::air::{CurtaAirBuilder, WordAirBuilder};
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::{AccessPosition, Opcode};
 
 use core::borrow::Borrow;
@@ -14,8 +15,6 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use std::mem::transmute_copy;
-
-use super::columns::MemoryCols;
 
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {

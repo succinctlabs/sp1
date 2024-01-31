@@ -1,10 +1,10 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::WORD_SIZE;
-use crate::cpu::columns::MemoryReadCols;
-use crate::cpu::columns::MemoryWriteCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
+use crate::memory::MemoryReadCols;
+use crate::memory::MemoryWriteCols;
 use crate::operations::field::ed_sqrt::EdSqrtCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;

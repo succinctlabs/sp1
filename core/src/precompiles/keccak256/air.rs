@@ -7,7 +7,7 @@ use p3_matrix::MatrixRowSlices;
 
 use crate::{
     air::{CurtaAirBuilder, SubAirBuilder},
-    cpu::columns::MemoryCols,
+    memory::MemoryCols,
 };
 
 use super::{

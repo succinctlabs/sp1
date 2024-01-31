@@ -4,8 +4,9 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuCols, MemoryCols, MemoryColumns, OpcodeSelectorCols};
+use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::Opcode;
 
 impl CpuChip {
