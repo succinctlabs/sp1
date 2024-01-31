@@ -1,5 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -46,7 +46,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
         for i in 0..segment.add_events.len() {
             let mut row = [F::zero(); NUM_ADD_COLS];
-            let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
             let event = segment.add_events[i];
             cols.add_operation.populate(segment, event.b, event.c);
             cols.b = Word::from(event.b);

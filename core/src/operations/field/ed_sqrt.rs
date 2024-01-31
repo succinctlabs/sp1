@@ -84,7 +84,7 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
     use core::borrow::{Borrow, BorrowMut};
-    use core::mem::{size_of, transmute};
+    use core::mem::size_of;
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
@@ -137,7 +137,7 @@ mod tests {
                 .iter()
                 .map(|a| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F> = unsafe { transmute(&mut row) };
+                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F>(a);
                     cols.sqrt.populate::<P>(a);
                     row

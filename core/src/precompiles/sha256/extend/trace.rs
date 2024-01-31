@@ -1,4 +1,4 @@
-use std::mem::transmute;
+use std::borrow::BorrowMut;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -17,7 +17,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             let event = segment.sha_extend_events[i];
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-                let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.populate_flags(j);
                 cols.segment = F::from_canonical_u32(SEGMENT_NUM);
@@ -80,7 +80,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         }
         for i in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate_flags(i);
             rows.push(row);
         }

@@ -1,6 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -53,7 +52,7 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
             .iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
-                let cols: &mut BitwiseCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();

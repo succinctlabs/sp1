@@ -7,7 +7,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
-use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -48,7 +47,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_SUB_COLS];
-                let cols: &mut SubCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut SubCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();

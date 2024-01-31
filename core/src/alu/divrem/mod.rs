@@ -63,7 +63,7 @@
 mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -196,7 +196,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     || event.opcode == Opcode::DIV
             );
             let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
 
             // Initialize cols with basic operands and flags derived from the current event.
             {
@@ -371,7 +371,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
             // 0 divided by 1. quotient = remainder = 0.
             cols.is_divu = F::one();
             cols.c[0] = F::one();

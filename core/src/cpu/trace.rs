@@ -1,6 +1,7 @@
 use core::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 use super::columns::{AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_CPU_COLS};
@@ -61,7 +62,7 @@ impl CpuChip {
         new_field_events: &mut Vec<FieldEvent>,
     ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
-        let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
+        let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
         cols.segment = F::from_canonical_u32(event.segment);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
