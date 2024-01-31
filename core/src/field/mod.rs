@@ -2,12 +2,11 @@ pub mod event;
 
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
+use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use std::mem::size_of;
-use std::mem::transmute;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
@@ -56,7 +55,7 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
             .iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
-                let cols: &mut FieldLTUCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
                 let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
                 cols.b = F::from_canonical_u32(event.b);
                 cols.c = F::from_canonical_u32(event.c);

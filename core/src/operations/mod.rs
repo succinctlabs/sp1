@@ -14,7 +14,6 @@ mod fixed_shift_right;
 mod is_equal_word;
 mod is_zero;
 mod is_zero_word;
-mod memory;
 mod not;
 mod or;
 mod xor;

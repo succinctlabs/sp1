@@ -5,7 +5,7 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
-use crate::cpu::columns::MemoryAccessCols;
+use crate::memory::MemoryReadWriteCols;
 use crate::operations::Add5Operation;
 use crate::operations::AddOperation;
 use crate::operations::AndOperation;
@@ -15,7 +15,7 @@ use crate::operations::XorOperation;
 
 pub const NUM_SHA_COMPRESS_COLS: usize = size_of::<ShaCompressCols<u8>>();
 
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShaCompressCols<T> {
     /// Inputs.
@@ -32,7 +32,7 @@ pub struct ShaCompressCols<T> {
     // The last octet is for finalize.
     pub octet_num: [T; 10],
 
-    pub mem: MemoryAccessCols<T>,
+    pub mem: MemoryReadWriteCols<T>,
     pub mem_addr: T,
 
     pub a: Word<T>,
