@@ -17,6 +17,10 @@ pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;
 pub const COMPRESSED_POINT_BYTES: usize = 32;
 
+/// Number of words needed to represent a point on an elliptic curve. This is twice the number of
+/// words needed to represent a field element as a point consists of the x and y coordinates.
+pub const NUM_WORDS_EC_POINT: usize = 2 * NUM_WORDS_FIELD_ELEMENT;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffinePoint<E> {
     pub x: BigUint,
