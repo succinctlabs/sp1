@@ -1,7 +1,6 @@
 use std::fs;
 
 use clap::{command, Parser};
-use serde_json;
 use std::process::exit;
 use succinct_core::runtime::Program;
 use succinct_core::runtime::Runtime;

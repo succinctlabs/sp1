@@ -2981,10 +2981,17 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "log",
+ "p3-baby-bear",
+ "p3-challenger",
+ "p3-commit",
+ "p3-field",
+ "p3-matrix",
+ "p3-symmetric",
  "rand",
  "serde",
  "serde_json",
  "succinct-core",
+ "succinct-derive",
  "succinct-zkvm",
 ]
 
