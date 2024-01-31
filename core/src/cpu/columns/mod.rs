@@ -29,12 +29,24 @@ pub struct MemoryAccessCols<T> {
 
     // This will be true if the current segment == prev_access's segment, else false.
     pub use_clk_comparison: T,
-
-    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_segment
-    pub prev_time_value: T,
     // This materialized column is equal to use_clk_comparison ? current_clk : current_segment
     pub current_time_value: T,
 }
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryReadCols<T> {
+    pub access: MemoryAccessCols<T>,
+    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_segment
+    pub prev_time_value: T,
+}
+
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryWriteCols<T> {
+    pub access: MemoryAccessCols<T>,
+}
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryColumns<T> {
