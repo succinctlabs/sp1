@@ -174,9 +174,6 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> E
     let result_affine = E::ec_double(&p_affine);
     let result_words = result_affine.to_words_le();
 
-    println!("result x: {:?}", result_affine.x);
-    println!("result y: {:?}", result_affine.y);
-
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
 
     rt.clk += 4;
