@@ -1,5 +1,4 @@
 use core::mem::transmute;
-use core::panic;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use std::collections::HashMap;
@@ -77,13 +76,9 @@ impl CpuChip {
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access.populate(record, new_field_events)
-        } else {
-            panic!("Expected a read record for op_b");
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access.populate(record, new_field_events)
-        } else {
-            panic!("Expected a read record for op_c");
         }
 
         // If there is a memory record, then event.memory should be set and vice-versa.
@@ -214,11 +209,11 @@ impl CpuChip {
             let addr_bytes = memory_addr.to_le_bytes();
             for byte_pair in addr_bytes.chunks_exact(2) {
                 new_blu_events.push(ByteLookupEvent {
-                    opcode: ByteOpcode::Range,
+                    opcode: ByteOpcode::U8Range,
                     a1: 0,
                     a2: 0,
-                    b: byte_pair[0],
-                    c: byte_pair[1],
+                    b: byte_pair[0] as u32,
+                    c: byte_pair[1] as u32,
                 });
             }
         }

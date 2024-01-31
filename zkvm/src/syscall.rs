@@ -24,6 +24,9 @@ pub const ED_DECOMPRESS: u32 = 105;
 /// Executes `KECCAK_PERMUTE`.
 pub const KECCAK_PERMUTE: u32 = 106;
 
+/// Executes `SECP_ADD`.
+pub const SECP_ADD: u32 = 107;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -187,6 +190,24 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
                 in("a0") p,
             );
         }
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+/// Adds two Secp256k1 points. The result is stored in the first point.
+pub extern "C" fn syscall_secp_add(p: *mut u32, q: *mut u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") SECP_ADD,
+            in("a0") p,
+            in("a1") q
+        );
     }
 
     #[cfg(not(target_os = "zkvm"))]

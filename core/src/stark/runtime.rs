@@ -11,11 +11,14 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
+use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 
@@ -31,7 +34,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 17;
+pub const NUM_CHIPS: usize = 18;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -56,6 +59,8 @@ impl Runtime {
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
         let keccak_permute = KeccakPermuteChip::new();
+        let weierstrass_add =
+            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -66,6 +71,7 @@ impl Runtime {
             Box::new(sha_compress),
             Box::new(ed_add),
             Box::new(ed_decompress),
+            Box::new(weierstrass_add),
             Box::new(keccak_permute),
             Box::new(add),
             Box::new(sub),
@@ -296,7 +302,9 @@ pub mod tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
+    use crate::utils;
     use crate::utils::prove;
+    use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
@@ -313,14 +321,23 @@ pub mod tests {
     #[test]
     fn test_shift_prove() {
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+            (u32::MAX, 0),
+        ];
         for shift_op in shift_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*shift_op, 31, 29, 3, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for op in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
+                    Instruction::new(*shift_op, 31, 29, 3, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
@@ -337,6 +354,7 @@ pub mod tests {
 
     #[test]
     fn test_add_prove() {
+        setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
@@ -349,14 +367,24 @@ pub mod tests {
     #[test]
     fn test_mul_prove() {
         let mul_ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU];
+        utils::setup_logger();
+        let operands = [
+            (1, 1),
+            (1234, 5678),
+            (8765, 4321),
+            (0xffff, 0xffff - 1),
+            (u32::MAX - 1, u32::MAX),
+        ];
         for mul_op in mul_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*mul_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for operand in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, operand.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, operand.1, false, true),
+                    Instruction::new(*mul_op, 31, 30, 29, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
@@ -392,14 +420,23 @@ pub mod tests {
     #[test]
     fn test_divrem_prove() {
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
+        let operands = [
+            (1, 1),
+            (123, 456 * 789),
+            (123 * 456, 789),
+            (0xffff * (0xffff - 1), 0xffff),
+            (u32::MAX - 5, u32::MAX - 7),
+        ];
         for div_rem_op in div_rem_ops.iter() {
-            let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
-                Instruction::new(*div_rem_op, 31, 30, 29, false, false),
-            ];
-            let program = Program::new(instructions, 0, 0);
-            prove(program);
+            for op in operands.iter() {
+                let instructions = vec![
+                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
+                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
+                    Instruction::new(*div_rem_op, 31, 29, 30, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                prove(program);
+            }
         }
     }
 
