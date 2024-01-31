@@ -45,7 +45,6 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -75,7 +74,7 @@ const BYTE_SIZE: usize = 8;
 pub struct ShiftRightChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
     /// The output operand.
@@ -133,7 +132,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
         for event in sr_events.iter() {
             assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-            let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
             // Initialize cols with basic operands and flags derived from the current event.
             {
                 cols.a = Word::from(event.a);
@@ -250,7 +249,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
         // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-            let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
             // Shift 0 by 0 bits and 0 bytes.
             // cols.is_srl = F::one();
             cols.shift_by_n_bits[0] = F::one();

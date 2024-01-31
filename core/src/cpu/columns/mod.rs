@@ -10,31 +10,12 @@ use p3_util::indices_arr;
 use std::mem::{size_of, transmute};
 use valida_derive::AlignedBorrow;
 
-use crate::air::Word;
+use crate::{
+    air::Word,
+    memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols},
+};
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct MemoryAccessCols<T> {
-    pub value: Word<T>,
-    pub prev_value: Word<T>,
-
-    // The previous segment and timestamp that this memory access is being read from.
-    pub prev_segment: T,
-    pub prev_clk: T,
-
-    // The three columns below are helper/materialized columns used to verify that this memory access is
-    // after the last one.  Specifically, it verifies that the current clk value > timestsamp (if
-    // this access's segment == prev_access's segment) or that the current segment > segment.
-    // These columns will need to be verified in the air.
-
-    // This will be true if the current segment == prev_access's segment, else false.
-    pub use_clk_comparison: T,
-
-    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_segment
-    pub prev_time_value: T,
-    // This materialized column is equal to use_clk_comparison ? current_clk : current_segment
-    pub current_time_value: T,
-}
+pub(crate) const NUM_MEMORY_COLUMNS: usize = size_of::<MemoryColumns<u8>>();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryColumns<T> {
@@ -48,7 +29,7 @@ pub struct MemoryColumns<T> {
     pub addr_word: Word<T>,
     pub addr_aligned: T,
     pub addr_offset: T,
-    pub memory_access: MemoryAccessCols<T>,
+    pub memory_access: MemoryReadWriteCols<T>,
 
     pub offset_is_one: T,
     pub offset_is_two: T,
@@ -58,6 +39,8 @@ pub struct MemoryColumns<T> {
     // the sign for that value (used for LB and LH).
     pub most_sig_byte_decomp: [T; 8],
 }
+
+pub(crate) const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -70,6 +53,8 @@ pub struct BranchCols<T> {
     pub a_lt_b: T,
 }
 
+pub(crate) const NUM_JUMP_COLS: usize = size_of::<JumpCols<u8>>();
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct JumpCols<T> {
@@ -77,14 +62,50 @@ pub struct JumpCols<T> {
     pub next_pc: Word<T>,
 }
 
+pub(crate) const NUM_AUIPC_COLS: usize = size_of::<AUIPCCols<u8>>();
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct AUIPCCols<T> {
     pub pc: Word<T>,
 }
 
+pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
+
+pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
+const fn make_col_map() -> CpuCols<usize> {
+    let indices_arr = indices_arr::<NUM_CPU_COLS>();
+    unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_columns_offset();
+// This is a constant function, so we can't have it dynamically return the largest opcode specific
+// struct size.
+const fn get_opcode_specific_columns_offset() -> usize {
+    let memory_columns_size = size_of::<MemoryColumns<u8>>();
+    let branch_columns_size = NUM_BRANCH_COLS;
+    let jump_columns_size = NUM_JUMP_COLS;
+    let aui_pc_columns_size = NUM_AUIPC_COLS;
+
+    let return_val = memory_columns_size;
+
+    if branch_columns_size > return_val {
+        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    if jump_columns_size > return_val {
+        panic!("JumpColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    if aui_pc_columns_size > return_val {
+        panic!("AUIPCColumns is too large to fit in the opcode_specific_columns array.");
+    }
+
+    return_val
+}
+
 /// An AIR table for memory accesses.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CpuCols<T> {
     /// The current segment.
@@ -100,9 +121,9 @@ pub struct CpuCols<T> {
     pub selectors: OpcodeSelectorCols<T>,
 
     // Operand values, either from registers or immediate values.
-    pub op_a_access: MemoryAccessCols<T>,
-    pub op_b_access: MemoryAccessCols<T>,
-    pub op_c_access: MemoryAccessCols<T>,
+    pub op_a_access: MemoryReadWriteCols<T>,
+    pub op_b_access: MemoryReadCols<T>,
+    pub op_c_access: MemoryReadCols<T>,
 
     // This is transmuted to MemoryColumns, BranchColumns, JumpColumns, or AUIPCColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
@@ -143,40 +164,6 @@ pub struct CpuCols<T> {
     pub unsigned_mem_val: Word<T>,
 }
 
-pub(crate) const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
-
-pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
-const fn make_col_map() -> CpuCols<usize> {
-    let indices_arr = indices_arr::<NUM_CPU_COLS>();
-    unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
-}
-
-pub(crate) const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = get_opcode_specific_columns_offset();
-// This is a constant function, so we can't have it dynamically return the largest opcode specific
-// struct size.
-const fn get_opcode_specific_columns_offset() -> usize {
-    let memory_columns_size = size_of::<MemoryColumns<u8>>();
-    let branch_columns_size = size_of::<BranchCols<u8>>();
-    let jump_columns_size = size_of::<JumpCols<u8>>();
-    let aui_pc_columns_size = size_of::<AUIPCCols<u8>>();
-
-    let return_val = memory_columns_size;
-
-    if branch_columns_size > return_val {
-        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    if jump_columns_size > return_val {
-        panic!("JumpColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    if aui_pc_columns_size > return_val {
-        panic!("AUIPCColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    return_val
-}
-
 impl CpuCols<u32> {
     pub fn from_trace_row<F: PrimeField32>(row: &[F]) -> Self {
         let sized: [u32; NUM_CPU_COLS] = row
@@ -185,20 +172,21 @@ impl CpuCols<u32> {
             .collect::<Vec<u32>>()
             .try_into()
             .unwrap();
-        unsafe { transmute::<[u32; NUM_CPU_COLS], CpuCols<u32>>(sized) }
+
+        *sized.as_slice().borrow()
     }
 }
 
 impl<T: Clone> CpuCols<T> {
     pub fn op_a_val(&self) -> Word<T> {
-        self.op_a_access.value.clone()
+        self.op_a_access.value().clone()
     }
 
     pub fn op_b_val(&self) -> Word<T> {
-        self.op_b_access.value.clone()
+        self.op_b_access.value().clone()
     }
 
     pub fn op_c_val(&self) -> Word<T> {
-        self.op_c_access.value.clone()
+        self.op_c_access.value().clone()
     }
 }

@@ -5,6 +5,7 @@ use crate::air::{CurtaAirBuilder, WordAirBuilder};
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::{AccessPosition, Opcode};
 
 use core::borrow::Borrow;
@@ -13,7 +14,8 @@ use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
-use std::mem::transmute_copy;
+
+use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
 
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {
@@ -70,7 +72,7 @@ where
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
             local.instruction.op_a[0],
-            local.op_a_access,
+            &local.op_a_access,
             AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
         );
 
@@ -85,32 +87,32 @@ where
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
             local.instruction.op_b[0],
-            local.op_b_access,
+            &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
         builder
             .when(AB::Expr::one() - local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), local.op_b_access.prev_value);
+            .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.constraint_memory_access(
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
             local.instruction.op_c[0],
-            local.op_c_access,
+            &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
         builder
             .when(AB::Expr::one() - local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), local.op_c_access.prev_value);
+            .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
 
         builder.constraint_memory_access(
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
             memory_columns.addr_aligned,
-            memory_columns.memory_access,
+            &memory_columns.memory_access,
             is_memory_instruction.clone(),
         );
 
@@ -184,7 +186,7 @@ impl CpuChip {
     ) {
         // Get the jump specific columns
         let jump_columns: JumpCols<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns[..NUM_JUMP_COLS].borrow();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
@@ -230,7 +232,7 @@ impl CpuChip {
     ) {
         // Get the auipc specific columns
         let auipc_columns: AUIPCCols<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();
 
         // Verify that the word form of local.pc is correct.
         builder

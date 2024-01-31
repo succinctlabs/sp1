@@ -14,7 +14,8 @@ use super::CurtaAirBuilder;
 pub const WORD_SIZE: usize = 4;
 
 /// A word is a 32-bit value represented in an AIR.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, AlignedBorrow)]
+#[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[repr(C)]
 pub struct Word<T>(pub [T; WORD_SIZE]);
 
 impl<T> Word<T> {
