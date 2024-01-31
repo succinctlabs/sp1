@@ -1,5 +1,7 @@
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::MemoryAccessCols;
+use crate::cpu::columns::MemoryCols;
+use crate::cpu::columns::MemoryReadCols;
+use crate::cpu::columns::MemoryWriteCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::fp_den::FpDenCols;
@@ -56,9 +58,9 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryAccessCols<T>,
-    pub p_access: [MemoryAccessCols<T>; 16],
-    pub q_access: [MemoryAccessCols<T>; 16],
+    pub q_ptr_access: MemoryReadCols<T>,
+    pub p_access: [MemoryWriteCols<T>; 16],
+    pub q_access: [MemoryReadCols<T>; 16],
     pub(crate) x3_numerator: FpInnerProductCols<T>,
     pub(crate) y3_numerator: FpInnerProductCols<T>,
     pub(crate) x1_mul_y1: FpOpCols<T>,
@@ -198,13 +200,13 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
             // Populate the memory access columns.
             for i in 0..16 {
-                cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
+                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
             }
             for i in 0..16 {
-                cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
             }
             cols.q_ptr_access
-                .populate_read(event.q_ptr_record, &mut new_field_events);
+                .populate(event.q_ptr_record, &mut new_field_events);
 
             rows.push(row);
         }
@@ -287,17 +289,17 @@ where
         for i in 0..NUM_LIMBS {
             builder
                 .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
             builder
                 .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
+                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
         builder.constraint_memory_access(
             row.segment,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(11),
-            row.q_ptr_access,
+            &row.q_ptr_access,
             row.is_real,
         );
         for i in 0..16 {
@@ -305,7 +307,7 @@ where
                 row.segment,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
-                row.q_access[i as usize],
+                &row.q_access[i as usize],
                 row.is_real,
             );
         }
@@ -314,7 +316,7 @@ where
                 row.segment,
                 row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
-                row.p_access[i as usize],
+                &row.p_access[i as usize],
                 row.is_real,
             );
         }

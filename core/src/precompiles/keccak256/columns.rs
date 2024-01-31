@@ -4,7 +4,7 @@ use core::mem::{offset_of, size_of};
 use p3_keccak_air::KeccakCols as P3KeccakCols;
 use valida_derive::AlignedBorrow;
 
-use crate::cpu::columns::MemoryAccessCols;
+use crate::cpu::columns::MemoryReadWriteCols;
 
 use super::STATE_NUM_WORDS;
 
@@ -16,7 +16,7 @@ pub(crate) struct KeccakCols<T> {
     pub segment: T,
     pub clk: T,
 
-    pub state_mem: [MemoryAccessCols<T>; STATE_NUM_WORDS],
+    pub state_mem: [MemoryReadWriteCols<T>; STATE_NUM_WORDS],
     pub state_addr: T,
 
     pub do_memory_check: T,

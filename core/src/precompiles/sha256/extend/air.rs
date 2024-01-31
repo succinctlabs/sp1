@@ -2,6 +2,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::air::{BaseAirBuilder, CurtaAirBuilder};
+use crate::cpu::columns::MemoryCols;
 use crate::operations::{
     Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
 };
@@ -50,7 +51,7 @@ where
             local.segment,
             local.clk + (local.i - i_start) * nb_cycles_per_extend,
             local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * nb_bytes_in_word,
-            local.w_i_minus_15,
+            &local.w_i_minus_15,
             local.is_real,
         );
 
@@ -59,7 +60,7 @@ where
             local.segment,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(4),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * nb_bytes_in_word,
-            local.w_i_minus_2,
+            &local.w_i_minus_2,
             local.is_real,
         );
 
@@ -68,7 +69,7 @@ where
             local.segment,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(8),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * nb_bytes_in_word,
-            local.w_i_minus_16,
+            &local.w_i_minus_16,
             local.is_real,
         );
 
@@ -77,28 +78,28 @@ where
             local.segment,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(12),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * nb_bytes_in_word,
-            local.w_i_minus_7,
+            &local.w_i_minus_7,
             local.is_real,
         );
 
         // Compute `s0`.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
-            local.w_i_minus_15.value,
+            *local.w_i_minus_15.value(),
             7,
             local.w_i_minus_15_rr_7,
             local.is_real,
         );
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
-            local.w_i_minus_15.value,
+            *local.w_i_minus_15.value(),
             18,
             local.w_i_minus_15_rr_18,
             local.is_real,
         );
         FixedShiftRightOperation::<AB::F>::eval(
             builder,
-            local.w_i_minus_15.value,
+            *local.w_i_minus_15.value(),
             3,
             local.w_i_minus_15_rs_3,
             local.is_real,
@@ -121,21 +122,21 @@ where
         // Compute `s1`.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
-            local.w_i_minus_2.value,
+            *local.w_i_minus_2.value(),
             17,
             local.w_i_minus_2_rr_17,
             local.is_real,
         );
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
-            local.w_i_minus_2.value,
+            *local.w_i_minus_2.value(),
             19,
             local.w_i_minus_2_rr_19,
             local.is_real,
         );
         FixedShiftRightOperation::<AB::F>::eval(
             builder,
-            local.w_i_minus_2.value,
+            *local.w_i_minus_2.value(),
             10,
             local.w_i_minus_2_rs_10,
             local.is_real,
@@ -158,9 +159,9 @@ where
         // Compute `s2`.
         Add4Operation::<AB::F>::eval(
             builder,
-            local.w_i_minus_16.value,
+            *local.w_i_minus_16.value(),
             local.s0.value,
-            local.w_i_minus_7.value,
+            *local.w_i_minus_7.value(),
             local.s1.value,
             local.is_real,
             local.s2,
@@ -171,7 +172,7 @@ where
             local.segment,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(16),
             local.w_ptr + local.i * nb_bytes_in_word,
-            local.w_i,
+            &local.w_i,
             local.is_real,
         );
     }

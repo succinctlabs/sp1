@@ -3,7 +3,7 @@ use std::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, runtime::Segment, utils::Chip};
+use crate::{air::Word, cpu::columns::MemoryCols, runtime::Segment, utils::Chip};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -48,15 +48,16 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.f = v[5];
                 cols.g = v[6];
                 cols.h = v[7];
+
                 match j {
-                    0 => cols.a = cols.mem.value,
-                    1 => cols.b = cols.mem.value,
-                    2 => cols.c = cols.mem.value,
-                    3 => cols.d = cols.mem.value,
-                    4 => cols.e = cols.mem.value,
-                    5 => cols.f = cols.mem.value,
-                    6 => cols.g = cols.mem.value,
-                    7 => cols.h = cols.mem.value,
+                    0 => cols.a = *cols.mem.value(),
+                    1 => cols.b = *cols.mem.value(),
+                    2 => cols.c = *cols.mem.value(),
+                    3 => cols.d = *cols.mem.value(),
+                    4 => cols.e = *cols.mem.value(),
+                    5 => cols.f = *cols.mem.value(),
+                    6 => cols.g = *cols.mem.value(),
+                    7 => cols.h = *cols.mem.value(),
                     _ => panic!("unsupported j"),
                 };
 

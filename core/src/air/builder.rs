@@ -6,11 +6,10 @@ use p3_uni_stark::{
 use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
-use crate::bytes::ByteOpcode;
 use crate::cpu::columns::instruction::InstructionCols;
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
-use crate::cpu::columns::MemoryAccessCols;
 use crate::lookup::InteractionKind;
+use crate::{bytes::ByteOpcode, cpu::columns::MemoryCols};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::check_constraints::DebugConstraintBuilder;
 use std::iter::once;
@@ -273,30 +272,33 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
-    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify>(
+    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify, M>(
         &mut self,
         segment: ESegment,
         clk: EClk,
         addr: Ea,
-        memory_access: MemoryAccessCols<Eb>,
+        memory_access: &M,
         verify_memory_access: EVerify,
     ) where
         ESegment: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
+        Eb: Into<Self::Expr> + Clone,
         EVerify: Into<Self::Expr>,
+        M: MemoryCols<Eb>,
     {
         let verify_memory_access_expr: Self::Expr = verify_memory_access.into();
         self.assert_bool(verify_memory_access_expr.clone());
 
+        let access = memory_access.access();
+
         //// Check that this memory access occurs after the previous one.
         // First check if we need to compare between the segment or the clk.
-        let use_clk_comparison_expr: Self::Expr = memory_access.use_clk_comparison.into();
+        let use_clk_comparison_expr: Self::Expr = access.use_clk_comparison.clone().into();
         let current_segment_expr: Self::Expr = segment.into();
-        let prev_segment_expr: Self::Expr = memory_access.prev_segment.into();
+        let prev_segment_expr: Self::Expr = access.prev_segment.clone().into();
         let current_clk_expr: Self::Expr = clk.into();
-        let prev_clk_expr: Self::Expr = memory_access.prev_clk.into();
+        let prev_clk_expr: Self::Expr = access.prev_clk.clone().into();
 
         self.when(verify_memory_access_expr.clone())
             .assert_bool(use_clk_comparison_expr.clone());
@@ -312,8 +314,8 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             * current_clk_expr.clone()
             + (one.clone() - use_clk_comparison_expr.clone()) * current_segment_expr.clone();
 
-        let prev_time_value_expr: Self::Expr = memory_access.prev_time_value.into();
-        let current_time_value_expr: Self::Expr = memory_access.current_time_value.into();
+        let prev_time_value_expr: Self::Expr = access.prev_time_value.clone().into();
+        let current_time_value_expr: Self::Expr = access.current_time_value.clone().into();
         self.when(verify_memory_access_expr.clone())
             .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
 
@@ -335,12 +337,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let prev_values = once(prev_segment_expr)
             .chain(once(prev_clk_expr))
             .chain(once(addr_expr.clone()))
-            .chain(memory_access.prev_value.map(Into::into))
+            .chain(memory_access.prev_value().clone().map(Into::into))
             .collect();
         let current_values = once(current_segment_expr)
             .chain(once(current_clk_expr))
             .chain(once(addr_expr.clone()))
-            .chain(memory_access.value.map(Into::into))
+            .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
         // The previous values get sent with multiplicity * 1, for "read".

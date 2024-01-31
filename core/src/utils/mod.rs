@@ -12,7 +12,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::columns::MemoryAccessCols,
+    cpu::columns::MemoryCols,
     lookup::{Interaction, InteractionBuilder},
     operations::field::params::Limbs,
     runtime::Segment,
@@ -94,10 +94,10 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
-pub fn limbs_from_prev_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
     let vec = cols
         .iter()
-        .flat_map(|access| access.prev_value.0)
+        .flat_map(|access| access.prev_value().0)
         .collect::<Vec<T>>();
 
     let sized = vec
@@ -106,10 +106,10 @@ pub fn limbs_from_prev_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T>
     Limbs(sized)
 }
 
-pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+pub fn limbs_from_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
     let vec = cols
         .iter()
-        .flat_map(|access| access.value.0)
+        .flat_map(|access| access.value().0)
         .collect::<Vec<T>>();
 
     let sized = vec

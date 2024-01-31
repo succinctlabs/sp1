@@ -1,4 +1,5 @@
 use core::mem::transmute;
+use core::panic;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use std::collections::HashMap;
@@ -8,7 +9,8 @@ use super::{CpuChip, CpuEvent};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::columns::{CpuCols, MemoryColumns};
+use crate::cpu::columns::{CpuCols, MemoryCols, MemoryColumns};
+use crate::cpu::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::runtime::{Opcode, Segment};
@@ -67,17 +69,21 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        cols.op_a_access.value = event.a.into();
-        cols.op_b_access.value = event.b.into();
-        cols.op_c_access.value = event.c.into();
+        *cols.op_a_access.value_mut() = event.a.into();
+        *cols.op_b_access.value_mut() = event.b.into();
+        *cols.op_c_access.value_mut() = event.c.into();
         if let Some(record) = event.a_record {
             cols.op_a_access.populate(record, new_field_events)
         }
-        if let Some(record) = event.b_record {
+        if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access.populate(record, new_field_events)
+        } else {
+            panic!("Expected a read record for op_b");
         }
-        if let Some(record) = event.c_record {
+        if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access.populate(record, new_field_events)
+        } else {
+            panic!("Expected a read record for op_c");
         }
 
         // If there is a memory record, then event.memory should be set and vice-versa.

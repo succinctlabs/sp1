@@ -1,9 +1,44 @@
-use crate::cpu::columns::MemoryAccessCols;
+use crate::cpu::columns::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::field::event::FieldEvent;
 use p3_field::Field;
 
-impl<F: Field> MemoryAccessCols<F> {
+impl<F: Field> MemoryWriteCols<F> {
+    pub fn populate(&mut self, record: MemoryWriteRecord, new_field_events: &mut Vec<FieldEvent>) {
+        let current_record = MemoryRecord {
+            value: record.value,
+            segment: record.segment,
+            timestamp: record.timestamp,
+        };
+        let prev_record = MemoryRecord {
+            value: record.prev_value,
+            segment: record.prev_segment,
+            timestamp: record.prev_timestamp,
+        };
+        self.prev_value = prev_record.value.into();
+        self.access
+            .populate_access(current_record, prev_record, new_field_events);
+    }
+}
+
+impl<F: Field> MemoryReadCols<F> {
+    pub fn populate(&mut self, record: MemoryReadRecord, new_field_events: &mut Vec<FieldEvent>) {
+        let current_record = MemoryRecord {
+            value: record.value,
+            segment: record.segment,
+            timestamp: record.timestamp,
+        };
+        let prev_record = MemoryRecord {
+            value: record.value,
+            segment: record.prev_segment,
+            timestamp: record.prev_timestamp,
+        };
+        self.access
+            .populate_access(current_record, prev_record, new_field_events);
+    }
+}
+
+impl<F: Field> MemoryReadWriteCols<F> {
     pub fn populate(&mut self, record: MemoryRecordEnum, new_field_events: &mut Vec<FieldEvent>) {
         match record {
             MemoryRecordEnum::Read(read_record) => {
@@ -13,6 +48,26 @@ impl<F: Field> MemoryAccessCols<F> {
                 self.populate_write(write_record, new_field_events);
             }
         }
+    }
+
+    pub fn populate_write(
+        &mut self,
+        record: MemoryWriteRecord,
+        new_field_events: &mut Vec<FieldEvent>,
+    ) {
+        let current_record = MemoryRecord {
+            value: record.value,
+            segment: record.segment,
+            timestamp: record.timestamp,
+        };
+        let prev_record = MemoryRecord {
+            value: record.prev_value,
+            segment: record.prev_segment,
+            timestamp: record.prev_timestamp,
+        };
+        self.prev_value = prev_record.value.into();
+        self.access
+            .populate_access(current_record, prev_record, new_field_events);
     }
 
     pub fn populate_read(
@@ -30,26 +85,59 @@ impl<F: Field> MemoryAccessCols<F> {
             segment: record.prev_segment,
             timestamp: record.prev_timestamp,
         };
-        self.populate_access(current_record, prev_record, new_field_events);
+        self.prev_value = prev_record.value.into();
+        self.access
+            .populate_access(current_record, prev_record, new_field_events);
     }
+}
 
-    pub fn populate_write(
-        &mut self,
-        write_record: MemoryWriteRecord,
-        new_field_events: &mut Vec<FieldEvent>,
-    ) {
-        let current_record = MemoryRecord {
-            value: write_record.value,
-            segment: write_record.segment,
-            timestamp: write_record.timestamp,
-        };
-        let prev_record = MemoryRecord {
-            value: write_record.prev_value,
-            segment: write_record.prev_segment,
-            timestamp: write_record.prev_timestamp,
-        };
-        self.populate_access(current_record, prev_record, new_field_events);
-    }
+impl<F: Field> MemoryAccessCols<F> {
+    // pub fn populate(&mut self, record: MemoryRecordEnum, new_field_events: &mut Vec<FieldEvent>) {
+    //     match record {
+    //         MemoryRecordEnum::Read(read_record) => {
+    //             self.populate_read(read_record, new_field_events);
+    //         }
+    //         MemoryRecordEnum::Write(write_record) => {
+    //             self.populate_write(write_record, new_field_events);
+    //         }
+    //     }
+    // }
+
+    // pub fn populate_read(
+    //     &mut self,
+    //     record: MemoryReadRecord,
+    //     new_field_events: &mut Vec<FieldEvent>,
+    // ) {
+    //     let current_record = MemoryRecord {
+    //         value: record.value,
+    //         segment: record.segment,
+    //         timestamp: record.timestamp,
+    //     };
+    //     let prev_record = MemoryRecord {
+    //         value: record.value,
+    //         segment: record.prev_segment,
+    //         timestamp: record.prev_timestamp,
+    //     };
+    //     self.populate_access(current_record, prev_record, new_field_events);
+    // }
+
+    // pub fn populate_write(
+    //     &mut self,
+    //     write_record: MemoryWriteRecord,
+    //     new_field_events: &mut Vec<FieldEvent>,
+    // ) {
+    //     let current_record = MemoryRecord {
+    //         value: write_record.value,
+    //         segment: write_record.segment,
+    //         timestamp: write_record.timestamp,
+    //     };
+    //     let prev_record = MemoryRecord {
+    //         value: write_record.prev_value,
+    //         segment: write_record.prev_segment,
+    //         timestamp: write_record.prev_timestamp,
+    //     };
+    //     self.populate_access(current_record, prev_record, new_field_events);
+    // }
 
     pub(crate) fn populate_access(
         &mut self,
@@ -59,7 +147,6 @@ impl<F: Field> MemoryAccessCols<F> {
     ) {
         self.value = current_record.value.into();
 
-        self.prev_value = prev_record.value.into();
         self.prev_segment = F::from_canonical_u32(prev_record.segment);
         self.prev_clk = F::from_canonical_u32(prev_record.timestamp);
 

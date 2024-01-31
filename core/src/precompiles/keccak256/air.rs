@@ -5,7 +5,10 @@ use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, U64_LIMBS};
 use p3_matrix::MatrixRowSlices;
 
-use crate::air::{CurtaAirBuilder, SubAirBuilder};
+use crate::{
+    air::{CurtaAirBuilder, SubAirBuilder},
+    cpu::columns::MemoryCols,
+};
 
 use super::{
     columns::{KeccakCols, NUM_KECCAK_COLS},
@@ -38,7 +41,7 @@ where
                 local.segment,
                 local.clk,
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
-                local.state_mem[i as usize],
+                &local.state_mem[i as usize],
                 local.do_memory_check,
             );
         }
@@ -50,8 +53,8 @@ where
         let expr_2_pow_8 = AB::Expr::from_canonical_u32(2u32.pow(8));
 
         for i in 0..STATE_SIZE as u32 {
-            let least_sig_word = local.state_mem[(i * 2) as usize].value;
-            let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value;
+            let least_sig_word = local.state_mem[(i * 2) as usize].value();
+            let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value();
             let memory_limbs = [
                 least_sig_word.0[0] + least_sig_word.0[1] * expr_2_pow_8.clone(),
                 least_sig_word.0[2] + least_sig_word.0[3] * expr_2_pow_8.clone(),

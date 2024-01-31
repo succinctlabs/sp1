@@ -15,6 +15,8 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use std::mem::transmute_copy;
 
+use super::columns::MemoryCols;
+
 impl<F> BaseAir<F> for CpuChip {
     fn width(&self) -> usize {
         NUM_CPU_COLS
@@ -70,7 +72,7 @@ where
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
             local.instruction.op_a[0],
-            local.op_a_access,
+            &local.op_a_access,
             AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
         );
 
@@ -85,23 +87,23 @@ where
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
             local.instruction.op_b[0],
-            local.op_b_access,
+            &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
         builder
             .when(AB::Expr::one() - local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), local.op_b_access.prev_value);
+            .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.constraint_memory_access(
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
             local.instruction.op_c[0],
-            local.op_c_access,
+            &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
         builder
             .when(AB::Expr::one() - local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), local.op_c_access.prev_value);
+            .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         let memory_columns: MemoryColumns<AB::Var> =
             unsafe { transmute_copy(&local.opcode_specific_columns) };
@@ -110,7 +112,7 @@ where
             local.segment,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
             memory_columns.addr_aligned,
-            memory_columns.memory_access,
+            &memory_columns.memory_access,
             is_memory_instruction.clone(),
         );
 

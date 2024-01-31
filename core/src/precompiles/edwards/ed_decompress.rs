@@ -1,7 +1,8 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::WORD_SIZE;
-use crate::cpu::columns::MemoryAccessCols;
+use crate::cpu::columns::MemoryReadCols;
+use crate::cpu::columns::MemoryWriteCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::ed_sqrt::EdSqrtCols;
@@ -63,8 +64,8 @@ pub struct EdDecompressCols<T> {
     pub segment: T,
     pub clk: T,
     pub ptr: T,
-    pub x_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub y_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub(crate) yy: FpOpCols<T>,
     pub(crate) u: FpOpCols<T>,
     pub(crate) dyy: FpOpCols<T>,
@@ -86,8 +87,8 @@ impl<F: Field> EdDecompressCols<F> {
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         for i in 0..8 {
-            self.x_access[i].populate_write(event.x_memory_records[i], &mut new_field_events);
-            self.y_access[i].populate_read(event.y_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
+            self.y_access[i].populate(event.y_memory_records[i], &mut new_field_events);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
@@ -157,7 +158,7 @@ impl<V: Copy> EdDecompressCols<V> {
                 self.segment,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
-                self.x_access[i],
+                &self.x_access[i],
                 self.is_real,
             );
         }
@@ -166,7 +167,7 @@ impl<V: Copy> EdDecompressCols<V> {
                 self.segment,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
-                self.y_access[i],
+                &self.y_access[i],
                 self.is_real,
             );
         }

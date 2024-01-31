@@ -25,13 +25,13 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 
                 cols.w_i_minus_15
-                    .populate_read(event.w_i_minus_15_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_15_reads[j], &mut new_field_events);
                 cols.w_i_minus_2
-                    .populate_read(event.w_i_minus_2_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_2_reads[j], &mut new_field_events);
                 cols.w_i_minus_16
-                    .populate_read(event.w_i_minus_16_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_16_reads[j], &mut new_field_events);
                 cols.w_i_minus_7
-                    .populate_read(event.w_i_minus_7_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_7_reads[j], &mut new_field_events);
 
                 // Compute `s0`.
                 let w_i_minus_15 = event.w_i_minus_15_reads[j].value;
@@ -64,7 +64,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.s2.populate(segment, w_i_minus_16, s0, w_i_minus_7, s1);
 
                 cols.w_i
-                    .populate_write(event.w_i_writes[j], &mut new_field_events);
+                    .populate(event.w_i_writes[j], &mut new_field_events);
 
                 cols.is_real = F::one();
                 rows.push(row);
