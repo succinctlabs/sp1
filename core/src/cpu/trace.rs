@@ -430,7 +430,6 @@ mod tests {
 
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
 
     use crate::{
         runtime::{tests::simple_program, Instruction, Runtime, Segment},
