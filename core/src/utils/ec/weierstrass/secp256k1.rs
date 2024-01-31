@@ -1,3 +1,6 @@
+//! Modulo defining the Secp256k1 curve and its base field. The constants are all taken from
+//! https://en.bitcoin.it/wiki/Secp256k1.
+
 use std::str::FromStr;
 
 use num::{BigUint, Zero};
