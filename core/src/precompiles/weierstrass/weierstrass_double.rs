@@ -306,13 +306,13 @@ where
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]. This is to
         // ensure that p_access is updated with the new value.
         for i in 0..NUM_LIMBS {
-            // BUG: I have no idea why, but these two constraints fail!
             builder
                 .when(row.is_real)
                 .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
-            builder
-                .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
+            builder.when(row.is_real).assert_eq(
+                row.y3_ins.result[i],
+                row.p_access[NUM_WORDS_FIELD_ELEMENT + i / 4].value[i % 4],
+            );
         }
 
         builder.constraint_memory_access_slice(
