@@ -11,11 +11,14 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::program::ProgramChip;
 use crate::runtime::Runtime;
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
+use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 
@@ -31,7 +34,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 17;
+pub const NUM_CHIPS: usize = 18;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -56,6 +59,8 @@ impl Runtime {
         let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
         let keccak_permute = KeccakPermuteChip::new();
+        let weierstrass_add =
+            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -66,6 +71,7 @@ impl Runtime {
             Box::new(sha_compress),
             Box::new(ed_add),
             Box::new(ed_decompress),
+            Box::new(weierstrass_add),
             Box::new(keccak_permute),
             Box::new(add),
             Box::new(sub),
@@ -298,6 +304,7 @@ pub mod tests {
     use crate::runtime::Program;
     use crate::utils;
     use crate::utils::prove;
+    use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
@@ -347,6 +354,7 @@ pub mod tests {
 
     #[test]
     fn test_add_prove() {
+        setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
