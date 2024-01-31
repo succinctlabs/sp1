@@ -142,11 +142,8 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E,
                 &p_x_minus_x,
                 FpOperation::Mul,
             );
-            let y = cols.y3_ins.populate::<E::BaseField>(
-                &slope_times_p_x_minus_x,
-                &p_y,
-                FpOperation::Sub,
-            );
+            cols.y3_ins
+                .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub);
         }
     }
 }

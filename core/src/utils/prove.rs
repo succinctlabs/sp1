@@ -1,7 +1,6 @@
 use std::time::Instant;
 
 use crate::{
-    lookup::{debug_interactions_with_all_chips, InteractionKind},
     runtime::{Program, Runtime},
     stark::StarkConfig,
 };
@@ -40,6 +39,22 @@ pub fn prove(program: Program) {
 }
 
 pub fn prove_core(runtime: &mut Runtime) {
+    let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+    let mut challenger = config.challenger();
+
+    let start = Instant::now();
+
+    // Prove the program.
+    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
+        .in_scope(|| runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger));
+
+    // Verify the proof.
+    let mut challenger = config.challenger();
+    runtime
+        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
+        .unwrap();
+
+    #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
             &runtime.segment,
@@ -55,21 +70,6 @@ pub fn prove_core(runtime: &mut Runtime) {
             ],
         );
     });
-
-    let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
-    let mut challenger = config.challenger();
-
-    let start = Instant::now();
-
-    // Prove the program.
-    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger));
-
-    // Verify the proof.
-    let mut challenger = config.challenger();
-    runtime
-        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
-        .unwrap();
 
     let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();
