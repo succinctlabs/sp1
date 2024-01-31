@@ -28,18 +28,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use valida_derive::AlignedBorrow;
 
-#[derive(Debug, Clone, Copy)]
-pub struct WeierstrassAddEvent {
-    pub clk: u32,
-    pub p_ptr: u32,
-    pub p: [u32; 16],
-    pub q_ptr: u32,
-    pub q: [u32; 16],
-    pub q_ptr_record: MemoryReadRecord,
-    pub p_memory_records: [MemoryWriteRecord; 16],
-    pub q_memory_records: [MemoryReadRecord; 16],
-}
-
 pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
