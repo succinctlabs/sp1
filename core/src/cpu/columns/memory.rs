@@ -31,7 +31,6 @@ pub struct MemoryReadWriteCols<T> {
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
-    // pub prev_value: Word<T>,
 
     // The previous segment and timestamp that this memory access is being read from.
     pub prev_segment: T,
