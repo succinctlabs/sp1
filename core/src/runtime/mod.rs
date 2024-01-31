@@ -694,6 +694,8 @@ impl Runtime {
                                     let depth = self.cycle_tracker.len() as u32;
                                     self.cycle_tracker
                                         .insert(fn_name.to_string(), (self.global_clk, depth));
+                                    let padding = (0..depth).map(|_| "│ ").collect::<String>();
+                                    log::info!("{}┌ {}", padding, fn_name);
                                 } else if s.contains("cycle-tracker-end:") {
                                     let fn_name = s
                                         .split("cycle-tracker-end:")
@@ -702,13 +704,12 @@ impl Runtime {
                                         .trim_end()
                                         .trim_start();
                                     let (start, depth) =
-                                        self.cycle_tracker.get(fn_name).unwrap_or(&(0, 0));
+                                        self.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
                                     // Leftpad by 2 spaces for each depth.
-                                    let depth_str = (0..*depth).map(|_| " ").collect::<String>();
+                                    let padding = (0..depth).map(|_| "│ ").collect::<String>();
                                     log::info!(
-                                        "{}=> {}: {} cycles",
-                                        depth_str,
-                                        fn_name,
+                                        "{}└ {} cycles",
+                                        padding,
                                         u32_to_comma_separated(self.global_clk - start)
                                     );
                                 } else {
@@ -854,7 +855,7 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            if self.global_clk % 10000000 == 0 {
+            if self.global_clk % 1000000000 == 0 {
                 log::info!("global_clk={}", self.global_clk);
             }
             // if self.global_clk > 10000000 {
