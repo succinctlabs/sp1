@@ -130,6 +130,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use rand::Rng;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkConfig;
 

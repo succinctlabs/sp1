@@ -2970,6 +2970,8 @@ name = "verifier"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "serde",
+ "serde_json",
  "succinct-core",
  "succinct-zkvm",
 ]

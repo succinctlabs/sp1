@@ -8,3 +8,5 @@ edition = "2021"
 succinct-zkvm = { path = "../../zkvm" }
 succinct-core = { path = "../../core" }
 rand = "0.8.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

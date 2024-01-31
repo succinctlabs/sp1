@@ -150,7 +150,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|_| VerificationError::InvalidopeningArgument)?;
 
-        // Verify the constrtaint evaluations.
+        // Verify the constraint evaluations.
         let SegmentOpenedValues {
             main,
             permutation,

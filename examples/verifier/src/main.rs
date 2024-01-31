@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+use serde_json;
 use succinct_core::runtime::Program;
 use succinct_core::runtime::Runtime;
 use succinct_core::utils::BabyBearPoseidon2;
@@ -16,6 +18,9 @@ fn main() {
     // Prove the program.
     let (segment_proofs, global_proof) =
         runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+
+    let serialized = serde_json::to_string(&global_proof).unwrap();
+    println!("Serialized: {}", serialized);
 
     // Verify the proof.
     let mut challenger = config.challenger();
