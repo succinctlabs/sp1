@@ -304,24 +304,20 @@ where
             row.q_ptr_access,
             row.is_real,
         );
-        for i in 0..NUM_WORDS_EC_POINT {
-            builder.constraint_memory_access(
-                row.segment,
-                row.clk, // clk + 0 -> Memory
-                row.q_ptr + AB::F::from_canonical_usize(i * 4),
-                row.q_access[i as usize],
-                row.is_real,
-            );
-        }
-        for i in 0..NUM_WORDS_EC_POINT {
-            builder.constraint_memory_access(
-                row.segment,
-                row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
-                row.p_ptr + AB::F::from_canonical_usize(i * 4),
-                row.p_access[i as usize],
-                row.is_real,
-            );
-        }
+        builder.constraint_memory_access_slice(
+            row.segment,
+            row.clk.into(), // clk + 0 -> Memory
+            row.q_ptr.into(),
+            &row.q_access,
+            row.is_real,
+        );
+        builder.constraint_memory_access_slice(
+            row.segment,
+            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.p_ptr.into(),
+            &row.p_access,
+            row.is_real,
+        );
     }
 }
 

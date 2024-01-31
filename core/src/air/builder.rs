@@ -359,25 +359,23 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
-    fn constraint_memory_access_slice<EClk, ESegment, Ea, Eb, EVerify>(
+    fn constraint_memory_access_slice<ESegment, Eb, EVerify>(
         &mut self,
         segment: ESegment,
-        clk: EClk,
-        initial_addr: Ea,
+        clk: Self::Expr,
+        initial_addr: Self::Expr,
         memory_access_slice: &[MemoryAccessCols<Eb>],
         verify_memory_access: EVerify,
     ) where
         ESegment: Into<Self::Expr> + std::marker::Copy,
-        EClk: Into<Self::Expr> + std::marker::Copy,
-        Ea: Into<Self::Expr> + std::marker::Copy,
         Eb: Into<Self::Expr> + std::marker::Copy,
         EVerify: Into<Self::Expr> + std::marker::Copy,
     {
         for i in 0..memory_access_slice.len() {
             self.constraint_memory_access(
                 segment,
-                clk,
-                initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
+                clk.clone(),
+                initial_addr.clone() + Self::Expr::from_canonical_usize(i * 4),
                 memory_access_slice[i],
                 verify_memory_access,
             );
