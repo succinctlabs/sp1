@@ -1,7 +1,5 @@
 use crate::air::CurtaAirBuilder;
 use crate::cpu::columns::MemoryAccessCols;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
