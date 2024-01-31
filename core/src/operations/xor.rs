@@ -32,10 +32,10 @@ impl<F: Field> XorOperation<F> {
 
             let byte_event = ByteLookupEvent {
                 opcode: ByteOpcode::XOR,
-                a1: xor,
+                a1: xor as u32,
                 a2: 0,
-                b: x_bytes[i],
-                c: y_bytes[i],
+                b: x_bytes[i] as u32,
+                c: y_bytes[i] as u32,
             };
             segment
                 .byte_lookups

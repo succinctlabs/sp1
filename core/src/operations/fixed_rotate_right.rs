@@ -72,10 +72,10 @@ impl<F: Field> FixedRotateRightOperation<F> {
 
             let byte_event = ByteLookupEvent {
                 opcode: ByteOpcode::ShrCarry,
-                a1: shift,
-                a2: carry,
-                b,
-                c,
+                a1: shift as u32,
+                a2: carry as u32,
+                b: b as u32,
+                c: c as u32,
             };
             segment
                 .byte_lookups

@@ -142,8 +142,8 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
 
             // Range checks.
             {
-                segment.add_byte_range_checks(&bit_shift_result);
-                segment.add_byte_range_checks(&bit_shift_result_carry);
+                segment.add_u8_range_checks(&bit_shift_result);
+                segment.add_u8_range_checks(&bit_shift_result_carry);
             }
 
             // Sanity check.
@@ -294,9 +294,8 @@ where
 
         // Range check.
         {
-            for word in [local.bit_shift_result, local.bit_shift_result_carry].iter() {
-                builder.assert_word(Word(*word), local.is_real);
-            }
+            builder.slice_range_check_u8(&local.bit_shift_result, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.is_real);
         }
 
         for shift in local.shift_by_n_bytes.iter() {

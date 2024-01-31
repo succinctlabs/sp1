@@ -193,21 +193,49 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
-    /// Range checks a word.
-    fn assert_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    /// Check that each limb of the given slice is a u8.
+    fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
-        input: Word<EWord>,
+        input: &[EWord],
         mult: EMult,
     ) {
-        for byte_pair in input.0.chunks_exact(2) {
+        let mut index = 0;
+        while index + 1 < input.len() {
             self.send_byte(
-                Self::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                byte_pair[0],
-                byte_pair[1],
+                input[index],
+                input[index + 1],
+                mult.clone(),
+            );
+            index += 2;
+        }
+        if index < input.len() {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                Self::Expr::zero(),
+                input[index],
+                Self::Expr::zero(),
                 mult.clone(),
             );
         }
+    }
+
+    /// Check that each limb of the given slice is a u16.
+    fn slice_range_check_u16<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+        &mut self,
+        input: &[EWord],
+        mult: EMult,
+    ) {
+        input.iter().for_each(|limb| {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+                *limb,
+                Self::Expr::zero(),
+                Self::Expr::zero(),
+                mult.clone(),
+            );
+        });
     }
 }
 
@@ -356,6 +384,31 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             verify_memory_access_expr.clone(),
             InteractionKind::Memory,
         ));
+    }
+
+    /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
+    fn constraint_memory_access_slice<ESegment, Ea, Eb, EVerify>(
+        &mut self,
+        segment: ESegment,
+        clk: Self::Expr,
+        initial_addr: Ea,
+        memory_access_slice: &[MemoryAccessCols<Eb>],
+        verify_memory_access: EVerify,
+    ) where
+        ESegment: Into<Self::Expr> + std::marker::Copy,
+        Ea: Into<Self::Expr> + std::marker::Copy,
+        Eb: Into<Self::Expr> + std::marker::Copy,
+        EVerify: Into<Self::Expr> + std::marker::Copy,
+    {
+        for i in 0..memory_access_slice.len() {
+            self.constraint_memory_access(
+                segment,
+                clk.clone(),
+                initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
+                memory_access_slice[i],
+                verify_memory_access,
+            );
+        }
     }
 }
 
