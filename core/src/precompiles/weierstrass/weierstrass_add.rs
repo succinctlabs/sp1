@@ -11,6 +11,8 @@ use crate::runtime::Segment;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
+use crate::utils::ec::NUM_WORDS_EC_POINT;
+use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::Chip;
@@ -43,8 +45,8 @@ pub struct WeierstrassAddAssignCols<T> {
     pub p_ptr: T,
     pub q_ptr: T,
     pub q_ptr_access: MemoryAccessCols<T>,
-    pub p_access: [MemoryAccessCols<T>; 16],
-    pub q_access: [MemoryAccessCols<T>; 16],
+    pub p_access: [MemoryAccessCols<T>; NUM_WORDS_EC_POINT],
+    pub q_access: [MemoryAccessCols<T>; NUM_WORDS_EC_POINT],
     pub(crate) slope_denominator: FpOpCols<T>,
     pub(crate) slope_numerator: FpOpCols<T>,
     pub(crate) slope: FpOpCols<T>,
@@ -165,10 +167,10 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
             Self::populate_fp_ops(cols, p_x, p_y, q_x, q_y);
 
             // Populate the memory access columns.
-            for i in 0..16 {
+            for i in 0..NUM_WORDS_EC_POINT {
                 cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
             }
-            for i in 0..16 {
+            for i in 0..NUM_WORDS_EC_POINT {
                 cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
             }
             cols.q_ptr_access
@@ -210,11 +212,11 @@ where
         let main = builder.main();
         let row: &WeierstrassAddAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let p_x = limbs_from_prev_access(&row.p_access[0..8]);
-        let p_y = limbs_from_prev_access(&row.p_access[8..16]);
+        let p_x = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let p_y = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
-        let q_x = limbs_from_prev_access(&row.q_access[0..8]);
-        let q_y = limbs_from_prev_access(&row.q_access[8..16]);
+        let q_x = limbs_from_prev_access(&row.q_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let q_y = limbs_from_prev_access(&row.q_access[NUM_WORDS_FIELD_ELEMENT..]);
 
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
@@ -302,20 +304,20 @@ where
             row.q_ptr_access,
             row.is_real,
         );
-        for i in 0..16 {
+        for i in 0..NUM_WORDS_EC_POINT {
             builder.constraint_memory_access(
                 row.segment,
                 row.clk, // clk + 0 -> Memory
-                row.q_ptr + AB::F::from_canonical_u32(i * 4),
+                row.q_ptr + AB::F::from_canonical_usize(i * 4),
                 row.q_access[i as usize],
                 row.is_real,
             );
         }
-        for i in 0..16 {
+        for i in 0..NUM_WORDS_EC_POINT {
             builder.constraint_memory_access(
                 row.segment,
                 row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
-                row.p_ptr + AB::F::from_canonical_u32(i * 4),
+                row.p_ptr + AB::F::from_canonical_usize(i * 4),
                 row.p_access[i as usize],
                 row.is_real,
             );
