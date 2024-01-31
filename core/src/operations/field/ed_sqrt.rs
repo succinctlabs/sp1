@@ -90,6 +90,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
+    use rand::thread_rng;
     use valida_derive::AlignedBorrow;
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
