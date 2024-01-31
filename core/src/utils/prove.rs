@@ -57,8 +57,8 @@ pub fn prove_core(runtime: &mut Runtime) {
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
-            &runtime.segment,
-            Some(&runtime.global_segment),
+            &mut runtime.segment,
+            Some(&mut runtime.global_segment),
             vec![
                 InteractionKind::Field,
                 InteractionKind::Range,
