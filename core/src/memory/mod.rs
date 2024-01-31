@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_memory_prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let program = simple_program();

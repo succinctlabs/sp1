@@ -39,7 +39,7 @@ pub fn prove(program: Program) {
 }
 
 pub fn prove_core(runtime: &mut Runtime) {
-    let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+    let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
     let start = Instant::now();
@@ -118,6 +118,7 @@ use p3_uni_stark::Proof;
 
 pub(super) mod baby_bear_poseidon2 {
 
+    use crate::utils::poseidon2_instance::RC_16_30;
     use p3_baby_bear::BabyBear;
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -129,7 +130,6 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-    use rand::Rng;
 
     use crate::stark::StarkConfig;
 
@@ -166,9 +166,10 @@ pub(super) mod baby_bear_poseidon2 {
     }
 
     impl BabyBearPoseidon2 {
-        pub fn new<R: Rng>(rng: &mut R) -> Self {
+        pub fn new() -> Self {
             let mds = MyMds::default();
-            let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, rng);
+
+            let perm = Perm::new(8, 22, RC_16_30.to_vec(), mds, DiffusionMatrixBabybear);
 
             let hash = MyHash::new(perm.clone());
 

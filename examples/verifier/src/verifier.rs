@@ -35,7 +35,7 @@ fn main() {
         serde_json::from_str(&global_proof_json).unwrap()
     };
 
-    let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+    let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
     let program = Program::from_elf(args.program.as_str());

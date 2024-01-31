@@ -2561,6 +2561,7 @@ dependencies = [
  "env_logger",
  "hex",
  "itertools 0.12.1",
+ "lazy_static",
  "log",
  "nohash-hasher",
  "num",

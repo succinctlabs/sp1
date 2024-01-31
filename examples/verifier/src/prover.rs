@@ -1,7 +1,6 @@
 use std::fs;
 
 use clap::{command, Parser};
-use serde::{Deserialize, Serialize};
 use serde_json;
 use std::process::exit;
 use succinct_core::runtime::Program;
@@ -30,7 +29,7 @@ fn main() {
     runtime.add_input_slice(&[1, 2]);
     runtime.run();
 
-    let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+    let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
     // Prove the program.

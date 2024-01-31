@@ -310,7 +310,7 @@ mod tests {
     }
 
     fn prove_babybear_template(segment: &mut Segment) {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let chip = LtChip::default();
