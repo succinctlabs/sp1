@@ -358,7 +358,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         ));
     }
 
-    /// Constraints a memory read or write to a slice.
+    /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
     fn constraint_memory_access_slice<EClk, ESegment, Ea, Eb, EVerify>(
         &mut self,
         segment: ESegment,
