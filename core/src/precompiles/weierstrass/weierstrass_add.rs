@@ -117,7 +117,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
         };
 
         // y = slope * (p.x - x_3n) - p.y.
-        let y = {
+        {
             let p_x_minus_x = cols
                 .p_x_minus_x
                 .populate::<E::BaseField>(&p_x, &x, FpOperation::Sub);
@@ -127,8 +127,8 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
                 FpOperation::Mul,
             );
             cols.y3_ins
-                .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub)
-        };
+                .populate::<E::BaseField>(&slope_times_p_x_minus_x, &p_y, FpOperation::Sub);
+        }
     }
 }
 
