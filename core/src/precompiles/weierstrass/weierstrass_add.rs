@@ -5,6 +5,7 @@ use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_add_event;
 use crate::precompiles::PrecompileRuntime;
+use crate::runtime::Register;
 use crate::runtime::Segment;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
@@ -298,7 +299,7 @@ where
         builder.constraint_memory_access(
             row.segment,
             row.clk, // clk + 0 -> C
-            AB::F::from_canonical_u32(11),
+            AB::F::from_canonical_u32(Register::X11 as u32),
             row.q_ptr_access,
             row.is_real,
         );
