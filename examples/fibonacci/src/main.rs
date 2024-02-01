@@ -7,5 +7,5 @@ fn main() {
     std::env::set_var("RUST_LOG", "info");
     utils::setup_logger();
     let prover = SuccinctProver::new();
-    prover.prove_elf(FIBONACCI_ELF);
+    prover.prove(FIBONACCI_ELF);
 }

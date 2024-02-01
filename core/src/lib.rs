@@ -46,7 +46,7 @@ impl SuccinctProver {
         self.stdin.extend(buf);
     }
 
-    pub fn prove_elf(&self, elf: &[u8]) {
+    pub fn prove(&self, elf: &[u8]) {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&self.stdin);

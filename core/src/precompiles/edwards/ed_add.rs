@@ -283,13 +283,13 @@ pub mod tests {
     fn test_ed_add_simple() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove_elf(ED_ADD_ELF);
+        prover.prove(ED_ADD_ELF);
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove_elf(ED25519_ELF);
+        prover.prove(ED25519_ELF);
     }
 }

@@ -100,6 +100,6 @@ pub mod permute_tests {
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove_elf(KECCAK_PERMUTE_ELF);
+        prover.prove(KECCAK_PERMUTE_ELF);
     }
 }
