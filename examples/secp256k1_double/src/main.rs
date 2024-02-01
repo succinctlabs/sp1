@@ -4,11 +4,17 @@ extern crate succinct_zkvm;
 
 use alloy_primitives::U256;
 use k256::ecdsa::hazmat::bits2field;
+use k256::ecdsa::hazmat::VerifyPrimitive;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::SigningKey;
 use k256::elliptic_curve::ff::PrimeFieldBits;
 use k256::elliptic_curve::ops::Invert;
+use k256::elliptic_curve::ops::LinearCombination;
+use k256::elliptic_curve::ops::Reduce;
+use k256::elliptic_curve::point::AffineCoordinates;
+use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::{Field, PrimeField};
+use k256::ProjectivePoint;
 use k256::Secp256k1;
 use k256::{
     ecdsa::{Signature as K256Signature, VerifyingKey as K256VerifyingKey},
@@ -72,6 +78,15 @@ impl AffinePoint {
         }
         tmp
     }
+
+    pub fn x(&self) -> [u8; 32] {
+        let mut x_bytes_le = [0u8; 32];
+        for i in 0..8 {
+            x_bytes_le[i * 4..i * 4 + 4].copy_from_slice(&self.limbs[i].to_le_bytes());
+        }
+        x_bytes_le.reverse();
+        x_bytes_le
+    }
 }
 // #[allow(non_snake_case)]
 // pub fn mul(a: &Scalar, A: &EdwardsPoint, b: &Scalar) -> EdwardsPoint {
@@ -94,28 +109,29 @@ fn secp256k1_basepoint() -> AffinePoint {
 }
 
 #[allow(non_snake_case)]
-fn double_and_add_base(a: &Scalar, A: &AffinePoint, b: &Scalar) -> Option<AffinePoint> {
+fn double_and_add_base(
+    a: &Scalar,
+    A: &AffinePoint,
+    b: &Scalar,
+    B: &AffinePoint,
+) -> Option<AffinePoint> {
     let mut res: Option<AffinePoint> = None;
-    let mut temp_A = *A;
     // let mut temp_B = secp256k1_basepoint();
-    let mut temp_B = AffinePoint::from_limbs([
-        385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
-        4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
-        1211816567,
-    ]);
+    let mut temp_A = *A;
+    let mut temp_B = *B;
 
     let a_bits = a.to_le_bits();
     let b_bits = b.to_le_bits();
     for (a_bit, b_bit) in a_bits.iter().zip(b_bits) {
         if *a_bit {
-            match res {
+            match res.as_mut() {
                 Some(mut res) => res.add_assign(&temp_A),
                 None => res = Some(temp_A),
             };
         }
 
         if b_bit {
-            match res {
+            match res.as_mut() {
                 Some(mut res) => res.add_assign(&temp_B),
                 None => res = Some(temp_B),
             };
@@ -148,7 +164,7 @@ fn k256_decompress(compressed_key: [u8; 33]) -> [u8; 65] {
 }
 
 pub fn main() {
-    println!("cycle-tracker-start: input");
+    // println!("cycle-tracker-start: input");
     let pubkey_bytes = [
         2, 78, 59, 129, 175, 156, 34, 52, 202, 208, 157, 103, 156, 230, 3, 94, 209, 57, 35, 71,
         206, 100, 206, 64, 95, 93, 205, 54, 34, 138, 37, 222, 110,
@@ -165,63 +181,113 @@ pub fn main() {
         136, 207, 189, 126, 81, 199, 164, 5, 64, 178, 51, 207, 104, 182, 42, 209, 223, 62, 146, 70,
         47, 28, 96, 24, 214, 214, 126, 174, 15, 59, 8, 245,
     ];
-    println!("cycle-tracker-end: input");
+    // println!("cycle-tracker-end: input");
+
+    let signature =
+        K256Signature::from_scalars(r.to_be_bytes(), s.to_be_bytes()).expect("r, s invalid");
+
     // // This is normal verification
     // println!("cycle-tracker-start: normal");
-    // let public_key = K256PublicKey::from_sec1_bytes(&pubkey_bytes).expect("invalid pubkey");
+    let public_key_k256 = K256PublicKey::from_sec1_bytes(&pubkey_bytes).expect("invalid pubkey");
+    // println!(
+    //     "affine pubkey {:?}",
+    //     public_key_k256.to_encoded_point(false).as_bytes()
+    // );
 
-    // let verify_key = K256VerifyingKey::from(&public_key);
+    let verify_key = K256VerifyingKey::from(&public_key_k256);
+    let field = bits2field::<Secp256k1>(message_hash.as_slice()).unwrap();
+
+    let v_affine = verify_key.as_affine();
+    // println!("v_affine: {:?}", v_affine.x());
+    let q = ProjectivePoint::from(v_affine);
+    let sig = signature;
+    // let z = Scalar::reduce_bytes(&field);
+    let z = Scalar::from_repr(field).unwrap();
+    let (r, s) = sig.split_scalars();
+    let s_inv = *s.invert_vartime();
+    let u1 = z * s_inv;
+    let u2 = *r * s_inv;
+    println!(
+        "=====\ngenerator: {:?}\nu1: {:?}\nq: {:?}\nu2: {:?}\n",
+        ProjectivePoint::generator().to_affine().x(),
+        u1,
+        q.to_affine().x(),
+        u2
+    );
+    // let x = ProjectivePoint::lincomb(&ProjectivePoint::generator(), &u1, &q, &u2).to_affine();
+    // println!("=====x: {:?} ", x.x());
+
     // verify_key
     //     .verify_prehash(&message_hash, &signature)
     //     .expect("invalid signature");
     // println!("Normal verification worked");
     // println!("cycle-tracker-end: normal");
 
-    println!("cycle-tracker-start: decompress");
-    let signature =
-        K256Signature::from_scalars(r.to_be_bytes(), s.to_be_bytes()).expect("r, s invalid");
+    // println!("cycle-tracker-start: decompress");
     let public_key = k256_decompress(pubkey_bytes);
-    println!("cycle-tracker-end: decompress");
+    // println!("cycle-tracker-end: decompress");
+    // println!("pubkey from decompress {:?}", public_key);
 
-    println!("cycle-tracker-start: make-point");
-    let pubkey_x = Scalar::from_repr(bits2field::<Secp256k1>(&public_key[..32]).unwrap()).unwrap();
-    let pubkey_y = Scalar::from_repr(bits2field::<Secp256k1>(&public_key[32..]).unwrap()).unwrap();
+    // println!("cycle-tracker-start: make-point");
+    let pubkey_x = Scalar::from_repr(bits2field::<Secp256k1>(&public_key[1..33]).unwrap()).unwrap();
+    let pubkey_y = Scalar::from_repr(bits2field::<Secp256k1>(&public_key[33..]).unwrap()).unwrap();
     let affine = AffinePoint::from(pubkey_x, pubkey_y);
+
+    // println!("AFFINE PUBKEY X {:?}", affine.x());
     let field = bits2field::<Secp256k1>(message_hash.as_slice()).unwrap();
     let z = Scalar::from_repr(field).unwrap();
     let (r, s) = signature.split_scalars();
-    println!("cycle-tracker-end: make-point");
+    // println!("cycle-tracker-end: make-point");
 
-    println!("cycle-tracker-start: field-arith");
+    // println!("cycle-tracker-start: field-arith");
     let s_inv = *s.invert_vartime();
-    println!("cycle-tracker-end: field-arith");
+    // println!("cycle-tracker-end: field-arith");
 
-    let s_scalar = println!("cycle-tracker-start: u1");
+    // let s_scalar = println!("cycle-tracker-start: u1");
     assert_eq!(s_inv * s.as_ref(), Scalar::ONE);
     let u1 = z * s_inv;
     let u2 = *r * s_inv;
-    println!("cycle-tracker-end: u1");
+    // println!("cycle-tracker-end: u1");
 
-    println!("cycle-tracker-start: double_and_add");
-    let res = double_and_add_base(&u1, &affine, &u2).unwrap();
-    println!("cycle-tracker-end: double_and_add");
+    // println!("cycle-tracker-start: double_and_add");
+    let generator = AffinePoint::from_limbs([
+        385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
+        4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
+        1211816567,
+    ]);
+    println!(
+        "=====\ngenerator: {:?}\nu1: {:?}\nq: {:?}\nu2: {:?}\n",
+        generator.x(),
+        u1,
+        affine.x(),
+        u2
+    );
+    let res = double_and_add_base(&u1, &generator, &u2, &affine).unwrap();
+    println!("=====x: {:?} ", res.x());
+    // println!("cycle-tracker-end: double_and_add");
 
-    println!("cycle-tracker-start: reverse");
+    // println!("RES PUBKEY X {:?}", res.x());
+
+    // println!("res.limbs {:?}", res.limbs);
+
+    // println!("cycle-tracker-start: reverse");
     let mut x_bytes_be = [0u8; 32];
     for i in 0..8 {
-        x_bytes_be[i..i + 4].copy_from_slice(&res.limbs[i].to_le_bytes());
+        x_bytes_be[i * 4..i * 4 + 4].copy_from_slice(&res.limbs[i].to_le_bytes());
     }
     x_bytes_be.reverse();
-    println!("cycle-tracker-end: reverse");
+    // println!("cycle-tracker-end: reverse");
 
-    println!("cycle-tracker-start: coda");
+    // println!("x_bytes_be {:?}", x_bytes_be);
+
+    // println!("cycle-tracker-start: coda");
 
     let x_field = bits2field::<Secp256k1>(&x_bytes_be).unwrap();
     if *r == Scalar::from_repr(x_field).unwrap() {
-        println!("cycle-tracker-end: coda");
+        // println!("cycle-tracker-end: coda");
         println!("Signature verifies!");
     } else {
-        println!("cycle-tracker-end: coda");
+        // println!("cycle-tracker-end: coda");
         panic!("invalid signature");
     }
 
