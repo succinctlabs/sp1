@@ -1,0 +1,9 @@
+[package]
+name = "k256_decompress"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
+

@@ -1,16 +1,21 @@
-use core::mem::transmute;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
-use super::columns::{AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_CPU_COLS};
+use super::columns::{
+    AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
+    NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
+};
 use super::{CpuChip, CpuEvent};
 
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::{CpuCols, MemoryColumns};
+use crate::cpu::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
+use crate::memory::MemoryCols;
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
@@ -59,7 +64,7 @@ impl CpuChip {
         new_field_events: &mut Vec<FieldEvent>,
     ) -> [F; NUM_CPU_COLS] {
         let mut row = [F::zero(); NUM_CPU_COLS];
-        let cols: &mut CpuCols<F> = unsafe { transmute(&mut row) };
+        let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
         cols.segment = F::from_canonical_u32(event.segment);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
@@ -67,16 +72,16 @@ impl CpuChip {
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
 
-        cols.op_a_access.value = event.a.into();
-        cols.op_b_access.value = event.b.into();
-        cols.op_c_access.value = event.c.into();
+        *cols.op_a_access.value_mut() = event.a.into();
+        *cols.op_b_access.value_mut() = event.b.into();
+        *cols.op_c_access.value_mut() = event.c.into();
         if let Some(record) = event.a_record {
             cols.op_a_access.populate(record, new_field_events)
         }
-        if let Some(record) = event.b_record {
+        if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
             cols.op_b_access.populate(record, new_field_events)
         }
-        if let Some(record) = event.c_record {
+        if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access.populate(record, new_field_events)
         }
 
@@ -84,7 +89,7 @@ impl CpuChip {
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
 
         let memory_columns: &mut MemoryColumns<F> =
-            unsafe { transmute(&mut cols.opcode_specific_columns) };
+            cols.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow_mut();
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
@@ -119,7 +124,7 @@ impl CpuChip {
                 | Opcode::SW
         ) {
             let memory_columns: &mut MemoryColumns<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns[0..NUM_MEMORY_COLUMNS].borrow_mut();
 
             let memory_addr = event.b.wrapping_add(event.c);
             memory_columns.addr_word = memory_addr.into();
@@ -226,7 +231,7 @@ impl CpuChip {
     ) {
         if event.instruction.is_branch_instruction() {
             let branch_columns: &mut BranchCols<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns[..NUM_BRANCH_COLS].borrow_mut();
 
             let a_eq_b = event.a == event.b;
 
@@ -321,7 +326,7 @@ impl CpuChip {
     ) {
         if event.instruction.is_jump_instruction() {
             let jump_columns: &mut JumpCols<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns[..NUM_JUMP_COLS].borrow_mut();
 
             match event.instruction.opcode {
                 Opcode::JAL => {
@@ -372,7 +377,7 @@ impl CpuChip {
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
             let auipc_columns: &mut AUIPCCols<F> =
-                unsafe { transmute(&mut cols.opcode_specific_columns) };
+                cols.opcode_specific_columns[..NUM_AUIPC_COLS].borrow_mut();
 
             auipc_columns.pc = event.pc.into();
 

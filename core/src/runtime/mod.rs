@@ -9,9 +9,11 @@ mod syscall;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
+use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
+use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -684,8 +686,8 @@ impl Runtime {
                                 .map(|i| self.byte(write_buf + i))
                                 .collect::<Vec<u8>>();
                             let slice = bytes.as_slice();
-                            let s = core::str::from_utf8(slice).unwrap();
                             if fd == 1 {
+                                let s = core::str::from_utf8(slice).unwrap();
                                 if s.contains("cycle-tracker-start:") {
                                     self.cycle_tracker = self.global_clk
                                 } else if s.contains("cycle-tracker-end:") {
@@ -704,6 +706,7 @@ impl Runtime {
                                     log::info!("stdout: {}", s.trim_end());
                                 }
                             } else if fd == 2 {
+                                let s = core::str::from_utf8(slice).unwrap();
                                 log::info!("stderr: {}", s.trim_end());
                             } else if fd == 3 {
                                 log::info!("io::write: {:?}", slice);
@@ -733,7 +736,7 @@ impl Runtime {
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
                     }
-                    Syscall::SECP_ADD => {
+                    Syscall::SECP256K1_ADD => {
                         a = WeierstrassAddAssignChip::<
                             SWCurve<Secp256k1Parameters>,
                             Secp256k1Parameters,
@@ -747,6 +750,26 @@ impl Runtime {
                                 >::NUM_CYCLES,
                             self.clk
                         );
+                    }
+                    Syscall::SECP256K1_DOUBLE => {
+                        a = WeierstrassDoubleAssignChip::<
+                            SWCurve<Secp256k1Parameters>,
+                            Secp256k1Parameters,
+                        >::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(
+                            init_clk
+                                + WeierstrassDoubleAssignChip::<
+                                    SWCurve<Secp256k1Parameters>,
+                                    Secp256k1Parameters,
+                                >::NUM_CYCLES,
+                            self.clk
+                        );
+                    }
+                    Syscall::SECP256K1_DECOMPRESS => {
+                        a = K256DecompressChip::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(init_clk + 4, self.clk);
                     }
                 }
 

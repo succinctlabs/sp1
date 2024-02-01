@@ -1090,6 +1090,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256_decompress"
+version = "0.1.0"
+dependencies = [
+ "succinct-zkvm",
+]
+
+[[package]]
 name = "keccak-asm"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1974,7 +1981,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "secp_add"
+name = "secp256k1_add"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "num",
+ "succinct-zkvm",
+]
+
+[[package]]
+name = "secp256k1_double"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
@@ -2267,8 +2283,10 @@ dependencies = [
  "bincode",
  "curve25519-dalek 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "elf",
+ "elliptic-curve",
  "hex",
  "itertools 0.12.1",
+ "k256",
  "lazy_static",
  "log",
  "nohash-hasher",

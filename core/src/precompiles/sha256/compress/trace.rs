@@ -1,9 +1,9 @@
-use std::mem::transmute;
+use std::borrow::BorrowMut;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, runtime::Segment, utils::Chip};
+use crate::{air::Word, memory::MemoryCols, runtime::Segment, utils::Chip};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -26,7 +26,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
             // Load a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-                let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (j * 4) as u32;
@@ -48,15 +48,16 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.f = v[5];
                 cols.g = v[6];
                 cols.h = v[7];
+
                 match j {
-                    0 => cols.a = cols.mem.value,
-                    1 => cols.b = cols.mem.value,
-                    2 => cols.c = cols.mem.value,
-                    3 => cols.d = cols.mem.value,
-                    4 => cols.e = cols.mem.value,
-                    5 => cols.f = cols.mem.value,
-                    6 => cols.g = cols.mem.value,
-                    7 => cols.h = cols.mem.value,
+                    0 => cols.a = *cols.mem.value(),
+                    1 => cols.b = *cols.mem.value(),
+                    2 => cols.c = *cols.mem.value(),
+                    3 => cols.d = *cols.mem.value(),
+                    4 => cols.e = *cols.mem.value(),
+                    5 => cols.f = *cols.mem.value(),
+                    6 => cols.g = *cols.mem.value(),
+                    7 => cols.h = *cols.mem.value(),
                     _ => panic!("unsupported j"),
                 };
 
@@ -79,7 +80,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                     octet_num_idx += 1;
                 }
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-                let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.is_compression = F::one();
                 cols.octet[j % 8] = F::one();
@@ -166,7 +167,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
             // Store a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-                let cols: &mut ShaCompressCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (8 * 4 + 64 * 4 + (j * 4)) as u32;

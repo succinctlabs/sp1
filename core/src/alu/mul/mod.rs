@@ -26,7 +26,7 @@
 mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -59,7 +59,7 @@ const BYTE_MASK: u8 = 0xff;
 pub struct MulChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
     /// The output operand.
@@ -122,7 +122,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
                     || event.opcode == Opcode::MULHSU
             );
             let mut row = [F::zero(); NUM_MUL_COLS];
-            let cols: &mut MulCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
             let a_word = event.a.to_le_bytes();
             let b_word = event.b.to_le_bytes();
             let c_word = event.c.to_le_bytes();

@@ -11,6 +11,7 @@ opt-level = 3
 [profile.fast]
 inherits = "release"
 debug = true
+debug-assertions = true
 
 [workspace.dependencies]
 p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }

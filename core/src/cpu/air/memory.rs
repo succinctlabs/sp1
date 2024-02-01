@@ -1,11 +1,12 @@
-use std::mem::transmute_copy;
+use core::borrow::Borrow;
 
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
+use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols, NUM_MEMORY_COLUMNS};
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::Opcode;
 
 impl CpuChip {
@@ -52,7 +53,7 @@ impl CpuChip {
     ) {
         // Get the memory specific columns.
         let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
 
         // Compute whether this is a load instruction.
         let is_load = self.is_load_instruction::<AB>(&local.selectors);
@@ -103,9 +104,9 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         let memory_columns: MemoryColumns<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
 
-        let mem_val = memory_columns.memory_access.value;
+        let mem_val = *memory_columns.memory_access.value();
 
         self.eval_offset_value_flags(builder, &memory_columns, local);
 
@@ -117,7 +118,7 @@ impl CpuChip {
         let one = AB::Expr::one();
 
         let a_val = local.op_a_val();
-        let prev_mem_val = memory_columns.memory_access.prev_value;
+        let prev_mem_val = *memory_columns.memory_access.prev_value();
 
         let sb_expected_stored_value = Word([
             a_val[0] * offset_is_zero.clone()
@@ -161,7 +162,7 @@ impl CpuChip {
         memory_columns: &MemoryColumns<AB::Var>,
         local: &CpuCols<AB::Var>,
     ) {
-        let mem_val = memory_columns.memory_access.value;
+        let mem_val = *memory_columns.memory_access.value();
 
         self.eval_offset_value_flags(builder, memory_columns, local);
 

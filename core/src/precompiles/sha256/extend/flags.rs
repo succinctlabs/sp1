@@ -1,10 +1,10 @@
+use core::borrow::Borrow;
 use p3_air::AirBuilder;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
-use std::borrow::Borrow;
 
 use p3_matrix::MatrixRowSlices;
 

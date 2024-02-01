@@ -23,8 +23,14 @@ pub enum Syscall {
     /// Executes the `KECCAK_PERMUTE` precompile.
     KECCAK_PERMUTE = 106,
 
-    /// Executes the `SECP_ADD` precompile.
-    SECP_ADD = 107,
+    /// Executes the `SECP256K1_ADD` precompile.
+    SECP256K1_ADD = 107,
+
+    /// Executes the `SECP256K1_DOUBLE` precompile.
+    SECP256K1_DOUBLE = 108,
+
+    /// Executes the `K256_DECOMPRESS` precompile.
+    SECP256K1_DECOMPRESS = 109,
 
     WRITE = 999,
 }
@@ -40,7 +46,9 @@ impl Syscall {
             104 => Syscall::ED_ADD,
             105 => Syscall::ED_DECOMPRESS,
             106 => Syscall::KECCAK_PERMUTE,
-            107 => Syscall::SECP_ADD,
+            107 => Syscall::SECP256K1_ADD,
+            108 => Syscall::SECP256K1_DOUBLE,
+            109 => Syscall::SECP256K1_DECOMPRESS,
             999 => Syscall::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
