@@ -1,7 +1,7 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "secp-add-zkvm"
+name = "secp256k1-add-zkvm"
 edition = "2021"
 build = "build.rs"
 

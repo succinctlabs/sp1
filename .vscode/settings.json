@@ -27,10 +27,13 @@
         "examples/fibonacci/Cargo.toml",
         "examples/io/Cargo.toml",
         "examples/keccak-permute/Cargo.toml",
-        "examples/secp-add/Cargo.toml",
+        "examples/secp256k1-add/Cargo.toml",
+        "examples/secp256k1-decompress/Cargo.toml",
+        "examples/secp256k1-double/Cargo.toml",
         "examples/sha-compress/Cargo.toml",
         "examples/sha-extend/Cargo.toml",
         "examples/sha2/Cargo.toml",
         "examples/ssz-withdrawals/Cargo.toml"
-    ]
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

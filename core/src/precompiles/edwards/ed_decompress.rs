@@ -1,16 +1,18 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::WORD_SIZE;
-use crate::cpu::columns::MemoryAccessCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
-use crate::operations::field::ed_sqrt::EdSqrtCols;
+use crate::memory::MemoryReadCols;
+use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
+use crate::operations::field::fp_sqrt::FpSqrtCols;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
+use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
@@ -63,14 +65,14 @@ pub struct EdDecompressCols<T> {
     pub segment: T,
     pub clk: T,
     pub ptr: T,
-    pub x_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub y_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub(crate) yy: FpOpCols<T>,
     pub(crate) u: FpOpCols<T>,
     pub(crate) dyy: FpOpCols<T>,
     pub(crate) v: FpOpCols<T>,
     pub(crate) u_div_v: FpOpCols<T>,
-    pub(crate) x: EdSqrtCols<T>,
+    pub(crate) x: FpSqrtCols<T>,
     pub(crate) neg_x: FpOpCols<T>,
 }
 
@@ -86,8 +88,8 @@ impl<F: Field> EdDecompressCols<F> {
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         for i in 0..8 {
-            self.x_access[i].populate_write(event.x_memory_records[i], &mut new_field_events);
-            self.y_access[i].populate_read(event.y_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
+            self.y_access[i].populate(event.y_memory_records[i], &mut new_field_events);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
@@ -105,7 +107,7 @@ impl<F: Field> EdDecompressCols<F> {
             .populate::<P>(&E::d_biguint(), &yy, FpOperation::Mul);
         let v = self.v.populate::<P>(&one, &dyy, FpOperation::Add);
         let u_div_v = self.u_div_v.populate::<P>(&u, &v, FpOperation::Div);
-        let x = self.x.populate::<P>(&u_div_v);
+        let x = self.x.populate::<P>(&u_div_v, ed25519_sqrt);
         self.neg_x
             .populate::<P>(&BigUint::zero(), &x, FpOperation::Sub);
     }
@@ -144,7 +146,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
         self.u_div_v
             .eval::<AB, P, _, _>(builder, &self.u.result, &self.v.result, FpOperation::Div);
-        self.x.eval::<AB>(builder, &self.u_div_v.result);
+        self.x.eval::<AB, P>(builder, &self.u_div_v.result);
         self.neg_x.eval::<AB, P, _, _>(
             builder,
             &[AB::Expr::zero()].iter(),
@@ -157,7 +159,7 @@ impl<V: Copy> EdDecompressCols<V> {
                 self.segment,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
-                self.x_access[i],
+                &self.x_access[i],
                 self.is_real,
             );
         }
@@ -166,7 +168,7 @@ impl<V: Copy> EdDecompressCols<V> {
                 self.segment,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
-                self.y_access[i],
+                &self.y_access[i],
                 self.is_real,
             );
         }
@@ -268,7 +270,7 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
         for i in 0..segment.ed_decompress_events.len() {
             let event = segment.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate::<E::BaseField, E>(event, segment);
 
             rows.push(row);
@@ -276,7 +278,7 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             cols.populate_fp_ops::<E::BaseField, E>(&zero);
             row

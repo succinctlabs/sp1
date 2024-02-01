@@ -1,4 +1,4 @@
-use std::mem::transmute;
+use std::borrow::BorrowMut;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -17,7 +17,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             let event = segment.sha_extend_events[i];
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-                let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.populate_flags(j);
                 cols.segment = F::from_canonical_u32(SEGMENT_NUM);
@@ -25,13 +25,13 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 
                 cols.w_i_minus_15
-                    .populate_read(event.w_i_minus_15_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_15_reads[j], &mut new_field_events);
                 cols.w_i_minus_2
-                    .populate_read(event.w_i_minus_2_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_2_reads[j], &mut new_field_events);
                 cols.w_i_minus_16
-                    .populate_read(event.w_i_minus_16_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_16_reads[j], &mut new_field_events);
                 cols.w_i_minus_7
-                    .populate_read(event.w_i_minus_7_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_7_reads[j], &mut new_field_events);
 
                 // Compute `s0`.
                 let w_i_minus_15 = event.w_i_minus_15_reads[j].value;
@@ -64,7 +64,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 cols.s2.populate(segment, w_i_minus_16, s0, w_i_minus_7, s1);
 
                 cols.w_i
-                    .populate_write(event.w_i_writes[j], &mut new_field_events);
+                    .populate(event.w_i_writes[j], &mut new_field_events);
 
                 cols.is_real = F::one();
                 rows.push(row);
@@ -80,7 +80,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         }
         for i in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate_flags(i);
             rows.push(row);
         }

@@ -1,5 +1,7 @@
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::MemoryAccessCols;
+use crate::memory::MemoryCols;
+use crate::memory::MemoryReadCols;
+use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
@@ -43,9 +45,9 @@ pub struct WeierstrassAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryAccessCols<T>,
-    pub p_access: [MemoryAccessCols<T>; NUM_WORDS_EC_POINT],
-    pub q_access: [MemoryAccessCols<T>; NUM_WORDS_EC_POINT],
+    pub q_ptr_access: MemoryReadCols<T>,
+    pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
+    pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
     pub(crate) slope_denominator: FpOpCols<T>,
     pub(crate) slope_numerator: FpOpCols<T>,
     pub(crate) slope: FpOpCols<T>,
@@ -146,7 +148,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         for i in 0..segment.weierstrass_add_events.len() {
             let event = segment.weierstrass_add_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
-            let cols: &mut WeierstrassAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
             let p = &event.p;
@@ -167,13 +169,13 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
             // Populate the memory access columns.
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
+                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
             }
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
             }
             cols.q_ptr_access
-                .populate_read(event.q_ptr_record, &mut new_field_events);
+                .populate(event.q_ptr_record, &mut new_field_events);
 
             rows.push(row);
         }
@@ -181,7 +183,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
-            let cols: &mut WeierstrassAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row
@@ -290,17 +292,17 @@ where
         for i in 0..NUM_LIMBS {
             builder
                 .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
             builder
                 .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
+                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
         builder.constraint_memory_access(
             row.segment,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(Register::X11 as u32),
-            row.q_ptr_access,
+            &row.q_ptr_access,
             row.is_real,
         );
         builder.constraint_memory_access_slice(
@@ -327,13 +329,13 @@ pub mod tests {
         utils::{prove, setup_logger},
     };
 
-    const SECP_ADD: &[u8] =
-        include_bytes!("../../../../examples/secp-add/elf/riscv32im-succinct-zkvm-elf");
+    const SECP256K1_ADD: &[u8] =
+        include_bytes!("../../../../examples/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
 
     #[test]
-    fn test_secp_add_simple() {
+    fn test_secp256k1_add_simple() {
         setup_logger();
-        let program = Program::from(SECP_ADD);
+        let program = Program::from(SECP256K1_ADD);
         prove(program);
     }
 }

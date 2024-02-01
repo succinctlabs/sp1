@@ -43,6 +43,8 @@ tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
 curve25519-dalek = "4.1.1"
 hex = "0.4.3"
+k256 = { version = "0.13.3", features = ["expose-field"] }
+elliptic-curve = "0.13.8"
 
 [dev-dependencies]
 criterion = "0.5.1"

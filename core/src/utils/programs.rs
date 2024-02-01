@@ -21,8 +21,14 @@ pub mod tests {
     pub const KECCAK_PERMUTE_ELF: &[u8] =
         include_bytes!("../../../examples/keccak-permute/elf/riscv32im-succinct-zkvm-elf");
 
-    pub const SECP_ADD_ELF: &[u8] =
-        include_bytes!("../../../examples/secp-add/elf/riscv32im-succinct-zkvm-elf");
+    pub const SECP256K1_ADD_ELF: &[u8] =
+        include_bytes!("../../../examples/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256K1_DECOMPRESS_ELF: &[u8] =
+        include_bytes!("../../../examples/secp256k1-decompress/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256K1_DOUBLE_ELF: &[u8] =
+        include_bytes!("../../../examples/secp256k1-double/elf/riscv32im-succinct-zkvm-elf");
 
     pub const SHA_COMPRESS_ELF: &[u8] =
         include_bytes!("../../../examples/sha-compress/elf/riscv32im-succinct-zkvm-elf");

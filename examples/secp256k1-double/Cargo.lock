@@ -105,7 +105,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "secp-add-zkvm"
+name = "secp256k1-double-zkvm"
 version = "0.1.0"
 dependencies = [
  "hex-literal",

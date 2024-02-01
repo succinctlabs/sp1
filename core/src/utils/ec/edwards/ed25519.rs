@@ -61,7 +61,7 @@ impl EdwardsParameters for Ed25519Parameters {
 }
 
 /// Computes the square root of a number in the base field of Ed25519.
-pub fn ed25519_sqrt(a: BigUint) -> BigUint {
+pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     // Here is a description of how to calculate sqrt in the Curve25519 base field:
     // https://github.com/succinctlabs/curve25519-dalek/blob/e2d1bd10d6d772af07cac5c8161cd7655016af6d/curve25519-dalek/src/field.rs#L256
 
@@ -84,13 +84,13 @@ pub fn ed25519_sqrt(a: BigUint) -> BigUint {
     .unwrap();
 
     let beta_squared = &beta * &beta % &modulus;
-    let neg_a = &modulus - &a;
+    let neg_a = &modulus - a;
 
     if beta_squared == neg_a {
         beta = (&beta * &sqrt_m1) % &modulus;
     }
 
-    let correct_sign_sqrt = beta_squared == a;
+    let correct_sign_sqrt = &beta_squared == a;
     let flipped_sign_sqrt = beta_squared == neg_a;
 
     if !correct_sign_sqrt && !flipped_sign_sqrt {
@@ -120,7 +120,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519>
     let v_inv = v.modpow(&(modulus - BigUint::from(2u64)), modulus);
     let u_div_v = (u * &v_inv) % modulus;
 
-    let mut x = ed25519_sqrt(u_div_v);
+    let mut x = ed25519_sqrt(&u_div_v);
 
     // sqrt always returns the nonnegative square root,
     // so we negate according to the supplied sign bit.

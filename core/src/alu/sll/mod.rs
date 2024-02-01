@@ -32,7 +32,6 @@
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -56,7 +55,7 @@ pub const BYTE_SIZE: usize = 8;
 pub struct ShiftLeft;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
     /// The output operand.
@@ -100,7 +99,7 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
         let shift_left_events = segment.shift_left_events.clone();
         for event in shift_left_events.iter() {
             let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
             let a = event.a.to_le_bytes();
             let b = event.b.to_le_bytes();
             let c = event.c.to_le_bytes();
@@ -170,7 +169,7 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
         // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
             cols.shift_by_n_bits[0] = F::one();
             cols.shift_by_n_bytes[0] = F::one();
             cols.bit_shift_multiplier = F::one();

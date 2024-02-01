@@ -1,9 +1,10 @@
+use core::borrow::Borrow;
+
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use std::mem::transmute_copy;
 
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{BranchCols, CpuCols, OpcodeSelectorCols};
+use crate::cpu::columns::{BranchCols, CpuCols, OpcodeSelectorCols, NUM_BRANCH_COLS};
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
@@ -37,7 +38,7 @@ impl CpuChip {
     ) {
         // Get the branch specific columns.
         let branch_cols: BranchCols<AB::Var> =
-            unsafe { transmute_copy(&local.opcode_specific_columns) };
+            *local.opcode_specific_columns[..NUM_BRANCH_COLS].borrow();
 
         // Evaluate program counter constraints.
         {

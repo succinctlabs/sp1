@@ -1,5 +1,7 @@
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::MemoryAccessCols;
+use crate::memory::MemoryCols;
+use crate::memory::MemoryReadCols;
+use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_den::FpDenCols;
 use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
@@ -43,9 +45,9 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryAccessCols<T>,
-    pub p_access: [MemoryAccessCols<T>; 16],
-    pub q_access: [MemoryAccessCols<T>; 16],
+    pub q_ptr_access: MemoryReadCols<T>,
+    pub p_access: [MemoryWriteCols<T>; 16],
+    pub q_access: [MemoryReadCols<T>; 16],
     pub(crate) x3_numerator: FpInnerProductCols<T>,
     pub(crate) y3_numerator: FpInnerProductCols<T>,
     pub(crate) x1_mul_y1: FpOpCols<T>,
@@ -123,7 +125,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         for i in 0..segment.ed_add_events.len() {
             let event = segment.ed_add_events[i];
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
             let p = &event.p;
@@ -144,13 +146,13 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
             // Populate the memory access columns.
             for i in 0..16 {
-                cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
+                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
             }
             for i in 0..16 {
-                cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
             }
             cols.q_ptr_access
-                .populate_read(event.q_ptr_record, &mut new_field_events);
+                .populate(event.q_ptr_record, &mut new_field_events);
 
             rows.push(row);
         }
@@ -158,7 +160,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row
@@ -233,17 +235,17 @@ where
         for i in 0..NUM_LIMBS {
             builder
                 .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
             builder
                 .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
+                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
         builder.constraint_memory_access(
             row.segment,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(11),
-            row.q_ptr_access,
+            &row.q_ptr_access,
             row.is_real,
         );
         for i in 0..16 {
@@ -251,7 +253,7 @@ where
                 row.segment,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
-                row.q_access[i as usize],
+                &row.q_access[i as usize],
                 row.is_real,
             );
         }
@@ -260,7 +262,7 @@ where
                 row.segment,
                 row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
-                row.p_access[i as usize],
+                &row.p_access[i as usize],
                 row.is_real,
             );
         }
