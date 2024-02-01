@@ -3926,6 +3926,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "getrandom",
+ "rand",
  "serde",
 ]
 
