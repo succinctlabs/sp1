@@ -729,7 +729,6 @@ impl Runtime {
                                 let s = core::str::from_utf8(slice).unwrap();
                                 log::info!("stderr: {}", s.trim_end());
                             } else if fd == 3 {
-                                log::info!("io::write: {:?}", slice);
                                 self.output_stream.extend_from_slice(slice);
                             } else {
                                 unreachable!()

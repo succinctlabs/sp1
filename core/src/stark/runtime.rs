@@ -23,6 +23,9 @@ use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
+use p3_maybe_rayon::prelude::IndexedParallelIterator;
+use p3_maybe_rayon::prelude::IntoParallelIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

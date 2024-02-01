@@ -76,14 +76,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
         let offset = i * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
-<<<<<<< HEAD
             let mut word;
-||||||| 59f2feeb
-            let mut word = 0u32;
-=======
-            #[allow(unused_assignments)]
-            let mut word = 0u32;
->>>>>>> origin/main
             asm!(
                 "ecall",
                 in("t0") LWA,
@@ -105,14 +98,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
         let offset = whole_words * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
-<<<<<<< HEAD
             let mut word;
-||||||| 59f2feeb
-            let mut word = 0u32;
-=======
-            #[allow(unused_assignments)]
-            let mut word = 0u32;
->>>>>>> origin/main
             asm!(
                 "ecall",
                 in("t0") LWA,
