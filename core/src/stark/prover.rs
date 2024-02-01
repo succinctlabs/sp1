@@ -90,16 +90,24 @@ impl<SC: StarkConfig> Prover<SC> {
         }
 
         // Generate the permutation traces.
-        let permutation_traces =
-            tracing::debug_span!("generate permutation traces").in_scope(|| {
-                chips
-                    .par_iter()
-                    .zip(traces.par_iter())
-                    .map(|(chip, trace)| {
-                        generate_permutation_trace(chip.as_chip(), trace, &permutation_challenges)
-                    })
-                    .collect::<Vec<_>>()
-            });
+        let mut permutation_traces = Vec::with_capacity(chips.len());
+        let mut commulative_sums = Vec::with_capacity(chips.len());
+        tracing::debug_span!("generate permutation traces").in_scope(|| {
+            chips
+                .par_iter()
+                .zip(traces.par_iter())
+                .map(|(chip, trace)| {
+                    let perm_trace =
+                        generate_permutation_trace(chip.as_chip(), trace, &permutation_challenges);
+                    let commulative_sum = perm_trace
+                        .row_slice(trace.height() - 1)
+                        .last()
+                        .copied()
+                        .unwrap();
+                    (perm_trace, commulative_sum)
+                })
+                .unzip_into_vecs(&mut permutation_traces, &mut commulative_sums);
+        });
 
         // Compute some statistics.
         for i in 0..chips.len() {
@@ -117,17 +125,14 @@ impl<SC: StarkConfig> Prover<SC> {
             );
         }
 
-        // Get the commulutative sums of the permutation traces.
-        let commulative_sums = permutation_traces
-            .par_iter()
-            .map(|trace| trace.row_slice(trace.height() - 1).last().copied().unwrap())
-            .collect::<Vec<_>>();
-
         // Commit to the permutation traces.
-        let flattened_permutation_traces = permutation_traces
-            .par_iter()
-            .map(|trace| trace.flatten_to_base())
-            .collect::<Vec<_>>();
+        let flattened_permutation_traces = tracing::debug_span!("flatten permutation traces")
+            .in_scope(|| {
+                permutation_traces
+                    .par_iter()
+                    .map(|trace| trace.flatten_to_base())
+                    .collect::<Vec<_>>()
+            });
         let (permutation_commit, permutation_data) =
             tracing::debug_span!("commit permutation traces")
                 .in_scope(|| config.pcs().commit_batches(flattened_permutation_traces));
