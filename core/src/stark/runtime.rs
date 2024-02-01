@@ -24,6 +24,8 @@ use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 
+use super::OpeningProof;
+
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
 
@@ -123,6 +125,7 @@ impl Runtime {
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        OpeningProof<SC>: Send + Sync,
     {
         tracing::info!(
             "total_cycles: {}, segments: {}",
@@ -153,7 +156,7 @@ impl Runtime {
         let local_segment_proofs: Vec<_> =
             tracing::info_span!("proving all segments").in_scope(|| {
                 segment_main_data
-                    .into_iter()
+                    .into_par_iter()
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
