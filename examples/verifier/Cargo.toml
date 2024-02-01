@@ -5,18 +5,17 @@ edition = "2021"
 
 
 [dependencies]
-clap = { version = "4.4.0", features = ["derive"] }
+clap = { version = "3.0", features = ["derive"] }
 log = "0.4.20"
-p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
-p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
+p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/downgrade_dependencies" }
+p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/downgrade_dependencies" }
+p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/downgrade_dependencies" }
+p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/downgrade_dependencies" }
+p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/downgrade_dependencies" }
+p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/downgrade_dependencies" }
 succinct-core = { path = "../../core" }
 succinct-derive = { path = "../../derive" }
 succinct-zkvm = { path = "../../zkvm" }
-rand = "0.8.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

@@ -99,6 +99,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "atty"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
+dependencies = [
+ "hermit-abi 0.1.19",
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -240,12 +251,29 @@ dependencies = [
 
 [[package]]
 name = "clap"
+version = "3.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ea181bf566f71cb9a5d17a59e1871af638180a18fb0035c92ae62b705207123"
+dependencies = [
+ "atty",
+ "bitflags 1.3.2",
+ "clap_derive 3.2.25",
+ "clap_lex 0.2.4",
+ "indexmap 1.9.3",
+ "once_cell",
+ "strsim",
+ "termcolor",
+ "textwrap",
+]
+
+[[package]]
+name = "clap"
 version = "4.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e578d6ec4194633722ccf9544794b71b1385c3c027efe0c55db226fc880865c"
 dependencies = [
  "clap_builder",
- "clap_derive",
+ "clap_derive 4.4.7",
 ]
 
 [[package]]
@@ -256,8 +284,21 @@ checksum = "4df4df40ec50c46000231c914968278b1eb05098cf8f1b3a518a95030e71d1c7"
 dependencies = [
  "anstream",
  "anstyle",
- "clap_lex",
+ "clap_lex 0.6.0",
  "strsim",
+]
+
+[[package]]
+name = "clap_derive"
+version = "3.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae6371b8bdc8b7d3959e9cf7b22d4435ef3e79e138688421ec654acf8c81b008"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -274,6 +315,15 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
+dependencies = [
+ "os_str_bytes",
+]
+
+[[package]]
+name = "clap_lex"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
@@ -284,7 +334,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "clap",
+ "clap 4.4.18",
  "dirs",
  "downloader",
  "flate2",
@@ -353,6 +403,32 @@ dependencies = [
 
 [[package]]
 name = "criterion"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7c76e09c1aae2bc52b3d2f29e13c6572553b30c4aa1b8a49fd70de6412654cb"
+dependencies = [
+ "anes",
+ "atty",
+ "cast",
+ "ciborium",
+ "clap 3.2.25",
+ "criterion-plot",
+ "itertools 0.10.5",
+ "lazy_static",
+ "num-traits",
+ "oorandom",
+ "plotters",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tinytemplate",
+ "walkdir",
+]
+
+[[package]]
+name = "criterion"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
@@ -360,7 +436,7 @@ dependencies = [
  "anes",
  "cast",
  "ciborium",
- "clap",
+ "clap 4.4.18",
  "criterion-plot",
  "is-terminal",
  "itertools 0.10.5",
@@ -722,7 +798,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap",
+ "indexmap 2.2.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -741,6 +817,12 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
+name = "hashbrown"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
@@ -750,6 +832,15 @@ name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
+name = "hermit-abi"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -866,12 +957,22 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
+dependencies = [
+ "autocfg",
+ "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "indexmap"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "433de089bd45971eecf4668ee0ee8f4cec17db4f8bd8f7bc3197a6ce37aa7d9b"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.14.3",
 ]
 
 [[package]]
@@ -898,7 +999,7 @@ version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bad00257d07be169d870ab665980b06cdb366d792ad690bf2e76876dc503455"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.4",
  "rustix",
  "windows-sys 0.52.0",
 ]
@@ -1079,7 +1180,6 @@ dependencies = [
  "autocfg",
  "num-integer",
  "num-traits",
- "rand",
 ]
 
 [[package]]
@@ -1089,7 +1189,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ba157ca0885411de85d6ca030ba7e2a83a28636056c7c699b07c8b6f7383214"
 dependencies = [
  "num-traits",
- "rand",
 ]
 
 [[package]]
@@ -1140,7 +1239,7 @@ version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.4",
  "libc",
 ]
 
@@ -1237,6 +1336,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "os_str_bytes"
+version = "6.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
+
+[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1245,7 +1350,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1254,7 +1359,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "rand",
@@ -1264,7 +1369,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1275,7 +1380,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1286,7 +1391,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1297,7 +1402,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -1308,7 +1413,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1325,7 +1430,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1336,7 +1441,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1346,7 +1451,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1355,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1367,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "p3-ldt"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1384,7 +1489,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1396,7 +1501,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "rayon",
 ]
@@ -1404,7 +1509,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1420,7 +1525,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -1436,9 +1541,9 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
- "criterion",
+ "criterion 0.4.0",
  "itertools 0.12.1",
  "p3-dft",
  "p3-field",
@@ -1452,7 +1557,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1466,7 +1571,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1475,7 +1580,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -1493,7 +1598,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git#634b23a4d6780c774535518c036c6442fbb4e746"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/downgrade_dependencies#0023bec854de139c7051d7304ec974c7a7859e56"
 dependencies = [
  "serde",
 ]
@@ -1599,6 +1704,30 @@ checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
 dependencies = [
  "once_cell",
  "toml_edit",
+]
+
+[[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "version_check",
 ]
 
 [[package]]
@@ -2042,8 +2171,8 @@ name = "succinct-core"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "clap",
- "criterion",
+ "clap 3.2.25",
+ "criterion 0.5.1",
  "curve25519-dalek",
  "elf",
  "env_logger",
@@ -2072,7 +2201,6 @@ dependencies = [
  "p3-symmetric",
  "p3-uni-stark",
  "p3-util",
- "rand",
  "rrs-lib",
  "serde",
  "tracing",
@@ -2174,6 +2302,12 @@ checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "textwrap"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
@@ -2315,7 +2449,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
- "indexmap",
+ "indexmap 2.2.1",
  "toml_datetime",
  "winnow",
 ]
@@ -2477,6 +2611,12 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "version_check"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "walkdir"
