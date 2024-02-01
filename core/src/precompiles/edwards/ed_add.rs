@@ -280,7 +280,7 @@ pub mod tests {
     #[test]
     fn test_ed_add_simple() {
         setup_logger();
-        let program = Program::from_elf("../programs/ed_add");
+        let program = Program::from_elf("/Users/umaroy/Documents/curta-vm/examples/target/riscv32im-succinct-zkvm-elf/release/secp256k1_double");
         prove(program);
     }
 

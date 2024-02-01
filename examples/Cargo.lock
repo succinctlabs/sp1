@@ -652,6 +652,7 @@ dependencies = [
  "rand_core",
  "sec1",
  "subtle",
+ "tap",
  "zeroize",
 ]
 
@@ -694,6 +695,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
+ "bitvec",
  "rand_core",
  "subtle",
 ]
@@ -1547,7 +1549,9 @@ dependencies = [
 name = "secp256k1_double"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
  "hex-literal",
+ "k256",
  "num",
  "succinct-zkvm",
 ]

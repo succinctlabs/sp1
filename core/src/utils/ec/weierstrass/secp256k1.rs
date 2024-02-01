@@ -101,8 +101,25 @@ mod tests {
 
     use super::*;
     use crate::utils::ec::utils::biguint_from_limbs;
+    use alloy_primitives::U256;
+    use hex_literal::hex;
+    use k256::ecdsa::signature::hazmat::PrehashVerifier;
+    use k256::ecdsa::RecoveryId;
+    use k256::{
+        ecdsa::{signature::Signer, Signature, SigningKey},
+        SecretKey,
+    };
+    use k256::{
+        ecdsa::{signature::Verifier, VerifyingKey},
+        EncodedPoint,
+    };
+    use k256::{
+        ecdsa::{Signature as K256Signature, VerifyingKey as K256VerifyingKey},
+        PublicKey as K256PublicKey, Scalar,
+    };
     use num::bigint::RandBigInt;
     use rand::thread_rng;
+    use sha3::{Digest, Keccak256};
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
@@ -129,5 +146,79 @@ mod tests {
 
             assert_eq!(sqrt_2, x_2);
         }
+    }
+
+    #[test]
+    fn test_secp256k1_signing() {
+        let signing_key = SigningKey::from_bytes(
+            &hex!("4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318").into(),
+        )
+        .unwrap();
+
+        let msg = hex!(
+            "e9808504e3b29200831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca0080018080"
+        );
+        let digest = Keccak256::new_with_prefix(msg);
+
+        println!("digest: {:?}", digest.clone().finalize().to_vec());
+
+        let (sig, recid) = signing_key.sign_digest_recoverable(digest.clone()).unwrap();
+        assert_eq!(
+            sig.to_bytes().as_slice(),
+            &hex!("c9cf86333bcb065d140032ecaab5d9281bde80f21b9687b3e94161de42d51895727a108a0b8d101465414033c3f705a9c7b826e596766046ee1183dbc8aeaa68")
+        );
+        println!("recid: {:?}", recid);
+        assert_eq!(recid, RecoveryId::from_byte(0).unwrap());
+
+        let verifying_key = VerifyingKey::recover_from_digest(digest.clone(), &sig, recid).unwrap();
+        let pubkey_bytes = verifying_key.to_sec1_bytes();
+        println!("pubkey: {:?}", pubkey_bytes);
+        println!(
+            "signature: {:?} {:?}",
+            sig.r().to_bytes(),
+            sig.s().to_bytes()
+        );
+
+        let pubkey_bytes = [
+            2, 78, 59, 129, 175, 156, 34, 52, 202, 208, 157, 103, 156, 230, 3, 94, 209, 57, 35, 71,
+            206, 100, 206, 64, 95, 93, 205, 54, 34, 138, 37, 222, 110,
+        ];
+        let r = U256::from_be_bytes([
+            201, 207, 134, 51, 59, 203, 6, 93, 20, 0, 50, 236, 170, 181, 217, 40, 27, 222, 128,
+            242, 27, 150, 135, 179, 233, 65, 97, 222, 66, 213, 24, 149,
+        ]);
+        let s = U256::from_be_bytes([
+            114, 122, 16, 138, 11, 141, 16, 20, 101, 65, 64, 51, 195, 247, 5, 169, 199, 184, 38,
+            229, 150, 118, 96, 70, 238, 17, 131, 219, 200, 174, 170, 104,
+        ]);
+        let message_hash = [
+            136, 207, 189, 126, 81, 199, 164, 5, 64, 178, 51, 207, 104, 182, 42, 209, 223, 62, 146,
+            70, 47, 28, 96, 24, 214, 214, 126, 174, 15, 59, 8, 245,
+        ];
+
+        // This is normal verification
+        let public_key = K256PublicKey::from_sec1_bytes(&pubkey_bytes).expect("invalid pubkey");
+        let signature =
+            K256Signature::from_scalars(r.to_be_bytes(), s.to_be_bytes()).expect("r, s invalid");
+        let verify_key = K256VerifyingKey::from(&public_key);
+        verify_key
+            .verify_prehash(&message_hash, &signature)
+            .expect("invalid signature");
+
+        println!("\n\n");
+
+        println!("hi");
+        let mut rng = thread_rng();
+        let signing_key = SigningKey::random(&mut rng);
+        let message =
+            b"ECDSA proves knowledge of a secret number in the context of a single message";
+        let signature: Signature = signing_key.sign(message);
+        let verifying_key = VerifyingKey::from(&signing_key); // Serialize with `::to_encoded_point()`
+
+        let pubkey_bytes = verifying_key.to_sec1_bytes();
+        println!("pubkey: {:?}", pubkey_bytes);
+        println!("signature: {:?}", signature);
+
+        assert!(verifying_key.verify(message, &signature).is_ok());
     }
 }
