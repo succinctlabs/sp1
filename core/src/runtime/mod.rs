@@ -1689,6 +1689,7 @@ pub mod tests {
     #[test]
     #[ignore]
     fn test_zeth_prove() {
+        setup_logger();
         let file = File::open("../programs/zethinput.bin").unwrap();
         let input: Input<EthereumTxEssence> = bincode::deserialize_from(file).unwrap();
 
