@@ -308,16 +308,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
-
     use crate::{
         runtime::Program,
-        utils::{prove, setup_logger},
+        utils::{prove, setup_logger, tests::ED_DECOMPRESS_ELF},
     };
 
     #[test]
     fn test_ed_decompress() {
         setup_logger();
-        let program = Program::from_elf("../programs/ed_decompress");
+        let program = Program::from(ED_DECOMPRESS_ELF);
         prove(program);
     }
 }

@@ -988,7 +988,10 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{runtime::Register, utils::setup_logger};
+    use crate::{
+        runtime::Register,
+        utils::{setup_logger, tests::FIBONACCI_ELF},
+    };
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -1002,7 +1005,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from_elf("../programs/fib_malloc.s")
+        Program::from(FIBONACCI_ELF)
     }
 
     pub fn ecall_lwa_program() -> Program {

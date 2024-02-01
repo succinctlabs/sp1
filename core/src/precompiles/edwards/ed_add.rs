@@ -269,23 +269,25 @@ where
 
 #[cfg(test)]
 pub mod tests {
-
     use crate::{
         runtime::Program,
-        utils::{prove, setup_logger},
+        utils::{
+            prove, setup_logger,
+            tests::{ED25519_ELF, ED_ADD_ELF},
+        },
     };
 
     #[test]
     fn test_ed_add_simple() {
         setup_logger();
-        let program = Program::from_elf("../programs/ed_add");
+        let program = Program::from(ED_ADD_ELF);
         prove(program);
     }
 
     #[test]
     fn test_ed25519_program() {
         setup_logger();
-        let program = Program::from_elf("../programs/ed25519");
+        let program = Program::from(ED25519_ELF);
         prove(program);
     }
 }

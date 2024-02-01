@@ -1,9 +1,0 @@
-[workspace]
-[package]
-name = "examples-runner"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-succinct-core = { path = "../../core" }
-fibonacci-zkvm = { path = "../fibonacci" }

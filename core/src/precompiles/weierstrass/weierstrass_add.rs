@@ -322,16 +322,18 @@ where
 
 #[cfg(test)]
 pub mod tests {
-
     use crate::{
         runtime::Program,
         utils::{prove, setup_logger},
     };
 
+    const SECP_ADD: &[u8] =
+        include_bytes!("../../../../examples/secp-add/elf/riscv32im-succinct-zkvm-elf");
+
     #[test]
     fn test_secp_add_simple() {
         setup_logger();
-        let program = Program::from_elf("../programs/secp_add");
+        let program = Program::from(SECP_ADD);
         prove(program);
     }
 }
