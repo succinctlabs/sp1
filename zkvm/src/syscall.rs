@@ -239,11 +239,15 @@ pub extern "C" fn syscall_secp256k1_double(p: *mut u32) {
 
 #[allow(unused_variables)]
 #[no_mangle]
-/// Decompresses a compressed Secp256k1 point. The input array should
+/// Decompresses a compressed Secp256k1 point. The input array should be 32 bytes long, with the
+/// first 16 bytes containing the X coordinate in big-endian format. The second half of the input
+/// will be overwritten with the decompressed point.
 pub extern "C" fn syscall_k256_decompress(point: &mut [u8; 64], is_odd: bool) {
     #[cfg(target_os = "zkvm")]
     {
-        point[32] = is_odd as u8;
+        // Memory system/FpOps are little endian so we'll just flip the whole array before/after
+        point.reverse();
+        point[0] = is_odd as u8;
         let p = point.as_mut_ptr();
         unsafe {
             asm!(
@@ -252,6 +256,7 @@ pub extern "C" fn syscall_k256_decompress(point: &mut [u8; 64], is_odd: bool) {
                 in("a0") p,
             );
         }
+        point.reverse();
     }
 
     #[cfg(not(target_os = "zkvm"))]

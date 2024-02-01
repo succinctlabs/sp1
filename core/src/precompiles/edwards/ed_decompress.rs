@@ -3,14 +3,8 @@ use crate::air::CurtaAirBuilder;
 use crate::air::WORD_SIZE;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
-<<<<<<< HEAD
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::ed_sqrt::EdSqrtCols;
-||||||| parent of 4e0b63b6 (wip)
-use crate::operations::field::ed_sqrt::EdSqrtCols;
-=======
->>>>>>> 4e0b63b6 (wip)
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;

@@ -1,12 +1,14 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
-use crate::cpu::columns::MemoryAccessCols;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
+use crate::memory::MemoryReadCols;
+use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
+use crate::precompiles::k256::decompress;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
@@ -30,7 +32,8 @@ use elliptic_curve::subtle::Choice;
 use k256::elliptic_curve::point::DecompressPoint;
 use num::BigUint;
 use num::Zero;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
@@ -55,9 +58,9 @@ pub struct K256DecompressEvent {
 pub const NUM_K256_DECOMPRESS_COLS: usize = size_of::<K256DecompressCols<u8>>();
 
 /// A chip that computes `K256Decompress` given a pointer to a 16 word slice formatted as such:
-/// The 32nd byte of the slice is the sign bit. The first half of the slice is the compressed X.
+/// input[0] is the sign bit. The second half of the slice is the compressed X in little endian.
 ///
-/// After `K256Decompress`, the last 32 bytes of the slice are overwritten with the decompressed Y.
+/// After `K256Decompress`, the first 32 bytes of the slice are overwritten with the decompressed Y.
 pub struct K256DecompressChip;
 
 impl K256DecompressChip {
@@ -76,19 +79,27 @@ impl K256DecompressChip {
             panic!();
         }
 
-        let (x_memory_records_vec, x_vec) = rt.mr_slice(slice_ptr, NUM_WORDS_FIELD_ELEMENT);
+        let (x_memory_records_vec, x_vec) = rt.mr_slice(
+            slice_ptr + (COMPRESSED_POINT_BYTES as u32),
+            NUM_WORDS_FIELD_ELEMENT,
+        );
         let x_memory_records: [MemoryReadRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
         // This unsafe read is okay because we do mw_slice into the first 8 words later.
-        let is_odd = rt.byte_unsafe(slice_ptr + (COMPRESSED_POINT_BYTES as u32));
+        let is_odd = rt.byte_unsafe(slice_ptr);
 
         let x_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&x_vec);
+        let mut x_bytes_be = x_bytes;
+        x_bytes_be.reverse();
 
         // Compute actual decompressed Y
         println!("x_bytes: {:?}", x_bytes);
+        println!("is_odd: {}", is_odd);
+        println!("x_bytes_be: {:?}", x_bytes_be);
         let computed_point =
-            k256::AffinePoint::decompress((&x_bytes).into(), Choice::from(is_odd as u8)).unwrap();
-        let x_bigint = BigUint::from_bytes_be(&x_bytes);
+            k256::AffinePoint::decompress((&x_bytes_be).into(), Choice::from(is_odd as u8))
+                .unwrap();
+        let x_bigint = BigUint::from_bytes_be(&x_bytes_be);
         println!("x_bigint: {}", x_bigint);
         let x_2_bigint = (&x_bigint * &x_bigint) % &Secp256k1BaseField::modulus();
         println!("x_2_bigint: {}", x_2_bigint);
@@ -104,16 +115,19 @@ impl K256DecompressChip {
         let neg_y_bigint =
             (&Secp256k1BaseField::modulus() - &y_bigint) % &Secp256k1BaseField::modulus();
         println!("neg_y_bigint: {}", neg_y_bigint);
+        let neg_y_bytes = neg_y_bigint.to_bytes_le();
+        println!("neg_y_bytes: {:?}", neg_y_bytes);
 
         let decompressed_point = computed_point.to_encoded_point(false);
         let decompressed_point_bytes = decompressed_point.as_bytes();
         let mut decompressed_y_bytes = [0_u8; NUM_BYTES_FIELD_ELEMENT];
         decompressed_y_bytes
             .copy_from_slice(&decompressed_point_bytes[1 + NUM_BYTES_FIELD_ELEMENT..]);
+        decompressed_y_bytes.reverse();
+        println!("decompressed_y_bytes: {:?}", decompressed_y_bytes);
         let y_words: [u32; NUM_WORDS_FIELD_ELEMENT] = bytes_to_words_le(&decompressed_y_bytes);
 
-        let y_memory_records_vec =
-            rt.mw_slice(slice_ptr + (COMPRESSED_POINT_BYTES as u32), &y_words);
+        let y_memory_records_vec = rt.mw_slice(slice_ptr, &y_words);
         let y_memory_records: [MemoryWriteRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
         let segment = rt.current_segment;
@@ -143,8 +157,8 @@ pub struct K256DecompressCols<T> {
     pub segment: T,
     pub clk: T,
     pub ptr: T,
-    pub x_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub y_access: [MemoryAccessCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub(crate) x_2: FpOpCols<T>,
     pub(crate) x_3: FpOpCols<T>,
     pub(crate) x_3_plus_b: FpOpCols<T>,
@@ -161,7 +175,7 @@ impl<F: Field> K256DecompressCols<F> {
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         for i in 0..8 {
-            self.x_access[i].populate_read(event.x_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
             self.y_access[i].populate_write(event.y_memory_records[i], &mut new_field_events);
         }
 
@@ -236,47 +250,47 @@ impl<V: Copy> K256DecompressCols<V> {
         );
 
         // Constrain decomposition of least significant byte of Y into `y_least_bits`
-        // for i in 0..8 {
-        //     builder.when(self.is_real).assert_bool(self.y_least_bits[i]);
-        // }
-        // let y_least_byte = self.y.multiplication.result.0[0];
-        // let powers_of_two = [1, 2, 4, 8, 16, 32, 64, 128].map(AB::F::from_canonical_u32);
-        // let recomputed_byte: AB::Expr = self
-        //     .y_least_bits
-        //     .iter()
-        //     .zip(powers_of_two)
-        //     .map(|(p, b)| (*p).into() * b)
-        //     .sum();
-        // builder
-        //     .when(self.is_real)
-        //     .assert_eq(recomputed_byte, y_least_byte);
+        for i in 0..8 {
+            builder.when(self.is_real).assert_bool(self.y_least_bits[i]);
+        }
+        let y_least_byte = self.y.multiplication.result.0[0];
+        let powers_of_two = [1, 2, 4, 8, 16, 32, 64, 128].map(AB::F::from_canonical_u32);
+        let recomputed_byte: AB::Expr = self
+            .y_least_bits
+            .iter()
+            .zip(powers_of_two)
+            .map(|(p, b)| (*p).into() * b)
+            .sum();
+        builder
+            .when(self.is_real)
+            .assert_eq(recomputed_byte, y_least_byte);
 
         // Interpret the lowest bit of Y as whether it is odd or not.
         let y_is_odd = self.y_least_bits[0];
 
         // When y_is_odd == should_be_odd, the result is y, otherwise it is -y.
         let y_limbs = limbs_from_access(&self.y_access);
-        // builder
-        //     .when(self.is_real)
-        //     .when(AB::Expr::one() - (y_is_odd.into() - should_be_odd.clone()))
-        //     .assert_all_eq(self.y.multiplication.result, y_limbs);
-        // builder
-        //     .when(self.is_real)
-        //     .when_ne(y_is_odd, should_be_odd)
-        //     .assert_all_eq(self.neg_y.result, y_limbs);
+        builder
+            .when(self.is_real)
+            .when(AB::Expr::one() - (y_is_odd.into() - should_be_odd.clone()))
+            .assert_all_eq(self.y.multiplication.result, y_limbs);
+        builder
+            .when(self.is_real)
+            .when_ne(y_is_odd, should_be_odd)
+            .assert_all_eq(self.neg_y.result, y_limbs);
 
-        // // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        // builder.assert_zero(
-        //     self.is_real.into() * self.is_real.into() * self.is_real.into()
-        //         - self.is_real.into() * self.is_real.into() * self.is_real.into(),
-        // );
+        // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(
+            self.is_real.into() * self.is_real.into() * self.is_real.into()
+                - self.is_real.into() * self.is_real.into() * self.is_real.into(),
+        );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
                 self.segment,
                 self.clk,
-                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
-                self.x_access[i],
+                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
+                &self.x_access[i],
                 self.is_real,
             );
         }
@@ -284,8 +298,8 @@ impl<V: Copy> K256DecompressCols<V> {
             builder.constraint_memory_access(
                 self.segment,
                 self.clk,
-                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
-                self.y_access[i],
+                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
+                &self.y_access[i],
                 self.is_real,
             );
         }
@@ -330,7 +344,7 @@ impl<F: Field> Chip<F> for K256DecompressChip {
                     .collect::<Vec<_>>()
                     .try_into()
                     .unwrap();
-                cols.x_access[i].prev_value = Word(word_bytes);
+                cols.x_access[i].access.value = Word(word_bytes);
             }
             cols.populate_fp_ops(&dummy_value);
             row
@@ -364,6 +378,8 @@ where
 pub mod tests {
 
     use elliptic_curve::sec1::ToEncodedPoint;
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
 
     use crate::{
         runtime::{Program, Runtime},
@@ -373,7 +389,7 @@ pub mod tests {
     #[test]
     fn test_k256_decompress() {
         setup_logger();
-        let mut rng = rand::thread_rng();
+        let mut rng = StdRng::seed_from_u64(2);
 
         for _ in 0..4 {
             let secret_key = k256::SecretKey::random(&mut rng);
