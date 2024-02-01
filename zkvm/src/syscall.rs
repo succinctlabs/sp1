@@ -232,6 +232,7 @@ pub extern "C" fn syscall_keccak256_permute(state: *mut u64) {
     unreachable!()
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
     sys_write(2, msg_ptr, len);

@@ -1,7 +1,6 @@
-use std::{fs, path::Path};
-
 use anyhow::Result;
 use clap::Parser;
+use std::{fs, path::Path};
 
 const CARGO_TOML: &str = include_str!("../assets/Cargo.toml");
 const BUILD_RS: &str = include_str!("../assets/build.rs");

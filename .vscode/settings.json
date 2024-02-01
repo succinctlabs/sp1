@@ -27,7 +27,6 @@
         "examples/fibonacci/Cargo.toml",
         "examples/io/Cargo.toml",
         "examples/keccak-permute/Cargo.toml",
-        "examples/runner/Cargo.toml",
         "examples/secp-add/Cargo.toml",
         "examples/sha-compress/Cargo.toml",
         "examples/sha-extend/Cargo.toml",

@@ -1,7 +1,6 @@
-use std::{path::PathBuf, process::Command};
-
 use anyhow::Result;
 use clap::Parser;
+use std::{path::PathBuf, process::Command};
 
 use crate::{get_target, CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
 

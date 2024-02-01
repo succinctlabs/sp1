@@ -7,12 +7,12 @@ use std::fs::{self};
 use std::process::Command;
 use std::time::Duration;
 
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
+
 use crate::{
     download_file, get_target, get_toolchain_download_url, CommandExecutor, RUSTUP_TOOLCHAIN_NAME,
 };
-
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 
 #[derive(Parser)]
 #[command(
