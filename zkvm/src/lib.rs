@@ -1,7 +1,4 @@
 #[cfg(target_os = "zkvm")]
-use core::arch::asm;
-
-#[cfg(target_os = "zkvm")]
 use syscall::syscall_halt;
 
 use core::alloc::{GlobalAlloc, Layout};
@@ -9,9 +6,10 @@ use core::alloc::{GlobalAlloc, Layout};
 extern crate alloc;
 
 pub mod io;
-mod memory;
-#[allow(clippy::missing_safety_doc)]
+pub mod memory;
 pub mod syscall;
+
+pub use io::*;
 
 pub const WORD_SIZE: usize = 4;
 

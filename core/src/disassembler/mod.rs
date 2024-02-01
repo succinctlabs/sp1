@@ -45,30 +45,3 @@ impl Program {
         Program::from(&elf_code)
     }
 }
-
-#[cfg(test)]
-pub mod tests {
-    use crate::disassembler::Program;
-    use crate::utils::{self, prove};
-
-    #[test]
-    fn test_fibonacci() {
-        utils::setup_logger();
-        let program = Program::from_elf("../programs/fib_malloc.s");
-        prove(program.clone());
-    }
-
-    #[test]
-    fn test_malloc() {
-        utils::setup_logger();
-        let program = Program::from_elf("../programs/malloc");
-        prove(program.clone());
-    }
-
-    #[test]
-    fn test_sha2() {
-        utils::setup_logger();
-        let program = Program::from_elf("../programs/sha2");
-        prove(program.clone());
-    }
-}

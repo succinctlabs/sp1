@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = { version = "1.0.79", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
 clap = { version = "4.4.15", features = ["derive"] }
-succinct-core = { path = "../core" }
+succinct-core = { path = "../core", features = ["perf"] }
 reqwest = { version = "0.11.3", features = ["stream", "json"] }
 futures-util = "0.3.14"
 indicatif = "0.15.0"

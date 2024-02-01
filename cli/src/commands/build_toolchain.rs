@@ -1,7 +1,6 @@
-use std::{path::PathBuf, process::Command};
-
 use anyhow::Result;
 use clap::Parser;
+use std::{path::PathBuf, process::Command};
 
 use crate::{get_target, CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
 
@@ -38,7 +37,7 @@ impl BuildToolchainCmd {
                 };
                 Command::new("git").args(["clone", &repo_url]).run()?;
                 Command::new("git")
-                    .args(["checkout", "riscv32im-succinct-zkvm"])
+                    .args(["checkout", "rustc-17.0"])
                     .current_dir("rust")
                     .run()?;
                 Command::new("git")
