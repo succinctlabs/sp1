@@ -1,12 +1,8 @@
 [package]
-name = "io"
 version = "0.1.0"
+name = "io-example"
 edition = "2021"
 
-
 [dependencies]
-succinct-zkvm = { path = "../../zkvm" }
-succinct-derive = { path = "../../derive" }
-serde = { version = "1.0.195", features = ["derive"] }
-bincode = "1.3.3"
-
+succinct-core = { path = "../../core" }
+serde = { version = "1.0", features = ["derive"] }

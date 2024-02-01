@@ -1,0 +1,10 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "secp256k1-add-zkvm"
+edition = "2021"
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
+hex-literal = "0.4.1"
+num = { version = "0.4.1", default-features = false }

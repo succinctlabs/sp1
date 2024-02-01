@@ -76,6 +76,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
         let offset = i * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
+            #[allow(unused_assignments)]
             let mut word = 0u32;
             asm!(
                 "ecall",
@@ -98,6 +99,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
         let offset = whole_words * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
+            #[allow(unused_assignments)]
             let mut word = 0u32;
             asm!(
                 "ecall",
@@ -252,7 +254,7 @@ pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: boo
         unsafe {
             asm!(
                 "ecall",
-                in("t0") K256_DECOMPRESS,
+                in("t0") SECP256K1_DECOMPRESS,
                 in("a0") p,
             );
         }
@@ -279,6 +281,7 @@ pub extern "C" fn syscall_keccak256_permute(state: *mut u64) {
     unreachable!()
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
     sys_write(2, msg_ptr, len);

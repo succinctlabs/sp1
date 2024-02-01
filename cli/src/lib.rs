@@ -1,7 +1,6 @@
 pub mod commands;
 
 use anyhow::Result;
-
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;

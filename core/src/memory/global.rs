@@ -189,7 +189,7 @@ mod tests {
         setup_logger();
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&[10]);
+        runtime.write_stdin_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(
             &runtime.segment,
@@ -203,7 +203,7 @@ mod tests {
         setup_logger();
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&[10]);
+        runtime.write_stdin_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(&runtime.segment, None, vec![InteractionKind::Byte]);
     }

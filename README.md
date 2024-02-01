@@ -23,18 +23,25 @@ cargo prove build-toolchain
 
 ## Quickstart
 
-Just "cargo prove".
+Just `cargo prove`. Run `cargo prove --help` to see all options. You can control the logging level with `RUST_LOG`.
 
 ```
-cd examples/fibonacci
+cd programs/fibonacci
 cargo prove
+```
+
+To create a new project, run `cargo prove new <name>`.
+
+```
+cargo prove new fibonacci
+cd fibonacci
 ```
 
 ## Profile
 
-To get a performance breakdown of proving, run the profiler.
+To get a performance breakdown of proving, run the profiler. You can control the logging level with `RUST_TRACER`.
 ```
-cd core && RUST_TRACER=debug cargo run --bin profile --release --features perf -- --program ../programs/sha2
+cargo prove --profile
 ```
 
 ## Benchmark
@@ -43,6 +50,11 @@ To benchmark the proving time of programs with statistical guarantees, run the b
 ```
 cd core && cargo bench --features perf
 ```
+
+## Development
+
+We recommend you install the [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) extension.
+Note that if you use `cargo prove new` inside a monorepo, you will need to add the manifest file to `rust-analyzer.linkedProjects` to get full IDE support.
 
 ## Acknowledgements
 
