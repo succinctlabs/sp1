@@ -265,7 +265,7 @@ pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: boo
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_keccak256_permute(state: *mut u64) {
+pub extern "C" fn syscall_keccak_permute(state: *mut u64) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
