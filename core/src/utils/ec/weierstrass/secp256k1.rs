@@ -10,6 +10,9 @@ use super::{SWCurve, WeierstrassParameters};
 use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
+use k256::FieldElement;
+use num::traits::FromBytes;
+use num::traits::ToBytes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter
@@ -84,11 +87,22 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 }
 
+pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
+    let be_bytes = n.to_be_bytes();
+    let mut bytes = [0_u8; 32];
+    bytes[32 - be_bytes.len()..].copy_from_slice(&be_bytes);
+    let fe = FieldElement::from_bytes(&bytes.into()).unwrap();
+    let result_bytes = fe.sqrt().unwrap().to_bytes();
+    BigUint::from_be_bytes(&result_bytes as &[u8])
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use crate::utils::ec::utils::biguint_from_limbs;
+    use num::bigint::RandBigInt;
+    use rand::thread_rng;
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
@@ -96,5 +110,24 @@ mod tests {
             biguint_from_limbs(&Secp256k1BaseField::MODULUS),
             Secp256k1BaseField::modulus()
         );
+    }
+
+    #[test]
+    fn test_secp256k_sqrt() {
+        let mut rng = thread_rng();
+        for _ in 0..10 {
+            // Check that sqrt(x^2)^2 == x^2
+            // We use x^2 since not all field elements have a square root
+            let x = rng.gen_biguint(256) % Secp256k1BaseField::modulus();
+            let x_2 = (&x * &x) % Secp256k1BaseField::modulus();
+            let sqrt = secp256k1_sqrt(&x_2);
+            if sqrt > x_2 {
+                println!("wtf");
+            }
+
+            let sqrt_2 = (&sqrt * &sqrt) % Secp256k1BaseField::modulus();
+
+            assert_eq!(sqrt_2, x_2);
+        }
     }
 }

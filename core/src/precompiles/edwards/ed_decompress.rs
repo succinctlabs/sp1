@@ -5,13 +5,14 @@ use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::ed_sqrt::EdSqrtCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
+use crate::operations::field::fp_sqrt::FpSqrtCols;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
+use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
@@ -71,7 +72,7 @@ pub struct EdDecompressCols<T> {
     pub(crate) dyy: FpOpCols<T>,
     pub(crate) v: FpOpCols<T>,
     pub(crate) u_div_v: FpOpCols<T>,
-    pub(crate) x: EdSqrtCols<T>,
+    pub(crate) x: FpSqrtCols<T>,
     pub(crate) neg_x: FpOpCols<T>,
 }
 
@@ -106,7 +107,7 @@ impl<F: Field> EdDecompressCols<F> {
             .populate::<P>(&E::d_biguint(), &yy, FpOperation::Mul);
         let v = self.v.populate::<P>(&one, &dyy, FpOperation::Add);
         let u_div_v = self.u_div_v.populate::<P>(&u, &v, FpOperation::Div);
-        let x = self.x.populate::<P>(&u_div_v);
+        let x = self.x.populate::<P>(&u_div_v, ed25519_sqrt);
         self.neg_x
             .populate::<P>(&BigUint::zero(), &x, FpOperation::Sub);
     }
@@ -145,7 +146,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
         self.u_div_v
             .eval::<AB, P, _, _>(builder, &self.u.result, &self.v.result, FpOperation::Div);
-        self.x.eval::<AB>(builder, &self.u_div_v.result);
+        self.x.eval::<AB, P>(builder, &self.u_div_v.result);
         self.neg_x.eval::<AB, P, _, _>(
             builder,
             &[AB::Expr::zero()].iter(),
