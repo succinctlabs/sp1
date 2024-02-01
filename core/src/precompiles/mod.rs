@@ -10,7 +10,7 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::{Register, Runtime};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::Segment};
+use crate::{memory::MemoryReadRecord, memory::MemoryWriteRecord, runtime::Segment};
 
 /// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct PrecompileRuntime<'a> {

@@ -6,7 +6,7 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
+use crate::memory::{MemoryEntryRecord, MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
@@ -44,10 +44,10 @@ pub enum AccessPosition {
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Record {
-    pub a: Option<MemoryRecordEnum>,
-    pub b: Option<MemoryRecordEnum>,
-    pub c: Option<MemoryRecordEnum>,
-    pub memory: Option<MemoryRecordEnum>,
+    pub a: Option<MemoryRecord>,
+    pub b: Option<MemoryRecord>,
+    pub c: Option<MemoryRecord>,
+    pub memory: Option<MemoryRecord>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -954,7 +954,7 @@ impl Runtime {
             if !self.program.memory_image.contains_key(&addr) {
                 first_memory_record.push((
                     addr,
-                    MemoryRecord {
+                    MemoryEntryRecord {
                         value: 0,
                         segment: 0,
                         timestamp: 0,
@@ -965,7 +965,7 @@ impl Runtime {
 
             last_memory_record.push((
                 addr,
-                MemoryRecord {
+                MemoryEntryRecord {
                     value,
                     segment,
                     timestamp,
@@ -979,7 +979,7 @@ impl Runtime {
             .map(|(&addr, &(value, used))| {
                 (
                     addr,
-                    MemoryRecord {
+                    MemoryEntryRecord {
                         value,
                         segment: 0,
                         timestamp: 0,
@@ -987,7 +987,7 @@ impl Runtime {
                     used,
                 )
             })
-            .collect::<Vec<(u32, MemoryRecord, u32)>>();
+            .collect::<Vec<(u32, MemoryEntryRecord, u32)>>();
         program_memory_record.sort_by_key(|&(addr, _, _)| addr);
 
         self.global_segment.first_memory_record = first_memory_record;

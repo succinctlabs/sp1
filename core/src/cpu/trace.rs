@@ -12,10 +12,9 @@ use super::{CpuChip, CpuEvent};
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::{CpuCols, MemoryColumns};
-use crate::cpu::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
-use crate::memory::MemoryCols;
+use crate::memory::{MemoryCols, MemoryRecord};
 use crate::runtime::{Opcode, Segment};
 use crate::utils::Chip;
 
@@ -78,10 +77,10 @@ impl CpuChip {
         if let Some(record) = event.a_record {
             cols.op_a_access.populate(record, new_field_events)
         }
-        if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
+        if let Some(MemoryRecord::Read(record)) = event.b_record {
             cols.op_b_access.populate(record, new_field_events)
         }
-        if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
+        if let Some(MemoryRecord::Read(record)) = event.c_record {
             cols.op_c_access.populate(record, new_field_events)
         }
 

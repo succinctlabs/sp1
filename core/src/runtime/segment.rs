@@ -7,11 +7,11 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
+use crate::memory::MemoryEntryRecord;
 use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
 use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::{ECAddEvent, ECDoubleEvent};
-use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
@@ -69,9 +69,9 @@ pub struct Segment {
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.
-    pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub first_memory_record: Vec<(u32, MemoryEntryRecord, u32)>,
+    pub last_memory_record: Vec<(u32, MemoryEntryRecord, u32)>,
+    pub program_memory_record: Vec<(u32, MemoryEntryRecord, u32)>,
 }
 
 impl Segment {
