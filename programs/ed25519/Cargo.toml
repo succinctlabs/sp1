@@ -9,6 +9,3 @@ build = "build.rs"
 succinct-zkvm = { path = "../../zkvm" }
 ed25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek.git", rev = "0b45e00", version = "2.1.0" }
 hex-literal = "0.4.1"
-
-[build-dependencies]
-succinct-build = { path = "../../build" }

@@ -15,7 +15,6 @@ dependencies = [
 name = "cycle-tracker-zkvm"
 version = "0.1.0"
 dependencies = [
- "succinct-build",
  "succinct-derive",
  "succinct-zkvm",
 ]
@@ -57,10 +56,6 @@ dependencies = [
  "quote",
  "syn 2.0.48",
 ]
-
-[[package]]
-name = "succinct-build"
-version = "0.1.0"
 
 [[package]]
 name = "succinct-derive"

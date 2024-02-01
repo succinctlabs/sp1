@@ -8,6 +8,3 @@ build = "build.rs"
 [dependencies]
 succinct-zkvm = { path = "../../zkvm" }
 hex-literal = "0.4.1"
-
-[build-dependencies]
-succinct-build = { path = "../../build" }

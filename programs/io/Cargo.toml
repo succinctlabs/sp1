@@ -9,6 +9,3 @@ build = "build.rs"
 succinct-zkvm = { path = "../../zkvm" }
 serde = { version = "1.0.195", features = ["derive"] }
 bincode = "1.3.3"
-
-[build-dependencies]
-succinct-build = { path = "../../build" }

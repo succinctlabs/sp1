@@ -3,7 +3,6 @@ use clap::Parser;
 use std::{fs, path::Path};
 
 const CARGO_TOML: &str = include_str!("../assets/Cargo.toml");
-const BUILD_RS: &str = include_str!("../assets/build.rs");
 const MAIN_RS: &str = include_str!("../assets/main.rs");
 
 #[derive(Parser)]
@@ -18,7 +17,6 @@ impl NewCmd {
 
         let root = Path::new(&self.name);
         let cargo_toml_path = root.join("Cargo.toml");
-        let build_rs_path = root.join("build.rs");
         let src_dir = root.join("src");
         let main_path = src_dir.join("main.rs");
         let elf_path = root.join("elf");
@@ -28,7 +26,6 @@ impl NewCmd {
         fs::create_dir(&elf_path)?;
 
         fs::write(cargo_toml_path, CARGO_TOML.replace("unnamed", &self.name))?;
-        fs::write(build_rs_path, BUILD_RS)?;
         fs::write(main_path, MAIN_RS)?;
         fs::write(elf_binary_path, "")?;
 

@@ -7,6 +7,3 @@ build = "build.rs"
 
 [dependencies]
 succinct-zkvm = { path = "../../zkvm" }
-
-[build-dependencies]
-succinct-build = { path = "../../build" }

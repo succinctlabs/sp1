@@ -15,7 +15,3 @@ hex = "0.4.3"
 serde_with = { version = "3.4.0", features = ["hex"] }
 serde = { version = "1.0.195", features = ["derive"] }
 alloy-primitives = "0.6.0"
-
-
-[build-dependencies]
-succinct-build = { path = "../../build" }

@@ -10,6 +10,3 @@ succinct-zkvm = { path = "../../zkvm" }
 hex-literal = "0.4.1"
 sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git" }
 hex = "0.4.3"
-
-[build-dependencies]
-succinct-build = { path = "../../build" }

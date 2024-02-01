@@ -132,7 +132,6 @@ version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "hex-literal",
- "succinct-build",
  "succinct-zkvm",
 ]
 
@@ -288,10 +287,6 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
-
-[[package]]
-name = "succinct-build"
-version = "0.1.0"
 
 [[package]]
 name = "succinct-zkvm"

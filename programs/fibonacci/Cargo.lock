@@ -15,7 +15,6 @@ dependencies = [
 name = "fibonacci-zkvm"
 version = "0.1.0"
 dependencies = [
- "succinct-build",
  "succinct-zkvm",
 ]
 
@@ -56,10 +55,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "succinct-build"
-version = "0.1.0"
 
 [[package]]
 name = "succinct-zkvm"

@@ -138,13 +138,8 @@ dependencies = [
  "hex",
  "hex-literal",
  "sha2",
- "succinct-build",
  "succinct-zkvm",
 ]
-
-[[package]]
-name = "succinct-build"
-version = "0.1.0"
 
 [[package]]
 name = "succinct-zkvm"
