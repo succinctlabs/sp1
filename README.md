@@ -23,7 +23,7 @@ cargo prove build-toolchain
 
 ## Quickstart
 
-Just `cargo prove`. Run `cargo prove --help` to see all options.
+Just `cargo prove`. Run `cargo prove --help` to see all options. You can control the logging level with `RUST_LOG`.
 
 ```
 cd programs/fibonacci
@@ -39,7 +39,7 @@ cd fibonacci
 
 ## Profile
 
-To get a performance breakdown of proving, run the profiler.
+To get a performance breakdown of proving, run the profiler. You can control the logging level with `RUST_TRACER`.
 ```
 cargo prove --profile
 ```
