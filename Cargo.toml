@@ -8,11 +8,6 @@ opt-level = 3
 [profile.bench]
 opt-level = 3
 
-[profile.fast]
-inherits = "release"
-debug = true
-debug-assertions = true
-
 [workspace.dependencies]
 p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
@@ -21,7 +16,6 @@ p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 valida-derive = { git = "https://github.com/valida-xyz/valida.git" }
-
 p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
