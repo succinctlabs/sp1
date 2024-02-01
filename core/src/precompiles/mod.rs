@@ -32,6 +32,10 @@ impl<'a> PrecompileRuntime<'a> {
         }
     }
 
+    pub fn segment_idx(&self) -> u32 {
+        self.rt.segment_idx
+    }
+
     pub fn segment_mut(&mut self) -> &mut Segment {
         &mut self.rt.segment
     }
@@ -91,6 +95,7 @@ impl<'a> PrecompileRuntime<'a> {
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECAddEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -135,6 +140,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAd
     rt.clk += 4;
 
     ECAddEvent {
+        segment: rt.segment_idx(),
         clk: start_clk,
         p_ptr,
         p,
@@ -149,6 +155,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAd
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECDoubleEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -180,6 +187,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> E
     rt.clk += 4;
 
     ECDoubleEvent {
+        segment: rt.segment_idx(),
         clk: start_clk,
         p_ptr,
         p,

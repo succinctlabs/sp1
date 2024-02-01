@@ -18,6 +18,7 @@ const STATE_NUM_WORDS: usize = 25 * 2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct KeccakPermuteEvent {
+    pub segment: u32,
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],

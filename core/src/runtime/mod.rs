@@ -64,6 +64,9 @@ pub struct Runtime {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
 
+    /// The segment index.
+    pub segment_idx: u32,
+
     /// The clock keeps track of how many instructions have been executed in this segment.
     pub clk: u32,
 
@@ -92,9 +95,6 @@ pub struct Runtime {
     pub output_stream_ptr: usize,
 
     /// Segments
-    pub segments: Vec<Segment>,
-
-    /// The current segment for this section of the program.
     pub segment: Segment,
 
     /// The current record for the CPU event,
@@ -118,12 +118,12 @@ impl Runtime {
         let program_rc = Arc::new(program);
         let segment = Segment {
             program: program_rc.clone(),
-            index: 1,
             ..Default::default()
         };
         Self {
             global_clk: 0,
             clk: 0,
+            segment_idx: 1,
             pc: program_rc.pc_start,
             program: program_rc,
             memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
@@ -132,10 +132,9 @@ impl Runtime {
             input_stream_ptr: 0,
             output_stream: Vec::new(),
             output_stream_ptr: 0,
-            segments: Vec::new(),
             segment,
             record: Record::default(),
-            segment_size: 1048576,
+            segment_size: 128,
             global_segment: Segment::default(),
             cycle_tracker: 0,
         }
@@ -181,7 +180,7 @@ impl Runtime {
     }
 
     pub fn current_segment(&self) -> u32 {
-        self.segment.index
+        self.segment_idx
     }
 
     fn align(&self, addr: u32) -> u32 {
@@ -920,18 +919,13 @@ impl Runtime {
             self.clk += 4;
 
             if self.clk % self.segment_size == 1 {
-                let segment = std::mem::take(&mut self.segment);
-                self.segments.push(segment);
+                // let segment = std::mem::take(&mut self.segment);
+                // self.segments.push(segment);
                 // Set up new segment
-                self.segment.index = self.segments.len() as u32 + 1;
+                self.segment_idx += 1;
                 self.segment.program = self.program.clone();
                 self.clk = 1;
             }
-        }
-
-        // Push the last segment.
-        if !self.segment.cpu_events.is_empty() {
-            self.segments.push(self.segment.clone());
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory

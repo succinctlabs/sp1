@@ -94,9 +94,11 @@ impl KeccakPermuteChip {
         rt.clk += 4;
 
         // Push the Keccak permute event.
+        let segment_idx = rt.segment_idx();
         rt.segment_mut()
             .keccak_permute_events
             .push(KeccakPermuteEvent {
+                segment: segment_idx,
                 clk: saved_clk,
                 pre_state: saved_state.as_slice().try_into().unwrap(),
                 post_state: state.as_slice().try_into().unwrap(),

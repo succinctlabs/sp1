@@ -81,7 +81,9 @@ impl ShaCompressChip {
         }
 
         // Push the SHA extend event.
+        let segment_idx = rt.segment_idx();
         rt.segment_mut().sha_compress_events.push(ShaCompressEvent {
+            segment: segment_idx,
             clk: saved_clk,
             w_and_h_ptr: saved_w_ptr,
             w: original_w.try_into().unwrap(),
