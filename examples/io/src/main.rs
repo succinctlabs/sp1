@@ -1,14 +1,7 @@
-#![no_main]
-extern crate succinct_zkvm;
-succinct_zkvm::entrypoint!(main);
-
 use serde::{Deserialize, Serialize};
+use succinct_core::{utils, SuccinctProver};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct MyPoint {
-    pub x: usize,
-    pub y: usize,
-}
+const IO_ELF: &[u8] = include_bytes!("../../../programs/io/elf/riscv32im-succinct-zkvm-elf");
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct MyPointUnaligned {
@@ -17,19 +10,21 @@ struct MyPointUnaligned {
     pub b: bool,
 }
 
-pub fn main() {
-    let p1 = succinct_zkvm::read::<MyPointUnaligned>();
-    println!("Read point: {:?}", p1);
-
-    let p2 = succinct_zkvm::read::<MyPointUnaligned>();
-    println!("Read point: {:?}", p2);
-
-    let p3: MyPointUnaligned = MyPointUnaligned {
-        x: p1.x + p2.x,
-        y: p1.y + p2.y,
-        b: p1.b && p2.b,
+fn main() {
+    std::env::set_var("RUST_LOG", "info");
+    utils::setup_logger();
+    let p1 = MyPointUnaligned {
+        x: 3,
+        y: 5,
+        b: true,
     };
-    println!("Addition of 2 points: {:?}", p3);
-
-    succinct_zkvm::write(&p3);
+    let p2 = MyPointUnaligned {
+        x: 8,
+        y: 19,
+        b: true,
+    };
+    let mut prover = SuccinctProver::new();
+    prover.write::<MyPointUnaligned>(&p1);
+    prover.write::<MyPointUnaligned>(&p2);
+    prover.prove_elf(IO_ELF);
 }

@@ -26,7 +26,7 @@ cargo prove build-toolchain
 Just `cargo prove`. Run `cargo prove --help` to see all options.
 
 ```
-cd examples/fibonacci
+cd programs/fibonacci
 cargo prove
 ```
 

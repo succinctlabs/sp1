@@ -667,6 +667,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27573eac26f4dd11e2b1916c3fe1baa56407c83c71a773a8ba17ec0bca03b6b7"
 
 [[package]]
+name = "fibonacci-example"
+version = "0.1.0"
+dependencies = [
+ "succinct-core",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1029,6 +1036,14 @@ dependencies = [
  "lazy_static",
  "number_prefix",
  "regex",
+]
+
+[[package]]
+name = "io-example"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "succinct-core",
 ]
 
 [[package]]

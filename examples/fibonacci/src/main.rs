@@ -1,16 +1,11 @@
-#![no_main]
-extern crate succinct_zkvm;
-succinct_zkvm::entrypoint!(main);
+use succinct_core::{utils, SuccinctProver};
 
-pub fn main() {
-    let n = 10;
-    let mut a = 0;
-    let mut b = 1;
-    let mut sum;
-    for _ in 1..n {
-        sum = a + b;
-        a = b;
-        b = sum;
-    }
-    println!("b: {}", b);
+const FIBONACCI_ELF: &[u8] =
+    include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+
+fn main() {
+    std::env::set_var("RUST_LOG", "info");
+    utils::setup_logger();
+    let prover = SuccinctProver::new();
+    prover.prove_elf(FIBONACCI_ELF);
 }

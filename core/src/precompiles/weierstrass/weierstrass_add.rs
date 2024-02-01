@@ -326,16 +326,13 @@ where
 pub mod tests {
     use crate::{
         runtime::Program,
-        utils::{prove, setup_logger},
+        utils::{prove, setup_logger, tests::SECP256K1_ADD_ELF},
     };
-
-    const SECP256K1_ADD: &[u8] =
-        include_bytes!("../../../../examples/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
 
     #[test]
     fn test_secp256k1_add_simple() {
         setup_logger();
-        let program = Program::from(SECP256K1_ADD);
+        let program = Program::from(SECP256K1_ADD_ELF);
         prove(program);
     }
 }
