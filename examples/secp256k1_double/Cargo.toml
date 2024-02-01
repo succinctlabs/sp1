@@ -9,3 +9,5 @@ edition = "2021"
 succinct-zkvm = { path = "../../zkvm" }
 hex-literal = "0.4.1"
 num = { version = "0.4.1", default-features = false }
+k256 = { version = "0.13.3", default-features = false, features = ["bits", "ecdsa"] }
+alloy-primitives = "0.6.2"
