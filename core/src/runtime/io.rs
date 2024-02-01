@@ -24,6 +24,7 @@ impl Runtime {
         let len = buf.len();
         let start = self.output_stream_ptr;
         let end = start + len;
+        println!("output len: {}", self.output_stream.len());
         assert!(end <= self.output_stream.len());
         buf.copy_from_slice(&self.output_stream[start..end]);
         self.output_stream_ptr = end;

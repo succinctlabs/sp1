@@ -8,6 +8,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
 use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
+use crate::precompiles::k256::decompress::K256DecompressEvent;
 use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::{ECAddEvent, ECDoubleEvent};
@@ -66,6 +67,8 @@ pub struct Segment {
     pub weierstrass_add_events: Vec<ECAddEvent>,
 
     pub weierstrass_double_events: Vec<ECDoubleEvent>,
+
+    pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.
