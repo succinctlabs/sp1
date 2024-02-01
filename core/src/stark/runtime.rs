@@ -9,6 +9,7 @@ use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
+use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
@@ -35,7 +36,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 19;
+pub const NUM_CHIPS: usize = 20;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -64,6 +65,7 @@ impl Runtime {
             WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
+        let k256_decompress = K256DecompressChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -74,6 +76,7 @@ impl Runtime {
             Box::new(sha_compress),
             Box::new(ed_add),
             Box::new(ed_decompress),
+            Box::new(k256_decompress),
             Box::new(weierstrass_add),
             Box::new(weierstrass_double),
             Box::new(keccak_permute),

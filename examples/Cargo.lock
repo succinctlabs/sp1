@@ -1000,6 +1000,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256_decompress"
+version = "0.1.0"
+dependencies = [
+ "succinct-zkvm",
+]
+
+[[package]]
 name = "keccak-asm"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

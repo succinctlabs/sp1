@@ -30,6 +30,9 @@ pub const SECP256K1_ADD: u32 = 107;
 /// Executes `SECP256K1_DOUBLE`.
 pub const SECP256K1_DOUBLE: u32 = 108;
 
+/// Executes `K256_DECOMPRESS`.
+pub const SECP256K1_DECOMPRESS: u32 = 109;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -228,6 +231,32 @@ pub extern "C" fn syscall_secp256k1_double(p: *mut u32) {
             in("t0") SECP256K1_DOUBLE,
             in("a0") p,
         );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+/// Decompresses a compressed Secp256k1 point. The input array should be 32 bytes long, with the
+/// first 16 bytes containing the X coordinate in big-endian format. The second half of the input
+/// will be overwritten with the decompressed point.
+pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool) {
+    #[cfg(target_os = "zkvm")]
+    {
+        // Memory system/FpOps are little endian so we'll just flip the whole array before/after
+        point.reverse();
+        point[0] = is_odd as u8;
+        let p = point.as_mut_ptr();
+        unsafe {
+            asm!(
+                "ecall",
+                in("t0") K256_DECOMPRESS,
+                in("a0") p,
+            );
+        }
+        point.reverse();
     }
 
     #[cfg(not(target_os = "zkvm"))]
