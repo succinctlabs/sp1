@@ -5,7 +5,7 @@ extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 extern "C" {
-    fn syscall_secp_add(p: *mut u32, q: *const u32);
+    fn syscall_secp256k1_add(p: *mut u32, q: *const u32);
 }
 
 pub fn main() {
@@ -30,7 +30,7 @@ pub fn main() {
     ];
 
     unsafe {
-        syscall_secp_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
+        syscall_secp256k1_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
     }
 
     // 3 * generator.

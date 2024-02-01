@@ -24,8 +24,11 @@ pub const ED_DECOMPRESS: u32 = 105;
 /// Executes `KECCAK_PERMUTE`.
 pub const KECCAK_PERMUTE: u32 = 106;
 
-/// Executes `SECP_ADD`.
-pub const SECP_ADD: u32 = 107;
+/// Executes `SECP256K1_ADD`.
+pub const SECP256K1_ADD: u32 = 107;
+
+/// Executes `SECP256K1_DOUBLE`.
+pub const SECP256K1_DOUBLE: u32 = 108;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
@@ -199,14 +202,31 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
 #[allow(unused_variables)]
 #[no_mangle]
 /// Adds two Secp256k1 points. The result is stored in the first point.
-pub extern "C" fn syscall_secp_add(p: *mut u32, q: *mut u32) {
+pub extern "C" fn syscall_secp256k1_add(p: *mut u32, q: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
             "ecall",
-            in("t0") SECP_ADD,
+            in("t0") SECP256K1_ADD,
             in("a0") p,
             in("a1") q
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+/// Double a Secp256k1 point. The result is stored in the first point.
+pub extern "C" fn syscall_secp256k1_double(p: *mut u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") SECP256K1_DOUBLE,
+            in("a0") p,
         );
     }
 
