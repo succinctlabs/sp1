@@ -24,9 +24,10 @@ use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
+use std::cmp::max;
 use std::marker::PhantomData;
 use std::time::Instant;
-use tracing::debug;
+use tracing::{debug, trace};
 
 pub trait Prover<SC>
 where
@@ -64,7 +65,7 @@ where
                 let start = Instant::now();
                 let trace = chip.generate_trace(segment);
                 let elasped = start.elapsed();
-                println!(
+                trace!(
                     "{} trace generated in {}ms",
                     chip.name(),
                     elasped.as_millis()
@@ -77,7 +78,7 @@ where
         let start = Instant::now();
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
         let end = start.elapsed();
-        debug!(
+        trace!(
             "main data for segment {} committed in {}ms",
             segment.index,
             end.as_millis()
@@ -541,27 +542,21 @@ where
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         MainData<SC>: Serialize + DeserializeOwned,
     {
-        // let pool = rayon::ThreadPoolBuilder::new()
-        //     .num_threads(16)
-        //     .build()
-        //     .unwrap();
-
         let num_segments = segments.len();
-        let chunk_size = segments.len() / 16;
+        let chunk_size = max(segments.len() / 16, 1);
         let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                // pool.install(|| {
                 segments
                     .chunks_mut(chunk_size)
                     .par_bridge()
                     .flat_map(|segments| {
                         segments
-                            .into_iter()
+                            .iter_mut()
                             .map(|segment| {
                                 let start_time = std::time::Instant::now();
                                 let data = Self::commit_main(config, chips, segment);
                                 let elapsed = start_time.elapsed();
-                                debug!(
+                                trace!(
                                     "main data for segment {} generated in {}ms",
                                     segment.index,
                                     elapsed.as_millis()
@@ -581,7 +576,6 @@ where
                     .collect::<Vec<_>>()
                     .into_iter()
                     .unzip()
-                //     })
             });
 
         let bytes_written = segment_main_data

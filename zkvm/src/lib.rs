@@ -82,9 +82,14 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
 
+#[cfg(target_os = "zkvm")]
+static GETRANDOM_WARNING_ONCE: std::sync::Once = std::sync::Once::new();
+
+#[cfg(target_os = "zkvm")]
 fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
-    // panic!("randomness not implemented");
-    // dummy implementation from seed
+    GETRANDOM_WARNING_ONCE.call_once(|| {
+        println!("WARNING: Using insecure random number generator");
+    });
     let mut rng = rand::rngs::StdRng::seed_from_u64(123);
     for i in 0..s.len() {
         s[i] = rng.gen();

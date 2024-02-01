@@ -4,11 +4,12 @@ use std::{
 };
 
 use bincode::{deserialize_from, Error};
-use flate2::Compression;
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
+use size::Size;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use tracing::trace;
 
 use super::StarkConfig;
 
@@ -51,20 +52,18 @@ impl<SC: StarkConfig> MainData<SC> {
     where
         MainData<SC>: Serialize,
     {
-        println!("file: {:?}", file);
         let start = std::time::Instant::now();
         let mut writer = BufWriter::new(&file);
-        // let mut gz = GzEncoder::new(&mut writer, Compression::default());
-        // let mut buffer_gz = BufWriter::new(&gz);
         bincode::serialize_into(&mut writer, self)?;
-        // gz.finish()?;
-        // writer.drop();
         drop(writer);
         let elapsed = start.elapsed();
-        println!("elapsed: {:?}", elapsed);
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
-        println!("bytes_written: {}", bytes_written);
+        trace!(
+            "wrote {} after {:?}",
+            Size::from_bytes(bytes_written),
+            elapsed
+        );
         Ok(MainDataWrapper::TempFile(file, bytes_written))
     }
 
@@ -87,7 +86,6 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
             Self::InMemory(data) => Ok(data),
             Self::TempFile(mut file, _) => {
                 file.seek(std::io::SeekFrom::Start(0))?;
-                // let mut gz = GzDecoder::new(file);
                 let data = deserialize_from(&mut file)?;
 
                 Ok(data)

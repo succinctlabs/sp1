@@ -2795,9 +2795,7 @@ dependencies = [
 name = "secp256k1_double"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
  "hex-literal",
- "k256",
  "num",
  "succinct-zkvm",
 ]

@@ -272,43 +272,14 @@ where
 #[cfg(test)]
 pub mod tests {
 
-    use std::fs::File;
-
     use crate::utils::prove;
-    use crate::{
-        runtime::{Program, Runtime},
-        utils::{prove_core, setup_logger},
-    };
-    use zeth_lib::{input::Input, EthereumTxEssence};
+    use crate::{runtime::Program, utils::setup_logger};
 
     #[test]
     fn test_ed_add_simple() {
         setup_logger();
-        let file = File::open("../zethinput2.bin").unwrap();
-        let input: Input<EthereumTxEssence> = bincode::deserialize_from(file).unwrap();
-
-        let program = Program::from_elf("../programs/zeth");
-
-        let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-            let mut runtime = Runtime::new(program);
-            let serialized = bincode::serialize(&input).unwrap();
-            runtime.add_input_slice(&serialized);
-            runtime.run();
-            runtime
-        });
-        let num_segments = runtime.segments.len();
-        tracing::info!(
-            "total_cycles: {}, segments: {}",
-            runtime
-                .segments
-                .iter()
-                .map(|s| s.cpu_events.len())
-                .sum::<usize>(),
-            num_segments
-        );
-        // prove_core(&mut runtime);
-
-        // prove(program);
+        let program = Program::from_elf("../programs/ed_add");
+        prove(program);
     }
 
     #[test]
