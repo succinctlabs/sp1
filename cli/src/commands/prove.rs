@@ -14,11 +14,11 @@ pub struct ProveCmd {
     #[clap(short, long, value_parser, num_args = 1.., value_delimiter = ' ')]
     input: Vec<u32>,
 
-    #[clap(long)]
-    target: Option<String>,
+    #[clap(long, action)]
+    profile: bool,
 
-    #[clap(last = true)]
-    cargo_args: Vec<String>,
+    #[clap(long, action)]
+    verbose: bool,
 }
 
 impl ProveCmd {
@@ -54,11 +54,20 @@ impl ProveCmd {
         fs::create_dir_all(&elf_dir)?;
         fs::copy(&elf_path, elf_dir.join("riscv32im-succinct-zkvm-elf"))?;
 
-        match env::var("RUST_LOG") {
-            Ok(_) => {}
-            Err(_) => env::set_var("RUST_LOG", "info"),
+        if !self.profile {
+            match env::var("RUST_LOG") {
+                Ok(_) => {}
+                Err(_) => env::set_var("RUST_LOG", "info"),
+            }
+            utils::setup_logger();
+        } else {
+            match env::var("RUST_TRACER") {
+                Ok(_) => {}
+                Err(_) => env::set_var("RUST_TRACER", "info"),
+            }
+            utils::setup_tracer();
         }
-        utils::setup_logger();
+
         let program = Program::from_elf(elf_path.as_path().as_str());
         let mut runtime = Runtime::new(program);
         for input in self.input.clone() {

@@ -11,7 +11,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     let programs = ["fibonacci"];
     for p in programs {
-        let elf_path = format!("../examples/{}/elf/riscv32im-succinct-zkvm-elf", p);
+        let elf_path = format!("../programs/{}/elf/riscv32im-succinct-zkvm-elf", p);
         let program = Program::from_elf(&elf_path);
         let cycles = {
             let mut runtime = Runtime::new(program.clone());

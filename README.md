@@ -41,7 +41,7 @@ cd fibonacci
 
 To get a performance breakdown of proving, run the profiler.
 ```
-cd core && RUST_TRACER=debug cargo run --bin profile --release --features perf -- --program ../examples/fibonacci/elf/riscv32im-succinct-zkvm-elf
+cargo prove --profile
 ```
 
 ## Benchmark
