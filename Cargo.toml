@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "cli", "zkvm", "derive"]
+members =  ["core", "cli", "derive", "examples/*", "zkvm"]
 resolver = "2"
 
 [profile.release]
@@ -7,11 +7,6 @@ opt-level = 3
 
 [profile.bench]
 opt-level = 3
-
-[profile.fast]
-inherits = "release"
-debug = true
-debug-assertions = true
 
 [workspace.dependencies]
 p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }

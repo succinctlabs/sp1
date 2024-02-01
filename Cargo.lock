@@ -654,6 +654,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27573eac26f4dd11e2b1916c3fe1baa56407c83c71a773a8ba17ec0bca03b6b7"
 
 [[package]]
+name = "fibonacci-example"
+version = "0.1.0"
+dependencies = [
+ "succinct-core",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1010,6 +1017,14 @@ dependencies = [
  "lazy_static",
  "number_prefix",
  "regex",
+]
+
+[[package]]
+name = "io-example"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "succinct-core",
 ]
 
 [[package]]
@@ -1383,7 +1398,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1392,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "serde",
@@ -1401,7 +1416,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1412,7 +1427,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1423,7 +1438,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1434,7 +1449,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -1444,7 +1459,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1461,7 +1476,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1471,7 +1486,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1481,7 +1496,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1490,7 +1505,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1502,7 +1517,7 @@ dependencies = [
 [[package]]
 name = "p3-ldt"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1519,7 +1534,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1530,7 +1545,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "rayon",
 ]
@@ -1538,7 +1553,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1553,7 +1568,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -1569,7 +1584,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -1583,7 +1598,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1596,7 +1611,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1605,7 +1620,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -1623,7 +1638,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#91638043769c10cb941d2ee3f66b48f2869fe91a"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=kevjue/rand_feature#49bd30ad2458a8f3a46acf40fda9123ce2aa8eaf"
 dependencies = [
  "serde",
 ]

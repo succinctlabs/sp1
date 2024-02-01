@@ -31,11 +31,16 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn prove(program: Program) {
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&[1, 2]);
+        runtime.write_stdin_slice(&[1, 2]);
         runtime.run();
         runtime
     });
     prove_core(&mut runtime)
+}
+
+pub fn prove_elf(elf: &[u8]) {
+    let program = Program::from(elf);
+    prove(program)
 }
 
 pub fn prove_core(runtime: &mut Runtime) {

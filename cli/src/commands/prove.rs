@@ -1,18 +1,24 @@
-use std::process::Command;
-
 use anyhow::Result;
 use clap::Parser;
+use std::{env, fs, process::Command};
+use succinct_core::{
+    runtime::{Program, Runtime},
+    utils::{self, prove_core},
+};
 
 use crate::CommandExecutor;
 
 #[derive(Parser)]
 #[command(name = "prove", about = "(default) Build and prove a Rust program")]
 pub struct ProveCmd {
-    #[clap(long)]
-    target: Option<String>,
+    #[clap(short, long, value_parser, num_args = 1.., value_delimiter = ' ')]
+    input: Vec<u32>,
 
-    #[clap(last = true)]
-    cargo_args: Vec<String>,
+    #[clap(long, action)]
+    profile: bool,
+
+    #[clap(long, action)]
+    verbose: bool,
 }
 
 impl ProveCmd {
@@ -34,15 +40,41 @@ impl ProveCmd {
         Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-            .args(["build", "--release", "--target", build_target])
-            .run()?;
+            .env("SUCCINCT_BUILD_IGNORE", "1")
+            .args(["build", "--release", "--target", build_target, "--locked"])
+            .run()
+            .unwrap();
 
         let elf_path = metadata
             .target_directory
             .join(build_target)
             .join("release")
             .join(root_package_name.unwrap());
-        println!("Successfully built ELF at {:?}", elf_path);
+        let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
+        fs::create_dir_all(&elf_dir)?;
+        fs::copy(&elf_path, elf_dir.join("riscv32im-succinct-zkvm-elf"))?;
+
+        if !self.profile {
+            match env::var("RUST_LOG") {
+                Ok(_) => {}
+                Err(_) => env::set_var("RUST_LOG", "info"),
+            }
+            utils::setup_logger();
+        } else {
+            match env::var("RUST_TRACER") {
+                Ok(_) => {}
+                Err(_) => env::set_var("RUST_TRACER", "info"),
+            }
+            utils::setup_tracer();
+        }
+
+        let program = Program::from_elf(elf_path.as_path().as_str());
+        let mut runtime = Runtime::new(program);
+        for input in self.input.clone() {
+            runtime.write_stdin(&input);
+        }
+        runtime.run();
+        prove_core(&mut runtime);
 
         Ok(())
     }

@@ -1,18 +1,18 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use succinct_core::{
-    runtime::{Program, Runtime},
-    utils::prove,
-};
+use succinct_core::runtime::{Program, Runtime};
+use succinct_core::utils::prove;
 
+#[allow(unreachable_code)]
 pub fn criterion_benchmark(c: &mut Criterion) {
     #[cfg(not(feature = "perf"))]
     unreachable!("--features=perf must be enabled to run this benchmark");
 
     let mut group = c.benchmark_group("prove");
     group.sample_size(10);
-    let programs = ["../programs/fibonacci"];
+    let programs = ["fibonacci"];
     for p in programs {
-        let program = Program::from_elf(p);
+        let elf_path = format!("../programs/{}/elf/riscv32im-succinct-zkvm-elf", p);
+        let program = Program::from_elf(&elf_path);
         let cycles = {
             let mut runtime = Runtime::new(program.clone());
             runtime.run();
