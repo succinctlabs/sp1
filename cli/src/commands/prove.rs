@@ -1,7 +1,8 @@
-use std::process::Command;
+use std::{env, process::Command};
 
 use anyhow::Result;
 use clap::Parser;
+use succinct_core::{runtime::Program, utils};
 
 use crate::CommandExecutor;
 
@@ -19,30 +20,16 @@ impl ProveCmd {
     pub fn run(&self) -> Result<()> {
         let metadata_cmd = cargo_metadata::MetadataCommand::new();
         let metadata = metadata_cmd.exec().unwrap();
-        let root_package = metadata.root_package();
-        let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-        let build_target = "riscv32im-succinct-zkvm-elf";
-        let rust_flags = [
-            "-C",
-            "passes=loweratomic",
-            "-C",
-            "link-arg=-Ttext=0x00200800",
-            "-C",
-            "panic=abort",
-        ];
-        Command::new("cargo")
-            .env("RUSTUP_TOOLCHAIN", "succinct")
-            .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-            .args(["build", "--release", "--target", build_target])
-            .run()?;
-
+        Command::new("cargo").args(["build"]).run()?;
         let elf_path = metadata
-            .target_directory
-            .join(build_target)
-            .join("release")
-            .join(root_package_name.unwrap());
-        println!("Successfully built ELF at {:?}", elf_path);
+            .workspace_root
+            .join("elf")
+            .join("riscv32im-succinct-zkvm-elf");
+        let program = Program::from_elf(elf_path.as_str());
+
+        utils::setup_logger();
+        utils::prove(program);
 
         Ok(())
     }

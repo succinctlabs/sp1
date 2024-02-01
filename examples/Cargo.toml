@@ -1,5 +1,18 @@
 [workspace]
-members = ["*"]
+members = [
+    "cycle-tracker",
+    "ed_add",
+    "ed_decompress",
+    "ed25519",
+    "io",
+    "keccak_permute",
+    "secp_add",
+    "sha_compress",
+    "sha_extend",
+    "sha2",
+    "ssz_withdrawals",
+    "tendermint"
+]
 exclude = ["target"]
 resolver = "2"
 

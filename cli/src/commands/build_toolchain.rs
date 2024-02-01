@@ -38,7 +38,7 @@ impl BuildToolchainCmd {
                 };
                 Command::new("git").args(["clone", &repo_url]).run()?;
                 Command::new("git")
-                    .args(["checkout", "riscv32im-succinct-zkvm"])
+                    .args(["checkout", "rustc-17.0"])
                     .current_dir("rust")
                     .run()?;
                 Command::new("git")

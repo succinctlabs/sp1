@@ -22,9 +22,9 @@ struct MyPointUnaligned {
 }
 
 pub fn main() {
-    let p1 = succinct_zkvm::io::read::<MyPointUnaligned>();
+    let p1 = succinct_zkvm::read::<MyPointUnaligned>();
     println!("Read point: {:?}", p1);
-    let p2 = succinct_zkvm::io::read::<MyPointUnaligned>();
+    let p2 = succinct_zkvm::read::<MyPointUnaligned>();
     println!("Read point: {:?}", p2);
 
     let p3: MyPointUnaligned = MyPointUnaligned {
@@ -35,5 +35,5 @@ pub fn main() {
 
     println!("Addition of 2 points: {:?}", p3);
 
-    succinct_zkvm::io::write(&p3);
+    succinct_zkvm::write(&p3);
 }

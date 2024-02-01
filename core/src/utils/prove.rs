@@ -38,6 +38,11 @@ pub fn prove(program: Program) {
     prove_core(&mut runtime)
 }
 
+pub fn prove_elf(elf: &[u8]) {
+    let program = Program::from(elf);
+    prove(program)
+}
+
 pub fn prove_core(runtime: &mut Runtime) {
     let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
