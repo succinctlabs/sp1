@@ -281,24 +281,30 @@ impl<SC: StarkConfig> Prover<SC> {
         #[cfg(feature = "perf")]
         {
             // Collect the opened values for each chip.
-            let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
+            // let [main_values, permutation_values, quotient_values] = openings.try_into().unwrap();
+            let main_values = &openings[0];
+            let permutation_values = &openings[1];
+            let quotient_values = &openings[2];
+
             let main_opened_values = main_values
-                .into_iter()
+                .iter()
                 .map(|op| {
-                    let [local, next] = op.try_into().unwrap();
+                    let local = op[0].clone();
+                    let next = op[1].clone();
                     AirOpenedValues { local, next }
                 })
                 .collect::<Vec<_>>();
             let permutation_opened_values = permutation_values
-                .into_iter()
+                .iter()
                 .map(|op| {
-                    let [local, next] = op.try_into().unwrap();
+                    let local = op[0].clone();
+                    let next = op[1].clone();
                     AirOpenedValues { local, next }
                 })
                 .collect::<Vec<_>>();
             let quotient_opened_values = quotient_values
-                .into_iter()
-                .map(|mut op| op.pop().unwrap())
+                .iter()
+                .map(|op| op.clone().pop().unwrap())
                 .collect::<Vec<_>>();
             let opened_values = SegmentOpenedValues {
                 main: main_opened_values,
