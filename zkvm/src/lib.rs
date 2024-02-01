@@ -5,6 +5,9 @@ use core::arch::asm;
 use syscall::syscall_halt;
 
 use core::alloc::{GlobalAlloc, Layout};
+use getrandom::{register_custom_getrandom, Error};
+use rand::Rng;
+use rand::SeedableRng;
 
 extern crate alloc;
 
@@ -78,3 +81,16 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 #[cfg(target_os = "zkvm")]
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
+
+fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
+    // panic!("randomness not implemented");
+    // dummy implementation from seed
+    let mut rng = rand::rngs::StdRng::seed_from_u64(123);
+    for i in 0..s.len() {
+        s[i] = rng.gen();
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "zkvm")]
+register_custom_getrandom!(zkvm_getrandom);
