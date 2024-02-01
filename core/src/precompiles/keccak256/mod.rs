@@ -47,7 +47,8 @@ impl KeccakPermuteChip {
 pub mod permute_tests {
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        utils::{self, prove, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
+        utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
+        SuccinctProver,
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -97,7 +98,8 @@ pub mod permute_tests {
 
     #[test]
     fn test_keccak_permute_program_prove() {
-        let program = Program::from(KECCAK_PERMUTE_ELF);
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove_elf(KECCAK_PERMUTE_ELF);
     }
 }

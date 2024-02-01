@@ -272,24 +272,24 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::{
-        runtime::Program,
         utils::{
-            prove, setup_logger,
+            self,
             tests::{ED25519_ELF, ED_ADD_ELF},
         },
+        SuccinctProver,
     };
 
     #[test]
     fn test_ed_add_simple() {
-        setup_logger();
-        let program = Program::from(ED_ADD_ELF);
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove_elf(ED_ADD_ELF);
     }
 
     #[test]
     fn test_ed25519_program() {
-        setup_logger();
-        let program = Program::from(ED25519_ELF);
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove_elf(ED25519_ELF);
     }
 }

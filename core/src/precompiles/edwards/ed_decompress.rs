@@ -311,14 +311,14 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::{
-        runtime::Program,
-        utils::{prove, setup_logger, tests::ED_DECOMPRESS_ELF},
+        utils::{self, tests::ED_DECOMPRESS_ELF},
+        SuccinctProver,
     };
 
     #[test]
     fn test_ed_decompress() {
-        setup_logger();
-        let program = Program::from(ED_DECOMPRESS_ELF);
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove_elf(ED_DECOMPRESS_ELF);
     }
 }
