@@ -27,7 +27,6 @@ fn main() {
     let program = Program::from_elf("../../programs/fibonacci");
 
     let mut runtime = Runtime::new(program);
-    runtime.add_input_slice(&[1, 2]);
     runtime.run();
 
     let config = BabyBearPoseidon2::new();
