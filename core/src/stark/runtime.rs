@@ -38,7 +38,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 23;
+pub const NUM_CHIPS: usize = 20;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -68,9 +68,7 @@ impl Runtime {
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let k256_decompress = K256DecompressChip::new();
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -95,13 +93,10 @@ impl Runtime {
             Box::new(lt),
             Box::new(field),
             Box::new(bytes),
-            Box::new(memory_init),
-            Box::new(memory_finalize),
-            Box::new(program_memory_init),
         ]
     }
 
-    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 0]
+    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
     where
         SC::Val: PrimeField32,
     {
@@ -109,7 +104,11 @@ impl Runtime {
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        []
+        [
+            Box::new(memory_init),
+            Box::new(memory_finalize),
+            Box::new(program_memory_init),
+        ]
     }
 
     /// Prove the program.

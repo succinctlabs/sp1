@@ -125,7 +125,7 @@ impl Runtime {
 
         Self {
             global_clk: 0,
-            segment_idx: 0,
+            segment_idx: 1,
             clk: 0,
             pc: program_rc.pc_start,
             program: program_rc,
