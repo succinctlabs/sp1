@@ -1,5 +1,5 @@
 [workspace]
-members =  ["build", "core", "cli", "zkvm", "derive",]
+members =  ["build", "core", "cli", "zkvm", "derive"]
 resolver = "2"
 
 [profile.release]

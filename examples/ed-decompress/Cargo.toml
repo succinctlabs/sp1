@@ -1,0 +1,13 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "ed-decompress-zkvm"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
+hex-literal = "0.4.1"
+
+[build-dependencies]
+succinct-build = { path = "../../build" }

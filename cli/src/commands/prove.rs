@@ -11,7 +11,7 @@ use crate::CommandExecutor;
 #[derive(Parser)]
 #[command(name = "prove", about = "(default) Build and prove a Rust program")]
 pub struct ProveCmd {
-    #[clap(long)]
+    #[clap(short, long, value_parser, num_args = 1.., value_delimiter = ' ')]
     input: Vec<u32>,
 
     #[clap(long)]

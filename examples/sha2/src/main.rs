@@ -1,10 +1,9 @@
 #![no_main]
-
 extern crate succinct_zkvm;
+succinct_zkvm::entrypoint!(main);
+
 use hex_literal::hex;
 use sha2::{Digest, Sha256};
-
-succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
     let hash = Sha256::digest(b"hello world");

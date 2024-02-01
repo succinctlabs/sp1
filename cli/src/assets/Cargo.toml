@@ -10,6 +10,3 @@ succinct-zkvm = { path = "../../zkvm" }
 
 [build-dependencies]
 succinct-build = { path = "../../build" }
-
-[lib]
-path = "elf/lib.rs"

@@ -10,6 +10,8 @@
     clippy::default_constructed_unit_structs
 )]
 
+extern crate alloc;
+
 pub mod air;
 pub mod alu;
 pub mod bytes;
@@ -25,4 +27,18 @@ pub mod runtime;
 pub mod stark;
 pub mod utils;
 
-extern crate alloc;
+use runtime::Program;
+
+pub struct SuccinctProver;
+
+impl SuccinctProver {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn prove_elf(&self, elf: &[u8]) {
+        utils::setup_logger();
+        let program = Program::from(elf);
+        utils::prove(program);
+    }
+}

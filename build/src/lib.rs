@@ -20,6 +20,21 @@ pub fn embed_elf() {
         // Get the output directory.
         let out_dir = Path::new(&manifest_dir);
 
+        // Get the rustc binary.
+        let mut cmd = Command::new("rustup");
+        for (key, _val) in env::vars().filter(|x| x.0.starts_with("CARGO")) {
+            cmd.env_remove(key);
+        }
+        cmd.env_remove("RUSTUP_TOOLCHAIN");
+        let rustc = cmd
+            .args(["+succinct", "which", "rustc"])
+            .output()
+            .expect("failed to find rustc")
+            .stdout;
+        let rustc = String::from_utf8(rustc).unwrap();
+        let rustc = rustc.trim();
+        println!("rustc: {}", rustc);
+
         // Define paths for output artifacts.
         let elf_dir = out_dir.join("elf");
         let elf_path = elf_dir.join("riscv32im-succinct-zkvm-elf");
@@ -42,12 +57,16 @@ pub fn embed_elf() {
         cmd.env_remove("RUSTUP_TOOLCHAIN");
         cmd.env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-            .env(
-                "RUSTC",
-                "/Users/jtguibas/.rustup/toolchains/succinct/bin/rustc",
-            )
+            .env("RUSTC", rustc)
             .env("SUCCINCT_BUILD_IGNORE", "1")
-            .args(["build", "--release", "--target", build_target, "--locked"])
+            .args([
+                "build",
+                "--release",
+                "--target",
+                build_target,
+                "--locked",
+                "-vvv",
+            ])
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
