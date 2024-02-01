@@ -635,10 +635,10 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto-bigint"
 version = "0.5.5"
-source = "git+https://github.com/succinctlabs/crypto-bigint-private?branch=patch-v0.5.5#6253d26c60cf27124823293ba7608f78ed4ee7ab"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array",
- "getrandom",
  "rand_core",
  "subtle",
  "zeroize",

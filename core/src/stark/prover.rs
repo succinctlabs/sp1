@@ -61,28 +61,11 @@ where
         // For each chip, generate the trace.
         let traces = chips
             .iter()
-            .map(|chip| {
-                let start = Instant::now();
-                let trace = chip.generate_trace(segment);
-                let elasped = start.elapsed();
-                trace!(
-                    "{} trace generated in {}ms",
-                    chip.name(),
-                    elasped.as_millis()
-                );
-                trace
-            })
+            .map(|chip| chip.generate_trace(segment))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
-        let start = Instant::now();
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        let end = start.elapsed();
-        trace!(
-            "main data for segment {} committed in {}ms",
-            segment.index,
-            end.as_millis()
-        );
 
         MainData {
             traces,
@@ -543,6 +526,7 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
     {
         let num_segments = segments.len();
+        // Batch into at most 16 chunks (and at least 1) to limit parallelism.
         let chunk_size = max(segments.len() / 16, 1);
         let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
@@ -553,17 +537,16 @@ where
                         segments
                             .iter_mut()
                             .map(|segment| {
-                                let start_time = std::time::Instant::now();
-                                let data = Self::commit_main(config, chips, segment);
-                                let elapsed = start_time.elapsed();
-                                trace!(
-                                    "main data for segment {} generated in {}ms",
-                                    segment.index,
-                                    elapsed.as_millis()
-                                );
+                                let data = tracing::debug_span!(
+                                    "segment commit main",
+                                    segment = segment.index
+                                )
+                                .in_scope(|| Self::commit_main(config, chips, segment));
                                 let commitment = data.main_commit.clone();
-                                // TODO: make this logic configurable?
                                 let file = tempfile::tempfile().unwrap();
+                                // TODO: make this logic configurable?
+                                // At around 64 segments * 1 GB per segment, saving to disk starts
+                                // to become necessary.
                                 let data = if num_segments > 64 {
                                     data.save(file).expect("failed to save segment main data")
                                 } else {
@@ -578,18 +561,21 @@ where
                     .unzip()
             });
 
-        let bytes_written = segment_main_data
-            .iter()
-            .map(|data| match data {
-                MainDataWrapper::InMemory(_) => 0,
-                MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
-            })
-            .sum::<u64>();
-        if bytes_written > 0 {
-            debug!(
-                "total main data written to disk: {}",
-                Size::from_bytes(bytes_written)
-            );
+        #[cfg(not(feature = "perf"))]
+        {
+            let bytes_written = segment_main_data
+                .iter()
+                .map(|data| match data {
+                    MainDataWrapper::InMemory(_) => 0,
+                    MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                })
+                .sum::<u64>();
+            if bytes_written > 0 {
+                debug!(
+                    "total main data written to disk: {}",
+                    Size::from_bytes(bytes_written)
+                );
+            }
         }
 
         (commitments, segment_main_data)
