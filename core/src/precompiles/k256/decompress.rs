@@ -354,6 +354,7 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
+    use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
     use crate::{
         runtime::{Program, Runtime},
         utils::{prove_core, setup_logger},
@@ -372,7 +373,7 @@ pub mod tests {
             let compressed = public_key.to_sec1_bytes();
             let mut result: [u8; 65] = [0; 65];
 
-            let program = Program::from_elf("../programs/k256_decompress");
+            let program = Program::from(SECP256K1_DECOMPRESS_ELF);
             let mut runtime = Runtime::new(program);
             runtime.add_input_slice(&compressed);
             runtime.run();
