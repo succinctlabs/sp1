@@ -766,7 +766,7 @@ impl Runtime {
                             self.clk
                         );
                     }
-                    Syscall::K256_DECOMPRESS => {
+                    Syscall::SECP256K1_DECOMPRESS => {
                         a = K256DecompressChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
