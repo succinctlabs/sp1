@@ -132,10 +132,6 @@ pub fn debug_interactions_with_all_chips(
     global_segment: Option<&Segment>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
-    if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
-        panic!("Memory interactions requires global segment.");
-    }
-
     // Here, we collect all the chips.
     let segment_chips = Runtime::segment_chips::<BabyBearPoseidon2>();
     let global_chips = Runtime::global_chips::<BabyBearPoseidon2>();

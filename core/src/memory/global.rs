@@ -150,7 +150,7 @@ mod tests {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let mut segment = runtime.global_segment.clone();
+        let mut segment = runtime.segment.clone();
 
         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
@@ -193,7 +193,7 @@ mod tests {
         runtime.run();
         debug_interactions_with_all_chips(
             &runtime.segment,
-            Some(&runtime.global_segment),
+            Some(&runtime.segment),
             vec![InteractionKind::Memory],
         );
     }

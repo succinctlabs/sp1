@@ -8,10 +8,10 @@ use num::BigUint;
 
 use crate::air::CurtaAirBuilder;
 use crate::operations::field::params::Limbs;
-use crate::runtime::{Register, Runtime};
+use crate::runtime::{Register, Runtime, Segment};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::Segment};
+use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
 
 /// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct PrecompileRuntime<'a> {
@@ -30,6 +30,10 @@ impl<'a> PrecompileRuntime<'a> {
             clk,
             rt: runtime,
         }
+    }
+
+    pub fn segment_idx(&self) -> u32 {
+        self.rt.segment_idx
     }
 
     pub fn segment_mut(&mut self) -> &mut Segment {
@@ -91,6 +95,7 @@ impl<'a> PrecompileRuntime<'a> {
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECAddEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -135,6 +140,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAd
     rt.clk += 4;
 
     ECAddEvent {
+        segment: rt.segment_idx(),
         clk: start_clk,
         p_ptr,
         p,
@@ -149,6 +155,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAd
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECDoubleEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -180,6 +187,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> E
     rt.clk += 4;
 
     ECDoubleEvent {
+        segment: rt.segment_idx(),
         clk: start_clk,
         p_ptr,
         p,

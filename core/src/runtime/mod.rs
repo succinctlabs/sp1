@@ -1,5 +1,6 @@
 mod instruction;
 mod io;
+mod job;
 mod opcode;
 mod program;
 mod register;
@@ -21,6 +22,7 @@ use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
+// pub use job::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
@@ -64,6 +66,9 @@ pub struct Runtime {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
 
+    /// The segment index.
+    pub segment_idx: u32,
+
     /// The clock keeps track of how many instructions have been executed in this segment.
     pub clk: u32,
 
@@ -91,20 +96,21 @@ pub struct Runtime {
     /// A ptr to the current position in the output stream, incremented when reading from output_stream.
     pub output_stream_ptr: usize,
 
-    /// Segments
-    pub segments: Vec<Segment>,
-
-    /// The current segment for this section of the program.
+    /// The workload that needs to be proven.
     pub segment: Segment,
 
+    // /// Segments
+    // pub segments: Vec<Segment>,
+
+    // /// The current segment for this section of the program.
+    // pub segment: Segment,
     /// The current record for the CPU event,
     pub record: Record,
 
-    /// Global information needed for "global" chips, like the memory argument. It's a bit
-    /// semantically incorrect to have this as a "Segment", since it's not really a segment
-    /// in the traditional sense.
-    pub global_segment: Segment,
-
+    // /// Global information needed for "global" chips, like the memory argument. It's a bit
+    // /// semantically incorrect to have this as a "Segment", since it's not really a segment
+    // /// in the traditional sense.
+    // pub global_segment: Segment,
     /// The maximum size of each segment.
     pub segment_size: u32,
 
@@ -116,13 +122,10 @@ impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
         let program_rc = Arc::new(program);
-        let segment = Segment {
-            program: program_rc.clone(),
-            index: 1,
-            ..Default::default()
-        };
+
         Self {
             global_clk: 0,
+            segment_idx: 0,
             clk: 0,
             pc: program_rc.pc_start,
             program: program_rc,
@@ -132,11 +135,12 @@ impl Runtime {
             input_stream_ptr: 0,
             output_stream: Vec::new(),
             output_stream_ptr: 0,
-            segments: Vec::new(),
-            segment,
+            segment: Segment::default(),
+            // segments: Vec::new(),
+            // segment,
             record: Record::default(),
             segment_size: 1048576,
-            global_segment: Segment::default(),
+            // global_segment: Segment::default(),
             cycle_tracker: 0,
         }
     }
@@ -181,7 +185,7 @@ impl Runtime {
     }
 
     pub fn current_segment(&self) -> u32 {
-        self.segment.index
+        self.segment_idx
     }
 
     fn align(&self, addr: u32) -> u32 {
@@ -920,18 +924,9 @@ impl Runtime {
             self.clk += 4;
 
             if self.clk % self.segment_size == 1 {
-                let segment = std::mem::take(&mut self.segment);
-                self.segments.push(segment);
-                // Set up new segment
-                self.segment.index = self.segments.len() as u32 + 1;
-                self.segment.program = self.program.clone();
+                self.segment_idx += 1;
                 self.clk = 1;
             }
-        }
-
-        // Push the last segment.
-        if !self.segment.cpu_events.is_empty() {
-            self.segments.push(self.segment.clone());
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory
@@ -1002,9 +997,9 @@ impl Runtime {
             .collect::<Vec<(u32, MemoryRecord, u32)>>();
         program_memory_record.sort_by_key(|&(addr, _, _)| addr);
 
-        self.global_segment.first_memory_record = first_memory_record;
-        self.global_segment.last_memory_record = last_memory_record;
-        self.global_segment.program_memory_record = program_memory_record;
+        self.segment.first_memory_record = first_memory_record;
+        self.segment.last_memory_record = last_memory_record;
+        self.segment.program_memory_record = program_memory_record;
     }
 }
 

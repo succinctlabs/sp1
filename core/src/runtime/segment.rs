@@ -16,9 +16,6 @@ use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
-    /// The index of this segment in the program.
-    pub index: u32,
-
     pub program: Arc<Program>,
 
     /// A trace of the CPU events which get emitted during execution.
@@ -54,20 +51,28 @@ pub struct Segment {
     /// A trace of field LTU events.
     pub field_events: Vec<FieldEvent>,
 
+    /// A trace of the SHA256 extend events.
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
+    /// A trace of the SHA256 compress events.
     pub sha_compress_events: Vec<ShaCompressEvent>,
 
+    /// A trace of the Keccak256 permute events.
     pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
+    /// A trace of the ED25519 add events.
     pub ed_add_events: Vec<ECAddEvent>,
 
+    /// A trace of the ED25519 decompress events.
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
+    /// A trace of the Weierstrass add events.
     pub weierstrass_add_events: Vec<ECAddEvent>,
 
+    /// A trace of the Weierstrass double events.
     pub weierstrass_double_events: Vec<ECDoubleEvent>,
 
+    /// A trace of the Secp256K1 decompress events.
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for

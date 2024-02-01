@@ -38,7 +38,7 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 20;
+pub const NUM_CHIPS: usize = 23;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -68,6 +68,9 @@ impl Runtime {
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let k256_decompress = K256DecompressChip::new();
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -92,10 +95,13 @@ impl Runtime {
             Box::new(lt),
             Box::new(field),
             Box::new(bytes),
+            Box::new(memory_init),
+            Box::new(memory_finalize),
+            Box::new(program_memory_init),
         ]
     }
 
-    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
+    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 0]
     where
         SC::Val: PrimeField32,
     {
@@ -103,11 +109,7 @@ impl Runtime {
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        [
-            Box::new(memory_init),
-            Box::new(memory_finalize),
-            Box::new(program_memory_init),
-        ]
+        []
     }
 
     /// Prove the program.
@@ -117,7 +119,7 @@ impl Runtime {
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-    ) -> (Vec<SegmentProof<SC>>, SegmentProof<SC>)
+    ) -> Vec<SegmentProof<SC>>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -129,17 +131,17 @@ impl Runtime {
     {
         tracing::info!(
             "total_cycles: {}, segments: {}",
-            self.segments
-                .iter()
+            [&self.segment]
+                .into_iter()
                 .map(|s| s.cpu_events.len())
                 .sum::<usize>(),
-            self.segments.len()
+            1
         );
         let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                self.segments
-                    .par_iter_mut()
+                [&mut self.segment]
+                    .into_iter()
                     .map(|segment| Prover::commit_main(config, &segment_chips, segment))
                     .collect::<Vec<_>>()
             });
@@ -185,17 +187,17 @@ impl Runtime {
                 })
         });
 
-        let global_chips = Self::global_chips::<SC>();
-        let global_main_data = tracing::info_span!("commit main for global segments")
-            .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
-        let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            Prover::prove(
-                config,
-                &mut challenger.clone(),
-                &global_chips,
-                global_main_data,
-            )
-        });
+        // let global_chips = Self::global_chips::<SC>();
+        // let global_main_data = tracing::info_span!("commit main for global segments")
+        //     .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
+        // let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
+        //     Prover::prove(
+        //         config,
+        //         &mut challenger.clone(),
+        //         &global_chips,
+        //         global_main_data,
+        //     )
+        // });
 
         #[cfg(feature = "proof-debug")]
         // Verify the global proof.
@@ -223,10 +225,10 @@ impl Runtime {
         debug_cumulative_sums::<F, EF>(&all_permutation_traces);
 
         #[cfg(feature = "perf")]
-        return (local_segment_proofs, global_proof);
+        return local_segment_proofs;
 
         #[cfg(not(feature = "perf"))]
-        (vec![], global_proof)
+        vec![]
     }
 
     pub fn verify<F, EF, SC>(
@@ -234,7 +236,6 @@ impl Runtime {
         config: &SC,
         challenger: &mut SC::Challenger,
         segments_proofs: &[SegmentProof<SC>],
-        global_proof: &SegmentProof<SC>,
     ) -> Result<(), ProgramVerificationError>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -262,13 +263,6 @@ impl Runtime {
             })?;
         }
 
-        // Verifiy the global proof.
-        let global_chips = Self::global_chips::<SC>();
-        tracing::info_span!("verifying global segment").in_scope(|| {
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
-                .map_err(ProgramVerificationError::InvalidGlobalProof)
-        })?;
-
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
@@ -280,11 +274,6 @@ impl Runtime {
                     .copied()
                     .sum::<SC::Challenge>();
             }
-            sum += global_proof
-                .commulative_sums
-                .iter()
-                .copied()
-                .sum::<SC::Challenge>();
         }
 
         match sum.is_zero() {
