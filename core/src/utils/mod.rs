@@ -4,7 +4,6 @@ mod prove;
 mod tracer;
 
 pub use logger::*;
-use p3_uni_stark::StarkConfig;
 pub use prove::*;
 pub use tracer::*;
 
@@ -13,13 +12,13 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    cpu::columns::MemoryAccessCols,
     lookup::{Interaction, InteractionBuilder},
+    memory::MemoryCols,
     operations::field::params::Limbs,
     runtime::Segment,
     stark::{
         folder::{ProverConstraintFolder, VerifierConstraintFolder},
-        DebugConstraintBuilder,
+        DebugConstraintBuilder, StarkConfig,
     },
 };
 
@@ -54,7 +53,7 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
 pub trait AirChip<SC: StarkConfig>:
     Chip<SC::Val>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC::Challenge>>
+    + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge, SC::ChallengeAlgebra>>
     + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
     fn air_width(&self) -> usize {
@@ -68,7 +67,7 @@ impl<SC: StarkConfig, T> AirChip<SC> for T
 where
     T: Chip<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC::Challenge>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge, SC::ChallengeAlgebra>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
 {
     fn as_chip(&self) -> &dyn Chip<SC::Val> {
@@ -95,10 +94,10 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
-pub fn limbs_from_prev_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
     let vec = cols
         .iter()
-        .flat_map(|access| access.prev_value.0)
+        .flat_map(|access| access.prev_value().0)
         .collect::<Vec<T>>();
 
     let sized = vec
@@ -107,10 +106,10 @@ pub fn limbs_from_prev_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T>
     Limbs(sized)
 }
 
-pub fn limbs_from_access<T: Copy>(cols: &[MemoryAccessCols<T>]) -> Limbs<T> {
+pub fn limbs_from_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
     let vec = cols
         .iter()
-        .flat_map(|access| access.value.0)
+        .flat_map(|access| access.value().0)
         .collect::<Vec<T>>();
 
     let sized = vec

@@ -32,7 +32,6 @@
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -56,7 +55,7 @@ pub const BYTE_SIZE: usize = 8;
 pub struct ShiftLeft;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
     /// The output operand.
@@ -100,7 +99,7 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
         let shift_left_events = segment.shift_left_events.clone();
         for event in shift_left_events.iter() {
             let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
             let a = event.a.to_le_bytes();
             let b = event.b.to_le_bytes();
             let c = event.c.to_le_bytes();
@@ -142,8 +141,8 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
 
             // Range checks.
             {
-                segment.add_byte_range_checks(&bit_shift_result);
-                segment.add_byte_range_checks(&bit_shift_result_carry);
+                segment.add_u8_range_checks(&bit_shift_result);
+                segment.add_u8_range_checks(&bit_shift_result_carry);
             }
 
             // Sanity check.
@@ -170,7 +169,7 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
         // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
             cols.shift_by_n_bits[0] = F::one();
             cols.shift_by_n_bytes[0] = F::one();
             cols.bit_shift_multiplier = F::one();
@@ -294,9 +293,8 @@ where
 
         // Range check.
         {
-            for word in [local.bit_shift_result, local.bit_shift_result_carry].iter() {
-                builder.assert_word(Word(*word), local.is_real);
-            }
+            builder.slice_range_check_u8(&local.bit_shift_result, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.is_real);
         }
 
         for shift in local.shift_by_n_bytes.iter() {
@@ -332,9 +330,9 @@ where
 #[cfg(test)]
 mod tests {
 
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
 
     use crate::{

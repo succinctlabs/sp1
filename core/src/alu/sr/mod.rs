@@ -45,7 +45,6 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -75,7 +74,7 @@ const BYTE_SIZE: usize = 8;
 pub struct ShiftRightChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
     /// The output operand.
@@ -133,7 +132,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
         for event in sr_events.iter() {
             assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-            let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
             // Initialize cols with basic operands and flags derived from the current event.
             {
                 cols.a = Word::from(event.a);
@@ -155,9 +154,9 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                 let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
                 segment.add_byte_lookup_events(vec![ByteLookupEvent {
                     opcode: ByteOpcode::MSB,
-                    a1: (most_significant_byte >> 7) & 1,
+                    a1: ((most_significant_byte >> 7) & 1) as u32,
                     a2: 0,
-                    b: most_significant_byte,
+                    b: most_significant_byte as u32,
                     c: 0,
                 }]);
             }
@@ -203,10 +202,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
 
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::ShrCarry,
-                        a1: shift,
-                        a2: carry,
-                        b: byte_shift_result[i],
-                        c: num_bits_to_shift as u8,
+                        a1: shift as u32,
+                        a2: carry as u32,
+                        b: byte_shift_result[i] as u32,
+                        c: num_bits_to_shift as u32,
                     };
                     segment
                         .byte_lookups
@@ -228,10 +227,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                segment.add_byte_range_checks(&byte_shift_result);
-                segment.add_byte_range_checks(&bit_shift_result);
-                segment.add_byte_range_checks(&shr_carry_output_carry);
-                segment.add_byte_range_checks(&shr_carry_output_shifted_byte);
+                segment.add_u8_range_checks(&byte_shift_result);
+                segment.add_u8_range_checks(&bit_shift_result);
+                segment.add_u8_range_checks(&shr_carry_output_carry);
+                segment.add_u8_range_checks(&shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
@@ -250,7 +249,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
         // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-            let cols: &mut ShiftRightCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
             // Shift 0 by 0 bits and 0 bytes.
             // cols.is_srl = F::one();
             cols.shift_by_n_bits[0] = F::one();
@@ -436,10 +435,7 @@ where
             ];
 
             for long_word in long_words.iter() {
-                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
-                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.assert_word(Word(first_half), local.is_real);
-                builder.assert_word(Word(second_half), local.is_real);
+                builder.slice_range_check_u8(long_word, local.is_real);
             }
         }
 
@@ -461,9 +457,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
 
     use crate::{

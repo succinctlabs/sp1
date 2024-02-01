@@ -5,8 +5,8 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::mem::transmute;
+use p3_maybe_rayon::prelude::*;
+
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -21,7 +21,7 @@ pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
 pub struct SubChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 pub struct SubCols<T> {
     /// The output operand.
     pub a: Word<T>,
@@ -47,7 +47,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_SUB_COLS];
-                let cols: &mut SubCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut SubCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
@@ -155,9 +155,9 @@ where
 #[cfg(test)]
 mod tests {
 
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::{thread_rng, Rng};
 
     use super::SubChip;

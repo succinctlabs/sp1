@@ -6,6 +6,7 @@ use crate::utils::ec::utils::biguint_to_bits_le;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 pub mod bn254;
+pub mod secp256k1;
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
 pub trait WeierstrassParameters: EllipticCurveParameters {
@@ -101,6 +102,9 @@ impl<E: WeierstrassParameters> AffinePoint<SWCurve<E>> {
 
 impl<E: WeierstrassParameters> AffinePoint<SWCurve<E>> {
     pub fn sw_add(&self, other: &AffinePoint<SWCurve<E>>) -> AffinePoint<SWCurve<E>> {
+        if self.x == other.x && self.y == other.y {
+            panic!("Error: Points are the same. Use sw_double instead.");
+        }
         let p = E::BaseField::modulus();
         let slope_numerator = (&p + &other.y - &self.y) % &p;
         let slope_denominator = (&p + &other.x - &self.x) % &p;

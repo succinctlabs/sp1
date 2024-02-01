@@ -1,5 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -20,7 +20,7 @@ pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
 pub struct AddChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddCols<T> {
     /// Instance of `AddOperation` to handle addition logic in `AddChip`'s ALU operations.
@@ -46,7 +46,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
         for i in 0..segment.add_events.len() {
             let mut row = [F::zero(); NUM_ADD_COLS];
-            let cols: &mut AddCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
             let event = segment.add_events[i];
             cols.add_operation.populate(segment, event.b, event.c);
             cols.b = Word::from(event.b);
@@ -109,7 +109,8 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
+
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use rand::{thread_rng, Rng};
 
     use super::AddChip;

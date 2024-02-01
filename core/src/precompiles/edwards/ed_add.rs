@@ -1,13 +1,14 @@
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::MemoryAccessCols;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
+use crate::memory::MemoryCols;
+use crate::memory::MemoryReadCols;
+use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_den::FpDenCols;
 use crate::operations::field::fp_inner_product::FpInnerProductCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
+use crate::precompiles::create_ec_add_event;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::ec::edwards::EdwardsParameters;
@@ -31,18 +32,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use valida_derive::AlignedBorrow;
 
-#[derive(Debug, Clone, Copy)]
-pub struct EdAddEvent {
-    pub clk: u32,
-    pub p_ptr: u32,
-    pub p: [u32; 16],
-    pub q_ptr: u32,
-    pub q: [u32; 16],
-    pub q_ptr_record: MemoryReadRecord,
-    pub p_memory_records: [MemoryWriteRecord; 16],
-    pub q_memory_records: [MemoryReadRecord; 16],
-}
-
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.
@@ -56,9 +45,9 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryAccessCols<T>,
-    pub p_access: [MemoryAccessCols<T>; 16],
-    pub q_access: [MemoryAccessCols<T>; 16],
+    pub q_ptr_access: MemoryReadCols<T>,
+    pub p_access: [MemoryWriteCols<T>; 16],
+    pub q_access: [MemoryReadCols<T>; 16],
     pub(crate) x3_numerator: FpInnerProductCols<T>,
     pub(crate) y3_numerator: FpInnerProductCols<T>,
     pub(crate) x1_mul_y1: FpOpCols<T>,
@@ -83,50 +72,9 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
     }
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        let a0 = crate::runtime::Register::X10;
-        let a1 = crate::runtime::Register::X11;
-
-        let start_clk = rt.clk;
-
-        // TODO: these will have to be be constrained, but can do it later.
-        let p_ptr = rt.register_unsafe(a0);
-        if p_ptr % 4 != 0 {
-            panic!();
-        }
-
-        let (q_ptr_record, q_ptr) = rt.mr(a1 as u32);
-        if q_ptr % 4 != 0 {
-            panic!();
-        }
-
-        let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
-        let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);
-        let q_memory_records = q_memory_records_vec.try_into().unwrap();
-        let q: [u32; 16] = q_vec.try_into().unwrap();
-        // When we write to p, we want the clk to be incremented.
-        rt.clk += 4;
-
-        let p_affine = AffinePoint::<E>::from_words_le(&p);
-        let q_affine = AffinePoint::<E>::from_words_le(&q);
-        let result_affine = p_affine + q_affine;
-        let result_words = result_affine.to_words_le();
-
-        let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
-
-        rt.clk += 4;
-
-        rt.segment_mut().ed_add_events.push(EdAddEvent {
-            clk: start_clk,
-            p_ptr,
-            p,
-            q_ptr,
-            q,
-            q_ptr_record,
-            p_memory_records,
-            q_memory_records,
-        });
-
-        p_ptr
+        let event = create_ec_add_event::<E>(rt);
+        rt.segment_mut().ed_add_events.push(event);
+        event.p_ptr + 1
     }
 
     fn populate_fp_ops<F: Field>(
@@ -177,7 +125,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         for i in 0..segment.ed_add_events.len() {
             let event = segment.ed_add_events[i];
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
             let p = &event.p;
@@ -198,13 +146,13 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
             // Populate the memory access columns.
             for i in 0..16 {
-                cols.q_access[i].populate_read(event.q_memory_records[i], &mut new_field_events);
+                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
             }
             for i in 0..16 {
-                cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
             }
             cols.q_ptr_access
-                .populate_read(event.q_ptr_record, &mut new_field_events);
+                .populate(event.q_ptr_record, &mut new_field_events);
 
             rows.push(row);
         }
@@ -212,7 +160,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = unsafe { std::mem::transmute(&mut row) };
+            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row
@@ -287,17 +235,17 @@ where
         for i in 0..NUM_LIMBS {
             builder
                 .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
             builder
                 .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value[i % 4]);
+                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
         builder.constraint_memory_access(
             row.segment,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(11),
-            row.q_ptr_access,
+            &row.q_ptr_access,
             row.is_real,
         );
         for i in 0..16 {
@@ -305,7 +253,7 @@ where
                 row.segment,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
-                row.q_access[i as usize],
+                &row.q_access[i as usize],
                 row.is_real,
             );
         }
@@ -314,7 +262,7 @@ where
                 row.segment,
                 row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
-                row.p_access[i as usize],
+                &row.p_access[i as usize],
                 row.is_real,
             );
         }
@@ -360,5 +308,12 @@ pub mod tests {
         // prove_core(&mut runtime);
 
         // prove(program);
+    }
+
+    #[test]
+    fn test_ed25519_program() {
+        setup_logger();
+        let program = Program::from_elf("../programs/ed25519");
+        prove(program);
     }
 }

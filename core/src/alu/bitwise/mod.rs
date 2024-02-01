@@ -1,6 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -20,7 +19,7 @@ pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 pub struct BitwiseChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 pub struct BitwiseCols<T> {
     /// The output operand.
     pub a: Word<T>,
@@ -53,7 +52,7 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
             .iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
-                let cols: &mut BitwiseCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
@@ -69,10 +68,10 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
                         opcode: ByteOpcode::from(event.opcode),
-                        a1: b_a,
+                        a1: b_a as u32,
                         a2: 0,
-                        b: b_b,
-                        c: b_c,
+                        b: b_b as u32,
+                        c: b_c as u32,
                     };
                     segment
                         .byte_lookups
@@ -145,7 +144,8 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
+
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use rand::thread_rng;
 
     use super::BitwiseChip;

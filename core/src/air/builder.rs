@@ -1,15 +1,35 @@
-use p3_air::{AirBuilder, FilteredAirBuilder, MessageBuilder};
+use p3_air::{AirBuilder, FilteredAirBuilder};
+use p3_uni_stark::{
+    ProverConstraintFolder, StarkConfig, SymbolicAirBuilder, VerifierConstraintFolder,
+};
 
 use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
-use crate::bytes::ByteOpcode;
 use crate::cpu::columns::instruction::InstructionCols;
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
-use crate::cpu::columns::MemoryAccessCols;
 use crate::lookup::InteractionKind;
-use p3_field::AbstractField;
+use crate::{bytes::ByteOpcode, memory::MemoryCols};
+use p3_field::{AbstractField, Field};
+use p3_uni_stark::check_constraints::DebugConstraintBuilder;
 use std::iter::once;
+
+/// A Builder with the ability to encode the existance of interactions with other AIRs by sending
+/// and receiving messages.
+pub trait MessageBuilder<M> {
+    fn send(&mut self, message: M);
+
+    fn receive(&mut self, message: M);
+}
+
+impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
+    fn send(&mut self, _message: M) {}
+
+    fn receive(&mut self, _message: M) {}
+}
+
+/// A message builder for which sending and receiving messages is a no-op.
+pub trait EmptyMessageBuilder: AirBuilder {}
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
@@ -172,21 +192,49 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
-    /// Range checks a word.
-    fn assert_word<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    /// Check that each limb of the given slice is a u8.
+    fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
-        input: Word<EWord>,
+        input: &[EWord],
         mult: EMult,
     ) {
-        for byte_pair in input.0.chunks_exact(2) {
+        let mut index = 0;
+        while index + 1 < input.len() {
             self.send_byte(
-                Self::Expr::from_canonical_u8(ByteOpcode::Range as u8),
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                byte_pair[0],
-                byte_pair[1],
+                input[index],
+                input[index + 1],
+                mult.clone(),
+            );
+            index += 2;
+        }
+        if index < input.len() {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+                Self::Expr::zero(),
+                input[index],
+                Self::Expr::zero(),
                 mult.clone(),
             );
         }
+    }
+
+    /// Check that each limb of the given slice is a u16.
+    fn slice_range_check_u16<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+        &mut self,
+        input: &[EWord],
+        mult: EMult,
+    ) {
+        input.iter().for_each(|limb| {
+            self.send_byte(
+                Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+                *limb,
+                Self::Expr::zero(),
+                Self::Expr::zero(),
+                mult.clone(),
+            );
+        });
     }
 }
 
@@ -252,30 +300,33 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
-    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify>(
+    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify, M>(
         &mut self,
         segment: ESegment,
         clk: EClk,
         addr: Ea,
-        memory_access: MemoryAccessCols<Eb>,
+        memory_access: &M,
         verify_memory_access: EVerify,
     ) where
         ESegment: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
+        Eb: Into<Self::Expr> + Clone,
         EVerify: Into<Self::Expr>,
+        M: MemoryCols<Eb>,
     {
         let verify_memory_access_expr: Self::Expr = verify_memory_access.into();
         self.assert_bool(verify_memory_access_expr.clone());
 
+        let access = memory_access.access();
+
         //// Check that this memory access occurs after the previous one.
         // First check if we need to compare between the segment or the clk.
-        let use_clk_comparison_expr: Self::Expr = memory_access.use_clk_comparison.into();
+        let use_clk_comparison_expr: Self::Expr = access.use_clk_comparison.clone().into();
         let current_segment_expr: Self::Expr = segment.into();
-        let prev_segment_expr: Self::Expr = memory_access.prev_segment.into();
+        let prev_segment_expr: Self::Expr = access.prev_segment.clone().into();
         let current_clk_expr: Self::Expr = clk.into();
-        let prev_clk_expr: Self::Expr = memory_access.prev_clk.into();
+        let prev_clk_expr: Self::Expr = access.prev_clk.clone().into();
 
         self.when(verify_memory_access_expr.clone())
             .assert_bool(use_clk_comparison_expr.clone());
@@ -291,8 +342,8 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             * current_clk_expr.clone()
             + (one.clone() - use_clk_comparison_expr.clone()) * current_segment_expr.clone();
 
-        let prev_time_value_expr: Self::Expr = memory_access.prev_time_value.into();
-        let current_time_value_expr: Self::Expr = memory_access.current_time_value.into();
+        let prev_time_value_expr: Self::Expr = access.prev_time_value.clone().into();
+        let current_time_value_expr: Self::Expr = access.current_time_value.clone().into();
         self.when(verify_memory_access_expr.clone())
             .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
 
@@ -314,12 +365,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let prev_values = once(prev_segment_expr)
             .chain(once(prev_clk_expr))
             .chain(once(addr_expr.clone()))
-            .chain(memory_access.prev_value.map(Into::into))
+            .chain(memory_access.prev_value().clone().map(Into::into))
             .collect();
         let current_values = once(current_segment_expr)
             .chain(once(current_clk_expr))
             .chain(once(addr_expr.clone()))
-            .chain(memory_access.value.map(Into::into))
+            .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
         // The previous values get sent with multiplicity * 1, for "read".
@@ -335,6 +386,32 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             verify_memory_access_expr.clone(),
             InteractionKind::Memory,
         ));
+    }
+
+    /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
+    fn constraint_memory_access_slice<ESegment, Ea, Eb, EVerify, M>(
+        &mut self,
+        segment: ESegment,
+        clk: Self::Expr,
+        initial_addr: Ea,
+        memory_access_slice: &[M],
+        verify_memory_access: EVerify,
+    ) where
+        ESegment: Into<Self::Expr> + std::marker::Copy,
+        Ea: Into<Self::Expr> + std::marker::Copy,
+        Eb: Into<Self::Expr> + std::marker::Copy,
+        EVerify: Into<Self::Expr> + std::marker::Copy,
+        M: MemoryCols<Eb>,
+    {
+        for i in 0..memory_access_slice.len() {
+            self.constraint_memory_access(
+                segment,
+                clk.clone(),
+                initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
+                &memory_access_slice[i],
+                verify_memory_access,
+            );
+        }
     }
 }
 
@@ -414,3 +491,21 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder fo
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
+
+impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
+    fn send(&mut self, message: M) {
+        self.inner.send(message);
+    }
+
+    fn receive(&mut self, message: M) {
+        self.inner.receive(message);
+    }
+}
+
+impl<'a, SC: StarkConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
+
+impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
+
+impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
+
+impl<'a, F: Field> EmptyMessageBuilder for DebugConstraintBuilder<'a, F> {}

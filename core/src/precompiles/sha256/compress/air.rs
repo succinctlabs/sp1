@@ -4,11 +4,12 @@ use p3_field::AbstractField;
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
+use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
-use std::borrow::Borrow;
 
 impl<F> BaseAir<F> for ShaCompressChip {
     fn width(&self) -> usize {
@@ -129,7 +130,7 @@ impl ShaCompressChip {
             local.segment,
             local.clk,
             local.mem_addr,
-            local.mem,
+            &local.mem,
             is_initialize + local.is_compression + is_finalize,
         );
 
@@ -179,7 +180,7 @@ impl ShaCompressChip {
             builder
                 .when(is_initialize)
                 .when(local.octet[i])
-                .assert_word_eq(vars[i], local.mem.value);
+                .assert_word_eq(vars[i], *local.mem.value());
         }
     }
 
@@ -379,6 +380,6 @@ impl ShaCompressChip {
 
         builder
             .when(is_finalize)
-            .assert_word_eq(local.mem.value, local.finalize_add.value);
+            .assert_word_eq(*local.mem.value(), local.finalize_add.value);
     }
 }

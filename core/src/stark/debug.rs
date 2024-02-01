@@ -1,7 +1,7 @@
-use p3_air::{
-    AirBuilder, EmptyMessageBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
-};
+use p3_air::{AirBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::{ExtensionField, Field};
+
+use crate::air::EmptyMessageBuilder;
 
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) main: TwoRowMatrixView<'a, F>,

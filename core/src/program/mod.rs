@@ -1,5 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -63,7 +63,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
             .map(|(i, instruction)| {
                 let pc = segment.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_COLS];
-                let cols: &mut ProgramCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut ProgramCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);

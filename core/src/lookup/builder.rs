@@ -1,10 +1,10 @@
-use p3_air::{AirBuilder, MessageBuilder, PairCol, VirtualPairCol};
+use crate::air::{AirInteraction, MessageBuilder};
+use p3_air::{AirBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
 
 use super::Interaction;
-use crate::air::AirInteraction;
 
 /// A builder for the lookup table interactions.
 pub struct InteractionBuilder<F: Field> {

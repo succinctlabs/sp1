@@ -47,7 +47,6 @@ impl KeccakPermuteChip {
 pub mod permute_tests {
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::prover::LocalProver,
         utils::{self, prove, BabyBearPoseidon2, StarkUtils},
     };
 
@@ -92,7 +91,7 @@ pub mod permute_tests {
         });
 
         tracing::info_span!("runtime.prove(...)").in_scope(|| {
-            runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
+            runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
         });
     }
 

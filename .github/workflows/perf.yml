@@ -43,7 +43,7 @@ jobs:
           override: true
 
       - name: Install cargo criterion
-        run: cd vm && cargo install cargo-criterion
+        run: cd vm && cargo install cargo-criterion --force
 
       - name: Cache main.json
         uses: actions/cache@v2

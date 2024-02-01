@@ -1,4 +1,4 @@
-use std::mem::transmute;
+use std::borrow::BorrowMut;
 
 use alloc::vec::Vec;
 
@@ -63,13 +63,14 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             // Create all the rows for the permutation.
             for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
                 let mut row = [F::zero(); NUM_KECCAK_COLS];
-                let col: &mut KeccakCols<F> = unsafe { transmute(&mut row) };
-                col.segment = F::from_canonical_u32(SEGMENT_NUM);
-                col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
 
                 // copy over the p3_keccak_row to the row
                 row[self.p3_keccak_col_range.start..self.p3_keccak_col_range.end]
                     .copy_from_slice(p3_keccak_row);
+
+                let col: &mut KeccakCols<F> = row.as_mut_slice().borrow_mut();
+                col.segment = F::from_canonical_u32(SEGMENT_NUM);
+                col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
 
                 // if this is the first row, then populate read memory accesses
                 if i == 0 && is_real_permutation {

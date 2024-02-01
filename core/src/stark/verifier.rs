@@ -6,21 +6,27 @@ use p3_commit::UnivariatePcs;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::Res;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 
 use p3_util::log2_ceil_usize;
 use p3_util::reverse_slice_index_bits;
+use std::fmt::Formatter;
 use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
+use super::permutation::eval_permutation_constraints;
 use super::types::*;
-use p3_uni_stark::StarkConfig;
+use super::StarkConfig;
+
+use core::fmt::Display;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
 impl<SC: StarkConfig> Verifier<SC> {
     /// Verify a proof for a collection of air chips.
+    #[cfg(feature = "perf")]
     pub fn verify(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
@@ -39,9 +45,32 @@ impl<SC: StarkConfig> Verifier<SC> {
             commitment,
             opened_values,
             commulative_sums,
-            openning_proof,
+            opening_proof,
             degree_bits,
         } = proof;
+
+        // Verify the proof shapes.
+        for ((((chip, interactions), main), perm), quotient) in chips
+            .iter()
+            .zip(chips_interactions.iter())
+            .zip(opened_values.main.iter())
+            .zip(opened_values.permutation.iter())
+            .zip(opened_values.quotient.iter())
+        {
+            Self::verify_proof_shape(
+                chip.as_ref(),
+                interactions.len(),
+                &AirOpenedValues {
+                    local: vec![],
+                    next: vec![],
+                },
+                main,
+                perm,
+                quotient,
+                log_quotient_degree,
+            )
+            .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
+        }
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
         let dims = &[
@@ -85,7 +114,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
 
+        #[cfg(feature = "perf")]
         challenger.observe(permutation_commit.clone());
+
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
 
         // Observe the quotient commitments.
@@ -93,14 +124,14 @@ impl<SC: StarkConfig> Verifier<SC> {
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
 
-        // Verify the openning proof.
-        let trace_openning_points = g_subgroups
+        // Verify the opening proof.
+        let trace_opening_points = g_subgroups
             .iter()
             .map(|g| vec![zeta, zeta * *g])
             .collect::<Vec<_>>();
 
         let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
-        let quotient_openning_points = (0..chips.len())
+        let quotient_opening_points = (0..chips.len())
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
@@ -108,16 +139,16 @@ impl<SC: StarkConfig> Verifier<SC> {
             .pcs()
             .verify_multi_batches(
                 &[
-                    (main_commit.clone(), &trace_openning_points),
-                    (permutation_commit.clone(), &trace_openning_points),
-                    (quotient_commit.clone(), &quotient_openning_points),
+                    (main_commit.clone(), &trace_opening_points),
+                    (permutation_commit.clone(), &trace_opening_points),
+                    (quotient_commit.clone(), &quotient_opening_points),
                 ],
                 dims,
                 opened_values.clone().into_values(),
-                openning_proof,
+                opening_proof,
                 challenger,
             )
-            .map_err(|_| VerificationError::InvalidOpenningArgument)?;
+            .map_err(|_| VerificationError::InvalidopeningArgument)?;
 
         // Verify the constrtaint evaluations.
         let SegmentOpenedValues {
@@ -127,10 +158,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         } = opened_values;
         for (
             (
-                (
-                    (((chip, main_openning), permutation_openning), quotient_openning),
-                    commulative_sum,
-                ),
+                ((((chip, main_opening), permutation_opening), quotient_opening), commulative_sum),
                 log_degree,
             ),
             g,
@@ -145,9 +173,9 @@ impl<SC: StarkConfig> Verifier<SC> {
         {
             Self::verify_constraints(
                 chip.as_ref(),
-                main_openning,
-                permutation_openning,
-                quotient_openning,
+                main_opening,
+                permutation_opening,
+                quotient_opening,
                 *commulative_sum,
                 *log_degree,
                 *g,
@@ -155,25 +183,75 @@ impl<SC: StarkConfig> Verifier<SC> {
                 alpha,
                 &permutation_challenges,
             )
-            .map_err(|_| {
-                VerificationError::OodEvaluationMismatch(format!(
-                    "Odd Evaluation mismatch on chip {}",
-                    chip.name()
-                ))
-            })?;
+            .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
+        }
+
+        Ok(())
+    }
+
+    #[cfg(not(feature = "perf"))]
+    pub fn verify(
+        _config: &SC,
+        _chips: &[Box<dyn AirChip<SC>>],
+        _challenger: &mut SC::Challenger,
+        _proof: &SegmentProof<SC>,
+    ) -> Result<(), VerificationError> {
+        Ok(())
+    }
+
+    /// Verify the shape of opening arguments and permutation challenges.
+    ///
+    /// This function checks that the preprocessed_opening, main opening, permutation opening,
+    /// quotient opening have the expected dimensions.
+    fn verify_proof_shape<C>(
+        chip: &C,
+        num_interactions: usize,
+        preprocessed_opening: &AirOpenedValues<SC::Challenge>,
+        main_opening: &AirOpenedValues<SC::Challenge>,
+        permutation_opening: &AirOpenedValues<SC::Challenge>,
+        quotient_opening: &QuotientOpenedValues<SC::Challenge>,
+        log_quotient_degree: usize,
+    ) -> Result<(), ProofShapeError>
+    where
+        C: AirChip<SC> + ?Sized,
+    {
+        // Todo : check preprocessed shape.
+        let preprocesses_width = 0;
+        if preprocessed_opening.local.len() != preprocesses_width
+            || preprocessed_opening.next.len() != preprocesses_width
+        {
+            return Err(ProofShapeError::Preprocessed);
+        }
+
+        // Check that the main opening rows have lengths that match the chip width.
+        let main_width = chip.air_width();
+        if main_opening.local.len() != main_width || main_opening.next.len() != main_width {
+            return Err(ProofShapeError::MainTrace);
+        }
+
+        // Check that the permutation openninps have lengths that match the number of interactions.
+        let perm_width = SC::Challenge::D * (num_interactions + 1);
+        if permutation_opening.local.len() != perm_width
+            || permutation_opening.next.len() != perm_width
+        {
+            return Err(ProofShapeError::Permuation);
+        }
+
+        // Check that the quotient opening has the expected length for the given degree.
+        let quotient_width = SC::Challenge::D << log_quotient_degree;
+        if quotient_opening.len() != quotient_width {
+            return Err(ProofShapeError::Quotient);
         }
 
         Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(unused_variables)]
-    // TODO! fix this
     fn verify_constraints<C>(
         chip: &C,
-        main_openning: &AirOpenedValues<SC::Challenge>,
-        permutation_openning: &AirOpenedValues<SC::Challenge>,
-        quotient_openning: &QuotientOpenedValues<SC::Challenge>,
+        main_opening: &AirOpenedValues<SC::Challenge>,
+        permutation_opening: &AirOpenedValues<SC::Challenge>,
+        quotient_opening: &QuotientOpenedValues<SC::Challenge>,
         commulative_sum: SC::Challenge,
         log_degree: usize,
         g: SC::Val,
@@ -189,23 +267,40 @@ impl<SC: StarkConfig> Verifier<SC> {
         let is_last_row = z_h / (zeta - g.inverse());
         let is_transition = zeta - g.inverse();
 
-        // Reconstruct the prmutation openning values as extention elements.
+        // Reconstruct the prmutation opening values as extention elements.
         let monomials = (0..SC::Challenge::D)
             .map(SC::Challenge::monomial)
             .collect::<Vec<_>>();
-        let embed = |v: &[SC::Challenge]| {
-            v.chunks_exact(SC::Challenge::D)
-                .map(|chunk| {
-                    chunk
-                        .iter()
-                        .zip(monomials.iter())
-                        .map(|(x, m)| *x * *m)
-                        .sum()
-                })
-                .collect::<Vec<SC::Challenge>>()
+
+        let res = |v: &[SC::Challenge]| {
+            v.iter()
+                .map(|x| Res::from_inner(*x))
+                .collect::<Vec<Res<SC::Val, SC::Challenge>>>()
         };
 
-        let mut quotient_parts = embed(quotient_openning);
+        let embed_alg = |v: &[SC::Challenge]| {
+            v.chunks_exact(SC::Challenge::D)
+                .map(|chunk| {
+                    let res_chunk = chunk
+                        .iter()
+                        .map(|x| Res::from_inner(*x))
+                        .collect::<Vec<Res<SC::Val, SC::Challenge>>>();
+                    SC::ChallengeAlgebra::from_base_slice(&res_chunk)
+                })
+                .collect::<Vec<SC::ChallengeAlgebra>>()
+        };
+
+        let mut quotient_parts = quotient_opening
+            .chunks_exact(SC::Challenge::D)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .zip(monomials.iter())
+                    .map(|(x, m)| *x * *m)
+                    .sum()
+            })
+            .collect::<Vec<SC::Challenge>>();
+
         reverse_slice_index_bits(&mut quotient_parts);
         let quotient: SC::Challenge = zeta
             .powers()
@@ -213,9 +308,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|(weight, part)| part * weight)
             .sum();
 
-        let perm_openning = AirOpenedValues {
-            local: embed(&permutation_openning.local),
-            next: embed(&permutation_openning.next),
+        let perm_opening = AirOpenedValues {
+            local: embed_alg(&permutation_opening.local),
+            next: embed_alg(&permutation_opening.next),
         };
 
         let mut folder = VerifierConstraintFolder {
@@ -224,44 +319,66 @@ impl<SC: StarkConfig> Verifier<SC> {
                 next: &[],
             },
             main: TwoRowMatrixView {
-                local: &main_openning.local,
-                next: &main_openning.next,
+                local: &res(&main_opening.local),
+                next: &res(&main_opening.next),
             },
             perm: TwoRowMatrixView {
-                local: &perm_openning.local,
-                next: &perm_openning.next,
+                local: &perm_opening.local,
+                next: &perm_opening.next,
             },
             perm_challenges: permutation_challenges,
             is_first_row,
             is_last_row,
             is_transition,
             alpha,
-            accumulator: SC::Challenge::zero(),
+            accumulator: Res::zero(),
         };
         chip.eval(&mut folder);
-        // eval_permutation_constraints(chip, &mut folder, commulative_sum);
+        eval_permutation_constraints(chip, &mut folder, commulative_sum);
 
-        let folded_constraints = folder.accumulator;
+        let folded_constraints = folder.accumulator.into_inner();
 
         match folded_constraints == z_h * quotient {
             true => Ok(()),
             false => Err(OodEvaluationMismatch),
         }
     }
-
-    // fn verify_proof_shape(chips: &[Box<dyn AirChip<SC>>], proof: &SegmentProof<SC>) {}
 }
 
 #[derive(Debug)]
 pub enum ProofShapeError {
-    InvalidProofShape,
+    Preprocessed,
+    MainTrace,
+    Permuation,
+    Quotient,
 }
 
 pub struct OodEvaluationMismatch;
 
 #[derive(Debug)]
 pub enum VerificationError {
-    InvalidProofShape(ProofShapeError),
-    InvalidOpenningArgument,
+    /// The shape of openings does not match the chip shapes.
+    InvalidProofShape(ProofShapeError, String),
+    /// opening proof is invalid.
+    InvalidopeningArgument,
+    /// Out-of-domain evaluation mismatch.
+    ///
+    /// `constraints(zeta)` did not match `quotient(zeta) Z_H(zeta)`.
     OodEvaluationMismatch(String),
+}
+
+impl Display for VerificationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            VerificationError::InvalidProofShape(err, chip) => {
+                write!(f, "Invalid proof shape for chip {}: {:?}", chip, err)
+            }
+            VerificationError::InvalidopeningArgument => {
+                write!(f, "Invalid opening argument")
+            }
+            VerificationError::OodEvaluationMismatch(chip) => {
+                write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
+            }
+        }
+    }
 }

@@ -63,7 +63,7 @@
 mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -95,7 +95,7 @@ const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 pub struct DivRemChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DivRemCols<T> {
     /// The output operand.
@@ -196,7 +196,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                     || event.opcode == Opcode::DIV
             );
             let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
 
             // Initialize cols with basic operands and flags derived from the current event.
             {
@@ -245,9 +245,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
                             opcode: ByteOpcode::MSB,
-                            a1: get_msb(*word),
+                            a1: get_msb(*word) as u32,
                             a2: 0,
-                            b: most_significant_byte,
+                            b: most_significant_byte as u32,
                             c: 0,
                         });
                     }
@@ -275,15 +275,15 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                 };
 
                 // Add remainder to product.
-                let mut carry = [0u8; 8];
+                let mut carry = [0u32; 8];
                 let base = 1 << BYTE_SIZE;
                 for i in 0..LONG_WORD_SIZE {
                     let mut x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32;
                     if i > 0 {
-                        x += carry[i - 1] as u32;
+                        x += carry[i - 1];
                     }
-                    carry[i] = (x / base) as u8;
-                    cols.carry[i] = F::from_canonical_u8(carry[i]);
+                    carry[i] = x / base;
+                    cols.carry[i] = F::from_canonical_u32(carry[i]);
                 }
 
                 // Insert the necessary multiplication & LT events.
@@ -349,10 +349,9 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
 
                 // Range check.
                 {
-                    segment.add_byte_range_checks(&quotient.to_le_bytes());
-                    segment.add_byte_range_checks(&remainder.to_le_bytes());
-                    segment.add_byte_range_checks(&c_times_quotient);
-                    segment.add_byte_range_checks(&carry);
+                    segment.add_u8_range_checks(&quotient.to_le_bytes());
+                    segment.add_u8_range_checks(&remainder.to_le_bytes());
+                    segment.add_u8_range_checks(&c_times_quotient);
                 }
             }
 
@@ -372,7 +371,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         // sanity checks.
         let padded_row_template = {
             let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = unsafe { transmute(&mut row) };
+            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
             // 0 divided by 1. quotient = remainder = 0.
             cols.is_divu = F::one();
             cols.c[0] = F::one();
@@ -676,16 +675,14 @@ where
 
         // Range check all the bytes.
         {
-            builder.assert_word(local.quotient, local.is_real);
-            builder.assert_word(local.remainder, local.is_real);
+            builder.slice_range_check_u8(&local.quotient.0, local.is_real);
+            builder.slice_range_check_u8(&local.remainder.0, local.is_real);
 
-            let long_words = [local.c_times_quotient, local.carry];
-            for long_word in long_words.iter() {
-                let first_half = [long_word[0], long_word[1], long_word[2], long_word[3]];
-                let second_half = [long_word[4], long_word[5], long_word[6], long_word[7]];
-                builder.assert_word(Word(first_half), local.is_real);
-                builder.assert_word(Word(second_half), local.is_real);
-            }
+            local.carry.iter().for_each(|carry| {
+                builder.assert_bool(*carry);
+            });
+
+            builder.slice_range_check_u8(&local.c_times_quotient, local.is_real);
         }
 
         // Check that the flags are boolean.
@@ -742,9 +739,9 @@ where
 #[cfg(test)]
 mod tests {
 
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
 
     use crate::{

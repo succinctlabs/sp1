@@ -1,12 +1,11 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use core::mem::transmute;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use p3_maybe_rayon::prelude::*;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
@@ -22,7 +21,7 @@ pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 pub struct LtChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
     /// The output operand.
@@ -68,7 +67,7 @@ impl LtCols<u32> {
             .collect::<Vec<u32>>()
             .try_into()
             .unwrap();
-        unsafe { transmute::<[u32; NUM_LT_COLS], LtCols<u32>>(sized) }
+        *sized.as_slice().borrow()
     }
 }
 
@@ -80,7 +79,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_LT_COLS];
-                let cols: &mut LtCols<F> = unsafe { transmute(&mut row) };
+                let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
@@ -286,9 +285,10 @@ where
 
 #[cfg(test)]
 mod tests {
+
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_uni_stark::{prove, verify};
     use rand::thread_rng;
 
     use crate::{

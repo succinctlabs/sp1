@@ -25,9 +25,9 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "ahash"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
+checksum = "77c3a9648d43b9cd48db467b3f87fdd6e146bcc88ab0180006cef2179fe11d01"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -913,6 +913,7 @@ dependencies = [
  "rand_core",
  "sec1",
  "subtle",
+ "tap",
  "zeroize",
 ]
 
@@ -1020,9 +1021,9 @@ dependencies = [
 
 [[package]]
 name = "ethers-core"
-version = "2.0.12"
+version = "2.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "918b1a9ba585ea61022647def2f27c29ba19f6d2a4a4c8f68a9ae97fd5769737"
+checksum = "aab3cef6cc1c9fd7f787043c81ad3052eff2b96a3878ef1526aa446311bdbfc9"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1047,9 +1048,9 @@ dependencies = [
 
 [[package]]
 name = "ethers-providers"
-version = "2.0.11"
+version = "2.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25d6c0c9455d93d4990c06e049abf9b30daf148cf461ee939c11d88907c60816"
+checksum = "fb6b15393996e3b8a78ef1332d6483c11d839042c17be58decc92fa8b1c3508a"
 dependencies = [
  "async-trait",
  "auto_impl",
@@ -1106,6 +1107,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
+ "bitvec",
  "rand_core",
  "subtle",
 ]
@@ -1694,6 +1696,13 @@ dependencies = [
  "once_cell",
  "sha2 0.10.6 (git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=main)",
  "signature",
+]
+
+[[package]]
+name = "k256_decompress"
+version = "0.1.0"
+dependencies = [
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -2398,9 +2407,9 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
 name = "reqwest"
-version = "0.11.23"
+version = "0.11.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37b1ae8d9ac08420c66222fb9096fc5de435c3c48542bc5336c51892cffafb41"
+checksum = "c6920094eb85afde5e4a138be3f2de8bbdf28000f0029e72c45025a56b042251"
 dependencies = [
  "base64 0.21.7",
  "bytes",
@@ -2424,6 +2433,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "sync_wrapper",
  "system-configuration",
  "tokio",
  "tokio-rustls",
@@ -2755,9 +2765,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.28.1"
+version = "0.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f622567e3b4b38154fb8190bcf6b160d7a4301d70595a49195b48c116007a27"
+checksum = "d24b59d129cdadea20aea4fb2352fa053712e5d713eee47d700cd4b2bc002f10"
 dependencies = [
  "secp256k1-sys",
 ]
@@ -2769,6 +2779,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5d1746aae42c19d583c3c1a8c646bfad910498e2051c551a7f2e3c0c9fbb7eb"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "secp256k1_add"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "num",
+ "succinct-zkvm",
+]
+
+[[package]]
+name = "secp256k1_double"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "num",
+ "succinct-zkvm",
 ]
 
 [[package]]
@@ -3230,6 +3258,12 @@ dependencies = [
  "quote",
  "syn 2.0.48",
 ]
+
+[[package]]
+name = "sync_wrapper"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
 name = "system-configuration"
@@ -4078,7 +4112,7 @@ dependencies = [
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#caa19c2d6c0403a890a30abc4c2b4f524b4657d8"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#9b20a80e6fd1b6bfddf6038938d845eceeed8ff9"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -4104,7 +4138,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#caa19c2d6c0403a890a30abc4c2b4f524b4657d8"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#9b20a80e6fd1b6bfddf6038938d845eceeed8ff9"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
