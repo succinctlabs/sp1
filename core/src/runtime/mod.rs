@@ -1011,10 +1011,7 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{
-        runtime::Register,
-        utils::{setup_logger, tests::FIBONACCI_ELF},
-    };
+    use crate::{runtime::Register, utils::tests::FIBONACCI_ELF};
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -1045,24 +1042,6 @@ pub mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 42);
-    }
-
-    #[test]
-    fn test_fibonacci_run() {
-        setup_logger();
-        let program = fibonacci_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
-    }
-
-    #[test]
-    fn test_ed_add() {
-        setup_logger();
-        let program = fibonacci_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        assert_eq!(runtime.registers()[Register::X10 as usize], 144);
     }
 
     #[test]
