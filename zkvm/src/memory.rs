@@ -16,6 +16,7 @@ use crate::syscall::syscall_halt;
 
 const SYSTEM_START: usize = 0x0C00_0000;
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
     extern "C" {
