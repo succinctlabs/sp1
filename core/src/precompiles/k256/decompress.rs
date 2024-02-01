@@ -8,7 +8,6 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::precompiles::k256::decompress;
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
@@ -93,30 +92,9 @@ impl K256DecompressChip {
         x_bytes_be.reverse();
 
         // Compute actual decompressed Y
-        println!("x_bytes: {:?}", x_bytes);
-        println!("is_odd: {}", is_odd);
-        println!("x_bytes_be: {:?}", x_bytes_be);
         let computed_point =
             k256::AffinePoint::decompress((&x_bytes_be).into(), Choice::from(is_odd as u8))
                 .unwrap();
-        let x_bigint = BigUint::from_bytes_be(&x_bytes_be);
-        println!("x_bigint: {}", x_bigint);
-        let x_2_bigint = (&x_bigint * &x_bigint) % &Secp256k1BaseField::modulus();
-        println!("x_2_bigint: {}", x_2_bigint);
-        let x_3_bigint = (&x_2_bigint * &x_bigint) % &Secp256k1BaseField::modulus();
-        println!("x_3_bigint: {}", x_3_bigint);
-        let b = Secp256k1Parameters::b_int();
-        let x_3_plus_b_bigint = (&x_3_bigint + &b) % &Secp256k1BaseField::modulus();
-        println!("x_3_plus_b_bigint: {}", x_3_plus_b_bigint);
-        let y_bigint = secp256k1_sqrt(&x_3_plus_b_bigint);
-        println!("y_bigint: {}", y_bigint);
-        let y_bytes = y_bigint.to_bytes_le();
-        println!("y_bytes: {:?}", y_bytes);
-        let neg_y_bigint =
-            (&Secp256k1BaseField::modulus() - &y_bigint) % &Secp256k1BaseField::modulus();
-        println!("neg_y_bigint: {}", neg_y_bigint);
-        let neg_y_bytes = neg_y_bigint.to_bytes_le();
-        println!("neg_y_bytes: {:?}", neg_y_bytes);
 
         let decompressed_point = computed_point.to_encoded_point(false);
         let decompressed_point_bytes = decompressed_point.as_bytes();
@@ -124,7 +102,6 @@ impl K256DecompressChip {
         decompressed_y_bytes
             .copy_from_slice(&decompressed_point_bytes[1 + NUM_BYTES_FIELD_ELEMENT..]);
         decompressed_y_bytes.reverse();
-        println!("decompressed_y_bytes: {:?}", decompressed_y_bytes);
         let y_words: [u32; NUM_WORDS_FIELD_ELEMENT] = bytes_to_words_le(&decompressed_y_bytes);
 
         let y_memory_records_vec = rt.mw_slice(slice_ptr, &y_words);
@@ -180,7 +157,6 @@ impl<F: Field> K256DecompressCols<F> {
         }
 
         let x = &BigUint::from_bytes_le(&event.x_bytes);
-        println!("x: {}", x);
         self.populate_fp_ops(x);
 
         segment.field_events.append(&mut new_field_events);
@@ -198,7 +174,6 @@ impl<F: Field> K256DecompressCols<F> {
         let x_3_plus_b = self
             .x_3_plus_b
             .populate::<Secp256k1BaseField>(&x_3, &b, FpOperation::Add);
-        println!("x_3_plus_b: {}", x_3_plus_b);
         let y = self
             .y
             .populate::<Secp256k1BaseField>(&x_3_plus_b, secp256k1_sqrt);
@@ -313,7 +288,6 @@ impl<F: Field> Chip<F> for K256DecompressChip {
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
-        println!("trace");
 
         for i in 0..segment.k256_decompress_events.len() {
             let event = segment.k256_decompress_events[i];
@@ -325,7 +299,6 @@ impl<F: Field> Chip<F> for K256DecompressChip {
         }
 
         pad_rows(&mut rows, || {
-            println!("dummying");
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
             // This is a random X that has a valid result -> sqrt(X^3 + 7)
@@ -334,9 +307,9 @@ impl<F: Field> Chip<F> for K256DecompressChip {
             )
             .unwrap();
             let dummy_bytes = dummy_value.to_bytes_le();
+            // TODO: clean up into "bytes to words" util
             let mut full_dummy_bytes = [0u8; COMPRESSED_POINT_BYTES];
             full_dummy_bytes[0..32].copy_from_slice(&dummy_bytes);
-            // let dummy_words: [u32; NUM_WORDS_FIELD_ELEMENT] = bytes_to_words_le(&full_dummy_bytes);
             for i in 0..8 {
                 let word_bytes = dummy_bytes[i * 4..(i + 1) * 4]
                     .iter()
@@ -398,7 +371,6 @@ pub mod tests {
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
             let mut result: [u8; 65] = [0; 65];
-            println!("compressed: {:?}", compressed);
 
             let program = Program::from_elf("../programs/k256_decompress");
             let mut runtime = Runtime::new(program);

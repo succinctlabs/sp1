@@ -30,7 +30,6 @@ impl<F: Field> FpSqrtCols<F> {
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
     ) -> BigUint {
-        println!("sqrting: {:?}", a);
         let sqrt = sqrt_fn(a);
 
         // Use FpOpCols to compute result * result.
