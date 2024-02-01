@@ -21,7 +21,9 @@ use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
+use itertools::Itertools;
 use nohash_hasher::BuildNoHashHasher;
+use num::traits::ops::mul_add;
 pub use opcode::*;
 pub use program::*;
 pub use register::*;
@@ -97,6 +99,9 @@ pub struct Runtime {
     /// Segments
     pub segment: Segment,
 
+    /// Sharded segments.
+    pub sharded_segments: Vec<Segment>,
+
     /// The current record for the CPU event,
     pub record: Record,
 
@@ -133,6 +138,7 @@ impl Runtime {
             output_stream: Vec::new(),
             output_stream_ptr: 0,
             segment,
+            sharded_segments: Vec::new(),
             record: Record::default(),
             segment_size: 128,
             global_segment: Segment::default(),
@@ -999,6 +1005,67 @@ impl Runtime {
         self.global_segment.first_memory_record = first_memory_record;
         self.global_segment.last_memory_record = last_memory_record;
         self.global_segment.program_memory_record = program_memory_record;
+
+        fn shard<T: Clone>(vec: &[T], size: usize) -> Vec<Vec<T>> {
+            vec.chunks(size).map(|c| c.to_vec()).collect::<Vec<_>>()
+        }
+
+        // sharding logic
+        let shard_size = 19;
+        let cpu_shards = shard(&self.segment.cpu_events, 1 << shard_size);
+        let add_shards = shard(&self.segment.add_events, 1 << shard_size);
+        let mul_shards = shard(&self.segment.mul_events, 1 << shard_size);
+        let sub_shards = shard(&self.segment.sub_events, 1 << shard_size);
+        let bitwise_shards = shard(&self.segment.bitwise_events, 1 << shard_size);
+        let shift_left_shards = shard(&self.segment.shift_left_events, 1 << shard_size);
+        let shift_right_shards = shard(&self.segment.shift_right_events, 1 << shard_size);
+        let lt_shards = shard(&self.segment.lt_events, 1 << shard_size);
+        let field_events = shard(&self.segment.field_events, 1 << (shard_size - 5));
+
+        let nb_jobs = [
+            cpu_shards.len(),
+            add_shards.len(),
+            mul_shards.len(),
+            sub_shards.len(),
+            bitwise_shards.len(),
+            shift_left_shards.len(),
+            shift_right_shards.len(),
+            lt_shards.len(),
+            field_events.len(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap();
+
+        let mut jobs = Vec::new();
+        for i in 0..nb_jobs {
+            let mut job = Segment::default();
+            job.program = self.segment.program.clone();
+            job.cpu_events = cpu_shards.get(i).cloned().unwrap_or_default();
+            job.add_events = add_shards.get(i).cloned().unwrap_or_default();
+            job.mul_events = mul_shards.get(i).cloned().unwrap_or_default();
+            job.sub_events = sub_shards.get(i).cloned().unwrap_or_default();
+            job.bitwise_events = bitwise_shards.get(i).cloned().unwrap_or_default();
+            job.shift_left_events = shift_left_shards.get(i).cloned().unwrap_or_default();
+            job.shift_right_events = shift_right_shards.get(i).cloned().unwrap_or_default();
+            job.lt_events = lt_shards.get(i).cloned().unwrap_or_default();
+            job.field_events = field_events.get(i).cloned().unwrap_or_default();
+            jobs.push(job);
+        }
+
+        let idx = jobs.len() - 1;
+        jobs[idx].program = self.segment.program.clone();
+        jobs[idx].byte_lookups = self.segment.byte_lookups.clone();
+        jobs[idx].sha_extend_events = self.segment.sha_extend_events.clone();
+        jobs[idx].sha_compress_events = self.segment.sha_compress_events.clone();
+        jobs[idx].keccak_permute_events = self.segment.keccak_permute_events.clone();
+        jobs[idx].ed_add_events = self.segment.ed_add_events.clone();
+        jobs[idx].ed_decompress_events = self.segment.ed_decompress_events.clone();
+        jobs[idx].weierstrass_add_events = self.segment.weierstrass_add_events.clone();
+        jobs[idx].weierstrass_double_events = self.segment.weierstrass_double_events.clone();
+        jobs[idx].k256_decompress_events = self.segment.k256_decompress_events.clone();
+
+        self.sharded_segments = jobs;
     }
 }
 

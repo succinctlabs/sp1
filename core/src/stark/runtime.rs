@@ -130,16 +130,17 @@ impl Runtime {
         tracing::info!(
             "total_cycles: {}, segments: {}",
             self.segment.cpu_events.len(),
-            1
+            self.sharded_segments.len()
         );
         let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                vec![Prover::commit_main(
-                    config,
-                    &segment_chips,
-                    &mut self.segment,
-                )]
+                self.sharded_segments
+                    .par_iter_mut()
+                    .map(|segment| {
+                        Prover::commit_main(config, &segment_chips, &mut segment.clone())
+                    })
+                    .collect::<Vec<_>>()
             });
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction

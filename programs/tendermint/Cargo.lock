@@ -96,8 +96,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c359b7249347e46fb28804470d071c921156ad62b3eef5d34e2ba867533dec8"
+source = "git+ssh://git@github.com/succinctlabs/dalek-ng-private.git#01f43665631d2c33385708d41d0c26dbb1baa0ea"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -168,8 +167,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
+source = "git+https://github.com/succinctlabs/ed25519-consensus-private.git#e9f03604509ceabedaf31f66a70c28297d7af6c2"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
@@ -532,10 +530,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
-name = "succinct-build"
-version = "0.1.0"
-
-[[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
 dependencies = [
@@ -631,7 +625,6 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "succinct-build",
  "succinct-zkvm",
  "tendermint",
  "tendermint-light-client-verifier",
@@ -701,3 +694,18 @@ dependencies = [
  "quote",
  "syn 2.0.48",
 ]
+
+[[patch.unused]]
+name = "sha2"
+version = "0.10.6"
+source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=main#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"
+
+[[patch.unused]]
+name = "sha2"
+version = "0.9.8"
+source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
+
+[[patch.unused]]
+name = "time"
+version = "0.3.28"
+source = "git+https://github.com/time-rs/time.git?rev=v0.3.28#bb9b38e4a444f7b5e0648a1bd16e52003e01cfbd"
