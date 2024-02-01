@@ -274,6 +274,7 @@ pub mod tests {
 
     use std::fs::File;
 
+    use crate::utils::prove;
     use crate::{
         runtime::{Program, Runtime},
         utils::{prove_core, setup_logger},

@@ -6,6 +6,7 @@ use syscall::syscall_halt;
 
 use core::alloc::{GlobalAlloc, Layout};
 use getrandom::{register_custom_getrandom, Error};
+use std::backtrace::Backtrace;
 
 extern crate alloc;
 
@@ -79,9 +80,9 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 #[cfg(target_os = "zkvm")]
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
-
 fn zkvm_getrandom(_: &mut [u8]) -> Result<(), Error> {
-    panic!("randomness not implemented");
+    let backtrace = Backtrace::force_capture();
+    panic!("randomness not implemented: {:?}", backtrace);
 }
 
 register_custom_getrandom!(zkvm_getrandom);
