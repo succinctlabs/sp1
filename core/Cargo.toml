@@ -47,7 +47,7 @@ hex = "0.4.3"
 tempfile = "3.9.0"
 flate2 = "1.0.28"
 size = "0.4.1"
-zeth-lib = { git = "https://github.com/risc0/zeth.git", version = "0.1.0", default-features = false }
+zeth-lib = { git = "https://github.com/succinctlabs/zeth-private", branch = "chris/zeth-lib", default-features = false }
 serde_json = { version = "1.0.113", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]

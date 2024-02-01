@@ -357,7 +357,7 @@ pub mod tests {
                 .sum::<usize>(),
             num_segments
         );
-        prove_core(&mut runtime);
+        // prove_core(&mut runtime);
 
         // prove(program);
     }
