@@ -15,6 +15,7 @@ pub mod zerofier_coset;
 
 pub use config::*;
 pub use debug::*;
+pub use types::*;
 pub use verifier::{VerificationError, Verifier};
 
 #[cfg(test)]

@@ -42,7 +42,7 @@ pub fn read_slice(buf: &mut [u8]) {
 
 pub fn write<T: Serialize>(value: &T) {
     let writer = SyscallReader {};
-    bincode::serialize_into(writer, value).expect("Serialization failed");
+    bincode::serialize_into(writer, value).expect("serialization failed");
 }
 
 pub fn write_slice(buf: &[u8]) {

@@ -48,7 +48,11 @@ pub mod permute_tests {
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
         stark::prover::LocalProver,
-        utils::{self, prove, BabyBearPoseidon2, StarkUtils},
+        utils::{
+            self, self, prove, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, BabyBearPoseidon2,
+            StarkUtils, StarkUtils,
+        },
+        SuccinctProver,
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -73,7 +77,7 @@ pub mod permute_tests {
     pub fn test_keccak_permute_program_execute() {
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&[10]);
+        runtime.write_stdin_slice(&[10]);
         runtime.run()
     }
 
@@ -86,7 +90,7 @@ pub mod permute_tests {
         let program = keccak_permute_program();
         let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
             let mut runtime = Runtime::new(program);
-            runtime.add_input_slice(&[10]);
+            runtime.write_stdin_slice(&[10]);
             runtime.run();
             runtime
         });
@@ -98,7 +102,8 @@ pub mod permute_tests {
 
     #[test]
     fn test_keccak_permute_program_prove() {
-        let program = Program::from_elf("../programs/keccak_permute");
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove(KECCAK_PERMUTE_ELF);
     }
 }

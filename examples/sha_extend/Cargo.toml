@@ -1,7 +1,0 @@
-[package]
-version = "0.1.0"
-name = "sha_extend"
-
-
-[dependencies]
-succinct-zkvm = { path = "../../zkvm" }

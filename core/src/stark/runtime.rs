@@ -26,6 +26,8 @@ use p3_challenger::CanObserve;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use super::OpeningProof;
+
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_cumulative_sums;
 
@@ -126,6 +128,7 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         MainData<SC>: Serialize + DeserializeOwned,
         P: Prover<SC>,
+        OpeningProof<SC>: Send + Sync,
     {
         let num_segments = self.segments.len();
         let (cycle_count, keccak_count, sha_count) =
@@ -160,7 +163,7 @@ impl Runtime {
         let local_segment_proofs: Vec<_> =
             tracing::info_span!("proving all segments").in_scope(|| {
                 segment_main_data
-                    .into_iter()
+                    .into_par_iter()
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {

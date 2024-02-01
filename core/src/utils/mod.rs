@@ -1,11 +1,15 @@
 pub mod ec;
 mod logger;
+mod programs;
 mod prove;
 mod tracer;
 
 pub use logger::*;
 pub use prove::*;
 pub use tracer::*;
+
+#[cfg(test)]
+pub use programs::*;
 
 use p3_air::{Air, BaseAir};
 use p3_field::Field;

@@ -9,9 +9,10 @@ use rand::SeedableRng;
 extern crate alloc;
 
 pub mod io;
-mod memory;
-#[allow(clippy::missing_safety_doc)]
+pub mod memory;
 pub mod syscall;
+
+pub use io::*;
 
 pub const WORD_SIZE: usize = 4;
 

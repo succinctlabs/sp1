@@ -29,8 +29,8 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 /// the chip.
 pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     chip: &dyn Chip<F>,
-    main: &mut RowMajorMatrix<F>,
-    random_elements: Vec<EF>,
+    main: &RowMajorMatrix<F>,
+    random_elements: &[EF],
 ) -> RowMajorMatrix<EF> {
     // Get all the interactions related to this chip.
     let all_interactions = chip.all_interactions();
@@ -57,7 +57,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         tracing::debug_span!("permutation trace values").in_scope(|| {
             // Compute the permutation trace values in parallel.
             let mut parallel = main
-                .par_row_chunks_mut(chunk_rate)
+                .par_row_chunks(chunk_rate)
                 .flat_map(|rows_chunk| {
                     rows_chunk
                         .rows()

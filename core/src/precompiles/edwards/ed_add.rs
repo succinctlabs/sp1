@@ -274,18 +274,25 @@ pub mod tests {
 
     use crate::utils::prove;
     use crate::{runtime::Program, utils::setup_logger};
+    use crate::{
+        utils::{
+            self,
+            tests::{ED25519_ELF, ED_ADD_ELF},
+        },
+        SuccinctProver,
+    };
 
     #[test]
     fn test_ed_add_simple() {
-        setup_logger();
-        let program = Program::from_elf("../programs/ed_add");
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove(ED_ADD_ELF);
     }
 
     #[test]
     fn test_ed25519_program() {
-        setup_logger();
-        let program = Program::from_elf("../programs/ed25519");
-        prove(program);
+        utils::setup_logger();
+        let prover = SuccinctProver::new();
+        prover.prove(ED25519_ELF);
     }
 }
