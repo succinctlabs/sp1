@@ -153,14 +153,14 @@ where
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
             tracing::debug!(
-                    "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
-                    chips[i].name(),
-                    total_width,
-                    traces[i].height(),
-                    total_width * traces[i].height(),
-                    (100f32 * trace_width as f32) / total_width as f32,
-                    (100f32 * permutation_width as f32) / total_width as f32,
-                );
+                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                chips[i].name(),
+                total_width,
+                traces[i].height(),
+                total_width * traces[i].height(),
+                (100f32 * trace_width as f32) / total_width as f32,
+                (100f32 * permutation_width as f32) / total_width as f32,
+            );
         }
 
         // Get the commulutative sums of the permutation traces.
@@ -564,7 +564,7 @@ where
                                 let commitment = data.main_commit.clone();
                                 // TODO: make this logic configurable?
                                 let file = tempfile::tempfile().unwrap();
-                                let data = if num_segments > 1 {
+                                let data = if num_segments > 64 {
                                     data.save(file).expect("failed to save segment main data")
                                 } else {
                                     data.to_in_memory()

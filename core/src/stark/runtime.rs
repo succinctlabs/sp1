@@ -128,21 +128,20 @@ impl Runtime {
         P: Prover<SC>,
     {
         let num_segments = self.segments.len();
+        let (cycle_count, keccak_count, sha_count) =
+            self.segments.iter().fold((0, 0, 0), |acc, s| {
+                (
+                    acc.0 + s.cpu_events.len(),
+                    acc.1 + s.keccak_permute_events.len(),
+                    acc.2 + s.sha_compress_events.len(),
+                )
+            });
         tracing::info!(
             "total_cycles: {}, segments: {}, keccak: {}, sha: {}",
-            self.segments
-                .iter()
-                .map(|s| s.cpu_events.len())
-                .sum::<usize>(),
+            cycle_count,
             num_segments,
-            self.segments
-                .iter()
-                .map(|s| s.keccak_permute_events.len())
-                .sum::<usize>(),
-            self.segments
-                .iter()
-                .map(|s| s.sha_compress_events.len())
-                .sum::<usize>(),
+            keccak_count,
+            sha_count,
         );
         let segment_chips = Self::segment_chips::<SC>();
 
@@ -152,7 +151,7 @@ impl Runtime {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            commitments.into_iter().map(|commitment| {
+            commitments.into_iter().for_each(|commitment| {
                 challenger.observe(commitment);
             });
         });
