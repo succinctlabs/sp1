@@ -1,6 +1,7 @@
+[workspace]
 [package]
-name = "verifier"
 version = "0.1.0"
+name = "verifier-zkvm"
 edition = "2021"
 
 
