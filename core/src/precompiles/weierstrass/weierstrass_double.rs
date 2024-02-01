@@ -1,5 +1,6 @@
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::MemoryAccessCols;
+use crate::memory::MemoryCols;
+use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
@@ -42,7 +43,7 @@ pub struct WeierstrassDoubleAssignCols<T> {
     pub segment: T,
     pub clk: T,
     pub p_ptr: T,
-    pub p_access: [MemoryAccessCols<T>; NUM_WORDS_EC_POINT],
+    pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
     pub(crate) slope_denominator: FpOpCols<T>,
     pub(crate) slope_numerator: FpOpCols<T>,
     pub(crate) slope: FpOpCols<T>,
@@ -177,7 +178,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
             // Populate the memory access columns.
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.p_access[i].populate_write(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
             }
 
             rows.push(row);
@@ -308,10 +309,10 @@ where
         for i in 0..NUM_LIMBS {
             builder
                 .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value[i % 4]);
+                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
             builder.when(row.is_real).assert_eq(
                 row.y3_ins.result[i],
-                row.p_access[NUM_WORDS_FIELD_ELEMENT + i / 4].value[i % 4],
+                row.p_access[NUM_WORDS_FIELD_ELEMENT + i / 4].value()[i % 4],
             );
         }
 
