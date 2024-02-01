@@ -36,7 +36,7 @@ impl ProveCmd {
         utils::setup_logger();
         let mut runtime = Runtime::new(program);
         for input in self.input.clone() {
-            runtime.add_input(&input);
+            runtime.write_stdin(&input);
         }
         runtime.run();
         prove_core(&mut runtime);

@@ -24,7 +24,7 @@ fn main() {
         b: true,
     };
     let mut prover = SuccinctProver::new();
-    prover.write::<MyPointUnaligned>(&p1);
-    prover.write::<MyPointUnaligned>(&p2);
+    prover.write_stdin::<MyPointUnaligned>(&p1);
+    prover.write_stdin::<MyPointUnaligned>(&p2);
     prover.prove_elf(IO_ELF);
 }

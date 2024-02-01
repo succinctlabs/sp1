@@ -67,7 +67,7 @@ pub mod compress_tests {
 
         let program = sha_compress_program();
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&[10]);
+        runtime.write_stdin_slice(&[10]);
         runtime.run();
 
         runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);

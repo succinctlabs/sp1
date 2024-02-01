@@ -73,7 +73,7 @@ pub mod permute_tests {
     pub fn test_keccak_permute_program_execute() {
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&[10]);
+        runtime.write_stdin_slice(&[10]);
         runtime.run()
     }
 
@@ -86,7 +86,7 @@ pub mod permute_tests {
         let program = keccak_permute_program();
         let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
             let mut runtime = Runtime::new(program);
-            runtime.add_input_slice(&[10]);
+            runtime.write_stdin_slice(&[10]);
             runtime.run();
             runtime
         });

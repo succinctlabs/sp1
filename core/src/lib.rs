@@ -40,7 +40,7 @@ impl SuccinctProver {
         Self { stdin: Vec::new() }
     }
 
-    pub fn write<T: Serialize>(&mut self, input: &T) {
+    pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();
         bincode::serialize_into(&mut buf, input).expect("serialization failed");
         self.stdin.extend(buf);
@@ -49,7 +49,7 @@ impl SuccinctProver {
     pub fn prove_elf(&self, elf: &[u8]) {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
-        runtime.add_input_slice(&self.stdin);
+        runtime.write_stdin_slice(&self.stdin);
         runtime.run();
         prove_core(&mut runtime);
     }

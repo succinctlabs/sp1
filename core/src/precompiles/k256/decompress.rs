@@ -375,9 +375,9 @@ pub mod tests {
 
             let program = Program::from(SECP256K1_DECOMPRESS_ELF);
             let mut runtime = Runtime::new(program);
-            runtime.add_input_slice(&compressed);
+            runtime.write_stdin_slice(&compressed);
             runtime.run();
-            runtime.get_output_slice(&mut result);
+            runtime.read_stdout_slice(&mut result);
 
             assert_eq!(result, decompressed);
             prove_core(&mut runtime)
