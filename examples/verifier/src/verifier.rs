@@ -5,7 +5,7 @@ extern crate succinct_zkvm;
 use std::fs;
 use std::hint::black_box;
 
-use clap::{command, Parser};
+// use clap::{command, Parser};
 use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
@@ -19,15 +19,15 @@ use succinct_core::utils::StarkUtils;
 
 succinct_zkvm::entrypoint!(main);
 
-#[derive(Parser, Debug, Clone)]
-#[command(about = "Profile a program.")]
-struct VerifierArgs {
-    #[arg(long)]
-    pub program: String,
+// #[derive(Parser, Debug, Clone)]
+// #[command(about = "Profile a program.")]
+// struct VerifierArgs {
+//     #[arg(long)]
+//     pub program: String,
 
-    #[arg(long)]
-    pub proof_directory: String,
-}
+//     #[arg(long)]
+//     pub proof_directory: String,
+// }
 
 #[succinct_derive::cycle_tracker]
 fn verify<F, EF, SC>(
@@ -50,18 +50,19 @@ fn verify<F, EF, SC>(
 }
 
 fn main() {
-    let args = VerifierArgs::parse();
+    // let args = VerifierArgs::parse();
 
-    log::info!("Verifying proof: {}", args.proof_directory.as_str());
+    // log::info!("Verifying proof: {}", args.proof_directory.as_str());
 
+    let proof_directory = "verifier/fib_proofs";
     let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> = {
-        let segment_proofs_file_name = format!("{}/segment_proofs.json", args.proof_directory);
+        let segment_proofs_file_name = format!("{}/segment_proofs.json", proof_directory);
         let segment_proofs_json = fs::read_to_string(segment_proofs_file_name).unwrap();
         serde_json::from_str(&segment_proofs_json).unwrap()
     };
 
     let global_proof = {
-        let global_proof_file_name = format!("{}/global_proof.json", args.proof_directory);
+        let global_proof_file_name = format!("{}/global_proof.json", proof_directory);
         let global_proof_json = fs::read_to_string(global_proof_file_name).unwrap();
         serde_json::from_str(&global_proof_json).unwrap()
     };
@@ -69,7 +70,7 @@ fn main() {
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
-    let program = Program::from_elf(args.program.as_str());
+    let program = Program::from_elf("../../programs/fibonacci");
     let mut runtime = Runtime::new(program);
     black_box(verify::<_, _, BabyBearPoseidon2>(
         black_box(&mut runtime),

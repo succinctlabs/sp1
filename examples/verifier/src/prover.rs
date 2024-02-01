@@ -1,28 +1,30 @@
 use std::fs;
 
-use clap::{command, Parser};
+// use clap::{command, Parser};
 use std::process::exit;
 use succinct_core::runtime::Program;
 use succinct_core::runtime::Runtime;
 use succinct_core::utils::BabyBearPoseidon2;
 use succinct_core::utils::StarkUtils;
 
-#[derive(Parser, Debug, Clone)]
-#[command(about = "Profile a program.")]
-struct ProverArgs {
-    #[arg(long)]
-    pub program: String,
+// #[derive(Parser, Debug, Clone)]
+// #[command(about = "Profile a program.")]
+// struct ProverArgs {
+//     #[arg(long)]
+//     pub program: String,
 
-    #[arg(long)]
-    pub proof_directory: String,
-}
+//     #[arg(long)]
+//     pub proof_directory: String,
+// }
 
 fn main() {
-    let args = ProverArgs::parse();
+    // let args = ProverArgs::parse();
 
-    log::info!("Proving program: {}", args.program.as_str());
+    // log::info!("Proving program: {}", args.program.as_str());
 
-    let program = Program::from_elf(args.program.as_str());
+    // let program = Program::from_elf(args.program.as_str());
+
+    let program = Program::from_elf("../../programs/fibonacci");
 
     let mut runtime = Runtime::new(program);
     runtime.add_input_slice(&[1, 2]);
@@ -36,7 +38,8 @@ fn main() {
         runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
 
     // Attempt to create the directory
-    let directory_name = args.proof_directory.as_str();
+    // let directory_name = args.proof_directory.as_str();
+    let directory_name = "fib_proofs";
     match fs::create_dir(directory_name) {
         Ok(_) => (),
         Err(e) => {
