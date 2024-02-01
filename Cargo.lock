@@ -2327,7 +2327,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "681030a937600a36906c185595136d26abfebb4aa9c65701cefcaf8578bb982b"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.48",
@@ -4889,7 +4889,7 @@ dependencies = [
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#9b20a80e6fd1b6bfddf6038938d845eceeed8ff9"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#1d4b3aa87bc398ac9ae3a438db92cdcde19b906d"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -4915,7 +4915,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#9b20a80e6fd1b6bfddf6038938d845eceeed8ff9"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#1d4b3aa87bc398ac9ae3a438db92cdcde19b906d"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
