@@ -25,11 +25,12 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "ahash"
-version = "0.8.7"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c3a9648d43b9cd48db467b3f87fdd6e146bcc88ab0180006cef2179fe11d01"
+checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
 dependencies = [
  "cfg-if",
+ "getrandom",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -4103,6 +4104,7 @@ dependencies = [
 name = "zeth"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "serde",
  "serde_json",
  "succinct-zkvm",
@@ -4112,7 +4114,7 @@ dependencies = [
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#9b20a80e6fd1b6bfddf6038938d845eceeed8ff9"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#0e3ae34e302a42162d30764d002e359d78a8c299"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -4138,7 +4140,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#9b20a80e6fd1b6bfddf6038938d845eceeed8ff9"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#0e3ae34e302a42162d30764d002e359d78a8c299"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",

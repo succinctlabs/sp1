@@ -252,7 +252,7 @@ pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: boo
         unsafe {
             asm!(
                 "ecall",
-                in("t0") K256_DECOMPRESS,
+                in("t0") SECP256K1_DECOMPRESS,
                 in("a0") p,
             );
         }
