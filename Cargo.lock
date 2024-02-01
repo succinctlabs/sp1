@@ -3930,7 +3930,6 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "valida-derive",
- "zeth-lib",
 ]
 
 [[package]]
@@ -4921,6 +4920,7 @@ name = "zeth-example"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "hex-literal",
  "succinct-core",
  "zeth-lib",
 ]

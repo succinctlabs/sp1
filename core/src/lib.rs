@@ -57,4 +57,9 @@ impl SuccinctProver {
     pub fn prove(&self, runtime: &mut Runtime) {
         prove_core(runtime);
     }
+
+    pub fn run_and_prove(&self, elf: &[u8]) {
+        let mut runtime = self.run(elf);
+        self.prove(&mut runtime);
+    }
 }

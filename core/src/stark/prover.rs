@@ -23,11 +23,8 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use size::Size;
 use std::cmp::max;
 use std::marker::PhantomData;
-use std::time::Instant;
-use tracing::{debug, trace};
 
 pub trait Prover<SC>
 where
@@ -90,7 +87,7 @@ where
         let main_data = wrapped_main_data
             .materialize()
             .expect("failed to load segment main data");
-        let mut traces = main_data.traces;
+        let traces = main_data.traces;
 
         // For each trace, compute the degree.
         let degrees = traces
