@@ -15,7 +15,7 @@ fn main() {
     prover.write_stdin::<Input<EthereumTxEssence>>(&input);
     let mut runtime = prover.run(ZETH_ELF);
     let mut result_hash = [0u8; 32];
-    runtime.read_exact(&mut result_hash);
+    runtime.read_exact(&mut result_hash).unwrap();
     let expected_hash = hex!("09ab1a9eed392e53193a9ab5201e81f7cbcdb3ed5f4c51f46e16589ad847e113");
     assert_eq!(result_hash, expected_hash);
 
