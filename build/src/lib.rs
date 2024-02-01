@@ -13,6 +13,7 @@ pub fn embed_elf() {
         .map(|_| true)
         .unwrap_or(false);
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let pkg_name = env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME not set");
 
     // Only run the build script if thce SUCCINCT_BUILD_IGNORE environment variable is not set.
     if !ignore {
@@ -57,7 +58,7 @@ pub fn embed_elf() {
             .join("target")
             .join("riscv32im-succinct-zkvm-elf")
             .join("release")
-            .join("fibonacci-zkvm");
+            .join(pkg_name);
         std::fs::copy(&target_elf_path, elf_path).unwrap();
         let mut target_elf = File::open(&target_elf_path).unwrap();
         let mut target_elf_bytes = Vec::new();

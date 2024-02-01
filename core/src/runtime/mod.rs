@@ -25,6 +25,7 @@ pub use program::*;
 pub use register::*;
 pub use segment::*;
 use std::collections::HashMap;
+use std::process::exit;
 use std::sync::Arc;
 pub use syscall::*;
 
@@ -653,6 +654,10 @@ impl Runtime {
                         let num_bytes = self.register(a1) as usize;
                         let mut read_bytes = [0u8; 4];
                         for i in 0..num_bytes {
+                            if self.input_stream_ptr >= self.input_stream.len() {
+                                tracing::error!("Not enough input words were passed in. Use --input to pass in more words.");
+                                exit(1);
+                            }
                             read_bytes[i] = self.input_stream[self.input_stream_ptr];
                             self.input_stream_ptr += 1;
                         }

@@ -3,7 +3,7 @@ extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
-    let n = 10;
+    let n = succinct_zkvm::read::<u32>();
     let mut a = 0;
     let mut b = 1;
     let mut sum;

@@ -21,6 +21,7 @@
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
         "examples/Cargo.toml",
-        "examples-v2/fibonacci/Cargo.toml"
+        "examples-v2/fibonacci/Cargo.toml",
+        "examples-v2/fibonacci-io/Cargo.toml"
     ]
 }

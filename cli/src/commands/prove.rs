@@ -1,14 +1,19 @@
-use std::{env, process::Command};
-
 use anyhow::Result;
 use clap::Parser;
-use succinct_core::{runtime::Program, utils};
+use std::process::Command;
+use succinct_core::{
+    runtime::{Program, Runtime},
+    utils::{self, prove_core},
+};
 
 use crate::CommandExecutor;
 
 #[derive(Parser)]
 #[command(name = "prove", about = "(default) Build and prove a Rust program")]
 pub struct ProveCmd {
+    #[clap(long)]
+    input: Vec<u32>,
+
     #[clap(long)]
     target: Option<String>,
 
@@ -29,7 +34,12 @@ impl ProveCmd {
         let program = Program::from_elf(elf_path.as_str());
 
         utils::setup_logger();
-        utils::prove(program);
+        let mut runtime = Runtime::new(program);
+        for input in self.input.clone() {
+            runtime.add_input(&input);
+        }
+        runtime.run();
+        prove_core(&mut runtime);
 
         Ok(())
     }

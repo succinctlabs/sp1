@@ -1,7 +1,4 @@
 #[cfg(target_os = "zkvm")]
-use core::arch::asm;
-
-#[cfg(target_os = "zkvm")]
 use syscall::syscall_halt;
 
 use core::alloc::{GlobalAlloc, Layout};

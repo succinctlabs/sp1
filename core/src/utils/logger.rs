@@ -1,7 +1,5 @@
 use std::sync::Once;
 
-use tracing::Instrument;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 

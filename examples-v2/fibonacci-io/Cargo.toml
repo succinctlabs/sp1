@@ -1,0 +1,15 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "fibonacci-io-zkvm"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+succinct-zkvm = { path = "../../zkvm" }
+
+[build-dependencies]
+succinct-build = { path = "../../build" }
+
+[lib]
+path = "elf/lib.rs"
