@@ -6,12 +6,9 @@ edition = "2021"
 
 [dependencies]
 log = "0.4.20"
-p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
 p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
 p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
 p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
 succinct-core = { path = "../../core" }
 succinct-derive = { path = "../../derive" }
 succinct-zkvm = { path = "../../zkvm" }
