@@ -5,6 +5,9 @@ env:
 runs:
   using: "composite"
   steps:
+    - name: Checkout sources
+      uses: actions/checkout@v2
+
     - name: Set up git private repo access
       run: |
         git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
