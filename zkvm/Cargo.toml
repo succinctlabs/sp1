@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.79"
+anyhow = "1.0.75"
 bincode = "1.3.3"
 getrandom = { version = "0.2.12", features = ["custom"] }
 k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
