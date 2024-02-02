@@ -11,6 +11,8 @@ permissions:
 jobs:
   benchmark:
     runs-on: buildjet-32vcpu-ubuntu-2204
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -19,7 +21,8 @@ jobs:
 
       - name: Set up git private repo access
         run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
+          git config --global url."https://github.com".insteadOf ssh://git@github.com
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
       - name: rust-cache
         uses: actions/cache@v3
