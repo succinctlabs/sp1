@@ -1,5 +1,5 @@
-use p3_air::{Air, BaseAir, TwoRowMatrixView};
-use p3_field::{ExtensionField, Field, PrimeField};
+use p3_air::TwoRowMatrixView;
+use p3_field::{ExtensionField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
 mod config;
@@ -21,19 +21,19 @@ pub use verifier::{VerificationError, Verifier};
 #[cfg(test)]
 pub use runtime::tests;
 
-use crate::{stark::permutation::eval_permutation_constraints, utils::Chip};
+use crate::stark::permutation::eval_permutation_constraints;
+
+use self::runtime::ChipInfo;
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
-    air: &A,
+pub fn debug_constraints<F: PrimeField32, EF: ExtensionField<F>, A>(
+    air: Box<ChipInfo<F>>,
     main: &RowMajorMatrix<F>,
     perm: &RowMajorMatrix<EF>,
     perm_challenges: &[EF],
-) where
-    A: for<'a> Air<DebugConstraintBuilder<'a, F, EF>> + BaseAir<F> + Chip<F> + ?Sized,
-{
+) {
     assert_eq!(main.height(), perm.height());
     let height = main.height();
     if height == 0 {

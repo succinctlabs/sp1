@@ -23,7 +23,7 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use crate::utils::{AirChip, Chip};
+use crate::utils::Chip;
 use p3_air::{Air, BaseAir};
 use p3_challenger::CanObserve;
 
@@ -66,6 +66,9 @@ enum ChipType<F: Field> {
         WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>,
     ),
     K256Decompress(K256DecompressChip),
+    MemoryInit(MemoryGlobalChip),
+    MemoryFinalize(MemoryGlobalChip),
+    MemoryProgram(MemoryGlobalChip),
 }
 
 pub(crate) struct ChipInfo<F: Field> {
@@ -98,6 +101,9 @@ impl<F: PrimeField32> ChipInfo<F> {
             ChipType::WeierstrassAdd(chip) => chip.all_interactions(),
             ChipType::WeierstrassDouble(chip) => chip.all_interactions(),
             ChipType::K256Decompress(chip) => chip.all_interactions(),
+            ChipType::MemoryInit(chip) => chip.all_interactions(),
+            ChipType::MemoryFinalize(chip) => chip.all_interactions(),
+            ChipType::MemoryProgram(chip) => chip.all_interactions(),
         }
     }
 
@@ -126,6 +132,9 @@ impl<F: PrimeField32> ChipInfo<F> {
             ChipType::WeierstrassAdd(chip) => chip.sends(),
             ChipType::WeierstrassDouble(chip) => chip.sends(),
             ChipType::K256Decompress(chip) => chip.sends(),
+            ChipType::MemoryInit(chip) => chip.sends(),
+            ChipType::MemoryFinalize(chip) => chip.sends(),
+            ChipType::MemoryProgram(chip) => chip.sends(),
         }
     }
 
@@ -154,6 +163,9 @@ impl<F: PrimeField32> ChipInfo<F> {
             ChipType::WeierstrassAdd(chip) => chip.generate_trace(segment),
             ChipType::WeierstrassDouble(chip) => chip.generate_trace(segment),
             ChipType::K256Decompress(chip) => chip.generate_trace(segment),
+            ChipType::MemoryInit(chip) => chip.generate_trace(segment),
+            ChipType::MemoryFinalize(chip) => chip.generate_trace(segment),
+            ChipType::MemoryProgram(chip) => chip.generate_trace(segment),
         }
     }
 
@@ -193,6 +205,9 @@ impl<F: PrimeField32> ChipInfo<F> {
                 Secp256k1Parameters,
             > as Chip<F>>::name(chip),
             ChipType::K256Decompress(chip) => <K256DecompressChip as Chip<F>>::name(chip),
+            ChipType::MemoryInit(chip) => <MemoryGlobalChip as Chip<F>>::name(chip),
+            ChipType::MemoryFinalize(chip) => <MemoryGlobalChip as Chip<F>>::name(chip),
+            ChipType::MemoryProgram(chip) => <MemoryGlobalChip as Chip<F>>::name(chip),
         }
     }
 
@@ -222,6 +237,9 @@ impl<F: PrimeField32> ChipInfo<F> {
             ChipType::WeierstrassAdd(chip) => chip.eval(builder),
             ChipType::WeierstrassDouble(chip) => chip.eval(builder),
             ChipType::K256Decompress(chip) => chip.eval(builder),
+            ChipType::MemoryInit(chip) => chip.eval(builder),
+            ChipType::MemoryFinalize(chip) => chip.eval(builder),
+            ChipType::MemoryProgram(chip) => chip.eval(builder),
         }
     }
 
@@ -261,6 +279,40 @@ impl<F: PrimeField32> ChipInfo<F> {
                 Secp256k1Parameters,
             > as BaseAir<F>>::width(chip),
             ChipType::K256Decompress(chip) => <K256DecompressChip as BaseAir<F>>::width(chip),
+            ChipType::MemoryInit(chip) => <MemoryGlobalChip as BaseAir<F>>::width(chip),
+            ChipType::MemoryFinalize(chip) => <MemoryGlobalChip as BaseAir<F>>::width(chip),
+            ChipType::MemoryProgram(chip) => <MemoryGlobalChip as BaseAir<F>>::width(chip),
+        }
+    }
+
+    pub(crate) fn preprocessed_trace(&self) -> Option<RowMajorMatrix<F>>
+    where
+        F: PrimeField32,
+    {
+        match &self.chip {
+            ChipType::Program(chip) => chip.preprocessed_trace(),
+            ChipType::Cpu(chip) => todo!(),
+            ChipType::Add(chip) => todo!(),
+            ChipType::Sub(chip) => todo!(),
+            ChipType::Bitwise(chip) => todo!(),
+            ChipType::Mul(chip) => todo!(),
+            ChipType::DivRem(chip) => todo!(),
+            ChipType::ShiftRight(chip) => todo!(),
+            ChipType::ShiftLeft(chip) => todo!(),
+            ChipType::Lt(chip) => todo!(),
+            ChipType::Bytes(chip) => todo!(),
+            ChipType::Field(chip) => todo!(),
+            ChipType::ShaExtend(chip) => todo!(),
+            ChipType::ShaCompress(chip) => todo!(),
+            ChipType::EdAdd(chip) => todo!(),
+            ChipType::EdDecompress(chip) => todo!(),
+            ChipType::KeccakPermute(chip) => todo!(),
+            ChipType::WeierstrassAdd(chip) => todo!(),
+            ChipType::WeierstrassDouble(chip) => todo!(),
+            ChipType::K256Decompress(chip) => todo!(),
+            ChipType::MemoryInit(chip) => todo!(),
+            ChipType::MemoryFinalize(chip) => todo!(),
+            ChipType::MemoryProgram(chip) => todo!(),
         }
     }
 }
@@ -358,18 +410,21 @@ impl Runtime {
         ]
     }
 
-    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
-    where
-        SC::Val: PrimeField32,
-    {
+    pub fn global_chips<F: Field>() -> [Box<ChipInfo<F>>; 3] {
         // Initialize chips.
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         [
-            Box::new(memory_init),
-            Box::new(memory_finalize),
-            Box::new(program_memory_init),
+            Box::new(ChipInfo {
+                chip: ChipType::MemoryInit(memory_init),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::MemoryFinalize(memory_finalize),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::MemoryProgram(program_memory_init),
+            }),
         ]
     }
 
@@ -448,7 +503,7 @@ impl Runtime {
                 })
         });
 
-        let global_chips = Self::global_chips::<SC>();
+        let global_chips = Self::global_chips::<F>();
         let global_main_data = tracing::info_span!("commit main for global segments")
             .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
@@ -526,7 +581,7 @@ impl Runtime {
         }
 
         // Verifiy the global proof.
-        let global_chips = Self::global_chips::<SC>();
+        let global_chips = Self::global_chips::<F>();
         tracing::info_span!("verifying global segment").in_scope(|| {
             Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
                 .map_err(ProgramVerificationError::InvalidGlobalProof)
