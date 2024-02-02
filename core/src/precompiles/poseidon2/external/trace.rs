@@ -24,8 +24,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
+
         for i in 0..segment.poseidon2_external_events.len() {
             let event = segment.poseidon2_external_events[i];
+            let mut next_clock: u32 = event.clk + 4;
 
             //let og_h = event.h;
             //let mut v = [0u32; 8].map(Word::from);
@@ -40,8 +42,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                     let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
 
                     cols.0.segment = F::from_canonical_u32(segment.index);
-                    let clk = event.clk + (j * 4) as u32;
-                    cols.0.clk = F::from_canonical_u32(clk);
+                    cols.0.clk = F::from_canonical_u32(next_clock);
+                    next_clock += 4;
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                     //                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
@@ -51,7 +53,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                     // cols.mem
                     //     .populate_read(event.h_read_records[j], &mut new_field_events);
                     // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
-                    cols.0.mem[round].populate_read(event.state_reads[j], &mut new_field_events);
+                    cols.0.mem[round]
+                        .populate_read(event.state_reads[round][j], &mut new_field_events);
                     cols.0.mem_addr[round] =
                         F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
@@ -59,7 +62,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                     println!("new_field_events: {:?}", new_field_events);
                     println!(
                         "event.state_reads[{}].value: {:?}",
-                        j, event.state_reads[j].value,
+                        j, event.state_reads[round][j].value,
                     );
 
                     // cols.a = v[0];
@@ -94,7 +97,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
                     cols.0.is_real = F::one();
                     cols.0.is_external = F::one();
-                    println!("cols: {:#?}", cols);
+                    // TODO: Remove this before opening a PR.
+                    // println!("cols: {:#?}", cols);
                     rows.push(row);
                 }
             }
@@ -112,8 +116,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
             //     cols.octet_num[octet_num_idx] = F::one();
 
             //     cols.segment = F::from_canonical_u32(segment.index);
-            //     let clk = event.clk + (8 * 4 + j * 4) as u32;
-            //     cols.clk = F::from_canonical_u32(clk);
+            //     let clk = event.clk + (8 * 4 + j * 4) as u32; //     cols.clk = F::from_canonical_u32(clk);
             //     cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
             //     cols.mem
             //         .populate_read(event.w_i_read_records[j], &mut new_field_events);
@@ -195,8 +198,9 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                     let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
 
                     cols.0.segment = F::from_canonical_u32(segment.index);
-                    let clk = event.clk + (NUM_WORDS_FIELD_ELEMENT * 4 + (j * 4)) as u32;
-                    cols.0.clk = F::from_canonical_u32(clk);
+                    // let clk = event.clk + (NUM_WORDS_FIELD_ELEMENT * 4 + (j * 4)) as u32;
+                    cols.0.clk = F::from_canonical_u32(next_clock);
+                    next_clock += 4;
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                     // cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
@@ -207,7 +211,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                     // cols.mem
                     //     .populate_write(event.h_write_records[j], &mut new_field_events);
                     // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
-                    cols.0.mem[round].populate_write(event.state_writes[j], &mut new_field_events);
+                    cols.0.mem[round]
+                        .populate_write(event.state_writes[round][j], &mut new_field_events);
                     cols.0.mem_addr[round] =
                         F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 

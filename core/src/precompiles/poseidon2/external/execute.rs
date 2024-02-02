@@ -1,17 +1,18 @@
 use crate::{
+    cpu::{MemoryReadRecord, MemoryWriteRecord},
     precompiles::{poseidon2::Poseidon2ExternalEvent, PrecompileRuntime},
     runtime::Register,
 };
 
-use super::Poseidon2ExternalChip;
+use super::{columns::POSEIDON2_DEFAULT_EXTERNAL_ROUNDS, Poseidon2ExternalChip};
 
 // TODO: I just copied and pasted these from sha as a starting point, so a lot will likely has to
 // change.
 impl<const N: usize> Poseidon2ExternalChip<N> {
     // TODO: How do I calculate this? I just copied and pasted these from sha as a starting point.
-    pub const NUM_CYCLES: u32 = 8 * N as u32;
+    pub const NUM_CYCLES: u32 = (8 * POSEIDON2_DEFAULT_EXTERNAL_ROUNDS * N) as u32;
 
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+    pub fn execute(rt: &mut PrecompileRuntime) -> (u32, Poseidon2ExternalEvent<N>) {
         // Read `w_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
 
@@ -19,23 +20,27 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         // precompile.
         let saved_clk = rt.clk;
         let saved_state_ptr = state_ptr;
-        let mut state_read_records = Vec::new();
-        let mut state_write_records = Vec::new();
+        let mut state_read_records =
+            [[MemoryReadRecord::default(); N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS];
+        let mut state_write_records =
+            [[MemoryWriteRecord::default(); N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS];
 
         // Execute the "initialize" phase.
         // const H_START_IDX: u32 = 64;
         // let mut hx = [0u32; 8];
 
         // Read?
-        let mut input_state = Vec::new();
-        for i in 0..N {
-            let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
-            state_read_records.push(record);
-            input_state.push(value);
-            // TODO: Remove this debugging statement.
-            println!("value: {}", value);
-            // hx[i] = value;
-            rt.clk += 4;
+        for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+            let mut input_state = Vec::new();
+            for i in 0..N {
+                let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
+                state_read_records[round][i] = record;
+                input_state.push(value);
+                // TODO: Remove this debugging statement.
+                println!("value: {}", value);
+                // hx[i] = value;
+                rt.clk += 4;
+            }
         }
 
         // Execute the "compress" phase.
@@ -72,28 +77,30 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
 
         //     rt.clk += 4;
         // }
+        // }
 
         // // Execute the "finalize" phase.
         // // let v = [a, b, c, d, e, f, g, h];
         // Write?
-        for i in 0..N {
-            let record = rt.mw(
-                state_ptr.wrapping_add((i as u32) * 4),
-                input_state[i].wrapping_add(5), // Just as a starting point, add 5 to each element.
-            );
-            state_write_records.push(record);
-            rt.clk += 4;
+        for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+            for i in 0..N {
+                let record = rt.mw(
+                    state_ptr.wrapping_add((i as u32) * 4),
+                    200 + i as u32, // TODO: Just for fun, i'm putting 200 + i back into the memory.
+                );
+                state_write_records[round][i] = record;
+                rt.clk += 4;
+            }
         }
 
-        rt.segment_mut()
-            .poseidon2_external_events
-            .push(Poseidon2ExternalEvent {
+        (
+            state_ptr,
+            Poseidon2ExternalEvent {
                 clk: saved_clk,
                 state_ptr: saved_state_ptr,
-                state_reads: state_read_records.try_into().unwrap(),
-                state_writes: state_write_records.try_into().unwrap(),
-            });
-
-        state_ptr
+                state_reads: state_read_records,
+                state_writes: state_write_records,
+            },
+        )
     }
 }

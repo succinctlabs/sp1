@@ -6,6 +6,7 @@ mod register;
 mod segment;
 mod syscall;
 
+use crate::bytes::event;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
@@ -793,9 +794,25 @@ impl Runtime {
                         assert_eq!(init_clk + 4, self.clk);
                     }
                     Syscall::POSEIDON2_EXTERNAL => {
-                        a = Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::execute(
-                            &mut precompile_rt,
-                        );
+                        a = {
+                            let (a_val, event) =
+                                Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::execute(
+                                    &mut precompile_rt,
+                                );
+
+                            // The event is pushed to the segment here because
+                            // Poseidon2ExternalChip::execute() is a generic function. This function
+                            // cannot infer the const generic parameter used elsewhere,
+                            // necessitating explicit handling of the event at this point in the
+                            // code.
+                            precompile_rt
+                                .segment_mut()
+                                .poseidon2_external_events
+                                .push(event);
+
+                            a_val
+                        };
+
                         self.clk = precompile_rt.clk;
                         assert_eq!(
                             init_clk + Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::NUM_CYCLES,

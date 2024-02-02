@@ -1,5 +1,7 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
+use self::columns::POSEIDON2_DEFAULT_EXTERNAL_ROUNDS;
+
 mod air;
 mod columns;
 mod execute;
@@ -11,8 +13,8 @@ mod trace;
 pub struct Poseidon2ExternalEvent<const N: usize> {
     pub clk: u32,
     pub state_ptr: u32,
-    pub state_reads: [MemoryReadRecord; N],
-    pub state_writes: [MemoryWriteRecord; N],
+    pub state_reads: [[MemoryReadRecord; N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
+    pub state_writes: [[MemoryWriteRecord; N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
 }
 
 pub struct Poseidon2ExternalChip<const N: usize>;
