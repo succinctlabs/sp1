@@ -55,7 +55,8 @@ fn main() {
 
     let proof_directory = "fib_proofs";
     let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
-    let segment_proofs = serde_json::from_str(segment_proofs_json).unwrap();
+    let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
+        serde_json::from_str(segment_proofs_json).unwrap();
 
     let global_proof_json = include_str!("./fib_proofs/global_proof.json");
     let global_proof = serde_json::from_str(global_proof_json).unwrap();
@@ -63,7 +64,7 @@ fn main() {
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
-    let program = Program::from_elf("../../programs/fibonacci");
+    let program = Program::from_elf("../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
     let mut runtime = Runtime::new(program);
     black_box(verify::<_, _, BabyBearPoseidon2>(
         black_box(&mut runtime),
