@@ -23,26 +23,6 @@ use succinct_core::utils::StarkUtils;
 //     pub proof_directory: String,
 // }
 
-#[succinct_derive::cycle_tracker]
-fn verify<F, EF, SC>(
-    runtime: &mut Runtime,
-    config: &SC,
-    challenger: &mut SC::Challenger,
-    segment_proofs: &[SegmentProof<SC>],
-    global_proof: &SegmentProof<SC>,
-) where
-    F: PrimeField + TwoAdicField + PrimeField32,
-    EF: ExtensionField<F>,
-    SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
-    SC::Challenger: Clone,
-    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-{
-    runtime
-        .verify::<_, _, SC>(config, challenger, segment_proofs, global_proof)
-        .unwrap();
-}
-
 fn main() {
     // let args = VerifierArgs::parse();
 
@@ -63,11 +43,7 @@ fn main() {
     let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
     let program = Program::from(program_elf);
     let mut runtime = Runtime::new(program);
-    black_box(verify::<_, _, BabyBearPoseidon2>(
-        black_box(&mut runtime),
-        black_box(&config),
-        black_box(&mut challenger),
-        black_box(&segment_proofs),
-        black_box(&global_proof),
-    ));
+    runtime
+        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
+        .unwrap();
 }
