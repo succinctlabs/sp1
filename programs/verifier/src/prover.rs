@@ -24,7 +24,7 @@ fn main() {
 
     // let program = Program::from_elf(args.program.as_str());
 
-    let program = Program::from_elf("../../programs/fibonacci");
+    let program = Program::from_elf("../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     let mut runtime = Runtime::new(program);
     runtime.run();

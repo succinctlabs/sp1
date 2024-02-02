@@ -2,7 +2,6 @@
 
 extern crate succinct_zkvm;
 
-use std::fs;
 use std::hint::black_box;
 
 // use clap::{command, Parser};
@@ -54,18 +53,12 @@ fn main() {
 
     // log::info!("Verifying proof: {}", args.proof_directory.as_str());
 
-    let proof_directory = "verifier/fib_proofs";
-    let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> = {
-        let segment_proofs_file_name = format!("{}/segment_proofs.json", proof_directory);
-        let segment_proofs_json = fs::read_to_string(segment_proofs_file_name).unwrap();
-        serde_json::from_str(&segment_proofs_json).unwrap()
-    };
+    let proof_directory = "fib_proofs";
+    let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
+    let segment_proofs = serde_json::from_str(segment_proofs_json).unwrap();
 
-    let global_proof = {
-        let global_proof_file_name = format!("{}/global_proof.json", proof_directory);
-        let global_proof_json = fs::read_to_string(global_proof_file_name).unwrap();
-        serde_json::from_str(&global_proof_json).unwrap()
-    };
+    let global_proof_json = include_str!("./fib_proofs/global_proof.json");
+    let global_proof = serde_json::from_str(global_proof_json).unwrap();
 
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
