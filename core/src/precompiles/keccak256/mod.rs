@@ -48,10 +48,7 @@ pub mod permute_tests {
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
         stark::prover::LocalProver,
-        utils::{
-            self, self, prove, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, BabyBearPoseidon2,
-            StarkUtils, StarkUtils,
-        },
+        utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
         SuccinctProver,
     };
 
@@ -104,6 +101,6 @@ pub mod permute_tests {
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove(KECCAK_PERMUTE_ELF);
+        prover.run_and_prove(KECCAK_PERMUTE_ELF);
     }
 }

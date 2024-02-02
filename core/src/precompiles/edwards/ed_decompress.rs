@@ -319,6 +319,6 @@ pub mod tests {
     fn test_ed_decompress() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove(ED_DECOMPRESS_ELF);
+        prover.run_and_prove(ED_DECOMPRESS_ELF);
     }
 }

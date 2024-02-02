@@ -1029,10 +1029,6 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use std::fs::File;
-
-    use zeth_lib::{input::Input, EthereumTxEssence};
-
     use crate::{
         runtime::Register,
         utils::tests::FIBONACCI_ELF,
@@ -1671,24 +1667,5 @@ pub mod tests {
         // Assert SH cases
         assert_eq!(runtime.register(Register::X12), 0x12346525);
         assert_eq!(runtime.register(Register::X11), 0x65256525);
-    }
-
-    #[test]
-    #[ignore]
-    fn test_zeth_prove() {
-        setup_logger();
-        let file = File::open("../programs/zethinput.bin").unwrap();
-        let input: Input<EthereumTxEssence> = bincode::deserialize_from(file).unwrap();
-
-        let program = Program::from_elf("../programs/zeth");
-
-        let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-            let mut runtime = Runtime::new(program);
-            let serialized = bincode::serialize(&input).unwrap();
-            runtime.add_input_slice(&serialized);
-            runtime.run();
-            runtime
-        });
-        prove_core(&mut runtime);
     }
 }
