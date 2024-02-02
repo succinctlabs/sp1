@@ -15,6 +15,9 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
       - name: Setup
         uses: ./.github/actions/setup
 
@@ -33,6 +36,9 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
       - name: Setup
         uses: ./.github/actions/setup
 
