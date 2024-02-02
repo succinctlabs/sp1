@@ -8,14 +8,11 @@ mod trace;
 // TODO: Make sure that I'm only adding columns that I need. I just copied and pasted these from SHA
 // compress as a starting point, so these likely need to change quite a bit.
 #[derive(Debug, Clone, Copy)]
-pub struct Poseidon2ExternalEvent {
+pub struct Poseidon2ExternalEvent<const N: usize> {
     pub clk: u32,
-    pub w_and_h_ptr: u32,
-    pub w: [u32; 64],
-    pub h: [u32; 8],
-    pub h_read_records: [MemoryReadRecord; 8],
-    pub w_i_read_records: [MemoryReadRecord; 64],
-    pub h_write_records: [MemoryWriteRecord; 8],
+    pub state_ptr: u32,
+    pub state_reads: [MemoryReadRecord; N],
+    pub state_writes: [MemoryWriteRecord; N],
 }
 
 pub struct Poseidon2ExternalChip;
