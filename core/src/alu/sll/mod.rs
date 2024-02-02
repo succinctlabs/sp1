@@ -52,7 +52,7 @@ pub const BYTE_SIZE: usize = 8;
 
 /// A chip that implements bitwise operations for the opcodes SLL and SLLI.
 #[derive(Default)]
-pub struct ShiftLeft;
+pub struct ShiftLeftChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -88,7 +88,7 @@ pub struct ShiftLeftCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for ShiftLeft {
+impl<F: PrimeField> Chip<F> for ShiftLeftChip {
     fn name(&self) -> String {
         "ShiftLeft".to_string()
     }
@@ -184,13 +184,13 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
     }
 }
 
-impl<F> BaseAir<F> for ShiftLeft {
+impl<F> BaseAir<F> for ShiftLeftChip {
     fn width(&self) -> usize {
         NUM_SHIFT_LEFT_COLS
     }
 }
 
-impl<AB> Air<AB> for ShiftLeft
+impl<AB> Air<AB> for ShiftLeftChip
 where
     AB: CurtaAirBuilder,
 {
@@ -340,13 +340,13 @@ mod tests {
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 
-    use super::ShiftLeft;
+    use super::ShiftLeftChip;
 
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
         segment.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
-        let chip = ShiftLeft::default();
+        let chip = ShiftLeftChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
@@ -389,7 +389,7 @@ mod tests {
 
         let mut segment = Segment::default();
         segment.shift_left_events = shift_events;
-        let chip = ShiftLeft::default();
+        let chip = ShiftLeftChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 

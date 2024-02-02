@@ -5,7 +5,6 @@ use crate::stark::debug_constraints;
 
 use crate::runtime::Segment;
 use crate::stark::permutation::generate_permutation_trace;
-use crate::utils::AirChip;
 use p3_air::TwoRowMatrixView;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -21,6 +20,7 @@ use p3_util::log2_strict_usize;
 
 use super::folder::ProverConstraintFolder;
 use super::permutation::eval_permutation_constraints;
+use super::runtime::ChipInfo;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, StarkConfig};
@@ -31,7 +31,7 @@ impl<SC: StarkConfig> Prover<SC> {
     /// Commit to the main data
     pub fn commit_main(
         config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[Box<ChipInfo<SC::Val>>],
         segment: &mut Segment,
     ) -> MainData<SC>
     where
@@ -57,7 +57,7 @@ impl<SC: StarkConfig> Prover<SC> {
     pub fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[Box<ChipInfo<SC::Val>>],
         main_data: MainData<SC>,
     ) -> SegmentProof<SC>
     where
@@ -98,7 +98,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 .zip(traces.par_iter())
                 .map(|(chip, trace)| {
                     let perm_trace =
-                        generate_permutation_trace(chip.as_chip(), trace, &permutation_challenges);
+                        generate_permutation_trace(chip, trace, &permutation_challenges);
                     let commulative_sum = perm_trace
                         .row_slice(trace.height() - 1)
                         .last()
@@ -165,7 +165,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 .map(|i| {
                     Self::quotient_values(
                         config,
-                        &*chips[i],
+                        chips[i],
                         commulative_sums[i],
                         log_degrees[i],
                         log_quotient_degree,
@@ -348,9 +348,9 @@ impl<SC: StarkConfig> Prover<SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn quotient_values<C, MainLde, PermLde>(
+    pub fn quotient_values<MainLde, PermLde>(
         config: &SC,
-        chip: &C,
+        chip: Box<ChipInfo<SC::Val>>,
         commulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,
@@ -360,8 +360,8 @@ impl<SC: StarkConfig> Prover<SC> {
         alpha: SC::Challenge,
     ) -> Vec<SC::Challenge>
     where
+        SC::Val: PrimeField32,
         SC: StarkConfig,
-        C: AirChip<SC> + ?Sized,
         MainLde: MatrixGet<SC::Val> + Sync,
         PermLde: MatrixGet<SC::Val> + Sync,
     {

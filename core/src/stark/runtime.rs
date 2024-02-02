@@ -1,10 +1,12 @@
+use crate::air::CurtaAirBuilder;
 use crate::alu::divrem::DivRemChip;
 use crate::alu::mul::MulChip;
 use crate::bytes::ByteChip;
 use crate::field::FieldLTUChip;
+use crate::lookup::Interaction;
 use crate::memory::MemoryGlobalChip;
 
-use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
+use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeftChip, ShiftRightChip, SubChip};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryChipKind;
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
@@ -15,13 +17,14 @@ use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
 use crate::program::ProgramChip;
-use crate::runtime::Runtime;
+use crate::runtime::{Runtime, Segment};
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use crate::utils::AirChip;
+use crate::utils::{AirChip, Chip};
+use p3_air::{Air, BaseAir};
 use p3_challenger::CanObserve;
 
 use super::OpeningProof;
@@ -30,7 +33,7 @@ use super::OpeningProof;
 use crate::stark::debug_cumulative_sums;
 
 use p3_commit::Pcs;
-use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
+use p3_field::{ExtensionField, Field, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 
@@ -40,11 +43,230 @@ use super::{StarkConfig, VerificationError};
 
 pub const NUM_CHIPS: usize = 20;
 
-impl Runtime {
-    pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
+enum ChipType<F: Field> {
+    Program(ProgramChip),
+    Cpu(CpuChip),
+    Add(AddChip),
+    Sub(SubChip),
+    Bitwise(BitwiseChip),
+    Mul(MulChip),
+    DivRem(DivRemChip),
+    ShiftRight(ShiftRightChip),
+    ShiftLeft(ShiftLeftChip),
+    Lt(LtChip),
+    Bytes(ByteChip<F>),
+    Field(FieldLTUChip),
+    ShaExtend(ShaExtendChip),
+    ShaCompress(ShaCompressChip),
+    EdAdd(EdAddAssignChip<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>),
+    EdDecompress(EdDecompressChip<Ed25519Parameters>),
+    KeccakPermute(KeccakPermuteChip),
+    WeierstrassAdd(WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>),
+    WeierstrassDouble(
+        WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>,
+    ),
+    K256Decompress(K256DecompressChip),
+}
+
+pub(crate) struct ChipInfo<F: Field> {
+    chip: ChipType<F>,
+}
+
+impl<F: PrimeField32> ChipInfo<F> {
+    pub(crate) fn all_interactions(&self) -> Vec<Interaction<F>>
     where
-        SC::Val: PrimeField32,
+        F: PrimeField32,
     {
+        match &self.chip {
+            ChipType::Program(chip) => chip.all_interactions(),
+            ChipType::Cpu(chip) => chip.all_interactions(),
+            ChipType::Add(chip) => chip.all_interactions(),
+            ChipType::Sub(chip) => chip.all_interactions(),
+            ChipType::Bitwise(chip) => chip.all_interactions(),
+            ChipType::Mul(chip) => chip.all_interactions(),
+            ChipType::DivRem(chip) => chip.all_interactions(),
+            ChipType::ShiftRight(chip) => chip.all_interactions(),
+            ChipType::ShiftLeft(chip) => chip.all_interactions(),
+            ChipType::Lt(chip) => chip.all_interactions(),
+            ChipType::Bytes(chip) => chip.all_interactions(),
+            ChipType::Field(chip) => chip.all_interactions(),
+            ChipType::ShaExtend(chip) => chip.all_interactions(),
+            ChipType::ShaCompress(chip) => chip.all_interactions(),
+            ChipType::EdAdd(chip) => chip.all_interactions(),
+            ChipType::EdDecompress(chip) => chip.all_interactions(),
+            ChipType::KeccakPermute(chip) => chip.all_interactions(),
+            ChipType::WeierstrassAdd(chip) => chip.all_interactions(),
+            ChipType::WeierstrassDouble(chip) => chip.all_interactions(),
+            ChipType::K256Decompress(chip) => chip.all_interactions(),
+        }
+    }
+
+    pub(crate) fn sends(&self) -> Vec<Interaction<F>>
+    where
+        F: PrimeField32,
+    {
+        match &self.chip {
+            ChipType::Program(chip) => chip.sends(),
+            ChipType::Cpu(chip) => chip.sends(),
+            ChipType::Add(chip) => chip.sends(),
+            ChipType::Sub(chip) => chip.sends(),
+            ChipType::Bitwise(chip) => chip.sends(),
+            ChipType::Mul(chip) => chip.sends(),
+            ChipType::DivRem(chip) => chip.sends(),
+            ChipType::ShiftRight(chip) => chip.sends(),
+            ChipType::ShiftLeft(chip) => chip.sends(),
+            ChipType::Lt(chip) => chip.sends(),
+            ChipType::Bytes(chip) => chip.sends(),
+            ChipType::Field(chip) => chip.sends(),
+            ChipType::ShaExtend(chip) => chip.sends(),
+            ChipType::ShaCompress(chip) => chip.sends(),
+            ChipType::EdAdd(chip) => chip.sends(),
+            ChipType::EdDecompress(chip) => chip.sends(),
+            ChipType::KeccakPermute(chip) => chip.sends(),
+            ChipType::WeierstrassAdd(chip) => chip.sends(),
+            ChipType::WeierstrassDouble(chip) => chip.sends(),
+            ChipType::K256Decompress(chip) => chip.sends(),
+        }
+    }
+
+    pub(crate) fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>
+    where
+        F: PrimeField32,
+    {
+        match &self.chip {
+            ChipType::Program(chip) => chip.generate_trace(segment),
+            ChipType::Cpu(chip) => chip.generate_trace(segment),
+            ChipType::Add(chip) => chip.generate_trace(segment),
+            ChipType::Sub(chip) => chip.generate_trace(segment),
+            ChipType::Bitwise(chip) => chip.generate_trace(segment),
+            ChipType::Mul(chip) => chip.generate_trace(segment),
+            ChipType::DivRem(chip) => chip.generate_trace(segment),
+            ChipType::ShiftRight(chip) => chip.generate_trace(segment),
+            ChipType::ShiftLeft(chip) => chip.generate_trace(segment),
+            ChipType::Lt(chip) => chip.generate_trace(segment),
+            ChipType::Bytes(chip) => chip.generate_trace(segment),
+            ChipType::Field(chip) => chip.generate_trace(segment),
+            ChipType::ShaExtend(chip) => chip.generate_trace(segment),
+            ChipType::ShaCompress(chip) => chip.generate_trace(segment),
+            ChipType::EdAdd(chip) => chip.generate_trace(segment),
+            ChipType::EdDecompress(chip) => chip.generate_trace(segment),
+            ChipType::KeccakPermute(chip) => chip.generate_trace(segment),
+            ChipType::WeierstrassAdd(chip) => chip.generate_trace(segment),
+            ChipType::WeierstrassDouble(chip) => chip.generate_trace(segment),
+            ChipType::K256Decompress(chip) => chip.generate_trace(segment),
+        }
+    }
+
+    pub(crate) fn name(&self) -> String
+    where
+        F: PrimeField32,
+    {
+        match &self.chip {
+            ChipType::Program(chip) => <ProgramChip as Chip<F>>::name(chip),
+            ChipType::Cpu(chip) => <CpuChip as Chip<F>>::name(chip),
+            ChipType::Add(chip) => <AddChip as Chip<F>>::name(chip),
+            ChipType::Sub(chip) => <SubChip as Chip<F>>::name(chip),
+            ChipType::Bitwise(chip) => <BitwiseChip as Chip<F>>::name(chip),
+            ChipType::Mul(chip) => <MulChip as Chip<F>>::name(chip),
+            ChipType::DivRem(chip) => <DivRemChip as Chip<F>>::name(chip),
+            ChipType::ShiftRight(chip) => <ShiftRightChip as Chip<F>>::name(chip),
+            ChipType::ShiftLeft(chip) => <ShiftLeftChip as Chip<F>>::name(chip),
+            ChipType::Lt(chip) => <LtChip as Chip<F>>::name(chip),
+            ChipType::Bytes(chip) => <ByteChip<F> as Chip<F>>::name(chip),
+            ChipType::Field(chip) => <FieldLTUChip as Chip<F>>::name(chip),
+            ChipType::ShaExtend(chip) => <ShaExtendChip as Chip<F>>::name(chip),
+            ChipType::ShaCompress(chip) => <ShaCompressChip as Chip<F>>::name(chip),
+            ChipType::EdAdd(chip) => <EdAddAssignChip<
+                EdwardsCurve<Ed25519Parameters>,
+                Ed25519Parameters,
+            > as Chip<F>>::name(chip),
+            ChipType::EdDecompress(chip) => {
+                <EdDecompressChip<Ed25519Parameters> as Chip<F>>::name(chip)
+            }
+            ChipType::KeccakPermute(chip) => <KeccakPermuteChip as Chip<F>>::name(chip),
+            ChipType::WeierstrassAdd(chip) => <WeierstrassAddAssignChip<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            > as Chip<F>>::name(chip),
+            ChipType::WeierstrassDouble(chip) => <WeierstrassDoubleAssignChip<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            > as Chip<F>>::name(chip),
+            ChipType::K256Decompress(chip) => <K256DecompressChip as Chip<F>>::name(chip),
+        }
+    }
+
+    pub(crate) fn eval<AB: CurtaAirBuilder>(&self, builder: &mut AB)
+    where
+        F: PrimeField32,
+        AB::F: ExtensionField<F>,
+    {
+        match &self.chip {
+            ChipType::Program(chip) => chip.eval(builder),
+            ChipType::Cpu(chip) => chip.eval(builder),
+            ChipType::Add(chip) => chip.eval(builder),
+            ChipType::Sub(chip) => chip.eval(builder),
+            ChipType::Bitwise(chip) => chip.eval(builder),
+            ChipType::Mul(chip) => chip.eval(builder),
+            ChipType::DivRem(chip) => chip.eval(builder),
+            ChipType::ShiftRight(chip) => chip.eval(builder),
+            ChipType::ShiftLeft(chip) => chip.eval(builder),
+            ChipType::Lt(chip) => chip.eval(builder),
+            ChipType::Bytes(chip) => chip.eval(builder),
+            ChipType::Field(chip) => chip.eval(builder),
+            ChipType::ShaExtend(chip) => chip.eval(builder),
+            ChipType::ShaCompress(chip) => chip.eval(builder),
+            ChipType::EdAdd(chip) => chip.eval(builder),
+            ChipType::EdDecompress(chip) => chip.eval(builder),
+            ChipType::KeccakPermute(chip) => chip.eval(builder),
+            ChipType::WeierstrassAdd(chip) => chip.eval(builder),
+            ChipType::WeierstrassDouble(chip) => chip.eval(builder),
+            ChipType::K256Decompress(chip) => chip.eval(builder),
+        }
+    }
+
+    pub(crate) fn air_width(&self) -> usize
+    where
+        F: PrimeField32,
+    {
+        match &self.chip {
+            ChipType::Program(chip) => <ProgramChip as BaseAir<F>>::width(chip),
+            ChipType::Cpu(chip) => <CpuChip as BaseAir<F>>::width(chip),
+            ChipType::Add(chip) => <AddChip as BaseAir<F>>::width(chip),
+            ChipType::Sub(chip) => <SubChip as BaseAir<F>>::width(chip),
+            ChipType::Bitwise(chip) => <BitwiseChip as BaseAir<F>>::width(chip),
+            ChipType::Mul(chip) => <MulChip as BaseAir<F>>::width(chip),
+            ChipType::DivRem(chip) => <DivRemChip as BaseAir<F>>::width(chip),
+            ChipType::ShiftRight(chip) => <ShiftRightChip as BaseAir<F>>::width(chip),
+            ChipType::ShiftLeft(chip) => <ShiftLeftChip as BaseAir<F>>::width(chip),
+            ChipType::Lt(chip) => <LtChip as BaseAir<F>>::width(chip),
+            ChipType::Bytes(chip) => <ByteChip<F> as BaseAir<F>>::width(chip),
+            ChipType::Field(chip) => <FieldLTUChip as BaseAir<F>>::width(chip),
+            ChipType::ShaExtend(chip) => <ShaExtendChip as BaseAir<F>>::width(chip),
+            ChipType::ShaCompress(chip) => <ShaCompressChip as BaseAir<F>>::width(chip),
+            ChipType::EdAdd(chip) => <EdAddAssignChip<
+                EdwardsCurve<Ed25519Parameters>,
+                Ed25519Parameters,
+            > as BaseAir<F>>::width(chip),
+            ChipType::EdDecompress(chip) => {
+                <EdDecompressChip<Ed25519Parameters> as BaseAir<F>>::width(chip)
+            }
+            ChipType::KeccakPermute(chip) => <KeccakPermuteChip as BaseAir<F>>::width(chip),
+            ChipType::WeierstrassAdd(chip) => <WeierstrassAddAssignChip<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            > as BaseAir<F>>::width(chip),
+            ChipType::WeierstrassDouble(chip) => <WeierstrassDoubleAssignChip<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            > as BaseAir<F>>::width(chip),
+            ChipType::K256Decompress(chip) => <K256DecompressChip as BaseAir<F>>::width(chip),
+        }
+    }
+}
+
+impl Runtime {
+    pub fn segment_chips<F: Field>() -> [Box<ChipInfo<F>>; NUM_CHIPS] {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -54,9 +276,9 @@ impl Runtime {
         let mul = MulChip::default();
         let divrem = DivRemChip::default();
         let shift_right = ShiftRightChip::default();
-        let shift_left = ShiftLeft::default();
+        let shift_left = ShiftLeftChip::default();
         let lt = LtChip::default();
-        let bytes = ByteChip::<SC::Val>::new();
+        let bytes = ByteChip::<F>::new();
         let field = FieldLTUChip::default();
         let sha_extend = ShaExtendChip::new();
         let sha_compress = ShaCompressChip::new();
@@ -71,27 +293,68 @@ impl Runtime {
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
+
         [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            Box::new(ed_add),
-            Box::new(ed_decompress),
-            Box::new(k256_decompress),
-            Box::new(weierstrass_add),
-            Box::new(weierstrass_double),
-            Box::new(keccak_permute),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(divrem),
-            Box::new(mul),
-            Box::new(shift_right),
-            Box::new(shift_left),
-            Box::new(lt),
-            Box::new(field),
-            Box::new(bytes),
+            Box::new(ChipInfo {
+                chip: ChipType::Program(program),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Cpu(cpu),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Add(add),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Sub(sub),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Bitwise(bitwise),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Mul(mul),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::DivRem(divrem),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::ShiftRight(shift_right),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::ShiftLeft(shift_left),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Lt(lt),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Bytes(bytes),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::Field(field),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::ShaExtend(sha_extend),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::ShaCompress(sha_compress),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::EdAdd(ed_add),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::EdDecompress(ed_decompress),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::KeccakPermute(keccak_permute),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::WeierstrassAdd(weierstrass_add),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::WeierstrassDouble(weierstrass_double),
+            }),
+            Box::new(ChipInfo {
+                chip: ChipType::K256Decompress(k256_decompress),
+            }),
         ]
     }
 
@@ -135,7 +398,7 @@ impl Runtime {
                 .sum::<usize>(),
             self.segments.len()
         );
-        let segment_chips = Self::segment_chips::<SC>();
+        let segment_chips = Self::segment_chips::<F>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {
                 self.segments
@@ -254,7 +517,7 @@ impl Runtime {
         });
 
         // Verify the segment proofs.
-        let segment_chips = Self::segment_chips::<SC>();
+        let segment_chips = Self::segment_chips::<F>();
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
                 Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)

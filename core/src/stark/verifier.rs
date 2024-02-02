@@ -1,4 +1,3 @@
-use crate::utils::AirChip;
 use p3_air::TwoRowMatrixView;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
@@ -6,6 +5,7 @@ use p3_commit::UnivariatePcs;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_field::Res;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
 use super::permutation::eval_permutation_constraints;
+use super::runtime::ChipInfo;
 use super::types::*;
 use super::StarkConfig;
 
@@ -29,10 +30,13 @@ impl<SC: StarkConfig> Verifier<SC> {
     #[cfg(feature = "perf")]
     pub fn verify(
         config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[Box<ChipInfo<SC::Val>>],
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
-    ) -> Result<(), VerificationError> {
+    ) -> Result<(), VerificationError>
+    where
+        SC::Val: PrimeField32,
+    {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
@@ -58,7 +62,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .zip(opened_values.quotient.iter())
         {
             Self::verify_proof_shape(
-                chip.as_ref(),
+                *chip,
                 interactions.len(),
                 &AirOpenedValues {
                     local: vec![],
@@ -172,7 +176,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .zip(g_subgroups.iter())
         {
             Self::verify_constraints(
-                chip.as_ref(),
+                *chip,
                 main_opening,
                 permutation_opening,
                 quotient_opening,
@@ -203,8 +207,8 @@ impl<SC: StarkConfig> Verifier<SC> {
     ///
     /// This function checks that the preprocessed_opening, main opening, permutation opening,
     /// quotient opening have the expected dimensions.
-    fn verify_proof_shape<C>(
-        chip: &C,
+    fn verify_proof_shape(
+        chip: Box<ChipInfo<SC::Val>>,
         num_interactions: usize,
         preprocessed_opening: &AirOpenedValues<SC::Challenge>,
         main_opening: &AirOpenedValues<SC::Challenge>,
@@ -213,7 +217,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         log_quotient_degree: usize,
     ) -> Result<(), ProofShapeError>
     where
-        C: AirChip<SC> + ?Sized,
+        SC::Val: PrimeField32,
     {
         // Todo : check preprocessed shape.
         let preprocesses_width = 0;
@@ -247,8 +251,8 @@ impl<SC: StarkConfig> Verifier<SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn verify_constraints<C>(
-        chip: &C,
+    fn verify_constraints(
+        chip: Box<ChipInfo<SC::Val>>,
         main_opening: &AirOpenedValues<SC::Challenge>,
         permutation_opening: &AirOpenedValues<SC::Challenge>,
         quotient_opening: &QuotientOpenedValues<SC::Challenge>,
@@ -260,7 +264,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         permutation_challenges: &[SC::Challenge],
     ) -> Result<(), OodEvaluationMismatch>
     where
-        C: AirChip<SC> + ?Sized,
+        SC::Val: PrimeField32,
     {
         let z_h = zeta.exp_power_of_2(log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
