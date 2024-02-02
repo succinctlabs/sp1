@@ -442,7 +442,7 @@ impl<SC: StarkConfig> Prover<SC> {
                     .collect();
 
                 let accumulator = SC::PackedChallenge::zero();
-                let mut folder = ProverConstraintFolder {
+                let mut folder = ProverConstraintFolder::<SC> {
                     preprocessed: TwoRowMatrixView {
                         local: &[],
                         next: &[],

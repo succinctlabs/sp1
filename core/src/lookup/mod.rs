@@ -1,9 +1,11 @@
 mod builder;
 
 pub use builder::InteractionBuilder;
+use p3_field::PrimeField32;
 
+use crate::stark::runtime::ChipInfo;
+use crate::stark::StarkConfig;
 use crate::utils::BabyBearPoseidon2;
-use crate::utils::Chip;
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
@@ -137,8 +139,8 @@ pub fn debug_interactions_with_all_chips(
     }
 
     // Here, we collect all the chips.
-    let segment_chips = Runtime::segment_chips::<BabyBearPoseidon2>();
-    let global_chips = Runtime::global_chips::<BabyBearPoseidon2>();
+    let segment_chips = Runtime::segment_chips::<<BabyBearPoseidon2 as StarkConfig>::Val>();
+    let global_chips = Runtime::global_chips::<<BabyBearPoseidon2 as StarkConfig>::Val>();
 
     let mut counts: Vec<(BTreeMap<String, BabyBear>, String)> = vec![];
     let mut final_map = BTreeMap::new();
@@ -147,7 +149,7 @@ pub fn debug_interactions_with_all_chips(
 
     for chip in segment_chips {
         let (_, count) =
-            debug_interactions::<BabyBear>(chip.as_chip(), &mut segment, interaction_kinds.clone());
+            debug_interactions::<BabyBear>(chip, &mut segment, interaction_kinds.clone());
 
         counts.push((count.clone(), chip.name()));
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
@@ -160,7 +162,7 @@ pub fn debug_interactions_with_all_chips(
         let mut global_segment = global_segment.clone();
         for chip in global_chips {
             let (_, count) = debug_interactions::<BabyBear>(
-                chip.as_chip(),
+                chip,
                 &mut global_segment,
                 interaction_kinds.clone(),
             );
@@ -208,8 +210,8 @@ pub fn debug_interactions_with_all_chips(
     !any_nonzero
 }
 
-pub fn debug_interactions<F: Field>(
-    chip: &dyn Chip<F>,
+pub fn debug_interactions<F: PrimeField32>(
+    chip: Box<ChipInfo<F>>,
     segment: &mut Segment,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
@@ -220,7 +222,7 @@ pub fn debug_interactions<F: Field>(
     let mut key_to_count = BTreeMap::new();
 
     let trace: RowMajorMatrix<F> = chip.generate_trace(segment);
-    let width = chip.width();
+    let width = chip.air_width();
     let mut builder = InteractionBuilder::<F>::new(width);
     chip.eval(&mut builder);
     let mut main = trace.clone();
