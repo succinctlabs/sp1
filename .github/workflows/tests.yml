@@ -14,37 +14,9 @@ jobs:
     name: CI Test Suite
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Set up git private repo access
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-
-      - name: rust-cache
-        uses: buildjet/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: test-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2024-01-25-
-
-      - name: Install nightly toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2024-01-25
-          override: true
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -61,34 +33,8 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Set up git private repo access
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
-
-      - name: rust-cache
-        uses: buildjet/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: clippy-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2024-01-25-
-
-      - name: Install nightly toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2024-01-25
-          override: true
-          components: rustfmt, clippy
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
