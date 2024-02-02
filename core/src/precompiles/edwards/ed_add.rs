@@ -272,8 +272,6 @@ where
 #[cfg(test)]
 pub mod tests {
 
-    use crate::utils::prove;
-    use crate::{runtime::Program, utils::setup_logger};
     use crate::{
         utils::{
             self,

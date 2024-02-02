@@ -1029,11 +1029,7 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{
-        runtime::Register,
-        utils::tests::FIBONACCI_ELF,
-        utils::{prove_core, setup_logger},
-    };
+    use crate::{runtime::Register, utils::tests::FIBONACCI_ELF};
 
     use super::{Instruction, Opcode, Program, Runtime};
 
