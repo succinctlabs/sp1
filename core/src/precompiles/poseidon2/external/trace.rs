@@ -11,7 +11,9 @@ use crate::{
 };
 
 use super::{
-    columns::{Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS},
+    columns::{
+        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_EXTERNAL_ROUNDS,
+    },
     Poseidon2ExternalChip,
 };
 
@@ -32,68 +34,69 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
             // Load a, b, c, d, e, f, g, h.
             // for j in 0..8usize {
-            for j in 0..N {
-                let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
-                let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
+            for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+                for j in 0..N {
+                    let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
+                    let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.0.segment = F::from_canonical_u32(segment.index);
-                let clk = event.clk + (j * 4) as u32;
-                cols.0.clk = F::from_canonical_u32(clk);
-                cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
-                //                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+                    cols.0.segment = F::from_canonical_u32(segment.index);
+                    let clk = event.clk + (j * 4) as u32;
+                    cols.0.clk = F::from_canonical_u32(clk);
+                    cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
+                    //                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                //                 cols.octet[j] = F::one();
-                //                 cols.octet_num[octet_num_idx] = F::one();
-                //
-                // cols.mem
-                //     .populate_read(event.h_read_records[j], &mut new_field_events);
-                // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
-                cols.0
-                    .mem
-                    .populate_read(event.state_reads[j], &mut new_field_events);
-                cols.0.mem_addr = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                    //                 cols.octet[j] = F::one();
+                    //                 cols.octet_num[octet_num_idx] = F::one();
+                    //
+                    // cols.mem
+                    //     .populate_read(event.h_read_records[j], &mut new_field_events);
+                    // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
+                    cols.0.mem[round].populate_read(event.state_reads[j], &mut new_field_events);
+                    cols.0.mem_addr[round] =
+                        F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
-                // TODO: Remove this printf-debugging statement.
-                println!("new_field_events: {:?}", new_field_events);
-                println!(
-                    "event.state_reads[{}].value: {:?}",
-                    j, event.state_reads[j].value,
-                );
+                    // TODO: Remove this printf-debugging statement.
+                    println!("new_field_events: {:?}", new_field_events);
+                    println!(
+                        "event.state_reads[{}].value: {:?}",
+                        j, event.state_reads[j].value,
+                    );
 
-                // cols.a = v[0];
-                // cols.b = v[1];
-                // cols.c = v[2];
-                // cols.d = v[3];
-                // cols.e = v[4];
-                // cols.f = v[5];
-                // cols.g = v[6];
-                // cols.h = v[7];
+                    // cols.a = v[0];
+                    // cols.b = v[1];
+                    // cols.c = v[2];
+                    // cols.d = v[3];
+                    // cols.e = v[4];
+                    // cols.f = v[5];
+                    // cols.g = v[6];
+                    // cols.h = v[7];
 
-                // match j {
-                //     0 => cols.a = *cols.mem.value(),
-                //     1 => cols.b = *cols.mem.value(),
-                //     2 => cols.c = *cols.mem.value(),
-                //     3 => cols.d = *cols.mem.value(),
-                //     4 => cols.e = *cols.mem.value(),
-                //     5 => cols.f = *cols.mem.value(),
-                //     6 => cols.g = *cols.mem.value(),
-                //     7 => cols.h = *cols.mem.value(),
-                //     _ => panic!("unsupported j"),
-                // };
+                    // match j {
+                    //     0 => cols.a = *cols.mem.value(),
+                    //     1 => cols.b = *cols.mem.value(),
+                    //     2 => cols.c = *cols.mem.value(),
+                    //     3 => cols.d = *cols.mem.value(),
+                    //     4 => cols.e = *cols.mem.value(),
+                    //     5 => cols.f = *cols.mem.value(),
+                    //     6 => cols.g = *cols.mem.value(),
+                    //     7 => cols.h = *cols.mem.value(),
+                    //     _ => panic!("unsupported j"),
+                    // };
 
-                // v[0] = cols.a;
-                // v[1] = cols.b;
-                // v[2] = cols.c;
-                // v[3] = cols.d;
-                // v[4] = cols.e;
-                // v[5] = cols.f;
-                // v[6] = cols.g;
-                // v[7] = cols.h;
+                    // v[0] = cols.a;
+                    // v[1] = cols.b;
+                    // v[2] = cols.c;
+                    // v[3] = cols.d;
+                    // v[4] = cols.e;
+                    // v[5] = cols.f;
+                    // v[6] = cols.g;
+                    // v[7] = cols.h;
 
-                cols.0.is_real = F::one();
-                cols.0.is_external = F::one();
-                println!("cols: {:#?}", cols);
-                rows.push(row);
+                    cols.0.is_real = F::one();
+                    cols.0.is_external = F::one();
+                    println!("cols: {:#?}", cols);
+                    rows.push(row);
+                }
             }
 
             // Peforms the compress operation.
@@ -186,54 +189,55 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
             // octet_num_idx += 1;
             // // Store a, b, c, d, e, f, g, h.
             // for j in 0..8usize {
-            for j in 0..NUM_WORDS_FIELD_ELEMENT {
-                let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
-                let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
+            for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+                for j in 0..NUM_WORDS_FIELD_ELEMENT {
+                    let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
+                    let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.0.segment = F::from_canonical_u32(segment.index);
-                let clk = event.clk + (NUM_WORDS_FIELD_ELEMENT * 4 + (j * 4)) as u32;
-                cols.0.clk = F::from_canonical_u32(clk);
-                cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
-                // cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+                    cols.0.segment = F::from_canonical_u32(segment.index);
+                    let clk = event.clk + (NUM_WORDS_FIELD_ELEMENT * 4 + (j * 4)) as u32;
+                    cols.0.clk = F::from_canonical_u32(clk);
+                    cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
+                    // cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
-                // cols.octet[j] = F::one();
-                // cols.octet_num[octet_num_idx] = F::one();
+                    // cols.octet[j] = F::one();
+                    // cols.octet_num[octet_num_idx] = F::one();
 
-                // cols.finalize_add.populate(segment, og_h[j], event.h[j]);
-                // cols.mem
-                //     .populate_write(event.h_write_records[j], &mut new_field_events);
-                // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
-                cols.0
-                    .mem
-                    .populate_write(event.state_writes[j], &mut new_field_events);
-                cols.0.mem_addr = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                    // cols.finalize_add.populate(segment, og_h[j], event.h[j]);
+                    // cols.mem
+                    //     .populate_write(event.h_write_records[j], &mut new_field_events);
+                    // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
+                    cols.0.mem[round].populate_write(event.state_writes[j], &mut new_field_events);
+                    cols.0.mem_addr[round] =
+                        F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
-                // v[j] = event.h[j];
-                // cols.a = Word::from(v[0]);
-                // cols.b = Word::from(v[1]);
-                // cols.c = Word::from(v[2]);
-                // cols.d = Word::from(v[3]);
-                // cols.e = Word::from(v[4]);
-                // cols.f = Word::from(v[5]);
-                // cols.g = Word::from(v[6]);
-                // cols.h = Word::from(v[7]);
+                    // v[j] = event.h[j];
+                    // cols.a = Word::from(v[0]);
+                    // cols.b = Word::from(v[1]);
+                    // cols.c = Word::from(v[2]);
+                    // cols.d = Word::from(v[3]);
+                    // cols.e = Word::from(v[4]);
+                    // cols.f = Word::from(v[5]);
+                    // cols.g = Word::from(v[6]);
+                    // cols.h = Word::from(v[7]);
 
-                // match j {
-                //     0 => cols.finalized_operand = cols.a,
-                //     1 => cols.finalized_operand = cols.b,
-                //     2 => cols.finalized_operand = cols.c,
-                //     3 => cols.finalized_operand = cols.d,
-                //     4 => cols.finalized_operand = cols.e,
-                //     5 => cols.finalized_operand = cols.f,
-                //     6 => cols.finalized_operand = cols.g,
-                //     7 => cols.finalized_operand = cols.h,
-                //     _ => panic!("unsupported j"),
-                // };
+                    // match j {
+                    //     0 => cols.finalized_operand = cols.a,
+                    //     1 => cols.finalized_operand = cols.b,
+                    //     2 => cols.finalized_operand = cols.c,
+                    //     3 => cols.finalized_operand = cols.d,
+                    //     4 => cols.finalized_operand = cols.e,
+                    //     5 => cols.finalized_operand = cols.f,
+                    //     6 => cols.finalized_operand = cols.g,
+                    //     7 => cols.finalized_operand = cols.h,
+                    //     _ => panic!("unsupported j"),
+                    // };
 
-                cols.0.is_real = F::one();
-                cols.0.is_external = F::one();
+                    cols.0.is_real = F::one();
+                    cols.0.is_external = F::one();
 
-                rows.push(row);
+                    rows.push(row);
+                }
             }
         }
 

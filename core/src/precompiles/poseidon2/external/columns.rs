@@ -1,6 +1,7 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use std::mem::size_of;
+use std::ops::Add;
 
 use valida_derive::AlignedBorrow;
 
@@ -25,7 +26,7 @@ pub struct Poseidon2ExternalCols<T>(
 );
 // TODO: I just copied and pasted these from sha compress as a starting point. Carefully examine
 // what is necessary and what is not.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalColsConfigurable<T, const ROUNDS: usize> {
     /// Inputs.
@@ -42,8 +43,8 @@ pub struct Poseidon2ExternalColsConfigurable<T, const ROUNDS: usize> {
     // The next 8 octets are for compress.
     // The last octet is for finalize.
     // pub octet_num: [T; 10],
-    pub mem: MemoryReadWriteCols<T>,
-    pub mem_addr: T,
+    pub mem: [MemoryReadWriteCols<T>; ROUNDS],
+    pub mem_addr: [T; ROUNDS],
 
     // pub a: Word<T>,
     // pub b: Word<T>,
@@ -101,4 +102,21 @@ pub struct Poseidon2ExternalColsConfigurable<T, const ROUNDS: usize> {
     // Instead, we can use octet_num[9] for that.
     // pub is_finalize: T,
     pub is_real: T,
+}
+
+impl<T: Default, const ROUNDS: usize> Default for Poseidon2ExternalColsConfigurable<T, ROUNDS> {
+    fn default() -> Self {
+        Self {
+            segment: T::default(),
+            clk: T::default(),
+            state_ptr: T::default(),
+            mem: core::array::from_fn(|_| MemoryReadWriteCols::<T>::default()),
+            mem_addr: core::array::from_fn(|_| T::default()),
+            finalized_operand: Word::<T>::default(),
+            finalize_add: AddOperation::<T>::default(),
+            is_external: T::default(),
+            is_real: T::default(),
+            // Initialize other fields here...
+        }
+    }
 }

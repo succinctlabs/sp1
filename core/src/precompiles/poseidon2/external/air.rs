@@ -143,13 +143,16 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         //     &local.mem,
         //     is_initialize + local.is_compression + is_finalize,
         // );
-        builder.constraint_memory_access(
-            local.0.segment,
-            local.0.clk,
-            local.0.mem_addr,
-            &local.0.mem,
-            local.0.is_external,
-        );
+
+        for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+            builder.constraint_memory_access(
+                local.0.segment,
+                local.0.clk,
+                local.0.mem_addr[round],
+                &local.0.mem[round],
+                local.0.is_external,
+            );
+        }
 
         // TODO: Remove these before opening a PR since these are useless for production.
         //
