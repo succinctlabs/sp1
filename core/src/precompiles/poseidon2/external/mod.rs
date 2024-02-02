@@ -35,9 +35,10 @@ pub mod external_tests {
         let w_ptr = 100;
         let mut instructions = vec![];
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            // Store 10 * i in memory for the i-th word of the state.
+            // Store 100 + i in memory for the i-th word of the state. 100 + i is an arbitrary
+            // number that might be easy to stop while debugging.
             instructions.extend(vec![
-                Instruction::new(Opcode::ADD, 29, 0, 10 * i as u32, false, true),
+                Instruction::new(Opcode::ADD, 29, 0, 100 + i as u32, false, true),
                 Instruction::new(Opcode::ADD, 30, 0, w_ptr + i as u32 * 4, false, true),
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);

@@ -8,6 +8,7 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
+use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -147,6 +148,24 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
             &local.mem,
             local.is_external,
         );
+
+        // TODO: Remove these before opening a PR since these are useless for production.
+        //
+        // These are probably useful for my own references as to how to access each value in the
+        // state.
+        // let val = local.mem.value();
+        // builder
+        //     .when(local.is_external)
+        //     .assert_eq(val.0[1], AB::F::zero());
+        // builder
+        //     .when(local.is_external)
+        //     .assert_eq(val.0[2], AB::F::zero());
+        // builder
+        //     .when(local.is_external)
+        //     .assert_eq(val.0[3], AB::F::zero());
+        // builder
+        //     .when(local.is_external)
+        //     .assert_eq(val.0[0], local.mem_addr);
 
         // // Calculate the current cycle_num.
         // let mut cycle_num = AB::Expr::zero();

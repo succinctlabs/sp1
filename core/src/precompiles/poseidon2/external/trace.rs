@@ -54,6 +54,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
                 // TODO: Remove this printf-debugging statement.
                 println!("new_field_events: {:?}", new_field_events);
+                println!(
+                    "event.state_reads[{}].value: {:?}",
+                    j, event.state_reads[j].value,
+                );
 
                 // cols.a = v[0];
                 // cols.b = v[1];
@@ -87,6 +91,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
                 cols.is_real = F::one();
                 cols.is_external = F::one();
+                println!("cols: {:#?}", cols);
                 rows.push(row);
             }
 
