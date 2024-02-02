@@ -1,10 +1,10 @@
 #[cfg(target_os = "zkvm")]
 use syscall::syscall_halt;
 
-use core::alloc::{GlobalAlloc, Layout};
+#[cfg(target_os = "zkvm")]
 use getrandom::{register_custom_getrandom, Error};
-use rand::Rng;
-use rand::SeedableRng;
+
+use core::alloc::{GlobalAlloc, Layout};
 
 extern crate alloc;
 
@@ -85,6 +85,9 @@ static GETRANDOM_WARNING_ONCE: std::sync::Once = std::sync::Once::new();
 
 #[cfg(target_os = "zkvm")]
 fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
+    use rand::Rng;
+    use rand::SeedableRng;
+
     GETRANDOM_WARNING_ONCE.call_once(|| {
         println!("WARNING: Using insecure random number generator");
     });
