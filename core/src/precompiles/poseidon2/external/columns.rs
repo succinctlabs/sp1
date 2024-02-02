@@ -14,12 +14,20 @@ use crate::operations::NotOperation;
 use crate::operations::XorOperation;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
+pub const POSEIDON2_DEFAULT_ROUNDS_F: usize = 8;
+pub const POSEIDON2_DEFAULT_ROUNDS_P: usize = 22;
+pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
 
-// TODO: I just copied and pasted these from sha compress as a starting point. Carefully examine
-// what is necessary and what is not.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2ExternalCols<T> {
+pub struct Poseidon2ExternalCols<T>(
+    pub Poseidon2ExternalColsConfigurable<T, POSEIDON2_DEFAULT_EXTERNAL_ROUNDS>,
+);
+// TODO: I just copied and pasted these from sha compress as a starting point. Carefully examine
+// what is necessary and what is not.
+#[derive(Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2ExternalColsConfigurable<T, const ROUNDS: usize> {
     /// Inputs.
     pub segment: T,
     pub clk: T,

@@ -1,7 +1,9 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 
-use super::columns::{Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS};
+use super::columns::{
+    Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_EXTERNAL_ROUNDS,
+};
 use super::Poseidon2ExternalChip;
 use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
@@ -142,11 +144,11 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         //     is_initialize + local.is_compression + is_finalize,
         // );
         builder.constraint_memory_access(
-            local.segment,
-            local.clk,
-            local.mem_addr,
-            &local.mem,
-            local.is_external,
+            local.0.segment,
+            local.0.clk,
+            local.0.mem_addr,
+            &local.0.mem,
+            local.0.is_external,
         );
 
         // TODO: Remove these before opening a PR since these are useless for production.

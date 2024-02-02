@@ -36,10 +36,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.segment = F::from_canonical_u32(segment.index);
+                cols.0.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (j * 4) as u32;
-                cols.clk = F::from_canonical_u32(clk);
-                cols.state_ptr = F::from_canonical_u32(event.state_ptr);
+                cols.0.clk = F::from_canonical_u32(clk);
+                cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                 //                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
                 //                 cols.octet[j] = F::one();
@@ -48,9 +48,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 // cols.mem
                 //     .populate_read(event.h_read_records[j], &mut new_field_events);
                 // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
-                cols.mem
+                cols.0
+                    .mem
                     .populate_read(event.state_reads[j], &mut new_field_events);
-                cols.mem_addr = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                cols.0.mem_addr = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
                 // TODO: Remove this printf-debugging statement.
                 println!("new_field_events: {:?}", new_field_events);
@@ -89,8 +90,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 // v[6] = cols.g;
                 // v[7] = cols.h;
 
-                cols.is_real = F::one();
-                cols.is_external = F::one();
+                cols.0.is_real = F::one();
+                cols.0.is_external = F::one();
                 println!("cols: {:#?}", cols);
                 rows.push(row);
             }
@@ -189,10 +190,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.segment = F::from_canonical_u32(segment.index);
+                cols.0.segment = F::from_canonical_u32(segment.index);
                 let clk = event.clk + (NUM_WORDS_FIELD_ELEMENT * 4 + (j * 4)) as u32;
-                cols.clk = F::from_canonical_u32(clk);
-                cols.state_ptr = F::from_canonical_u32(event.state_ptr);
+                cols.0.clk = F::from_canonical_u32(clk);
+                cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                 // cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
 
                 // cols.octet[j] = F::one();
@@ -202,9 +203,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 // cols.mem
                 //     .populate_write(event.h_write_records[j], &mut new_field_events);
                 // cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
-                cols.mem
+                cols.0
+                    .mem
                     .populate_write(event.state_writes[j], &mut new_field_events);
-                cols.mem_addr = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                cols.0.mem_addr = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
                 // v[j] = event.h[j];
                 // cols.a = Word::from(v[0]);
@@ -228,8 +230,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 //     _ => panic!("unsupported j"),
                 // };
 
-                cols.is_real = F::one();
-                cols.is_external = F::one();
+                cols.0.is_real = F::one();
+                cols.0.is_external = F::one();
 
                 rows.push(row);
             }
