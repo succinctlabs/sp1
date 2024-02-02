@@ -13,6 +13,7 @@ use succinct_core::runtime::Program;
 use succinct_core::runtime::Runtime;
 use succinct_core::stark::types::SegmentProof;
 use succinct_core::stark::StarkConfig;
+use succinct_core::utils;
 use succinct_core::utils::BabyBearPoseidon2;
 use succinct_core::utils::StarkUtils;
 
@@ -52,6 +53,7 @@ fn main() {
     // let args = VerifierArgs::parse();
 
     // log::info!("Verifying proof: {}", args.proof_directory.as_str());
+    utils::setup_logger();
 
     let proof_directory = "fib_proofs";
     let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
@@ -64,7 +66,8 @@ fn main() {
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
-    let program = Program::from_elf("../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    let program = Program::from(program_elf);
     let mut runtime = Runtime::new(program);
     black_box(verify::<_, _, BabyBearPoseidon2>(
         black_box(&mut runtime),
