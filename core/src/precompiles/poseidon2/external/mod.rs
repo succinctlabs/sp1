@@ -27,23 +27,30 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
 pub mod external_tests {
 
     use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        runtime::{Instruction, Opcode, Program, Runtime, Syscall},
+        utils::{ec::NUM_WORDS_FIELD_ELEMENT, BabyBearPoseidon2, StarkUtils},
     };
 
-    // TODO: I just copied and pasted these from SHA compress as a starting point, so these likely
-    // need to change quite a bit.
     pub fn poseidon2_external_program() -> Program {
         let w_ptr = 100;
-        let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
-        for i in 0..64 {
+        let mut instructions = vec![];
+        for i in 0..NUM_WORDS_FIELD_ELEMENT {
+            // Store 10 * i in memory for the i-th word of the state.
             instructions.extend(vec![
-                Instruction::new(Opcode::ADD, 30, 0, w_ptr + i * 4, false, true),
+                Instruction::new(Opcode::ADD, 29, 0, 10 * i as u32, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, w_ptr + i as u32 * 4, false, true),
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 103, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                Syscall::POSEIDON2_EXTERNAL as u32,
+                false,
+                true,
+            ),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
             Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);

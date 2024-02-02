@@ -11,6 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
+use crate::precompiles::poseidon2::Poseidon2ExternalChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -19,6 +20,7 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::u32_to_comma_separated;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
@@ -789,6 +791,16 @@ impl Runtime {
                         a = K256DecompressChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
+                    }
+                    Syscall::POSEIDON2_EXTERNAL => {
+                        a = Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::execute(
+                            &mut precompile_rt,
+                        );
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(
+                            init_clk + Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::NUM_CYCLES,
+                            self.clk
+                        );
                     }
                 }
 
