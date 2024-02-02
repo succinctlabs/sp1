@@ -60,13 +60,16 @@ jobs:
     name: Formatting & Clippy
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
       - name: Set up git private repo access
         run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf ssh://git@github.com
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
       - name: rust-cache
         uses: buildjet/cache@v3
