@@ -40,7 +40,7 @@ impl<SC: StarkConfig> Prover<SC> {
         // For each chip, generate the trace.
         let traces = chips
             .iter()
-            .map(|chip| chip.generate_trace(segment))
+            .map(|chip| chip.generate_trace(&mut segment.clone()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.

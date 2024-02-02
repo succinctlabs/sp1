@@ -1006,39 +1006,48 @@ impl Runtime {
         self.global_segment.last_memory_record = last_memory_record;
         self.global_segment.program_memory_record = program_memory_record;
 
-        fn shard<T: Clone>(vec: &[T], size: usize) -> Vec<Vec<T>> {
-            vec.chunks(size).map(|c| c.to_vec()).collect::<Vec<_>>()
-        }
+        // fn shard<T: Clone>(vec: &[T], size: usize) -> Vec<Vec<T>> {
+        //     vec.chunks(size).map(|c| c.to_vec()).collect::<Vec<_>>()
+        // }
 
         // sharding logic
-        let shard_size = 19;
-        let cpu_shards = shard(&self.segment.cpu_events, 1 << shard_size);
-        let add_shards = shard(&self.segment.add_events, 1 << shard_size);
-        let mul_shards = shard(&self.segment.mul_events, 1 << shard_size);
-        let sub_shards = shard(&self.segment.sub_events, 1 << shard_size);
-        let bitwise_shards = shard(&self.segment.bitwise_events, 1 << shard_size);
-        let shift_left_shards = shard(&self.segment.shift_left_events, 1 << shard_size);
-        let shift_right_shards = shard(&self.segment.shift_right_events, 1 << shard_size);
-        let lt_shards = shard(&self.segment.lt_events, 1 << shard_size);
-        let field_events = shard(&self.segment.field_events, 1 << (shard_size - 5));
+        // let shard_size = 12;
+        // let cpu_shards = shard(&self.segment.cpu_events, 1 << shard_size);
+        // let add_shards = shard(&self.segment.add_events, 1 << shard_size);
+        // let mul_shards = shard(&self.segment.mul_events, 1 << shard_size);
+        // let sub_shards = shard(&self.segment.sub_events, 1 << shard_size);
+        // let bitwise_shards = shard(&self.segment.bitwise_events, 1 << shard_size);
+        // let shift_left_shards = shard(&self.segment.shift_left_events, 1 << shard_size);
+        // let shift_right_shards = shard(&self.segment.shift_right_events, 1 << shard_size);
+        // let lt_shards = shard(&self.segment.lt_events, 1 << shard_size);
+        // let field_events = shard(&self.segment.field_events, 1 << (shard_size - 5));
 
-        let nb_jobs = [
-            cpu_shards.len(),
-            add_shards.len(),
-            mul_shards.len(),
-            sub_shards.len(),
-            bitwise_shards.len(),
-            shift_left_shards.len(),
-            shift_right_shards.len(),
-            lt_shards.len(),
-            field_events.len(),
-        ]
-        .into_iter()
-        .max()
-        .unwrap();
+        // println!("cpu_shards.len() = {}", cpu_shards.len());
+        // println!("add_shards.len() = {}", add_shards.len());
+        // println!("mul_shards.len() = {}", mul_shards.len());
+        // println!("sub_shards.len() = {}", sub_shards.len());
+        // println!("bitwise_shards.len() = {}", bitwise_shards.len());
+        // println!("shift_left_shards.len() = {}", shift_left_shards.len());
+        // println!("shift_right_shards.len() = {}", shift_right_shards.len());
+        // println!("lt_shards.len() = {}", lt_shards.len());
+        // println!("field_events.len() = {}", field_events.len());
+        // let nb_jobs = [
+        //     cpu_shards.len(),
+        //     add_shards.len(),
+        //     mul_shards.len(),
+        //     sub_shards.len(),
+        //     bitwise_shards.len(),
+        //     shift_left_shards.len(),
+        //     shift_right_shards.len(),
+        //     lt_shards.len(),
+        //     field_events.len(),
+        // ]
+        // .into_iter()
+        // .max()
+        // .unwrap();
 
-        let mut jobs = Vec::new();
-        jobs = vec![self.segment.clone()];
+        // let mut jobs = Vec::new();
+        // jobs = vec![self.segment.clone()];
         // for i in 0..nb_jobs {
         //     let mut job = Segment::default();
         //     job.program = self.segment.program.clone();
@@ -1066,7 +1075,7 @@ impl Runtime {
         // jobs[idx].weierstrass_double_events = self.segment.weierstrass_double_events.clone();
         // jobs[idx].k256_decompress_events = self.segment.k256_decompress_events.clone();
 
-        self.sharded_segments = jobs;
+        // self.sharded_segments = jobs;
     }
 }
 

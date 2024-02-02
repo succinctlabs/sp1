@@ -15,7 +15,7 @@ use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
 use crate::program::ProgramChip;
-use crate::runtime::Runtime;
+use crate::runtime::{Runtime, Segment};
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -127,6 +127,80 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         OpeningProof<SC>: Send + Sync,
     {
+        // Fill in events.
+        let segment_chips = Self::segment_chips::<SC>();
+        segment_chips.iter().for_each(|chip| {
+            chip.generate_trace(&mut self.segment);
+        });
+
+        // // Compute optimal event allocation.
+        // fn shard<T: Clone>(vec: &[T], size: usize) -> Vec<Vec<T>> {
+        //     vec.chunks(size).map(|c| c.to_vec()).collect::<Vec<_>>()
+        // }
+        // let shard_size = 16;
+        // let cpu_shards = shard(&self.segment.cpu_events, 1 << shard_size);
+        // let add_shards = shard(&self.segment.add_events, 1 << shard_size);
+        // let mul_shards = shard(&self.segment.mul_events, 1 << shard_size);
+        // let sub_shards = shard(&self.segment.sub_events, 1 << shard_size);
+        // let bitwise_shards = shard(&self.segment.bitwise_events, 1 << shard_size);
+        // let shift_left_shards = shard(&self.segment.shift_left_events, 1 << shard_size);
+        // let shift_right_shards = shard(&self.segment.shift_right_events, 1 << shard_size);
+        // let lt_shards = shard(&self.segment.lt_events, 1 << shard_size);
+        // let field_events = shard(&self.segment.field_events, 1 << shard_size);
+        // println!("cpu_shards.len() = {}", cpu_shards.len());
+        // println!("add_shards.len() = {}", add_shards.len());
+        // println!("mul_shards.len() = {}", mul_shards.len());
+        // println!("sub_shards.len() = {}", sub_shards.len());
+        // println!("bitwise_shards.len() = {}", bitwise_shards.len());
+        // println!("shift_left_shards.len() = {}", shift_left_shards.len());
+        // println!("shift_right_shards.len() = {}", shift_right_shards.len());
+        // println!("lt_shards.len() = {}", lt_shards.len());
+        // println!("field_events.len() = {}", field_events.len());
+        // panic!("hi");
+        // let nb_jobs = [
+        //     cpu_shards.len(),
+        //     add_shards.len(),
+        //     mul_shards.len(),
+        //     sub_shards.len(),
+        //     bitwise_shards.len(),
+        //     shift_left_shards.len(),
+        //     shift_right_shards.len(),
+        //     lt_shards.len(),
+        //     field_events.len(),
+        // ]
+        // .into_iter()
+        // .max()
+        // .unwrap();
+        // let mut jobs = Vec::new();
+        // for i in 0..nb_jobs {
+        //     let mut job = Segment::default();
+        //     job.program = self.segment.program.clone();
+        //     job.cpu_events = cpu_shards.get(i).cloned().unwrap_or_default();
+        //     job.add_events = add_shards.get(i).cloned().unwrap_or_default();
+        //     job.mul_events = mul_shards.get(i).cloned().unwrap_or_default();
+        //     job.sub_events = sub_shards.get(i).cloned().unwrap_or_default();
+        //     job.bitwise_events = bitwise_shards.get(i).cloned().unwrap_or_default();
+        //     job.shift_left_events = shift_left_shards.get(i).cloned().unwrap_or_default();
+        //     job.shift_right_events = shift_right_shards.get(i).cloned().unwrap_or_default();
+        //     job.lt_events = lt_shards.get(i).cloned().unwrap_or_default();
+        //     job.field_events = field_events.get(i).cloned().unwrap_or_default();
+        //     jobs.push(job);
+        // }
+
+        // let idx = jobs.len() - 1;
+        // jobs[idx].program = self.segment.program.clone();
+        // jobs[idx].byte_lookups = self.segment.byte_lookups.clone();
+        // jobs[idx].sha_extend_events = self.segment.sha_extend_events.clone();
+        // jobs[idx].sha_compress_events = self.segment.sha_compress_events.clone();
+        // jobs[idx].keccak_permute_events = self.segment.keccak_permute_events.clone();
+        // jobs[idx].ed_add_events = self.segment.ed_add_events.clone();
+        // jobs[idx].ed_decompress_events = self.segment.ed_decompress_events.clone();
+        // jobs[idx].weierstrass_add_events = self.segment.weierstrass_add_events.clone();
+        // jobs[idx].weierstrass_double_events = self.segment.weierstrass_double_events.clone();
+        // jobs[idx].k256_decompress_events = self.segment.k256_decompress_events.clone();
+
+        // self.sharded_segments = jobs;
+
         tracing::info!(
             "total_cycles: {}, segments: {}",
             self.segment.cpu_events.len(),
@@ -135,7 +209,7 @@ impl Runtime {
         let segment_chips = Self::segment_chips::<SC>();
         let segment_main_data =
             tracing::info_span!("commit main for all segments").in_scope(|| {
-                self.sharded_segments
+                vec![self.segment.clone()]
                     .par_iter_mut()
                     .map(|segment| {
                         Prover::commit_main(config, &segment_chips, &mut segment.clone())
