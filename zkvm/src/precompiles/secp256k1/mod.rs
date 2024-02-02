@@ -9,7 +9,7 @@ use k256::Scalar;
 use k256::Secp256k1;
 
 /// Decompresses a compressed public key using secp256k1_decompress precompile.
-pub fn decompress_pubkey(compressed_key: [u8; 33]) -> Result<[u8; 65]> {
+pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
     let mut decompressed_key: [u8; 64] = [0; 64];
     decompressed_key[..32].copy_from_slice(&compressed_key[1..]);
     let is_odd = match compressed_key[0] {
@@ -34,8 +34,8 @@ pub fn decompress_pubkey(compressed_key: [u8; 33]) -> Result<[u8; 65]> {
 pub fn verify_signature(
     pubkey: &[u8; 65],
     msg_hash: &[u8; 32],
-    signature: Signature,
-    s_inverse: Option<Scalar>,
+    signature: &Signature,
+    s_inverse: Option<&Scalar>,
 ) -> bool {
     let pubkey_x = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[1..33]).unwrap()).unwrap();
     let pubkey_y = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[33..]).unwrap()).unwrap();
@@ -50,12 +50,16 @@ pub fn verify_signature(
     let field = Scalar::from_repr(field.unwrap()).unwrap();
     let z = field;
     let (r, s) = signature.split_scalars();
+    let computed_s_inv;
     let s_inv = match s_inverse {
         Some(s_inv) => {
             assert_eq!(s_inv * s.as_ref(), Scalar::ONE);
             s_inv
         }
-        None => *s.invert(),
+        None => {
+            computed_s_inv = s.invert();
+            &computed_s_inv
+        }
     };
 
     let u1 = z * s_inv;
