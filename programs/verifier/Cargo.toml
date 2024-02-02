@@ -19,3 +19,7 @@ serde_json = "1.0"
 [[bin]]
 name = "prover"
 path = "src/prover.rs"
+
+[[bin]]
+name = "verifier"
+path = "src/verifier.rs"
