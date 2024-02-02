@@ -34,8 +34,8 @@ pub mod external_tests {
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
-    // TODO: Make sure that I'm only adding columns that I need. I just copied and pasted these from SHA
-    // compress as a starting point, so these likely need to change quite a bit.
+    // TODO: I just copied and pasted these from SHA compress as a starting point, so these likely
+    // need to change quite a bit.
     pub fn poseidon2_external_program() -> Program {
         let w_ptr = 100;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
