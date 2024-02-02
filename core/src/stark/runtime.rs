@@ -11,6 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
+use crate::precompiles::poseidon2::Poseidon2ExternalChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -21,6 +22,7 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::IndexedParallelIterator;
@@ -42,7 +44,7 @@ use super::prover::Prover;
 use super::types::{MainData, SegmentProof};
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 20;
+pub const NUM_CHIPS: usize = 21;
 
 impl Runtime {
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
@@ -72,7 +74,7 @@ impl Runtime {
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let k256_decompress = K256DecompressChip::new();
-        // TODO: Add the Poseidon2 External chip here.
+        let poseidon2_external = Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -87,7 +89,7 @@ impl Runtime {
             Box::new(weierstrass_add),
             Box::new(weierstrass_double),
             Box::new(keccak_permute),
-            // TODO: Add the Poseidon2 External chip here.
+            Box::new(poseidon2_external),
             Box::new(add),
             Box::new(sub),
             Box::new(bitwise),
