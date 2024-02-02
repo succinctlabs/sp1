@@ -19,6 +19,9 @@ pub struct ProveCmd {
 
     #[clap(long, action)]
     verbose: bool,
+
+    #[clap(long, action)]
+    bin: Option<String>,
 }
 
 impl ProveCmd {
@@ -37,13 +40,32 @@ impl ProveCmd {
             "-C",
             "panic=abort",
         ];
+
+        if self.verbose {
+            println!(
+                "running command: cargo build --release --target {}",
+                build_target
+            );
+        }
+
+        let mut args = vec!["build", "--release", "--target", build_target, "--locked"];
+        if self.bin.is_some() {
+            let bin = self.bin.as_ref().unwrap();
+            args.push("--bin");
+            args.push(bin);
+        }
+
         Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .env("SUCCINCT_BUILD_IGNORE", "1")
-            .args(["build", "--release", "--target", build_target, "--locked"])
+            .args(args.clone())
             .run()
             .unwrap();
+
+        if self.verbose {
+            println!("running command: cargo {}", args.join(" "));
+        }
 
         let elf_path = metadata
             .target_directory
@@ -51,6 +73,9 @@ impl ProveCmd {
             .join("release")
             .join(root_package_name.unwrap());
         let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
+        if self.verbose {
+            println!("copying elf to {:?}", elf_dir);
+        }
         fs::create_dir_all(&elf_dir)?;
         fs::copy(&elf_path, elf_dir.join("riscv32im-succinct-zkvm-elf"))?;
 
