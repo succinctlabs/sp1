@@ -1038,32 +1038,33 @@ impl Runtime {
         .unwrap();
 
         let mut jobs = Vec::new();
-        for i in 0..nb_jobs {
-            let mut job = Segment::default();
-            job.program = self.segment.program.clone();
-            job.cpu_events = cpu_shards.get(i).cloned().unwrap_or_default();
-            job.add_events = add_shards.get(i).cloned().unwrap_or_default();
-            job.mul_events = mul_shards.get(i).cloned().unwrap_or_default();
-            job.sub_events = sub_shards.get(i).cloned().unwrap_or_default();
-            job.bitwise_events = bitwise_shards.get(i).cloned().unwrap_or_default();
-            job.shift_left_events = shift_left_shards.get(i).cloned().unwrap_or_default();
-            job.shift_right_events = shift_right_shards.get(i).cloned().unwrap_or_default();
-            job.lt_events = lt_shards.get(i).cloned().unwrap_or_default();
-            job.field_events = field_events.get(i).cloned().unwrap_or_default();
-            jobs.push(job);
-        }
+        jobs = vec![self.segment.clone()];
+        // for i in 0..nb_jobs {
+        //     let mut job = Segment::default();
+        //     job.program = self.segment.program.clone();
+        //     job.cpu_events = cpu_shards.get(i).cloned().unwrap_or_default();
+        //     job.add_events = add_shards.get(i).cloned().unwrap_or_default();
+        //     job.mul_events = mul_shards.get(i).cloned().unwrap_or_default();
+        //     job.sub_events = sub_shards.get(i).cloned().unwrap_or_default();
+        //     job.bitwise_events = bitwise_shards.get(i).cloned().unwrap_or_default();
+        //     job.shift_left_events = shift_left_shards.get(i).cloned().unwrap_or_default();
+        //     job.shift_right_events = shift_right_shards.get(i).cloned().unwrap_or_default();
+        //     job.lt_events = lt_shards.get(i).cloned().unwrap_or_default();
+        //     job.field_events = field_events.get(i).cloned().unwrap_or_default();
+        //     jobs.push(job);
+        // }
 
-        let idx = jobs.len() - 1;
-        jobs[idx].program = self.segment.program.clone();
-        jobs[idx].byte_lookups = self.segment.byte_lookups.clone();
-        jobs[idx].sha_extend_events = self.segment.sha_extend_events.clone();
-        jobs[idx].sha_compress_events = self.segment.sha_compress_events.clone();
-        jobs[idx].keccak_permute_events = self.segment.keccak_permute_events.clone();
-        jobs[idx].ed_add_events = self.segment.ed_add_events.clone();
-        jobs[idx].ed_decompress_events = self.segment.ed_decompress_events.clone();
-        jobs[idx].weierstrass_add_events = self.segment.weierstrass_add_events.clone();
-        jobs[idx].weierstrass_double_events = self.segment.weierstrass_double_events.clone();
-        jobs[idx].k256_decompress_events = self.segment.k256_decompress_events.clone();
+        // let idx = jobs.len() - 1;
+        // jobs[idx].program = self.segment.program.clone();
+        // jobs[idx].byte_lookups = self.segment.byte_lookups.clone();
+        // jobs[idx].sha_extend_events = self.segment.sha_extend_events.clone();
+        // jobs[idx].sha_compress_events = self.segment.sha_compress_events.clone();
+        // jobs[idx].keccak_permute_events = self.segment.keccak_permute_events.clone();
+        // jobs[idx].ed_add_events = self.segment.ed_add_events.clone();
+        // jobs[idx].ed_decompress_events = self.segment.ed_decompress_events.clone();
+        // jobs[idx].weierstrass_add_events = self.segment.weierstrass_add_events.clone();
+        // jobs[idx].weierstrass_double_events = self.segment.weierstrass_double_events.clone();
+        // jobs[idx].k256_decompress_events = self.segment.k256_decompress_events.clone();
 
         self.sharded_segments = jobs;
     }
