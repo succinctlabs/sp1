@@ -90,7 +90,7 @@ pub fn debug_constraints<F: PrimeField32, EF: ExtensionField<F>, A>(
         }
 
         air.eval(&mut builder);
-        eval_permutation_constraints(air, &mut builder, cumulative_sum);
+        eval_permutation_constraints(&air, &mut builder, cumulative_sum);
     });
 }
 

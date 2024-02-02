@@ -62,7 +62,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .zip(opened_values.quotient.iter())
         {
             Self::verify_proof_shape(
-                *chip,
+                chip,
                 interactions.len(),
                 &AirOpenedValues {
                     local: vec![],
@@ -176,7 +176,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .zip(g_subgroups.iter())
         {
             Self::verify_constraints(
-                *chip,
+                chip,
                 main_opening,
                 permutation_opening,
                 quotient_opening,
@@ -208,7 +208,7 @@ impl<SC: StarkConfig> Verifier<SC> {
     /// This function checks that the preprocessed_opening, main opening, permutation opening,
     /// quotient opening have the expected dimensions.
     fn verify_proof_shape(
-        chip: Box<ChipInfo<SC::Val>>,
+        chip: &Box<ChipInfo<SC::Val>>,
         num_interactions: usize,
         preprocessed_opening: &AirOpenedValues<SC::Challenge>,
         main_opening: &AirOpenedValues<SC::Challenge>,
@@ -252,7 +252,7 @@ impl<SC: StarkConfig> Verifier<SC> {
 
     #[allow(clippy::too_many_arguments)]
     fn verify_constraints(
-        chip: Box<ChipInfo<SC::Val>>,
+        chip: &Box<ChipInfo<SC::Val>>,
         main_opening: &AirOpenedValues<SC::Challenge>,
         permutation_opening: &AirOpenedValues<SC::Challenge>,
         quotient_opening: &QuotientOpenedValues<SC::Challenge>,
@@ -338,7 +338,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             accumulator: Res::zero(),
         };
         chip.eval(&mut folder);
-        eval_permutation_constraints(chip, &mut folder, commulative_sum);
+        eval_permutation_constraints(&chip, &mut folder, commulative_sum);
 
         let folded_constraints = folder.accumulator.into_inner();
 

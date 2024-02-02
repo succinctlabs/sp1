@@ -165,7 +165,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 .map(|i| {
                     Self::quotient_values(
                         config,
-                        chips[i],
+                        &chips[i],
                         commulative_sums[i],
                         log_degrees[i],
                         log_quotient_degree,
@@ -350,7 +350,7 @@ impl<SC: StarkConfig> Prover<SC> {
     #[allow(clippy::too_many_arguments)]
     pub fn quotient_values<MainLde, PermLde>(
         config: &SC,
-        chip: Box<ChipInfo<SC::Val>>,
+        chip: &Box<ChipInfo<SC::Val>>,
         commulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,

@@ -149,10 +149,11 @@ pub fn debug_interactions_with_all_chips(
 
     for chip in segment_chips {
         let (_, count) =
-            debug_interactions::<BabyBear>(chip, &mut segment, interaction_kinds.clone());
+            debug_interactions::<BabyBear>(&chip, &mut segment, interaction_kinds.clone());
+        let name = chip.name();
 
-        counts.push((count.clone(), chip.name()));
-        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+        counts.push((count.clone(), name.clone()));
+        tracing::debug!("{} chip has {} distinct events", name, count.len());
         for (key, value) in count.iter() {
             *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
         }
@@ -162,13 +163,14 @@ pub fn debug_interactions_with_all_chips(
         let mut global_segment = global_segment.clone();
         for chip in global_chips {
             let (_, count) = debug_interactions::<BabyBear>(
-                chip,
+                &chip,
                 &mut global_segment,
                 interaction_kinds.clone(),
             );
+            let name = chip.name();
 
-            counts.push((count.clone(), chip.name()));
-            tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+            counts.push((count.clone(), name.clone()));
+            tracing::debug!("{} chip has {} distinct events", name, count.len());
             for (key, value) in count.iter() {
                 *final_map.entry(key.clone()).or_insert(BabyBear::zero()) += *value;
             }
@@ -211,7 +213,7 @@ pub fn debug_interactions_with_all_chips(
 }
 
 pub fn debug_interactions<F: PrimeField32>(
-    chip: Box<ChipInfo<F>>,
+    chip: &Box<ChipInfo<F>>,
     segment: &mut Segment,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (

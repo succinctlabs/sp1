@@ -71,12 +71,12 @@ enum ChipType<F: Field> {
     MemoryProgram(MemoryGlobalChip),
 }
 
-pub(crate) struct ChipInfo<F: Field> {
+pub struct ChipInfo<F: Field> {
     chip: ChipType<F>,
 }
 
 impl<F: PrimeField32> ChipInfo<F> {
-    pub(crate) fn all_interactions(&self) -> Vec<Interaction<F>>
+    pub fn all_interactions(&self) -> Vec<Interaction<F>>
     where
         F: PrimeField32,
     {
@@ -107,7 +107,7 @@ impl<F: PrimeField32> ChipInfo<F> {
         }
     }
 
-    pub(crate) fn sends(&self) -> Vec<Interaction<F>>
+    pub fn sends(&self) -> Vec<Interaction<F>>
     where
         F: PrimeField32,
     {
@@ -138,7 +138,7 @@ impl<F: PrimeField32> ChipInfo<F> {
         }
     }
 
-    pub(crate) fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>
+    pub fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>
     where
         F: PrimeField32,
     {
@@ -169,7 +169,7 @@ impl<F: PrimeField32> ChipInfo<F> {
         }
     }
 
-    pub(crate) fn name(&self) -> String
+    pub fn name(&self) -> String
     where
         F: PrimeField32,
     {
@@ -211,7 +211,7 @@ impl<F: PrimeField32> ChipInfo<F> {
         }
     }
 
-    pub(crate) fn eval<AB: CurtaAirBuilder>(&self, builder: &mut AB)
+    pub fn eval<AB: CurtaAirBuilder>(&self, builder: &mut AB)
     where
         F: PrimeField32,
         AB::F: ExtensionField<F>,
@@ -243,7 +243,7 @@ impl<F: PrimeField32> ChipInfo<F> {
         }
     }
 
-    pub(crate) fn air_width(&self) -> usize
+    pub fn air_width(&self) -> usize
     where
         F: PrimeField32,
     {
@@ -285,34 +285,34 @@ impl<F: PrimeField32> ChipInfo<F> {
         }
     }
 
-    pub(crate) fn preprocessed_trace(&self) -> Option<RowMajorMatrix<F>>
+    pub fn preprocessed_trace(&self) -> Option<RowMajorMatrix<F>>
     where
         F: PrimeField32,
     {
         match &self.chip {
             ChipType::Program(chip) => chip.preprocessed_trace(),
-            ChipType::Cpu(chip) => todo!(),
-            ChipType::Add(chip) => todo!(),
-            ChipType::Sub(chip) => todo!(),
-            ChipType::Bitwise(chip) => todo!(),
-            ChipType::Mul(chip) => todo!(),
-            ChipType::DivRem(chip) => todo!(),
-            ChipType::ShiftRight(chip) => todo!(),
-            ChipType::ShiftLeft(chip) => todo!(),
-            ChipType::Lt(chip) => todo!(),
-            ChipType::Bytes(chip) => todo!(),
-            ChipType::Field(chip) => todo!(),
-            ChipType::ShaExtend(chip) => todo!(),
-            ChipType::ShaCompress(chip) => todo!(),
-            ChipType::EdAdd(chip) => todo!(),
-            ChipType::EdDecompress(chip) => todo!(),
-            ChipType::KeccakPermute(chip) => todo!(),
-            ChipType::WeierstrassAdd(chip) => todo!(),
-            ChipType::WeierstrassDouble(chip) => todo!(),
-            ChipType::K256Decompress(chip) => todo!(),
-            ChipType::MemoryInit(chip) => todo!(),
-            ChipType::MemoryFinalize(chip) => todo!(),
-            ChipType::MemoryProgram(chip) => todo!(),
+            ChipType::Cpu(chip) => chip.preprocessed_trace(),
+            ChipType::Add(chip) => chip.preprocessed_trace(),
+            ChipType::Sub(chip) => chip.preprocessed_trace(),
+            ChipType::Bitwise(chip) => chip.preprocessed_trace(),
+            ChipType::Mul(chip) => chip.preprocessed_trace(),
+            ChipType::DivRem(chip) => chip.preprocessed_trace(),
+            ChipType::ShiftRight(chip) => chip.preprocessed_trace(),
+            ChipType::ShiftLeft(chip) => chip.preprocessed_trace(),
+            ChipType::Lt(chip) => chip.preprocessed_trace(),
+            ChipType::Bytes(chip) => chip.preprocessed_trace(),
+            ChipType::Field(chip) => chip.preprocessed_trace(),
+            ChipType::ShaExtend(chip) => chip.preprocessed_trace(),
+            ChipType::ShaCompress(chip) => chip.preprocessed_trace(),
+            ChipType::EdAdd(chip) => chip.preprocessed_trace(),
+            ChipType::EdDecompress(chip) => chip.preprocessed_trace(),
+            ChipType::KeccakPermute(chip) => chip.preprocessed_trace(),
+            ChipType::WeierstrassAdd(chip) => chip.preprocessed_trace(),
+            ChipType::WeierstrassDouble(chip) => chip.preprocessed_trace(),
+            ChipType::K256Decompress(chip) => chip.preprocessed_trace(),
+            ChipType::MemoryInit(chip) => chip.preprocessed_trace(),
+            ChipType::MemoryFinalize(chip) => chip.preprocessed_trace(),
+            ChipType::MemoryProgram(chip) => chip.preprocessed_trace(),
         }
     }
 }

@@ -134,7 +134,7 @@ pub fn generate_permutation_trace<F: PrimeField32, EF: ExtensionField<F>>(
 ///     - That the RLC per interaction is computed correctly.
 ///     - The running sum column ends at the (currently) given cumalitive sum.
 pub fn eval_permutation_constraints<F, AB>(
-    chip: Box<ChipInfo<F>>,
+    chip: &Box<ChipInfo<F>>,
     builder: &mut AB,
     cumulative_sum: AB::EF,
 ) where
