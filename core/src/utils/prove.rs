@@ -130,9 +130,8 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_field::{extension::BinomialExtensionField, Field, Res};
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_ldt::QuotientMmcs;
-    use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_poseidon2::{DiffusionMatrixBabybear, ExternalMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use rand::Rng;
 
@@ -146,9 +145,9 @@ pub(super) mod baby_bear_poseidon2 {
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
     pub type ChallengeAlgebra = BinomialExtensionField<Res<Val, BinomialExtensionField<Val, 4>>, 4>;
 
-    pub type MyMds = CosetMds<Val, 16>;
+    pub type MyExt = ExternalMatrixBabybear;
 
-    pub type Perm = Poseidon2<Val, MyMds, DiffusionMatrixBabybear, 16, 5>;
+    pub type Perm = Poseidon2<Val, MyExt, DiffusionMatrixBabybear, 16, 5>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -172,8 +171,8 @@ pub(super) mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new<R: Rng>(rng: &mut R) -> Self {
-            let mds = MyMds::default();
-            let perm = Perm::new_from_rng(8, 22, mds, DiffusionMatrixBabybear, rng);
+            let ext = MyExt::default();
+            let perm = Perm::new_from_rng(8, 22, ext, DiffusionMatrixBabybear, rng);
 
             let hash = MyHash::new(perm.clone());
 
