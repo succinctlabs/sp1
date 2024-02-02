@@ -2851,22 +2851,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 
 [[package]]
-name = "succinct-zkvm"
+name = "succinct-precompiles"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/vm.git?branch=chris/zeth#51abc0e6c7d55b233b57f3c247dc88f86af8de10"
 dependencies = [
  "anyhow",
- "bincode",
  "cfg-if",
- "getrandom",
  "k256",
- "rand",
- "serde",
 ]
 
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/vm.git?branch=chris/zeth#a96e19e7943b0fbe3d7f87dab8e0e48766d3979a"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3698,14 +3694,14 @@ dependencies = [
  "ahash",
  "serde",
  "serde_json",
- "succinct-zkvm 0.1.0",
+ "succinct-zkvm",
  "zeth-lib",
 ]
 
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#db705824403c1e2e44c657e802d450966a5d3337"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#8608868746ff17ed409733d08ba1072a2752bfd6"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -3731,7 +3727,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#db705824403c1e2e44c657e802d450966a5d3337"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#8608868746ff17ed409733d08ba1072a2752bfd6"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -3744,6 +3740,6 @@ dependencies = [
  "rlp",
  "serde",
  "sha3",
- "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git?branch=chris/zeth)",
+ "succinct-precompiles",
  "thiserror",
 ]

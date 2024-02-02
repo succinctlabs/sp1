@@ -10,7 +10,6 @@ extern crate alloc;
 
 pub mod io;
 pub mod memory;
-pub mod precompiles;
 pub mod syscall;
 
 pub use io::*;
