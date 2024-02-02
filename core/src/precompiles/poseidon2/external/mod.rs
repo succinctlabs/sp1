@@ -28,7 +28,7 @@ pub mod external_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime, Syscall},
-        utils::{ec::NUM_WORDS_FIELD_ELEMENT, BabyBearPoseidon2, StarkUtils},
+        utils::{ec::NUM_WORDS_FIELD_ELEMENT, prove, setup_logger, BabyBearPoseidon2, StarkUtils},
     };
 
     pub fn poseidon2_external_program() -> Program {
@@ -59,14 +59,17 @@ pub mod external_tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
-        let mut challenger = config.challenger();
+        // let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+        // let mut challenger = config.challenger();
+
+        setup_logger();
 
         let program = poseidon2_external_program();
-        let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
-        runtime.run();
+        // let mut runtime = Runtime::new(program);
+        // runtime.write_stdin_slice(&[10]);
+        // runtime.run();
 
-        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+        // runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+        prove(program);
     }
 }

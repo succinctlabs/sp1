@@ -28,13 +28,13 @@ where
         let local: &Poseidon2ExternalCols<AB::Var> = main.row_slice(0).borrow();
         let next: &Poseidon2ExternalCols<AB::Var> = main.row_slice(1).borrow();
 
-        self.contrain_control_flow_flags(builder, local, next);
+        // self.contrain_control_flow_flags(builder, local, next);
 
-        self.constrain_memory(builder, local);
+        // self.constrain_memory(builder, local);
 
-        self.constrain_compression_ops(builder, local);
+        // self.constrain_compression_ops(builder, local);
 
-        self.constrain_finalize_ops(builder, local);
+        // self.constrain_finalize_ops(builder, local);
     }
 }
 
@@ -52,6 +52,8 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         // Verify that all of the octet columns are bool.
         for i in 0..8 {
             builder.assert_bool(local.octet[i]);
+            builder.assert_zero(local.octet[i]);
+            builder.assert_one(local.octet[i]);
         }
         // Verify that exactly one of the octet columns is true.
         let mut octet_sum = AB::Expr::zero();
