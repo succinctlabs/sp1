@@ -53,27 +53,33 @@ fn main() {
     // let args = VerifierArgs::parse();
 
     // log::info!("Verifying proof: {}", args.proof_directory.as_str());
-    utils::setup_logger();
 
-    let proof_directory = "fib_proofs";
-    let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
-    let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
-        serde_json::from_str(segment_proofs_json).unwrap();
+    println!("cycle-tracker-start: g");
+    let y = 1 + 1;
+    println!("cycle-tracker-end: g");
 
-    let global_proof_json = include_str!("./fib_proofs/global_proof.json");
-    let global_proof = serde_json::from_str(global_proof_json).unwrap();
+    // #[succinct_derive::cycle_tracker]
+    // {
+    //     let proof_directory = "fib_proofs";
+    //     let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
+    //     let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
+    //         serde_json::from_str(segment_proofs_json).unwrap();
 
-    let config = BabyBearPoseidon2::new();
-    let mut challenger = config.challenger();
+    //     let global_proof_json = include_str!("./fib_proofs/global_proof.json");
+    //     let global_proof = serde_json::from_str(global_proof_json).unwrap();
+    // }
 
-    let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-    let program = Program::from(program_elf);
-    let mut runtime = Runtime::new(program);
-    black_box(verify::<_, _, BabyBearPoseidon2>(
-        black_box(&mut runtime),
-        black_box(&config),
-        black_box(&mut challenger),
-        black_box(&segment_proofs),
-        black_box(&global_proof),
-    ));
+    // let config = BabyBearPoseidon2::new();
+    // let mut challenger = config.challenger();
+
+    // let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    // let program = Program::from(program_elf);
+    // let mut runtime = Runtime::new(program);
+    // black_box(verify::<_, _, BabyBearPoseidon2>(
+    //     black_box(&mut runtime),
+    //     black_box(&config),
+    //     black_box(&mut challenger),
+    //     black_box(&segment_proofs),
+    //     black_box(&global_proof),
+    // ));
 }
