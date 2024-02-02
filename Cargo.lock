@@ -3942,6 +3942,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "succinct-precompiles"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "k256",
+]
+
+[[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
 dependencies = [
