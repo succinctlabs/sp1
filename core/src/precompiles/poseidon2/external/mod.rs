@@ -1,10 +1,9 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
-// TODO: Eventually, I should have all these modules.
-// mod air;
-// mod columns;
-// mod execute;
-// mod trace;
+mod air;
+mod columns;
+mod execute;
+mod trace;
 
 // TODO: Make sure that I'm only adding columns that I need. I just copied and pasted these from SHA
 // compress as a starting point, so these likely need to change quite a bit.
