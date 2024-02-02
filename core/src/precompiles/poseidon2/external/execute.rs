@@ -7,7 +7,7 @@ use super::Poseidon2ExternalChip;
 
 // TODO: I just copied and pasted these from sha as a starting point, so a lot will likely has to
 // change.
-impl Poseidon2ExternalChip {
+impl<const N: usize> Poseidon2ExternalChip<N> {
     // TODO: How do I calculate this? I just copied and pasted these from sha as a starting point.
     pub const NUM_CYCLES: u32 = 8 * 4 + 64 * 4 + 8 * 4;
 
@@ -32,7 +32,7 @@ impl Poseidon2ExternalChip {
             rt.clk += 4;
         }
 
-        let mut original_w = Vec::new();
+        let mut input_state = Vec::new();
         // Execute the "compress" phase.
         let mut a = hx[0];
         let mut b = hx[1];
@@ -42,25 +42,28 @@ impl Poseidon2ExternalChip {
         let mut f = hx[5];
         let mut g = hx[6];
         let mut h = hx[7];
-        for i in 0..64 {
-            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-            let ch = (e & f) ^ (!e & g);
+        // TODO: I think this is where I can read each element in the state and do stuff? Look into
+        // this more.
+        for i in 0..N {
+            //        for i in 0..64 {
+            // let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            // let ch = (e & f) ^ (!e & g);
             let (_record, w_i) = rt.mr(state_ptr + i * 4);
-            original_w.push(w_i);
+            input_state.push(w_i);
             // w_i_read_records.push(record);
-            let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(w_i);
-            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-            let maj = (a & b) ^ (a & c) ^ (b & c);
-            let temp2 = s0.wrapping_add(maj);
+            // let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(w_i);
+            // let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            // let maj = (a & b) ^ (a & c) ^ (b & c);
+            // let temp2 = s0.wrapping_add(maj);
 
-            h = g;
-            g = f;
-            f = e;
-            e = d.wrapping_add(temp1);
-            d = c;
-            c = b;
-            b = a;
-            a = temp1.wrapping_add(temp2);
+            // h = g;
+            // g = f;
+            // f = e;
+            // e = d.wrapping_add(temp1);
+            // d = c;
+            // c = b;
+            // b = a;
+            // a = temp1.wrapping_add(temp2);
 
             rt.clk += 4;
         }

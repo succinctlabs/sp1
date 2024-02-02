@@ -12,7 +12,7 @@ use super::{
 
 // I just copied and pasted these from sha compress as a starting point. Carefully examine the code
 // and update it. Most computation doesn't make sense for Poseidon2.
-impl<F: PrimeField> Chip<F> for Poseidon2ExternalChip {
+impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 

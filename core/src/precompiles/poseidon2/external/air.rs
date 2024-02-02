@@ -11,13 +11,13 @@ use crate::operations::{
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
-impl<F> BaseAir<F> for Poseidon2ExternalChip {
+impl<F, const N: usize> BaseAir<F> for Poseidon2ExternalChip<N> {
     fn width(&self) -> usize {
         NUM_POSEIDON2_EXTERNAL_COLS
     }
 }
 
-impl<AB> Air<AB> for Poseidon2ExternalChip
+impl<AB, const N: usize> Air<AB> for Poseidon2ExternalChip<N>
 where
     AB: CurtaAirBuilder,
 {
@@ -39,7 +39,7 @@ where
 // TODO: I just copied and pasted these from sha compress as a starting point. Carefully examine the
 // code and update it. Most computation doesn't make sense for Poseidon2. However, a good amount of
 // memory stuff should be the same or at least similar.
-impl Poseidon2ExternalChip {
+impl<const N: usize> Poseidon2ExternalChip<N> {
     fn contrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,

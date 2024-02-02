@@ -15,9 +15,9 @@ pub struct Poseidon2ExternalEvent<const N: usize> {
     pub state_writes: [MemoryWriteRecord; N],
 }
 
-pub struct Poseidon2ExternalChip;
+pub struct Poseidon2ExternalChip<const N: usize>;
 
-impl Poseidon2ExternalChip {
+impl<const N: usize> Poseidon2ExternalChip<N> {
     pub fn new() -> Self {
         Self {}
     }
