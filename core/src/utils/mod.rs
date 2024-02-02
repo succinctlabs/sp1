@@ -31,6 +31,10 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>;
 
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn receives(&self) -> Vec<Interaction<F>> {
         let mut builder = InteractionBuilder::new(self.width());
         self.eval(&mut builder);
