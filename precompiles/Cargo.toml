@@ -1,0 +1,9 @@
+[package]
+name = "succinct-precompiles"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.75"
+cfg-if = "1.0.0"
+k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
