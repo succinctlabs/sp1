@@ -1224,15 +1224,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash256-std-hasher"
-version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92c171d55b98633f4ed3860808f004099b36c1cc29c42cfc53aa8591b21efcf2"
-dependencies = [
- "crunchy",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1689,12 +1680,6 @@ dependencies = [
  "wasi",
  "windows-sys 0.48.0",
 ]
-
-[[package]]
-name = "nohash-hasher"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
 name = "nom"
@@ -2879,6 +2864,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "succinct-zkvm"
+version = "0.1.0"
+source = "git+https://github.com/succinctlabs/vm.git?branch=chris/zeth#cc47a2e811fe9c4c58d9e01b6f910c8c103e29db"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3699,28 +3698,25 @@ dependencies = [
  "ahash",
  "serde",
  "serde_json",
- "succinct-zkvm",
+ "succinct-zkvm 0.1.0",
  "zeth-lib",
 ]
 
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#a43066ca096bae7c7c11d425d241c3fe4f01d283"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#78f89cffcb3d7ca3d3ac3a62ec1c4c9be8ea37e5"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
  "bytes",
  "chrono",
- "crunchy",
  "ethers-core",
  "ethers-providers",
  "flate2",
- "hash256-std-hasher",
  "hashbrown 0.14.3",
  "libflate",
  "log",
- "nohash-hasher",
  "once_cell",
  "revm",
  "ruint",
@@ -3735,19 +3731,19 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#a43066ca096bae7c7c11d425d241c3fe4f01d283"
+source = "git+https://github.com/succinctlabs/zeth-private?branch=chris/zeth-lib#78f89cffcb3d7ca3d3ac3a62ec1c4c9be8ea37e5"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-rlp-derive",
  "anyhow",
  "bytes",
- "cfg-if",
  "ethers-core",
  "k256",
  "revm-primitives",
  "rlp",
  "serde",
  "sha3",
+ "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git?branch=chris/zeth)",
  "thiserror",
 ]

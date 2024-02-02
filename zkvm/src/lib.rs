@@ -77,7 +77,7 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 }
 
 // TODO: should we use this even outside of vm?
-#[cfg(target_os = "zkvm")]
+#[cfg(all(target_os = "zkvm", not(no_entrypoint)))]
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
 
