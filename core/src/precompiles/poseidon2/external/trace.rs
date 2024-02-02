@@ -224,6 +224,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 // };
 
                 cols.is_real = F::one();
+                cols.is_external = F::one();
 
                 rows.push(row);
             }
