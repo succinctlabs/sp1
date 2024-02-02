@@ -1389,6 +1389,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "cfg-if",
  "getrandom",
  "k256",
  "rand",

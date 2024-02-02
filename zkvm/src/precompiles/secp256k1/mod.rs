@@ -1,31 +1,44 @@
+#![allow(unused)]
+
+use anyhow::Context;
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
 use k256::ecdsa::hazmat::bits2field;
-use k256::ecdsa::Signature;
+use k256::ecdsa::signature::hazmat::PrehashVerifier;
+use k256::ecdsa::{Signature, VerifyingKey};
 use k256::elliptic_curve::ff::PrimeFieldBits;
 use k256::elliptic_curve::ops::Invert;
+use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
-use k256::Scalar;
-use k256::Secp256k1;
+use k256::{PublicKey, Scalar, Secp256k1};
 
 /// Decompresses a compressed public key using secp256k1_decompress precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
-    let mut decompressed_key: [u8; 64] = [0; 64];
-    decompressed_key[..32].copy_from_slice(&compressed_key[1..]);
-    let is_odd = match compressed_key[0] {
-        2 => false,
-        3 => true,
-        _ => return Err(anyhow!("Invalid compressed key")),
-    };
-    unsafe {
-        syscall_secp256k1_decompress(&mut decompressed_key, is_odd);
+    cfg_if::cfg_if! {
+        if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
+            let mut decompressed_key: [u8; 64] = [0; 64];
+            decompressed_key[..32].copy_from_slice(&compressed_key[1..]);
+            let is_odd = match compressed_key[0] {
+                2 => false,
+                3 => true,
+                _ => return Err(anyhow!("Invalid compressed key")),
+            };
+            unsafe {
+                syscall_secp256k1_decompress(&mut decompressed_key, is_odd);
+            }
+
+            let mut result: [u8; 65] = [0; 65];
+            result[0] = 4;
+            result[1..].copy_from_slice(&decompressed_key);
+            Ok(result)
+        } else {
+            let public_key = PublicKey::from_sec1_bytes(compressed_key).context("invalid pubkey")?;
+            let bytes = public_key.to_encoded_point(false).to_bytes();
+            let mut result: [u8; 65] = [0; 65];
+            result.copy_from_slice(&bytes);
+            Ok(result)
+        }
     }
-
-    let mut result: [u8; 65] = [0; 65];
-    result[0] = 4;
-    result[1..].copy_from_slice(&decompressed_key);
-
-    Ok(result)
 }
 
 /// Verifies a secp256k1 signature using the public key and the message hash. If the s_inverse is
@@ -37,46 +50,63 @@ pub fn verify_signature(
     signature: &Signature,
     s_inverse: Option<&Scalar>,
 ) -> bool {
-    let pubkey_x = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[1..33]).unwrap()).unwrap();
-    let pubkey_y = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[33..]).unwrap()).unwrap();
+    cfg_if::cfg_if! {
+        if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
+            let pubkey_x = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[1..33]).unwrap()).unwrap();
+            let pubkey_y = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[33..]).unwrap()).unwrap();
 
-    // Convert the public key to an affine point
-    let affine = AffinePoint::from(pubkey_x, pubkey_y);
+            // Convert the public key to an affine point
+            let affine = AffinePoint::from(pubkey_x, pubkey_y);
 
-    let field = bits2field::<Secp256k1>(msg_hash);
-    if field.is_err() {
-        return false;
-    }
-    let field = Scalar::from_repr(field.unwrap()).unwrap();
-    let z = field;
-    let (r, s) = signature.split_scalars();
-    let computed_s_inv;
-    let s_inv = match s_inverse {
-        Some(s_inv) => {
-            assert_eq!(s_inv * s.as_ref(), Scalar::ONE);
-            s_inv
+            let field = bits2field::<Secp256k1>(msg_hash);
+            if field.is_err() {
+                return false;
+            }
+            let field = Scalar::from_repr(field.unwrap()).unwrap();
+            let z = field;
+            let (r, s) = signature.split_scalars();
+            let computed_s_inv;
+            let s_inv = match s_inverse {
+                Some(s_inv) => {
+                    assert_eq!(s_inv * s.as_ref(), Scalar::ONE);
+                    s_inv
+                }
+                None => {
+                    computed_s_inv = s.invert();
+                    &computed_s_inv
+                }
+            };
+
+            let u1 = z * s_inv;
+            let u2 = *r * s_inv;
+
+            let res = double_and_add_base(&u1, &GENERATOR, &u2, &affine).unwrap();
+            let mut x_bytes_be = [0u8; 32];
+            for i in 0..8 {
+                x_bytes_be[i * 4..(i * 4) + 4].copy_from_slice(&res.limbs[i].to_le_bytes());
+            }
+            x_bytes_be.reverse();
+
+            let x_field = bits2field::<Secp256k1>(&x_bytes_be);
+            if x_field.is_err() {
+                return false;
+            }
+            *r == Scalar::from_repr(x_field.unwrap()).unwrap()
+        } else {
+            let public_key = PublicKey::from_sec1_bytes(pubkey);
+            if public_key.is_err() {
+                return false;
+            }
+            let public_key = public_key.unwrap();
+
+            let verify_key = VerifyingKey::from(&public_key);
+            let res = verify_key
+                .verify_prehash(msg_hash, signature)
+                .context("invalid signature");
+
+            res.is_ok()
         }
-        None => {
-            computed_s_inv = s.invert();
-            &computed_s_inv
-        }
-    };
-
-    let u1 = z * s_inv;
-    let u2 = *r * s_inv;
-
-    let res = double_and_add_base(&u1, &GENERATOR, &u2, &affine).unwrap();
-    let mut x_bytes_be = [0u8; 32];
-    for i in 0..8 {
-        x_bytes_be[i * 4..(i * 4) + 4].copy_from_slice(&res.limbs[i].to_le_bytes());
     }
-    x_bytes_be.reverse();
-
-    let x_field = bits2field::<Secp256k1>(&x_bytes_be);
-    if x_field.is_err() {
-        return false;
-    }
-    *r == Scalar::from_repr(x_field.unwrap()).unwrap()
 }
 
 extern "C" {
