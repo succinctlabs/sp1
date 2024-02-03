@@ -12,9 +12,14 @@ use super::{
     Poseidon2ExternalChip,
 };
 
-// I just copied and pasted these from sha compress as a starting point. Carefully examine the code
-// and update it. Most computation doesn't make sense for Poseidon2.
-impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
+/// Poseidon2 external chip. `NUM_WORDS_STATE` is the number of words in the state. This has to be
+/// consistent with the parameter in `Poseidon2ExternalCols`.
+///
+/// TODO: Do I really need this const generic? Or should I make a subset of the logic in
+/// generate_trace use the const generic?
+impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
+    for Poseidon2ExternalChip<NUM_WORDS_STATE>
+{
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -35,10 +40,11 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 cols.0.segment = F::from_canonical_u32(segment.index);
 
                 // Increment the clock by 4 * (the number of reads + writes for this round).
-                cols.0.clk = F::from_canonical_u32(original_clock + (8 * N * round) as u32);
+                cols.0.clk =
+                    F::from_canonical_u32(original_clock + (8 * NUM_WORDS_STATE * round) as u32);
 
                 // Read.
-                for i in 0..N {
+                for i in 0..NUM_WORDS_STATE {
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                     cols.0.mem[i].populate_read(event.state_reads[round][i], &mut new_field_events);
                     cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
@@ -54,7 +60,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 // TODO: This is where I do the calculation. For now, I won't do anything.
 
                 // Write.
-                for i in 0..N {
+                for i in 0..NUM_WORDS_STATE {
                     cols.0.mem[i]
                         .populate_write(event.state_writes[round][i], &mut new_field_events);
                     cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);

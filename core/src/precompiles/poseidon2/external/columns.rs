@@ -22,21 +22,23 @@ pub struct Poseidon2ExternalCols<T>(
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2ExternalColsConfigurable<T, const N: usize> {
+pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub segment: T,
     pub clk: T,
 
     pub state_ptr: T,
 
-    pub mem: [MemoryReadWriteCols<T>; N],
-    pub mem_addr: [T; N],
+    pub mem: [MemoryReadWriteCols<T>; NUM_WORDS_STATE],
+    pub mem_addr: [T; NUM_WORDS_STATE],
 
     pub is_external: T,
 
     pub is_real: T,
 }
 
-impl<T: Default, const N: usize> Default for Poseidon2ExternalColsConfigurable<T, N> {
+impl<T: Default, const NUM_WORDS_STATE: usize> Default
+    for Poseidon2ExternalColsConfigurable<T, NUM_WORDS_STATE>
+{
     fn default() -> Self {
         Self {
             segment: T::default(),

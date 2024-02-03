@@ -7,19 +7,17 @@ mod columns;
 mod execute;
 mod trace;
 
-// TODO: Make sure that I'm only adding columns that I need. I just copied and pasted these from SHA
-// compress as a starting point, so these likely need to change quite a bit.
 #[derive(Debug, Clone, Copy)]
-pub struct Poseidon2ExternalEvent<const N: usize> {
+pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
     pub clk: u32,
     pub state_ptr: u32,
-    pub state_reads: [[MemoryReadRecord; N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
-    pub state_writes: [[MemoryWriteRecord; N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
+    pub state_reads: [[MemoryReadRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
+    pub state_writes: [[MemoryWriteRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
 }
 
-pub struct Poseidon2ExternalChip<const N: usize>;
+pub struct Poseidon2ExternalChip<const NUM_WORDS_STATE: usize>;
 
-impl<const N: usize> Poseidon2ExternalChip<N> {
+impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
     pub fn new() -> Self {
         Self {}
     }
