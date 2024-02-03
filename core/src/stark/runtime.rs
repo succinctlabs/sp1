@@ -182,6 +182,7 @@ impl Runtime {
                 Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data)
             })
             .collect::<Vec<_>>();
+	println!("local proofs done");
 
         // Generate global proofs.
         let global_chips = Self::global_chips::<SC>();
@@ -195,6 +196,7 @@ impl Runtime {
                 global_main_data,
             )
         });
+	println!("global proofs done");
 
         (local_proofs, global_proof)
     }

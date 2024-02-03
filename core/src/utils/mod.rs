@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-pub const NB_ROWS_PER_SHARD: usize = 1 << 20;
+pub const NB_ROWS_PER_SHARD: usize = 1 << 23;
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
