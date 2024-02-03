@@ -1,8 +1,6 @@
 use p3_air::{Air, BaseAir};
 
-use super::columns::{
-    Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_EXTERNAL_ROUNDS,
-};
+use super::columns::{Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS};
 use super::Poseidon2ExternalChip;
 use crate::air::CurtaAirBuilder;
 use core::borrow::Borrow;
@@ -70,6 +68,7 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         _builder: &mut AB,
         _local: &Poseidon2ExternalCols<AB::Var>,
     ) {
+        // TODO: Do I need this? What do we use this for in SHA?
     }
 
     fn _constrain_finalize_ops<AB: CurtaAirBuilder>(
@@ -77,5 +76,6 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         _builder: &mut AB,
         _local: &Poseidon2ExternalCols<AB::Var>,
     ) {
+        // TODO: Do I need this? What do we use this for in SHA?
     }
 }

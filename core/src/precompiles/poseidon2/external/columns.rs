@@ -5,7 +5,6 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadCols;
-use crate::memory::MemoryReadWriteCols;
 use crate::memory::MemoryWriteCols;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
