@@ -142,7 +142,7 @@ impl Runtime {
             .map(|chip| {
                 let batch_shards = chip.batch_shard(&self.segment);
                 batch_shards
-                    .into_iter()
+                    .into_par_iter()
                     .map(|shards| {
                         let n = shards.len();
                         let traces = shards
