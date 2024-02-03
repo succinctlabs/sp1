@@ -95,7 +95,13 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
     ) {
         let input_state = local.0.mem_reads.map(|read| read.access.value);
 
-        AddRcOperation::<AB::F>::eval(builder, input_state, local.0.add_rc, local.0.is_real);
+        AddRcOperation::<AB::F>::eval(
+            builder,
+            input_state,
+            local.0.round_number,
+            local.0.add_rc,
+            local.0.is_real,
+        );
     }
 
     fn _constrain_finalize_ops<AB: CurtaAirBuilder>(

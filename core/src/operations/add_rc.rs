@@ -19,23 +19,29 @@ use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 #[repr(C)]
 pub struct AddRcOperation<T> {
     /// The result of `add_rc` on the input state.
-    pub value: Array<T, NUM_WORDS_FIELD_ELEMENT>,
+    pub value: Array<T, NUM_WORDS_POSEIDON2_STATE>,
 }
 
 impl<F: Field> AddRcOperation<F> {
+    // TODO: Do I need segment?
     pub fn populate(
         &mut self,
         _segment: &mut Segment,
-        _array: &[u32; NUM_WORDS_POSEIDON2_STATE],
-    ) -> u32 {
+        array: &[u32; NUM_WORDS_POSEIDON2_STATE],
+        _round: usize,
+    ) -> [u32; NUM_WORDS_POSEIDON2_STATE] {
         // 1. Actually compute add_rc of the input through FieldOps operations.
         // 2. Return the result.
-        0
+
+        // TODO: We need to assign the result to self.value.
+        // self.value = Array::from(*array);
+        [0; NUM_WORDS_POSEIDON2_STATE]
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
         array: Array<Word<AB::Var>, NUM_WORDS_POSEIDON2_STATE>,
+        round: AB::Var,
         cols: AddRcOperation<AB::Var>,
         is_real: AB::Var,
     ) {

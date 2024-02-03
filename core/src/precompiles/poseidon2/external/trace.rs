@@ -65,10 +65,9 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                         i, event.state_reads[round][i].value,
                     );
                 }
+                let input_state = event.state_reads[round].map(|read| read.value);
 
-                cols.0
-                    .add_rc
-                    .populate(segment, &event.state_reads[round].map(|read| read.value));
+                cols.0.add_rc.populate(segment, &input_state, round);
 
                 // TODO: sbox
                 // TODO: external linear layer
