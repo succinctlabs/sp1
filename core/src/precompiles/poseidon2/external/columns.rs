@@ -4,6 +4,7 @@ use std::mem::size_of;
 
 use valida_derive::AlignedBorrow;
 
+use crate::air::Array;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
@@ -21,7 +22,7 @@ pub struct Poseidon2ExternalCols<T>(
     pub Poseidon2ExternalColsConfigurable<T, NUM_WORDS_FIELD_ELEMENT>,
 );
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub segment: T,
@@ -29,38 +30,19 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
 
     /// An array whose i-th element records when we read the i-th word of the state.
     /// TODO: I should be able to calculate that without using this.
-    pub mem_read_clk: [T; NUM_WORDS_STATE],
+    pub mem_read_clk: Array<T, NUM_WORDS_STATE>,
 
     /// An array whose i-th element records when we write the i-th word of the state.
     /// TODO: I should be able to calculate that without using this.
-    pub mem_write_clk: [T; NUM_WORDS_STATE],
+    pub mem_write_clk: Array<T, NUM_WORDS_STATE>,
 
     pub state_ptr: T,
 
-    pub mem_reads: [MemoryReadCols<T>; NUM_WORDS_STATE],
-    pub mem_writes: [MemoryWriteCols<T>; NUM_WORDS_STATE],
-    pub mem_addr: [T; NUM_WORDS_STATE],
+    pub mem_reads: Array<MemoryReadCols<T>, NUM_WORDS_STATE>,
+    pub mem_writes: Array<MemoryWriteCols<T>, NUM_WORDS_STATE>,
+    pub mem_addr: Array<T, NUM_WORDS_STATE>,
 
     pub is_external: T,
 
     pub is_real: T,
-}
-
-impl<T: Default, const NUM_WORDS_STATE: usize> Default
-    for Poseidon2ExternalColsConfigurable<T, NUM_WORDS_STATE>
-{
-    fn default() -> Self {
-        Self {
-            segment: T::default(),
-            clk: T::default(),
-            mem_read_clk: core::array::from_fn(|_| T::default()),
-            mem_write_clk: core::array::from_fn(|_| T::default()),
-            state_ptr: T::default(),
-            mem_reads: core::array::from_fn(|_| MemoryReadCols::<T>::default()),
-            mem_writes: core::array::from_fn(|_| MemoryWriteCols::<T>::default()),
-            mem_addr: core::array::from_fn(|_| T::default()),
-            is_external: T::default(),
-            is_real: T::default(),
-        }
-    }
 }
