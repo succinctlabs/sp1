@@ -5,6 +5,7 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadWriteCols;
+use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
 pub const POSEIDON2_DEFAULT_ROUNDS_F: usize = 8;
@@ -16,26 +17,26 @@ pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalCols<T>(
-    pub Poseidon2ExternalColsConfigurable<T, POSEIDON2_DEFAULT_EXTERNAL_ROUNDS>,
+    pub Poseidon2ExternalColsConfigurable<T, NUM_WORDS_FIELD_ELEMENT>,
 );
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2ExternalColsConfigurable<T, const ROUNDS: usize> {
+pub struct Poseidon2ExternalColsConfigurable<T, const N: usize> {
     pub segment: T,
     pub clk: T,
 
     pub state_ptr: T,
 
-    pub mem: [MemoryReadWriteCols<T>; ROUNDS],
-    pub mem_addr: [T; ROUNDS],
+    pub mem: [MemoryReadWriteCols<T>; N],
+    pub mem_addr: [T; N],
 
     pub is_external: T,
 
     pub is_real: T,
 }
 
-impl<T: Default, const ROUNDS: usize> Default for Poseidon2ExternalColsConfigurable<T, ROUNDS> {
+impl<T: Default, const N: usize> Default for Poseidon2ExternalColsConfigurable<T, N> {
     fn default() -> Self {
         Self {
             segment: T::default(),

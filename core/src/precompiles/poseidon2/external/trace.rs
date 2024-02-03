@@ -40,10 +40,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 // Read.
                 for j in 0..N {
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
-                    cols.0.mem[round]
-                        .populate_read(event.state_reads[round][j], &mut new_field_events);
-                    cols.0.mem_addr[round] =
-                        F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                    cols.0.mem[j].populate_read(event.state_reads[round][j], &mut new_field_events);
+                    cols.0.mem_addr[j] = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
                     // TODO: Remove this printf-debugging statement.
                     // println!("new_field_events: {:?}", new_field_events);
@@ -57,10 +55,9 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
                 // Write.
                 for j in 0..N {
-                    cols.0.mem[round]
+                    cols.0.mem[j]
                         .populate_write(event.state_writes[round][j], &mut new_field_events);
-                    cols.0.mem_addr[round] =
-                        F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                    cols.0.mem_addr[j] = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
                     println!(
                         "event.state_write[{}].value: {:?}",
