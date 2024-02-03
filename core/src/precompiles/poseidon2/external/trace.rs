@@ -38,36 +38,39 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 cols.0.clk = F::from_canonical_u32(original_clock + (8 * N * round) as u32);
 
                 // Read.
-                for j in 0..N {
+                for i in 0..N {
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
-                    cols.0.mem[j].populate_read(event.state_reads[round][j], &mut new_field_events);
-                    cols.0.mem_addr[j] = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                    cols.0.mem[i].populate_read(event.state_reads[round][i], &mut new_field_events);
+                    cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
 
                     // TODO: Remove this printf-debugging statement.
                     // println!("new_field_events: {:?}", new_field_events);
                     println!(
                         "event.state_reads[{}].value: {:?}",
-                        j, event.state_reads[round][j].value,
+                        i, event.state_reads[round][i].value,
                     );
                 }
 
                 // TODO: This is where I do the calculation. For now, I won't do anything.
 
                 // Write.
-                for j in 0..N {
-                    cols.0.mem[j]
-                        .populate_write(event.state_writes[round][j], &mut new_field_events);
-                    cols.0.mem_addr[j] = F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
+                for i in 0..N {
+                    cols.0.mem[i]
+                        .populate_write(event.state_writes[round][i], &mut new_field_events);
+                    cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
 
                     println!(
                         "event.state_write[{}].value: {:?}",
-                        j, event.state_writes[round][j].value,
+                        i, event.state_writes[round][i].value,
                     );
                 }
 
                 // TODO: I need to figure out whether I need both or I only need one of these.
                 cols.0.is_real = F::one();
                 cols.0.is_external = F::one();
+                if round == 0 {
+                    println!("cols: {:#?}", cols);
+                }
                 rows.push(row);
             }
         }
