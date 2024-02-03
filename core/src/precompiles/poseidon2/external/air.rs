@@ -12,7 +12,7 @@ impl<F, const N: usize> BaseAir<F> for Poseidon2ExternalChip<N> {
     }
 }
 
-impl<AB, const N: usize> Air<AB> for Poseidon2ExternalChip<N>
+impl<AB, const NUM_WORDS_STATE: usize> Air<AB> for Poseidon2ExternalChip<NUM_WORDS_STATE>
 where
     AB: CurtaAirBuilder,
 {
