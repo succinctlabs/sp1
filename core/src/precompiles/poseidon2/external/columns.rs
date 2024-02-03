@@ -14,8 +14,17 @@ pub const POSEIDON2_DEFAULT_ROUNDS_F: usize = 8;
 pub const _POSEIDON2_DEFAULT_ROUNDS_P: usize = 22;
 pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
 
-// It's necessary to split the struct into two parts because of the const generic parameter.
-// AlignedBorrow doesn't like a struct with more than one const generic parameter.
+/// Cols to perform the first external round of Poseidon2.
+///
+/// It's necessary to split the struct into two parts because of the const generic parameter.
+/// AlignedBorrow doesn't like a struct with more than one const generic parameter.
+///
+/// TODO: Do I really want to make this a const generic? I feel that it'll be the same everywhere.
+/// Especially, I think I was concerned about the first external round and the last external round
+/// having different constants, but they should have the same NUM_WORDS_STATE.
+///
+/// TODO: also, i think I need to start specifying what is for the first external round only and
+/// what is shared between the first and last external rounds.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalCols<T>(
