@@ -27,25 +27,19 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
         for i in 0..segment.poseidon2_external_events.len() {
             let event = segment.poseidon2_external_events[i];
+
+            // TODO: Prinf-debugging statement. Remove this.
             // if i == 0 {
             //     println!("event: {:#?}", event);
             // }
-            let mut next_clock: u32 = event.clk;
 
-            //let og_h = event.h;
-            //let mut v = [0u32; 8].map(Word::from);
-
-            // let mut octet_num_idx = 0;
-
-            // Load a, b, c, d, e, f, g, h.
-            // for j in 0..8usize {
+            let original_clock: u32 = event.clk;
             for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
                 let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
                 cols.0.segment = F::from_canonical_u32(segment.index);
-                cols.0.clk = F::from_canonical_u32(next_clock);
+                cols.0.clk = F::from_canonical_u32(original_clock + (8 * N * round) as u32);
                 for j in 0..N {
-                    next_clock += 4;
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                     cols.0.mem[round]
                         .populate_read(event.state_reads[round][j], &mut new_field_events);
@@ -59,7 +53,9 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                         j, event.state_reads[round][j].value,
                     );
                 }
-                // TODO: This is where I do the calculation
+
+                // TODO: This is where I do the calculation. For now, I wont' do anything, and write
+                // back what I got.
 
                 for j in 0..N {
                     cols.0.mem[round]
@@ -72,6 +68,8 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                         j, event.state_writes[round][j].value,
                     );
                 }
+
+                // TODO: I need to figure out whether I need both or I only need one of these.
                 cols.0.is_real = F::one();
                 cols.0.is_external = F::one();
                 rows.push(row);

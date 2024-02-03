@@ -29,7 +29,7 @@ where
         // println!("Poseidon2ExternalChip::eval");
         let main = builder.main();
         let local: &Poseidon2ExternalCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &Poseidon2ExternalCols<AB::Var> = main.row_slice(1).borrow();
+        // let next: &Poseidon2ExternalCols<AB::Var> = main.row_slice(1).borrow();
 
         // self.contrain_control_flow_flags(builder, local, next);
 
@@ -45,7 +45,7 @@ where
 // code and update it. Most computation doesn't make sense for Poseidon2. However, a good amount of
 // memory stuff should be the same or at least similar.
 impl<const N: usize> Poseidon2ExternalChip<N> {
-    fn contrain_control_flow_flags<AB: CurtaAirBuilder>(
+    fn _contrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
@@ -134,16 +134,6 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
-        // let is_initialize = local.octet_num[0];
-        // let is_finalize = local.octet_num[9];
-        // builder.constraint_memory_access(
-        //     local.segment,
-        //     local.clk,
-        //     local.mem_addr,
-        //     &local.mem,
-        //     is_initialize + local.is_compression + is_finalize,
-        // );
-
         for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
             builder.constraint_memory_access(
                 local.0.segment,
@@ -222,7 +212,7 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         // }
     }
 
-    fn constrain_compression_ops<AB: CurtaAirBuilder>(
+    fn _constrain_compression_ops<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
@@ -383,7 +373,7 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         //   );
     }
 
-    fn constrain_finalize_ops<AB: CurtaAirBuilder>(
+    fn _constrain_finalize_ops<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
