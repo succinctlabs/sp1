@@ -6,7 +6,6 @@ mod register;
 mod segment;
 mod syscall;
 
-use crate::bytes::event;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;

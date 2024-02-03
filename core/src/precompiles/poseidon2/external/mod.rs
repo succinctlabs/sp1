@@ -29,8 +29,8 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
 pub mod external_tests {
 
     use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime, Syscall},
-        utils::{ec::NUM_WORDS_FIELD_ELEMENT, prove, setup_logger, BabyBearPoseidon2, StarkUtils},
+        runtime::{Instruction, Opcode, Program, Syscall},
+        utils::{ec::NUM_WORDS_FIELD_ELEMENT, prove, setup_logger},
     };
 
     pub fn poseidon2_external_program() -> Program {

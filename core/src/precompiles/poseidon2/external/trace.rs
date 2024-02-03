@@ -3,12 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    air::Word,
-    memory::{MemoryCols, MemoryReadWriteCols},
-    runtime::Segment,
-    utils::{ec::NUM_WORDS_FIELD_ELEMENT, Chip},
-};
+use crate::{runtime::Segment, utils::Chip};
 
 use super::{
     columns::{
@@ -28,7 +23,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
         for i in 0..segment.poseidon2_external_events.len() {
             let event = segment.poseidon2_external_events[i];
 
-            // TODO: Prinf-debugging statement. Remove this.
+            // TODO: Printf-debugging statement. Remove this.
             // if i == 0 {
             //     println!("event: {:#?}", event);
             // }
@@ -38,7 +33,11 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                 let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
                 cols.0.segment = F::from_canonical_u32(segment.index);
+
+                // Increment the clock by 4 * (the number of reads + writes for this round).
                 cols.0.clk = F::from_canonical_u32(original_clock + (8 * N * round) as u32);
+
+                // Read.
                 for j in 0..N {
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
                     cols.0.mem[round]
@@ -54,9 +53,9 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                     );
                 }
 
-                // TODO: This is where I do the calculation. For now, I wont' do anything, and write
-                // back what I got.
+                // TODO: This is where I do the calculation. For now, I won't do anything.
 
+                // Write.
                 for j in 0..N {
                     cols.0.mem[round]
                         .populate_write(event.state_writes[round][j], &mut new_field_events);

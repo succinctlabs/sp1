@@ -25,17 +25,11 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         let mut state_write_records =
             [[MemoryWriteRecord::default(); N]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS];
 
-        // Execute the "initialize" phase.
-        // const H_START_IDX: u32 = 64;
-        // let mut hx = [0u32; 8];
-
-        // Read?
         for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
-            let mut input_state = Vec::new();
+            // Read the state.
             for i in 0..N {
                 let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
                 state_read_records[round][i] = record;
-                input_state.push(value);
                 // TODO: Remove this debugging statement.
                 println!("clk: {} value: {}", rt.clk, value);
                 // hx[i] = value;
@@ -44,6 +38,7 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
 
             // TODO: This is where we'll do some operations and calculate the next value.
 
+            // Write the state.
             for i in 0..N {
                 // Adding back 100 + i as specified in the test program.
                 let record = rt.mw(state_ptr.wrapping_add((i as u32) * 4), 100 + i as u32);
