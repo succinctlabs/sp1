@@ -53,6 +53,15 @@ pub fn prove_core(runtime: &mut Runtime) {
     let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| runtime.prove(&config, &mut challenger));
 
+    let cycles = runtime.global_clk;
+    let time = start.elapsed().as_millis();
+    tracing::info!(
+        "cycles={}, e2e={}, khz={:.2}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+    );
+
     // Verify the proof.
     let mut challenger = config.challenger();
     runtime
@@ -75,15 +84,6 @@ pub fn prove_core(runtime: &mut Runtime) {
             ],
         );
     });
-
-    let cycles = runtime.global_clk;
-    let time = start.elapsed().as_millis();
-    tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
-        cycles,
-        time,
-        (cycles as f64 / time as f64),
-    );
 }
 
 pub fn uni_stark_prove<SC, A>(
