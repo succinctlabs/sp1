@@ -189,6 +189,7 @@ impl Runtime {
                             let chip = mem::replace(&mut chips[i], placeholder);
                             chips_v2.push(chip);
                         }
+                        println!("chip: {} proving start", chips_v2[0].name());
                         let res =
                             Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data);
                         println!("chip: {} proving done", chips_v2[0].name());
