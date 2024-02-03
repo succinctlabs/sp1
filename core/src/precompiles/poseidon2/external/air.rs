@@ -6,6 +6,7 @@ use super::columns::{
 };
 use super::Poseidon2ExternalChip;
 use crate::air::CurtaAirBuilder;
+use crate::operations::AddRcOperation;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -28,7 +29,7 @@ where
 
         self.constrain_memory(builder, local);
 
-        // self.constrain_compression_ops(builder, local);
+        self.constrain_compression_ops(builder, local);
 
         // self.constrain_finalize_ops(builder, local);
     }
@@ -87,12 +88,14 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         }
     }
 
-    fn _constrain_compression_ops<AB: CurtaAirBuilder>(
+    fn constrain_compression_ops<AB: CurtaAirBuilder>(
         &self,
-        _builder: &mut AB,
-        _local: &Poseidon2ExternalCols<AB::Var>,
+        builder: &mut AB,
+        local: &Poseidon2ExternalCols<AB::Var>,
     ) {
-        // TODO: Do I need this? What do we use this for in SHA?
+        let input_state = local.0.mem_reads.map(|read| read.access.value);
+
+        AddRcOperation::<AB::F>::eval(builder, input_state, local.0.add_rc, local.0.is_real);
     }
 
     fn _constrain_finalize_ops<AB: CurtaAirBuilder>(

@@ -35,11 +35,14 @@ impl<F: Field> AddRcOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Var>,
-        b: Word<AB::Var>,
+        array: Array<Word<AB::Var>, NUM_WORDS_POSEIDON2_STATE>,
         cols: AddRcOperation<AB::Var>,
-        _is_real: AB::Var,
+        is_real: AB::Var,
     ) {
+        // Dummy constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(
+            array[0][0] * cols.value[0] * is_real - array[0][0] * cols.value[0] * is_real,
+        );
         // let one = AB::Expr::one();
         // let base = AB::F::from_canonical_u32(256);
 
@@ -93,6 +96,5 @@ impl<F: Field> AddRcOperation<F> {
         // }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
     }
 }

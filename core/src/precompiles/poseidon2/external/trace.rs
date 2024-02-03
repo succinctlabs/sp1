@@ -66,10 +66,17 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                     );
                 }
 
-                // TODO: This is where I do the calculation. For now, I won't do anything.
+                cols.0
+                    .add_rc
+                    .populate(segment, &event.state_reads[round].map(|read| read.value));
+
+                // TODO: sbox
+                // TODO: external linear layer
 
                 // Write.
                 for i in 0..NUM_WORDS_STATE {
+                    // TODO: I need to pass in the results of calculation (add_Rc, sbox, ...)
+                    // But for now, I'll leave these as is, one problem at a time!
                     cols.0.mem_writes[i]
                         .populate(event.state_writes[round][i], &mut new_field_events);
                     cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);

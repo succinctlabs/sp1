@@ -7,6 +7,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::Array;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
+use crate::operations::AddRcOperation;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
@@ -60,6 +61,8 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub mem_reads: Array<MemoryReadCols<T>, NUM_WORDS_STATE>,
     pub mem_writes: Array<MemoryWriteCols<T>, NUM_WORDS_STATE>,
     pub mem_addr: Array<T, NUM_WORDS_STATE>,
+
+    pub add_rc: AddRcOperation<T>,
 
     /// The index of the current round.                                                                             
     pub round_number: T,
