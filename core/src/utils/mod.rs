@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-pub const NB_ROWS_PER_SHARD: usize = 1 << 20;
+pub const NB_ROWS_PER_SHARD: usize = 1 << 19;
 
 pub const NB_CELLS_PER_BATCH: usize = NB_ROWS_PER_SHARD * 2000;
 
