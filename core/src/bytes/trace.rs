@@ -11,6 +11,10 @@ impl<F: Field> Chip<F> for ByteChip<F> {
         "Byte".to_string()
     }
 
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut trace = self.initial_trace.clone();
 

@@ -26,6 +26,7 @@ pub struct MainData<SC: StarkConfig> {
     #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
     #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
     pub main_data: PcsProverData<SC>,
+    pub n: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +56,7 @@ pub struct SegmentProof<SC: StarkConfig> {
     pub commulative_sums: Vec<SC::Challenge>,
     pub opening_proof: OpeningProof<SC>,
     pub degree_bits: Vec<usize>,
+    pub n: usize,
 }
 
 #[cfg(not(feature = "perf"))]

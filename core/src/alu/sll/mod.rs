@@ -42,7 +42,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -91,6 +91,17 @@ pub struct ShiftLeftCols<T> {
 impl<F: PrimeField> Chip<F> for ShiftLeft {
     fn name(&self) -> String {
         "ShiftLeft".to_string()
+    }
+
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        segment
+            .shift_left_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .map(|events| Segment {
+                shift_left_events: events.to_vec(),
+                ..segment.clone()
+            })
+            .collect::<Vec<_>>()
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

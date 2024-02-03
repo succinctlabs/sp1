@@ -3,6 +3,7 @@ pub mod event;
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use core::mem::size_of;
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
@@ -14,6 +15,7 @@ use crate::air::FieldAirBuilder;
 use crate::runtime::Segment;
 use crate::utils::pad_to_power_of_two;
 use crate::utils::Chip;
+use crate::utils::NB_ROWS_PER_SHARD;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
@@ -46,6 +48,17 @@ pub struct FieldLTUCols<T> {
 impl<F: PrimeField> Chip<F> for FieldLTUChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
+    }
+
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        segment
+            .field_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .map(|events| Segment {
+                field_events: events.to_vec(),
+                ..segment.clone()
+            })
+            .collect::<Vec<_>>()
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

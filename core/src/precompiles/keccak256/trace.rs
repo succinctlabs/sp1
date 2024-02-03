@@ -18,6 +18,14 @@ use crate::{
 use super::KeccakPermuteChip;
 
 impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
+    fn name(&self) -> String {
+        "KeccakPermute".to_string()
+    }
+
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Figure out number of total rows.
         let mut num_rows = (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
@@ -113,9 +121,5 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_KECCAK_COLS,
         )
-    }
-
-    fn name(&self) -> String {
-        "KeccakPermute".to_string()
     }
 }

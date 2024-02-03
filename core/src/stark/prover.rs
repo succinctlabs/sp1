@@ -50,6 +50,7 @@ impl<SC: StarkConfig> Prover<SC> {
             traces,
             main_commit,
             main_data,
+            n: chips.len(),
         }
     }
 
@@ -317,6 +318,7 @@ impl<SC: StarkConfig> Prover<SC> {
                 commulative_sums,
                 opening_proof,
                 degree_bits: log_degrees,
+                n: main_data.n,
             }
         }
 

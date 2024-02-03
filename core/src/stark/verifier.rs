@@ -47,6 +47,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             commulative_sums,
             opening_proof,
             degree_bits,
+            n,
         } = proof;
 
         // Verify the proof shapes.

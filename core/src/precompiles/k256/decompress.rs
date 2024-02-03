@@ -286,6 +286,10 @@ impl<F: Field> Chip<F> for K256DecompressChip {
         "K256Decompress".to_string()
     }
 
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 

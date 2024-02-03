@@ -26,14 +26,14 @@ use crate::{
     },
 };
 
+pub const NB_ROWS_PER_SHARD: usize = 1 << 21;
+
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>;
 
-    fn shard(&self, segment: &Segment) -> Vec<Segment> {
-        vec![segment.clone()]
-    }
+    fn shard(&self, segment: &Segment) -> Vec<Segment>;
 
     fn receives(&self) -> Vec<Interaction<F>> {
         let mut builder = InteractionBuilder::new(self.width());

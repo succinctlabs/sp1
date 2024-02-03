@@ -8,6 +8,14 @@ use crate::{runtime::Segment, utils::Chip};
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField> Chip<F> for ShaExtendChip {
+    fn name(&self) -> String {
+        "ShaExtend".to_string()
+    }
+
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -89,9 +97,5 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_EXTEND_COLS,
         )
-    }
-
-    fn name(&self) -> String {
-        "ShaExtend".to_string()
     }
 }

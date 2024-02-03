@@ -17,11 +17,22 @@ use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::Chip;
+use crate::utils::{Chip, NB_ROWS_PER_SHARD};
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn name(&self) -> String {
         "CPU".to_string()
+    }
+
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        segment
+            .cpu_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .map(|events| Segment {
+                cpu_events: events.to_vec(),
+                ..segment.clone()
+            })
+            .collect::<Vec<_>>()
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

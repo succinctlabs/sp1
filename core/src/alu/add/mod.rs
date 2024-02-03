@@ -10,7 +10,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::operations::AddOperation;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
@@ -39,6 +39,17 @@ pub struct AddCols<T> {
 impl<F: PrimeField> Chip<F> for AddChip {
     fn name(&self) -> String {
         "Add".to_string()
+    }
+
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        segment
+            .add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .map(|events| Segment {
+                add_events: events.to_vec(),
+                ..segment.clone()
+            })
+            .collect::<Vec<_>>()
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

@@ -41,6 +41,10 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
         "MemoryInit".to_string()
     }
 
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let memory_record = match self.kind {
             MemoryChipKind::Init => &segment.first_memory_record,

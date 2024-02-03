@@ -117,6 +117,10 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         "EdAddAssign".to_string()
     }
 
+    fn shard(&self, segment: &Segment) -> Vec<Segment> {
+        vec![segment.clone()]
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
