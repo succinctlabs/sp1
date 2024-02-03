@@ -4,7 +4,9 @@ use std::mem::size_of;
 
 use valida_derive::AlignedBorrow;
 
+use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
+use crate::memory::MemoryWriteCols;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
@@ -27,10 +29,13 @@ pub struct Poseidon2ExternalCols<T>(
 pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub segment: T,
     pub clk: T,
+    pub mem_read_clk: [T; NUM_WORDS_STATE],
+    pub mem_write_clk: [T; NUM_WORDS_STATE],
 
     pub state_ptr: T,
 
-    pub mem: [MemoryReadWriteCols<T>; NUM_WORDS_STATE],
+    pub mem_reads: [MemoryReadCols<T>; NUM_WORDS_STATE],
+    pub mem_writes: [MemoryWriteCols<T>; NUM_WORDS_STATE],
     pub mem_addr: [T; NUM_WORDS_STATE],
 
     pub is_external: T,
@@ -45,8 +50,11 @@ impl<T: Default, const NUM_WORDS_STATE: usize> Default
         Self {
             segment: T::default(),
             clk: T::default(),
+            mem_read_clk: core::array::from_fn(|_| T::default()),
+            mem_write_clk: core::array::from_fn(|_| T::default()),
             state_ptr: T::default(),
-            mem: core::array::from_fn(|_| MemoryReadWriteCols::<T>::default()),
+            mem_reads: core::array::from_fn(|_| MemoryReadCols::<T>::default()),
+            mem_writes: core::array::from_fn(|_| MemoryWriteCols::<T>::default()),
             mem_addr: core::array::from_fn(|_| T::default()),
             is_external: T::default(),
             is_real: T::default(),

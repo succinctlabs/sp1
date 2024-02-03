@@ -50,9 +50,16 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         for round in 0..NUM_WORDS_STATE {
             builder.constraint_memory_access(
                 local.0.segment,
-                local.0.clk,
+                local.0.mem_read_clk[round],
                 local.0.mem_addr[round],
-                &local.0.mem[round],
+                &local.0.mem_reads[round],
+                local.0.is_external,
+            );
+            builder.constraint_memory_access(
+                local.0.segment,
+                local.0.mem_write_clk[round],
+                local.0.mem_addr[round],
+                &local.0.mem_writes[round],
                 local.0.is_external,
             );
         }

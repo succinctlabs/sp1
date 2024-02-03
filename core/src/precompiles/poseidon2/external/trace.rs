@@ -33,21 +33,23 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
             //     println!("event: {:#?}", event);
             // }
 
-            let original_clock: u32 = event.clk;
+            let mut clk = event.clk;
             for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
                 let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
                 cols.0.segment = F::from_canonical_u32(segment.index);
 
                 // Increment the clock by 4 * (the number of reads + writes for this round).
-                cols.0.clk =
-                    F::from_canonical_u32(original_clock + (8 * NUM_WORDS_STATE * round) as u32);
+                cols.0.clk = F::from_canonical_u32(clk);
 
                 // Read.
                 for i in 0..NUM_WORDS_STATE {
                     cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
-                    cols.0.mem[i].populate_read(event.state_reads[round][i], &mut new_field_events);
+                    cols.0.mem_reads[i]
+                        .populate(event.state_reads[round][i], &mut new_field_events);
                     cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
+                    cols.0.mem_read_clk[i] = F::from_canonical_u32(clk);
+                    clk += 4;
 
                     // TODO: Remove this printf-debugging statement.
                     // println!("new_field_events: {:?}", new_field_events);
@@ -61,9 +63,11 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
 
                 // Write.
                 for i in 0..NUM_WORDS_STATE {
-                    cols.0.mem[i]
-                        .populate_write(event.state_writes[round][i], &mut new_field_events);
+                    cols.0.mem_writes[i]
+                        .populate(event.state_writes[round][i], &mut new_field_events);
                     cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
+                    cols.0.mem_write_clk[i] = F::from_canonical_u32(clk);
+                    clk += 4;
 
                     println!(
                         "event.state_write[{}].value: {:?}",
