@@ -26,7 +26,9 @@ use crate::{
     },
 };
 
-pub const NB_ROWS_PER_SHARD: usize = 1 << 23;
+pub const NB_ROWS_PER_SHARD: usize = 1 << 21;
+
+pub const NB_CELLS_PER_BATCH: usize = NB_ROWS_PER_SHARD * 1000;
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
@@ -66,6 +68,26 @@ pub trait AirChip<SC: StarkConfig>:
 {
     fn air_width(&self) -> usize {
         <Self as BaseAir<SC::Val>>::width(self)
+    }
+
+    fn batch_shard(&self, segment: &Segment) -> Vec<Vec<Segment>> {
+        // The width.
+        let width = self.air_width();
+
+        // Rows split by NB_ROWS_PER_SHARD.
+        let shards = self.shard(segment);
+
+        // We want to homogenize the workload, so we calculate the total trace area and calculate
+        // the number of shards to process in parallel.
+        let batch_size = std::cmp::max(
+            NB_CELLS_PER_BATCH / (width * shards.len() * NB_ROWS_PER_SHARD),
+            1,
+        );
+
+        shards
+            .chunks(batch_size)
+            .map(|chunk| chunk.to_vec())
+            .collect()
     }
 
     fn as_chip(&self) -> &dyn Chip<SC::Val>;

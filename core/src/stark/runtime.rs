@@ -120,7 +120,7 @@ impl Runtime {
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-    ) -> (Vec<SegmentProof<SC>>, SegmentProof<SC>)
+    ) -> (Vec<Vec<SegmentProof<SC>>>, SegmentProof<SC>)
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -137,51 +137,64 @@ impl Runtime {
         });
 
         // Commit.
-        let main_datas: Vec<MainData<SC>> = chips
+        let main_datas: Vec<Vec<MainData<SC>>> = chips
             .par_iter()
             .map(|chip| {
-                let shards = chip.shard(&self.segment);
-                let n = shards.len();
-                let traces = shards
+                let batch_shards = chip.batch_shard(&self.segment);
+                batch_shards
                     .into_iter()
-                    .map(|mut shard| chip.generate_trace(&mut shard))
-                    .collect::<Vec<_>>();
-                println!(
-                    "chip: {} height: {} nb_shards: {}",
-                    chip.name(),
-                    traces.iter().map(|t| t.height()).sum::<usize>(),
-                    n
-                );
-                let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-                MainData {
-                    traces,
-                    main_commit,
-                    main_data,
-                    n,
-                }
+                    .map(|shards| {
+                        let n = shards.len();
+                        let traces = shards
+                            .into_iter()
+                            .map(|mut shard| chip.generate_trace(&mut shard))
+                            .collect::<Vec<_>>();
+                        println!(
+                            "chip: {} height: {} nb_shards: {}",
+                            chip.name(),
+                            traces.iter().map(|t| t.height()).sum::<usize>(),
+                            n
+                        );
+                        let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+                        MainData {
+                            traces,
+                            main_commit,
+                            main_data,
+                            n,
+                        }
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 
         // Observe.
-        main_datas.iter().for_each(|main_data| {
-            challenger.observe(main_data.main_commit.clone());
+        main_datas.iter().for_each(|main_data_arr| {
+            main_data_arr.iter().for_each(|main_data| {
+                challenger.observe(main_data.main_commit.clone());
+            });
         });
 
         // Generate chip proofs.
-        let local_proofs: Vec<SegmentProof<SC>> = main_datas
+        let local_proofs: Vec<Vec<SegmentProof<SC>>> = main_datas
             .into_par_iter()
             .enumerate()
-            .map(|(i, main_data)| {
-                let mut chips_v2 = Vec::new();
-                for _ in 0..main_data.n {
-                    let mut chips = Self::segment_chips::<SC>();
-                    let placeholder = Box::new(ProgramChip::new());
-                    let chip = mem::replace(&mut chips[i], placeholder);
-                    chips_v2.push(chip);
-                }
-                let res = Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data);
-                println!("chip: {} proving done", chips_v2[0].name());
-                res
+            .map(|(i, main_data_arr)| {
+                main_data_arr
+                    .into_par_iter()
+                    .map(|main_data| {
+                        let mut chips_v2 = Vec::new();
+                        for _ in 0..main_data.n {
+                            let mut chips = Self::segment_chips::<SC>();
+                            let placeholder = Box::new(ProgramChip::new());
+                            let chip = mem::replace(&mut chips[i], placeholder);
+                            chips_v2.push(chip);
+                        }
+                        let res =
+                            Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data);
+                        println!("chip: {} proving done", chips_v2[0].name());
+                        res
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
         println!("local proofs done");
@@ -207,7 +220,7 @@ impl Runtime {
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-        segments_proofs: &[SegmentProof<SC>],
+        segments_proofs: &[Vec<SegmentProof<SC>>],
         global_proof: &SegmentProof<SC>,
     ) -> Result<(), ProgramVerificationError>
     where
@@ -222,25 +235,30 @@ impl Runtime {
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segments_proofs.iter().for_each(|proof| {
-                challenger.observe(proof.commitment.main_commit.clone());
+            segments_proofs.iter().for_each(|proofs| {
+                proofs.iter().for_each(|proof| {
+                    challenger.observe(proof.commitment.main_commit.clone());
+                })
             });
         });
 
         // Verify the segment proofs.
         let segment_chips = Self::segment_chips::<SC>();
-        for (i, (chip, proof)) in segment_chips.into_iter().zip(segments_proofs).enumerate() {
+        for (i, (chip, proof_arr)) in segment_chips.into_iter().zip(segments_proofs).enumerate() {
             tracing::info_span!("verifying segment", segment = chip.name()).in_scope(|| {
-                let mut chips_v2 = Vec::new();
-                for _ in 0..proof.n {
-                    let mut chips = Self::segment_chips::<SC>();
-                    let placeholder = Box::new(ProgramChip::new());
-                    let chip = mem::replace(&mut chips[i], placeholder);
-                    chips_v2.push(chip);
+                for proof in proof_arr {
+                    let mut chips_v2 = Vec::new();
+                    for _ in 0..proof.n {
+                        let mut chips = Self::segment_chips::<SC>();
+                        let placeholder = Box::new(ProgramChip::new());
+                        let chip = mem::replace(&mut chips[i], placeholder);
+                        chips_v2.push(chip);
+                    }
+                    Verifier::verify(config, &chips_v2, &mut challenger.clone(), proof)
+                        .map_err(ProgramVerificationError::InvalidSegmentProof)
+                        .unwrap();
                 }
-                Verifier::verify(config, &chips_v2, &mut challenger.clone(), proof)
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
-            })?;
+            });
         }
 
         // Verifiy the global proof.
@@ -254,12 +272,14 @@ impl Runtime {
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
         {
-            for proof in segments_proofs.iter() {
-                sum += proof
-                    .commulative_sums
-                    .iter()
-                    .copied()
-                    .sum::<SC::Challenge>();
+            for proofs in segments_proofs.iter() {
+                for proof in proofs {
+                    sum += proof
+                        .commulative_sums
+                        .iter()
+                        .copied()
+                        .sum::<SC::Challenge>();
+                }
             }
             sum += global_proof
                 .commulative_sums
