@@ -4,12 +4,13 @@ use crate::{
     runtime::Register,
 };
 
-use super::{columns::POSEIDON2_DEFAULT_EXTERNAL_ROUNDS, Poseidon2ExternalChip};
+use super::{columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, Poseidon2ExternalChip};
 
 /// Poseidon2 external precompile execution. `NUM_WORDS_STATE` is the number of words in the state.
 impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
     // TODO: How do I calculate this? I just copied and pasted these from sha as a starting point.
-    pub const NUM_CYCLES: u32 = (8 * POSEIDON2_DEFAULT_EXTERNAL_ROUNDS * NUM_WORDS_STATE) as u32;
+    pub const NUM_CYCLES: u32 =
+        (8 * POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS * NUM_WORDS_STATE) as u32;
 
     pub fn execute(rt: &mut PrecompileRuntime) -> (u32, Poseidon2ExternalEvent<NUM_WORDS_STATE>) {
         // Read `w_ptr` from register a0.
@@ -19,12 +20,12 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         // precompile.
         let saved_clk = rt.clk;
         let saved_state_ptr = state_ptr;
-        let mut state_read_records =
-            [[MemoryReadRecord::default(); NUM_WORDS_STATE]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS];
-        let mut state_write_records =
-            [[MemoryWriteRecord::default(); NUM_WORDS_STATE]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS];
+        let mut state_read_records = [[MemoryReadRecord::default(); NUM_WORDS_STATE];
+            POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
+        let mut state_write_records = [[MemoryWriteRecord::default(); NUM_WORDS_STATE];
+            POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
 
-        for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+        for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
             // Read the state.
             for i in 0..NUM_WORDS_STATE {
                 let (record, value) = rt.mr(state_ptr + (i as u32) * 4);

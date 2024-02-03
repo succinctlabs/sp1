@@ -10,9 +10,12 @@ use crate::memory::MemoryWriteCols;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
+
+// TODO: These constants may need to live in mod.rs
+// Also, which one of these should be generic?
 pub const POSEIDON2_DEFAULT_ROUNDS_F: usize = 8;
 pub const _POSEIDON2_DEFAULT_ROUNDS_P: usize = 22;
-pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
+pub const POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
 
 /// Cols to perform the first external round of Poseidon2.
 ///
@@ -50,6 +53,12 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub mem_reads: Array<MemoryReadCols<T>, NUM_WORDS_STATE>,
     pub mem_writes: Array<MemoryWriteCols<T>, NUM_WORDS_STATE>,
     pub mem_addr: Array<T, NUM_WORDS_STATE>,
+
+    /// The index of the current round.                                                                             
+    pub round_number: T,
+
+    /// A boolean array whose `n`th element indicates whether this is the `n`th round.                              
+    pub is_round_n: Array<T, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS>,
 
     pub is_external: T,
 

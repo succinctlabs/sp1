@@ -7,7 +7,7 @@ use crate::{runtime::Segment, utils::Chip};
 
 use super::{
     columns::{
-        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_EXTERNAL_ROUNDS,
+        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
     },
     Poseidon2ExternalChip,
 };
@@ -34,13 +34,20 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
             // }
 
             let mut clk = event.clk;
-            for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+            for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
                 let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
-                cols.0.segment = F::from_canonical_u32(segment.index);
 
-                // Increment the clock by 4 * (the number of reads + writes for this round).
-                cols.0.clk = F::from_canonical_u32(clk);
+                // Assign basic values to the columns.
+                {
+                    cols.0.segment = F::from_canonical_u32(segment.index);
+
+                    // Increment the clock by 4 * (the number of reads + writes for this round).
+                    cols.0.clk = F::from_canonical_u32(clk);
+
+                    cols.0.round_number = F::from_canonical_u32(round as u32);
+                    cols.0.is_round_n[round] = F::one();
+                }
 
                 // Read.
                 for i in 0..NUM_WORDS_STATE {

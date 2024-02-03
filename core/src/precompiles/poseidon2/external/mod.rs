@@ -3,7 +3,7 @@ use crate::{
     utils::ec::NUM_WORDS_FIELD_ELEMENT,
 };
 
-use self::columns::POSEIDON2_DEFAULT_EXTERNAL_ROUNDS;
+use self::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 
 mod air;
 mod columns;
@@ -23,8 +23,9 @@ pub const NUM_WORDS_POSEIDON2_STATE: usize = NUM_WORDS_FIELD_ELEMENT;
 pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
     pub clk: u32,
     pub state_ptr: u32,
-    pub state_reads: [[MemoryReadRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
-    pub state_writes: [[MemoryWriteRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_EXTERNAL_ROUNDS],
+    pub state_reads: [[MemoryReadRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
+    pub state_writes:
+        [[MemoryWriteRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
 }
 
 pub struct Poseidon2ExternalChip<const NUM_WORDS_STATE: usize>;
