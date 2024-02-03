@@ -27,7 +27,10 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
 
         for i in 0..segment.poseidon2_external_events.len() {
             let event = segment.poseidon2_external_events[i];
-            let mut next_clock: u32 = event.clk + 4;
+            if i == 0 {
+                println!("event: {:#?}", event);
+            }
+            let mut next_clock: u32 = event.clk;
 
             //let og_h = event.h;
             //let mut v = [0u32; 8].map(Word::from);
@@ -59,7 +62,7 @@ impl<F: PrimeField, const N: usize> Chip<F> for Poseidon2ExternalChip<N> {
                         F::from_canonical_u32(event.state_ptr + (j * 4) as u32);
 
                     // TODO: Remove this printf-debugging statement.
-                    println!("new_field_events: {:?}", new_field_events);
+                    // println!("new_field_events: {:?}", new_field_events);
                     println!(
                         "event.state_reads[{}].value: {:?}",
                         j, event.state_reads[round][j].value,

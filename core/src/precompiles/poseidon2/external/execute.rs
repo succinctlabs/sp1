@@ -37,7 +37,7 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
                 state_read_records[round][i] = record;
                 input_state.push(value);
                 // TODO: Remove this debugging statement.
-                println!("value: {}", value);
+                println!("clk: {} value: {}", rt.clk, value);
                 // hx[i] = value;
                 rt.clk += 4;
             }
@@ -86,7 +86,7 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
             for i in 0..N {
                 let record = rt.mw(
                     state_ptr.wrapping_add((i as u32) * 4),
-                    200 + i as u32, // TODO: Just for fun, i'm putting 200 + i back into the memory.
+                    100 + i as u32, // TODO: Just for fun, i'm putting 200 + i back into the memory.
                 );
                 state_write_records[round][i] = record;
                 rt.clk += 4;
