@@ -179,10 +179,12 @@ impl Runtime {
                     let chip = mem::replace(&mut chips[i], placeholder);
                     chips_v2.push(chip);
                 }
-                Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data)
+                let res = Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data);
+                println!("chip: {} proving done", chips_v2[0].name());
+                res
             })
             .collect::<Vec<_>>();
-	println!("local proofs done");
+        println!("local proofs done");
 
         // Generate global proofs.
         let global_chips = Self::global_chips::<SC>();
@@ -196,7 +198,7 @@ impl Runtime {
                 global_main_data,
             )
         });
-	println!("global proofs done");
+        println!("global proofs done");
 
         (local_proofs, global_proof)
     }
