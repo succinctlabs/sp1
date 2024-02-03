@@ -20,6 +20,7 @@ p3-fri = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-keccak = { workspace = true }
 p3-keccak-air = { workspace = true }
+p3-blake3 = { workspace = true }
 p3-ldt = { workspace = true }
 p3-mds = { workspace = true }
 p3-merkle-tree = { workspace = true }

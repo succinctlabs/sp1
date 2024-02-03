@@ -22,6 +22,7 @@ p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tami
 p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
 p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
 p3-keccak-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
+p3-blake3 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
 p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
 p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
 p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/poseidon2" }
