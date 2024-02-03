@@ -23,7 +23,6 @@ use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use itertools::Itertools;
 use nohash_hasher::BuildNoHashHasher;
-use num::traits::ops::mul_add;
 pub use opcode::*;
 pub use program::*;
 pub use register::*;

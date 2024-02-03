@@ -28,7 +28,7 @@ use crate::{
 
 pub const NB_ROWS_PER_SHARD: usize = 1 << 18;
 
-pub const NB_CELLS_PER_BATCH: usize = NB_ROWS_PER_SHARD * 200;
+pub const NB_CELLS_PER_BATCH: usize = NB_ROWS_PER_SHARD * 1000;
 
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
