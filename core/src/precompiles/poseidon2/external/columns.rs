@@ -10,7 +10,9 @@ use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
 pub const POSEIDON2_DEFAULT_ROUNDS_F: usize = 8;
 pub const _POSEIDON2_DEFAULT_ROUNDS_P: usize = 22;
-pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
+// pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
+// TODO: Change this back to the above line.
+pub const POSEIDON2_DEFAULT_EXTERNAL_ROUNDS: usize = 1;
 
 // It's necessary to split the struct into two parts because of the const generic parameter.
 // AlignedBorrow doesn't like a struct with more than one const generic parameter.

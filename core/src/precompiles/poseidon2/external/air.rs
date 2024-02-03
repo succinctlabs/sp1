@@ -33,7 +33,7 @@ where
     }
 }
 
-impl<const N: usize> Poseidon2ExternalChip<N> {
+impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
     fn _constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         _builder: &mut AB,
@@ -47,7 +47,7 @@ impl<const N: usize> Poseidon2ExternalChip<N> {
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
-        for round in 0..POSEIDON2_DEFAULT_EXTERNAL_ROUNDS {
+        for round in 0..NUM_WORDS_STATE {
             builder.constraint_memory_access(
                 local.0.segment,
                 local.0.clk,
