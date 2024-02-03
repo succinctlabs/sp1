@@ -57,6 +57,7 @@ default = ["parallel", "perf"]
 debug = ["parallel"]
 debug-proof = ["parallel", "perf"]
 serial = []
+neon = ["p3-blake3/neon"]
 
 [[bench]]
 name = "main"
