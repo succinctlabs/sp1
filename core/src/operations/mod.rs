@@ -7,6 +7,7 @@
 mod add;
 mod add4;
 mod add5;
+mod add_rc;
 mod and;
 pub mod field;
 mod fixed_rotate_right;
@@ -21,6 +22,7 @@ mod xor;
 pub use add::*;
 pub use add4::*;
 pub use add5::*;
+pub use add_rc::*;
 pub use and::*;
 pub use fixed_rotate_right::*;
 pub use fixed_shift_right::*;
