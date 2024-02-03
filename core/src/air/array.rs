@@ -48,8 +48,14 @@ impl<F: Field, const SIZE: usize> From<&[u32]> for Array<F, SIZE> {
             .map(|x| F::from_canonical_u32(*x))
             .collect::<Vec<_>>()
             .try_into()
-            .unwrap();
+            .expect("Failed to convert slice to Array: size mismatch");
         Array(inner)
+    }
+}
+
+impl<F: Field, const SIZE: usize> From<[u32; SIZE]> for Array<F, SIZE> {
+    fn from(array: [u32; SIZE]) -> Self {
+        Array(array.map(F::from_canonical_u32))
     }
 }
 
