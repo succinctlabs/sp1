@@ -6,7 +6,6 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
-// use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
 
@@ -19,7 +18,6 @@ use crate::air::CurtaAirBuilder;
 use super::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 use super::columns::POSEIDON2_ROUND_CONSTANTS;
 use super::NUM_LIMBS_POSEIDON2_STATE;
-// use p3_field::AbstractField;
 
 /// A set of columns needed to compute the `add_rc` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
