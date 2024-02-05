@@ -108,12 +108,10 @@ impl Runtime {
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        // let bytes = ByteChip::<SC::Val>::new();
         [
             Box::new(memory_init),
             Box::new(memory_finalize),
             Box::new(program_memory_init),
-            // Box::new(bytes),
         ]
     }
 
@@ -136,15 +134,13 @@ impl Runtime {
         P: Prover<SC>,
         OpeningProof<SC>: Send + Sync,
     {
-        let segment_chips = Self::segment_chips::<SC>();
-
         // Fill in events for the master segment.
         let chips = Self::segment_chips::<SC>();
         chips.iter().for_each(|chip| {
             chip.generate_trace(&mut self.segment);
         });
 
-        const NB_ROWS_PER_SHARD: usize = 1 << 19;
+        const NB_ROWS_PER_SHARD: usize = 1 << 18;
         let cpu_events = self
             .segment
             .cpu_events
@@ -258,28 +254,28 @@ impl Runtime {
         .max()
         .unwrap();
 
-        println!("nb_segments: {}", nb_segments);
-        println!("cpu_shards: {}", cpu_events.len());
-        println!("add_shards: {}", add_events.len());
-        println!("mul_shards: {}", mul_events.len());
-        println!("sub_shards: {}", sub_events.len());
-        println!("bitwise_shards: {}", bitwise_events.len());
-        println!("shift_left_shards: {}", shift_left_events.len());
-        println!("shift_right_shards: {}", shift_right_events.len());
-        println!("divrem_shards: {}", divrem_events.len());
-        println!("lt_shards: {}", lt_events.len());
-        println!("field_shards: {}", field_events.len());
-        println!("sha_extend_shards: {}", sha_extend_events.len());
-        println!("sha_compress_shards: {}", sha_compress_events.len());
-        println!("keccak_permute_shards: {}", keccak_permute_events.len());
-        println!("ed_add_shards: {}", ed_add_events.len());
-        println!("ed_decompress_shards: {}", ed_decompress_events.len());
-        println!("weierstrass_add_shards: {}", weierstrass_add_events.len());
-        println!(
+        tracing::debug!("nb_segments: {}", nb_segments);
+        tracing::debug!("cpu_shards: {}", cpu_events.len());
+        tracing::debug!("add_shards: {}", add_events.len());
+        tracing::debug!("mul_shards: {}", mul_events.len());
+        tracing::debug!("sub_shards: {}", sub_events.len());
+        tracing::debug!("bitwise_shards: {}", bitwise_events.len());
+        tracing::debug!("shift_left_shards: {}", shift_left_events.len());
+        tracing::debug!("shift_right_shards: {}", shift_right_events.len());
+        tracing::debug!("divrem_shards: {}", divrem_events.len());
+        tracing::debug!("lt_shards: {}", lt_events.len());
+        tracing::debug!("field_shards: {}", field_events.len());
+        tracing::debug!("sha_extend_shards: {}", sha_extend_events.len());
+        tracing::debug!("sha_compress_shards: {}", sha_compress_events.len());
+        tracing::debug!("keccak_permute_shards: {}", keccak_permute_events.len());
+        tracing::debug!("ed_add_shards: {}", ed_add_events.len());
+        tracing::debug!("ed_decompress_shards: {}", ed_decompress_events.len());
+        tracing::debug!("weierstrass_add_shards: {}", weierstrass_add_events.len());
+        tracing::debug!(
             "weierrstrass_double_shards: {}",
             weierrstrass_double_events.len()
         );
-        println!("k256_decompress_shards: {}", k256_decompress_events.len());
+        tracing::debug!("k256_decompress_shards: {}", k256_decompress_events.len());
 
         let mut segments = Vec::new();
         for i in 0..nb_segments {
@@ -404,6 +400,7 @@ impl Runtime {
             sha_count,
         );
 
+        let segment_chips = Self::segment_chips::<SC>();
         let (commitments, segment_main_data) =
             P::generate_segment_traces::<F, EF>(config, &mut segments, &segment_chips);
 
@@ -538,7 +535,7 @@ impl Runtime {
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
-        // #[cfg(feature = "perf")]
+        #[cfg(feature = "perf")]
         {
             for proof in segments_proofs.iter() {
                 sum += proof

@@ -6,7 +6,6 @@ const FIBONACCI_ELF: &[u8] =
 fn main() {
     std::env::set_var("RUST_LOG", "info");
     utils::setup_logger();
-    // utils::setup_tracer();
     let prover = SuccinctProver::new();
     prover.run_and_prove(FIBONACCI_ELF);
 }

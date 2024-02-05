@@ -7,7 +7,6 @@ use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, StarkConfig};
 use crate::runtime::Segment;
-use crate::stark::debug_constraints;
 use crate::stark::permutation::generate_permutation_trace;
 use crate::utils::AirChip;
 use p3_air::TwoRowMatrixView;
@@ -345,17 +344,17 @@ where
         }
 
         // Check that the table-specific constraints are correct for each chip.
-        // #[cfg(not(feature = "perf"))]
-        // tracing::info_span!("debug constraints").in_scope(|| {
-        // for i in 0..chips.len() {
-        //     debug_constraints(
-        //         &*chips[i],
-        //         &traces[i],
-        //         &permutation_traces[i],
-        //         &permutation_challenges,
-        //     );
-        // }
-        // });
+        #[cfg(not(feature = "perf"))]
+        tracing::info_span!("debug constraints").in_scope(|| {
+            for i in 0..chips.len() {
+                debug_constraints(
+                    &*chips[i],
+                    &traces[i],
+                    &permutation_traces[i],
+                    &permutation_challenges,
+                );
+            }
+        });
 
         #[cfg(not(feature = "perf"))]
         return SegmentProof {
@@ -527,11 +526,11 @@ where
     {
         let num_segments = segments.len();
         // Batch into at most 16 chunks (and at least 1) to limit parallelism.
-        // let chunk_size = max(segments.len() / 16, 1);
+        let chunk_size = max(segments.len() / 16, 1);
         let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all segments").in_scope(|| {
                 segments
-                    .chunks_mut(1)
+                    .chunks_mut(chunk_size)
                     .par_bridge()
                     .flat_map(|segments| {
                         segments

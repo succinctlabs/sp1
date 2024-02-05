@@ -21,7 +21,7 @@ pub trait StarkUtils: StarkConfig {
     fn uni_stark_config(&self) -> &Self::UniConfig;
 }
 
-// #[cfg(not(feature = "perf"))]
+#[cfg(not(feature = "perf"))]
 use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
 pub fn get_cycles(program: Program) -> u64 {

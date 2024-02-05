@@ -41,7 +41,7 @@ where
         builder.assert_bool(local.is_real);
 
         // Clock constraints.
-        // builder.when_first_row().assert_one(local.clk);
+        builder.when_first_row().assert_one(local.clk);
 
         // TODO: handle precompile dynamic clk
         // builder
