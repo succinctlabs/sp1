@@ -6,6 +6,7 @@ mod add_rc;
 mod air;
 mod columns;
 mod execute;
+mod external_linear_layer;
 mod sbox;
 mod trace;
 
