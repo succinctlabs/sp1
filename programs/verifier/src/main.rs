@@ -55,10 +55,6 @@ fn main() {
 
     // log::info!("Verifying proof: {}", args.proof_directory.as_str());
 
-    println!("cycle-tracker-start: g");
-    let y = 1 + 1;
-    println!("cycle-tracker-end: g");
-
     println!("cycle-tracker-start: deserialize");
     let segment_proofs_bytes = include_bytes!("./fib_proofs/segment_proofs.bytes");
     let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
