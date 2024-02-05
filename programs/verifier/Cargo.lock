@@ -1291,6 +1291,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 name = "verifier-zkvm"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "log",
  "p3-commit",
  "p3-field",

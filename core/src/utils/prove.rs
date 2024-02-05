@@ -135,6 +135,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use crate::stark::StarkConfig;
 
@@ -168,6 +169,25 @@ pub(super) mod baby_bear_poseidon2 {
     pub struct BabyBearPoseidon2 {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearPoseidon2 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_unit()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for BabyBearPoseidon2 {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserializer.deserialize_any(serde::de::IgnoredAny)?;
+            Ok(Self::new())
+        }
     }
 
     impl BabyBearPoseidon2 {

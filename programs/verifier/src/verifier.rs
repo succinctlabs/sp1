@@ -30,12 +30,13 @@ fn main() {
     utils::setup_logger();
 
     let proof_directory = "fib_proofs";
-    let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
+    let segment_proofs_bytes = include_bytes!("./fib_proofs/segment_proofs.bytes");
     let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
-        serde_json::from_str(segment_proofs_json).unwrap();
+        bincode::deserialize(&segment_proofs_bytes[..]).unwrap();
 
-    let global_proof_json = include_str!("./fib_proofs/global_proof.json");
-    let global_proof = serde_json::from_str(global_proof_json).unwrap();
+    let global_proof_bytes = include_bytes!("./fib_proofs/global_proof.bytes");
+    let global_proof: SegmentProof<BabyBearPoseidon2> =
+        bincode::deserialize(&global_proof_bytes[..]).unwrap();
 
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();

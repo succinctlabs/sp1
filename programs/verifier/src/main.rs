@@ -59,20 +59,27 @@ fn main() {
     println!("cycle-tracker-end: g");
 
     println!("cycle-tracker-start: deserialize");
-    let segment_proofs_json = include_str!("./fib_proofs/segment_proofs.json");
+    let segment_proofs_bytes = include_bytes!("./fib_proofs/segment_proofs.bytes");
     let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
-        serde_json::from_str(segment_proofs_json).unwrap();
+        bincode::deserialize(&segment_proofs_bytes[..]).unwrap();
 
-    let global_proof_json = include_str!("./fib_proofs/global_proof.json");
-    let global_proof = serde_json::from_str(global_proof_json).unwrap();
+    let global_proof_bytes = include_bytes!("./fib_proofs/global_proof.bytes");
+    let global_proof: SegmentProof<BabyBearPoseidon2> =
+        bincode::deserialize(&global_proof_bytes[..]).unwrap();
     println!("cycle-tracker-end: deserialize");
 
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
 
+    println!("cycle-tracker-start: runtime_create");
     let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
     let program = Program::from(program_elf);
     let mut runtime = Runtime::new(program);
+    println!("cycle-tracker-end: runtime_create");
+
+    // let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    // let program = Program::from(program_elf);
+    // let mut runtime = Runtime::new(program);
     black_box(verify::<_, _, BabyBearPoseidon2>(
         black_box(&mut runtime),
         black_box(&config),

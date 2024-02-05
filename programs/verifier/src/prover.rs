@@ -7,6 +7,10 @@ use succinct_core::runtime::Runtime;
 use succinct_core::utils::BabyBearPoseidon2;
 use succinct_core::utils::StarkUtils;
 
+use succinct_core::stark::SegmentProof;
+
+use bincode::serialize;
+
 // #[derive(Parser, Debug, Clone)]
 // #[command(about = "Profile a program.")]
 // struct ProverArgs {
@@ -48,9 +52,11 @@ fn main() {
     }
 
     // Create the segment proofs file
-    let segment_proofs_file_name = format!("{}/segment_proofs.json", directory_name);
-    let segment_proofs_json = serde_json::to_string(&segment_proofs).unwrap();
-    match fs::write(segment_proofs_file_name, segment_proofs_json) {
+    let segment_proofs_file_name = format!("{}/segment_proofs.bytes", directory_name);
+    let segment_proofs_bytes = bincode::serialize(&segment_proofs).unwrap();
+    let _decoded_test: Vec<SegmentProof<BabyBearPoseidon2>> =
+        bincode::deserialize(&segment_proofs_bytes[..]).unwrap();
+    match fs::write(segment_proofs_file_name, segment_proofs_bytes) {
         Ok(_) => (),
         Err(e) => {
             log::error!("Error writing segment proofs file: {}", e);
@@ -59,9 +65,11 @@ fn main() {
     }
 
     // Save the global proof
-    let global_proof_file_name = format!("{}/global_proof.json", directory_name);
-    let global_proof_json = serde_json::to_string(&global_proof).unwrap();
-    match fs::write(global_proof_file_name, global_proof_json) {
+    let global_proof_file_name = format!("{}/global_proof.bytes", directory_name);
+    let global_proof_bytes = bincode::serialize(&global_proof).unwrap();
+    let _decoded_test: SegmentProof<BabyBearPoseidon2> =
+        bincode::deserialize(&global_proof_bytes[..]).unwrap();
+    match fs::write(global_proof_file_name, global_proof_bytes) {
         Ok(_) => (),
         Err(e) => {
             log::error!("Error writing global proof file: {}", e);
