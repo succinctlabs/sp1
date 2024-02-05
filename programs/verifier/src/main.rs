@@ -65,7 +65,7 @@ fn main() {
 
     let global_proof_json = include_str!("./fib_proofs/global_proof.json");
     let global_proof = serde_json::from_str(global_proof_json).unwrap();
-    println!("cycle-tracker-start: deserialize");
+    println!("cycle-tracker-end: deserialize");
 
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
