@@ -23,10 +23,12 @@ pub const POSEIDON2_DEFAULT_TOTAL_ROUNDS: usize =
     POSEIDON2_DEFAULT_ROUNDS_F + POSEIDON2_DEFAULT_ROUNDS_P;
 pub const POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
 
-// TODO: Obviously this can't be a 0 array but I don't know what it should be.
+// TODO: Obviously, we have to use a different constant. But for now, I'll just use 1. It feels
+// simple enough that debugging will be easy, but since it's not 0, it might be a better sanity
+// check.
 pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_WORDS_FIELD_ELEMENT];
     POSEIDON2_DEFAULT_TOTAL_ROUNDS] =
-    [[0; NUM_WORDS_FIELD_ELEMENT]; POSEIDON2_DEFAULT_TOTAL_ROUNDS];
+    [[1; NUM_WORDS_FIELD_ELEMENT]; POSEIDON2_DEFAULT_TOTAL_ROUNDS];
 
 /// Cols to perform the first external round of Poseidon2.
 ///
