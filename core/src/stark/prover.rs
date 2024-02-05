@@ -1,35 +1,53 @@
-use std::marker::PhantomData;
-
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
-
-use crate::runtime::Segment;
-use crate::stark::permutation::generate_permutation_trace;
-use crate::utils::AirChip;
-use p3_air::TwoRowMatrixView;
-use p3_challenger::{CanObserve, FieldChallenger};
-use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::PackedField;
-use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
-use p3_field::{PrimeField32, TwoAdicField};
-use p3_matrix::MatrixRows;
-use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
-use p3_maybe_rayon::prelude::*;
-
-use p3_util::log2_ceil_usize;
-use p3_util::log2_strict_usize;
 
 use super::folder::ProverConstraintFolder;
 use super::permutation::eval_permutation_constraints;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, StarkConfig};
+use crate::runtime::Segment;
+use crate::stark::permutation::generate_permutation_trace;
+use crate::utils::AirChip;
+use p3_air::TwoRowMatrixView;
+use p3_challenger::{CanObserve, FieldChallenger};
+use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
+use p3_field::{ExtensionField, PackedField, PrimeField};
+use p3_field::{PrimeField32, TwoAdicField};
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::MatrixRows;
+use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
+use p3_maybe_rayon::prelude::*;
+use p3_util::log2_ceil_usize;
+use p3_util::log2_strict_usize;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::cmp::max;
+use std::marker::PhantomData;
 
-pub(crate) struct Prover<SC>(PhantomData<SC>);
+pub trait Prover<SC>
+where
+    SC: StarkConfig,
+{
+    fn generate_segment_traces<F, EF>(
+        config: &SC,
+        segments: &mut Vec<Segment>,
+        chips: &[Box<dyn AirChip<SC>>],
+    ) -> (
+        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
+        Vec<MainDataWrapper<SC>>,
+    )
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC::Challenger: Clone,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        MainData<SC>: Serialize + DeserializeOwned;
 
-impl<SC: StarkConfig> Prover<SC> {
-    /// Commit to the main data
-    pub fn commit_main(
+    fn commit_main(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
         segment: &mut Segment,
@@ -54,17 +72,21 @@ impl<SC: StarkConfig> Prover<SC> {
     }
 
     /// Prove the program for the given segment and given a commitment to the main data.
-    pub fn prove(
+    fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[Box<dyn AirChip<SC>>],
-        main_data: MainData<SC>,
+        wrapped_main_data: MainDataWrapper<SC>,
     ) -> SegmentProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
+        MainData<SC>: DeserializeOwned,
     {
         // Get the traces.
+        let main_data = wrapped_main_data
+            .materialize()
+            .expect("failed to load segment main data");
         let traces = main_data.traces;
 
         // For each trace, compute the degree.
@@ -342,7 +364,7 @@ impl<SC: StarkConfig> Prover<SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn quotient_values<C, MainLde, PermLde>(
+    fn quotient_values<C, MainLde, PermLde>(
         config: &SC,
         chip: &C,
         commulative_sum: SC::Challenge,
@@ -475,5 +497,85 @@ impl<SC: StarkConfig> Prover<SC> {
                 })
             })
             .collect()
+    }
+}
+
+pub struct LocalProver<SC>(PhantomData<SC>);
+
+impl<SC> Prover<SC> for LocalProver<SC>
+where
+    SC: StarkConfig,
+{
+    fn generate_segment_traces<F, EF>(
+        config: &SC,
+        segments: &mut Vec<Segment>,
+        chips: &[Box<dyn AirChip<SC>>],
+    ) -> (
+        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
+        Vec<MainDataWrapper<SC>>,
+    )
+    where
+        F: PrimeField + TwoAdicField + PrimeField32,
+        EF: ExtensionField<F>,
+        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC::Challenger: Clone,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        MainData<SC>: Serialize + DeserializeOwned,
+    {
+        let num_segments = segments.len();
+        // Batch into at most 16 chunks (and at least 1) to limit parallelism.
+        let chunk_size = max(segments.len() / 16, 1);
+        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
+            tracing::info_span!("commit main for all segments").in_scope(|| {
+                segments
+                    .chunks_mut(chunk_size)
+                    .par_bridge()
+                    .flat_map(|segments| {
+                        segments
+                            .iter_mut()
+                            .map(|segment| {
+                                let data = tracing::debug_span!(
+                                    "segment commit main",
+                                    segment = segment.index
+                                )
+                                .in_scope(|| Self::commit_main(config, chips, segment));
+                                let commitment = data.main_commit.clone();
+                                let file = tempfile::tempfile().unwrap();
+                                // TODO: make this logic configurable?
+                                // At around 64 segments * 1 GB per segment, saving to disk starts
+                                // to become necessary.
+                                let data = if num_segments > 64 {
+                                    data.save(file).expect("failed to save segment main data")
+                                } else {
+                                    data.to_in_memory()
+                                };
+                                (commitment, data)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .unzip()
+            });
+
+        #[cfg(not(feature = "perf"))]
+        {
+            let bytes_written = segment_main_data
+                .iter()
+                .map(|data| match data {
+                    MainDataWrapper::InMemory(_) => 0,
+                    MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                })
+                .sum::<u64>();
+            if bytes_written > 0 {
+                tracing::debug!(
+                    "total main data written to disk: {}",
+                    size::Size::from_bytes(bytes_written)
+                );
+            }
+        }
+
+        (commitments, segment_main_data)
     }
 }

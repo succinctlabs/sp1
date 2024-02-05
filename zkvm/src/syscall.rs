@@ -76,8 +76,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
         let offset = i * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
-            #[allow(unused_assignments)]
-            let mut word = 0u32;
+            let mut word;
             asm!(
                 "ecall",
                 in("t0") LWA,
@@ -99,8 +98,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
         let offset = whole_words * 4;
         #[cfg(target_os = "zkvm")]
         unsafe {
-            #[allow(unused_assignments)]
-            let mut word = 0u32;
+            let mut word;
             asm!(
                 "ecall",
                 in("t0") LWA,
@@ -267,7 +265,7 @@ pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: boo
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_keccak256_permute(state: *mut u64) {
+pub extern "C" fn syscall_keccak_permute(state: *mut u64) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(

@@ -33,7 +33,8 @@
         "programs/sha-compress/Cargo.toml",
         "programs/sha-extend/Cargo.toml",
         "programs/sha2/Cargo.toml",
-        "programs/ssz-withdrawals/Cargo.toml"
+        "programs/ssz-withdrawals/Cargo.toml",
+        "programs/zeth/Cargo.toml",
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }
