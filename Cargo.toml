@@ -35,3 +35,4 @@ p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
 p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }
+p3-blake3 = { git = "ssh://git@github.com/succinctlabs/plonky3.git" }

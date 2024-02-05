@@ -16,9 +16,10 @@ use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
-    /// The index of this segment in the program.
+    /// The index of the segment.
     pub index: u32,
 
+    /// The program.
     pub program: Arc<Program>,
 
     /// A trace of the CPU events which get emitted during execution.

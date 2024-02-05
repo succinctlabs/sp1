@@ -137,7 +137,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(segment.index);
+            cols.segment = F::from_canonical_u32(event.segment);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
             cols.q_ptr = F::from_canonical_u32(event.q_ptr);

@@ -15,7 +15,7 @@ use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
 use crate::program::ProgramChip;
-use crate::runtime::Runtime;
+use crate::runtime::{Runtime, Segment};
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -28,6 +28,7 @@ use p3_maybe_rayon::prelude::IntoParallelIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::BTreeMap;
 
 use super::OpeningProof;
 
@@ -107,10 +108,12 @@ impl Runtime {
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        // let bytes = ByteChip::<SC::Val>::new();
         [
             Box::new(memory_init),
             Box::new(memory_finalize),
             Box::new(program_memory_init),
+            // Box::new(bytes),
         ]
     }
 
@@ -133,15 +136,266 @@ impl Runtime {
         P: Prover<SC>,
         OpeningProof<SC>: Send + Sync,
     {
-        let num_segments = self.segments.len();
-        let (cycle_count, keccak_count, sha_count) =
-            self.segments.iter().fold((0, 0, 0), |acc, s| {
-                (
-                    acc.0 + s.cpu_events.len(),
-                    acc.1 + s.keccak_permute_events.len(),
-                    acc.2 + s.sha_compress_events.len(),
-                )
-            });
+        let segment_chips = Self::segment_chips::<SC>();
+
+        // Fill in events for the master segment.
+        let chips = Self::segment_chips::<SC>();
+        chips.iter().for_each(|chip| {
+            chip.generate_trace(&mut self.segment);
+        });
+
+        const NB_ROWS_PER_SHARD: usize = 1 << 19;
+        let cpu_events = self
+            .segment
+            .cpu_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let add_events = self
+            .segment
+            .add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let mul_events = self
+            .segment
+            .mul_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let sub_events = self
+            .segment
+            .sub_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let bitwise_events = self
+            .segment
+            .bitwise_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let shift_left_events = self
+            .segment
+            .shift_left_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let shift_right_events = self
+            .segment
+            .shift_right_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let divrem_events = self
+            .segment
+            .divrem_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let lt_events = self
+            .segment
+            .lt_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let field_events = self
+            .segment
+            .field_events
+            .chunks(NB_ROWS_PER_SHARD * 4)
+            .collect::<Vec<_>>();
+        let sha_extend_events = self
+            .segment
+            .sha_extend_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let sha_compress_events = self
+            .segment
+            .sha_compress_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let keccak_permute_events = self
+            .segment
+            .keccak_permute_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let ed_add_events = self
+            .segment
+            .ed_add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let ed_decompress_events = self
+            .segment
+            .ed_decompress_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let weierstrass_add_events = self
+            .segment
+            .weierstrass_add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let weierrstrass_double_events = self
+            .segment
+            .weierstrass_double_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let k256_decompress_events = self
+            .segment
+            .k256_decompress_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let nb_segments = [
+            cpu_events.len(),
+            add_events.len(),
+            mul_events.len(),
+            sub_events.len(),
+            bitwise_events.len(),
+            shift_left_events.len(),
+            shift_right_events.len(),
+            divrem_events.len(),
+            lt_events.len(),
+            field_events.len(),
+            sha_extend_events.len(),
+            sha_compress_events.len(),
+            ed_add_events.len(),
+            ed_decompress_events.len(),
+            weierstrass_add_events.len(),
+            weierrstrass_double_events.len(),
+            k256_decompress_events.len(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap();
+
+        println!("nb_segments: {}", nb_segments);
+        println!("cpu_shards: {}", cpu_events.len());
+        println!("add_shards: {}", add_events.len());
+        println!("mul_shards: {}", mul_events.len());
+        println!("sub_shards: {}", sub_events.len());
+        println!("bitwise_shards: {}", bitwise_events.len());
+        println!("shift_left_shards: {}", shift_left_events.len());
+        println!("shift_right_shards: {}", shift_right_events.len());
+        println!("divrem_shards: {}", divrem_events.len());
+        println!("lt_shards: {}", lt_events.len());
+        println!("field_shards: {}", field_events.len());
+        println!("sha_extend_shards: {}", sha_extend_events.len());
+        println!("sha_compress_shards: {}", sha_compress_events.len());
+        println!("keccak_permute_shards: {}", keccak_permute_events.len());
+        println!("ed_add_shards: {}", ed_add_events.len());
+        println!("ed_decompress_shards: {}", ed_decompress_events.len());
+        println!("weierstrass_add_shards: {}", weierstrass_add_events.len());
+        println!(
+            "weierrstrass_double_shards: {}",
+            weierrstrass_double_events.len()
+        );
+        println!("k256_decompress_shards: {}", k256_decompress_events.len());
+
+        let mut segments = Vec::new();
+        for i in 0..nb_segments {
+            let cpu_events = match cpu_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let add_events = match add_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let mul_events = match mul_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let sub_events = match sub_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let bitwise_events = match bitwise_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let shift_left_events = match shift_left_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let shift_right_events = match shift_right_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let divrem_events = match divrem_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let lt_events = match lt_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let field_events = match field_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let sha_extend_events = match sha_extend_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let sha_compress_events = match sha_compress_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let keccak_permute_events = match keccak_permute_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let ed_add_events = match ed_add_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let ed_decompress_events = match ed_decompress_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let weierstrass_add_events = match weierstrass_add_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let weierstrass_double_events = match weierrstrass_double_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let k256_decompress_events = match k256_decompress_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let segment = Segment {
+                index: (i + 1) as u32,
+                program: self.segment.program.clone(),
+                byte_lookups: if i == 0 {
+                    self.segment.byte_lookups.clone()
+                } else {
+                    BTreeMap::new()
+                },
+                cpu_events,
+                add_events,
+                mul_events,
+                sub_events,
+                bitwise_events,
+                shift_left_events,
+                shift_right_events,
+                divrem_events,
+                lt_events,
+                field_events,
+                sha_extend_events,
+                sha_compress_events,
+                keccak_permute_events,
+                ed_add_events,
+                ed_decompress_events,
+                weierstrass_add_events,
+                weierstrass_double_events,
+                k256_decompress_events,
+                first_memory_record: Vec::new(),
+                last_memory_record: Vec::new(),
+                program_memory_record: Vec::new(),
+            };
+            segments.push(segment);
+        }
+
+        let num_segments = segments.len();
+        let (cycle_count, keccak_count, sha_count) = segments.iter().fold((0, 0, 0), |acc, s| {
+            (
+                acc.0 + s.cpu_events.len(),
+                acc.1 + s.keccak_permute_events.len(),
+                acc.2 + s.sha_compress_events.len(),
+            )
+        });
         tracing::info!(
             "total_cycles: {}, segments: {}, keccak: {}, sha: {}",
             cycle_count,
@@ -149,10 +403,9 @@ impl Runtime {
             keccak_count,
             sha_count,
         );
-        let segment_chips = Self::segment_chips::<SC>();
 
         let (commitments, segment_main_data) =
-            P::generate_segment_traces::<F, EF>(config, &mut self.segments, &segment_chips);
+            P::generate_segment_traces::<F, EF>(config, &mut segments, &segment_chips);
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
@@ -170,7 +423,14 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            P::prove(config, &mut challenger.clone(), &segment_chips, main_data)
+                            let p = P::prove(
+                                config,
+                                &mut challenger.clone(),
+                                &segment_chips,
+                                main_data,
+                            );
+                            tracing::info!("finished proving for segment {}", i);
+                            p
                         })
                     })
                     .collect()
@@ -278,7 +538,7 @@ impl Runtime {
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
-        #[cfg(feature = "perf")]
+        // #[cfg(feature = "perf")]
         {
             for proof in segments_proofs.iter() {
                 sum += proof
