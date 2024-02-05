@@ -29,7 +29,6 @@ succinct_zkvm::entrypoint!(main);
 //     pub proof_directory: String,
 // }
 
-#[succinct_derive::cycle_tracker]
 fn verify<F, EF, SC>(
     runtime: &mut Runtime,
     config: &SC,
@@ -44,9 +43,11 @@ fn verify<F, EF, SC>(
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
 {
+    println!("cycle-tracker-start: verify");
     runtime
         .verify::<_, _, SC>(config, challenger, segment_proofs, global_proof)
         .unwrap();
+    println!("cycle-tracker-end: verify");
 }
 
 fn main() {
