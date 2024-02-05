@@ -1,3 +1,8 @@
+//! The `add_rc` operation for the Poseidon2 permutation.
+//!
+//! Ideally, this would be under `src/operations`, but this uses constants specific to Poseidon2,
+//! and they are not visible from there. Instead of adding more dependencies to `operations`, this
+//! is placed here, at least for now.
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 // use p3_air::AirBuilder;

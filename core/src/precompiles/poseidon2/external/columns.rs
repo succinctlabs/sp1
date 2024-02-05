@@ -9,7 +9,6 @@ use crate::air::Word;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::AddOperation;
-use crate::operations::AddRcOperation;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();

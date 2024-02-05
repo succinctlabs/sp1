@@ -7,7 +7,7 @@ use super::columns::{
 };
 use super::{Poseidon2ExternalChip, NUM_WORDS_POSEIDON2_STATE};
 use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
-use crate::operations::{AddOperation, AddRcOperation};
+use crate::operations::AddOperation;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
