@@ -54,6 +54,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         } = proof;
 
         // Verify the proof shapes.
+        println!("cycle-tracker-start: verifying_proof_shapes");
         for ((((chip, interactions), main), perm), quotient) in chips
             .iter()
             .zip(chips_interactions.iter())
@@ -75,6 +76,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
         }
+        println!("cycle-tracker-end: verifying_proof_shapes");
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
         let dims = &[
@@ -129,6 +131,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
 
         // Verify the opening proof.
+        println!("cycle-tracker-start: verifying_opening_proofs");
         let trace_opening_points = g_subgroups
             .iter()
             .map(|g| vec![zeta, zeta * *g])
@@ -153,8 +156,10 @@ impl<SC: StarkConfig> Verifier<SC> {
                 challenger,
             )
             .map_err(|_| VerificationError::InvalidopeningArgument)?;
+        println!("cycle-tracker-end: verifying_opening_proofs");
 
         // Verify the constraint evaluations.
+        println!("cycle-tracker-start: verifying_constraint_evaluations");
         let SegmentOpenedValues {
             main,
             permutation,
@@ -189,6 +194,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
+        println!("cycle-tracker-end: verifying_constraint_evaluations");
 
         Ok(())
     }

@@ -585,14 +585,14 @@ impl Runtime {
         }
         println!("cycle-tracker-end: verifying_segment_proofs");
 
-        // Verifiy the global proof.
-        println!("cycle-tracker-start: verifying_global_proofs");
+        // Verify the global proof.
+        println!("cycle-tracker-start: verifying_global_proof");
         let global_chips = Self::global_chips::<F>();
         tracing::info_span!("verifying global segment").in_scope(|| {
             Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
                 .map_err(ProgramVerificationError::InvalidGlobalProof)
         })?;
-        println!("cycle-tracker-end: verifying_global_proofs");
+        println!("cycle-tracker-end: verifying_global_proof");
 
         // Verify the cumulative sum is 0.
         println!("cycle-tracker-start: verifying_interactions");
