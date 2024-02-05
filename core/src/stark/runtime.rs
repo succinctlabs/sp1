@@ -321,6 +321,7 @@ impl<F: PrimeField32> ChipInfo<F> {
 impl Runtime {
     pub fn segment_chips<F: Field>() -> [Box<ChipInfo<F>>; NUM_CHIPS] {
         // Initialize chips.
+        println!("cycle-tracker-start: creating chips");
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
         let add = AddChip::default();
@@ -333,6 +334,7 @@ impl Runtime {
         let lt = LtChip::default();
         let bytes = ByteChip::<F>::new();
         let field = FieldLTUChip::default();
+        println!("cycle-tracker-end: creating chips");
         // let sha_extend = ShaExtendChip::new();
         // let sha_compress = ShaCompressChip::new();
         // let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
@@ -347,10 +349,14 @@ impl Runtime {
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
 
+        println!("cycle-tracker-start: boxing program chip");
+        let boxed_program = Box::new(ChipInfo::<F> {
+            chip: ChipType::Program(program),
+        });
+        println!("cycle-tracker-end: boxing program chip");
+
         [
-            Box::new(ChipInfo {
-                chip: ChipType::Program(program),
-            }),
+            boxed_program,
             Box::new(ChipInfo {
                 chip: ChipType::Cpu(cpu),
             }),
