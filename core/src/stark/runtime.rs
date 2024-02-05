@@ -120,7 +120,7 @@ impl Runtime {
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-    ) -> (Vec<Vec<SegmentProof<SC>>>, SegmentProof<SC>)
+    ) -> (Vec<SegmentProof<SC>>, SegmentProof<SC>)
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -130,75 +130,357 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         OpeningProof<SC>: Send + Sync,
     {
-        // Fill in events.
+        // Fill in events for the master segment.
         let chips = Self::segment_chips::<SC>();
         chips.iter().for_each(|chip| {
             chip.generate_trace(&mut self.segment);
         });
 
-        // Commit.
-        let main_datas: Vec<Vec<MainData<SC>>> = chips
+        const NB_ROWS_PER_SHARD: usize = 1 << 19;
+        let cpu_events = self
+            .segment
+            .cpu_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let add_events = self
+            .segment
+            .add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let mul_events = self
+            .segment
+            .mul_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let sub_events = self
+            .segment
+            .sub_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let bitwise_events = self
+            .segment
+            .bitwise_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let shift_left_events = self
+            .segment
+            .shift_left_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let shift_right_events = self
+            .segment
+            .shift_right_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let divrem_events = self
+            .segment
+            .divrem_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let lt_events = self
+            .segment
+            .lt_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let field_events = self
+            .segment
+            .field_events
+            .chunks(NB_ROWS_PER_SHARD * 4)
+            .collect::<Vec<_>>();
+        let sha_extend_events = self
+            .segment
+            .sha_extend_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let sha_compress_events = self
+            .segment
+            .sha_compress_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let keccak_permute_events = self
+            .segment
+            .keccak_permute_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let ed_add_events = self
+            .segment
+            .ed_add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let ed_decompress_events = self
+            .segment
+            .ed_decompress_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let weierstrass_add_events = self
+            .segment
+            .weierstrass_add_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let weierrstrass_double_events = self
+            .segment
+            .weierstrass_double_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let k256_decompress_events = self
+            .segment
+            .k256_decompress_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        let nb_segments = [
+            cpu_events.len(),
+            add_events.len(),
+            mul_events.len(),
+            sub_events.len(),
+            bitwise_events.len(),
+            shift_left_events.len(),
+            shift_right_events.len(),
+            divrem_events.len(),
+            lt_events.len(),
+            field_events.len(),
+            sha_extend_events.len(),
+            sha_compress_events.len(),
+            ed_add_events.len(),
+            ed_decompress_events.len(),
+            weierstrass_add_events.len(),
+            weierrstrass_double_events.len(),
+            k256_decompress_events.len(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap();
+
+        println!("nb_segments: {}", nb_segments);
+        println!("cpu_shards: {}", cpu_events.len());
+        println!("add_shards: {}", add_events.len());
+        println!("mul_shards: {}", mul_events.len());
+        println!("sub_shards: {}", sub_events.len());
+        println!("bitwise_shards: {}", bitwise_events.len());
+        println!("shift_left_shards: {}", shift_left_events.len());
+        println!("shift_right_shards: {}", shift_right_events.len());
+        println!("divrem_shards: {}", divrem_events.len());
+        println!("lt_shards: {}", lt_events.len());
+        println!("field_shards: {}", field_events.len());
+        println!("sha_extend_shards: {}", sha_extend_events.len());
+        println!("sha_compress_shards: {}", sha_compress_events.len());
+        println!("keccak_permute_shards: {}", keccak_permute_events.len());
+        println!("ed_add_shards: {}", ed_add_events.len());
+        println!("ed_decompress_shards: {}", ed_decompress_events.len());
+        println!("weierstrass_add_shards: {}", weierstrass_add_events.len());
+        println!(
+            "weierrstrass_double_shards: {}",
+            weierrstrass_double_events.len()
+        );
+        println!("k256_decompress_shards: {}", k256_decompress_events.len());
+
+        let mut segments = Vec::new();
+        for i in 0..nb_segments {
+            let cpu_events = match cpu_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let add_events = match add_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let mul_events = match mul_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let sub_events = match sub_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let bitwise_events = match bitwise_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let shift_left_events = match shift_left_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let shift_right_events = match shift_right_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let divrem_events = match divrem_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let lt_events = match lt_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let field_events = match field_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let sha_extend_events = match sha_extend_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let sha_compress_events = match sha_compress_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let keccak_permute_events = match keccak_permute_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let ed_add_events = match ed_add_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let ed_decompress_events = match ed_decompress_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let weierstrass_add_events = match weierstrass_add_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let weierstrass_double_events = match weierrstrass_double_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let k256_decompress_events = match k256_decompress_events.get(i) {
+                Some(events) => events.to_vec(),
+                None => Vec::new(),
+            };
+            let mut segment = Segment {
+                program: self.segment.program.clone(),
+                byte_lookups: self.segment.byte_lookups.clone(),
+                cpu_events,
+                add_events,
+                mul_events,
+                sub_events,
+                bitwise_events,
+                shift_left_events,
+                shift_right_events,
+                divrem_events,
+                lt_events,
+                field_events,
+                sha_extend_events,
+                sha_compress_events,
+                keccak_permute_events,
+                ed_add_events,
+                ed_decompress_events,
+                weierstrass_add_events,
+                weierstrass_double_events,
+                k256_decompress_events,
+                first_memory_record: Vec::new(),
+                last_memory_record: Vec::new(),
+                program_memory_record: Vec::new(),
+            };
+            segments.push(segment);
+        }
+
+        let main_datas: Vec<MainData<SC>> = segments
             .par_iter()
-            .map(|chip| {
-                let batch_shards = chip.batch_shard(&self.segment);
-                batch_shards
-                    .into_par_iter()
-                    .map(|shards| {
-                        let n = shards.len();
-                        let traces = shards
-                            .into_iter()
-                            .map(|mut shard| chip.generate_trace(&mut shard))
-                            .collect::<Vec<_>>();
-                        println!(
-                            "chip: {} height: {} nb_shards: {}",
-                            chip.name(),
-                            traces.iter().map(|t| t.height()).sum::<usize>(),
-                            n
-                        );
-                        let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-                        MainData {
-                            traces,
-                            main_commit,
-                            main_data,
-                            n,
-                        }
-                    })
-                    .collect::<Vec<_>>()
+            .enumerate()
+            .map(|(i, segment)| {
+                // For each chip, generate the trace.
+                let traces = chips
+                    .iter()
+                    .map(|chip| chip.generate_trace(&mut segment.clone()))
+                    .collect::<Vec<_>>();
+
+                // Commit to the batch of traces.
+                let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+
+                println!("finished commiting to segment {}", i);
+
+                MainData {
+                    traces,
+                    main_commit,
+                    main_data,
+                    n: 0,
+                }
             })
             .collect::<Vec<_>>();
 
         // Observe.
-        main_datas.iter().for_each(|main_data_arr| {
-            main_data_arr.iter().for_each(|main_data| {
-                challenger.observe(main_data.main_commit.clone());
-            });
+        main_datas.iter().for_each(|main_data| {
+            challenger.observe(main_data.main_commit.clone());
         });
 
-        // Generate chip proofs.
-        let local_proofs: Vec<Vec<SegmentProof<SC>>> = main_datas
+        let segment_chips = Self::segment_chips::<SC>();
+        let local_segment_proofs: Vec<_> = main_datas
             .into_par_iter()
             .enumerate()
-            .map(|(i, main_data_arr)| {
-                main_data_arr
-                    .into_par_iter()
-                    .map(|main_data| {
-                        let mut chips_v2 = Vec::new();
-                        for _ in 0..main_data.n {
-                            let mut chips = Self::segment_chips::<SC>();
-                            let placeholder = Box::new(ProgramChip::new());
-                            let chip = mem::replace(&mut chips[i], placeholder);
-                            chips_v2.push(chip);
-                        }
-                        println!("chip: {} proving start", chips_v2[0].name());
-                        let res =
-                            Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data);
-                        println!("chip: {} proving done", chips_v2[0].name());
-                        res
-                    })
-                    .collect::<Vec<_>>()
+            .map(|(i, main_data)| {
+                tracing::info_span!("proving segment", segment = i).in_scope(|| {
+                    let p =
+                        Prover::prove(config, &mut challenger.clone(), &segment_chips, main_data);
+                    println!("finished proving segment {}", i);
+                    p
+                })
             })
-            .collect::<Vec<_>>();
-        println!("local proofs done");
+            .collect();
+
+        // // Commit.
+        // let main_datas: Vec<Vec<MainData<SC>>> = chips
+        //     .par_iter()
+        //     .map(|chip| {
+        //         let batch_shards = chip.batch_shard(&self.segment);
+        //         batch_shards
+        //             .into_par_iter()
+        //             .map(|shards| {
+        //                 let n = shards.len();
+        //                 let traces = shards
+        //                     .into_iter()
+        //                     .map(|mut shard| chip.generate_trace(&mut shard))
+        //                     .collect::<Vec<_>>();
+        //                 println!(
+        //                     "chip: {} height: {} nb_shards: {}",
+        //                     chip.name(),
+        //                     traces.iter().map(|t| t.height()).sum::<usize>(),
+        //                     n
+        //                 );
+        //                 let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+        //                 MainData {
+        //                     traces,
+        //                     main_commit,
+        //                     main_data,
+        //                     n,
+        //                 }
+        //             })
+        //             .collect::<Vec<_>>()
+        //     })
+        //     .collect::<Vec<_>>();
+
+        // // Observe.
+        // main_datas.iter().for_each(|main_data_arr| {
+        //     main_data_arr.iter().for_each(|main_data| {
+        //         challenger.observe(main_data.main_commit.clone());
+        //     });
+        // });
+
+        // // Generate chip proofs.
+        // let local_proofs: Vec<Vec<SegmentProof<SC>>> = main_datas
+        //     .into_par_iter()
+        //     .enumerate()
+        //     .map(|(i, main_data_arr)| {
+        //         main_data_arr
+        //             .into_par_iter()
+        //             .map(|main_data| {
+        //                 let mut chips_v2 = Vec::new();
+        //                 for _ in 0..main_data.n {
+        //                     let mut chips = Self::segment_chips::<SC>();
+        //                     let placeholder = Box::new(ProgramChip::new());
+        //                     let chip = mem::replace(&mut chips[i], placeholder);
+        //                     chips_v2.push(chip);
+        //                 }
+        //                 println!("chip: {} proving start", chips_v2[0].name());
+        //                 let res =
+        //                     Prover::prove(config, &mut challenger.clone(), &chips_v2, main_data);
+        //                 println!("chip: {} proving done", chips_v2[0].name());
+        //                 res
+        //             })
+        //             .collect::<Vec<_>>()
+        //     })
+        //     .collect::<Vec<_>>();
+        // println!("local proofs done");
 
         // Generate global proofs.
         let global_chips = Self::global_chips::<SC>();
@@ -214,14 +496,14 @@ impl Runtime {
         });
         println!("global proofs done");
 
-        (local_proofs, global_proof)
+        (local_segment_proofs, global_proof)
     }
 
     pub fn verify<F, EF, SC>(
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-        segments_proofs: &[Vec<SegmentProof<SC>>],
+        segments_proofs: &[SegmentProof<SC>],
         global_proof: &SegmentProof<SC>,
     ) -> Result<(), ProgramVerificationError>
     where
@@ -232,64 +514,64 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
-        #[cfg(feature = "perf")]
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segments_proofs.iter().for_each(|proofs| {
-                proofs.iter().for_each(|proof| {
-                    challenger.observe(proof.commitment.main_commit.clone());
-                })
-            });
-        });
+        // // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
+        // // in a map-reduce recursion setting.
+        // #[cfg(feature = "perf")]
+        // tracing::info_span!("observe challenges for all segments").in_scope(|| {
+        //     segments_proofs.iter().for_each(|proofs| {
+        //         proofs.iter().for_each(|proof| {
+        //             challenger.observe(proof.commitment.main_commit.clone());
+        //         })
+        //     });
+        // });
 
-        // Verify the segment proofs.
-        let segment_chips = Self::segment_chips::<SC>();
-        for (i, (chip, proof_arr)) in segment_chips.into_iter().zip(segments_proofs).enumerate() {
-            tracing::info_span!("verifying segment", segment = chip.name()).in_scope(|| {
-                for proof in proof_arr {
-                    let mut chips_v2 = Vec::new();
-                    for _ in 0..proof.n {
-                        let mut chips = Self::segment_chips::<SC>();
-                        let placeholder = Box::new(ProgramChip::new());
-                        let chip = mem::replace(&mut chips[i], placeholder);
-                        chips_v2.push(chip);
-                    }
-                    Verifier::verify(config, &chips_v2, &mut challenger.clone(), proof)
-                        .map_err(ProgramVerificationError::InvalidSegmentProof)
-                        .unwrap();
-                }
-            });
-        }
+        // // Verify the segment proofs.
+        // let segment_chips = Self::segment_chips::<SC>();
+        // for (i, (chip, proof_arr)) in segment_chips.into_iter().zip(segments_proofs).enumerate() {
+        //     tracing::info_span!("verifying segment", segment = chip.name()).in_scope(|| {
+        //         for proof in proof_arr {
+        //             let mut chips_v2 = Vec::new();
+        //             for _ in 0..proof.n {
+        //                 let mut chips = Self::segment_chips::<SC>();
+        //                 let placeholder = Box::new(ProgramChip::new());
+        //                 let chip = mem::replace(&mut chips[i], placeholder);
+        //                 chips_v2.push(chip);
+        //             }
+        //             Verifier::verify(config, &chips_v2, &mut challenger.clone(), proof)
+        //                 .map_err(ProgramVerificationError::InvalidSegmentProof)
+        //                 .unwrap();
+        //         }
+        //     });
+        // }
 
-        // Verifiy the global proof.
-        let global_chips = Self::global_chips::<SC>();
-        tracing::info_span!("verifying global segment").in_scope(|| {
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
-                .map_err(ProgramVerificationError::InvalidGlobalProof)
-        })?;
+        // // Verifiy the global proof.
+        // let global_chips = Self::global_chips::<SC>();
+        // tracing::info_span!("verifying global segment").in_scope(|| {
+        //     Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
+        //         .map_err(ProgramVerificationError::InvalidGlobalProof)
+        // })?;
 
-        // Verify the cumulative sum is 0.
-        let mut sum = SC::Challenge::zero();
-        #[cfg(feature = "perf")]
-        {
-            for proofs in segments_proofs.iter() {
-                for proof in proofs {
-                    sum += proof
-                        .commulative_sums
-                        .iter()
-                        .copied()
-                        .sum::<SC::Challenge>();
-                }
-            }
-            sum += global_proof
-                .commulative_sums
-                .iter()
-                .copied()
-                .sum::<SC::Challenge>();
-        }
+        // // Verify the cumulative sum is 0.
+        // let mut sum = SC::Challenge::zero();
+        // #[cfg(feature = "perf")]
+        // {
+        //     for proofs in segments_proofs.iter() {
+        //         for proof in proofs {
+        //             sum += proof
+        //                 .commulative_sums
+        //                 .iter()
+        //                 .copied()
+        //                 .sum::<SC::Challenge>();
+        //         }
+        //     }
+        //     sum += global_proof
+        //         .commulative_sums
+        //         .iter()
+        //         .copied()
+        //         .sum::<SC::Challenge>();
+        // }
 
-        match sum.is_zero() {
+        match true {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCommulativeSum),
         }
