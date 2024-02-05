@@ -569,9 +569,9 @@ where
                 })
                 .sum::<u64>();
             if bytes_written > 0 {
-                debug!(
+                tracing::debug!(
                     "total main data written to disk: {}",
-                    Size::from_bytes(bytes_written)
+                    size::Size::from_bytes(bytes_written)
                 );
             }
         }
