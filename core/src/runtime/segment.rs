@@ -14,7 +14,6 @@ use crate::precompiles::poseidon2::{Poseidon2ExternalEvent, NUM_LIMBS_POSEIDON2_
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::runtime::MemoryRecord;
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
