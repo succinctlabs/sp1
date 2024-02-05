@@ -136,7 +136,7 @@ impl Runtime {
             chip.generate_trace(&mut self.segment);
         });
 
-        const NB_ROWS_PER_SHARD: usize = 1 << 16;
+        const NB_ROWS_PER_SHARD: usize = 1 << 15;
         let cpu_events = self
             .segment
             .cpu_events
