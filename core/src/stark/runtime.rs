@@ -41,7 +41,8 @@ use super::prover::Prover;
 use super::types::SegmentProof;
 use super::{StarkConfig, VerificationError};
 
-pub const NUM_CHIPS: usize = 20;
+// pub const NUM_CHIPS: usize = 20;
+pub const NUM_CHIPS: usize = 12;
 
 enum ChipType<F: Field> {
     Program(ProgramChip),
@@ -332,16 +333,16 @@ impl Runtime {
         let lt = LtChip::default();
         let bytes = ByteChip::<F>::new();
         let field = FieldLTUChip::default();
-        let sha_extend = ShaExtendChip::new();
-        let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
-        let keccak_permute = KeccakPermuteChip::new();
-        let weierstrass_add =
-            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
-        let weierstrass_double =
-            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
-        let k256_decompress = K256DecompressChip::new();
+        // let sha_extend = ShaExtendChip::new();
+        // let sha_compress = ShaCompressChip::new();
+        // let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
+        // let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
+        // let keccak_permute = KeccakPermuteChip::new();
+        // let weierstrass_add =
+        //     WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
+        // let weierstrass_double =
+        //     WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
+        // let k256_decompress = K256DecompressChip::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
@@ -383,30 +384,30 @@ impl Runtime {
             Box::new(ChipInfo {
                 chip: ChipType::Field(field),
             }),
-            Box::new(ChipInfo {
-                chip: ChipType::ShaExtend(sha_extend),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::ShaCompress(sha_compress),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::EdAdd(ed_add),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::EdDecompress(ed_decompress),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::KeccakPermute(keccak_permute),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::WeierstrassAdd(weierstrass_add),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::WeierstrassDouble(weierstrass_double),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::K256Decompress(k256_decompress),
-            }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::ShaExtend(sha_extend),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::ShaCompress(sha_compress),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::EdAdd(ed_add),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::EdDecompress(ed_decompress),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::KeccakPermute(keccak_permute),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::WeierstrassAdd(weierstrass_add),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::WeierstrassDouble(weierstrass_double),
+            // }),
+            // Box::new(ChipInfo {
+            //     chip: ChipType::K256Decompress(k256_decompress),
+            // }),
         ]
     }
 
@@ -576,7 +577,9 @@ impl Runtime {
 
         // Verify the segment proofs.
         // println!("cycle-tracker-start: verifying_segment_proofs");
+        println!("cycle-tracker-start: getting_segment_chips");
         let segment_chips = Self::segment_chips::<F>();
+        println!("cycle-tracker-end: getting_segment_chips");
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
                 Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
