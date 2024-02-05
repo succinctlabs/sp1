@@ -3,7 +3,10 @@ use p3_field::{AbstractField, PrimeField32};
 
 use crate::{
     cpu::{MemoryReadRecord, MemoryWriteRecord},
-    precompiles::{poseidon2::Poseidon2ExternalEvent, PrecompileRuntime},
+    precompiles::{
+        poseidon2::{external::columns::POSEIDON2_SBOX_EXPONENT, Poseidon2ExternalEvent},
+        PrecompileRuntime,
+    },
     runtime::Register,
 };
 
@@ -51,6 +54,10 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             // Step 1: Add the round constant to the state.
             for i in 0..NUM_WORDS_STATE {
                 state[i] += F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
+            }
+            // Step 2: Apply the S-box to the state.
+            for i in 0..NUM_WORDS_STATE {
+                state[i] = state[i].exp_u64(POSEIDON2_SBOX_EXPONENT as u64);
             }
 
             // Write the state.
