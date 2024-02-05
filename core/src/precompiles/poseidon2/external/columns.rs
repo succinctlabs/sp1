@@ -5,8 +5,10 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Array;
+use crate::air::Word;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
+use crate::operations::AddOperation;
 use crate::operations::AddRcOperation;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
@@ -62,10 +64,13 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub mem_writes: Array<MemoryWriteCols<T>, NUM_WORDS_STATE>,
     pub mem_addr: Array<T, NUM_WORDS_STATE>,
 
-    pub add_rc: AddRcOperation<T>,
+    pub add_rc: Array<AddOperation<T>, NUM_WORDS_STATE>,
 
     /// The index of the current round.                                                                             
     pub round_number: T,
+
+    /// The index of the current round.                                                                             
+    pub round_constant: Array<Word<T>, NUM_WORDS_STATE>,
 
     /// A boolean array whose `n`th element indicates whether this is the `n`th round.                              
     pub is_round_n: Array<T, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS>,

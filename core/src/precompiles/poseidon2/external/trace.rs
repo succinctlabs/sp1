@@ -3,7 +3,10 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{runtime::Segment, utils::Chip};
+use crate::{
+    precompiles::poseidon2::external::columns::POSEIDON2_ROUND_CONSTANTS, runtime::Segment,
+    utils::Chip,
+};
 
 use super::{
     columns::{
@@ -58,6 +61,13 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                     cols.0.mem_read_clk[i] = F::from_canonical_u32(clk);
                     clk += 4;
 
+                    // Add the round constant to the state.
+                    cols.0.add_rc[i].populate(
+                        segment,
+                        event.state_reads[round][i].value,
+                        POSEIDON2_ROUND_CONSTANTS[round][i],
+                    );
+
                     // TODO: Remove this printf-debugging statement.
                     // println!("new_field_events: {:?}", new_field_events);
                     println!(
@@ -66,8 +76,6 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                     );
                 }
                 let input_state = event.state_reads[round].map(|read| read.value);
-
-                cols.0.add_rc.populate(segment, &input_state, round);
 
                 // TODO: sbox
                 // TODO: external linear layer
