@@ -73,8 +73,8 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     /// The index of the current round.                                                                             
     pub round_number: T,
 
-    /// The index of the current round.                                                                             
-    pub round_constant: Array<Word<T>, NUM_WORDS_STATE>,
+    /// The round constants for this round.
+    pub round_constant: Array<T, NUM_WORDS_STATE>,
 
     /// A boolean array whose `n`th element indicates whether this is the `n`th round.                              
     pub is_round_n: Array<T, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS>,

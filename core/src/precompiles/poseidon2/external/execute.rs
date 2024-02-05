@@ -1,3 +1,6 @@
+use p3_baby_bear::BabyBear;
+use p3_field::{AbstractField, PrimeField32};
+
 use crate::{
     cpu::{MemoryReadRecord, MemoryWriteRecord},
     precompiles::{poseidon2::Poseidon2ExternalEvent, PrecompileRuntime},
@@ -28,9 +31,12 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         let mut state_write_records = [[MemoryWriteRecord::default(); NUM_WORDS_STATE];
             POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
 
+        // TODO: Maybe it's better to make this a const generic? Or is that an overkill?
+        type F = BabyBear;
+
         for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
             // Read the state.
-            let mut state = [0u32; NUM_WORDS_STATE];
+            let mut state = [F::zero(); NUM_WORDS_STATE];
             for i in 0..NUM_WORDS_STATE {
                 let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
                 state_read_records[round][i] = record;
@@ -38,18 +44,19 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
                 println!("clk: {} value: {}", rt.clk, value);
                 // hx[i] = value;
                 rt.clk += 4;
-                state[i] = value;
+                state[i] = F::from_canonical_u32(value);
             }
 
             // TODO: This is where we'll do some operations and calculate the next value.
             // Step 1: Add the round constant to the state.
             for i in 0..NUM_WORDS_STATE {
-                state[i] = state[i].wrapping_add(POSEIDON2_ROUND_CONSTANTS[round][i]);
+                state[i] += F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
             }
 
             // Write the state.
             for i in 0..NUM_WORDS_STATE {
-                let record = rt.mw(state_ptr.wrapping_add((i as u32) * 4), state[i]);
+                let result = state[i].as_canonical_u32();
+                let record = rt.mw(state_ptr.wrapping_add((i as u32) * 4), result);
                 state_write_records[round][i] = record;
                 rt.clk += 4;
             }

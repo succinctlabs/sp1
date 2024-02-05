@@ -11,7 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
-use crate::precompiles::poseidon2::{Poseidon2ExternalChip, NUM_WORDS_POSEIDON2_STATE};
+use crate::precompiles::poseidon2::{Poseidon2ExternalChip, NUM_LIMBS_POSEIDON2_STATE};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -795,7 +795,7 @@ impl Runtime {
                     Syscall::POSEIDON2_EXTERNAL => {
                         a = {
                             let (a_val, event) =
-                                Poseidon2ExternalChip::<NUM_WORDS_POSEIDON2_STATE>::execute(
+                                Poseidon2ExternalChip::<NUM_LIMBS_POSEIDON2_STATE>::execute(
                                     &mut precompile_rt,
                                 );
 

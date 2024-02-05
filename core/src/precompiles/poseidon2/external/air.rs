@@ -6,7 +6,7 @@ use super::columns::{
     Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
 };
 use super::Poseidon2ExternalChip;
-use crate::air::CurtaAirBuilder;
+use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -96,7 +96,14 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
-        let input_state = local.0.mem_reads.map(|read| read.access.value);
+        let input_state = local.0.mem_reads.map(|read| {
+            let mut acc: AB::Expr = AB::F::zero().into();
+            for i in 0..WORD_SIZE {
+                let shift: AB::Expr = AB::F::from_canonical_usize(1 << (8 * i)).into();
+                acc += read.access.value[i].into() * shift;
+            }
+            acc
+        });
         AddRcOperation::<AB::F>::eval(
             builder,
             input_state,

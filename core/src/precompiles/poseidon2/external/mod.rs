@@ -18,7 +18,7 @@ mod trace;
 /// the precompile to work first with this const and from there I can think about that.
 /// TODO: Revisit this to see if there's a different option.
 /// TODO: Remove the const generic for this since it's not very useful if we define a const.
-pub const NUM_WORDS_POSEIDON2_STATE: usize = NUM_WORDS_FIELD_ELEMENT;
+pub const NUM_LIMBS_POSEIDON2_STATE: usize = NUM_WORDS_FIELD_ELEMENT;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
