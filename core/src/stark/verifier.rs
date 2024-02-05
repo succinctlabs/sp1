@@ -79,6 +79,8 @@ impl<SC: StarkConfig> Verifier<SC> {
         println!("cycle-tracker-end: verifying_proof_shapes");
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
+
+        println!("cycle-tracker-start: getting dims");
         let dims = &[
             chips
                 .iter()
@@ -104,6 +106,7 @@ impl<SC: StarkConfig> Verifier<SC> {
                 })
                 .collect::<Vec<_>>(),
         ];
+        println!("cycle-tracker-end: getting dims");
 
         let g_subgroups = degree_bits
             .iter()
@@ -116,6 +119,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             quotient_commit,
         } = commitment;
 
+        println!("cycle-tracker-start: sampling_challenges");
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
@@ -129,6 +133,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         challenger.observe(quotient_commit.clone());
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
+        println!("cycle-tracker-end: sampling_challenges");
 
         // Verify the opening proof.
         println!("cycle-tracker-start: verifying_opening_proofs");
