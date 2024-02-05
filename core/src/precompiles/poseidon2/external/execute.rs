@@ -4,7 +4,10 @@ use crate::{
     runtime::Register,
 };
 
-use super::{columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, Poseidon2ExternalChip};
+use super::{
+    columns::{POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS},
+    Poseidon2ExternalChip,
+};
 
 /// Poseidon2 external precompile execution. `NUM_WORDS_STATE` is the number of words in the state.
 impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
@@ -27,6 +30,7 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
 
         for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
             // Read the state.
+            let mut state = [0u32; NUM_WORDS_STATE];
             for i in 0..NUM_WORDS_STATE {
                 let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
                 state_read_records[round][i] = record;
@@ -34,14 +38,18 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
                 println!("clk: {} value: {}", rt.clk, value);
                 // hx[i] = value;
                 rt.clk += 4;
+                state[i] = value;
             }
 
             // TODO: This is where we'll do some operations and calculate the next value.
+            // Step 1: Add the round constant to the state.
+            for i in 0..NUM_WORDS_STATE {
+                state[i] = state[i].wrapping_add(POSEIDON2_ROUND_CONSTANTS[round][i]);
+            }
 
             // Write the state.
             for i in 0..NUM_WORDS_STATE {
-                // Adding back 100 + i as specified in the test program.
-                let record = rt.mw(state_ptr.wrapping_add((i as u32) * 4), 100 + i as u32);
+                let record = rt.mw(state_ptr.wrapping_add((i as u32) * 4), state[i]);
                 state_write_records[round][i] = record;
                 rt.clk += 4;
             }
