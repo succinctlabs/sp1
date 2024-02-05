@@ -48,6 +48,8 @@ pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_LIMBS_POSEIDON2_STATE];
 ///
 /// TODO: also, i think I need to start specifying what is for the first external round only and
 /// what is shared between the first and last external rounds.
+///
+/// TODO: Maybe I can put these consts in one parameter struct.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalCols<T>(
