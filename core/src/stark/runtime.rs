@@ -562,6 +562,8 @@ impl Runtime {
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
     {
+        println!("cycle-tracker-start: observing_challenges_for_all_segments");
+
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
@@ -570,8 +572,10 @@ impl Runtime {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
+        println!("cycle-tracker-end: observing_challenges_for_all_segments");
 
         // Verify the segment proofs.
+        println!("cycle-tracker-start: verifying_segment_proofs");
         let segment_chips = Self::segment_chips::<F>();
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
@@ -579,15 +583,19 @@ impl Runtime {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
+        println!("cycle-tracker-end: verifying_segment_proofs");
 
         // Verifiy the global proof.
+        println!("cycle-tracker-start: verifying_global_proofs");
         let global_chips = Self::global_chips::<F>();
         tracing::info_span!("verifying global segment").in_scope(|| {
             Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
                 .map_err(ProgramVerificationError::InvalidGlobalProof)
         })?;
+        println!("cycle-tracker-end: verifying_global_proofs");
 
         // Verify the cumulative sum is 0.
+        println!("cycle-tracker-start: verifying_interactions");
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
         {
@@ -604,6 +612,7 @@ impl Runtime {
                 .copied()
                 .sum::<SC::Challenge>();
         }
+        println!("cycle-tracker-end verifying_interactions");
 
         match sum.is_zero() {
             true => Ok(()),
