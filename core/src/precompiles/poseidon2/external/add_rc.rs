@@ -8,7 +8,7 @@ use core::borrow::BorrowMut;
 // use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_matrix::MatrixRowSlices;
+
 use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 

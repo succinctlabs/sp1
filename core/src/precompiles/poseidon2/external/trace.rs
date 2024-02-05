@@ -3,10 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    precompiles::poseidon2::external::columns::POSEIDON2_ROUND_CONSTANTS, runtime::Segment,
-    utils::Chip,
-};
+use crate::{runtime::Segment, utils::Chip};
 
 use super::{
     columns::{

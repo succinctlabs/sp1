@@ -4,11 +4,10 @@ use p3_field::AbstractField;
 use super::add_rc::AddRcOperation;
 use super::columns::{
     Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
-    POSEIDON2_ROUND_CONSTANTS,
 };
-use super::{Poseidon2ExternalChip, NUM_WORDS_POSEIDON2_STATE};
-use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
-use crate::operations::AddOperation;
+use super::Poseidon2ExternalChip;
+use crate::air::CurtaAirBuilder;
+
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 

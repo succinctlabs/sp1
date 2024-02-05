@@ -8,7 +8,7 @@ use crate::air::Array;
 use crate::air::Word;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::AddOperation;
+
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 use super::add_rc::AddRcOperation;
