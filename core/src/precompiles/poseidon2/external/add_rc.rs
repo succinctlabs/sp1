@@ -15,7 +15,6 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::Array;
 use crate::air::CurtaAirBuilder;
-use crate::runtime::Segment;
 
 use super::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 use super::columns::POSEIDON2_ROUND_CONSTANTS;
@@ -35,7 +34,6 @@ impl<F: Field> AddRcOperation<F> {
     // TODO: Do I need segment?
     pub fn populate(
         &mut self,
-        segment: &mut Segment,
         array: &[F; NUM_LIMBS_POSEIDON2_STATE],
         round: usize,
     ) -> [F; NUM_LIMBS_POSEIDON2_STATE] {

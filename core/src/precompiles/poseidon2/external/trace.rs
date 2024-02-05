@@ -3,11 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    air::{Array, Word},
-    runtime::Segment,
-    utils::Chip,
-};
+use crate::{runtime::Segment, utils::Chip};
 
 use super::{
     columns::{
@@ -80,7 +76,7 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                     .map(F::from_canonical_u32);
 
                 // Add the round constant to the state.
-                let _result_add_rc = cols.0.add_rc.populate(segment, &input_state, round);
+                let _result_add_rc = cols.0.add_rc.populate(&input_state, round);
 
                 // TODO: sbox
                 // TODO: external linear layer
