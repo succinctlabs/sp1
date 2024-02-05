@@ -76,7 +76,9 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                     .map(F::from_canonical_u32);
 
                 // Add the round constant to the state.
-                let _result_add_rc = cols.0.add_rc.populate(&input_state, round);
+                let result_add_rc = cols.0.add_rc.populate(&input_state, round);
+
+                let _result_sbox = cols.0.sbox.populate(&result_add_rc);
 
                 // TODO: sbox
                 // TODO: external linear layer

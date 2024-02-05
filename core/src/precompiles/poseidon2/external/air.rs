@@ -5,6 +5,7 @@ use super::add_rc::AddRcOperation;
 use super::columns::{
     Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
 };
+use super::sbox::SBoxOperation;
 use super::Poseidon2ExternalChip;
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
@@ -112,6 +113,7 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             local.0.add_rc,
             local.0.is_external,
         );
+        SBoxOperation::<AB::F>::eval(builder, local.0.sbox, local.0.is_external);
     }
 
     fn _constrain_finalize_ops<AB: CurtaAirBuilder>(

@@ -11,6 +11,7 @@ use crate::memory::MemoryWriteCols;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 use super::add_rc::AddRcOperation;
+use super::sbox::SBoxOperation;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
 
@@ -21,6 +22,12 @@ pub const POSEIDON2_DEFAULT_ROUNDS_P: usize = 22;
 pub const POSEIDON2_DEFAULT_TOTAL_ROUNDS: usize =
     POSEIDON2_DEFAULT_ROUNDS_F + POSEIDON2_DEFAULT_ROUNDS_P;
 pub const POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS: usize = POSEIDON2_DEFAULT_ROUNDS_F / 2;
+pub const POSEIDON2_SBOX_EXPONENT: usize = 7;
+
+/// The number of bits necessary to express `POSEIDON2_SBOX_EXPONENT`. Used to decide how many times
+/// we need to square an element to raise it to the power of `POSEIDON2_SBOX_EXPONENT` using the
+/// exponentiation by squaring algorithm.
+pub const POSEIDON2_SBOX_EXPONENT_LOG2: usize = 3;
 
 // TODO: Obviously, we have to use a different constant. But for now, I'll just use 1. It feels
 // simple enough that debugging will be easy, but since it's not 0, it might be a better sanity
@@ -68,6 +75,8 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub mem_addr: Array<T, NUM_WORDS_STATE>,
 
     pub add_rc: AddRcOperation<T>,
+
+    pub sbox: SBoxOperation<T>,
 
     /// The index of the current round.                                                                             
     pub round_number: T,

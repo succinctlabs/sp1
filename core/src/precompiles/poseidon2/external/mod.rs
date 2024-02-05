@@ -9,6 +9,7 @@ mod add_rc;
 mod air;
 mod columns;
 mod execute;
+mod sbox;
 mod trace;
 
 /// The number of words in the state that is used for the Poseidon2 precompile.
