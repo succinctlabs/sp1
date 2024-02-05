@@ -2,6 +2,7 @@ use std::array::IntoIter;
 use std::ops::{Index, IndexMut};
 
 use p3_field::Field;
+// TODO: Do I still need this? can't i just use an array?
 
 /// An array of fixed size.
 ///

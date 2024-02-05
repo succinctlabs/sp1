@@ -1,6 +1,7 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 
+use super::add_rc::AddRcOperation;
 use super::columns::{
     Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
     POSEIDON2_ROUND_CONSTANTS,
@@ -95,30 +96,14 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
         let input_state = local.0.mem_reads.map(|read| read.access.value);
-
-        for word_index in 0..NUM_WORDS_POSEIDON2_STATE {
-            let round_constant = {
-                let mut acc: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
-                for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
-                    let rc: Word<AB::F> = Word::from(POSEIDON2_ROUND_CONSTANTS[round][word_index]);
-                    for limb in 0..WORD_SIZE {
-                        acc[limb] += local.0.is_round_n[round] * rc[limb];
-                    }
-                }
-                for limb in 0..WORD_SIZE {
-                    builder.assert_eq(acc[limb].clone(), local.0.round_constant[word_index][limb]);
-                }
-                local.0.round_constant[word_index]
-            };
-
-            AddOperation::<AB::F>::eval(
-                builder,
-                input_state[word_index],
-                round_constant,
-                local.0.add_rc[word_index],
-                local.0.is_real,
-            );
-        }
+        AddRcOperation::<AB::F>::eval(
+            builder,
+            input_state,
+            local.0.is_round_n,
+            local.0.round_constant,
+            local.0.add_rc,
+            local.0.is_real,
+        );
     }
 
     fn _constrain_finalize_ops<AB: CurtaAirBuilder>(

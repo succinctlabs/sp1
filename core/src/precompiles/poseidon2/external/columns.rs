@@ -11,6 +11,8 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::AddOperation;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
+use super::add_rc::AddRcOperation;
+
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
 
 // TODO: These constants may need to live in mod.rs
@@ -61,9 +63,10 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
 
     pub mem_reads: Array<MemoryReadCols<T>, NUM_WORDS_STATE>,
     pub mem_writes: Array<MemoryWriteCols<T>, NUM_WORDS_STATE>,
+
     pub mem_addr: Array<T, NUM_WORDS_STATE>,
 
-    pub add_rc: Array<AddOperation<T>, NUM_WORDS_STATE>,
+    pub add_rc: AddRcOperation<T>,
 
     /// The index of the current round.                                                                             
     pub round_number: T,

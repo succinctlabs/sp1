@@ -6,7 +6,9 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 // use p3_air::AirBuilder;
+use p3_field::AbstractField;
 use p3_field::Field;
+use p3_matrix::MatrixRowSlices;
 use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
@@ -14,98 +16,86 @@ use crate::air::Array;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 
+use crate::air::WORD_SIZE;
+use crate::operations::AddOperation;
 use crate::precompiles::poseidon2::NUM_WORDS_POSEIDON2_STATE;
 use crate::runtime::Segment;
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
+
+use super::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
+use super::columns::POSEIDON2_ROUND_CONSTANTS;
 // use p3_field::AbstractField;
 
 /// A set of columns needed to compute the `add_rc` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct AddRcOperation<T> {
-    /// The result of `add_rc` on the input state.
-    pub value: Array<T, NUM_WORDS_POSEIDON2_STATE>,
+    /// An array whose i-th element is the result of adding the appropriate round constant to the
+    /// i-th word of the input state.
+    pub add_operation: Array<AddOperation<T>, NUM_WORDS_POSEIDON2_STATE>,
 }
 
 impl<F: Field> AddRcOperation<F> {
     // TODO: Do I need segment?
     pub fn populate(
         &mut self,
-        _segment: &mut Segment,
+        segment: &mut Segment,
         array: &[u32; NUM_WORDS_POSEIDON2_STATE],
-        _round: usize,
+        round: usize,
     ) -> [u32; NUM_WORDS_POSEIDON2_STATE] {
         // 1. Actually compute add_rc of the input through FieldOps operations.
         // 2. Return the result.
+        let mut results = [0; NUM_WORDS_POSEIDON2_STATE];
 
-        // TODO: We need to assign the result to self.value.
-        // self.value = Array::from(*array);
-        [0; NUM_WORDS_POSEIDON2_STATE]
+        for word_index in 0..NUM_WORDS_POSEIDON2_STATE {
+            let res = self.add_operation[word_index].populate(
+                segment,
+                array[word_index],
+                POSEIDON2_ROUND_CONSTANTS[round][word_index],
+            );
+            results[word_index] = res;
+        }
+        results
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        array: Array<Word<AB::Var>, NUM_WORDS_POSEIDON2_STATE>,
-        round: AB::Var,
+        input_state: Array<Word<AB::Var>, NUM_WORDS_POSEIDON2_STATE>,
+        is_round_n: Array<AB::Var, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS>,
+        round_constant: Array<Word<AB::Var>, NUM_WORDS_POSEIDON2_STATE>,
         cols: AddRcOperation<AB::Var>,
         is_real: AB::Var,
     ) {
-        // Dummy constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            array[0][0] * cols.value[0] * is_real - array[0][0] * cols.value[0] * is_real,
-        );
-        // let one = AB::Expr::one();
-        // let base = AB::F::from_canonical_u32(256);
+        // Iterate through each limb.
+        for word_index in 0..NUM_WORDS_POSEIDON2_STATE {
+            // Calculate the round constant for this limb.
+            let round_constant = {
+                let mut acc: Vec<AB::Expr> = vec![AB::F::zero().into(); WORD_SIZE];
 
-        // let mut builder_is_real = builder.when(is_real);
+                // The round constant is is_round_n[round] * round_constant[round], but we need to
+                // do this multiplication per limb.
+                for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                    let rc: Word<AB::F> = Word::from(POSEIDON2_ROUND_CONSTANTS[round][word_index]);
+                    for limb in 0..WORD_SIZE {
+                        acc[limb] += is_round_n[round] * rc[limb];
+                    }
+                }
 
-        // // For each limb, assert that difference between the carried result and the non-carried
-        // // result is either zero or the base.
-        // let overflow_0 = a[0] + b[0] - cols.value[0];
-        // let overflow_1 = a[1] + b[1] - cols.value[1] + cols.carry[0];
-        // let overflow_2 = a[2] + b[2] - cols.value[2] + cols.carry[1];
-        // let overflow_3 = a[3] + b[3] - cols.value[3] + cols.carry[2];
-        // builder_is_real.assert_zero(overflow_0.clone() * (overflow_0.clone() - base));
-        // builder_is_real.assert_zero(overflow_1.clone() * (overflow_1.clone() - base));
-        // builder_is_real.assert_zero(overflow_2.clone() * (overflow_2.clone() - base));
-        // builder_is_real.assert_zero(overflow_3.clone() * (overflow_3.clone() - base));
+                for limb in 0..WORD_SIZE {
+                    builder.assert_eq(acc[limb].clone(), round_constant[word_index][limb]);
+                }
+                round_constant[word_index]
+            };
 
-        // // If the carry is one, then the overflow must be the base.
-        // builder_is_real.assert_zero(cols.carry[0] * (overflow_0.clone() - base));
-        // builder_is_real.assert_zero(cols.carry[1] * (overflow_1.clone() - base));
-        // builder_is_real.assert_zero(cols.carry[2] * (overflow_2.clone() - base));
-
-        // // If the carry is not one, then the overflow must be zero.
-        // builder_is_real.assert_zero((cols.carry[0] - one.clone()) * overflow_0.clone());
-        // builder_is_real.assert_zero((cols.carry[1] - one.clone()) * overflow_1.clone());
-        // builder_is_real.assert_zero((cols.carry[2] - one.clone()) * overflow_2.clone());
-
-        // // Assert that the carry is either zero or one.
-        // builder_is_real.assert_bool(cols.carry[0]);
-        // builder_is_real.assert_bool(cols.carry[1]);
-        // builder_is_real.assert_bool(cols.carry[2]);
-        // builder_is_real.assert_bool(is_real);
-
-        // // Range check each byte.
-        // {
-        //     let bytes =
-        //         a.0.iter()
-        //             .chain(b.0.iter())
-        //             .chain(cols.value.0.iter())
-        //             .copied()
-        //             .collect::<Vec<_>>();
-        //     for i in (0..bytes.len()).step_by(2) {
-        //         builder.send_byte_pair(
-        //             AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
-        //             AB::F::zero(),
-        //             AB::F::zero(),
-        //             bytes[i],
-        //             bytes[i + 1],
-        //             is_real,
-        //         );
-        //     }
-        // }
+            AddOperation::<AB::F>::eval(
+                builder,
+                input_state[word_index],
+                round_constant,
+                cols.add_operation[word_index],
+                is_real,
+            );
+        }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
 }

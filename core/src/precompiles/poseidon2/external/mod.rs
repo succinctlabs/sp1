@@ -5,6 +5,7 @@ use crate::{
 
 use self::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 
+mod add_rc;
 mod air;
 mod columns;
 mod execute;
