@@ -1,7 +1,4 @@
-use crate::{
-    cpu::{MemoryReadRecord, MemoryWriteRecord},
-    utils::ec::NUM_WORDS_FIELD_ELEMENT,
-};
+use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 use self::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 
@@ -12,14 +9,14 @@ mod execute;
 mod sbox;
 mod trace;
 
-/// The number of words in the state that is used for the Poseidon2 precompile.
+/// The number of 32-bit limbs in a Poseidon2 state.
 ///
 /// Ideally, this would be const generic, but AlignedBorrow doesn't accept a struct with two const
 /// generics. Maybe there's a more elegant way of going about this, but also I think I should get
 /// the precompile to work first with this const and from there I can think about that.
 /// TODO: Revisit this to see if there's a different option.
 /// TODO: Remove the const generic for this since it's not very useful if we define a const.
-pub const NUM_LIMBS_POSEIDON2_STATE: usize = NUM_WORDS_FIELD_ELEMENT;
+pub const NUM_LIMBS_POSEIDON2_STATE: usize = 16;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {

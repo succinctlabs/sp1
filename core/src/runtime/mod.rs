@@ -814,7 +814,8 @@ impl Runtime {
 
                         self.clk = precompile_rt.clk;
                         assert_eq!(
-                            init_clk + Poseidon2ExternalChip::<NUM_WORDS_FIELD_ELEMENT>::NUM_CYCLES,
+                            init_clk
+                                + Poseidon2ExternalChip::<NUM_LIMBS_POSEIDON2_STATE>::NUM_CYCLES,
                             self.clk
                         );
                     }

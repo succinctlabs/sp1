@@ -12,6 +12,7 @@ use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 use super::add_rc::AddRcOperation;
 use super::sbox::SBoxOperation;
+use super::NUM_LIMBS_POSEIDON2_STATE;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
 
@@ -32,9 +33,9 @@ pub const POSEIDON2_SBOX_EXPONENT_LOG2: usize = 3;
 // TODO: Obviously, we have to use a different constant. But for now, I'll just use 1. It feels
 // simple enough that debugging will be easy, but since it's not 0, it might be a better sanity
 // check.
-pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_WORDS_FIELD_ELEMENT];
+pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_LIMBS_POSEIDON2_STATE];
     POSEIDON2_DEFAULT_TOTAL_ROUNDS] =
-    [[1; NUM_WORDS_FIELD_ELEMENT]; POSEIDON2_DEFAULT_TOTAL_ROUNDS];
+    [[1; NUM_LIMBS_POSEIDON2_STATE]; POSEIDON2_DEFAULT_TOTAL_ROUNDS];
 
 /// Cols to perform the first external round of Poseidon2.
 ///
@@ -50,7 +51,7 @@ pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_WORDS_FIELD_ELEMENT];
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalCols<T>(
-    pub Poseidon2ExternalColsConfigurable<T, NUM_WORDS_FIELD_ELEMENT>,
+    pub Poseidon2ExternalColsConfigurable<T, NUM_LIMBS_POSEIDON2_STATE>,
 );
 
 #[derive(Default, Debug, Clone, Copy)]
