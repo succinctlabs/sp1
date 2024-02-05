@@ -64,6 +64,8 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             };
             builder.assert_eq(round, local.0.round_number);
         }
+
+        // Calculate the round constants for this round.
     }
 
     fn constrain_memory<AB: CurtaAirBuilder>(
@@ -101,7 +103,7 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             local.0.is_round_n,
             local.0.round_constant,
             local.0.add_rc,
-            local.0.is_real,
+            local.0.is_external,
         );
     }
 

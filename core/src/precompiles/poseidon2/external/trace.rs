@@ -3,13 +3,18 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{runtime::Segment, utils::Chip};
+use crate::{
+    air::{Array, Word},
+    runtime::Segment,
+    utils::Chip,
+};
 
 use super::{
     columns::{
-        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
+        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS,
+        POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS,
     },
-    Poseidon2ExternalChip,
+    Poseidon2ExternalChip, NUM_WORDS_POSEIDON2_STATE,
 };
 
 /// Poseidon2 external chip. `NUM_WORDS_STATE` is the number of words in the state. This has to be
@@ -47,6 +52,9 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
 
                     cols.0.round_number = F::from_canonical_u32(round as u32);
                     cols.0.is_round_n[round] = F::one();
+                    for i in 0..NUM_WORDS_POSEIDON2_STATE {
+                        cols.0.round_constant[i] = Word::from(POSEIDON2_ROUND_CONSTANTS[round][i]);
+                    }
                 }
 
                 // Read.

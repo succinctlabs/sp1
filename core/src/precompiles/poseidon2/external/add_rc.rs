@@ -5,6 +5,7 @@
 //! is placed here, at least for now.
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
+use p3_air::AirBuilder;
 // use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -81,7 +82,9 @@ impl<F: Field> AddRcOperation<F> {
                 }
 
                 for limb in 0..WORD_SIZE {
-                    builder.assert_eq(acc[limb].clone(), round_constant[word_index][limb]);
+                    builder
+                        .when(is_real)
+                        .assert_eq(acc[limb].clone(), round_constant[word_index][limb]);
                 }
                 round_constant[word_index]
             };
