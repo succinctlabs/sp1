@@ -28,6 +28,9 @@ pub use program::*;
 pub use register::*;
 pub use segment::*;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Write;
 use std::process::exit;
 use std::sync::Arc;
 pub use syscall::*;
@@ -111,6 +114,9 @@ pub struct Runtime {
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
+
+    /// A buffer for writing trace events to a file.
+    pub trace_buf: Option<BufWriter<File>>,
 }
 
 impl Runtime {
@@ -121,6 +127,13 @@ impl Runtime {
             program: program_rc.clone(),
             index: 1,
             ..Default::default()
+        };
+        // Write trace to file if TRACE_FILE is set, write full if TRACE=full
+        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
+            let file = File::create(trace_file).unwrap();
+            Some(BufWriter::new(file))
+        } else {
+            None
         };
         Self {
             global_clk: 0,
@@ -139,6 +152,7 @@ impl Runtime {
             segment_size: 1048576,
             global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
+            trace_buf,
         }
     }
 
@@ -904,6 +918,10 @@ impl Runtime {
             }
 
             let width = 12;
+            if let Some(ref mut buf) = self.trace_buf {
+                writeln!(buf, "{:x?}", self.pc).unwrap();
+            }
+
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk,
@@ -945,6 +963,9 @@ impl Runtime {
                 self.segment.program = self.program.clone();
                 self.clk = 1;
             }
+        }
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
         }
 
         // Push the last segment.
