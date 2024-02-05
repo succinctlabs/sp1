@@ -156,3 +156,19 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
         .try_into()
         .unwrap()
 }
+
+/// Converts a u32 to a string with commas every 3 digits.
+pub fn u32_to_comma_separated(value: u32) -> String {
+    value
+        .to_string()
+        .chars()
+        .rev()
+        .collect::<Vec<_>>()
+        .chunks(3)
+        .map(|chunk| chunk.iter().collect::<String>())
+        .collect::<Vec<_>>()
+        .join(",")
+        .chars()
+        .rev()
+        .collect()
+}

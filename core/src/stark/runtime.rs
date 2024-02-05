@@ -23,6 +23,11 @@ use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
 use p3_challenger::CanObserve;
+use p3_maybe_rayon::prelude::IndexedParallelIterator;
+use p3_maybe_rayon::prelude::IntoParallelIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use super::OpeningProof;
 
@@ -32,10 +37,9 @@ use crate::stark::debug_cumulative_sums;
 use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::*;
 
 use super::prover::Prover;
-use super::types::SegmentProof;
+use super::types::{MainData, SegmentProof};
 use super::{StarkConfig, VerificationError};
 
 pub const NUM_CHIPS: usize = 20;
@@ -113,7 +117,7 @@ impl Runtime {
     /// Prove the program.
     ///
     /// The function returns a vector of segment proofs, one for each segment, and a global proof.
-    pub fn prove<F, EF, SC>(
+    pub fn prove<F, EF, SC, P>(
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
@@ -125,30 +129,36 @@ impl Runtime {
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        MainData<SC>: Serialize + DeserializeOwned,
+        P: Prover<SC>,
         OpeningProof<SC>: Send + Sync,
     {
+        let num_segments = self.segments.len();
+        let (cycle_count, keccak_count, sha_count) =
+            self.segments.iter().fold((0, 0, 0), |acc, s| {
+                (
+                    acc.0 + s.cpu_events.len(),
+                    acc.1 + s.keccak_permute_events.len(),
+                    acc.2 + s.sha_compress_events.len(),
+                )
+            });
         tracing::info!(
-            "total_cycles: {}, segments: {}",
-            self.segments
-                .iter()
-                .map(|s| s.cpu_events.len())
-                .sum::<usize>(),
-            self.segments.len()
+            "total_cycles: {}, segments: {}, keccak: {}, sha: {}",
+            cycle_count,
+            num_segments,
+            keccak_count,
+            sha_count,
         );
         let segment_chips = Self::segment_chips::<SC>();
-        let segment_main_data =
-            tracing::info_span!("commit main for all segments").in_scope(|| {
-                self.segments
-                    .par_iter_mut()
-                    .map(|segment| Prover::commit_main(config, &segment_chips, segment))
-                    .collect::<Vec<_>>()
-            });
+
+        let (commitments, segment_main_data) =
+            P::generate_segment_traces::<F, EF>(config, &mut self.segments, &segment_chips);
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segment_main_data.iter().for_each(|main_data| {
-                challenger.observe(main_data.main_commit.clone());
+            commitments.into_iter().for_each(|commitment| {
+                challenger.observe(commitment);
             });
         });
 
@@ -160,12 +170,7 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            Prover::prove(
-                                config,
-                                &mut challenger.clone(),
-                                &segment_chips,
-                                main_data,
-                            )
+                            P::prove(config, &mut challenger.clone(), &segment_chips, main_data)
                         })
                     })
                     .collect()
@@ -186,10 +191,12 @@ impl Runtime {
         });
 
         let global_chips = Self::global_chips::<SC>();
-        let global_main_data = tracing::info_span!("commit main for global segments")
-            .in_scope(|| Prover::commit_main(config, &global_chips, &mut self.global_segment));
+        let global_main_data =
+            tracing::info_span!("commit main for global segments").in_scope(|| {
+                P::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory()
+            });
         let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            Prover::prove(
+            P::prove(
                 config,
                 &mut challenger.clone(),
                 &global_chips,

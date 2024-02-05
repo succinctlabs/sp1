@@ -43,6 +43,10 @@ tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
 curve25519-dalek = "4.1.1"
 hex = "0.4.3"
+tempfile = "3.9.0"
+flate2 = "1.0.28"
+size = "0.4.1"
+serde_json = { version = "1.0.113", default-features = false, features = ["alloc"] }
 k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
 

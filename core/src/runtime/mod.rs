@@ -19,6 +19,7 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::u32_to_comma_separated;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -109,7 +110,7 @@ pub struct Runtime {
     pub segment_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: u32,
+    pub cycle_tracker: HashMap<String, (u32, u32)>,
 }
 
 impl Runtime {
@@ -137,7 +138,7 @@ impl Runtime {
             record: Record::default(),
             segment_size: 1048576,
             global_segment: Segment::default(),
-            cycle_tracker: 0,
+            cycle_tracker: HashMap::new(),
         }
     }
 
@@ -694,7 +695,17 @@ impl Runtime {
                             if fd == 1 {
                                 let s = core::str::from_utf8(slice).unwrap();
                                 if s.contains("cycle-tracker-start:") {
-                                    self.cycle_tracker = self.global_clk
+                                    let fn_name = s
+                                        .split("cycle-tracker-start:")
+                                        .last()
+                                        .unwrap()
+                                        .trim_end()
+                                        .trim_start();
+                                    let depth = self.cycle_tracker.len() as u32;
+                                    self.cycle_tracker
+                                        .insert(fn_name.to_string(), (self.global_clk, depth));
+                                    let padding = (0..depth).map(|_| "│ ").collect::<String>();
+                                    log::info!("{}┌╴{}", padding, fn_name);
                                 } else if s.contains("cycle-tracker-end:") {
                                     let fn_name = s
                                         .split("cycle-tracker-end:")
@@ -702,10 +713,14 @@ impl Runtime {
                                         .unwrap()
                                         .trim_end()
                                         .trim_start();
+                                    let (start, depth) =
+                                        self.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
+                                    // Leftpad by 2 spaces for each depth.
+                                    let padding = (0..depth).map(|_| "│ ").collect::<String>();
                                     log::info!(
-                                        "===> {} took {} cycles",
-                                        fn_name,
-                                        self.global_clk - self.cycle_tracker
+                                        "{}└╴{} cycles",
+                                        padding,
+                                        u32_to_comma_separated(self.global_clk - start)
                                     );
                                 } else {
                                     log::info!("stdout: {}", s.trim_end());
@@ -714,7 +729,6 @@ impl Runtime {
                                 let s = core::str::from_utf8(slice).unwrap();
                                 log::info!("stderr: {}", s.trim_end());
                             } else if fd == 3 {
-                                log::info!("io::write: {:?}", slice);
                                 self.output_stream.extend_from_slice(slice);
                             } else {
                                 unreachable!()
@@ -884,6 +898,10 @@ impl Runtime {
         {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
+
+            if self.global_clk % 1000000000 == 0 {
+                log::info!("global_clk={}", self.global_clk);
+            }
 
             let width = 12;
             log::trace!(

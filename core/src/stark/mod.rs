@@ -6,7 +6,7 @@ mod config;
 pub mod debug;
 pub(crate) mod folder;
 pub(crate) mod permutation;
-mod prover;
+pub(crate) mod prover;
 pub mod runtime;
 pub mod types;
 pub mod util;
