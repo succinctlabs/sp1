@@ -45,7 +45,6 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
                 state_read_records[round][i] = record;
                 // TODO: Remove this debugging statement.
                 println!("clk: {} value: {}", rt.clk, value);
-                // hx[i] = value;
                 rt.clk += 4;
                 state[i] = F::from_canonical_u32(value);
             }
