@@ -53,6 +53,21 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             builder.assert_bool(local.0.is_round_n[i]);
         }
 
+        // Exactly one of the is_round_n flags is set.
+        {
+            let sum_is_round_n = {
+                let mut acc: AB::Expr = AB::F::zero().into();
+                for i in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                    acc += local.0.is_round_n[i].into();
+                }
+                acc
+            };
+
+            builder
+                .when(local.0.is_external)
+                .assert_eq(sum_is_round_n, AB::F::from_canonical_usize(1));
+        }
+
         // Calculate the current round number.
         {
             let round = {
@@ -121,6 +136,9 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             }
             acc
         });
+
+        builder.assert_bool(local.0.is_external);
+
         AddRcOperation::<AB::F>::eval(
             builder,
             input_state,
