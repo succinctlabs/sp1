@@ -15,6 +15,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::Array;
 use crate::air::CurtaAirBuilder;
 
+use super::execute::external_linear_permute_mut;
 use super::NUM_LIMBS_POSEIDON2_STATE;
 
 /// A set of columns needed to compute the `external_linear` of the input state.
@@ -29,7 +30,9 @@ impl<F: Field> ExternalLinearPermuteOperation<F> {
         &mut self,
         array: &[F; NUM_LIMBS_POSEIDON2_STATE],
     ) -> [F; NUM_LIMBS_POSEIDON2_STATE] {
-        *array
+        self.result = *array;
+        external_linear_permute_mut(&mut self.result);
+        self.result
     }
 
     pub fn eval<AB: CurtaAirBuilder>(

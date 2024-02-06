@@ -59,7 +59,7 @@ fn matmul_m4<AF: AbstractField, const NUM_WORDS_STATE: usize>(input: &mut [AF; N
         .for_each(|x| m4_permute_mut(x.try_into().unwrap()));
 }
 
-fn external_linear_permute_mut<AF: AbstractField, const NUM_WORDS_STATE: usize>(
+pub fn external_linear_permute_mut<AF: AbstractField, const NUM_WORDS_STATE: usize>(
     input: &mut [AF; NUM_WORDS_STATE],
 ) {
     match NUM_WORDS_STATE {
