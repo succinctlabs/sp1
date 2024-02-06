@@ -791,7 +791,7 @@ impl Runtime {
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
                     }
-                    Syscall::POSEIDON2_EXTERNAL => {
+                    Syscall::POSEIDON2_EXTERNAL_1 => {
                         a = {
                             let (a_val, event) =
                                 Poseidon2ExternalChip::<NUM_LIMBS_POSEIDON2_STATE>::execute(
@@ -805,7 +805,7 @@ impl Runtime {
                             // code.
                             precompile_rt
                                 .segment_mut()
-                                .poseidon2_external_events
+                                .poseidon2_external_1_events
                                 .push(event);
 
                             a_val

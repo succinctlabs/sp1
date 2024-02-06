@@ -33,6 +33,9 @@ pub const SECP256K1_DOUBLE: u32 = 108;
 /// Executes `K256_DECOMPRESS`.
 pub const SECP256K1_DECOMPRESS: u32 = 109;
 
+/// Executes the first external round of the `POSEIDON2_EXTERNAL` precompile.
+pub const POSEIDON2_EXTERNAL_1: u32 = 110;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -271,6 +274,22 @@ pub extern "C" fn syscall_keccak_permute(state: *mut u64) {
         asm!(
             "ecall",
             in("t0") KECCAK_PERMUTE,
+            in("a0") state
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_poseidon2_external_1(state: *mut u64) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") POSEIDON2_EXTERNAL_1,
             in("a0") state
         );
     }

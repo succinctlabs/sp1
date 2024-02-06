@@ -61,7 +61,7 @@ pub mod external_tests {
                 Opcode::ADD,
                 5,
                 0,
-                Syscall::POSEIDON2_EXTERNAL as u32,
+                Syscall::POSEIDON2_EXTERNAL_1 as u32,
                 false,
                 true,
             ),

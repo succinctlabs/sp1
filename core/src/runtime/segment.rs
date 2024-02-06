@@ -71,7 +71,8 @@ pub struct Segment {
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
-    pub poseidon2_external_events: Vec<Poseidon2ExternalEvent<NUM_LIMBS_POSEIDON2_STATE>>,
+    /// The first external rounds of Poseidon2 precompile.
+    pub poseidon2_external_1_events: Vec<Poseidon2ExternalEvent<NUM_LIMBS_POSEIDON2_STATE>>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.

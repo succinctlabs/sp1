@@ -32,8 +32,8 @@ pub enum Syscall {
     /// Executes the `K256_DECOMPRESS` precompile.
     SECP256K1_DECOMPRESS = 109,
 
-    /// Executes the `POSEIDON2_EXTERNAL` precompile.
-    POSEIDON2_EXTERNAL = 110,
+    /// Executes the `POSEIDON2_EXTERNAL` precompile for the first external round.
+    POSEIDON2_EXTERNAL_1 = 110,
 
     WRITE = 999,
 }
@@ -52,7 +52,7 @@ impl Syscall {
             107 => Syscall::SECP256K1_ADD,
             108 => Syscall::SECP256K1_DOUBLE,
             109 => Syscall::SECP256K1_DECOMPRESS,
-            110 => Syscall::POSEIDON2_EXTERNAL,
+            110 => Syscall::POSEIDON2_EXTERNAL_1,
             999 => Syscall::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }

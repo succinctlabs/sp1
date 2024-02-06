@@ -26,8 +26,8 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..segment.poseidon2_external_events.len() {
-            let event = segment.poseidon2_external_events[i];
+        for i in 0..segment.poseidon2_external_1_events.len() {
+            let event = segment.poseidon2_external_1_events[i];
 
             // TODO: Printf-debugging statement. Remove this.
             // if i == 0 {
