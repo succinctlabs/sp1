@@ -10,7 +10,7 @@ use crate::field::event::FieldEvent;
 use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
 use crate::precompiles::k256::decompress::K256DecompressEvent;
 use crate::precompiles::keccak256::KeccakPermuteEvent;
-use crate::precompiles::poseidon2::{Poseidon2ExternalEvent, POSEIDON2_WIDTH};
+use crate::precompiles::poseidon2::{Poseidon2ExternalEvent, P2_WIDTH};
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::runtime::MemoryRecord;
@@ -72,7 +72,7 @@ pub struct Segment {
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     /// The first external rounds of Poseidon2 precompile.
-    pub poseidon2_external_1_events: Vec<Poseidon2ExternalEvent<POSEIDON2_WIDTH>>,
+    pub poseidon2_external_1_events: Vec<Poseidon2ExternalEvent<P2_WIDTH>>,
 
     /// Information needed for global chips. This shouldn't really be in "Segment" but for
     /// legacy reasons, we keep this information in this struct for now.

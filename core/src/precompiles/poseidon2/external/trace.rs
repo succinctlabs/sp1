@@ -7,10 +7,10 @@ use crate::{runtime::Segment, utils::Chip};
 
 use super::{
     columns::{
-        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS,
-        POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS,
+        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, P2_EXTERNAL_ROUND_COUNT,
+        P2_ROUND_CONSTANTS,
     },
-    Poseidon2External1Chip, POSEIDON2_WIDTH,
+    Poseidon2External1Chip, P2_WIDTH,
 };
 
 // TODO: I don't know how to combine F and PF.
@@ -27,7 +27,7 @@ impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
             let event = segment.poseidon2_external_1_events[i];
 
             let mut clk = event.clk;
-            for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+            for round in 0..P2_EXTERNAL_ROUND_COUNT {
                 let mut row = [PF::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
                 let cols: &mut Poseidon2ExternalCols<PF> = row.as_mut_slice().borrow_mut();
 
@@ -40,9 +40,9 @@ impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
 
                     cols.0.round_number = PF::from_canonical_u32(round as u32);
                     cols.0.is_round_n[round] = PF::one();
-                    for i in 0..POSEIDON2_WIDTH {
+                    for i in 0..P2_WIDTH {
                         cols.0.round_constant[i] =
-                            PF::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
+                            PF::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
                     }
                 }
 
@@ -94,7 +94,7 @@ impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
                         PF::from_canonical_u32(event.state_writes[round][i].value)
                     );
 
-                    if round == POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS - 1 {
+                    if round == P2_EXTERNAL_ROUND_COUNT - 1 {
                         println!(
                             "{}th limb of output: {:?}",
                             i, event.state_writes[round][i].value,

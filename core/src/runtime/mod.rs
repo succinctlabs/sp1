@@ -11,7 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
-use crate::precompiles::poseidon2::{Poseidon2External1Chip, POSEIDON2_WIDTH};
+use crate::precompiles::poseidon2::{Poseidon2External1Chip, P2_WIDTH};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -794,7 +794,7 @@ impl Runtime {
                     Syscall::POSEIDON2_EXTERNAL_1 => {
                         a = {
                             let (a_val, event) =
-                                Poseidon2External1Chip::<BabyBear, POSEIDON2_WIDTH>::execute(
+                                Poseidon2External1Chip::<BabyBear, P2_WIDTH>::execute(
                                     &mut precompile_rt,
                                 );
 
@@ -813,8 +813,7 @@ impl Runtime {
 
                         self.clk = precompile_rt.clk;
                         assert_eq!(
-                            init_clk
-                                + Poseidon2External1Chip::<BabyBear, POSEIDON2_WIDTH>::NUM_CYCLES,
+                            init_clk + Poseidon2External1Chip::<BabyBear, P2_WIDTH>::NUM_CYCLES,
                             self.clk
                         );
                     }

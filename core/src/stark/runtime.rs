@@ -11,7 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
-use crate::precompiles::poseidon2::{Poseidon2External1Chip, POSEIDON2_WIDTH};
+use crate::precompiles::poseidon2::{Poseidon2External1Chip, P2_WIDTH};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -75,7 +75,7 @@ impl Runtime {
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let k256_decompress = K256DecompressChip::new();
-        let poseidon2_external = Poseidon2External1Chip::<BabyBear, POSEIDON2_WIDTH>::new();
+        let poseidon2_external = Poseidon2External1Chip::<BabyBear, P2_WIDTH>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.

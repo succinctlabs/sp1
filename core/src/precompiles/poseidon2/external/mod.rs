@@ -4,7 +4,7 @@ use p3_field::Field;
 
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
-use self::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
+use self::columns::P2_EXTERNAL_ROUND_COUNT;
 
 mod add_rc;
 mod air;
@@ -22,15 +22,14 @@ mod trace;
 /// the precompile to work first with this const and from there I can think about that.
 /// TODO: Revisit this to see if there's a different option.
 /// TODO: Remove the const generic for this since it's not very useful if we define a const.
-pub const POSEIDON2_WIDTH: usize = 16;
+pub const P2_WIDTH: usize = 16;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
     pub clk: u32,
     pub state_ptr: u32,
-    pub state_reads: [[MemoryReadRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
-    pub state_writes:
-        [[MemoryWriteRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
+    pub state_reads: [[MemoryReadRecord; NUM_WORDS_STATE]; P2_EXTERNAL_ROUND_COUNT],
+    pub state_writes: [[MemoryWriteRecord; NUM_WORDS_STATE]; P2_EXTERNAL_ROUND_COUNT],
 }
 
 /// The first external round of the Poseidon2 permutation.

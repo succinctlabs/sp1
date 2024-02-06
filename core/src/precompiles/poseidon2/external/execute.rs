@@ -4,7 +4,7 @@ use crate::{
     cpu::{MemoryReadRecord, MemoryWriteRecord},
     precompiles::{
         poseidon2::{
-            external::columns::POSEIDON2_SBOX_EXPONENT, external_linear_permute_mut,
+            external::columns::P2_SBOX_EXPONENT, external_linear_permute_mut,
             Poseidon2ExternalEvent,
         },
         PrecompileRuntime,
@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    columns::{POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS},
+    columns::{P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS},
     Poseidon2External1Chip,
 };
 
@@ -24,7 +24,7 @@ impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH>
 where
     F: Field + PrimeField32,
 {
-    pub const NUM_CYCLES: u32 = (8 * POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS * WIDTH) as u32;
+    pub const NUM_CYCLES: u32 = (8 * P2_EXTERNAL_ROUND_COUNT * WIDTH) as u32;
 
     pub fn execute(rt: &mut PrecompileRuntime) -> (u32, Poseidon2ExternalEvent<WIDTH>) {
         let state_ptr = rt.register_unsafe(Register::X10);
@@ -34,11 +34,11 @@ where
         let saved_clk = rt.clk;
         let saved_state_ptr = state_ptr;
         let mut state_read_records =
-            [[MemoryReadRecord::default(); WIDTH]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
+            [[MemoryReadRecord::default(); WIDTH]; P2_EXTERNAL_ROUND_COUNT];
         let mut state_write_records =
-            [[MemoryWriteRecord::default(); WIDTH]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
+            [[MemoryWriteRecord::default(); WIDTH]; P2_EXTERNAL_ROUND_COUNT];
 
-        for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+        for round in 0..P2_EXTERNAL_ROUND_COUNT {
             // Read the state.
             let mut state = [F::zero(); WIDTH];
             for i in 0..WIDTH {
@@ -52,11 +52,11 @@ where
 
             // Step 1: Add the round constant to the state.
             for i in 0..WIDTH {
-                state[i] += F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
+                state[i] += F::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
             }
             // Step 2: Apply the S-box to the state.
             for i in 0..WIDTH {
-                state[i] = state[i].exp_u64(POSEIDON2_SBOX_EXPONENT as u64);
+                state[i] = state[i].exp_u64(P2_SBOX_EXPONENT as u64);
             }
             // Step 3: External linear permute.
             external_linear_permute_mut::<F, WIDTH>(&mut state);

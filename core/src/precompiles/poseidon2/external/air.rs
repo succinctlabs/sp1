@@ -3,8 +3,7 @@ use p3_field::{AbstractField, Field};
 
 use super::add_rc::AddRcOperation;
 use super::columns::{
-    Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
-    POSEIDON2_ROUND_CONSTANTS,
+    Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS,
 };
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
@@ -46,7 +45,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
         next: &Poseidon2ExternalCols<AB::Var>,
     ) {
         // If this is the i-th round, then the next row should be the (i+1)-th round.
-        for i in 0..(POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS - 1) {
+        for i in 0..(P2_EXTERNAL_ROUND_COUNT - 1) {
             builder
                 .when_transition()
                 .when(next.0.is_real)
@@ -58,7 +57,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
         {
             let sum_is_round_n = {
                 let mut acc: AB::Expr = AB::F::zero().into();
-                for i in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                for i in 0..P2_EXTERNAL_ROUND_COUNT {
                     acc += local.0.is_round_n[i].into();
                 }
                 acc
@@ -74,7 +73,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
             let round = {
                 let mut acc: AB::Expr = AB::F::zero().into();
 
-                for i in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                for i in 0..P2_EXTERNAL_ROUND_COUNT {
                     acc += local.0.is_round_n[i] * AB::F::from_canonical_usize(i);
                 }
                 acc
@@ -88,9 +87,9 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
                 let round_constant = {
                     let mut acc: AB::Expr = AB::F::zero().into();
 
-                    for j in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                    for j in 0..P2_EXTERNAL_ROUND_COUNT {
                         acc += local.0.is_round_n[j].into()
-                            * AB::F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[j][i]);
+                            * AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[j][i]);
                     }
                     acc
                 };

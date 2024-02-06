@@ -15,9 +15,9 @@ use valida_derive::AlignedBorrow;
 use crate::air::Array;
 use crate::air::CurtaAirBuilder;
 
-use super::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
-use super::columns::POSEIDON2_ROUND_CONSTANTS;
-use super::POSEIDON2_WIDTH;
+use super::columns::P2_EXTERNAL_ROUND_COUNT;
+use super::columns::P2_ROUND_CONSTANTS;
+use super::P2_WIDTH;
 
 /// A set of columns needed to compute the `add_rc` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -25,39 +25,38 @@ use super::POSEIDON2_WIDTH;
 pub struct AddRcOperation<T> {
     /// An array whose i-th element is the result of adding the appropriate round constant to the
     /// i-th element of the input state.
-    pub result: [T; POSEIDON2_WIDTH],
+    pub result: [T; P2_WIDTH],
 }
 
 impl<F: Field> AddRcOperation<F> {
-    pub fn populate(&mut self, array: &[F; POSEIDON2_WIDTH], round: usize) -> [F; POSEIDON2_WIDTH] {
+    pub fn populate(&mut self, array: &[F; P2_WIDTH], round: usize) -> [F; P2_WIDTH] {
         // 1. Add the appropriate round constant to each limb of the input state.
         // 2. Return the result.
-        for word_index in 0..POSEIDON2_WIDTH {
-            self.result[word_index] = array[word_index]
-                + F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][word_index]);
+        for word_index in 0..P2_WIDTH {
+            self.result[word_index] =
+                array[word_index] + F::from_canonical_u32(P2_ROUND_CONSTANTS[round][word_index]);
         }
         self.result
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        input_state: Array<AB::Expr, POSEIDON2_WIDTH>,
-        is_round_n: Array<AB::Var, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS>,
-        round_constant: Array<AB::Var, POSEIDON2_WIDTH>,
+        input_state: Array<AB::Expr, P2_WIDTH>,
+        is_round_n: Array<AB::Var, P2_EXTERNAL_ROUND_COUNT>,
+        round_constant: Array<AB::Var, P2_WIDTH>,
         cols: AddRcOperation<AB::Var>,
         is_real: AB::Var,
     ) {
         // Iterate through each limb.
-        for limb_index in 0..POSEIDON2_WIDTH {
+        for limb_index in 0..P2_WIDTH {
             // Calculate the round constant for this limb.
             let round_constant = {
                 let mut acc: AB::Expr = AB::F::zero().into();
 
                 // The round constant is the sum of is_round_n[round] * round_constant[round].
-                for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                for round in 0..P2_EXTERNAL_ROUND_COUNT {
                     let rc: AB::Expr =
-                        AB::F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][limb_index])
-                            .into();
+                        AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[round][limb_index]).into();
                     acc += is_round_n[round] * rc;
                 }
 
