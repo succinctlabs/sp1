@@ -14,13 +14,13 @@ use crate::{
 
 use super::{
     columns::{POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS},
-    Poseidon2ExternalChip,
+    Poseidon2External1Chip,
 };
 
 /// The first external round in Poseidon2.
 ///
 /// TODO: Much of this logic can be shared with the last external round.
-impl<F: Field, const WIDTH: usize> Poseidon2ExternalChip<F, WIDTH>
+impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH>
 where
     F: Field + PrimeField32,
 {

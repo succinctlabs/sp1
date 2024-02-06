@@ -8,20 +8,20 @@ use super::columns::{
 };
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
-use super::Poseidon2ExternalChip;
+use super::Poseidon2External1Chip;
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
-impl<F, const N: usize, FIELD: Field> BaseAir<F> for Poseidon2ExternalChip<FIELD, N> {
+impl<F, const N: usize, FIELD: Field> BaseAir<F> for Poseidon2External1Chip<FIELD, N> {
     fn width(&self) -> usize {
         NUM_POSEIDON2_EXTERNAL_COLS
     }
 }
 
 impl<AB, const NUM_WORDS_STATE: usize, FIELD: Field> Air<AB>
-    for Poseidon2ExternalChip<FIELD, NUM_WORDS_STATE>
+    for Poseidon2External1Chip<FIELD, NUM_WORDS_STATE>
 where
     AB: CurtaAirBuilder,
 {
@@ -38,7 +38,7 @@ where
     }
 }
 
-impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<F, NUM_WORDS_STATE> {
+impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS_STATE> {
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,

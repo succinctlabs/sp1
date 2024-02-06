@@ -33,11 +33,12 @@ pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
         [[MemoryWriteRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
 }
 
-pub struct Poseidon2ExternalChip<F: Field, const WIDTH: usize> {
+/// The first external round of the Poseidon2 permutation.
+pub struct Poseidon2External1Chip<F: Field, const WIDTH: usize> {
     pub _phantom: std::marker::PhantomData<F>,
 }
 
-impl<F: Field, const WIDTH: usize> Poseidon2ExternalChip<F, WIDTH> {
+impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
     pub fn new() -> Self {
         Self {
             _phantom: std::marker::PhantomData,

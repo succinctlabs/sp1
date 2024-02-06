@@ -10,18 +10,15 @@ use super::{
         Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS,
         POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS,
     },
-    Poseidon2ExternalChip, POSEIDON2_WIDTH,
+    Poseidon2External1Chip, POSEIDON2_WIDTH,
 };
 
-/// Poseidon2 external chip. `NUM_WORDS_STATE` is the number of words in the state. This has to be
-/// consistent with the parameter in `Poseidon2ExternalCols`.
-///
-/// TODO: Do I really need this const generic? Or should I make a subset of the logic in
-/// generate_trace use the const generic?
-impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
-    for Poseidon2ExternalChip<FIELD, NUM_WORDS_STATE>
+// TODO: I don't know how to combine F and PF.
+impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
+    for Poseidon2External1Chip<F, NUM_WORDS_STATE>
 {
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    // TODO: The vast majority of this logic can be shared with the second external round.
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<PF> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
@@ -29,38 +26,33 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
         for i in 0..segment.poseidon2_external_1_events.len() {
             let event = segment.poseidon2_external_1_events[i];
 
-            // TODO: Printf-debugging statement. Remove this.
-            // if i == 0 {
-            //     println!("event: {:#?}", event);
-            // }
-
             let mut clk = event.clk;
             for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
-                let mut row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
-                let cols: &mut Poseidon2ExternalCols<F> = row.as_mut_slice().borrow_mut();
+                let mut row = [PF::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
+                let cols: &mut Poseidon2ExternalCols<PF> = row.as_mut_slice().borrow_mut();
 
                 // Assign basic values to the columns.
                 {
-                    cols.0.segment = F::from_canonical_u32(segment.index);
+                    cols.0.segment = PF::from_canonical_u32(segment.index);
 
                     // Increment the clock by 4 * (the number of reads + writes for this round).
-                    cols.0.clk = F::from_canonical_u32(clk);
+                    cols.0.clk = PF::from_canonical_u32(clk);
 
-                    cols.0.round_number = F::from_canonical_u32(round as u32);
-                    cols.0.is_round_n[round] = F::one();
+                    cols.0.round_number = PF::from_canonical_u32(round as u32);
+                    cols.0.is_round_n[round] = PF::one();
                     for i in 0..POSEIDON2_WIDTH {
                         cols.0.round_constant[i] =
-                            F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
+                            PF::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
                     }
                 }
 
                 // Read.
                 for i in 0..NUM_WORDS_STATE {
-                    cols.0.state_ptr = F::from_canonical_u32(event.state_ptr);
+                    cols.0.state_ptr = PF::from_canonical_u32(event.state_ptr);
                     cols.0.mem_reads[i]
                         .populate(event.state_reads[round][i], &mut new_field_events);
-                    cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
-                    cols.0.mem_read_clk[i] = F::from_canonical_u32(clk);
+                    cols.0.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
+                    cols.0.mem_read_clk[i] = PF::from_canonical_u32(clk);
                     clk += 4;
 
                     // TODO: Remove this printf-debugging statement.
@@ -75,7 +67,7 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
 
                 let input_state = event.state_reads[round]
                     .map(|read| read.value)
-                    .map(F::from_canonical_u32);
+                    .map(PF::from_canonical_u32);
 
                 // Add the round constant to the state.
                 let result_add_rc = cols.0.add_rc.populate(&input_state, round);
@@ -93,13 +85,13 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
                     // But for now, I'll leave these as is, one problem at a time!
                     cols.0.mem_writes[i]
                         .populate(event.state_writes[round][i], &mut new_field_events);
-                    cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
-                    cols.0.mem_write_clk[i] = F::from_canonical_u32(clk);
+                    cols.0.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
+                    cols.0.mem_write_clk[i] = PF::from_canonical_u32(clk);
                     clk += 4;
 
                     assert_eq!(
                         result_external_linear_permute[i],
-                        F::from_canonical_u32(event.state_writes[round][i].value)
+                        PF::from_canonical_u32(event.state_writes[round][i].value)
                     );
 
                     if round == POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS - 1 {
@@ -115,8 +107,8 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
                 }
 
                 // TODO: I need to figure out whether I need both or I only need one of these.
-                cols.0.is_real = F::one();
-                cols.0.is_external = F::one();
+                cols.0.is_real = PF::one();
+                cols.0.is_external = PF::one();
                 // if round == 0 {
                 //     println!("cols: {:#?}", cols);
                 // }
@@ -133,7 +125,7 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
         }
 
         for _ in nb_rows..padded_nb_rows {
-            let row = [F::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
+            let row = [PF::zero(); NUM_POSEIDON2_EXTERNAL_COLS];
             rows.push(row);
         }
 
