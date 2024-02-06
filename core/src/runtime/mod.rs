@@ -20,7 +20,6 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::u32_to_comma_separated;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;

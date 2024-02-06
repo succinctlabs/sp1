@@ -5,14 +5,11 @@
 //! is placed here, at least for now.
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use p3_air::AirBuilder;
-use p3_field::AbstractField;
 use p3_field::Field;
 
 use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
-use crate::air::Array;
 use crate::air::CurtaAirBuilder;
 
 use super::execute::external_linear_permute_mut;
@@ -37,10 +34,20 @@ impl<F: Field> ExternalLinearPermuteOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        _input_state: [AB::Var; NUM_LIMBS_POSEIDON2_STATE],
-        _cols: ExternalLinearPermuteOperation<AB::Var>,
+        input_state: [AB::Var; NUM_LIMBS_POSEIDON2_STATE],
+        cols: ExternalLinearPermuteOperation<AB::Var>,
         is_real: AB::Var,
     ) {
+        let result = {
+            let mut input: [AB::Expr; 16] = input_state.map(|x| x.into());
+            external_linear_permute_mut::<AB::Expr, NUM_LIMBS_POSEIDON2_STATE>(&mut input);
+            input
+        };
+
+        for i in 0..NUM_LIMBS_POSEIDON2_STATE {
+            builder.assert_eq(result[i].clone(), cols.result[i]);
+        }
+
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
