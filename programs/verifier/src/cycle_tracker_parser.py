@@ -72,7 +72,7 @@ def parse_file(tracking_filename, top_level_label):
 
 
 def print_label(label, num_tabs):
-    print('\t' * num_tabs + label.label + ' ' + str(label.num_calls) + ' ' + str(label.num_total_cycles))
+    print('\t' * num_tabs + label.label + ' count: ' + str(label.num_calls) + ' sum: ' + str(label.num_total_cycles))
     for child in label.children:
         print_label(label.children[child], num_tabs + 1)
 
