@@ -965,8 +965,8 @@ impl Runtime {
         // argument or any other deferred tables.
         self.postprocess();
 
-        /// Finally, print out the cycle tracking information   
-        let mut pairs: Vec<(_, _)> = self.cumulative_cycle_tracker.into_iter().collect();
+        // Print out the cycle tracking information for cumulative function count.
+        let mut pairs: Vec<(_, _)> = self.cumulative_cycle_tracker.clone().into_iter().collect();
         pairs.sort_by(|a, b| b.1.cmp(&a.1));
         for (fn_name, cycles) in pairs {
             log::info!(
