@@ -12,7 +12,7 @@ use super::add_rc::AddRcOperation;
 use super::constants::RC_16_30;
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
-use super::NUM_LIMBS_POSEIDON2_STATE;
+use super::POSEIDON2_WIDTH;
 
 pub const NUM_POSEIDON2_EXTERNAL_COLS: usize = size_of::<Poseidon2ExternalCols<u8>>();
 
@@ -33,8 +33,8 @@ pub const POSEIDON2_SBOX_EXPONENT_LOG2: usize = 3;
 // TODO: Obviously, we have to use a different constant. But for now, I'll just use 1. It feels
 // simple enough that debugging will be easy, but since it's not 0, it might be a better sanity
 // check.
-pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_LIMBS_POSEIDON2_STATE];
-    POSEIDON2_DEFAULT_TOTAL_ROUNDS] = RC_16_30;
+pub const POSEIDON2_ROUND_CONSTANTS: [[u32; POSEIDON2_WIDTH]; POSEIDON2_DEFAULT_TOTAL_ROUNDS] =
+    RC_16_30;
 
 /// Cols to perform the either the first or the last external round of Poseidon2.
 ///
@@ -51,9 +51,7 @@ pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_LIMBS_POSEIDON2_STATE];
 /// TODO: Maybe I can put these consts in one parameter struct.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2ExternalCols<T>(
-    pub Poseidon2ExternalColsConfigurable<T, NUM_LIMBS_POSEIDON2_STATE>,
-);
+pub struct Poseidon2ExternalCols<T>(pub Poseidon2ExternalColsConfigurable<T, POSEIDON2_WIDTH>);
 
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(C)]

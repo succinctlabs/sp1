@@ -10,7 +10,7 @@ use super::{
         Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS,
         POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS,
     },
-    Poseidon2ExternalChip, NUM_LIMBS_POSEIDON2_STATE,
+    Poseidon2ExternalChip, POSEIDON2_WIDTH,
 };
 
 /// Poseidon2 external chip. `NUM_WORDS_STATE` is the number of words in the state. This has to be
@@ -48,7 +48,7 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
 
                     cols.0.round_number = F::from_canonical_u32(round as u32);
                     cols.0.is_round_n[round] = F::one();
-                    for i in 0..NUM_LIMBS_POSEIDON2_STATE {
+                    for i in 0..POSEIDON2_WIDTH {
                         cols.0.round_constant[i] =
                             F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
                     }

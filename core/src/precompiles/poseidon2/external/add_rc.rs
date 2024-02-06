@@ -17,7 +17,7 @@ use crate::air::CurtaAirBuilder;
 
 use super::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 use super::columns::POSEIDON2_ROUND_CONSTANTS;
-use super::NUM_LIMBS_POSEIDON2_STATE;
+use super::POSEIDON2_WIDTH;
 
 /// A set of columns needed to compute the `add_rc` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -25,18 +25,14 @@ use super::NUM_LIMBS_POSEIDON2_STATE;
 pub struct AddRcOperation<T> {
     /// An array whose i-th element is the result of adding the appropriate round constant to the
     /// i-th element of the input state.
-    pub result: [T; NUM_LIMBS_POSEIDON2_STATE],
+    pub result: [T; POSEIDON2_WIDTH],
 }
 
 impl<F: Field> AddRcOperation<F> {
-    pub fn populate(
-        &mut self,
-        array: &[F; NUM_LIMBS_POSEIDON2_STATE],
-        round: usize,
-    ) -> [F; NUM_LIMBS_POSEIDON2_STATE] {
+    pub fn populate(&mut self, array: &[F; POSEIDON2_WIDTH], round: usize) -> [F; POSEIDON2_WIDTH] {
         // 1. Add the appropriate round constant to each limb of the input state.
         // 2. Return the result.
-        for word_index in 0..NUM_LIMBS_POSEIDON2_STATE {
+        for word_index in 0..POSEIDON2_WIDTH {
             self.result[word_index] = array[word_index]
                 + F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][word_index]);
         }
@@ -45,14 +41,14 @@ impl<F: Field> AddRcOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        input_state: Array<AB::Expr, NUM_LIMBS_POSEIDON2_STATE>,
+        input_state: Array<AB::Expr, POSEIDON2_WIDTH>,
         is_round_n: Array<AB::Var, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS>,
-        round_constant: Array<AB::Var, NUM_LIMBS_POSEIDON2_STATE>,
+        round_constant: Array<AB::Var, POSEIDON2_WIDTH>,
         cols: AddRcOperation<AB::Var>,
         is_real: AB::Var,
     ) {
         // Iterate through each limb.
-        for limb_index in 0..NUM_LIMBS_POSEIDON2_STATE {
+        for limb_index in 0..POSEIDON2_WIDTH {
             // Calculate the round constant for this limb.
             let round_constant = {
                 let mut acc: AB::Expr = AB::F::zero().into();

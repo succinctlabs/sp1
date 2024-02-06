@@ -13,20 +13,17 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 
 use super::external_linear_permute_mut;
-use super::NUM_LIMBS_POSEIDON2_STATE;
+use super::POSEIDON2_WIDTH;
 
 /// A set of columns needed to compute the `external_linear` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ExternalLinearPermuteOperation<T> {
-    pub result: [T; NUM_LIMBS_POSEIDON2_STATE],
+    pub result: [T; POSEIDON2_WIDTH],
 }
 
 impl<F: Field> ExternalLinearPermuteOperation<F> {
-    pub fn populate(
-        &mut self,
-        array: &[F; NUM_LIMBS_POSEIDON2_STATE],
-    ) -> [F; NUM_LIMBS_POSEIDON2_STATE] {
+    pub fn populate(&mut self, array: &[F; POSEIDON2_WIDTH]) -> [F; POSEIDON2_WIDTH] {
         self.result = *array;
         external_linear_permute_mut(&mut self.result);
         self.result
@@ -34,17 +31,17 @@ impl<F: Field> ExternalLinearPermuteOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        input_state: [AB::Var; NUM_LIMBS_POSEIDON2_STATE],
+        input_state: [AB::Var; POSEIDON2_WIDTH],
         cols: ExternalLinearPermuteOperation<AB::Var>,
         is_real: AB::Var,
     ) {
         let result = {
             let mut input: [AB::Expr; 16] = input_state.map(|x| x.into());
-            external_linear_permute_mut::<AB::Expr, NUM_LIMBS_POSEIDON2_STATE>(&mut input);
+            external_linear_permute_mut::<AB::Expr, POSEIDON2_WIDTH>(&mut input);
             input
         };
 
-        for i in 0..NUM_LIMBS_POSEIDON2_STATE {
+        for i in 0..POSEIDON2_WIDTH {
             builder.assert_eq(result[i].clone(), cols.result[i]);
         }
 

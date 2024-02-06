@@ -11,7 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
-use crate::precompiles::poseidon2::{Poseidon2ExternalChip, NUM_LIMBS_POSEIDON2_STATE};
+use crate::precompiles::poseidon2::{Poseidon2ExternalChip, POSEIDON2_WIDTH};
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -793,10 +793,9 @@ impl Runtime {
                     }
                     Syscall::POSEIDON2_EXTERNAL_1 => {
                         a = {
-                            let (a_val, event) =
-                                Poseidon2ExternalChip::<NUM_LIMBS_POSEIDON2_STATE>::execute(
-                                    &mut precompile_rt,
-                                );
+                            let (a_val, event) = Poseidon2ExternalChip::<POSEIDON2_WIDTH>::execute(
+                                &mut precompile_rt,
+                            );
 
                             // The event is pushed to the segment here because
                             // Poseidon2ExternalChip::execute() is a generic function. This function
@@ -813,8 +812,7 @@ impl Runtime {
 
                         self.clk = precompile_rt.clk;
                         assert_eq!(
-                            init_clk
-                                + Poseidon2ExternalChip::<NUM_LIMBS_POSEIDON2_STATE>::NUM_CYCLES,
+                            init_clk + Poseidon2ExternalChip::<POSEIDON2_WIDTH>::NUM_CYCLES,
                             self.clk
                         );
                     }
