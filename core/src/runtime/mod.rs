@@ -153,8 +153,8 @@ impl Runtime {
             clk: 0,
             pc: program_rc.pc_start,
             program: program_rc,
-            memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
-            memory_access: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
+            memory: HashMap::default(),
+            memory_access: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
             output_stream: Vec::new(),
@@ -1032,8 +1032,6 @@ impl Runtime {
             self.memory_access.insert(*addr, (0, 0));
         }
 
-        println!("memory image: {:?}", self.memory.get(&18));
-
         self.clk += 1;
         while self.pc.wrapping_sub(self.program.pc_base)
             < (self.program.instructions.len() * 4) as u32
@@ -1042,8 +1040,15 @@ impl Runtime {
             let instruction = self.fetch();
 
             if self.global_clk % 1000000000 == 0 {
-                log::info!("global_clk={}", self.global_clk);
+                log::debug!("global_clk={}", self.global_clk);
             }
+
+            // if self.global_clk == 262143 {
+            //     log::debug!("instr={:?}", instruction);
+            // }
+            // if self.global_clk > 262143 {
+            //     break;
+            // }
 
             let width = 12;
             log::trace!(
@@ -1091,7 +1096,7 @@ impl Runtime {
 
         // Push the last segment.
         if !self.segment.cpu_events.is_empty() {
-            self.segments.push(self.segment.clone());
+            self.segments.push(std::mem::take(&mut self.segment));
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory
