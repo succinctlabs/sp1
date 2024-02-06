@@ -1,5 +1,7 @@
 use std::ops::Add;
 
+use p3_field::Field;
+
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 use self::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
@@ -31,11 +33,15 @@ pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
         [[MemoryWriteRecord; NUM_WORDS_STATE]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
 }
 
-pub struct Poseidon2ExternalChip<const NUM_WORDS_STATE: usize>;
+pub struct Poseidon2ExternalChip<F: Field, const WIDTH: usize> {
+    pub _phantom: std::marker::PhantomData<F>,
+}
 
-impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
+impl<F: Field, const WIDTH: usize> Poseidon2ExternalChip<F, WIDTH> {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
+use p3_field::{AbstractField, Field};
 
 use super::add_rc::AddRcOperation;
 use super::columns::{
@@ -14,13 +14,14 @@ use crate::air::{CurtaAirBuilder, WORD_SIZE};
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
-impl<F, const N: usize> BaseAir<F> for Poseidon2ExternalChip<N> {
+impl<F, const N: usize, FIELD: Field> BaseAir<F> for Poseidon2ExternalChip<FIELD, N> {
     fn width(&self) -> usize {
         NUM_POSEIDON2_EXTERNAL_COLS
     }
 }
 
-impl<AB, const NUM_WORDS_STATE: usize> Air<AB> for Poseidon2ExternalChip<NUM_WORDS_STATE>
+impl<AB, const NUM_WORDS_STATE: usize, FIELD: Field> Air<AB>
+    for Poseidon2ExternalChip<FIELD, NUM_WORDS_STATE>
 where
     AB: CurtaAirBuilder,
 {
@@ -37,7 +38,7 @@ where
     }
 }
 
-impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
+impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<F, NUM_WORDS_STATE> {
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,

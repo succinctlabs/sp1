@@ -24,6 +24,7 @@ use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::AirChip;
+use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::IndexedParallelIterator;
 use p3_maybe_rayon::prelude::IntoParallelIterator;
@@ -74,7 +75,7 @@ impl Runtime {
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let k256_decompress = K256DecompressChip::new();
-        let poseidon2_external = Poseidon2ExternalChip::<POSEIDON2_WIDTH>::new();
+        let poseidon2_external = Poseidon2ExternalChip::<BabyBear, POSEIDON2_WIDTH>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.

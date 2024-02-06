@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 
-use p3_field::PrimeField;
+use p3_field::{Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{runtime::Segment, utils::Chip};
@@ -18,8 +18,8 @@ use super::{
 ///
 /// TODO: Do I really need this const generic? Or should I make a subset of the logic in
 /// generate_trace use the const generic?
-impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
-    for Poseidon2ExternalChip<NUM_WORDS_STATE>
+impl<F: PrimeField, const NUM_WORDS_STATE: usize, FIELD: Field> Chip<F>
+    for Poseidon2ExternalChip<FIELD, NUM_WORDS_STATE>
 {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();

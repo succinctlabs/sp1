@@ -1,5 +1,4 @@
-use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{Field, PrimeField32};
 
 use crate::{
     cpu::{MemoryReadRecord, MemoryWriteRecord},
@@ -18,32 +17,31 @@ use super::{
     Poseidon2ExternalChip,
 };
 
-/// Poseidon2 external precompile execution. `NUM_WORDS_STATE` is the number of words in the state.
-impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
-    // TODO: How do I calculate this? I just copied and pasted these from sha as a starting point.
-    pub const NUM_CYCLES: u32 =
-        (8 * POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS * NUM_WORDS_STATE) as u32;
+/// The first external round in Poseidon2.
+///
+/// TODO: Much of this logic can be shared with the last external round.
+impl<F: Field, const WIDTH: usize> Poseidon2ExternalChip<F, WIDTH>
+where
+    F: Field + PrimeField32,
+{
+    pub const NUM_CYCLES: u32 = (8 * POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS * WIDTH) as u32;
 
-    pub fn execute(rt: &mut PrecompileRuntime) -> (u32, Poseidon2ExternalEvent<NUM_WORDS_STATE>) {
-        // Read `w_ptr` from register a0.
+    pub fn execute(rt: &mut PrecompileRuntime) -> (u32, Poseidon2ExternalEvent<WIDTH>) {
         let state_ptr = rt.register_unsafe(Register::X10);
 
         // Set the clock back to the original value and begin executing the
         // precompile.
         let saved_clk = rt.clk;
         let saved_state_ptr = state_ptr;
-        let mut state_read_records = [[MemoryReadRecord::default(); NUM_WORDS_STATE];
-            POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
-        let mut state_write_records = [[MemoryWriteRecord::default(); NUM_WORDS_STATE];
-            POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
-
-        // TODO: Maybe it's better to make this a const generic? Or is that an overkill?
-        type F = BabyBear;
+        let mut state_read_records =
+            [[MemoryReadRecord::default(); WIDTH]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
+        let mut state_write_records =
+            [[MemoryWriteRecord::default(); WIDTH]; POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS];
 
         for round in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
             // Read the state.
-            let mut state = [F::zero(); NUM_WORDS_STATE];
-            for i in 0..NUM_WORDS_STATE {
+            let mut state = [F::zero(); WIDTH];
+            for i in 0..WIDTH {
                 let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
                 state_read_records[round][i] = record;
                 // TODO: Remove this debugging statement.
@@ -52,20 +50,19 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
                 state[i] = F::from_canonical_u32(value);
             }
 
-            // TODO: This is where we'll do some operations and calculate the next value.
             // Step 1: Add the round constant to the state.
-            for i in 0..NUM_WORDS_STATE {
+            for i in 0..WIDTH {
                 state[i] += F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[round][i]);
             }
             // Step 2: Apply the S-box to the state.
-            for i in 0..NUM_WORDS_STATE {
+            for i in 0..WIDTH {
                 state[i] = state[i].exp_u64(POSEIDON2_SBOX_EXPONENT as u64);
             }
             // Step 3: External linear permute.
-            external_linear_permute_mut::<F, NUM_WORDS_STATE>(&mut state);
+            external_linear_permute_mut::<F, WIDTH>(&mut state);
 
             // Write the state.
-            for i in 0..NUM_WORDS_STATE {
+            for i in 0..WIDTH {
                 let result = state[i].as_canonical_u32();
                 let record = rt.mw(state_ptr.wrapping_add((i as u32) * 4), result);
                 state_write_records[round][i] = record;
