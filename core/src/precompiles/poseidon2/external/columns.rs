@@ -11,6 +11,7 @@ use crate::memory::MemoryWriteCols;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 
 use super::add_rc::AddRcOperation;
+use super::external_linear_layer::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
 use super::NUM_LIMBS_POSEIDON2_STATE;
 
@@ -80,6 +81,8 @@ pub struct Poseidon2ExternalColsConfigurable<T, const NUM_WORDS_STATE: usize> {
     pub add_rc: AddRcOperation<T>,
 
     pub sbox: SBoxOperation<T>,
+
+    pub external_linear_permute: ExternalLinearPermuteOperation<T>,
 
     /// The index of the current round.                                                                             
     pub round_number: T,

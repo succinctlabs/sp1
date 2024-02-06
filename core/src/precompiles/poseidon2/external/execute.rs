@@ -1,5 +1,5 @@
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{AbstractField, Field, PrimeField32};
 
 use crate::{
     cpu::{MemoryReadRecord, MemoryWriteRecord},
@@ -14,6 +14,13 @@ use super::{
     columns::{POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS, POSEIDON2_ROUND_CONSTANTS},
     Poseidon2ExternalChip,
 };
+
+fn external_linear_permute<F: Field, const NUM_WORDS_STATE: usize>(
+    state: [F; NUM_WORDS_STATE],
+) -> [F; NUM_WORDS_STATE] {
+    // TODO: Fill this in!
+    state
+}
 
 /// Poseidon2 external precompile execution. `NUM_WORDS_STATE` is the number of words in the state.
 impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
@@ -58,6 +65,8 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             for i in 0..NUM_WORDS_STATE {
                 state[i] = state[i].exp_u64(POSEIDON2_SBOX_EXPONENT as u64);
             }
+            // Step 3: External linear permute.
+            state = external_linear_permute::<F, NUM_WORDS_STATE>(state);
 
             // Write the state.
             for i in 0..NUM_WORDS_STATE {
