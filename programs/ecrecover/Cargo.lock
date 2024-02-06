@@ -140,7 +140,9 @@ name = "ecrecover"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
+ "k256",
  "num",
+ "succinct-precompiles",
  "succinct-zkvm",
 ]
 
@@ -468,6 +470,15 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
+
+[[package]]
+name = "succinct-precompiles"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "k256",
+]
 
 [[package]]
 name = "succinct-zkvm"

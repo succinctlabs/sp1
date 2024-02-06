@@ -49,3 +49,23 @@ pub fn write_slice(buf: &[u8]) {
     let mut my_reader = SyscallReader {};
     my_reader.write_all(buf).unwrap();
 }
+
+pub struct HintWriter {}
+
+impl std::io::Write for HintWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let nbytes = buf.len();
+        let write_buf = buf.as_ptr();
+        syscall_write(4, write_buf, nbytes);
+        Ok(nbytes)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+pub fn hint_slice(buf: &[u8]) {
+    let mut my_reader = HintWriter {};
+    my_reader.write_all(buf).unwrap();
+}

@@ -3,7 +3,8 @@ extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
-use succinct_zkvm::unconstrained;
+use succinct_precompiles::secp256k1::{decompress_pubkey, verify_signature};
+use succinct_zkvm::{io, unconstrained};
 
 pub fn main() {
     // recovery param: 1
@@ -13,17 +14,52 @@ pub fn main() {
     // pubkey: 044a071e8a6e10aada2b8cf39fa3b5fb3400b04e99ea8ae64ceea1a977dbeaf5d5f8c8fbd10b71ab14cd561f7df8eb6da50f8a8d81ba564342244d26d1d4211595
     // pubkey compressed: 034a071e8a6e10aada2b8cf39fa3b5fb3400b04e99ea8ae64ceea1a977dbeaf5d5
 
-    // let message = hex!("5ae8317d34d1e595e3fa7247db80c0af4320cce1116de187f8f7e2e099c0d8d0");
-    // // let signature = hex!("45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801");
-    // // let pubkey = hex!("044a071e8a6e10aada2b8cf39fa3b5fb3400b04e99ea8ae64ceea1a977dbeaf5d5f8c8fbd10b71ab14cd561f7df8eb6da50f8a8d81ba564342244d26d1d4211595");
-
-    // // let mut test = [0; 4];
+    let msg = hex!("5ae8317d34d1e595e3fa7247db80c0af4320cce1116de187f8f7e2e099c0d8d0");
+    let sig = hex!("45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801");
+    let pubkey = hex!("044a071e8a6e10aada2b8cf39fa3b5fb3400b04e99ea8ae64ceea1a977dbeaf5d5f8c8fbd10b71ab14cd561f7df8eb6da50f8a8d81ba564342244d26d1d4211595");
 
     // println!("message: {:?}", message);
-
-    println!("hi");
-
     // unconstrained! {
-    //     println!("message: {:?}", message);
+    //     use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
+    //     println!("message: {:?}", msg);
+    //     // parse signature
+    //     let mut recid = sig[64];
+    //     let mut sig = Signature::from_slice(&sig[..64]).unwrap();
+
+    //     // normalize signature and flip recovery id if needed.
+    //     if let Some(sig_normalized) = sig.normalize_s() {
+    //         sig = sig_normalized;
+    //         recid ^= 1
+    //     };
+    //     let recid = RecoveryId::from_byte(recid).expect("Recovery id is valid");
+
+    //     // recover key
+    //     let recovered_key = VerifyingKey::recover_from_prehash(&msg[..], &sig, recid).unwrap();
+    //     println!("recovered_key: {:?}", recovered_key);
+    //     let bytes = recovered_key.to_sec1_bytes();
+    //     println!("len: {:?}", bytes.len());
+    //     println!("bytes: {:?}", bytes);
+    //     io::hint_slice(&bytes);
     // }
+
+    // let mut recovered_bytes = [0_u8; 33];
+    // io::read_slice(&mut recovered_bytes);
+    // println!("recovered_bytes: {:?}", recovered_bytes);
+
+    let recovered_bytes: [u8; 33] = [
+        3, 74, 7, 30, 138, 110, 16, 170, 218, 43, 140, 243, 159, 163, 181, 251, 52, 0, 176, 78,
+        153, 234, 138, 230, 76, 238, 161, 169, 119, 219, 234, 245, 213,
+    ];
+
+    // let decompressed = decompress_pubkey(&recovered_bytes).unwrap();
+    let decompressed = pubkey;
+    println!("decompressed: {:?}", decompressed);
+    println!("pubkey: {:?}", pubkey);
+
+    let sig_bytes: [u8; 64] = sig[..64].try_into().unwrap();
+
+    let k256_sig = k256::ecdsa::Signature::from_bytes((&sig_bytes).into()).unwrap();
+
+    let verified = verify_signature(&decompressed, &msg, &k256_sig, None);
+    println!("verified: {:?}", verified);
 }

@@ -44,6 +44,8 @@ pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
 /// Verifies a secp256k1 signature using the public key and the message hash. If the s_inverse is
 /// provided, it will be validated and used to verify the signature. Otherwise, the inverse of s
 /// will be computed and used.
+///
+/// Warning: this function does not check if the key is actually on the curve.
 pub fn verify_signature(
     pubkey: &[u8; 65],
     msg_hash: &[u8; 32],

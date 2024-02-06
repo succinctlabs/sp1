@@ -351,7 +351,8 @@ pub fn syscall_exit_unconstrained() {
 /// use `syscall_write_hint`.
 #[macro_export]
 macro_rules! unconstrained {
-    (  $( $stmt:stmt );*; ) => {
+    // (  $( $stmt:stmt );*; ) => {
+    (  $($block:tt)* ) => {
         use $crate::syscall::{syscall_enter_unconstrained, syscall_exit_unconstrained};
 
         let continue_unconstrained = syscall_enter_unconstrained();
@@ -362,7 +363,7 @@ macro_rules! unconstrained {
         if continue_unconstrained {
             // Declare an immutable closure to ensure at compile time that no memory is changed
             let _unconstrained_closure = || -> () {
-                $( $stmt )*
+                $($block)*
             };
 
             _unconstrained_closure();
@@ -370,5 +371,5 @@ macro_rules! unconstrained {
 
         std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
         syscall_exit_unconstrained();
-    }
+    };
 }

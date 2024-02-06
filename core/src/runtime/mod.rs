@@ -230,9 +230,6 @@ impl Runtime {
     }
 
     pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
-        if addr == 18 {
-            tracing::debug!("Reading from address 18 at clk {}", clk);
-        }
         let memory_entry = self.memory.entry(addr);
         if self.unconstrained {
             let prev_value = match memory_entry {
@@ -254,9 +251,6 @@ impl Runtime {
     }
 
     pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
-        if addr == 18 {
-            tracing::debug!("Writing to address 18 with value {} at clk {}", value, clk);
-        }
         let memory_value_entry = self.memory.entry(addr);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
@@ -269,19 +263,16 @@ impl Runtime {
                 .memory
                 .entry(addr)
                 .or_insert(prev_value);
-            let val = self.values_before_unconstrained.memory.get(&addr);
-            if addr == 18 {
-                println!("setting value at addr {} to {} {:?}", addr, value, val);
-            }
         }
         let memory_value = memory_value_entry.or_insert(0);
+        let prev_value = *memory_value;
         self.memory_access.insert(addr, (segment, clk));
         *memory_value = value;
         MemoryWriteRecord::new(
             value,
             segment,
             clk,
-            *memory_value,
+            prev_value,
             prev_segment,
             prev_timestamp,
         )
@@ -797,7 +788,7 @@ impl Runtime {
                             } else if fd == 3 {
                                 self.output_stream.extend_from_slice(slice);
                             } else if fd == 4 {
-                                self.hint_stream.extend_from_slice(slice);
+                                self.input_stream.extend_from_slice(slice);
                             } else {
                                 unreachable!()
                             }
@@ -898,7 +889,6 @@ impl Runtime {
                             self.clk = self.values_before_unconstrained.clk;
                             self.pc = self.values_before_unconstrained.pc;
                             next_pc = self.pc.wrapping_add(4);
-                            println!("memory: {:?}", self.values_before_unconstrained.memory);
                             for (addr, value) in self.values_before_unconstrained.memory.drain() {
                                 match value {
                                     Some(value) => {
