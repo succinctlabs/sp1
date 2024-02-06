@@ -589,7 +589,7 @@ impl Runtime {
         println!("cycle-tracker-end: observing_challenges_for_all_segments");
 
         // Verify the segment proofs.
-        // println!("cycle-tracker-start: verifying_segment_proofs");
+        println!("cycle-tracker-start: verifying_segment_proofs");
         let segment_chips = Self::segment_chips::<F>();
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
@@ -597,7 +597,7 @@ impl Runtime {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        // println!("cycle-tracker-end: verifying_segment_proofs");
+        println!("cycle-tracker-end: verifying_segment_proofs");
 
         // Verify the global proof.
         println!("cycle-tracker-start: verifying_global_proof");

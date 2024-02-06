@@ -54,7 +54,6 @@ impl<SC: StarkConfig> Verifier<SC> {
         } = proof;
 
         // Verify the proof shapes.
-        println!("cycle-tracker-start: verifying_proof_shapes");
         for ((((chip, interactions), main), perm), quotient) in chips
             .iter()
             .zip(chips_interactions.iter())
@@ -76,11 +75,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
         }
-        println!("cycle-tracker-end: verifying_proof_shapes");
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
 
-        println!("cycle-tracker-start: getting dims");
         let dims = &[
             chips
                 .iter()
@@ -106,7 +103,6 @@ impl<SC: StarkConfig> Verifier<SC> {
                 })
                 .collect::<Vec<_>>(),
         ];
-        println!("cycle-tracker-end: getting dims");
 
         let g_subgroups = degree_bits
             .iter()
@@ -136,7 +132,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         println!("cycle-tracker-end: sampling_challenges");
 
         // Verify the opening proof.
-        println!("cycle-tracker-start: getting_opening_and_quotient_points");
+        println!("cycle-tracker-start: verifying_opening_proofs");
         let trace_opening_points = g_subgroups
             .iter()
             .map(|g| vec![zeta, zeta * *g])
@@ -146,7 +142,6 @@ impl<SC: StarkConfig> Verifier<SC> {
         let quotient_opening_points = (0..chips.len())
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
-        println!("cycle-tracker-end: getting_opening_and_quotient_points");
 
         config
             .pcs()
