@@ -78,10 +78,12 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                 // Add the round constant to the state.
                 let result_add_rc = cols.0.add_rc.populate(&input_state, round);
 
-                let _result_sbox = cols.0.sbox.populate(&result_add_rc);
+                // Sbox.
+                let result_sbox = cols.0.sbox.populate(&result_add_rc);
 
-                // TODO: sbox
-                // TODO: external linear layer
+                // External linear permute
+                let result_external_linear_permute =
+                    cols.0.external_linear_permute.populate(&result_sbox);
 
                 // Write.
                 for i in 0..NUM_WORDS_STATE {
@@ -92,6 +94,11 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                     cols.0.mem_addr[i] = F::from_canonical_u32(event.state_ptr + (i * 4) as u32);
                     cols.0.mem_write_clk[i] = F::from_canonical_u32(clk);
                     clk += 4;
+
+                    assert_eq!(
+                        result_external_linear_permute[i],
+                        F::from_canonical_u32(event.state_writes[round][i].value)
+                    );
 
                     println!(
                         "event.state_write[{}].value: {:?}",

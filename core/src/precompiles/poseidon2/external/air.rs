@@ -5,6 +5,7 @@ use super::add_rc::AddRcOperation;
 use super::columns::{
     Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
 };
+use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
 use super::Poseidon2ExternalChip;
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
@@ -118,6 +119,13 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             builder,
             local.0.add_rc.result,
             local.0.sbox,
+            local.0.is_external,
+        );
+
+        ExternalLinearPermuteOperation::<AB::F>::eval(
+            builder,
+            local.0.sbox.acc.map(|x| *x.last().unwrap()),
+            local.0.external_linear_permute,
             local.0.is_external,
         );
     }

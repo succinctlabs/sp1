@@ -8,10 +8,8 @@ use crate::air::Array;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
-
 use super::add_rc::AddRcOperation;
-use super::external_linear_layer::ExternalLinearPermuteOperation;
+use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
 use super::NUM_LIMBS_POSEIDON2_STATE;
 

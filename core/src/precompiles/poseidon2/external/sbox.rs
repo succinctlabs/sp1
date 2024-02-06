@@ -29,8 +29,7 @@ pub struct SBoxOperation<T> {
     /// iteration in the exponentiation by squaring algorithm for the `i`th element of the input
     /// state. This is necessary to avoid degree explosion.
     ///
-    /// The final results of the `sbox` operation is stored in `intermediate_results[i].last()` for
-    /// each `i`.
+    /// The final results of the `sbox` operation is stored in `acc[i].last()` for each `i`.
     pub acc: [[T; POSEIDON2_SBOX_EXPONENT_LOG2]; NUM_LIMBS_POSEIDON2_STATE],
 }
 
