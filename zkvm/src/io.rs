@@ -65,6 +65,11 @@ impl std::io::Write for HintWriter {
     }
 }
 
+pub fn hint<T: Serialize>(value: &T) {
+    let writer = HintWriter {};
+    bincode::serialize_into(writer, value).expect("serialization failed");
+}
+
 pub fn hint_slice(buf: &[u8]) {
     let mut my_reader = HintWriter {};
     my_reader.write_all(buf).unwrap();

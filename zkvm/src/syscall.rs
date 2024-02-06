@@ -343,12 +343,14 @@ pub fn syscall_exit_unconstrained() {
     println!("Exiting unconstrained execution block");
 }
 
-/// Executes a block of code unconstrained by the VM. This macro is useful for executing operations
-/// to help provide information to the program that does not need to be constrained by the VM. For
-/// example, providing the result of ecrecover which is cheaper to just verify inside of the VM.
+/// Executes a block of code unconstrained by the VM. This macro is useful for running code that
+/// helps provide information to the program but does not need to be constrained by the VM. For
+/// example, running `ecrecover` is expensive in the VM but verifying a signature when you know the
+/// public key is not. `unconstrained` can be used to provide the public key without spending VM CPU
+/// cycles.
 ///
 /// Any changes to the VM state will be reset at the end of the block. To provide data to the VM,
-/// use `syscall_write_hint`.
+/// use `io::hint` or `io::hint_slice`, and read it using `io::read` or `io::read_slice`.
 #[macro_export]
 macro_rules! unconstrained {
     // (  $( $stmt:stmt );*; ) => {
