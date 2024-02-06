@@ -34,6 +34,9 @@ pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
 }
 
 /// The first external round of the Poseidon2 permutation.
+///
+/// TODO: When implementing the second external round, we should attempt to share as much code as
+/// possible between the two rounds.
 pub struct Poseidon2External1Chip<F: Field, const WIDTH: usize> {
     pub _phantom: std::marker::PhantomData<F>,
 }
