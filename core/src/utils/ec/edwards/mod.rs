@@ -100,11 +100,11 @@ mod tests {
 
     use num::bigint::RandBigInt;
     use num::BigUint;
+    use rand::thread_rng;    
 
     use super::{EdwardsParameters, *};
     use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
     use crate::utils::ec::{EllipticCurve, EllipticCurveParameters};
-    use rand::thread_rng;
 
     #[test]
     fn test_bigint_ed_add() {
