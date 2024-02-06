@@ -54,6 +54,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         } = proof;
 
         // Verify the proof shapes.
+        println!("cycle-tracker-start: verify proof shape");
         for ((((chip, interactions), main), perm), quotient) in chips
             .iter()
             .zip(chips_interactions.iter())
@@ -75,9 +76,11 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
         }
+        println!("cycle-tracker-end: verify proof shape");
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
 
+        println!("cycle-tracker-start: getting dims");
         let dims = &[
             chips
                 .iter()
@@ -103,11 +106,14 @@ impl<SC: StarkConfig> Verifier<SC> {
                 })
                 .collect::<Vec<_>>(),
         ];
+        println!("cycle-tracker-end: getting dims");
 
+        println!("cycle-tracker-start: geting g_subgroups");
         let g_subgroups = degree_bits
             .iter()
             .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
             .collect::<Vec<_>>();
+        println!("cycle-tracker-end: geting g_subgroups");
 
         let SegmentCommitment {
             main_commit,
@@ -240,7 +246,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             return Err(ProofShapeError::MainTrace);
         }
 
-        // Check that the permutation openninps have lengths that match the number of interactions.
+        // Check that the permutation openings have lengths that match the number of interactions.
         let perm_width = SC::Challenge::D * (num_interactions + 1);
         if permutation_opening.local.len() != perm_width
             || permutation_opening.next.len() != perm_width
