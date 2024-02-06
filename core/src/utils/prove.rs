@@ -206,7 +206,7 @@ pub(super) mod baby_bear_poseidon2 {
 
             let dft = Dft {};
 
-            let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
+            let fri_config = MyFriConfig::new(1, 1, 16, challenge_mmcs);
             let ldt = FriLdt { config: fri_config };
 
             let pcs = Pcs::new(dft, val_mmcs, ldt);
