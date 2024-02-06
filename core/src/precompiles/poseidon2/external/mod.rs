@@ -41,7 +41,9 @@ pub mod external_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Syscall},
-        utils::{ec::NUM_WORDS_FIELD_ELEMENT, prove, setup_logger},
+        utils::{
+            ec::NUM_WORDS_FIELD_ELEMENT, prove, setup_logger, tests::POSEIDON2_EXTERNAL_1_ELF,
+        },
     };
 
     pub fn poseidon2_external_program() -> Program {
@@ -75,6 +77,13 @@ pub mod external_tests {
     fn prove_babybear() {
         setup_logger();
         let program = poseidon2_external_program();
+        prove(program);
+    }
+
+    #[test]
+    fn test_poseidon2_external_1_simple() {
+        setup_logger();
+        let program = Program::from(POSEIDON2_EXTERNAL_1_ELF);
         prove(program);
     }
 }
