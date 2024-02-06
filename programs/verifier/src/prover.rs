@@ -7,6 +7,7 @@ use succinct_core::runtime::Runtime;
 use succinct_core::utils::BabyBearPoseidon2;
 use succinct_core::utils::StarkUtils;
 
+use succinct_core::stark::prover::LocalProver;
 use succinct_core::stark::SegmentProof;
 
 use bincode::serialize;
@@ -38,7 +39,7 @@ fn main() {
 
     // Prove the program.
     let (segment_proofs, global_proof) =
-        runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger);
+        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
 
     // Attempt to create the directory
     // let directory_name = args.proof_directory.as_str();

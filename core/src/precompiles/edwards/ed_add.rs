@@ -271,6 +271,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+
     use crate::{
         utils::{
             self,
@@ -283,13 +284,13 @@ pub mod tests {
     fn test_ed_add_simple() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove(ED_ADD_ELF);
+        prover.run_and_prove(ED_ADD_ELF);
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let prover = SuccinctProver::new();
-        prover.prove(ED25519_ELF);
+        prover.run_and_prove(ED25519_ELF);
     }
 }

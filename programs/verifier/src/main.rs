@@ -74,9 +74,6 @@ fn main() {
     let mut runtime = Runtime::new(program);
     println!("cycle-tracker-end: runtime_create");
 
-    // let program_elf = include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-    // let program = Program::from(program_elf);
-    // let mut runtime = Runtime::new(program);
     black_box(verify::<_, _, BabyBearPoseidon2>(
         black_box(&mut runtime),
         black_box(&config),

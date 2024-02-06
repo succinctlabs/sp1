@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
+    stark::prover::LocalProver,
     stark::StarkConfig,
 };
 
@@ -50,8 +51,9 @@ pub fn prove_core(runtime: &mut Runtime) {
     let start = Instant::now();
 
     // Prove the program.
-    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| runtime.prove::<_, _, BabyBearPoseidon2>(&config, &mut challenger));
+    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)").in_scope(|| {
+        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger)
+    });
 
     // Verify the proof.
     let mut challenger = config.challenger();

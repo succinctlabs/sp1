@@ -1,6 +1,9 @@
 #[cfg(target_os = "zkvm")]
 use syscall::syscall_halt;
 
+#[cfg(target_os = "zkvm")]
+use getrandom::{register_custom_getrandom, Error};
+
 use core::alloc::{GlobalAlloc, Layout};
 use getrandom::{register_custom_getrandom, Error};
 use rand::Rng;
@@ -76,13 +79,21 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 }
 
 // TODO: should we use this even outside of vm?
-#[cfg(target_os = "zkvm")]
+#[cfg(all(target_os = "zkvm", not(feature = "no-entrypoint")))]
 #[global_allocator]
 static HEAP: SimpleAlloc = SimpleAlloc;
 
+#[cfg(target_os = "zkvm")]
+static GETRANDOM_WARNING_ONCE: std::sync::Once = std::sync::Once::new();
+
+#[cfg(target_os = "zkvm")]
 fn zkvm_getrandom(s: &mut [u8]) -> Result<(), Error> {
-    // panic!("randomness not implemented");
-    // dummy implementation from seed
+    use rand::Rng;
+    use rand::SeedableRng;
+
+    GETRANDOM_WARNING_ONCE.call_once(|| {
+        println!("WARNING: Using insecure random number generator");
+    });
     let mut rng = rand::rngs::StdRng::seed_from_u64(123);
     for i in 0..s.len() {
         s[i] = rng.gen();
