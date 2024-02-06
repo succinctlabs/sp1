@@ -2,6 +2,7 @@ use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use std::mem::size_of;
 
+use p3_baby_bear::BabyBear;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Array;
@@ -9,6 +10,7 @@ use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 
 use super::add_rc::AddRcOperation;
+use super::constants::RC_16_30;
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
 use super::NUM_LIMBS_POSEIDON2_STATE;
@@ -33,8 +35,7 @@ pub const POSEIDON2_SBOX_EXPONENT_LOG2: usize = 3;
 // simple enough that debugging will be easy, but since it's not 0, it might be a better sanity
 // check.
 pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_LIMBS_POSEIDON2_STATE];
-    POSEIDON2_DEFAULT_TOTAL_ROUNDS] =
-    [[1; NUM_LIMBS_POSEIDON2_STATE]; POSEIDON2_DEFAULT_TOTAL_ROUNDS];
+    POSEIDON2_DEFAULT_TOTAL_ROUNDS] = RC_16_30;
 
 /// Cols to perform the first external round of Poseidon2.
 ///

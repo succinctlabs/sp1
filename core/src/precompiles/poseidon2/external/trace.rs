@@ -65,10 +65,12 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
 
                     // TODO: Remove this printf-debugging statement.
                     // println!("new_field_events: {:?}", new_field_events);
-                    println!(
-                        "event.state_reads[{}].value: {:?}",
-                        i, event.state_reads[round][i].value,
-                    );
+                    if round == 0 {
+                        println!(
+                            "{}th limb of input: {:?}",
+                            i, event.state_reads[round][i].value,
+                        );
+                    }
                 }
 
                 let input_state = event.state_reads[round]
@@ -100,6 +102,12 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                         F::from_canonical_u32(event.state_writes[round][i].value)
                     );
 
+                    if round == POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS - 1 {
+                        println!(
+                            "{}th limb of output: {:?}",
+                            i, event.state_writes[round][i].value,
+                        );
+                    }
                     println!(
                         "event.state_write[{}].value: {:?}",
                         i, event.state_writes[round][i].value,
@@ -109,9 +117,9 @@ impl<F: PrimeField, const NUM_WORDS_STATE: usize> Chip<F>
                 // TODO: I need to figure out whether I need both or I only need one of these.
                 cols.0.is_real = F::one();
                 cols.0.is_external = F::one();
-                if round == 0 {
-                    println!("cols: {:#?}", cols);
-                }
+                // if round == 0 {
+                //     println!("cols: {:#?}", cols);
+                // }
                 rows.push(row);
             }
         }

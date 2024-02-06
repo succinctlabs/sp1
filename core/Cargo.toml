@@ -35,6 +35,7 @@ log = "0.4.20"
 env_logger = "0.10.1"
 num = { version = "0.4.1", features = ["rand"] }
 nohash-hasher = "0.2.0"
+lazy_static = "1.4"
 
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }

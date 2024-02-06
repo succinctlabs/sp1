@@ -5,6 +5,7 @@ use self::columns::POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS;
 mod add_rc;
 mod air;
 mod columns;
+mod constants;
 mod execute;
 mod external_linear_permute;
 mod sbox;
