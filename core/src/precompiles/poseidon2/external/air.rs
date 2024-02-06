@@ -4,6 +4,7 @@ use p3_field::AbstractField;
 use super::add_rc::AddRcOperation;
 use super::columns::{
     Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS,
+    POSEIDON2_ROUND_CONSTANTS,
 };
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
@@ -33,8 +34,6 @@ where
         self.constrain_memory(builder, local);
 
         self.constraint_external_ops(builder, local);
-
-        // self.constrain_finalize_ops(builder, local);
     }
 }
 
@@ -46,11 +45,11 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         next: &Poseidon2ExternalCols<AB::Var>,
     ) {
         // If this is the i-th round, then the next row should be the (i+1)-th round.
-        for i in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
-            builder.when_transition().when(next.0.is_real).assert_eq(
-                local.0.is_round_n[i],
-                next.0.is_round_n[(i + 1) % POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS],
-            );
+        for i in 0..(POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS - 1) {
+            builder
+                .when_transition()
+                .when(next.0.is_real)
+                .assert_eq(local.0.is_round_n[i], next.0.is_round_n[i + 1]);
             builder.assert_bool(local.0.is_round_n[i]);
         }
 
@@ -68,6 +67,20 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         }
 
         // Calculate the round constants for this round.
+        {
+            for i in 0..NUM_WORDS_STATE {
+                let round_constant = {
+                    let mut acc: AB::Expr = AB::F::zero().into();
+
+                    for j in 0..POSEIDON2_DEFAULT_FIRST_EXTERNAL_ROUNDS {
+                        acc += local.0.is_round_n[j].into()
+                            * AB::F::from_canonical_u32(POSEIDON2_ROUND_CONSTANTS[j][i]);
+                    }
+                    acc
+                };
+                builder.assert_eq(round_constant, local.0.round_constant[i]);
+            }
+        }
     }
 
     fn constrain_memory<AB: CurtaAirBuilder>(
@@ -98,6 +111,8 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
+        // Convert each Word into one field element. The MemoryRead struct returns an array of Words
+        // , but we need to perform operations within the field.
         let input_state = local.0.mem_reads.map(|read| {
             let mut acc: AB::Expr = AB::F::zero().into();
             for i in 0..WORD_SIZE {
@@ -128,13 +143,5 @@ impl<const NUM_WORDS_STATE: usize> Poseidon2ExternalChip<NUM_WORDS_STATE> {
             local.0.external_linear_permute,
             local.0.is_external,
         );
-    }
-
-    fn _constrain_finalize_ops<AB: CurtaAirBuilder>(
-        &self,
-        _builder: &mut AB,
-        _local: &Poseidon2ExternalCols<AB::Var>,
-    ) {
-        // TODO: Do I need this? What do we use this for in SHA?
     }
 }

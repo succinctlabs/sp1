@@ -29,7 +29,6 @@ pub struct AddRcOperation<T> {
 }
 
 impl<F: Field> AddRcOperation<F> {
-    // TODO: Do I need segment?
     pub fn populate(
         &mut self,
         array: &[F; NUM_LIMBS_POSEIDON2_STATE],

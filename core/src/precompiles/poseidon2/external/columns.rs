@@ -2,7 +2,6 @@ use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use std::mem::size_of;
 
-use p3_baby_bear::BabyBear;
 use valida_derive::AlignedBorrow;
 
 use crate::air::Array;
@@ -37,7 +36,7 @@ pub const POSEIDON2_SBOX_EXPONENT_LOG2: usize = 3;
 pub const POSEIDON2_ROUND_CONSTANTS: [[u32; NUM_LIMBS_POSEIDON2_STATE];
     POSEIDON2_DEFAULT_TOTAL_ROUNDS] = RC_16_30;
 
-/// Cols to perform the first external round of Poseidon2.
+/// Cols to perform the either the first or the last external round of Poseidon2.
 ///
 /// It's necessary to split the struct into two parts because of the const generic parameter.
 /// AlignedBorrow doesn't like a struct with more than one const generic parameter.

@@ -12,7 +12,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 
-use super::execute::external_linear_permute_mut;
+use super::external_linear_permute_mut;
 use super::NUM_LIMBS_POSEIDON2_STATE;
 
 /// A set of columns needed to compute the `external_linear` of the input state.
