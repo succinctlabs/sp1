@@ -111,6 +111,9 @@ pub struct Runtime {
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
+
+    /// A counter for the number of cumulative cycles that have been executed in certain functions.
+    pub cumulative_cycle_tracker: HashMap<String, u32>,
 }
 
 impl Runtime {
@@ -139,6 +142,7 @@ impl Runtime {
             segment_size: 1048576,
             global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
+            cumulative_cycle_tracker: HashMap::new(),
         }
     }
 
@@ -717,10 +721,15 @@ impl Runtime {
                                         self.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
                                     // Leftpad by 2 spaces for each depth.
                                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
+                                    let cycles = self.global_clk - start;
+                                    *self
+                                        .cumulative_cycle_tracker
+                                        .entry(fn_name.to_string())
+                                        .or_insert(0) += cycles;
                                     log::info!(
                                         "{}└╴{} cycles",
                                         padding,
-                                        u32_to_comma_separated(self.global_clk - start)
+                                        u32_to_comma_separated(cycles)
                                     );
                                 } else {
                                     log::info!("stdout: {}", s.trim_end());
@@ -955,6 +964,17 @@ impl Runtime {
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
         self.postprocess();
+
+        // Print out the cycle tracking information for cumulative function count.
+        let mut pairs: Vec<(_, _)> = self.cumulative_cycle_tracker.clone().into_iter().collect();
+        pairs.sort_by(|a, b| b.1.cmp(&a.1));
+        for (fn_name, cycles) in pairs {
+            log::info!(
+                "{} total cycles: {}",
+                fn_name,
+                u32_to_comma_separated(cycles)
+            );
+        }
     }
 
     fn postprocess(&mut self) {
