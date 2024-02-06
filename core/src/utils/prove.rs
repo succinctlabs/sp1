@@ -55,12 +55,6 @@ pub fn prove_core(runtime: &mut Runtime) {
         runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger)
     });
 
-    // Verify the proof.
-    let mut challenger = config.challenger();
-    runtime
-        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
-        .unwrap();
-
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
@@ -77,6 +71,12 @@ pub fn prove_core(runtime: &mut Runtime) {
             ],
         );
     });
+
+    // Verify the proof.
+    let mut challenger = config.challenger();
+    runtime
+        .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
+        .unwrap();
 
     let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();

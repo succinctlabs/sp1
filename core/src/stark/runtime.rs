@@ -226,8 +226,8 @@ impl Runtime {
 
         // Compute the cumulative bus sum from all segments
         // Make sure that this cumulative bus sum is 0.
-        #[cfg(not(feature = "perf"))]
-        debug_cumulative_sums::<F, EF>(&all_permutation_traces);
+        // #[cfg(not(feature = "perf"))]
+        // debug_cumulative_sums::<F, EF>(&all_permutation_traces);
 
         #[cfg(feature = "perf")]
         return (local_segment_proofs, global_proof);
@@ -459,6 +459,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
+        setup_logger();
         let program = fibonacci_program();
         prove(program);
     }

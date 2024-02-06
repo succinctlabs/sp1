@@ -33,6 +33,12 @@ pub const SECP256K1_DOUBLE: u32 = 108;
 /// Executes `K256_DECOMPRESS`.
 pub const SECP256K1_DECOMPRESS: u32 = 109;
 
+/// Enter an unconstrained execution block.
+pub const ENTER_UNCONSTRAINED: u32 = 110;
+
+/// Exit an unconstrained execution block.
+pub const EXIT_UNCONSTRAINED: u32 = 111;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -304,4 +310,65 @@ pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
 #[no_mangle]
 pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     syscall_write(fd, write_buf, nbytes);
+}
+
+pub fn syscall_enter_unconstrained() -> bool {
+    #[allow(unused_mut)]
+    let mut continue_unconstrained: u32 = 0;
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") ENTER_UNCONSTRAINED,
+            out("a0") continue_unconstrained,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    println!("Entering unconstrained execution block");
+
+    continue_unconstrained == 1
+}
+
+pub fn syscall_exit_unconstrained() {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") EXIT_UNCONSTRAINED,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    println!("Exiting unconstrained execution block");
+}
+
+/// Executes a block of code unconstrained by the VM. This macro is useful for executing operations
+/// to help provide information to the program that does not need to be constrained by the VM. For
+/// example, providing the result of ecrecover which is cheaper to just verify inside of the VM.
+///
+/// Any changes to the VM state will be reset at the end of the block. To provide data to the VM,
+/// use `syscall_write_hint`.
+#[macro_export]
+macro_rules! unconstrained {
+    (  $( $stmt:stmt );*; ) => {
+        use $crate::syscall::{syscall_enter_unconstrained, syscall_exit_unconstrained};
+
+        let continue_unconstrained = syscall_enter_unconstrained();
+        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+
+        // If continue_unconstrained is true (only possible in the runtime), execute
+        // the inner code. Otherwise, nothing happens.
+        if continue_unconstrained {
+            // Declare an immutable closure to ensure at compile time that no memory is changed
+            let _unconstrained_closure = || -> () {
+                $( $stmt )*
+            };
+
+            _unconstrained_closure();
+        }
+
+        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+        syscall_exit_unconstrained();
+    }
 }

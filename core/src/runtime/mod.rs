@@ -27,6 +27,7 @@ pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process::exit;
 use std::sync::Arc;
@@ -43,6 +44,17 @@ pub enum AccessPosition {
     C = 1,
     B = 2,
     A = 3,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct PreviousRuntimeValues {
+    pub(crate) global_clk: u32,
+    pub(crate) clk: u32,
+    pub(crate) pc: u32,
+    pub(crate) memory: HashMap<u32, Option<u32>, BuildNoHashHasher<u32>>,
+    pub(crate) memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
+    pub(crate) record: Record,
+    pub(crate) segment: Segment,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -111,6 +123,20 @@ pub struct Runtime {
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
+
+    /// Whether the runtime is in constrained mode or not.
+    /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
+    /// the unconstrained block. The only thing preserved is writes to the hint stream.
+    pub unconstrained: bool,
+
+    pub(crate) values_before_unconstrained: PreviousRuntimeValues,
+
+    /// The hint stream is a stream of bytes that can be written to by the program during
+    /// unconstrained execution.
+    pub hint_stream: Vec<u8>,
+
+    /// A ptr to the current position in the hint stream, incremented when reading from hint_stream.
+    pub hint_stream_ptr: usize,
 }
 
 impl Runtime {
@@ -139,6 +165,10 @@ impl Runtime {
             segment_size: 1048576,
             global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
+            unconstrained: false,
+            values_before_unconstrained: PreviousRuntimeValues::default(),
+            hint_stream: Vec::new(),
+            hint_stream_ptr: 0,
         }
     }
 
@@ -200,7 +230,21 @@ impl Runtime {
     }
 
     pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
-        let value = *self.memory.entry(addr).or_insert(0);
+        if addr == 18 {
+            tracing::debug!("Reading from address 18 at clk {}", clk);
+        }
+        let memory_entry = self.memory.entry(addr);
+        if self.unconstrained {
+            let prev_value = match memory_entry {
+                Entry::Occupied(ref entry) => Some(*entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.values_before_unconstrained
+                .memory
+                .entry(addr)
+                .or_insert(prev_value);
+        }
+        let value = *memory_entry.or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
@@ -210,16 +254,34 @@ impl Runtime {
     }
 
     pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
-        let prev_value = *self.memory.entry(addr).or_insert(0);
+        if addr == 18 {
+            tracing::debug!("Writing to address 18 with value {} at clk {}", value, clk);
+        }
+        let memory_value_entry = self.memory.entry(addr);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+        if self.unconstrained {
+            let prev_value = match memory_value_entry {
+                Entry::Occupied(ref entry) => Some(*entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.values_before_unconstrained
+                .memory
+                .entry(addr)
+                .or_insert(prev_value);
+            let val = self.values_before_unconstrained.memory.get(&addr);
+            if addr == 18 {
+                println!("setting value at addr {} to {} {:?}", addr, value, val);
+            }
+        }
+        let memory_value = memory_value_entry.or_insert(0);
         self.memory_access.insert(addr, (segment, clk));
-        self.memory.insert(addr, value);
+        *memory_value = value;
         MemoryWriteRecord::new(
             value,
             segment,
             clk,
-            prev_value,
+            *memory_value,
             prev_segment,
             prev_timestamp,
         )
@@ -235,11 +297,13 @@ impl Runtime {
             self.clk_from_position(&position),
         );
 
-        match position {
-            AccessPosition::A => self.record.a = Some(record.into()),
-            AccessPosition::B => self.record.b = Some(record.into()),
-            AccessPosition::C => self.record.c = Some(record.into()),
-            AccessPosition::Memory => self.record.memory = Some(record.into()),
+        if !self.unconstrained {
+            match position {
+                AccessPosition::A => self.record.a = Some(record.into()),
+                AccessPosition::B => self.record.b = Some(record.into()),
+                AccessPosition::C => self.record.c = Some(record.into()),
+                AccessPosition::Memory => self.record.memory = Some(record.into()),
+            }
         }
         record.value
     }
@@ -256,22 +320,24 @@ impl Runtime {
         );
 
         // Set the records.
-        match position {
-            AccessPosition::A => {
-                assert!(self.record.a.is_none());
-                self.record.a = Some(record.into());
-            }
-            AccessPosition::B => {
-                assert!(self.record.b.is_none());
-                self.record.b = Some(record.into());
-            }
-            AccessPosition::C => {
-                assert!(self.record.c.is_none());
-                self.record.c = Some(record.into());
-            }
-            AccessPosition::Memory => {
-                assert!(self.record.memory.is_none());
-                self.record.memory = Some(record.into());
+        if !self.unconstrained {
+            match position {
+                AccessPosition::A => {
+                    assert!(self.record.a.is_none());
+                    self.record.a = Some(record.into());
+                }
+                AccessPosition::B => {
+                    assert!(self.record.b.is_none());
+                    self.record.b = Some(record.into());
+                }
+                AccessPosition::C => {
+                    assert!(self.record.c.is_none());
+                    self.record.c = Some(record.into());
+                }
+                AccessPosition::Memory => {
+                    assert!(self.record.memory.is_none());
+                    self.record.memory = Some(record.into());
+                }
             }
         }
     }
@@ -684,7 +750,7 @@ impl Runtime {
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
-                        if fd == 1 || fd == 2 || fd == 3 {
+                        if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
                             let write_buf = self.register(a1);
                             let nbytes = self.register(a2);
                             // Read nbytes from memory starting at write_buf.
@@ -730,6 +796,8 @@ impl Runtime {
                                 log::info!("stderr: {}", s.trim_end());
                             } else if fd == 3 {
                                 self.output_stream.extend_from_slice(slice);
+                            } else if fd == 4 {
+                                self.hint_stream.extend_from_slice(slice);
                             } else {
                                 unreachable!()
                             }
@@ -789,6 +857,88 @@ impl Runtime {
                         a = K256DecompressChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
+                    }
+                    Syscall::ENTER_UNCONSTRAINED => {
+                        println!("entering");
+                        let memory_18 = self.memory.get(&18).cloned();
+                        println!("memory_18: {:?}", memory_18);
+                        if self.unconstrained {
+                            panic!("Unconstrained block is already active.");
+                        }
+                        self.unconstrained = true;
+                        println!(
+                            "entering, {}, {}, {}",
+                            self.unconstrained, self.pc, self.global_clk
+                        );
+                        self.values_before_unconstrained = PreviousRuntimeValues {
+                            global_clk: self.global_clk,
+                            clk: self.clk,
+                            pc: self.pc,
+                            memory: HashMap::default(),
+                            memory_access: std::mem::take(&mut self.memory_access),
+                            segment: std::mem::take(&mut self.segment),
+                            record: std::mem::take(&mut self.record),
+                        };
+                        a = 1;
+                    }
+                    Syscall::EXIT_UNCONSTRAINED => {
+                        a = 0;
+                        println!(
+                            "exiting, {}, {}, {}, {}, {}, {}",
+                            self.unconstrained,
+                            self.pc,
+                            self.global_clk,
+                            self.values_before_unconstrained.global_clk,
+                            self.values_before_unconstrained.clk,
+                            self.values_before_unconstrained.pc,
+                        );
+                        // Reset the state of the runtime.
+                        if self.unconstrained {
+                            self.global_clk = self.values_before_unconstrained.global_clk;
+                            self.clk = self.values_before_unconstrained.clk;
+                            self.pc = self.values_before_unconstrained.pc;
+                            next_pc = self.pc.wrapping_add(4);
+                            println!("memory: {:?}", self.values_before_unconstrained.memory);
+                            for (addr, value) in self.values_before_unconstrained.memory.drain() {
+                                match value {
+                                    Some(value) => {
+                                        self.memory.insert(addr, value);
+                                    }
+                                    None => {
+                                        self.memory.remove(&addr);
+                                    }
+                                }
+                            }
+                            self.segment =
+                                std::mem::take(&mut self.values_before_unconstrained.segment);
+                            self.memory_access =
+                                std::mem::take(&mut self.values_before_unconstrained.memory_access);
+                            self.record =
+                                std::mem::take(&mut self.values_before_unconstrained.record);
+                            self.unconstrained = false;
+
+                            self.rw(a0, a);
+                            (b, c) = (self.rr(t0, AccessPosition::B), 0);
+
+                            // Update the program counter.
+                            self.pc = next_pc;
+
+                            // Emit the CPU event for this cycle.
+                            self.emit_cpu(
+                                self.current_segment(),
+                                self.clk,
+                                pc,
+                                instruction,
+                                a,
+                                b,
+                                c,
+                                memory_store_value,
+                                self.record,
+                            );
+
+                            return;
+                        }
+                        self.values_before_unconstrained = PreviousRuntimeValues::default();
                     }
                 }
 
@@ -892,6 +1042,8 @@ impl Runtime {
             self.memory_access.insert(*addr, (0, 0));
         }
 
+        println!("memory image: {:?}", self.memory.get(&18));
+
         self.clk += 1;
         while self.pc.wrapping_sub(self.program.pc_base)
             < (self.program.instructions.len() * 4) as u32
@@ -904,7 +1056,14 @@ impl Runtime {
             }
 
             let width = 12;
-            log::trace!(
+
+            // Execute the instruction.
+            self.execute(instruction);
+            if self.global_clk >= 18610
+                || self.global_clk == 111
+                || instruction.opcode == Opcode::ECALL
+            {
+                log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk,
                 self.pc,
@@ -929,15 +1088,13 @@ impl Runtime {
                 self.register(Register::X17),
                 self.register(Register::X18),
             );
-
-            // Execute the instruction.
-            self.execute(instruction);
+            }
 
             // Increment the clock.
             self.global_clk += 1;
             self.clk += 4;
 
-            if self.clk % self.segment_size == 1 {
+            if self.clk % self.segment_size == 1 && !self.unconstrained {
                 let segment = std::mem::take(&mut self.segment);
                 self.segments.push(segment);
                 // Set up new segment
@@ -970,7 +1127,10 @@ impl Runtime {
         let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
             let value = *self.memory.get(&addr).unwrap();
-            let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
+            let (segment, timestamp) = *self
+                .memory_access
+                .get(&addr)
+                .unwrap_or_else(|| panic!("addr={}", addr));
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
