@@ -626,7 +626,7 @@ impl Runtime {
                 .copied()
                 .sum::<SC::Challenge>();
         }
-        println!("cycle-tracker-end verifying_interactions");
+        println!("cycle-tracker-end: verifying_interactions");
 
         match sum.is_zero() {
             true => Ok(()),
