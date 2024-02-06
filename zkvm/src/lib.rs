@@ -5,9 +5,6 @@ use syscall::syscall_halt;
 use getrandom::{register_custom_getrandom, Error};
 
 use core::alloc::{GlobalAlloc, Layout};
-use getrandom::{register_custom_getrandom, Error};
-use rand::Rng;
-use rand::SeedableRng;
 
 extern crate alloc;
 
