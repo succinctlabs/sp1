@@ -1046,14 +1046,7 @@ impl Runtime {
             }
 
             let width = 12;
-
-            // Execute the instruction.
-            self.execute(instruction);
-            if self.global_clk >= 18610
-                || self.global_clk == 111
-                || instruction.opcode == Opcode::ECALL
-            {
-                log::trace!(
+            log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.global_clk,
                 self.pc,
@@ -1078,7 +1071,9 @@ impl Runtime {
                 self.register(Register::X17),
                 self.register(Register::X18),
             );
-            }
+
+            // Execute the instruction.
+            self.execute(instruction);
 
             // Increment the clock.
             self.global_clk += 1;
