@@ -133,7 +133,6 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_field::{extension::BinomialExtensionField, Field, Res};
     use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
     use p3_ldt::QuotientMmcs;
-    use p3_mds::coset_mds::CosetMds;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
@@ -148,8 +147,6 @@ pub(super) mod baby_bear_poseidon2 {
     pub type Challenge = BinomialExtensionField<Val, 4>;
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
     pub type ChallengeAlgebra = BinomialExtensionField<Res<Val, BinomialExtensionField<Val, 4>>, 4>;
-
-    pub type MyMds = CosetMds<Val, 16>;
 
     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;

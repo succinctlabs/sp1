@@ -8,8 +8,7 @@ use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
-use serde::ser::{Serialize as CustomSerialize, SerializeStruct, Serializer};
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
 use super::StarkConfig;

@@ -50,6 +50,8 @@ elliptic-curve = "0.13.8"
 
 [dev-dependencies]
 criterion = "0.5.1"
+num = { version = "0.4.1", features = ["rand"] }
+rand = "0.8.5"
 
 [features]
 perf = ["parallel"]

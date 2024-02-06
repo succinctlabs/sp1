@@ -19,9 +19,6 @@ pub struct ProveCmd {
 
     #[clap(long, action)]
     verbose: bool,
-
-    #[clap(long, action)]
-    bin: Option<String>,
 }
 
 impl ProveCmd {
@@ -48,12 +45,7 @@ impl ProveCmd {
             );
         }
 
-        let mut args = vec!["build", "--release", "--target", build_target, "--locked"];
-        if self.bin.is_some() {
-            let bin = self.bin.as_ref().unwrap();
-            args.push("--bin");
-            args.push(bin);
-        }
+        let args = vec!["build", "--release", "--target", build_target, "--locked"];
 
         Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
