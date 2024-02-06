@@ -583,9 +583,7 @@ impl Runtime {
 
         // Verify the segment proofs.
         // println!("cycle-tracker-start: verifying_segment_proofs");
-        println!("cycle-tracker-start: getting_segment_chips");
         let segment_chips = Self::segment_chips::<F>();
-        println!("cycle-tracker-end: getting_segment_chips");
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
                 Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
