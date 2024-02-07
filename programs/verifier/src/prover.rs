@@ -1,34 +1,16 @@
 use std::fs;
-
-// use clap::{command, Parser};
 use std::process::exit;
+
 use succinct_core::runtime::Program;
 use succinct_core::runtime::Runtime;
+use succinct_core::stark::prover::LocalProver;
+use succinct_core::stark::SegmentProof;
 use succinct_core::utils::BabyBearPoseidon2;
 use succinct_core::utils::StarkUtils;
 
-use succinct_core::stark::prover::LocalProver;
-use succinct_core::stark::SegmentProof;
-
-use bincode::serialize;
-
-// #[derive(Parser, Debug, Clone)]
-// #[command(about = "Profile a program.")]
-// struct ProverArgs {
-//     #[arg(long)]
-//     pub program: String,
-
-//     #[arg(long)]
-//     pub proof_directory: String,
-// }
-
+// This program should be run from the top level of the verifier-zkvm package.  The pathnames
+// below assume that.
 fn main() {
-    // let args = ProverArgs::parse();
-
-    // log::info!("Proving program: {}", args.program.as_str());
-
-    // let program = Program::from_elf(args.program.as_str());
-
     let program = Program::from_elf("../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     let mut runtime = Runtime::new(program);
@@ -41,14 +23,26 @@ fn main() {
     let (segment_proofs, global_proof) =
         runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
 
-    // Attempt to create the directory
-    // let directory_name = args.proof_directory.as_str();
-    let directory_name = "fib_proofs";
-    match fs::create_dir(directory_name) {
-        Ok(_) => (),
-        Err(e) => {
-            log::error!("Error creating directory: {}", e);
-            exit(1);
+    // Check to see if the proofs directory already exists
+    let directory_name = "data/proofs";
+
+    match fs::metadata(directory_name) {
+        Ok(metadata) => {
+            // Check if the metadata represents a directory
+            if !metadata.is_dir() {
+                log::error!("{} exists, but it is not a directory.", directory_name);
+                exit(1);
+            }
+        }
+        Err(_) => {
+            // If the directory does not exist, create it
+            match fs::create_dir(directory_name) {
+                Ok(_) => (),
+                Err(e) => {
+                    log::error!("Error creating directory: {}", e);
+                    exit(1);
+                }
+            }
         }
     }
 

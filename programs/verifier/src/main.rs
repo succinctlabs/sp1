@@ -37,18 +37,19 @@ fn verify<F, EF, SC>(
     println!("cycle-tracker-end: verify");
 }
 
+// This program should be run from the top level of the verifier-zkvm package.  The pathnames
+// below assume that.
 fn main() {
-    let segment_proofs_bytes = include_bytes!("./fib_proofs/segment_proofs.bytes");
+    let segment_proofs_bytes = include_bytes!("../data/proofs/segment_proofs.bytes");
     let segment_proofs: Vec<SegmentProof<BabyBearPoseidon2>> =
         bincode::deserialize(&segment_proofs_bytes[..]).unwrap();
 
-    let global_proof_bytes = include_bytes!("./fib_proofs/global_proof.bytes");
+    let global_proof_bytes = include_bytes!("../data/proofs/global_proof.bytes");
     let global_proof: SegmentProof<BabyBearPoseidon2> =
         bincode::deserialize(&global_proof_bytes[..]).unwrap();
 
     let config = BabyBearPoseidon2::new();
     let mut challenger = config.challenger();
-
     let mut runtime = Runtime::default();
 
     black_box(verify::<_, _, BabyBearPoseidon2>(
