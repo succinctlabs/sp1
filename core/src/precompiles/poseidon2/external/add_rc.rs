@@ -22,8 +22,6 @@ use super::P2_WIDTH;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct AddRcOperation<T> {
-    /// An array whose i-th element is the result of adding the appropriate round constant to the
-    /// i-th element of the input state.
     pub result: [T; P2_WIDTH],
 }
 
