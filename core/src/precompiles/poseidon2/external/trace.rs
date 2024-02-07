@@ -133,6 +133,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
     }
 
     fn name(&self) -> String {
-        "Poseidon2External".to_string()
+        "Poseidon2External1".to_string()
     }
 }

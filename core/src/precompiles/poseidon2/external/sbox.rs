@@ -27,9 +27,9 @@ pub struct SBoxOperation<T> {
 
     /// A 2-dimensional array whose `(i, j)`th element is the accumulate variable for the `j`th
     /// iteration in the exponentiation by squaring algorithm for the `i`th element of the input
-    /// state. This is necessary to avoid degree explosion.
+    /// state. The final results of the `sbox` operation is stored in `acc[i].last()` for each `i`.
     ///
-    /// The final results of the `sbox` operation is stored in `acc[i].last()` for each `i`.
+    /// This helps avoid degree explosion.
     pub acc: [[T; P2_SBOX_EXPONENT_LOG2]; P2_WIDTH],
 }
 
@@ -62,6 +62,7 @@ impl<F: Field> SBoxOperation<F> {
         cols: SBoxOperation<AB::Var>,
         is_real: AB::Var,
     ) {
+        builder.assert_bool(is_real);
         for limb_index in 0..P2_WIDTH {
             // Continue squaring the limb_index-th input state.
             {
