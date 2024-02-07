@@ -41,7 +41,7 @@ tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
-curve25519-dalek = { version = "4.0.0-rc.3" }
+curve25519-dalek = { version = "=4.0.0" }
 hex = "0.4.3"
 tempfile = "3.9.0"
 flate2 = "1.0.28"
