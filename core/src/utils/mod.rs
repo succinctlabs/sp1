@@ -21,8 +21,7 @@ use crate::{
     operations::field::params::Limbs,
     runtime::Segment,
     stark::{
-        folder::{ProverConstraintFolder, VerifierConstraintFolder},
-        DebugConstraintBuilder, StarkConfig,
+        DebugConstraintBuilder, ProverConstraintFolder, StarkConfig, VerifierConstraintFolder,
     },
 };
 

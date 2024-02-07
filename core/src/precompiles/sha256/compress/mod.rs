@@ -42,7 +42,7 @@ pub mod compress_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::prover::LocalProver,
+        stark::LocalProver,
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 

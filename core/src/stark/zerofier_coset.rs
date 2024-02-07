@@ -6,17 +6,23 @@ use super::util::batch_multiplicative_inverse;
 pub struct ZerofierOnCoset<F: Field> {
     /// `n = |H|`.
     log_n: usize,
+
     /// `rate = |K|/|H|`.
     rate_bits: usize,
+
+    /// `s K`.
     coset_shift: F,
+
     /// Holds `g^n * (w^n)^i - 1 = g^n * v^i - 1` for `i in 0..rate`, with `w` a generator of `K` and `v` a
     /// `rate`-primitive root of unity.
     evals: Vec<F>,
+
     /// Holds the multiplicative inverses of `evals`.
     inverses: Vec<F>,
 }
 
 impl<F: TwoAdicField> ZerofierOnCoset<F> {
+    /// Creates a new `ZerofierOnCoset` for the coset `s K` with `H <= K`.
     pub fn new(log_n: usize, rate_bits: usize, coset_shift: F) -> Self {
         let s_pow_n = coset_shift.exp_power_of_2(log_n);
         let evals = F::two_adic_generator(rate_bits)
@@ -35,6 +41,7 @@ impl<F: TwoAdicField> ZerofierOnCoset<F> {
     }
 
     /// Returns `Z_H(g * w^i)`.
+    #[allow(dead_code)]
     pub fn eval(&self, i: usize) -> F {
         self.evals[i & ((1 << self.rate_bits) - 1)]
     }

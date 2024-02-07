@@ -47,7 +47,7 @@ impl KeccakPermuteChip {
 pub mod permute_tests {
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::prover::LocalProver,
+        stark::LocalProver,
         utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
         SuccinctProver,
     };

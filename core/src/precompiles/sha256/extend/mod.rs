@@ -47,7 +47,7 @@ pub mod extend_tests {
     use crate::{
         alu::AluEvent,
         runtime::{Instruction, Opcode, Program, Runtime, Segment},
-        stark::prover::LocalProver,
+        stark::LocalProver,
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 
