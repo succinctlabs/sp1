@@ -84,7 +84,7 @@ impl Runtime {
         let segment_proofs = segment_datas
             .into_par_iter()
             .enumerate()
-            .map(|(i, main_data)| {
+            .map(|(_, main_data)| {
                 P::prove(config, &mut challenger.clone(), &local_chips, main_data)
             })
             .collect::<Vec<_>>();
@@ -164,7 +164,7 @@ impl Runtime {
 
         match sum.is_zero() {
             true => Ok(()),
-            false => Err(ProgramVerificationError::NonZeroCommulativeSum),
+            false => Err(ProgramVerificationError::NonZeroCumulativeSum),
         }
     }
 
@@ -231,7 +231,7 @@ impl Runtime {
 pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
-    NonZeroCommulativeSum,
+    NonZeroCumulativeSum,
 }
 
 #[cfg(test)]

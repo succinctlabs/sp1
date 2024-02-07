@@ -17,10 +17,6 @@ pub trait StarkConfig {
     /// The packed version of `Challenge` to accelerate vector-friendly computations.
     type PackedChallenge: AbstractExtensionField<Self::PackedVal, F = Self::Challenge> + Copy;
 
-    /// The challenge algebra `Challenge[X]/f(X)`, where `Challenge = Val[X]/f(X)`.
-    type ChallengeAlgebra: AbstractExtensionField<Res<Self::Val, Self::Challenge>, F = Self::Challenge>
-        + Copy;
-
     /// The PCS used to commit to trace polynomials.
     type Pcs: UnivariatePcsWithLde<
         Self::Val,
