@@ -3,18 +3,14 @@ use p3_field::{Field, PrimeField32};
 use crate::{
     cpu::{MemoryReadRecord, MemoryWriteRecord},
     precompiles::{
-        poseidon2::{
-            external::columns::P2_SBOX_EXPONENT, external_linear_permute_mut,
-            Poseidon2ExternalEvent,
-        },
+        poseidon2::{external_linear_permute_mut, Poseidon2ExternalEvent},
         PrecompileRuntime,
     },
     runtime::Register,
 };
 
 use super::{
-    columns::{P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS},
-    Poseidon2External1Chip,
+    Poseidon2External1Chip, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS, P2_SBOX_EXPONENT,
 };
 
 /// The first external round in Poseidon2.

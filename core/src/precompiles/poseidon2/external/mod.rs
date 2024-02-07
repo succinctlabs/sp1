@@ -4,7 +4,7 @@ use p3_field::Field;
 
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
-use self::columns::P2_EXTERNAL_ROUND_COUNT;
+use self::constants::RC_16_30;
 
 mod add_rc;
 mod air;
@@ -17,6 +17,22 @@ mod trace;
 
 /// The number of field elements in a Poseidon2 state.
 pub const P2_WIDTH: usize = 16;
+
+pub const P2_DEFAULT_ROUNDS_F: usize = 8;
+pub const P2_DEFAULT_ROUNDS_P: usize = 22;
+pub const P2_TOTAL_ROUNDS: usize = P2_DEFAULT_ROUNDS_F + P2_DEFAULT_ROUNDS_P;
+
+/// The number of times to loop in the first or the last external round of Poseidon2.
+pub const P2_EXTERNAL_ROUND_COUNT: usize = P2_DEFAULT_ROUNDS_F / 2;
+
+pub const P2_SBOX_EXPONENT: usize = 7;
+
+/// The number of bits necessary to express `P2_SBOX_EXPONENT`. Used to decide how many times
+/// we need to square an element to raise it to the power of `P2_SBOX_EXPONENT` using the
+/// exponentiation by squaring algorithm.
+pub const P2_SBOX_EXPONENT_LOG2: usize = 3;
+
+pub const P2_ROUND_CONSTANTS: [[u32; P2_WIDTH]; P2_TOTAL_ROUNDS] = RC_16_30;
 
 /// An `Event` struct recording the state of the Poseidon2 permutation during either the first or
 /// the second external round.

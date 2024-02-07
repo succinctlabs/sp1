@@ -2,12 +2,10 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field};
 
 use super::add_rc::AddRcOperation;
-use super::columns::{
-    Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS,
-};
+use super::columns::{Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS};
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
-use super::Poseidon2External1Chip;
+use super::{Poseidon2External1Chip, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS};
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
@@ -45,10 +43,10 @@ impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
     ) {
         // If this is the i-th round, then the next row should be the (i+1)-th round.
         for i in 0..P2_EXTERNAL_ROUND_COUNT {
-            builder
-                .when_transition()
-                .when(next.is_real)
-                .assert_eq(local.is_round_n[i], next.is_round_n[i + 1]);
+            builder.when_transition().when(next.is_real).assert_eq(
+                local.is_round_n[i],
+                next.is_round_n[(i + 1) % P2_EXTERNAL_ROUND_COUNT],
+            );
             builder.assert_bool(local.is_round_n[i]);
         }
 

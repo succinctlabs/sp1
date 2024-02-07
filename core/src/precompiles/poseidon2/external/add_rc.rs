@@ -14,8 +14,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 
-use super::columns::P2_EXTERNAL_ROUND_COUNT;
-use super::columns::P2_ROUND_CONSTANTS;
+use super::P2_EXTERNAL_ROUND_COUNT;
+use super::P2_ROUND_CONSTANTS;
 use super::P2_WIDTH;
 
 /// A set of columns needed to compute the `add_rc` of the input state.

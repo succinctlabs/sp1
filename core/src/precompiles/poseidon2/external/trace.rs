@@ -6,11 +6,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use crate::{runtime::Segment, utils::Chip};
 
 use super::{
-    columns::{
-        Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS, P2_EXTERNAL_ROUND_COUNT,
-        P2_ROUND_CONSTANTS,
-    },
-    Poseidon2External1Chip, P2_WIDTH,
+    columns::{Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS},
+    Poseidon2External1Chip, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS, P2_WIDTH,
 };
 
 // TODO: I don't know how to combine F and PF.

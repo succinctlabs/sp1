@@ -13,8 +13,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 
-use super::columns::P2_SBOX_EXPONENT;
-use super::columns::P2_SBOX_EXPONENT_LOG2;
+use super::P2_SBOX_EXPONENT;
+use super::P2_SBOX_EXPONENT_LOG2;
 use super::P2_WIDTH;
 
 /// A set of columns needed to compute the `sbox` of the input state.
