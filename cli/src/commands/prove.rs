@@ -7,6 +7,7 @@ use succinct_core::{
 };
 
 use crate::CommandExecutor;
+use log::info;
 
 #[derive(Parser)]
 #[command(name = "prove", about = "(default) Build and prove a Rust program")]
@@ -39,7 +40,7 @@ impl ProveCmd {
         ];
 
         if self.verbose {
-            println!(
+            info!(
                 "running command: cargo build --release --target {}",
                 build_target
             );
@@ -56,7 +57,7 @@ impl ProveCmd {
             .unwrap();
 
         if self.verbose {
-            println!("running command: cargo {}", args.join(" "));
+            info!("running command: cargo {}", args.join(" "));
         }
 
         let elf_path = metadata
@@ -66,7 +67,7 @@ impl ProveCmd {
             .join(root_package_name.unwrap());
         let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
         if self.verbose {
-            println!("copying elf to {:?}", elf_dir);
+            info!("copying elf to {:?}", elf_dir);
         }
         fs::create_dir_all(&elf_dir)?;
         fs::copy(&elf_path, elf_dir.join("riscv32im-succinct-zkvm-elf"))?;

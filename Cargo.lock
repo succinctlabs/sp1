@@ -687,6 +687,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "indicatif",
+ "log",
  "rand",
  "reqwest",
  "serde",
