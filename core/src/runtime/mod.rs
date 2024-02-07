@@ -792,28 +792,10 @@ impl Runtime {
                         assert_eq!(init_clk + 4, self.clk);
                     }
                     Syscall::POSEIDON2_EXTERNAL_1 => {
-                        a = {
-                            let (a_val, event) =
-                                Poseidon2External1Chip::<BabyBear, P2_WIDTH>::execute(
-                                    &mut precompile_rt,
-                                );
-
-                            // The event is pushed to the segment here because
-                            // Poseidon2ExternalChip::execute() is a generic function. This function
-                            // cannot infer the const generic parameter used elsewhere,
-                            // necessitating explicit handling of the event at this point in the
-                            // code.
-                            precompile_rt
-                                .segment_mut()
-                                .poseidon2_external_1_events
-                                .push(event);
-
-                            a_val
-                        };
-
+                        a = Poseidon2External1Chip::<BabyBear>::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(
-                            init_clk + Poseidon2External1Chip::<BabyBear, P2_WIDTH>::NUM_CYCLES,
+                            init_clk + Poseidon2External1Chip::<BabyBear>::NUM_CYCLES,
                             self.clk
                         );
                     }

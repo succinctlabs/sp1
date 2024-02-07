@@ -48,11 +48,11 @@ pub struct Poseidon2ExternalEvent<const WIDTH: usize> {
 ///
 /// TODO: When implementing the second external round, we should attempt to share as much code as
 /// possible between the two rounds.
-pub struct Poseidon2External1Chip<F: Field, const WIDTH: usize> {
+pub struct Poseidon2External1Chip<F: Field> {
     pub _phantom: std::marker::PhantomData<F>,
 }
 
-impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
+impl<F: Field> Poseidon2External1Chip<F> {
     pub fn new() -> Self {
         Self {
             _phantom: std::marker::PhantomData,

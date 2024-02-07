@@ -11,7 +11,7 @@ use super::{
 };
 
 // TODO: I don't know how to combine F and PF.
-impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2External1Chip<F, WIDTH> {
+impl<PF: PrimeField, F: Field> Chip<PF> for Poseidon2External1Chip<F> {
     // TODO: The vast majority of this logic can be shared with the second external round.
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<PF> {
         let mut rows = Vec::new();
@@ -41,7 +41,7 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                 }
 
                 // Read.
-                for i in 0..WIDTH {
+                for i in 0..P2_WIDTH {
                     cols.state_ptr = PF::from_canonical_u32(event.state_ptr);
                     cols.mem_reads[i].populate(event.state_reads[round][i], &mut new_field_events);
                     cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
@@ -63,7 +63,7 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     cols.external_linear_permute.populate(&result_sbox);
 
                 // Write.
-                for i in 0..WIDTH {
+                for i in 0..P2_WIDTH {
                     cols.mem_writes[i]
                         .populate(event.state_writes[round][i], &mut new_field_events);
                     cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);

@@ -74,7 +74,7 @@ impl Runtime {
         let weierstrass_double =
             WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
         let k256_decompress = K256DecompressChip::new();
-        let poseidon2_external = Poseidon2External1Chip::<BabyBear, P2_WIDTH>::new();
+        let poseidon2_external = Poseidon2External1Chip::<BabyBear>::new();
         // This vector contains chips ordered to address dependencies. Some operations, like div,
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.

@@ -5,19 +5,19 @@ use super::add_rc::AddRcOperation;
 use super::columns::{Poseidon2ExternalCols, NUM_POSEIDON2_EXTERNAL_COLS};
 use super::external_linear_permute::ExternalLinearPermuteOperation;
 use super::sbox::SBoxOperation;
-use super::{Poseidon2External1Chip, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS};
+use super::{Poseidon2External1Chip, P2_EXTERNAL_ROUND_COUNT, P2_ROUND_CONSTANTS, P2_WIDTH};
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
-impl<F, const N: usize, FIELD: Field> BaseAir<F> for Poseidon2External1Chip<FIELD, N> {
+impl<F, FIELD: Field> BaseAir<F> for Poseidon2External1Chip<FIELD> {
     fn width(&self) -> usize {
         NUM_POSEIDON2_EXTERNAL_COLS
     }
 }
 
-impl<AB, const WIDTH: usize, FIELD: Field> Air<AB> for Poseidon2External1Chip<FIELD, WIDTH>
+impl<AB, FIELD: Field> Air<AB> for Poseidon2External1Chip<FIELD>
 where
     AB: CurtaAirBuilder,
 {
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
+impl<F: Field> Poseidon2External1Chip<F> {
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
@@ -80,7 +80,7 @@ impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
 
         // Calculate the round constants for this round.
         {
-            for i in 0..WIDTH {
+            for i in 0..P2_WIDTH {
                 let round_constant = {
                     let mut acc: AB::Expr = AB::F::zero().into();
 
@@ -102,7 +102,7 @@ impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
     ) {
         let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
         let clk_cycle_per_word = 4;
-        for i in 0..WIDTH {
+        for i in 0..P2_WIDTH {
             builder.constraint_memory_access(
                 local.segment,
                 local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),
