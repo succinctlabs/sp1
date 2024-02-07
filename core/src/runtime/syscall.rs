@@ -41,7 +41,6 @@ pub enum Syscall {
 impl Syscall {
     /// Create a syscall from a u32.
     pub fn from_u32(value: u32) -> Self {
-        println!("value = {}", value);
         match value {
             100 => Syscall::HALT,
             101 => Syscall::LWA,
@@ -55,7 +54,7 @@ impl Syscall {
             109 => Syscall::SECP256K1_DECOMPRESS,
             110 => Syscall::POSEIDON2_EXTERNAL_1,
             999 => Syscall::WRITE,
-            _ => panic!("??invalid syscall number: {}", value),
+            _ => panic!("invalid syscall number: {}", value),
         }
     }
 }
