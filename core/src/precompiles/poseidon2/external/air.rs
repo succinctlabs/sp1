@@ -64,7 +64,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
             };
 
             builder
-                .when(local.is_external)
+                .when(local.is_real)
                 .assert_eq(sum_is_round_n, AB::F::from_canonical_usize(1));
         }
 
@@ -111,7 +111,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
                 local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),
                 local.mem_addr[i],
                 &local.mem_reads[i],
-                local.is_external,
+                local.is_real,
             );
             builder.constraint_memory_access(
                 local.segment,
@@ -120,7 +120,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
                     + AB::F::from_canonical_usize(i * clk_cycle_per_word),
                 local.mem_addr[i],
                 &local.mem_writes[i],
-                local.is_external,
+                local.is_real,
             );
         }
     }
@@ -130,8 +130,8 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
-        // Convert each Word into one field element. The MemoryRead struct returns an array of Words
-        // , but we need to perform operations within the field.
+        // Convert each Word into one field element. MemoryRead returns an array of Words, but we
+        // need to perform operations within the field.
         let input_state = local.mem_reads.map(|read| {
             let mut acc: AB::Expr = AB::F::zero().into();
             for i in 0..WORD_SIZE {
@@ -141,7 +141,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
             acc
         });
 
-        builder.assert_bool(local.is_external);
+        builder.assert_bool(local.is_real);
 
         AddRcOperation::<AB::F>::eval(
             builder,
@@ -149,16 +149,16 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
             local.is_round_n,
             local.round_constant,
             local.add_rc,
-            local.is_external,
+            local.is_real,
         );
 
-        SBoxOperation::<AB::F>::eval(builder, local.add_rc.result, local.sbox, local.is_external);
+        SBoxOperation::<AB::F>::eval(builder, local.add_rc.result, local.sbox, local.is_real);
 
         ExternalLinearPermuteOperation::<AB::F>::eval(
             builder,
             local.sbox.acc.map(|x| *x.last().unwrap()),
             local.external_linear_permute,
-            local.is_external,
+            local.is_real,
         );
     }
 }

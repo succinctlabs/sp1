@@ -100,12 +100,7 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     );
                 }
 
-                // TODO: I need to figure out whether I need both or I only need one of these.
                 cols.is_real = PF::one();
-                cols.is_external = PF::one();
-                // if round == 0 {
-                //     println!("cols: {:#?}", cols);
-                // }
                 rows.push(row);
             }
         }

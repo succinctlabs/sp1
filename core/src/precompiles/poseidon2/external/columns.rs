@@ -63,7 +63,5 @@ pub struct Poseidon2ExternalCols<T> {
     /// A boolean array whose `n`th element indicates whether this is the `n`th round.                              
     pub is_round_n: Array<T, P2_EXTERNAL_ROUND_COUNT>,
 
-    pub is_external: T,
-
     pub is_real: T,
 }
