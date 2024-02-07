@@ -33,7 +33,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                 {
                     cols.segment = PF::from_canonical_u32(segment.index);
 
-                    // Increment the clock by 4 * (the number of reads + writes for this round).
                     cols.clk = PF::from_canonical_u32(clk);
 
                     cols.round_number = PF::from_canonical_u32(round as u32);
