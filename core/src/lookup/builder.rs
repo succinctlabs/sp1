@@ -112,24 +112,24 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
         SymbolicExpression::Variable(v) if !v.is_next => {
             (vec![(PairCol::Main(v.column), F::one())], F::zero())
         }
-        SymbolicExpression::Add(left, right) => {
-            let (v_l, c_l) = eval_symbolic_to_virtual_pair(left);
-            let (v_r, c_r) = eval_symbolic_to_virtual_pair(right);
+        SymbolicExpression::Add { x, y, .. } => {
+            let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
+            let (v_r, c_r) = eval_symbolic_to_virtual_pair(y);
             ([v_l, v_r].concat(), c_l + c_r)
         }
-        SymbolicExpression::Sub(left, right) => {
-            let (v_l, c_l) = eval_symbolic_to_virtual_pair(left);
-            let (v_r, c_r) = eval_symbolic_to_virtual_pair(right);
+        SymbolicExpression::Sub { x, y, .. } => {
+            let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
+            let (v_r, c_r) = eval_symbolic_to_virtual_pair(y);
             let neg_v_r = v_r.iter().map(|(c, w)| (*c, -*w)).collect();
             ([v_l, neg_v_r].concat(), c_l - c_r)
         }
-        SymbolicExpression::Neg(x) => {
+        SymbolicExpression::Neg { x, .. } => {
             let (v, c) = eval_symbolic_to_virtual_pair(x);
             (v.iter().map(|(c, w)| (*c, -*w)).collect(), -c)
         }
-        SymbolicExpression::Mul(left, right) => {
-            let (v_l, c_l) = eval_symbolic_to_virtual_pair(left);
-            let (v_r, c_r) = eval_symbolic_to_virtual_pair(right);
+        SymbolicExpression::Mul { x, y, .. } => {
+            let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
+            let (v_r, c_r) = eval_symbolic_to_virtual_pair(y);
 
             let mut v = vec![];
             v.extend(v_l.iter().map(|(c, w)| (*c, *w * c_r)));

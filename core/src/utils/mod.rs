@@ -61,7 +61,7 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
 pub trait AirChip<SC: StarkConfig>:
     Chip<SC::Val>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge, SC::ChallengeAlgebra>>
+    + for<'a> Air<VerifierConstraintFolder<'a, SC>>
     + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
     fn air_width(&self) -> usize {
@@ -75,7 +75,7 @@ impl<SC: StarkConfig, T> AirChip<SC> for T
 where
     T: Chip<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge, SC::ChallengeAlgebra>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
 {
     fn as_chip(&self) -> &dyn Chip<SC::Val> {
