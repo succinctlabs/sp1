@@ -32,7 +32,7 @@ impl BuildToolchainCmd {
                     }
                     Err(_) => {
                         println!("No GITHUB_ACCESS_TOKEN detected. If you get throttled by Github, set it to bypass the rate limit.");
-                        "https://github.com/succinctlabs/rust".to_string()
+                        "ssh://git@github.com/succinctlabs/rust".to_string()
                     }
                 };
                 Command::new("git").args(["clone", &repo_url]).run()?;

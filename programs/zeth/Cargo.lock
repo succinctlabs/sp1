@@ -54,7 +54,7 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 [[package]]
 name = "alloy-primitives"
 version = "0.6.2"
-source = "git+https://github.com/succinctlabs/alloy-core-private?branch=patch-v0.6.2#8884619d9fc0f28344d015752985863afbeaeeba"
+source = "git+ssh://git@github.com/succinctlabs/alloy-core-private?branch=patch-v0.6.2#8884619d9fc0f28344d015752985863afbeaeeba"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -2853,7 +2853,7 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 [[package]]
 name = "succinct-precompiles"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/vm.git?branch=chris/zeth#51abc0e6c7d55b233b57f3c247dc88f86af8de10"
+source = "git+https://github.com/succinctlabs/vm.git?branch=chris/zeth#981d1990c4e5865d504acce7269dba85f33fa132"
 dependencies = [
  "anyhow",
  "cfg-if",
