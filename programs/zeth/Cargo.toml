@@ -10,7 +10,7 @@ edition = "2021"
 succinct-zkvm = { path = "../../zkvm" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-zeth-lib = { git = "https://github.com/succinctlabs/zeth-private", branch = "chris/zeth-lib", default-features = false }
+zeth-lib = { git = "ssh://git@github.com/succinctlabs/zeth-private.git", branch = "chris/zeth-lib", default-features = false }
 ahash = "=0.8.6"
 
 [patch.crates-io]
