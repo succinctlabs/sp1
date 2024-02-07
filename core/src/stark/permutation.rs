@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul};
 
-use p3_air::{AirBuilder, PairBuilder, PermutationAirBuilder};
+use p3_air::{ExtensionBuilder, PairBuilder, PermutationAirBuilder};
 use p3_field::{
     AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField, PrimeField32,
 };
@@ -180,7 +180,7 @@ pub fn eval_permutation_constraints<F, AB>(
             rlc += AB::ExprEF::from_f(beta) * elem;
         }
         rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
-        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m].into());
+        builder.assert_one_ext(rlc * perm_local[m].into());
 
         let mult_local = interaction
             .multiplicity
@@ -200,9 +200,7 @@ pub fn eval_permutation_constraints<F, AB>(
     }
 
     // Running sum constraints.
-    builder
-        .when_transition()
-        .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
+    builder.when_transition().assert_eq_ext(lhs, rhs);
     builder
         .when_first_row()
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);

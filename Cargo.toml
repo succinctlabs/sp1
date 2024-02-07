@@ -15,24 +15,24 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
+p3-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-field = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-commit = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-matrix = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-baby-bear = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-util = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
 valida-derive = { git = "https://github.com/valida-xyz/valida.git" }
 
-p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-keccak-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
-p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/rand_feature" }
+p3-challenger = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-dft = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-keccak-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-ldt = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-symmetric = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-uni-stark = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }
+p3-maybe-rayon = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch="kevjue/move_criterion_to_dev_dependencies" }

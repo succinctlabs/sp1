@@ -6,7 +6,6 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_field::Res;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 
@@ -291,22 +290,16 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(SC::Challenge::monomial)
             .collect::<Vec<_>>();
 
-        let res = |v: &[SC::Challenge]| {
-            v.iter()
-                .map(|x| Res::from_inner(*x))
-                .collect::<Vec<Res<SC::Val, SC::Challenge>>>()
-        };
-
-        let embed_alg = |v: &[SC::Challenge]| {
+        let unflatten = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
                 .map(|chunk| {
-                    let res_chunk = chunk
+                    chunk
                         .iter()
-                        .map(|x| Res::from_inner(*x))
-                        .collect::<Vec<Res<SC::Val, SC::Challenge>>>();
-                    SC::ChallengeAlgebra::from_base_slice(&res_chunk)
+                        .zip(monomials.iter())
+                        .map(|(x, m)| *x * *m)
+                        .sum()
                 })
-                .collect::<Vec<SC::ChallengeAlgebra>>()
+                .collect::<Vec<SC::Challenge>>()
         };
 
         let mut quotient_parts = quotient_opening
@@ -328,18 +321,18 @@ impl<SC: StarkConfig> Verifier<SC> {
             .sum();
 
         let perm_opening = AirOpenedValues {
-            local: embed_alg(&permutation_opening.local),
-            next: embed_alg(&permutation_opening.next),
+            local: unflatten(&permutation_opening.local),
+            next: unflatten(&permutation_opening.next),
         };
 
-        let mut folder = VerifierConstraintFolder {
+        let mut folder: VerifierConstraintFolder<SC> = VerifierConstraintFolder {
             preprocessed: TwoRowMatrixView {
                 local: &[],
                 next: &[],
             },
             main: TwoRowMatrixView {
-                local: &res(&main_opening.local),
-                next: &res(&main_opening.next),
+                local: &main_opening.local,
+                next: &main_opening.next,
             },
             perm: TwoRowMatrixView {
                 local: &perm_opening.local,
@@ -350,12 +343,12 @@ impl<SC: StarkConfig> Verifier<SC> {
             is_last_row,
             is_transition,
             alpha,
-            accumulator: Res::zero(),
+            accumulator: SC::Challenge::zero(),
         };
         chip.eval(&mut folder);
         eval_permutation_constraints(chip, &mut folder, commulative_sum);
 
-        let folded_constraints = folder.accumulator.into_inner();
+        let folded_constraints: <SC as StarkConfig>::Challenge = folder.accumulator;
 
         match folded_constraints == z_h * quotient {
             true => Ok(()),

@@ -20,7 +20,6 @@ p3-fri = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-keccak = { workspace = true }
 p3-keccak-air = { workspace = true }
-p3-ldt = { workspace = true }
 p3-mds = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
@@ -44,7 +43,9 @@ hex = "0.4.3"
 tempfile = "3.9.0"
 flate2 = "1.0.28"
 size = "0.4.1"
-serde_json = { version = "1.0.113", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0.113", default-features = false, features = [
+    "alloc",
+] }
 k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
 
