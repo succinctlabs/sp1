@@ -18,6 +18,7 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaCompressEvent {
+    pub segment: u32,
     pub clk: u32,
     pub w_and_h_ptr: u32,
     pub w: [u32; 64],
@@ -27,6 +28,7 @@ pub struct ShaCompressEvent {
     pub h_write_records: [MemoryWriteRecord; 8],
 }
 
+#[derive(Default)]
 pub struct ShaCompressChip;
 
 impl ShaCompressChip {

@@ -28,6 +28,7 @@ p3-fri = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tami
 p3-goldilocks = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }
 p3-keccak = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }
 p3-keccak-air = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }
+p3-blake3 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }
 p3-mds = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }
 p3-merkle-tree = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }
 p3-poseidon2 = { git = "ssh://git@github.com/succinctlabs/plonky3.git", branch = "tamir/air-api-change" }

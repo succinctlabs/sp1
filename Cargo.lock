@@ -335,6 +335,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayref"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -478,6 +484,19 @@ dependencies = [
  "serde",
  "tap",
  "wyz",
+]
+
+[[package]]
+name = "blake3"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0231f06152bf547e9c2b5194f247cd97aacf6dcd8b15d8e5ec0663f64580da87"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "cc",
+ "cfg-if",
+ "constant_time_eq",
 ]
 
 [[package]]
@@ -732,6 +751,12 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "constant_time_eq"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7144d30dcf0fafbce74250a3963025d8d52177934239851c917d29f1df280c2"
 
 [[package]]
 name = "convert_case"
@@ -2391,6 +2416,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-blake3"
+version = "0.1.0"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+dependencies = [
+ "blake3",
+ "p3-symmetric",
+]
+
+[[package]]
 name = "p3-challenger"
 version = "0.1.0"
 source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
@@ -3781,6 +3815,7 @@ dependencies = [
  "num",
  "p3-air",
  "p3-baby-bear",
+ "p3-blake3",
  "p3-challenger",
  "p3-commit",
  "p3-dft",

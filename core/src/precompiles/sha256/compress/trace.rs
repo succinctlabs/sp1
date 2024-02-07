@@ -11,6 +11,14 @@ use super::{
 };
 
 impl<F: PrimeField> Chip<F> for ShaCompressChip {
+    fn name(&self) -> String {
+        "ShaCompress".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].sha_compress_events = input.sha_compress_events.clone();
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -28,7 +36,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.segment = F::from_canonical_u32(segment.index);
+                cols.segment = F::from_canonical_u32(event.segment);
                 let clk = event.clk + (j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -86,7 +94,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 cols.octet[j % 8] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
-                cols.segment = F::from_canonical_u32(segment.index);
+                cols.segment = F::from_canonical_u32(event.segment);
                 let clk = event.clk + (8 * 4 + j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -169,7 +177,7 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.segment = F::from_canonical_u32(segment.index);
+                cols.segment = F::from_canonical_u32(event.segment);
                 let clk = event.clk + (8 * 4 + 64 * 4 + (j * 4)) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -228,9 +236,5 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
         )
-    }
-
-    fn name(&self) -> String {
-        "ShaCompress".to_string()
     }
 }

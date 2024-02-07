@@ -121,6 +121,8 @@ mod tests {
             "EdSqrtChip".to_string()
         }
 
+        fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
+
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
