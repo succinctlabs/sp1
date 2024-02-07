@@ -29,9 +29,8 @@ impl<F: Field> AddRcOperation<F> {
     pub fn populate(&mut self, array: &[F; P2_WIDTH], round: usize) -> [F; P2_WIDTH] {
         // 1. Add the appropriate round constant to each limb of the input state.
         // 2. Return the result.
-        for word_index in 0..P2_WIDTH {
-            self.result[word_index] =
-                array[word_index] + F::from_canonical_u32(P2_ROUND_CONSTANTS[round][word_index]);
+        for i in 0..P2_WIDTH {
+            self.result[i] = array[i] + F::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
         }
         self.result
     }
