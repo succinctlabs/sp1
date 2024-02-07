@@ -102,6 +102,10 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     );
                 }
 
+                println!("clk: {:?}", cols.clk);
+                println!("mem_read_clk: {:?}", cols.mem_read_clk);
+                println!("mem_write_clk: {:?}", cols.mem_write_clk);
+
                 // TODO: I need to figure out whether I need both or I only need one of these.
                 cols.is_real = PF::one();
                 cols.is_external = PF::one();
