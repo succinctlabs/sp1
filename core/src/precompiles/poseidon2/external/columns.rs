@@ -48,28 +48,24 @@ pub const P2_ROUND_CONSTANTS: [[u32; P2_WIDTH]; P2_TOTAL_ROUNDS] = RC_16_30;
 /// TODO: Maybe I can put these consts in one parameter struct.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2ExternalCols<T>(pub Poseidon2ExternalColsConfigurable<T, P2_WIDTH>);
-
-#[derive(Default, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2ExternalColsConfigurable<T, const WIDTH: usize> {
+pub struct Poseidon2ExternalCols<T> {
     pub segment: T,
     pub clk: T,
 
     /// An array whose i-th element records when we read the i-th word of the state.
     /// TODO: I should be able to calculate that without using this.
-    pub mem_read_clk: Array<T, WIDTH>,
+    pub mem_read_clk: Array<T, P2_WIDTH>,
 
     /// An array whose i-th element records when we write the i-th word of the state.
     /// TODO: I should be able to calculate that without using this.
-    pub mem_write_clk: Array<T, WIDTH>,
+    pub mem_write_clk: Array<T, P2_WIDTH>,
 
     pub state_ptr: T,
 
-    pub mem_reads: Array<MemoryReadCols<T>, WIDTH>,
-    pub mem_writes: Array<MemoryWriteCols<T>, WIDTH>,
+    pub mem_reads: Array<MemoryReadCols<T>, P2_WIDTH>,
+    pub mem_writes: Array<MemoryWriteCols<T>, P2_WIDTH>,
 
-    pub mem_addr: Array<T, WIDTH>,
+    pub mem_addr: Array<T, P2_WIDTH>,
 
     pub add_rc: AddRcOperation<T>,
 
@@ -81,7 +77,7 @@ pub struct Poseidon2ExternalColsConfigurable<T, const WIDTH: usize> {
     pub round_number: T,
 
     /// The round constants for this round.
-    pub round_constant: Array<T, WIDTH>,
+    pub round_constant: Array<T, P2_WIDTH>,
 
     /// A boolean array whose `n`th element indicates whether this is the `n`th round.                              
     pub is_round_n: Array<T, P2_EXTERNAL_ROUND_COUNT>,

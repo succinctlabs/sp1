@@ -14,9 +14,7 @@ use super::{
 };
 
 // TODO: I don't know how to combine F and PF.
-impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
-    for Poseidon2External1Chip<F, NUM_WORDS_STATE>
-{
+impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2External1Chip<F, WIDTH> {
     // TODO: The vast majority of this logic can be shared with the second external round.
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<PF> {
         let mut rows = Vec::new();
@@ -33,26 +31,25 @@ impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
 
                 // Assign basic values to the columns.
                 {
-                    cols.0.segment = PF::from_canonical_u32(segment.index);
+                    cols.segment = PF::from_canonical_u32(segment.index);
 
                     // Increment the clock by 4 * (the number of reads + writes for this round).
-                    cols.0.clk = PF::from_canonical_u32(clk);
+                    cols.clk = PF::from_canonical_u32(clk);
 
-                    cols.0.round_number = PF::from_canonical_u32(round as u32);
-                    cols.0.is_round_n[round] = PF::one();
+                    cols.round_number = PF::from_canonical_u32(round as u32);
+                    cols.is_round_n[round] = PF::one();
                     for i in 0..P2_WIDTH {
-                        cols.0.round_constant[i] =
+                        cols.round_constant[i] =
                             PF::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
                     }
                 }
 
                 // Read.
-                for i in 0..NUM_WORDS_STATE {
-                    cols.0.state_ptr = PF::from_canonical_u32(event.state_ptr);
-                    cols.0.mem_reads[i]
-                        .populate(event.state_reads[round][i], &mut new_field_events);
-                    cols.0.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
-                    cols.0.mem_read_clk[i] = PF::from_canonical_u32(clk);
+                for i in 0..WIDTH {
+                    cols.state_ptr = PF::from_canonical_u32(event.state_ptr);
+                    cols.mem_reads[i].populate(event.state_reads[round][i], &mut new_field_events);
+                    cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
+                    cols.mem_read_clk[i] = PF::from_canonical_u32(clk);
                     clk += 4;
 
                     // TODO: Remove this printf-debugging statement.
@@ -70,23 +67,23 @@ impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
                     .map(PF::from_canonical_u32);
 
                 // Add the round constant to the state.
-                let result_add_rc = cols.0.add_rc.populate(&input_state, round);
+                let result_add_rc = cols.add_rc.populate(&input_state, round);
 
                 // Sbox.
-                let result_sbox = cols.0.sbox.populate(&result_add_rc);
+                let result_sbox = cols.sbox.populate(&result_add_rc);
 
                 // External linear permute
                 let result_external_linear_permute =
-                    cols.0.external_linear_permute.populate(&result_sbox);
+                    cols.external_linear_permute.populate(&result_sbox);
 
                 // Write.
-                for i in 0..NUM_WORDS_STATE {
+                for i in 0..WIDTH {
                     // TODO: I need to pass in the results of calculation (add_Rc, sbox, ...)
                     // But for now, I'll leave these as is, one problem at a time!
-                    cols.0.mem_writes[i]
+                    cols.mem_writes[i]
                         .populate(event.state_writes[round][i], &mut new_field_events);
-                    cols.0.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
-                    cols.0.mem_write_clk[i] = PF::from_canonical_u32(clk);
+                    cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
+                    cols.mem_write_clk[i] = PF::from_canonical_u32(clk);
                     clk += 4;
 
                     assert_eq!(
@@ -107,8 +104,8 @@ impl<PF: PrimeField, const NUM_WORDS_STATE: usize, F: Field> Chip<PF>
                 }
 
                 // TODO: I need to figure out whether I need both or I only need one of these.
-                cols.0.is_real = PF::one();
-                cols.0.is_external = PF::one();
+                cols.is_real = PF::one();
+                cols.is_external = PF::one();
                 // if round == 0 {
                 //     println!("cols: {:#?}", cols);
                 // }

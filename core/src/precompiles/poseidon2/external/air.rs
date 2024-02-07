@@ -48,9 +48,9 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
         for i in 0..(P2_EXTERNAL_ROUND_COUNT - 1) {
             builder
                 .when_transition()
-                .when(next.0.is_real)
-                .assert_eq(local.0.is_round_n[i], next.0.is_round_n[i + 1]);
-            builder.assert_bool(local.0.is_round_n[i]);
+                .when(next.is_real)
+                .assert_eq(local.is_round_n[i], next.is_round_n[i + 1]);
+            builder.assert_bool(local.is_round_n[i]);
         }
 
         // Exactly one of the is_round_n flags is set.
@@ -58,13 +58,13 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
             let sum_is_round_n = {
                 let mut acc: AB::Expr = AB::F::zero().into();
                 for i in 0..P2_EXTERNAL_ROUND_COUNT {
-                    acc += local.0.is_round_n[i].into();
+                    acc += local.is_round_n[i].into();
                 }
                 acc
             };
 
             builder
-                .when(local.0.is_external)
+                .when(local.is_external)
                 .assert_eq(sum_is_round_n, AB::F::from_canonical_usize(1));
         }
 
@@ -74,11 +74,11 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
                 let mut acc: AB::Expr = AB::F::zero().into();
 
                 for i in 0..P2_EXTERNAL_ROUND_COUNT {
-                    acc += local.0.is_round_n[i] * AB::F::from_canonical_usize(i);
+                    acc += local.is_round_n[i] * AB::F::from_canonical_usize(i);
                 }
                 acc
             };
-            builder.assert_eq(round, local.0.round_number);
+            builder.assert_eq(round, local.round_number);
         }
 
         // Calculate the round constants for this round.
@@ -88,12 +88,12 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
                     let mut acc: AB::Expr = AB::F::zero().into();
 
                     for j in 0..P2_EXTERNAL_ROUND_COUNT {
-                        acc += local.0.is_round_n[j].into()
+                        acc += local.is_round_n[j].into()
                             * AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[j][i]);
                     }
                     acc
                 };
-                builder.assert_eq(round_constant, local.0.round_constant[i]);
+                builder.assert_eq(round_constant, local.round_constant[i]);
             }
         }
     }
@@ -105,18 +105,18 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
     ) {
         for round in 0..NUM_WORDS_STATE {
             builder.constraint_memory_access(
-                local.0.segment,
-                local.0.mem_read_clk[round],
-                local.0.mem_addr[round],
-                &local.0.mem_reads[round],
-                local.0.is_external,
+                local.segment,
+                local.mem_read_clk[round],
+                local.mem_addr[round],
+                &local.mem_reads[round],
+                local.is_external,
             );
             builder.constraint_memory_access(
-                local.0.segment,
-                local.0.mem_write_clk[round],
-                local.0.mem_addr[round],
-                &local.0.mem_writes[round],
-                local.0.is_external,
+                local.segment,
+                local.mem_write_clk[round],
+                local.mem_addr[round],
+                &local.mem_writes[round],
+                local.is_external,
             );
         }
     }
@@ -128,7 +128,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
     ) {
         // Convert each Word into one field element. The MemoryRead struct returns an array of Words
         // , but we need to perform operations within the field.
-        let input_state = local.0.mem_reads.map(|read| {
+        let input_state = local.mem_reads.map(|read| {
             let mut acc: AB::Expr = AB::F::zero().into();
             for i in 0..WORD_SIZE {
                 let shift: AB::Expr = AB::F::from_canonical_usize(1 << (8 * i)).into();
@@ -137,29 +137,24 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
             acc
         });
 
-        builder.assert_bool(local.0.is_external);
+        builder.assert_bool(local.is_external);
 
         AddRcOperation::<AB::F>::eval(
             builder,
             input_state,
-            local.0.is_round_n,
-            local.0.round_constant,
-            local.0.add_rc,
-            local.0.is_external,
+            local.is_round_n,
+            local.round_constant,
+            local.add_rc,
+            local.is_external,
         );
 
-        SBoxOperation::<AB::F>::eval(
-            builder,
-            local.0.add_rc.result,
-            local.0.sbox,
-            local.0.is_external,
-        );
+        SBoxOperation::<AB::F>::eval(builder, local.add_rc.result, local.sbox, local.is_external);
 
         ExternalLinearPermuteOperation::<AB::F>::eval(
             builder,
-            local.0.sbox.acc.map(|x| *x.last().unwrap()),
-            local.0.external_linear_permute,
-            local.0.is_external,
+            local.sbox.acc.map(|x| *x.last().unwrap()),
+            local.external_linear_permute,
+            local.is_external,
         );
     }
 }
