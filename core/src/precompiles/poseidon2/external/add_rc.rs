@@ -44,7 +44,7 @@ impl<F: Field> AddRcOperation<F> {
         is_real: AB::Var,
     ) {
         // Iterate through each limb.
-        for limb_index in 0..P2_WIDTH {
+        for i in 0..P2_WIDTH {
             // Calculate the round constant for this limb.
             let round_constant = {
                 let mut acc: AB::Expr = AB::F::zero().into();
@@ -52,22 +52,19 @@ impl<F: Field> AddRcOperation<F> {
                 // The round constant is the sum of is_round_n[round] * round_constant[round].
                 for round in 0..P2_EXTERNAL_ROUND_COUNT {
                     let rc: AB::Expr =
-                        AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[round][limb_index]).into();
+                        AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]).into();
                     acc += is_round_n[round] * rc;
                 }
 
                 builder
                     .when(is_real)
-                    .assert_eq(acc.clone(), round_constant[limb_index]);
+                    .assert_eq(acc.clone(), round_constant[i]);
 
-                round_constant[limb_index]
+                round_constant[i]
             };
 
             // Input + RC = Result.
-            builder.assert_eq(
-                input_state[limb_index].clone() + round_constant,
-                cols.result[limb_index],
-            );
+            builder.assert_eq(input_state[i].clone() + round_constant, cols.result[i]);
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
