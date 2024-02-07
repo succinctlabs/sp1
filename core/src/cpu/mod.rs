@@ -119,6 +119,7 @@ impl MemoryWriteRecord {
     }
 }
 
+#[derive(Default)]
 pub struct CpuChip;
 
 impl CpuChip {

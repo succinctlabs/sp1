@@ -24,6 +24,7 @@ p3-ldt = { workspace = true }
 p3-mds = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
+p3-blake3 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-maybe-rayon = { workspace = true }
@@ -60,6 +61,7 @@ default = ["parallel", "perf"]
 debug = ["parallel"]
 debug-proof = ["parallel", "perf"]
 serial = []
+neon = ["p3-blake3/neon"]
 
 [[bench]]
 name = "main"

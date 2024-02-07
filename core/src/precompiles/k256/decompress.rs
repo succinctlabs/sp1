@@ -60,6 +60,7 @@ pub const NUM_K256_DECOMPRESS_COLS: usize = size_of::<K256DecompressCols<u8>>();
 /// input[0] is the sign bit. The second half of the slice is the compressed X in little endian.
 ///
 /// After `K256Decompress`, the first 32 bytes of the slice are overwritten with the decompressed Y.
+#[derive(Default)]
 pub struct K256DecompressChip;
 
 impl K256DecompressChip {
@@ -284,6 +285,10 @@ impl<V: Copy> K256DecompressCols<V> {
 impl<F: Field> Chip<F> for K256DecompressChip {
     fn name(&self) -> String {
         "K256Decompress".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].k256_decompress_events = input.k256_decompress_events.clone();
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

@@ -39,7 +39,7 @@ use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -108,6 +108,16 @@ pub struct MulCols<T> {
 impl<F: PrimeField> Chip<F> for MulChip {
     fn name(&self) -> String {
         "Mul".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        let shards = input
+            .mul_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        for i in 0..shards.len() {
+            outputs[i].mul_events = shards[i].to_vec();
+        }
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

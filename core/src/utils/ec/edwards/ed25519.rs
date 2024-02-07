@@ -10,7 +10,7 @@ use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Ed25519Parameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
