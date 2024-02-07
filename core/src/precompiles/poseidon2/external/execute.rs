@@ -40,8 +40,6 @@ where
             for i in 0..WIDTH {
                 let (record, value) = rt.mr(state_ptr + (i as u32) * 4);
                 state_read_records[round][i] = record;
-                // TODO: Remove this debugging statement.
-                println!("clk: {} value: {}", rt.clk, value);
                 rt.clk += 4;
                 state[i] = F::from_canonical_u32(value);
             }

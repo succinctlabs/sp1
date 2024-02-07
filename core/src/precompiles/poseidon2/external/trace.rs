@@ -46,15 +46,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     cols.mem_reads[i].populate(event.state_reads[round][i], &mut new_field_events);
                     cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
                     clk += 4;
-
-                    // TODO: Remove this printf-debugging statement.
-                    // println!("new_field_events: {:?}", new_field_events);
-                    if round == 0 {
-                        println!(
-                            "{}th limb of input: {:?}",
-                            i, event.state_reads[round][i].value,
-                        );
-                    }
                 }
 
                 let input_state = event.state_reads[round]
@@ -73,8 +64,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
 
                 // Write.
                 for i in 0..WIDTH {
-                    // TODO: I need to pass in the results of calculation (add_Rc, sbox, ...)
-                    // But for now, I'll leave these as is, one problem at a time!
                     cols.mem_writes[i]
                         .populate(event.state_writes[round][i], &mut new_field_events);
                     cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
@@ -83,17 +72,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     assert_eq!(
                         result_external_linear_permute[i],
                         PF::from_canonical_u32(event.state_writes[round][i].value)
-                    );
-
-                    if round == P2_EXTERNAL_ROUND_COUNT - 1 {
-                        println!(
-                            "{}th limb of output: {:?}",
-                            i, event.state_writes[round][i].value,
-                        );
-                    }
-                    println!(
-                        "event.state_write[{}].value: {:?}",
-                        i, event.state_writes[round][i].value,
                     );
                 }
 
