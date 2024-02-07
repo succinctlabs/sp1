@@ -2,8 +2,7 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
-    stark::prover::LocalProver,
-    stark::StarkConfig,
+    stark::{LocalProver, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 

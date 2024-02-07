@@ -328,7 +328,7 @@ where
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use crate::{
         runtime::Program,
         utils::{prove, setup_logger, tests::SECP256K1_ADD_ELF},

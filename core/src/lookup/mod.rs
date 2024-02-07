@@ -137,7 +137,7 @@ pub fn debug_interactions_with_all_chips(
     }
 
     // Here, we collect all the chips.
-    let segment_chips = Runtime::segment_chips::<BabyBearPoseidon2>();
+    let segment_chips = Runtime::local_chips::<BabyBearPoseidon2>();
     let global_chips = Runtime::global_chips::<BabyBearPoseidon2>();
 
     let mut final_map = BTreeMap::new();

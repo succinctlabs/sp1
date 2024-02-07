@@ -7,13 +7,13 @@ mod segment;
 mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
-use crate::precompiles::edwards::ed_add::EdAddAssignChip;
-use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
-use crate::precompiles::k256::decompress::K256DecompressChip;
+use crate::precompiles::edwards::EdAddAssignChip;
+use crate::precompiles::edwards::EdDecompressChip;
+use crate::precompiles::k256::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
-use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
+use crate::precompiles::weierstrass::WeierstrassAddAssignChip;
+use crate::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -997,10 +997,6 @@ impl Runtime {
         {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
-
-            if self.global_clk % 1000000000 == 0 {
-                log::debug!("global_clk={}", self.global_clk);
-            }
 
             let width = 12;
             log::trace!(
