@@ -36,7 +36,7 @@ impl<F: Field> ExternalLinearPermuteOperation<F> {
         is_real: AB::Var,
     ) {
         let result = {
-            let mut input: [AB::Expr; 16] = input_state.map(|x| x.into());
+            let mut input: [AB::Expr; P2_WIDTH] = input_state.map(|x| x.into());
             external_linear_permute_mut::<AB::Expr, P2_WIDTH>(&mut input);
             input
         };
