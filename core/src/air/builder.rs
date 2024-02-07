@@ -1,7 +1,5 @@
 use p3_air::{AirBuilder, FilteredAirBuilder};
-use p3_uni_stark::{
-    ProverConstraintFolder, StarkConfig, SymbolicAirBuilder, VerifierConstraintFolder,
-};
+use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
 use super::bool::Bool;
 use super::interaction::AirInteraction;
@@ -12,6 +10,7 @@ use crate::lookup::InteractionKind;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::check_constraints::DebugConstraintBuilder;
+use p3_uni_stark::StarkGenericConfig;
 use std::iter::once;
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
@@ -502,7 +501,7 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
     }
 }
 
-impl<'a, SC: StarkConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
+impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
 impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
 

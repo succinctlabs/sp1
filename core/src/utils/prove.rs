@@ -7,7 +7,7 @@ use crate::{
 };
 
 pub trait StarkUtils: StarkConfig {
-    type UniConfig: p3_uni_stark::StarkConfig<
+    type UniConfig: p3_uni_stark::StarkGenericConfig<
         Val = Self::Val,
         PackedVal = Self::PackedVal,
         Challenge = Self::Challenge,
@@ -130,8 +130,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::{extension::BinomialExtensionField, Field};
-    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-    use p3_ldt::QuotientMmcs;
+    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
@@ -158,10 +157,8 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-    pub type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    pub type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-
-    pub type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+    type Pcs =
+        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
     pub struct BabyBearPoseidon2 {
         perm: Perm,
@@ -182,10 +179,13 @@ pub(super) mod baby_bear_poseidon2 {
 
             let dft = Dft {};
 
-            let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
-            let ldt = FriLdt { config: fri_config };
-
-            let pcs = Pcs::new(dft, val_mmcs, ldt);
+            let fri_config = FriConfig {
+                log_blowup: 1,
+                num_queries: 100,
+                proof_of_work_bits: 16,
+                mmcs: challenge_mmcs,
+            };
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
         }
@@ -216,7 +216,7 @@ pub(super) mod baby_bear_poseidon2 {
         }
     }
 
-    impl p3_uni_stark::StarkConfig for BabyBearPoseidon2 {
+    impl p3_uni_stark::StarkGenericConfig for BabyBearPoseidon2 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
