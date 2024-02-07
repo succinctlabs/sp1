@@ -41,7 +41,7 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         "Program".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {}
+    fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.

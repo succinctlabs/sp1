@@ -225,9 +225,7 @@ mod tests {
             format!("FpOp{:?}", self.operation)
         }
 
-        fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
-            todo!()
-        }
+        fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
 
         fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();

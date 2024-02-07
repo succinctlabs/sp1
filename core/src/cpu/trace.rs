@@ -2,7 +2,6 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::columns::{
     AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
