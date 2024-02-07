@@ -1,9 +1,6 @@
 use num::BigUint;
-use serde::{Deserialize, Serialize};
 
 use crate::operations::field::params::NUM_LIMBS;
-
-use super::field::FieldParameters;
 
 pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
     let byte_vec = integer.to_bytes_le();
@@ -36,19 +33,4 @@ pub fn biguint_to_limbs(integer: &BigUint) -> [u8; NUM_LIMBS] {
 #[inline]
 pub fn biguint_from_limbs(limbs: &[u8]) -> BigUint {
     BigUint::from_bytes_le(limbs)
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
-/// BabyBear field parameter.
-pub struct BabyBearField;
-
-impl FieldParameters for BabyBearField {
-    const MODULUS: [u8; NUM_LIMBS] = [
-        1, 0, 0, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0,
-    ];
-
-    fn modulus() -> BigUint {
-        BigUint::from_bytes_le(&Self::MODULUS)
-    }
 }
