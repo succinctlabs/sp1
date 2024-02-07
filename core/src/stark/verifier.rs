@@ -223,7 +223,7 @@ impl<SC: StarkConfig> Verifier<SC> {
     /// This function checks that the preprocessed_opening, main opening, permutation opening,
     /// quotient opening have the expected dimensions.
     fn verify_proof_shape(
-        chip: &Box<ChipType<SC::Val>>,
+        chip: &ChipType<SC::Val>,
         num_interactions: usize,
         preprocessed_opening: &AirOpenedValues<SC::Challenge>,
         main_opening: &AirOpenedValues<SC::Challenge>,
@@ -267,7 +267,7 @@ impl<SC: StarkConfig> Verifier<SC> {
 
     #[allow(clippy::too_many_arguments)]
     fn verify_constraints(
-        chip: &Box<ChipType<SC::Val>>,
+        chip: &ChipType<SC::Val>,
         main_opening: &AirOpenedValues<SC::Challenge>,
         permutation_opening: &AirOpenedValues<SC::Challenge>,
         quotient_opening: &QuotientOpenedValues<SC::Challenge>,
@@ -353,7 +353,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             accumulator: Res::zero(),
         };
         chip.eval(&mut folder);
-        eval_permutation_constraints(&chip, &mut folder, commulative_sum);
+        eval_permutation_constraints(chip, &mut folder, commulative_sum);
 
         let folded_constraints = folder.accumulator.into_inner();
 

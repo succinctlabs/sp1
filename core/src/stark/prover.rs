@@ -375,7 +375,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn quotient_values<MainLde, PermLde>(
         config: &SC,
-        chip: &Box<ChipType<SC::Val>>,
+        chip: &ChipType<SC::Val>,
         commulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,

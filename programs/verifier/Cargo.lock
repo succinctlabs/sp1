@@ -1197,6 +1197,7 @@ dependencies = [
  "serde",
  "serde_json",
  "size",
+ "succinct-derive",
  "tempfile",
  "tracing",
  "tracing-forest",

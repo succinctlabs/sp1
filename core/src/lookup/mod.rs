@@ -213,7 +213,7 @@ pub fn debug_interactions_with_all_chips(
 }
 
 pub fn debug_interactions<F: PrimeField32>(
-    chip: &Box<ChipType<F>>,
+    chip: &ChipType<F>,
     segment: &mut Segment,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
