@@ -1,15 +1,8 @@
 #![no_main]
-extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
-use k256::{
-    ecdsa::{hazmat::bits2field, RecoveryId, Signature, VerifyingKey},
-    elliptic_curve::PrimeField,
-    Scalar, Secp256k1,
-};
-use succinct_precompiles::secp256k1::{decompress_pubkey, verify_signature};
-use succinct_zkvm::{io, unconstrained};
+use succinct_precompiles::{io, secp256k1::ecrecover};
 
 pub fn main() {
     // recovery param: 1
@@ -20,43 +13,7 @@ pub fn main() {
     let msg_hash = hex!("5ae8317d34d1e595e3fa7247db80c0af4320cce1116de187f8f7e2e099c0d8d0");
     let sig = hex!("45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801");
 
-    let sig_bytes: [u8; 64] = sig[..64].try_into().unwrap();
-    let k256_sig = k256::ecdsa::Signature::from_bytes((&sig_bytes).into()).unwrap();
-
-    unconstrained! {
-        println!("msg_hash: {:?}", msg_hash);
-        // parse signature
-        let mut recid = sig[64];
-        let mut sig = Signature::from_slice(&sig[..64]).unwrap();
-
-        // normalize signature and flip recovery id if needed.
-        if let Some(sig_normalized) = sig.normalize_s() {
-            sig = sig_normalized;
-            recid ^= 1
-        };
-        let recid = RecoveryId::from_byte(recid).expect("Recovery id is valid");
-
-        // recover key
-        let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
-        println!("recovered_key: {:?}", recovered_key);
-        let bytes = recovered_key.to_sec1_bytes();
-        println!("bytes: {:?}", bytes);
-        io::hint_slice(&bytes);
-
-        let (_, s) = k256_sig.split_scalars();
-        let s_inverse = s.invert().unwrap();
-        io::hint_slice(&s_inverse.to_bytes());
-    }
-
-    let mut recovered_bytes = [0_u8; 33];
-    io::read_slice(&mut recovered_bytes);
-
-    let mut s_inv_bytes = [0_u8; 32];
-    io::read_slice(&mut s_inv_bytes);
-    let s_inverse = Scalar::from_repr(bits2field::<Secp256k1>(&s_inv_bytes).unwrap()).unwrap();
-
-    let decompressed = decompress_pubkey(&recovered_bytes).unwrap();
-
-    let verified = verify_signature(&decompressed, &msg_hash, &k256_sig, Some(&s_inverse));
-    io::write(&verified);
+    let pubkey = ecrecover(&sig, &msg_hash).unwrap();
+    io::write_slice(&pubkey);
+    println!("pubkey: {:?}", pubkey);
 }

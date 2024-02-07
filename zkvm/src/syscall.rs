@@ -57,6 +57,7 @@ pub extern "C" fn syscall_halt() -> ! {
 }
 
 #[allow(unused_variables)]
+#[no_mangle]
 pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -74,6 +75,7 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
 }
 
 #[allow(unused_variables)]
+#[no_mangle]
 pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
     let whole_words: usize = nbytes / 4;
     let remaining_bytes = nbytes % 4;
@@ -312,9 +314,10 @@ pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     syscall_write(fd, write_buf, nbytes);
 }
 
+#[no_mangle]
 pub fn syscall_enter_unconstrained() -> bool {
     #[allow(unused_mut)]
-    let mut continue_unconstrained: u32 = 0;
+    let mut continue_unconstrained: u32;
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
@@ -325,11 +328,15 @@ pub fn syscall_enter_unconstrained() -> bool {
     }
 
     #[cfg(not(target_os = "zkvm"))]
-    println!("Entering unconstrained execution block");
+    {
+        println!("Entering unconstrained execution block");
+        continue_unconstrained = 1;
+    }
 
     continue_unconstrained == 1
 }
 
+#[no_mangle]
 pub fn syscall_exit_unconstrained() {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -341,35 +348,4 @@ pub fn syscall_exit_unconstrained() {
 
     #[cfg(not(target_os = "zkvm"))]
     println!("Exiting unconstrained execution block");
-}
-
-/// Executes a block of code unconstrained by the VM. This macro is useful for running code that
-/// helps provide information to the program but does not need to be constrained by the VM. For
-/// example, running `ecrecover` is expensive in the VM but verifying a signature when you know the
-/// public key is not. `unconstrained` can be used to provide the public key without spending VM CPU
-/// cycles.
-///
-/// Any changes to the VM state will be reset at the end of the block. To provide data to the VM,
-/// use `io::hint` or `io::hint_slice`, and read it using `io::read` or `io::read_slice`.
-#[macro_export]
-macro_rules! unconstrained {
-    // (  $( $stmt:stmt );*; ) => {
-    (  $($block:tt)* ) => {
-        use $crate::syscall::{syscall_enter_unconstrained, syscall_exit_unconstrained};
-
-        let continue_unconstrained = syscall_enter_unconstrained();
-
-        // If continue_unconstrained is true (only possible in the runtime), execute
-        // the inner code. Otherwise, nothing happens.
-        if continue_unconstrained {
-            // Declare an immutable closure to ensure at compile time that no memory is changed
-            let _unconstrained_closure = || -> () {
-                $($block)*
-            };
-
-            _unconstrained_closure();
-        }
-
-        syscall_exit_unconstrained();
-    };
 }

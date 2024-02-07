@@ -1,4 +1,6 @@
 #![no_main]
+
+use succinct_precompiles::io;
 extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
@@ -8,7 +10,7 @@ extern "C" {
 
 pub fn main() {
     let mut compressed_key: [u8; 33] = [0; 33];
-    succinct_zkvm::io::read_slice(&mut compressed_key);
+    io::read_slice(&mut compressed_key);
 
     let mut decompressed_key: [u8; 64] = [0; 64];
     decompressed_key[..32].copy_from_slice(&compressed_key[1..]);
@@ -25,5 +27,5 @@ pub fn main() {
     result[0] = 4;
     result[1..].copy_from_slice(&decompressed_key);
 
-    succinct_zkvm::io::write_slice(&result);
+    io::write_slice(&result);
 }

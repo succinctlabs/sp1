@@ -1,17 +1,22 @@
-use crate::syscall::{syscall_read, syscall_write};
 use bincode;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::io::Read;
 use std::io::Write;
 
-const FILE_DESCRIPTOR: u32 = 3;
+use crate::syscalls::syscall_read;
+use crate::syscalls::syscall_write;
+
+const FD_IO: u32 = 3;
+const FD_HINT: u32 = 4;
 pub struct SyscallReader {}
 
 impl std::io::Read for SyscallReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let len = buf.len();
-        syscall_read(3, buf.as_mut_ptr(), len);
+        unsafe {
+            syscall_read(FD_IO, buf.as_mut_ptr(), len);
+        }
         Ok(len)
     }
 }
@@ -20,7 +25,9 @@ impl std::io::Write for SyscallReader {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let nbytes = buf.len();
         let write_buf = buf.as_ptr();
-        syscall_write(FILE_DESCRIPTOR, write_buf, nbytes);
+        unsafe {
+            syscall_write(FD_IO, write_buf, nbytes);
+        }
         Ok(nbytes)
     }
 
@@ -56,7 +63,9 @@ impl std::io::Write for HintWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let nbytes = buf.len();
         let write_buf = buf.as_ptr();
-        syscall_write(4, write_buf, nbytes);
+        unsafe {
+            syscall_write(FD_HINT, write_buf, nbytes);
+        }
         Ok(nbytes)
     }
 

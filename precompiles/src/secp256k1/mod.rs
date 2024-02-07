@@ -5,12 +5,17 @@ use anyhow::{anyhow, Result};
 use core::convert::TryInto;
 use k256::ecdsa::hazmat::bits2field;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{Signature, VerifyingKey};
+use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use k256::elliptic_curve::ff::PrimeFieldBits;
 use k256::elliptic_curve::ops::Invert;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
 use k256::{PublicKey, Scalar, Secp256k1};
+
+use crate::syscalls::{
+    syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double,
+};
+use crate::{io, unconstrained};
 
 /// Decompresses a compressed public key using secp256k1_decompress precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
@@ -111,13 +116,6 @@ pub fn verify_signature(
     }
 }
 
-extern "C" {
-    /// Add-assign `P += Q` two affine points with given raw slice pointers 'p' and 'q'.
-    fn syscall_secp256k1_add(p: *mut u32, q: *const u32);
-    fn syscall_secp256k1_double(p: *mut u32);
-    fn syscall_secp256k1_decompress(p: &mut [u8; 64], is_odd: bool);
-}
-
 /// An affine point on the Edwards curve.
 ///
 /// The point is represented internally by bytes in order to ensure a contiguous memory layout.
@@ -200,3 +198,55 @@ const GENERATOR: AffinePoint = AffinePoint::from_limbs([
     385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
     4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853, 1211816567,
 ]);
+
+/// Outside of the VM, computes the pubkey and s_inverse value from a signature and a message hash.
+///
+/// WARNING: The values are read from outside of the VM and are not constrained to be correct.
+/// Either use `decompress_pubkey` and `verify_signature` to verify the results of this function, or
+/// use `ecrecover`.
+pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33], Scalar) {
+    unconstrained! {
+        let mut recovery_id = sig[64];
+        let mut sig = Signature::from_slice(&sig[..64]).unwrap();
+
+        if let Some(sig_normalized) = sig.normalize_s() {
+            sig = sig_normalized;
+            recovery_id ^= 1
+        };
+        let recid = RecoveryId::from_byte(recovery_id).expect("Recovery ID is valid");
+
+        let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
+        let bytes = recovered_key.to_sec1_bytes();
+        io::hint_slice(&bytes);
+
+        let (_, s) = sig.split_scalars();
+        let s_inverse = s.invert();
+        io::hint_slice(&s_inverse.to_bytes());
+    }
+
+    let mut recovered_bytes = [0_u8; 33];
+    io::read_slice(&mut recovered_bytes);
+
+    let mut s_inv_bytes = [0_u8; 32];
+    io::read_slice(&mut s_inv_bytes);
+    let s_inverse = Scalar::from_repr(bits2field::<Secp256k1>(&s_inv_bytes).unwrap()).unwrap();
+
+    (recovered_bytes, s_inverse)
+}
+
+/// Given a signature and a message hash, returns the public key that signed the message.
+pub fn ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> Result<[u8; 65]> {
+    let (pubkey, s_inv) = unconstrained_ecrecover(sig, msg_hash);
+    let pubkey = decompress_pubkey(&pubkey).context("decompress pubkey failed")?;
+    let verified = verify_signature(
+        &pubkey,
+        msg_hash,
+        &Signature::from_slice(&sig[..64]).unwrap(),
+        Some(&s_inv),
+    );
+    if verified {
+        Ok(pubkey)
+    } else {
+        Err(anyhow!("failed to verify signature"))
+    }
+}
