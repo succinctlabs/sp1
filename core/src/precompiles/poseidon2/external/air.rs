@@ -104,11 +104,11 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
         let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
-        let clk_cycle_per_word = AB::Expr::from_canonical_u32(4);
+        let clk_cycle_per_word = 4;
         for i in 0..NUM_WORDS_STATE {
             builder.constraint_memory_access(
                 local.segment,
-                local.clk + clk_cycle_per_word.clone() * AB::F::from_canonical_usize(i),
+                local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),
                 local.mem_addr[i],
                 &local.mem_reads[i],
                 local.is_external,
@@ -117,7 +117,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
                 local.segment,
                 local.clk
                     + clk_cycle_reads.clone()
-                    + clk_cycle_per_word.clone() * AB::F::from_canonical_usize(i),
+                    + AB::F::from_canonical_usize(i * clk_cycle_per_word),
                 local.mem_addr[i],
                 &local.mem_writes[i],
                 local.is_external,
