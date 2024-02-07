@@ -358,7 +358,6 @@ macro_rules! unconstrained {
         use $crate::syscall::{syscall_enter_unconstrained, syscall_exit_unconstrained};
 
         let continue_unconstrained = syscall_enter_unconstrained();
-        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
 
         // If continue_unconstrained is true (only possible in the runtime), execute
         // the inner code. Otherwise, nothing happens.
@@ -371,7 +370,6 @@ macro_rules! unconstrained {
             _unconstrained_closure();
         }
 
-        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
         syscall_exit_unconstrained();
     };
 }

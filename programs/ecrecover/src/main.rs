@@ -3,6 +3,11 @@ extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
+use k256::{
+    ecdsa::{hazmat::bits2field, RecoveryId, Signature, VerifyingKey},
+    elliptic_curve::PrimeField,
+    Scalar, Secp256k1,
+};
 use succinct_precompiles::secp256k1::{decompress_pubkey, verify_signature};
 use succinct_zkvm::{io, unconstrained};
 
@@ -15,8 +20,10 @@ pub fn main() {
     let msg_hash = hex!("5ae8317d34d1e595e3fa7247db80c0af4320cce1116de187f8f7e2e099c0d8d0");
     let sig = hex!("45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801");
 
+    let sig_bytes: [u8; 64] = sig[..64].try_into().unwrap();
+    let k256_sig = k256::ecdsa::Signature::from_bytes((&sig_bytes).into()).unwrap();
+
     unconstrained! {
-        use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
         println!("msg_hash: {:?}", msg_hash);
         // parse signature
         let mut recid = sig[64];
@@ -35,18 +42,21 @@ pub fn main() {
         let bytes = recovered_key.to_sec1_bytes();
         println!("bytes: {:?}", bytes);
         io::hint_slice(&bytes);
+
+        let (_, s) = k256_sig.split_scalars();
+        let s_inverse = s.invert().unwrap();
+        io::hint_slice(&s_inverse.to_bytes());
     }
 
     let mut recovered_bytes = [0_u8; 33];
     io::read_slice(&mut recovered_bytes);
-    println!("recovered_bytes: {:?}", recovered_bytes);
+
+    let mut s_inv_bytes = [0_u8; 32];
+    io::read_slice(&mut s_inv_bytes);
+    let s_inverse = Scalar::from_repr(bits2field::<Secp256k1>(&s_inv_bytes).unwrap()).unwrap();
 
     let decompressed = decompress_pubkey(&recovered_bytes).unwrap();
-    println!("decompressed: {:?}", decompressed);
 
-    let sig_bytes: [u8; 64] = sig[..64].try_into().unwrap();
-    let k256_sig = k256::ecdsa::Signature::from_bytes((&sig_bytes).into()).unwrap();
-
-    let verified = verify_signature(&decompressed, &msg_hash, &k256_sig, None);
-    println!("verified: {:?}", verified);
+    let verified = verify_signature(&decompressed, &msg_hash, &k256_sig, Some(&s_inverse));
+    io::write(&verified);
 }
