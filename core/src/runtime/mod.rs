@@ -130,13 +130,6 @@ pub struct Runtime {
     pub unconstrained: bool,
 
     pub(crate) values_before_unconstrained: PreviousRuntimeValues,
-
-    /// The hint stream is a stream of bytes that can be written to by the program during
-    /// unconstrained execution.
-    pub hint_stream: Vec<u8>,
-
-    /// A ptr to the current position in the hint stream, incremented when reading from hint_stream.
-    pub hint_stream_ptr: usize,
 }
 
 impl Runtime {
@@ -167,8 +160,6 @@ impl Runtime {
             cycle_tracker: HashMap::new(),
             unconstrained: false,
             values_before_unconstrained: PreviousRuntimeValues::default(),
-            hint_stream: Vec::new(),
-            hint_stream_ptr: 0,
         }
     }
 
