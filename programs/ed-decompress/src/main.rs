@@ -18,7 +18,7 @@ pub fn main() {
 
     unsafe {
         syscall_ed_decompress(decompressed.as_mut_ptr());
-    
+    }
 
     let expected: [u8; 64] = [
         47, 252, 114, 91, 153, 234, 110, 201, 201, 153, 152, 14, 68, 231, 90, 221, 137, 110, 250,
