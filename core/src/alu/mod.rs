@@ -9,7 +9,9 @@ pub mod sub;
 
 pub use add::*;
 pub use bitwise::*;
+pub use divrem::*;
 pub use lt::*;
+pub use mul::*;
 pub use sll::*;
 pub use sr::*;
 pub use sub::*;

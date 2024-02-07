@@ -1,1 +1,3 @@
-pub mod decompress;
+mod decompress;
+
+pub use decompress::*;
