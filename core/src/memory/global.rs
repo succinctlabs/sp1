@@ -194,7 +194,7 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(
-            &runtime.segments,
+            &runtime.segment,
             Some(&runtime.global_segment),
             vec![InteractionKind::Memory],
         );
@@ -207,6 +207,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&[10]);
         runtime.run();
-        debug_interactions_with_all_chips(&runtime.segments, None, vec![InteractionKind::Byte]);
+        debug_interactions_with_all_chips(&runtime.segment, None, vec![InteractionKind::Byte]);
     }
 }

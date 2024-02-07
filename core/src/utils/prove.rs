@@ -49,9 +49,9 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     let start = Instant::now();
 
-    // Because proving modifies the segments, clone segments beforehand if we debug interactions.
+    // Because proving modifies the segment, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
-    let segments = runtime.segments.clone();
+    let segment = runtime.segment.clone();
 
     // Prove the program.
     let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)").in_scope(|| {
@@ -70,7 +70,7 @@ pub fn prove_core(runtime: &mut Runtime) {
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
-            &segments,
+            &segment,
             Some(&mut runtime.global_segment),
             vec![
                 InteractionKind::Field,

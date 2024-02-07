@@ -128,7 +128,7 @@ fn babybear_to_int(n: BabyBear) -> i32 {
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
-    segments: &Vec<Segment>,
+    segment: &Segment,
     global_segment: Option<&Segment>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
@@ -142,24 +142,19 @@ pub fn debug_interactions_with_all_chips(
 
     let mut final_map = BTreeMap::new();
 
-    for segment in segments {
-        let mut segment = segment.clone();
+    let mut segment = segment.clone();
 
-        for chip in &segment_chips {
-            let (_, count) = debug_interactions::<BabyBear>(
-                chip.as_chip(),
-                &mut segment,
-                interaction_kinds.clone(),
-            );
+    for chip in &segment_chips {
+        let (_, count) =
+            debug_interactions::<BabyBear>(chip.as_chip(), &mut segment, interaction_kinds.clone());
 
-            tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
-            for (key, value) in count.iter() {
-                let entry = final_map
-                    .entry(key.clone())
-                    .or_insert((BabyBear::zero(), BTreeMap::new()));
-                entry.0 += *value;
-                *entry.1.entry(chip.name()).or_insert(BabyBear::zero()) += *value;
-            }
+        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+        for (key, value) in count.iter() {
+            let entry = final_map
+                .entry(key.clone())
+                .or_insert((BabyBear::zero(), BTreeMap::new()));
+            entry.0 += *value;
+            *entry.1.entry(chip.name()).or_insert(BabyBear::zero()) += *value;
         }
     }
 
