@@ -1,4 +1,4 @@
-use p3_air::{AirBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
+use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::{ExtensionField, Field};
 
 use crate::air::EmptyMessageBuilder;
@@ -13,7 +13,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) is_transition: F,
 }
 
-impl<'a, F, EF> PermutationAirBuilder for DebugConstraintBuilder<'a, F, EF>
+impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -21,6 +21,20 @@ where
     type EF = EF;
     type VarEF = EF;
     type ExprEF = EF;
+
+    fn assert_zero_ext<I>(&mut self, x: I)
+    where
+        I: Into<Self::ExprEF>,
+    {
+        assert_eq!(x.into(), EF::zero(), "constraints must evaluate to zero");
+    }
+}
+
+impl<'a, F, EF> PermutationAirBuilder for DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
     type MP = TwoRowMatrixView<'a, EF>;
 
     fn permutation(&self) -> Self::MP {

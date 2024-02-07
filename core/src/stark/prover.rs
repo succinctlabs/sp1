@@ -58,11 +58,12 @@ where
         // For each chip, generate the trace.
         let traces = chips
             .iter()
-            .map(|chip| chip.generate_trace(segment))
+            .map(|chip| chip.generate_trace(&mut segment.clone()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
+        println!("finished commit main for segment {}", segment.index);
 
         MainData {
             traces,
@@ -351,7 +352,7 @@ where
                     &traces[i],
                     &permutation_traces[i],
                     &permutation_challenges,
-                )
+                );
             }
         });
 

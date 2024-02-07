@@ -20,10 +20,10 @@ p3-fri = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-keccak = { workspace = true }
 p3-keccak-air = { workspace = true }
-p3-ldt = { workspace = true }
 p3-mds = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
+p3-blake3 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-maybe-rayon = { workspace = true }
@@ -41,12 +41,14 @@ tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
 clap = { version = "4.4.0", features = ["derive"] }
-curve25519-dalek = "4.1.1"
+curve25519-dalek = { version = "=4.0.0" }
 hex = "0.4.3"
 tempfile = "3.9.0"
 flate2 = "1.0.28"
 size = "0.4.1"
-serde_json = { version = "1.0.113", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0.113", default-features = false, features = [
+    "alloc",
+] }
 k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
 
@@ -60,6 +62,7 @@ default = ["parallel", "perf"]
 debug = ["parallel"]
 debug-proof = ["parallel", "perf"]
 serial = []
+neon = ["p3-blake3/neon"]
 
 [[bench]]
 name = "main"

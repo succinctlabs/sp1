@@ -49,6 +49,7 @@ impl CpuChip {
 
             // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
             builder
+                .when_transition()
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
