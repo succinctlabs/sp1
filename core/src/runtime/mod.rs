@@ -46,9 +46,9 @@ pub enum AccessPosition {
     A = 3,
 }
 
-/// Holds data to track changes made since entering unconstrained mode.
+/// Holds data to track changes made to the runtime since a fork point.
 #[derive(Debug, Clone, Default)]
-struct UnconstrainedState {
+struct ForkState {
     /// Original global_clk
     pub(crate) global_clk: u32,
     /// Original clk
@@ -137,7 +137,7 @@ pub struct Runtime {
     /// the unconstrained block. The only thing preserved is writes to the hint stream.
     pub unconstrained: bool,
 
-    pub(self) unconstrained_state: UnconstrainedState,
+    pub(self) unconstrained_state: ForkState,
 }
 
 impl Runtime {
@@ -167,7 +167,7 @@ impl Runtime {
             global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
             unconstrained: false,
-            unconstrained_state: UnconstrainedState::default(),
+            unconstrained_state: ForkState::default(),
         }
     }
 
@@ -853,7 +853,7 @@ impl Runtime {
                             panic!("Unconstrained block is already active.");
                         }
                         self.unconstrained = true;
-                        self.unconstrained_state = UnconstrainedState {
+                        self.unconstrained_state = ForkState {
                             global_clk: self.global_clk,
                             clk: self.clk,
                             pc: self.pc,
@@ -888,7 +888,7 @@ impl Runtime {
                             self.record = std::mem::take(&mut self.unconstrained_state.record);
                             self.unconstrained = false;
                         }
-                        self.unconstrained_state = UnconstrainedState::default();
+                        self.unconstrained_state = ForkState::default();
                     }
                 }
 

@@ -49,6 +49,7 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     let start = Instant::now();
 
+    // Because proving modifies the segments, clone segments beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
     let segments = runtime.segments.clone();
 
@@ -56,6 +57,15 @@ pub fn prove_core(runtime: &mut Runtime) {
     let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)").in_scope(|| {
         runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger)
     });
+
+    let cycles = runtime.global_clk;
+    let time = start.elapsed().as_millis();
+    tracing::info!(
+        "done proving: cycles={}, e2e={}, khz={:.2}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+    );
 
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
@@ -79,15 +89,6 @@ pub fn prove_core(runtime: &mut Runtime) {
     runtime
         .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
         .unwrap();
-
-    let cycles = runtime.global_clk;
-    let time = start.elapsed().as_millis();
-    tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
-        cycles,
-        time,
-        (cycles as f64 / time as f64),
-    );
 }
 
 pub fn uni_stark_prove<SC, A>(

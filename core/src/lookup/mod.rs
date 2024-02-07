@@ -143,7 +143,6 @@ pub fn debug_interactions_with_all_chips(
     let mut final_map = BTreeMap::new();
 
     for segment in segments {
-        println!("segment: {}", segment.index);
         let mut segment = segment.clone();
 
         for chip in &segment_chips {
