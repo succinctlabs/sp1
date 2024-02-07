@@ -44,23 +44,6 @@ pub fn prove_elf(elf: &[u8]) {
 }
 
 pub fn prove_core(runtime: &mut Runtime) {
-    // TODO: Move this back to where it was.
-    println!("prove_core");
-    tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(
-            &runtime.segment,
-            Some(&runtime.global_segment),
-            vec![
-                InteractionKind::Field,
-                InteractionKind::Range,
-                InteractionKind::Byte,
-                InteractionKind::Alu,
-                InteractionKind::Memory,
-                InteractionKind::Program,
-                InteractionKind::Instruction,
-            ],
-        );
-    });
     let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
 
@@ -77,6 +60,21 @@ pub fn prove_core(runtime: &mut Runtime) {
         .verify::<_, _, BabyBearPoseidon2>(&config, &mut challenger, &segment_proofs, &global_proof)
         .unwrap();
 
+    tracing::info_span!("debug interactions with all chips").in_scope(|| {
+        debug_interactions_with_all_chips(
+            &runtime.segment,
+            Some(&runtime.global_segment),
+            vec![
+                InteractionKind::Field,
+                InteractionKind::Range,
+                InteractionKind::Byte,
+                InteractionKind::Alu,
+                InteractionKind::Memory,
+                InteractionKind::Program,
+                InteractionKind::Instruction,
+            ],
+        );
+    });
     let cycles = runtime.global_clk;
     let time = start.elapsed().as_millis();
     tracing::info!(
