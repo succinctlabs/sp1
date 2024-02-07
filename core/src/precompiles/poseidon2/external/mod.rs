@@ -15,21 +15,17 @@ mod external_linear_permute;
 mod sbox;
 mod trace;
 
-/// The number of 32-bit limbs in a Poseidon2 state.
-///
-/// Ideally, this would be const generic, but AlignedBorrow doesn't accept a struct with two const
-/// generics. Maybe there's a more elegant way of going about this, but also I think I should get
-/// the precompile to work first with this const and from there I can think about that.
-/// TODO: Revisit this to see if there's a different option.
-/// TODO: Remove the const generic for this since it's not very useful if we define a const.
+/// The number of field elements in a Poseidon2 state.
 pub const P2_WIDTH: usize = 16;
 
+/// An `Event` struct recording the state of the Poseidon2 permutation during either the first or
+/// the second external round.
 #[derive(Debug, Clone, Copy)]
-pub struct Poseidon2ExternalEvent<const NUM_WORDS_STATE: usize> {
+pub struct Poseidon2ExternalEvent<const WIDTH: usize> {
     pub clk: u32,
     pub state_ptr: u32,
-    pub state_reads: [[MemoryReadRecord; NUM_WORDS_STATE]; P2_EXTERNAL_ROUND_COUNT],
-    pub state_writes: [[MemoryWriteRecord; NUM_WORDS_STATE]; P2_EXTERNAL_ROUND_COUNT],
+    pub state_reads: [[MemoryReadRecord; WIDTH]; P2_EXTERNAL_ROUND_COUNT],
+    pub state_writes: [[MemoryWriteRecord; WIDTH]; P2_EXTERNAL_ROUND_COUNT],
 }
 
 /// The first external round of the Poseidon2 permutation.
@@ -130,15 +126,15 @@ pub mod external_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Syscall},
-        utils::{
-            ec::NUM_WORDS_FIELD_ELEMENT, prove, setup_logger, tests::POSEIDON2_EXTERNAL_1_ELF,
-        },
+        utils::{prove, setup_logger, tests::POSEIDON2_EXTERNAL_1_ELF},
     };
+
+    use super::P2_WIDTH;
 
     pub fn poseidon2_external_1_program() -> Program {
         let w_ptr = 100;
         let mut instructions = vec![];
-        for i in 0..NUM_WORDS_FIELD_ELEMENT {
+        for i in 0..P2_WIDTH {
             // Store 100 + i in memory for the i-th word of the state. 100 + i is an arbitrary
             // number that is easy to spot while debugging.
             instructions.extend(vec![

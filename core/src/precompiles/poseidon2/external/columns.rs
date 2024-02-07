@@ -24,6 +24,7 @@ pub const P2_TOTAL_ROUNDS: usize = P2_DEFAULT_ROUNDS_F + P2_DEFAULT_ROUNDS_P;
 
 /// The number of times to loop in the first or the last external round of Poseidon2.
 pub const P2_EXTERNAL_ROUND_COUNT: usize = P2_DEFAULT_ROUNDS_F / 2;
+
 pub const P2_SBOX_EXPONENT: usize = 7;
 
 /// The number of bits necessary to express `P2_SBOX_EXPONENT`. Used to decide how many times
@@ -34,18 +35,6 @@ pub const P2_SBOX_EXPONENT_LOG2: usize = 3;
 pub const P2_ROUND_CONSTANTS: [[u32; P2_WIDTH]; P2_TOTAL_ROUNDS] = RC_16_30;
 
 /// Cols to perform the either the first or the last external round of Poseidon2.
-///
-/// It's necessary to split the struct into two parts because of the const generic parameter.
-/// AlignedBorrow doesn't like a struct with more than one const generic parameter.
-///
-/// TODO: Do I really want to make this a const generic? I feel that it'll be the same everywhere.
-/// Especially, I think I was concerned about the first external round and the last external round
-/// having different constants, but they should have the same NUM_WORDS_STATE.
-///
-/// TODO: also, i think I need to start specifying what is for the first external round only and
-/// what is shared between the first and last external rounds.
-///
-/// TODO: Maybe I can put these consts in one parameter struct.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2ExternalCols<T> {
