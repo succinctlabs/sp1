@@ -1,4 +1,3 @@
-mod array;
 mod bool;
 mod builder;
 mod interaction;
@@ -6,7 +5,6 @@ mod polynomial;
 mod sub_builder;
 mod word;
 
-pub use array::*;
 pub use bool::*;
 pub use builder::*;
 pub use interaction::*;
