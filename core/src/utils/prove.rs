@@ -8,7 +8,7 @@ use crate::{
 pub use baby_bear_blake3::BabyBearBlake3;
 
 pub trait StarkUtils: StarkConfig {
-    type UniConfig: p3_uni_stark::StarkConfig<
+    type UniConfig: p3_uni_stark::StarkGenericConfig<
         Val = Self::Val,
         PackedVal = Self::PackedVal,
         Challenge = Self::Challenge,
@@ -131,9 +131,8 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field, Res};
-    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-    use p3_ldt::QuotientMmcs;
+    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
@@ -147,7 +146,6 @@ pub(super) mod baby_bear_poseidon2 {
     pub type Domain = Val;
     pub type Challenge = BinomialExtensionField<Val, 4>;
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-    pub type ChallengeAlgebra = BinomialExtensionField<Res<Val, BinomialExtensionField<Val, 4>>, 4>;
 
     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
@@ -161,10 +159,8 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-    pub type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    pub type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-
-    pub type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+    type Pcs =
+        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
     pub struct BabyBearPoseidon2 {
         perm: Perm,
@@ -185,10 +181,13 @@ pub(super) mod baby_bear_poseidon2 {
 
             let dft = Dft {};
 
-            let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
-            let ldt = FriLdt { config: fri_config };
-
-            let pcs = Pcs::new(dft, val_mmcs, ldt);
+            let fri_config = FriConfig {
+                log_blowup: 1,
+                num_queries: 100,
+                proof_of_work_bits: 16,
+                mmcs: challenge_mmcs,
+            };
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
         }
@@ -210,7 +209,6 @@ pub(super) mod baby_bear_poseidon2 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
-        type ChallengeAlgebra = ChallengeAlgebra;
         type Pcs = Pcs;
         type Challenger = Challenger;
         type PackedVal = <Val as Field>::Packing;
@@ -220,7 +218,7 @@ pub(super) mod baby_bear_poseidon2 {
         }
     }
 
-    impl p3_uni_stark::StarkConfig for BabyBearPoseidon2 {
+    impl p3_uni_stark::StarkGenericConfig for BabyBearPoseidon2 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
@@ -240,10 +238,9 @@ pub(super) mod baby_bear_keccak {
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field, Res};
-    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
+    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_keccak::Keccak256Hash;
-    use p3_ldt::QuotientMmcs;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
@@ -257,7 +254,6 @@ pub(super) mod baby_bear_keccak {
     pub type Domain = Val;
     pub type Challenge = BinomialExtensionField<Val, 4>;
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-    pub type ChallengeAlgebra = BinomialExtensionField<Res<Val, BinomialExtensionField<Val, 4>>, 4>;
 
     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     type MyHash = SerializingHasher32<Keccak256Hash>;
@@ -271,10 +267,8 @@ pub(super) mod baby_bear_keccak {
 
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-    pub type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    pub type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-
-    pub type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+    type Pcs =
+        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
     pub struct BabyBearKeccak {
         perm: Perm,
@@ -296,10 +290,13 @@ pub(super) mod baby_bear_keccak {
 
             let dft = Dft {};
 
-            let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
-            let ldt = FriLdt { config: fri_config };
-
-            let pcs = Pcs::new(dft, val_mmcs, ldt);
+            let fri_config = FriConfig {
+                log_blowup: 1,
+                num_queries: 100,
+                proof_of_work_bits: 16,
+                mmcs: challenge_mmcs,
+            };
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
         }
@@ -321,7 +318,6 @@ pub(super) mod baby_bear_keccak {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
-        type ChallengeAlgebra = ChallengeAlgebra;
         type Pcs = Pcs;
         type Challenger = Challenger;
         type PackedVal = <Val as Field>::Packing;
@@ -331,7 +327,7 @@ pub(super) mod baby_bear_keccak {
         }
     }
 
-    impl p3_uni_stark::StarkConfig for BabyBearKeccak {
+    impl p3_uni_stark::StarkGenericConfig for BabyBearKeccak {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
@@ -352,9 +348,8 @@ pub(super) mod baby_bear_blake3 {
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field, Res};
-    use p3_fri::{FriBasedPcs, FriConfigImpl, FriLdt};
-    use p3_ldt::QuotientMmcs;
+    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
@@ -368,7 +363,6 @@ pub(super) mod baby_bear_blake3 {
     pub type Domain = Val;
     pub type Challenge = BinomialExtensionField<Val, 4>;
     pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-    pub type ChallengeAlgebra = BinomialExtensionField<Res<Val, BinomialExtensionField<Val, 4>>, 4>;
 
     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     type MyHash = SerializingHasher32<Blake3>;
@@ -382,10 +376,8 @@ pub(super) mod baby_bear_blake3 {
 
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-    pub type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
-    pub type MyFriConfig = FriConfigImpl<Val, Challenge, Quotient, ChallengeMmcs, Challenger>;
-
-    pub type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;
+    type Pcs =
+        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
     pub struct BabyBearBlake3 {
         perm: Perm,
@@ -406,10 +398,13 @@ pub(super) mod baby_bear_blake3 {
 
             let dft = Dft {};
 
-            let fri_config = MyFriConfig::new(1, 100, 16, challenge_mmcs);
-            let ldt = FriLdt { config: fri_config };
-
-            let pcs = Pcs::new(dft, val_mmcs, ldt);
+            let fri_config = FriConfig {
+                log_blowup: 1,
+                num_queries: 100,
+                proof_of_work_bits: 16,
+                mmcs: challenge_mmcs,
+            };
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
         }
@@ -431,7 +426,6 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
-        type ChallengeAlgebra = ChallengeAlgebra;
         type Pcs = Pcs;
         type Challenger = Challenger;
         type PackedVal = <Val as Field>::Packing;
@@ -441,7 +435,7 @@ pub(super) mod baby_bear_blake3 {
         }
     }
 
-    impl p3_uni_stark::StarkConfig for BabyBearBlake3 {
+    impl p3_uni_stark::StarkGenericConfig for BabyBearBlake3 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
