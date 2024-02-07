@@ -1,6 +1,6 @@
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcsWithLde};
-use p3_field::{AbstractExtensionField, ExtensionField, PackedField, Res, TwoAdicField};
+use p3_field::{AbstractExtensionField, ExtensionField, PackedField, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
 /// A configuration for a STARK.
