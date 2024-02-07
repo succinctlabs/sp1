@@ -9,7 +9,6 @@
     clippy::unnecessary_unwrap,
     clippy::default_constructed_unit_structs
 )]
-#![feature(return_position_impl_trait_in_trait)]
 
 extern crate alloc;
 

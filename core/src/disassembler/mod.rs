@@ -1,7 +1,7 @@
 mod elf;
 mod instruction;
 
-pub use elf::*;
+pub use self::elf::*;
 pub use instruction::*;
 
 use crate::runtime::{Instruction, Program};

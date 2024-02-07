@@ -5,7 +5,7 @@ mod polynomial;
 mod sub_builder;
 mod word;
 
-pub use bool::*;
+pub use self::bool::*;
 pub use builder::*;
 pub use interaction::*;
 pub use polynomial::*;

@@ -6,6 +6,7 @@ use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
+use std::vec::IntoIter;
 
 pub const MAX_NB_LIMBS: usize = 32;
 
@@ -26,11 +27,14 @@ pub trait FieldParameters:
         Self::NB_BITS_PER_LIMB * Self::NB_LIMBS
     }
 
-    fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
-        Self::MODULUS
+    fn modulus_field_iter<F: Field>() -> IntoIter<F> {
+        let modulus_vec = Self::MODULUS
             .into_iter()
             .map(|x| F::from_canonical_u8(x))
             .take(Self::NB_LIMBS)
+            .collect::<Vec<F>>();
+
+        modulus_vec.into_iter()
     }
 
     fn to_limbs(x: &BigUint) -> Limbs<u8> {
