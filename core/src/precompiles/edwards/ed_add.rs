@@ -58,6 +58,7 @@ pub struct EdAddAssignCols<T> {
     pub(crate) y3_ins: FpDenCols<T>,
 }
 
+#[derive(Default)]
 pub struct EdAddAssignChip<E, EP> {
     _marker: PhantomData<(E, EP)>,
 }
@@ -115,6 +116,10 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
 impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignChip<E, EP> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].ed_add_events = input.ed_add_events.clone();
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

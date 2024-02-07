@@ -57,6 +57,7 @@ pub struct WeierstrassDoubleAssignCols<T> {
     pub(crate) slope_times_p_x_minus_x: FpOpCols<T>,
 }
 
+#[derive(Default)]
 pub struct WeierstrassDoubleAssignChip<E, WP> {
     _marker: PhantomData<(E, WP)>,
 }
@@ -151,6 +152,10 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 {
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

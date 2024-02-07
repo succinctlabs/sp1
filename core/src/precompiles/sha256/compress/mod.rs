@@ -28,6 +28,7 @@ pub struct ShaCompressEvent {
     pub h_write_records: [MemoryWriteRecord; 8],
 }
 
+#[derive(Default)]
 pub struct ShaCompressChip;
 
 impl ShaCompressChip {

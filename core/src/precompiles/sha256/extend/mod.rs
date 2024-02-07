@@ -20,6 +20,7 @@ pub struct ShaExtendEvent {
     pub w_i_writes: [MemoryWriteRecord; 48],
 }
 
+#[derive(Default)]
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {

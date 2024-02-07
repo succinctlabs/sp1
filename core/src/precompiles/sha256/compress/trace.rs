@@ -11,6 +11,14 @@ use super::{
 };
 
 impl<F: PrimeField> Chip<F> for ShaCompressChip {
+    fn name(&self) -> String {
+        "ShaCompress".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].sha_compress_events = input.sha_compress_events.clone();
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -228,9 +236,5 @@ impl<F: PrimeField> Chip<F> for ShaCompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
         )
-    }
-
-    fn name(&self) -> String {
-        "ShaCompress".to_string()
     }
 }

@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -72,6 +72,20 @@ impl LtCols<u32> {
 }
 
 impl<F: PrimeField> Chip<F> for LtChip {
+    fn name(&self) -> String {
+        "Lt".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        let shards = input
+            .lt_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        for i in 0..shards.len() {
+            outputs[i].lt_events = shards[i].to_vec();
+        }
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
@@ -155,10 +169,6 @@ impl<F: PrimeField> Chip<F> for LtChip {
         pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
 
         trace
-    }
-
-    fn name(&self) -> String {
-        "Lt".to_string()
     }
 }
 

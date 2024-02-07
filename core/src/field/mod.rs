@@ -14,6 +14,7 @@ use crate::air::FieldAirBuilder;
 use crate::runtime::Segment;
 use crate::utils::pad_to_power_of_two;
 use crate::utils::Chip;
+use crate::utils::NB_ROWS_PER_SHARD;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
@@ -46,6 +47,16 @@ pub struct FieldLTUCols<T> {
 impl<F: PrimeField> Chip<F> for FieldLTUChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        let shards = input
+            .field_events
+            .chunks(NB_ROWS_PER_SHARD * 4)
+            .collect::<Vec<_>>();
+        for i in 0..shards.len() {
+            outputs[i].field_events = shards[i].to_vec();
+        }
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

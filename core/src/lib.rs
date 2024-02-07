@@ -7,7 +7,8 @@
     clippy::needless_range_loop,
     clippy::type_complexity,
     clippy::unnecessary_unwrap,
-    clippy::default_constructed_unit_structs
+    clippy::default_constructed_unit_structs,
+    clippy::box_default
 )]
 
 extern crate alloc;

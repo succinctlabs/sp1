@@ -59,6 +59,7 @@ pub struct WeierstrassAddAssignCols<T> {
     pub(crate) slope_times_p_x_minus_x: FpOpCols<T>,
 }
 
+#[derive(Default)]
 pub struct WeierstrassAddAssignChip<E, WP> {
     _marker: PhantomData<(E, WP)>,
 }
@@ -138,6 +139,10 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 {
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].weierstrass_add_events = input.weierstrass_add_events.clone();
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
