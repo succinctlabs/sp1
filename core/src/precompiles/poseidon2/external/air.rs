@@ -19,8 +19,7 @@ impl<F, const N: usize, FIELD: Field> BaseAir<F> for Poseidon2External1Chip<FIEL
     }
 }
 
-impl<AB, const NUM_WORDS_STATE: usize, FIELD: Field> Air<AB>
-    for Poseidon2External1Chip<FIELD, NUM_WORDS_STATE>
+impl<AB, const WIDTH: usize, FIELD: Field> Air<AB> for Poseidon2External1Chip<FIELD, WIDTH>
 where
     AB: CurtaAirBuilder,
 {
@@ -37,7 +36,7 @@ where
     }
 }
 
-impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS_STATE> {
+impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
@@ -83,7 +82,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
 
         // Calculate the round constants for this round.
         {
-            for i in 0..NUM_WORDS_STATE {
+            for i in 0..WIDTH {
                 let round_constant = {
                     let mut acc: AB::Expr = AB::F::zero().into();
 
@@ -105,7 +104,7 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
     ) {
         let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
         let clk_cycle_per_word = 4;
-        for i in 0..NUM_WORDS_STATE {
+        for i in 0..WIDTH {
             builder.constraint_memory_access(
                 local.segment,
                 local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),

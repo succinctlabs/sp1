@@ -85,7 +85,7 @@ where
     input[3] = t_4;
 }
 
-pub(crate) fn matmul_m4<T, const NUM_WORDS_STATE: usize>(input: &mut [T; NUM_WORDS_STATE])
+pub(crate) fn matmul_m4<T, const WIDTH: usize>(input: &mut [T; WIDTH])
 where
     T: Add<Output = T> + Default + Clone,
 {
@@ -94,17 +94,16 @@ where
         .for_each(|x| m4_permute_mut(x.try_into().unwrap()));
 }
 
-pub(crate) fn external_linear_permute_mut<T, const NUM_WORDS_STATE: usize>(
-    input: &mut [T; NUM_WORDS_STATE],
-) where
+pub(crate) fn external_linear_permute_mut<T, const WIDTH: usize>(input: &mut [T; WIDTH])
+where
     T: Add<Output = T> + Default + Clone,
 {
-    match NUM_WORDS_STATE {
+    match WIDTH {
         16 => {
             // First, apply Diag(M4, ..., M4).
             matmul_m4(input);
 
-            let t4 = NUM_WORDS_STATE / 4;
+            let t4 = WIDTH / 4;
             // Four 0's.
             let mut stored = [T::default(), T::default(), T::default(), T::default()];
             for l in 0..4 {
@@ -113,7 +112,7 @@ pub(crate) fn external_linear_permute_mut<T, const NUM_WORDS_STATE: usize>(
                     stored[l] = stored[l].clone() + input[j * 4 + l].clone();
                 }
             }
-            for i in 0..NUM_WORDS_STATE {
+            for i in 0..WIDTH {
                 input[i] = input[i].clone() + stored[i % 4].clone();
             }
         }
