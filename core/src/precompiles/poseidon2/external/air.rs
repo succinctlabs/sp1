@@ -44,7 +44,7 @@ impl<F: Field, const WIDTH: usize> Poseidon2External1Chip<F, WIDTH> {
         next: &Poseidon2ExternalCols<AB::Var>,
     ) {
         // If this is the i-th round, then the next row should be the (i+1)-th round.
-        for i in 0..(P2_EXTERNAL_ROUND_COUNT - 1) {
+        for i in 0..P2_EXTERNAL_ROUND_COUNT {
             builder
                 .when_transition()
                 .when(next.is_real)
