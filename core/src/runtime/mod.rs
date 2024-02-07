@@ -11,7 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
-use crate::precompiles::poseidon2::{Poseidon2External1Chip, P2_WIDTH};
+use crate::precompiles::poseidon2::Poseidon2External1Chip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
