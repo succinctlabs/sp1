@@ -1,2 +1,5 @@
-pub mod ed_add;
-pub mod ed_decompress;
+mod ed_add;
+mod ed_decompress;
+
+pub use ed_add::*;
+pub use ed_decompress::*;

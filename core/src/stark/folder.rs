@@ -1,10 +1,9 @@
+use super::StarkConfig;
+use crate::air::EmptyMessageBuilder;
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::AbstractField;
 
-use crate::air::EmptyMessageBuilder;
-
-use super::StarkConfig;
-
+/// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
     pub preprocessed: TwoRowMatrixView<'a, SC::PackedVal>,
     pub main: TwoRowMatrixView<'a, SC::PackedVal>,
@@ -15,18 +14,6 @@ pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
     pub is_transition: SC::PackedVal,
     pub alpha: SC::Challenge,
     pub accumulator: SC::PackedChallenge,
-}
-
-pub struct VerifierConstraintFolder<'a, SC: StarkConfig> {
-    pub preprocessed: TwoRowMatrixView<'a, SC::Challenge>,
-    pub main: TwoRowMatrixView<'a, SC::Challenge>,
-    pub perm: TwoRowMatrixView<'a, SC::Challenge>,
-    pub perm_challenges: &'a [SC::Challenge],
-    pub is_first_row: SC::Challenge,
-    pub is_last_row: SC::Challenge,
-    pub is_transition: SC::Challenge,
-    pub alpha: SC::Challenge,
-    pub accumulator: SC::Challenge,
 }
 
 impl<'a, SC: StarkConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
@@ -98,6 +85,19 @@ impl<'a, SC: StarkConfig> PairBuilder for ProverConstraintFolder<'a, SC> {
 }
 
 impl<'a, SC: StarkConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
+
+/// A folder for verifier constraints.
+pub struct VerifierConstraintFolder<'a, SC: StarkConfig> {
+    pub preprocessed: TwoRowMatrixView<'a, SC::Challenge>,
+    pub main: TwoRowMatrixView<'a, SC::Challenge>,
+    pub perm: TwoRowMatrixView<'a, SC::Challenge>,
+    pub perm_challenges: &'a [SC::Challenge],
+    pub is_first_row: SC::Challenge,
+    pub is_last_row: SC::Challenge,
+    pub is_transition: SC::Challenge,
+    pub alpha: SC::Challenge,
+    pub accumulator: SC::Challenge,
+}
 
 impl<'a, SC: StarkConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
     type F = SC::Challenge;
