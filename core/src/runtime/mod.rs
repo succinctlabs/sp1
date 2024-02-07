@@ -46,14 +46,22 @@ pub enum AccessPosition {
     A = 3,
 }
 
+/// Holds data to track changes made since entering unconstrained mode.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct PreviousRuntimeValues {
+struct UnconstrainedState {
+    /// Original global_clk
     pub(crate) global_clk: u32,
+    /// Original clk
     pub(crate) clk: u32,
+    /// Original program counter
     pub(crate) pc: u32,
-    pub(crate) memory: HashMap<u32, Option<u32>, BuildNoHashHasher<u32>>,
+    /// Only contains the original memory values for addresses that have been modified
+    pub(crate) memory_diff: HashMap<u32, Option<u32>, BuildNoHashHasher<u32>>,
+    /// Full memory_access map from original state
     pub(crate) memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
+    /// Full record from original state
     pub(crate) record: Record,
+    /// Full segment from original state
     pub(crate) segment: Segment,
 }
 
@@ -129,7 +137,7 @@ pub struct Runtime {
     /// the unconstrained block. The only thing preserved is writes to the hint stream.
     pub unconstrained: bool,
 
-    pub(crate) values_before_unconstrained: PreviousRuntimeValues,
+    pub(self) unconstrained_state: UnconstrainedState,
 }
 
 impl Runtime {
@@ -159,7 +167,7 @@ impl Runtime {
             global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
             unconstrained: false,
-            values_before_unconstrained: PreviousRuntimeValues::default(),
+            unconstrained_state: UnconstrainedState::default(),
         }
     }
 
@@ -227,8 +235,8 @@ impl Runtime {
                 Entry::Occupied(ref entry) => Some(*entry.get()),
                 Entry::Vacant(_) => None,
             };
-            self.values_before_unconstrained
-                .memory
+            self.unconstrained_state
+                .memory_diff
                 .entry(addr)
                 .or_insert(prev_value);
         }
@@ -250,8 +258,8 @@ impl Runtime {
                 Entry::Occupied(ref entry) => Some(*entry.get()),
                 Entry::Vacant(_) => None,
             };
-            self.values_before_unconstrained
-                .memory
+            self.unconstrained_state
+                .memory_diff
                 .entry(addr)
                 .or_insert(prev_value);
         }
@@ -841,22 +849,15 @@ impl Runtime {
                         assert_eq!(init_clk + 4, self.clk);
                     }
                     Syscall::ENTER_UNCONSTRAINED => {
-                        println!("entering");
-                        let memory_18 = self.memory.get(&18).cloned();
-                        println!("memory_18: {:?}", memory_18);
                         if self.unconstrained {
                             panic!("Unconstrained block is already active.");
                         }
                         self.unconstrained = true;
-                        println!(
-                            "entering, {}, {}, {}",
-                            self.unconstrained, self.pc, self.global_clk
-                        );
-                        self.values_before_unconstrained = PreviousRuntimeValues {
+                        self.unconstrained_state = UnconstrainedState {
                             global_clk: self.global_clk,
                             clk: self.clk,
                             pc: self.pc,
-                            memory: HashMap::default(),
+                            memory_diff: HashMap::default(),
                             memory_access: std::mem::take(&mut self.memory_access),
                             segment: std::mem::take(&mut self.segment),
                             record: std::mem::take(&mut self.record),
@@ -865,22 +866,13 @@ impl Runtime {
                     }
                     Syscall::EXIT_UNCONSTRAINED => {
                         a = 0;
-                        println!(
-                            "exiting, {}, {}, {}, {}, {}, {}",
-                            self.unconstrained,
-                            self.pc,
-                            self.global_clk,
-                            self.values_before_unconstrained.global_clk,
-                            self.values_before_unconstrained.clk,
-                            self.values_before_unconstrained.pc,
-                        );
                         // Reset the state of the runtime.
                         if self.unconstrained {
-                            self.global_clk = self.values_before_unconstrained.global_clk;
-                            self.clk = self.values_before_unconstrained.clk;
-                            self.pc = self.values_before_unconstrained.pc;
+                            self.global_clk = self.unconstrained_state.global_clk;
+                            self.clk = self.unconstrained_state.clk;
+                            self.pc = self.unconstrained_state.pc;
                             next_pc = self.pc.wrapping_add(4);
-                            for (addr, value) in self.values_before_unconstrained.memory.drain() {
+                            for (addr, value) in self.unconstrained_state.memory_diff.drain() {
                                 match value {
                                     Some(value) => {
                                         self.memory.insert(addr, value);
@@ -890,36 +882,13 @@ impl Runtime {
                                     }
                                 }
                             }
-                            self.segment =
-                                std::mem::take(&mut self.values_before_unconstrained.segment);
+                            self.segment = std::mem::take(&mut self.unconstrained_state.segment);
                             self.memory_access =
-                                std::mem::take(&mut self.values_before_unconstrained.memory_access);
-                            self.record =
-                                std::mem::take(&mut self.values_before_unconstrained.record);
+                                std::mem::take(&mut self.unconstrained_state.memory_access);
+                            self.record = std::mem::take(&mut self.unconstrained_state.record);
                             self.unconstrained = false;
-
-                            self.rw(a0, a);
-                            (b, c) = (self.rr(t0, AccessPosition::B), 0);
-
-                            // Update the program counter.
-                            self.pc = next_pc;
-
-                            // Emit the CPU event for this cycle.
-                            self.emit_cpu(
-                                self.current_segment(),
-                                self.clk,
-                                pc,
-                                instruction,
-                                a,
-                                b,
-                                c,
-                                memory_store_value,
-                                self.record,
-                            );
-
-                            return;
                         }
-                        self.values_before_unconstrained = PreviousRuntimeValues::default();
+                        self.unconstrained_state = UnconstrainedState::default();
                     }
                 }
 
@@ -1033,13 +1002,6 @@ impl Runtime {
             if self.global_clk % 1000000000 == 0 {
                 log::debug!("global_clk={}", self.global_clk);
             }
-
-            // if self.global_clk == 262143 {
-            //     log::debug!("instr={:?}", instruction);
-            // }
-            // if self.global_clk > 262143 {
-            //     break;
-            // }
 
             let width = 12;
             log::trace!(
