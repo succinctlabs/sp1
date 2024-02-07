@@ -3831,7 +3831,7 @@ dependencies = [
 [[package]]
 name = "succinct-precompiles"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/vm.git?branch=chris/zeth#981d1990c4e5865d504acce7269dba85f33fa132"
+source = "git+https://github.com/succinctlabs/vm.git?branch=chris/zeth#981d1990c4e5865d504acce7269dba85f33fa132"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -4865,6 +4865,6 @@ dependencies = [
  "rlp",
  "serde",
  "sha3",
- "succinct-precompiles 0.1.0 (git+ssh://git@github.com/succinctlabs/vm.git?branch=chris/zeth)",
+ "succinct-precompiles 0.1.0 (git+https://github.com/succinctlabs/vm.git?branch=chris/zeth)",
  "thiserror",
 ]
