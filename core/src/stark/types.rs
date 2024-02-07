@@ -118,14 +118,8 @@ pub struct SegmentOpenedValues<T> {
 #[derive(Serialize, Deserialize)]
 #[serde(bound(serialize = "SC: StarkConfig", deserialize = "SC: StarkConfig"))]
 pub struct SegmentProof<SC: StarkConfig> {
-    // #[serde(bound(serialize = "Com<SC>: Serialize"))]
-    // #[serde(bound(deserialize = "Com<SC>: Deserialize<'de>"))]
     pub commitment: SegmentCommitment<Com<SC>>,
-    // #[serde(bound(serialize = "Challenge<SC>: Serialize"))]
-    // #[serde(bound(deserialize = "Challenge<SC>: Deserialize<'de>"))]
     pub opened_values: SegmentOpenedValues<Challenge<SC>>,
-    // #[serde(bound(serialize = "SC::Challenge: Serialize"))]
-    // #[serde(bound(deserialize = "SC::Challenge: Deserialize<'de>"))]
     pub commulative_sums: Vec<SC::Challenge>,
     pub opening_proof: OpeningProof<SC>,
     pub degree_bits: Vec<usize>,
