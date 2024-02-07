@@ -25,8 +25,7 @@ where
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         let state_ptr = rt.register_unsafe(Register::X10);
 
-        // Set the clock back to the original value and begin executing the
-        // precompile.
+        // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
         let saved_state_ptr = state_ptr;
         let mut state_read_records =
