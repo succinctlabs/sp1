@@ -48,7 +48,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     cols.state_ptr = PF::from_canonical_u32(event.state_ptr);
                     cols.mem_reads[i].populate(event.state_reads[round][i], &mut new_field_events);
                     cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
-                    cols.mem_read_clk[i] = PF::from_canonical_u32(clk);
                     clk += 4;
 
                     // TODO: Remove this printf-debugging statement.
@@ -82,7 +81,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                     cols.mem_writes[i]
                         .populate(event.state_writes[round][i], &mut new_field_events);
                     cols.mem_addr[i] = PF::from_canonical_u32(event.state_ptr + (i * 4) as u32);
-                    cols.mem_write_clk[i] = PF::from_canonical_u32(clk);
                     clk += 4;
 
                     assert_eq!(
@@ -101,10 +99,6 @@ impl<PF: PrimeField, const WIDTH: usize, F: Field> Chip<PF> for Poseidon2Externa
                         i, event.state_writes[round][i].value,
                     );
                 }
-
-                println!("clk: {:?}", cols.clk);
-                println!("mem_read_clk: {:?}", cols.mem_read_clk);
-                println!("mem_write_clk: {:?}", cols.mem_write_clk);
 
                 // TODO: I need to figure out whether I need both or I only need one of these.
                 cols.is_real = PF::one();

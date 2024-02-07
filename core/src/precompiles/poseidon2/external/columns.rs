@@ -41,14 +41,6 @@ pub struct Poseidon2ExternalCols<T> {
     pub segment: T,
     pub clk: T,
 
-    /// An array whose i-th element records when we read the i-th word of the state.
-    /// TODO: I should be able to calculate that without using this.
-    pub mem_read_clk: Array<T, P2_WIDTH>,
-
-    /// An array whose i-th element records when we write the i-th word of the state.
-    /// TODO: I should be able to calculate that without using this.
-    pub mem_write_clk: Array<T, P2_WIDTH>,
-
     pub state_ptr: T,
 
     pub mem_reads: Array<MemoryReadCols<T>, P2_WIDTH>,

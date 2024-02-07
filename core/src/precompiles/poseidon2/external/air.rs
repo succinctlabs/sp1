@@ -103,19 +103,23 @@ impl<F: Field, const NUM_WORDS_STATE: usize> Poseidon2External1Chip<F, NUM_WORDS
         builder: &mut AB,
         local: &Poseidon2ExternalCols<AB::Var>,
     ) {
-        for round in 0..NUM_WORDS_STATE {
+        let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
+        let clk_cycle_per_word = AB::Expr::from_canonical_u32(4);
+        for i in 0..NUM_WORDS_STATE {
             builder.constraint_memory_access(
                 local.segment,
-                local.mem_read_clk[round],
-                local.mem_addr[round],
-                &local.mem_reads[round],
+                local.clk + clk_cycle_per_word.clone() * AB::F::from_canonical_usize(i),
+                local.mem_addr[i],
+                &local.mem_reads[i],
                 local.is_external,
             );
             builder.constraint_memory_access(
                 local.segment,
-                local.mem_write_clk[round],
-                local.mem_addr[round],
-                &local.mem_writes[round],
+                local.clk
+                    + clk_cycle_reads.clone()
+                    + clk_cycle_per_word.clone() * AB::F::from_canonical_usize(i),
+                local.mem_addr[i],
+                &local.mem_writes[i],
                 local.is_external,
             );
         }
