@@ -12,7 +12,6 @@ use p3_field::Field;
 use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
-use crate::air::Array;
 use crate::air::CurtaAirBuilder;
 
 use super::columns::P2_EXTERNAL_ROUND_COUNT;
@@ -41,9 +40,9 @@ impl<F: Field> AddRcOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        input_state: Array<AB::Expr, P2_WIDTH>,
-        is_round_n: Array<AB::Var, P2_EXTERNAL_ROUND_COUNT>,
-        round_constant: Array<AB::Var, P2_WIDTH>,
+        input_state: [AB::Expr; P2_WIDTH],
+        is_round_n: [AB::Var; P2_EXTERNAL_ROUND_COUNT],
+        round_constant: [AB::Var; P2_WIDTH],
         cols: AddRcOperation<AB::Var>,
         is_real: AB::Var,
     ) {

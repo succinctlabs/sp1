@@ -4,7 +4,6 @@ use std::mem::size_of;
 
 use valida_derive::AlignedBorrow;
 
-use crate::air::Array;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 
@@ -43,10 +42,10 @@ pub struct Poseidon2ExternalCols<T> {
 
     pub state_ptr: T,
 
-    pub mem_reads: Array<MemoryReadCols<T>, P2_WIDTH>,
-    pub mem_writes: Array<MemoryWriteCols<T>, P2_WIDTH>,
+    pub mem_reads: [MemoryReadCols<T>; P2_WIDTH],
+    pub mem_writes: [MemoryWriteCols<T>; P2_WIDTH],
 
-    pub mem_addr: Array<T, P2_WIDTH>,
+    pub mem_addr: [T; P2_WIDTH],
 
     pub add_rc: AddRcOperation<T>,
 
@@ -58,10 +57,10 @@ pub struct Poseidon2ExternalCols<T> {
     pub round_number: T,
 
     /// The round constants for this round.
-    pub round_constant: Array<T, P2_WIDTH>,
+    pub round_constant: [T; P2_WIDTH],
 
     /// A boolean array whose `n`th element indicates whether this is the `n`th round.                              
-    pub is_round_n: Array<T, P2_EXTERNAL_ROUND_COUNT>,
+    pub is_round_n: [T; P2_EXTERNAL_ROUND_COUNT],
 
     pub is_real: T,
 }
