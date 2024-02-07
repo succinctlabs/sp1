@@ -39,12 +39,10 @@ impl<SC: StarkConfig> Verifier<SC> {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
-        println!("cycle-tracker-start: getting_interactions");
         let chips_interactions = chips
             .iter()
             .map(|chip| chip.all_interactions())
             .collect::<Vec<_>>();
-        println!("cycle-tracker-end: getting_interactions");
 
         let SegmentProof {
             commitment,
@@ -55,7 +53,6 @@ impl<SC: StarkConfig> Verifier<SC> {
         } = proof;
 
         // Verify the proof shapes.
-        println!("cycle-tracker-start: verify proof shape");
         for ((((chip, interactions), main), perm), quotient) in chips
             .iter()
             .zip(chips_interactions.iter())
@@ -77,11 +74,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
         }
-        println!("cycle-tracker-end: verify proof shape");
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
 
-        println!("cycle-tracker-start: getting dims");
         let dims = &[
             chips
                 .iter()
@@ -107,14 +102,11 @@ impl<SC: StarkConfig> Verifier<SC> {
                 })
                 .collect::<Vec<_>>(),
         ];
-        println!("cycle-tracker-end: getting dims");
 
-        println!("cycle-tracker-start: geting g_subgroups");
         let g_subgroups = degree_bits
             .iter()
             .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
             .collect::<Vec<_>>();
-        println!("cycle-tracker-end: geting g_subgroups");
 
         let SegmentCommitment {
             main_commit,
@@ -122,7 +114,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             quotient_commit,
         } = commitment;
 
-        println!("cycle-tracker-start: sampling_challenges");
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
@@ -136,10 +127,8 @@ impl<SC: StarkConfig> Verifier<SC> {
         challenger.observe(quotient_commit.clone());
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
-        println!("cycle-tracker-end: sampling_challenges");
 
         // Verify the opening proof.
-        println!("cycle-tracker-start: verifying_opening_proofs");
         let trace_opening_points = g_subgroups
             .iter()
             .map(|g| vec![zeta, zeta * *g])
@@ -164,10 +153,8 @@ impl<SC: StarkConfig> Verifier<SC> {
                 challenger,
             )
             .map_err(|_| VerificationError::InvalidopeningArgument)?;
-        println!("cycle-tracker-end: verifying_opening_proofs");
 
         // Verify the constraint evaluations.
-        println!("cycle-tracker-start: verifying_constraint_evaluations");
         let SegmentOpenedValues {
             main,
             permutation,
@@ -202,7 +189,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
-        println!("cycle-tracker-end: verifying_constraint_evaluations");
 
         Ok(())
     }

@@ -3,6 +3,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 
 lazy_static! {
+    // These constants are created by a RNG.
     pub static ref RC_16_30: [[BabyBear; 16]; 30] = [
         [
             BabyBear::from_wrapped_u32(2110014213),
