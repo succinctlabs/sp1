@@ -47,7 +47,7 @@ use super::{StarkConfig, VerificationError};
 
 pub const NUM_CHIPS: usize = 20;
 
-enum ChipType<F: Field> {
+pub enum ChipType<F: Field> {
     Program(ProgramChip),
     Cpu(CpuChip),
     Add(AddChip),
@@ -75,16 +75,12 @@ enum ChipType<F: Field> {
     MemoryProgram(MemoryGlobalChip),
 }
 
-pub struct ChipInfo<F: Field> {
-    chip: ChipType<F>,
-}
-
-impl<F: PrimeField32> ChipInfo<F> {
+impl<F: PrimeField32> ChipType<F> {
     pub fn all_interactions(&self) -> Vec<Interaction<F>>
     where
         F: PrimeField32,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => chip.all_interactions(),
             ChipType::Cpu(chip) => chip.all_interactions(),
             ChipType::Add(chip) => chip.all_interactions(),
@@ -115,7 +111,7 @@ impl<F: PrimeField32> ChipInfo<F> {
     where
         F: PrimeField32,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => chip.sends(),
             ChipType::Cpu(chip) => chip.sends(),
             ChipType::Add(chip) => chip.sends(),
@@ -146,7 +142,7 @@ impl<F: PrimeField32> ChipInfo<F> {
     where
         F: PrimeField32,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => chip.generate_trace(segment),
             ChipType::Cpu(chip) => chip.generate_trace(segment),
             ChipType::Add(chip) => chip.generate_trace(segment),
@@ -177,7 +173,7 @@ impl<F: PrimeField32> ChipInfo<F> {
     where
         F: PrimeField32,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => <ProgramChip as Chip<F>>::name(chip),
             ChipType::Cpu(chip) => <CpuChip as Chip<F>>::name(chip),
             ChipType::Add(chip) => <AddChip as Chip<F>>::name(chip),
@@ -220,7 +216,7 @@ impl<F: PrimeField32> ChipInfo<F> {
         F: PrimeField32,
         AB::F: ExtensionField<F>,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => chip.eval(builder),
             ChipType::Cpu(chip) => chip.eval(builder),
             ChipType::Add(chip) => chip.eval(builder),
@@ -251,7 +247,7 @@ impl<F: PrimeField32> ChipInfo<F> {
     where
         F: PrimeField32,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => <ProgramChip as BaseAir<F>>::width(chip),
             ChipType::Cpu(chip) => <CpuChip as BaseAir<F>>::width(chip),
             ChipType::Add(chip) => <AddChip as BaseAir<F>>::width(chip),
@@ -293,7 +289,7 @@ impl<F: PrimeField32> ChipInfo<F> {
     where
         F: PrimeField32,
     {
-        match &self.chip {
+        match &self {
             ChipType::Program(chip) => chip.preprocessed_trace(),
             ChipType::Cpu(chip) => chip.preprocessed_trace(),
             ChipType::Add(chip) => chip.preprocessed_trace(),
@@ -322,7 +318,7 @@ impl<F: PrimeField32> ChipInfo<F> {
 }
 
 impl Runtime {
-    pub fn segment_chips<F: Field>() -> [Box<ChipInfo<F>>; NUM_CHIPS] {
+    pub fn segment_chips<F: Field>() -> [Box<ChipType<F>>; NUM_CHIPS] {
         // Initialize chips.
         let program = ProgramChip::new();
         let cpu = CpuChip::new();
@@ -350,89 +346,39 @@ impl Runtime {
         // depend on others like mul for verification. To prevent race conditions and ensure correct
         // execution sequences, dependent operations are positioned before their dependencies.
 
-        println!("cycle-tracker-start: boxing program chip");
-        let boxed_program = Box::new(ChipInfo::<F> {
-            chip: ChipType::Program(program),
-        });
-        println!("cycle-tracker-end: boxing program chip");
-
         [
-            boxed_program,
-            Box::new(ChipInfo {
-                chip: ChipType::Cpu(cpu),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Add(add),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Sub(sub),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Bitwise(bitwise),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Mul(mul),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::DivRem(divrem),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::ShiftRight(shift_right),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::ShiftLeft(shift_left),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Lt(lt),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Bytes(bytes),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::Field(field),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::ShaExtend(sha_extend),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::ShaCompress(sha_compress),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::EdAdd(ed_add),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::EdDecompress(ed_decompress),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::KeccakPermute(keccak_permute),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::WeierstrassAdd(weierstrass_add),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::WeierstrassDouble(weierstrass_double),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::K256Decompress(k256_decompress),
-            }),
+            Box::new(ChipType::Program(program)),
+            Box::new(ChipType::Cpu(cpu)),
+            Box::new(ChipType::Add(add)),
+            Box::new(ChipType::Sub(sub)),
+            Box::new(ChipType::Bitwise(bitwise)),
+            Box::new(ChipType::Mul(mul)),
+            Box::new(ChipType::DivRem(divrem)),
+            Box::new(ChipType::ShiftRight(shift_right)),
+            Box::new(ChipType::ShiftLeft(shift_left)),
+            Box::new(ChipType::Lt(lt)),
+            Box::new(ChipType::Bytes(bytes)),
+            Box::new(ChipType::Field(field)),
+            Box::new(ChipType::ShaExtend(sha_extend)),
+            Box::new(ChipType::ShaCompress(sha_compress)),
+            Box::new(ChipType::EdAdd(ed_add)),
+            Box::new(ChipType::EdDecompress(ed_decompress)),
+            Box::new(ChipType::KeccakPermute(keccak_permute)),
+            Box::new(ChipType::WeierstrassAdd(weierstrass_add)),
+            Box::new(ChipType::WeierstrassDouble(weierstrass_double)),
+            Box::new(ChipType::K256Decompress(k256_decompress)),
         ]
     }
 
-    pub fn global_chips<F: Field>() -> [Box<ChipInfo<F>>; 3] {
+    pub fn global_chips<F: Field>() -> [Box<ChipType<F>>; 3] {
         // Initialize chips.
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         [
-            Box::new(ChipInfo {
-                chip: ChipType::MemoryInit(memory_init),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::MemoryFinalize(memory_finalize),
-            }),
-            Box::new(ChipInfo {
-                chip: ChipType::MemoryProgram(program_memory_init),
-            }),
+            Box::new(ChipType::MemoryInit(memory_init)),
+            Box::new(ChipType::MemoryFinalize(memory_finalize)),
+            Box::new(ChipType::MemoryProgram(program_memory_init)),
         ]
     }
 

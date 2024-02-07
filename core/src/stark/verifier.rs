@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
 use super::permutation::eval_permutation_constraints;
-use super::runtime::ChipInfo;
+use super::runtime::ChipType;
 use super::types::*;
 use super::StarkConfig;
 
@@ -30,7 +30,7 @@ impl<SC: StarkConfig> Verifier<SC> {
     #[cfg(feature = "perf")]
     pub fn verify(
         config: &SC,
-        chips: &[Box<ChipInfo<SC::Val>>],
+        chips: &[Box<ChipType<SC::Val>>],
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
     ) -> Result<(), VerificationError>
@@ -223,7 +223,7 @@ impl<SC: StarkConfig> Verifier<SC> {
     /// This function checks that the preprocessed_opening, main opening, permutation opening,
     /// quotient opening have the expected dimensions.
     fn verify_proof_shape(
-        chip: &Box<ChipInfo<SC::Val>>,
+        chip: &Box<ChipType<SC::Val>>,
         num_interactions: usize,
         preprocessed_opening: &AirOpenedValues<SC::Challenge>,
         main_opening: &AirOpenedValues<SC::Challenge>,
@@ -267,7 +267,7 @@ impl<SC: StarkConfig> Verifier<SC> {
 
     #[allow(clippy::too_many_arguments)]
     fn verify_constraints(
-        chip: &Box<ChipInfo<SC::Val>>,
+        chip: &Box<ChipType<SC::Val>>,
         main_opening: &AirOpenedValues<SC::Challenge>,
         permutation_opening: &AirOpenedValues<SC::Challenge>,
         quotient_opening: &QuotientOpenedValues<SC::Challenge>,

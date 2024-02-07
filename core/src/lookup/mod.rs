@@ -3,7 +3,7 @@ mod builder;
 pub use builder::InteractionBuilder;
 use p3_field::PrimeField32;
 
-use crate::stark::runtime::ChipInfo;
+use crate::stark::runtime::ChipType;
 use crate::stark::StarkConfig;
 use crate::utils::BabyBearPoseidon2;
 use p3_air::VirtualPairCol;
@@ -213,7 +213,7 @@ pub fn debug_interactions_with_all_chips(
 }
 
 pub fn debug_interactions<F: PrimeField32>(
-    chip: &Box<ChipInfo<F>>,
+    chip: &Box<ChipType<F>>,
     segment: &mut Segment,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (

@@ -18,10 +18,10 @@ use p3_util::log2_strict_usize;
 
 use super::folder::ProverConstraintFolder;
 use super::permutation::eval_permutation_constraints;
-use super::runtime::ChipInfo;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, StarkConfig};
+use crate::stark::runtime::ChipType;
 use p3_field::{ExtensionField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use serde::de::DeserializeOwned;
@@ -36,7 +36,7 @@ where
     fn generate_segment_traces<F, EF>(
         config: &SC,
         segments: &mut Vec<Segment>,
-        chip: &[Box<ChipInfo<SC::Val>>],
+        chip: &[Box<ChipType<SC::Val>>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<MainDataWrapper<SC>>,
@@ -52,7 +52,7 @@ where
 
     fn commit_main(
         config: &SC,
-        chips: &[Box<ChipInfo<SC::Val>>],
+        chips: &[Box<ChipType<SC::Val>>],
         segment: &mut Segment,
     ) -> MainData<SC>
     where
@@ -78,7 +78,7 @@ where
     fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
-        chips: &[Box<ChipInfo<SC::Val>>],
+        chips: &[Box<ChipType<SC::Val>>],
         wrapped_main_data: MainDataWrapper<SC>,
     ) -> SegmentProof<SC>
     where
@@ -375,7 +375,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn quotient_values<MainLde, PermLde>(
         config: &SC,
-        chip: &Box<ChipInfo<SC::Val>>,
+        chip: &Box<ChipType<SC::Val>>,
         commulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,
@@ -518,7 +518,7 @@ where
     fn generate_segment_traces<F, EF>(
         config: &SC,
         segments: &mut Vec<Segment>,
-        chips: &[Box<ChipInfo<SC::Val>>],
+        chips: &[Box<ChipType<SC::Val>>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<MainDataWrapper<SC>>,

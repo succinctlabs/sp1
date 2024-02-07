@@ -23,13 +23,13 @@ pub use runtime::tests;
 
 use crate::stark::permutation::eval_permutation_constraints;
 
-use self::runtime::ChipInfo;
+use self::runtime::ChipType;
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
 pub fn debug_constraints<F: PrimeField32, EF: ExtensionField<F>, A>(
-    air: Box<ChipInfo<F>>,
+    air: Box<ChipType<F>>,
     main: &RowMajorMatrix<F>,
     perm: &RowMajorMatrix<EF>,
     perm_challenges: &[EF],

@@ -26,10 +26,6 @@ pub trait FieldParameters:
         Self::NB_BITS_PER_LIMB * Self::NB_LIMBS
     }
 
-    // fn rand() -> BigUint {
-    //     OsRng.gen_biguint_below(&Self::modulus())
-    // }
-
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
         Self::MODULUS
             .into_iter()

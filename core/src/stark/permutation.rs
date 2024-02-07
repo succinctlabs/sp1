@@ -9,7 +9,7 @@ use p3_maybe_rayon::prelude::*;
 
 use crate::lookup::Interaction;
 
-use super::runtime::ChipInfo;
+use super::runtime::ChipType;
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
@@ -32,7 +32,7 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
 /// the chip.
 pub fn generate_permutation_trace<F: PrimeField32, EF: ExtensionField<F>>(
-    chip: &ChipInfo<F>,
+    chip: &ChipType<F>,
     main: &RowMajorMatrix<F>,
     random_elements: &[EF],
 ) -> RowMajorMatrix<EF> {
@@ -134,7 +134,7 @@ pub fn generate_permutation_trace<F: PrimeField32, EF: ExtensionField<F>>(
 ///     - That the RLC per interaction is computed correctly.
 ///     - The running sum column ends at the (currently) given cumalitive sum.
 pub fn eval_permutation_constraints<F, AB>(
-    chip: &Box<ChipInfo<F>>,
+    chip: &Box<ChipType<F>>,
     builder: &mut AB,
     cumulative_sum: AB::EF,
 ) where

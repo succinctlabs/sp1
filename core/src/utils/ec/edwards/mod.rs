@@ -100,7 +100,7 @@ mod tests {
 
     use num::bigint::RandBigInt;
     use num::BigUint;
-    use rand::thread_rng;    
+    use rand::thread_rng;
 
     use super::{EdwardsParameters, *};
     use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
