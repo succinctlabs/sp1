@@ -11,6 +11,7 @@ use crate::precompiles::edwards::ed_add::EdAddAssignChip;
 use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
 use crate::precompiles::k256::decompress::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
+use crate::precompiles::poseidon2::Poseidon2External1Chip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
@@ -789,6 +790,14 @@ impl Runtime {
                         a = K256DecompressChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
+                    }
+                    Syscall::POSEIDON2_EXTERNAL_1 => {
+                        a = Poseidon2External1Chip::<BabyBear>::execute(&mut precompile_rt);
+                        self.clk = precompile_rt.clk;
+                        assert_eq!(
+                            init_clk + Poseidon2External1Chip::<BabyBear>::NUM_CYCLES,
+                            self.clk
+                        );
                     }
                 }
 

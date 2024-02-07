@@ -30,6 +30,9 @@ pub mod tests {
     pub const SECP256K1_DOUBLE_ELF: &[u8] =
         include_bytes!("../../../programs/secp256k1-double/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const POSEIDON2_EXTERNAL_1_ELF: &[u8] =
+        include_bytes!("../../../programs/poseidon2-external-1/elf/riscv32im-succinct-zkvm-elf");
+
     pub const SHA_COMPRESS_ELF: &[u8] =
         include_bytes!("../../../programs/sha-compress/elf/riscv32im-succinct-zkvm-elf");
 
