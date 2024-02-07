@@ -30,7 +30,7 @@ impl<F: Field> AddRcOperation<F> {
         // 1. Add the appropriate round constant to each limb of the input state.
         // 2. Return the result.
         for i in 0..P2_WIDTH {
-            self.result[i] = array[i] + F::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
+            self.result[i] = array[i] + F::from_wrapped_u32(P2_ROUND_CONSTANTS[round][i]);
         }
         self.result
     }
@@ -51,8 +51,7 @@ impl<F: Field> AddRcOperation<F> {
 
                 // The round constant is the sum of is_round_n[round] * round_constant[round].
                 for round in 0..P2_EXTERNAL_ROUND_COUNT {
-                    let rc: AB::Expr =
-                        AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]).into();
+                    let rc: AB::Expr = AB::F::from_wrapped_u32(P2_ROUND_CONSTANTS[round][i]).into();
                     acc += is_round_n[round] * rc;
                 }
 

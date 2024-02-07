@@ -35,8 +35,7 @@ impl<PF: PrimeField, F: Field> Chip<PF> for Poseidon2External1Chip<F> {
                     cols.round_number = PF::from_canonical_u32(round as u32);
                     cols.is_round_n[round] = PF::one();
                     for i in 0..P2_WIDTH {
-                        cols.round_constant[i] =
-                            PF::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
+                        cols.round_constant[i] = PF::from_wrapped_u32(P2_ROUND_CONSTANTS[round][i]);
                     }
                 }
 

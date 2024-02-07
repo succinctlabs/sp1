@@ -45,7 +45,7 @@ where
 
             // Step 1: Add the round constant to the state.
             for i in 0..P2_WIDTH {
-                state[i] += F::from_canonical_u32(P2_ROUND_CONSTANTS[round][i]);
+                state[i] += F::from_wrapped_u32(P2_ROUND_CONSTANTS[round][i]);
             }
             // Step 2: Apply the S-box to the state.
             for i in 0..P2_WIDTH {

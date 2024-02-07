@@ -86,7 +86,7 @@ impl<F: Field> Poseidon2External1Chip<F> {
 
                     for j in 0..P2_EXTERNAL_ROUND_COUNT {
                         acc += local.is_round_n[j].into()
-                            * AB::F::from_canonical_u32(P2_ROUND_CONSTANTS[j][i]);
+                            * AB::F::from_wrapped_u32(P2_ROUND_CONSTANTS[j][i]);
                     }
                     acc
                 };
