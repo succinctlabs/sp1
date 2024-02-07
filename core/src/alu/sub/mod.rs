@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `SubChip`.
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
@@ -40,6 +40,20 @@ pub struct SubCols<T> {
 }
 
 impl<F: PrimeField> Chip<F> for SubChip {
+    fn name(&self) -> String {
+        "Sub".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        let shards = input
+            .sub_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        for i in 0..shards.len() {
+            outputs[i].sub_events = shards[i].to_vec();
+        }
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
@@ -84,10 +98,6 @@ impl<F: PrimeField> Chip<F> for SubChip {
         pad_to_power_of_two::<NUM_SUB_COLS, F>(&mut trace.values);
 
         trace
-    }
-
-    fn name(&self) -> String {
-        "Sub".to_string()
     }
 }
 

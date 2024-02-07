@@ -36,6 +36,10 @@ impl<'a> PrecompileRuntime<'a> {
         &mut self.rt.segment
     }
 
+    pub fn segment_clk(&self) -> u32 {
+        self.rt.segment_clk
+    }
+
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
         let record = self.rt.mr_core(addr, self.current_segment, self.clk);
         (record, record.value)
@@ -91,6 +95,7 @@ impl<'a> PrecompileRuntime<'a> {
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECAddEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -135,6 +140,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAd
     rt.clk += 4;
 
     ECAddEvent {
+        segment: rt.segment_clk(),
         clk: start_clk,
         p_ptr,
         p,
@@ -149,6 +155,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> ECAd
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECDoubleEvent {
+    pub segment: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -180,6 +187,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut PrecompileRuntime) -> E
     rt.clk += 4;
 
     ECDoubleEvent {
+        segment: rt.segment_clk(),
         clk: start_clk,
         p_ptr,
         p,

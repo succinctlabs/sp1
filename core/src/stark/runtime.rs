@@ -15,7 +15,7 @@ use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
 use crate::program::ProgramChip;
-use crate::runtime::Runtime;
+use crate::runtime::{Runtime, Segment};
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -45,65 +45,54 @@ use super::{StarkConfig, VerificationError};
 pub const NUM_CHIPS: usize = 20;
 
 impl Runtime {
+    /// Chips used in each segment.
+    ///
+    /// The chips must be ordered to address dependencies. Some operations, like division, depend
+    /// on others, like multiplication, for verification.
     pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
     where
         SC::Val: PrimeField32,
     {
-        // Initialize chips.
-        let program = ProgramChip::new();
-        let cpu = CpuChip::new();
-        let add = AddChip::default();
-        let sub = SubChip::default();
-        let bitwise = BitwiseChip::default();
-        let mul = MulChip::default();
-        let divrem = DivRemChip::default();
-        let shift_right = ShiftRightChip::default();
-        let shift_left = ShiftLeft::default();
-        let lt = LtChip::default();
-        let bytes = ByteChip::<SC::Val>::new();
-        let field = FieldLTUChip::default();
-        let sha_extend = ShaExtendChip::new();
-        let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
-        let keccak_permute = KeccakPermuteChip::new();
-        let weierstrass_add =
-            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
-        let weierstrass_double =
-            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
-        let k256_decompress = K256DecompressChip::new();
-        // This vector contains chips ordered to address dependencies. Some operations, like div,
-        // depend on others like mul for verification. To prevent race conditions and ensure correct
-        // execution sequences, dependent operations are positioned before their dependencies.
         [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            Box::new(ed_add),
-            Box::new(ed_decompress),
-            Box::new(k256_decompress),
-            Box::new(weierstrass_add),
-            Box::new(weierstrass_double),
-            Box::new(keccak_permute),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(divrem),
-            Box::new(mul),
-            Box::new(shift_right),
-            Box::new(shift_left),
-            Box::new(lt),
-            Box::new(field),
-            Box::new(bytes),
+            Box::new(ProgramChip::default()),
+            Box::new(CpuChip::default()),
+            Box::new(ShaExtendChip::default()),
+            Box::new(ShaCompressChip::default()),
+            Box::new(EdAddAssignChip::<
+                EdwardsCurve<Ed25519Parameters>,
+                Ed25519Parameters,
+            >::new()),
+            Box::new(EdDecompressChip::<Ed25519Parameters>::default()),
+            Box::new(K256DecompressChip::default()),
+            Box::new(WeierstrassAddAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            >::new()),
+            Box::new(WeierstrassDoubleAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            >::new()),
+            Box::new(KeccakPermuteChip::new()),
+            Box::new(AddChip::default()),
+            Box::new(SubChip::default()),
+            Box::new(BitwiseChip::default()),
+            Box::new(DivRemChip::default()),
+            Box::new(MulChip::default()),
+            Box::new(ShiftRightChip::default()),
+            Box::new(ShiftLeft::default()),
+            Box::new(LtChip::default()),
+            Box::new(FieldLTUChip::default()),
+            Box::new(ByteChip::<SC::Val>::new()),
         ]
     }
 
+    /// Chips used in the global segment.
+    ///
+    /// The chips must be ordered to address dependencies, similar to `segment_chips`.
     pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
     where
         SC::Val: PrimeField32,
     {
-        // Initialize chips.
         let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
@@ -133,15 +122,26 @@ impl Runtime {
         P: Prover<SC>,
         OpeningProof<SC>: Send + Sync,
     {
-        let num_segments = self.segments.len();
-        let (cycle_count, keccak_count, sha_count) =
-            self.segments.iter().fold((0, 0, 0), |acc, s| {
-                (
-                    acc.0 + s.cpu_events.len(),
-                    acc.1 + s.keccak_permute_events.len(),
-                    acc.2 + s.sha_compress_events.len(),
-                )
-            });
+        // Generate the trace for each chip to collect events emitted from chips with dependencies.
+        let chips = Self::segment_chips::<SC>();
+        chips.iter().for_each(|chip| {
+            chip.generate_trace(&mut self.segment);
+        });
+
+        // For each chip, shard the events into segments.
+        let mut segments: Vec<Segment> = Vec::new();
+        chips.iter().for_each(|chip| {
+            chip.shard(&self.segment, &mut segments);
+        });
+
+        let num_segments = segments.len();
+        let (cycle_count, keccak_count, sha_count) = segments.iter().fold((0, 0, 0), |acc, s| {
+            (
+                acc.0 + s.cpu_events.len(),
+                acc.1 + s.keccak_permute_events.len(),
+                acc.2 + s.sha_compress_events.len(),
+            )
+        });
         tracing::info!(
             "total_cycles: {}, segments: {}, keccak: {}, sha: {}",
             cycle_count,
@@ -149,10 +149,10 @@ impl Runtime {
             keccak_count,
             sha_count,
         );
-        let segment_chips = Self::segment_chips::<SC>();
 
+        let segment_chips = Self::segment_chips::<SC>();
         let (commitments, segment_main_data) =
-            P::generate_segment_traces::<F, EF>(config, &mut self.segments, &segment_chips);
+            P::generate_segment_traces::<F, EF>(config, &mut segments, &segment_chips);
 
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
@@ -170,7 +170,14 @@ impl Runtime {
                     .enumerate()
                     .map(|(i, main_data)| {
                         tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            P::prove(config, &mut challenger.clone(), &segment_chips, main_data)
+                            let p = P::prove(
+                                config,
+                                &mut challenger.clone(),
+                                &segment_chips,
+                                main_data,
+                            );
+                            tracing::info!("finished proving for segment {}", i);
+                            p
                         })
                     })
                     .collect()
