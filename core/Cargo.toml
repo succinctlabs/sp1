@@ -48,6 +48,8 @@ serde_json = { version = "1.0.113", default-features = false, features = ["alloc
 k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
 
+succinct-derive = { path = "../derive" }
+
 [dev-dependencies]
 criterion = "0.5.1"
 num = { version = "0.4.1", features = ["rand"] }
