@@ -4,13 +4,13 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-
-use crate::air::{CurtaAirBuilder, Word};
 use valida_derive::AlignedBorrow;
 
+use crate::air::{CurtaAirBuilder, Word};
+use crate::chip::Chip;
 use crate::operations::AddOperation;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::utils::{pad_to_power_of_two, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
@@ -120,14 +120,17 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use rand::{thread_rng, Rng};
 
     use super::AddChip;
     use crate::{
         alu::AluEvent,
         runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]
