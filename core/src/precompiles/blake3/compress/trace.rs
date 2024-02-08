@@ -19,7 +19,7 @@ use super::{
 
 impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
     fn name(&self) -> String {
-        "Blake3External1".to_string()
+        "Blake3CompressInner".to_string()
     }
 
     fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {

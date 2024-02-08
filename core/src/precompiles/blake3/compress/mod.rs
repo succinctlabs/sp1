@@ -38,7 +38,7 @@ pub(crate) const INPUT_SIZE: usize = STATE_SIZE + MSG_SIZE;
 /// The number of `Word`s to write after calling `g`.
 pub(crate) const MIX_OPERATION_OUTPUT_SIZE: usize = NUM_STATE_WORDS_PER_CALL;
 
-pub(crate) const MSG_SCHEDULE: [[usize; 16]; 7] = [
+pub(crate) const MSG_SCHEDULE: [[usize; MSG_SIZE]; ROUND_COUNT] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],
     [3, 4, 10, 12, 13, 2, 7, 14, 6, 5, 9, 0, 11, 15, 8, 1],
