@@ -51,7 +51,7 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     // Because proving modifies the segment, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
-    let segment = runtime.segment.clone();
+    let segment = runtime.record.clone();
 
     // Prove the program.
     let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)").in_scope(|| {

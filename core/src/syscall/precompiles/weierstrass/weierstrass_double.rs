@@ -71,13 +71,11 @@ impl<E: EllipticCurve, WP> Syscall for WeierstrassDoubleAssignChip<E, WP> {
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        0
+        8
     }
 }
 
 impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E, WP> {
-    pub const NUM_CYCLES: u32 = 8;
-
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,

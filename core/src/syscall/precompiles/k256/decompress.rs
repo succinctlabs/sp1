@@ -72,7 +72,7 @@ impl K256DecompressChip {
 
 impl Syscall for K256DecompressChip {
     fn num_extra_cycles(&self) -> u32 {
-        0
+        4
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {

@@ -7,7 +7,6 @@ mod segment;
 mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
-use crate::syscall::halt::SyscallHalt;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -15,11 +14,14 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
+use crate::syscall::{
+    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
+};
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use crate::utils::{u32_to_comma_separated, NB_ROWS_PER_SHARD};
+use crate::utils::NB_ROWS_PER_SHARD;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -29,9 +31,7 @@ pub use register::*;
 pub use segment::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::process::exit;
 use std::rc::Rc;
-use std::sync::Arc;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -97,7 +97,7 @@ impl ExecutionState {
 
 /// Holds data to track changes made to the runtime since a fork point.
 #[derive(Debug, Clone, Default)]
-struct ForkState {
+pub(crate) struct ForkState {
     /// Original global_clk
     pub(crate) global_clk: u32,
     /// Original clk
@@ -105,13 +105,11 @@ struct ForkState {
     /// Original program counter
     pub(crate) pc: u32,
     /// Only contains the original memory values for addresses that have been modified
-    pub(crate) memory_diff: HashMap<u32, Option<u32>, BuildNoHashHasher<u32>>,
-    /// Full memory_access map from original state
-    pub(crate) memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
+    pub(crate) memory_diff: HashMap<u32, Option<(u32, u32, u32)>, BuildNoHashHasher<u32>>,
     /// Full record from original state
-    pub(crate) record: OpRecord,
+    pub(crate) op_record: OpRecord,
     /// Full segment from original state
-    pub(crate) segment: ExecutionRecord,
+    pub(crate) record: ExecutionRecord,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -153,7 +151,7 @@ pub struct Runtime {
     /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
 
-    pub(self) unconstrained_state: ForkState,
+    pub(crate) unconstrained_state: ForkState,
 
     pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
 }
@@ -164,11 +162,25 @@ impl Runtime {
         let record = ExecutionRecord::default();
 
         let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
+        syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
+        syscall_map.insert(SyscallCode::LWA, Rc::new(SyscallLWA::new()));
+        syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));
+        syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
+        syscall_map.insert(
+            SyscallCode::ED_ADD,
+            Rc::new(EdAddAssignChip::<
+                EdwardsCurve<Ed25519Parameters>,
+                Ed25519Parameters,
+            >::new()),
+        );
+        syscall_map.insert(
+            SyscallCode::ED_DECOMPRESS,
+            Rc::new(EdDecompressChip::<Ed25519Parameters>::new()),
+        );
         syscall_map.insert(
             SyscallCode::KECCAK_PERMUTE,
             Rc::new(KeccakPermuteChip::new()),
         );
-        syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));
         syscall_map.insert(
             SyscallCode::SECP256K1_ADD,
             Rc::new(WeierstrassAddAssignChip::<
@@ -176,7 +188,27 @@ impl Runtime {
                 Secp256k1Parameters,
             >::new()),
         );
-        syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
+        syscall_map.insert(
+            SyscallCode::SECP256K1_DOUBLE,
+            Rc::new(WeierstrassDoubleAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            >::new()),
+        );
+        syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
+        syscall_map.insert(
+            SyscallCode::SECP256K1_DECOMPRESS,
+            Rc::new(K256DecompressChip::new()),
+        );
+        syscall_map.insert(
+            SyscallCode::ENTER_UNCONSTRAINED,
+            Rc::new(SyscallEnterUnconstrained::new()),
+        );
+        syscall_map.insert(
+            SyscallCode::EXIT_UNCONSTRAINED,
+            Rc::new(SyscallExitUnconstrained::new()),
+        );
+        syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
 
         Self {
             record,
@@ -252,13 +284,13 @@ impl Runtime {
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
             let prev_value = match memory_entry {
-                Entry::Occupied(ref entry) => Some(entry.get().0),
+                Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
             };
             self.unconstrained_state
                 .memory_diff
                 .entry(addr)
-                .or_insert(prev_value);
+                .or_insert(prev_value.copied());
         }
         let entry_value = memory_entry.or_insert((0, 0, 0));
         let (value, prev_segment, prev_timestamp) = *entry_value;
@@ -271,13 +303,13 @@ impl Runtime {
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
             let prev_value = match memory_entry {
-                Entry::Occupied(ref entry) => Some(entry.get().0),
+                Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
             };
             self.unconstrained_state
                 .memory_diff
                 .entry(addr)
-                .or_insert(prev_value);
+                .or_insert(prev_value.copied());
         }
         let entry_value = memory_entry.or_insert((0, 0, 0));
         let (prev_value, prev_segment, prev_timestamp) = *entry_value;
@@ -723,202 +755,12 @@ impl Runtime {
 
                 if let Some(syscall_impl) = syscall_impl {
                     a = syscall_impl.execute(&mut precompile_rt);
-                    let clk = precompile_rt.clk;
-                    self.state.clk = clk;
+                    next_pc = precompile_rt.next_pc;
+                    self.state.clk = precompile_rt.clk;
                     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
                 } else {
                     panic!("Unsupported syscall: {:?}", syscall);
                 }
-
-                // match syscall {
-                //     SyscallCode::HALT => {
-                //         a = self.register(a0);
-                //         next_pc = 0;
-                //     }
-                //     SyscallCode::LWA => {
-                //         // TODO: in the future this will be used for private vs. public inputs.
-                //         let _ = self.register(a0);
-                //         let num_bytes = self.register(a1) as usize;
-                //         let mut read_bytes = [0u8; 4];
-                //         for i in 0..num_bytes {
-                //             if self.input_stream_ptr >= self.input_stream.len() {
-                //                 tracing::error!("Not enough input words were passed in. Use --input to pass in more words.");
-                //                 exit(1);
-                //             }
-                //             read_bytes[i] = self.input_stream[self.input_stream_ptr];
-                //             self.input_stream_ptr += 1;
-                //         }
-                //         let word = u32::from_le_bytes(read_bytes);
-                //         a = word;
-                //     }
-                //     SyscallCode::SHA_EXTEND => {
-                //         a = ShaExtendChip::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + ShaExtendChip::NUM_EXTRA_CYCLES, self.state.clk);
-                //     }
-                //     SyscallCode::SHA_COMPRESS => {
-                //         a = ShaCompressChip::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + ShaCompressChip::NUM_EXTRA_CYCLES, self.state.clk);
-                //     }
-                //     SyscallCode::KECCAK_PERMUTE => {
-                //         a = KeccakPermuteChip::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + KeccakPermuteChip::NUM_EXTRA_CYCLES, self.state.clk);
-                //     }
-                //     SyscallCode::WRITE => {
-                //         let fd = self.register(a0);
-                //         if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
-                //             let write_buf = self.register(a1);
-                //             let nbytes = self.register(a2);
-                //             // Read nbytes from memory starting at write_buf.
-                //             let bytes = (0..nbytes)
-                //                 .map(|i| self.byte(write_buf + i))
-                //                 .collect::<Vec<u8>>();
-                //             let slice = bytes.as_slice();
-                //             if fd == 1 {
-                //                 let s = core::str::from_utf8(slice).unwrap();
-                //                 if s.contains("cycle-tracker-start:") {
-                //                     let fn_name = s
-                //                         .split("cycle-tracker-start:")
-                //                         .last()
-                //                         .unwrap()
-                //                         .trim_end()
-                //                         .trim_start();
-                //                     let depth = self.cycle_tracker.len() as u32;
-                //                     self.cycle_tracker
-                //                         .insert(fn_name.to_string(), (self.state.global_clk, depth));
-                //                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                //                     log::info!("{}┌╴{}", padding, fn_name);
-                //                 } else if s.contains("cycle-tracker-end:") {
-                //                     let fn_name = s
-                //                         .split("cycle-tracker-end:")
-                //                         .last()
-                //                         .unwrap()
-                //                         .trim_end()
-                //                         .trim_start();
-                //                     let (start, depth) =
-                //                         self.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
-                //                     // Leftpad by 2 spaces for each depth.
-                //                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                //                     log::info!(
-                //                         "{}└╴{} cycles",
-                //                         padding,
-                //                         u32_to_comma_separated(self.state.global_clk - start)
-                //                     );
-                //                 } else {
-                //                     log::info!("stdout: {}", s.trim_end());
-                //                 }
-                //             } else if fd == 2 {
-                //                 let s = core::str::from_utf8(slice).unwrap();
-                //                 log::info!("stderr: {}", s.trim_end());
-                //             } else if fd == 3 {
-                //                 self.output_stream.extend_from_slice(slice);
-                //             } else if fd == 4 {
-                //                 self.input_stream.extend_from_slice(slice);
-                //             } else {
-                //                 unreachable!()
-                //             }
-                //         }
-                //         a = 0;
-                //     }
-                //     SyscallCode::ED_ADD => {
-                //         a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::execute(
-                //             &mut precompile_rt,
-                //         );
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(
-                //             init_clk
-                //                 + EdAddAssignChip::<
-                //                     EdwardsCurve<Ed25519Parameters>,
-                //                     Ed25519Parameters,
-                //                 >::NUM_EXTRA_CYCLES,
-                //             self.state.clk
-                //         );
-                //     }
-                //     SyscallCode::ED_DECOMPRESS => {
-                //         a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + 4, self.state.clk);
-                //     }
-                //     SyscallCode::SECP256K1_ADD => {
-                //         a = WeierstrassAddAssignChip::<
-                //             SWCurve<Secp256k1Parameters>,
-                //             Secp256k1Parameters,
-                //         >::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(
-                //             init_clk
-                //                 + WeierstrassAddAssignChip::<
-                //                     SWCurve<Secp256k1Parameters>,
-                //                     Secp256k1Parameters,
-                //                 >::NUM_EXTRA_CYCLES,
-                //             self.state.clk
-                //         );
-                //     }
-                //     SyscallCode::SECP256K1_DOUBLE => {
-                //         a = WeierstrassDoubleAssignChip::<
-                //             SWCurve<Secp256k1Parameters>,
-                //             Secp256k1Parameters,
-                //         >::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(
-                //             init_clk
-                //                 + WeierstrassDoubleAssignChip::<
-                //                     SWCurve<Secp256k1Parameters>,
-                //                     Secp256k1Parameters,
-                //                 >::NUM_EXTRA_CYCLES,
-                //             self.state.clk
-                //         );
-                //     }
-                //     SyscallCode::SECP256K1_DECOMPRESS => {
-                //         // a = K256DecompressChip::execute(&mut precompile_rt);
-                //         self.state.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + 4, self.state.clk);
-                //     }
-                //     SyscallCode::ENTER_UNCONSTRAINED => {
-                //         if self.unconstrained {
-                //             panic!("Unconstrained block is already active.");
-                //         }
-                //         self.unconstrained = true;
-                //         self.unconstrained_state = ForkState {
-                //             global_clk: self.state.global_clk,
-                //             clk: self.state.clk,
-                //             pc: self.state.pc,
-                //             memory_diff: HashMap::default(),
-                //             memory_access: std::mem::take(&mut self.state.memory_access),
-                //             segment: std::mem::take(&mut self.record),
-                //             record: std::mem::take(&mut self.record),
-                //         };
-                //         a = 1;
-                //     }
-                //     SyscallCode::EXIT_UNCONSTRAINED => {
-                //         a = 0;
-                //         // Reset the state of the runtime.
-                //         if self.unconstrained {
-                //             self.state.global_clk = self.unconstrained_state.global_clk;
-                //             self.state.clk = self.unconstrained_state.clk;
-                //             self.state.pc = self.unconstrained_state.pc;
-                //             next_pc = self.state.pc.wrapping_add(4);
-                //             for (addr, value) in self.unconstrained_state.memory_diff.drain() {
-                //                 match value {
-                //                     Some(value) => {
-                //                         self.state.memory.insert(addr, value);
-                //                     }
-                //                     None => {
-                //                         self.state.memory.remove(&addr);
-                //                     }
-                //                 }
-                //             }
-                //             self.record = std::mem::take(&mut self.unconstrained_state.segment);
-                //             self.state.memory_access =
-                //                 std::mem::take(&mut self.unconstrained_state.memory_access);
-                //             self.record = std::mem::take(&mut self.unconstrained_state.record);
-                //             self.unconstrained = false;
-                //         }
-                //         self.unconstrained_state = ForkState::default();
-                //     }
-                // }
 
                 // We have to do this AFTER the precompile execution because the CPU event
                 // gets emitted at the end of this loop with the incremented clock.
@@ -1516,7 +1358,7 @@ pub mod tests {
         runtime.run();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
-        assert_eq!(runtime.pc, 108);
+        assert_eq!(runtime.state.pc, 108);
     }
 
     fn simple_op_code_test(opcode: Opcode, expected: u32, a: u32, b: u32) {

@@ -494,8 +494,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
-        for cpu_event in runtime.segment.cpu_events {
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
+        for cpu_event in runtime.record.cpu_events {
             println!("{:?}", cpu_event);
         }
         println!("{:?}", trace.values)
@@ -510,7 +510,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);

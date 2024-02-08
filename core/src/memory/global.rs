@@ -179,7 +179,7 @@ mod tests {
 
         let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
@@ -194,7 +194,7 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(
-            &runtime.segment,
+            &runtime.record,
             Some(&runtime.record),
             vec![InteractionKind::Memory],
         );
@@ -207,6 +207,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&[10]);
         runtime.run();
-        debug_interactions_with_all_chips(&runtime.segment, None, vec![InteractionKind::Byte]);
+        debug_interactions_with_all_chips(&runtime.record, None, vec![InteractionKind::Byte]);
     }
 }

@@ -1,8 +1,6 @@
 use crate::runtime::{Register, Runtime};
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
-use super::ExecutionState;
-
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -34,7 +32,7 @@ pub enum SyscallCode {
     /// Executes the `SECP256K1_DOUBLE` precompile.
     SECP256K1_DOUBLE = 108,
 
-    /// Executes the `K256_DECOMPRESS` precompile.
+    /// Executes the `SECP256K1_DECOMPRESS` precompile.
     SECP256K1_DECOMPRESS = 109,
 
     /// Enter unconstrained block.
@@ -84,6 +82,7 @@ pub struct SyscallContext<'a> {
     current_segment: u32,
     pub clk: u32,
 
+    pub(crate) next_pc: u32,
     pub(crate) rt: &'a mut Runtime,
 }
 
@@ -94,6 +93,7 @@ impl<'a> SyscallContext<'a> {
         Self {
             current_segment,
             clk,
+            next_pc: runtime.state.pc.wrapping_add(4),
             rt: runtime,
         }
     }
@@ -155,5 +155,9 @@ impl<'a> SyscallContext<'a> {
             values.push(self.rt.word(addr + i as u32 * 4));
         }
         values
+    }
+
+    pub fn set_next_pc(&mut self, next_pc: u32) {
+        self.next_pc = next_pc;
     }
 }

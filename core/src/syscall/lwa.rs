@@ -4,6 +4,12 @@ use crate::runtime::{Register, Syscall, SyscallContext};
 
 pub struct SyscallLWA;
 
+impl SyscallLWA {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl Syscall for SyscallLWA {
     fn execute(&self, ctx: &mut SyscallContext) -> u32 {
         // TODO: in the future this will be used for private vs. public inputs.
