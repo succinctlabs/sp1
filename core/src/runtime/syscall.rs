@@ -56,6 +56,9 @@ pub enum SyscallCode {
     /// Exit unconstrained block.
     EXIT_UNCONSTRAINED = 111,
 
+    /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
+    BLAKE3_COMPRESS_INNER = 112,
+
     WRITE = 999,
 }
 
@@ -75,6 +78,7 @@ impl SyscallCode {
             109 => SyscallCode::SECP256K1_DECOMPRESS,
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
+            112 => SyscallCode::BLAKE3_COMPRESS_INNER,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
