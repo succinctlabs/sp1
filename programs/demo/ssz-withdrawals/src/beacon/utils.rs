@@ -2,8 +2,9 @@ use alloy_primitives::U256;
 use sha2::{Digest, Sha256};
 use ssz_rs::prelude::Node;
 
-// From https://github.com/ralexstokes/ssz-rs/blob/main/ssz-rs/src/merkleization/proofs.rs
-// Modified to use alloy_primitives::U256 instead of u64 for large gindex values
+/// Verifies a SSZ proof.
+///
+/// Reference: https://github.com/ralexstokes/ssz-rs/blob/main/ssz-rs/src/merkleization/proofs.rs
 pub fn is_valid_merkle_big_branch<'a>(
     leaf: &Node,
     mut branch: impl Iterator<Item = &'a Node>,
