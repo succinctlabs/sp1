@@ -1,3 +1,4 @@
+use crate::precompiles::blake3::INPUT_SIZE;
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use std::mem::size_of;
@@ -5,24 +6,12 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadCols;
-use crate::memory::MemoryReadWriteCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::XorOperation;
 
 use super::compress_inner::CompressInnerOperation;
+use super::MIX_OPERATION_OUTPUT_SIZE;
 
 pub const NUM_BLAKE3_COMPRESS_INNER_COLS: usize = size_of::<Blake3CompressInnerCols<u8>>();
-
-pub(crate) const BLOCK_SIZE: usize = 16;
-pub(crate) const BLOCK_LEN_SIZE: usize = 16;
-pub(crate) const CV_SIZE: usize = 8;
-pub(crate) const COUNTER_SIZE: usize = 2;
-pub(crate) const FLAGS_SIZE: usize = 1;
-
-/// The number of `Word`s in the input of the compress inner operation.
-///
-pub(crate) const INPUT_SIZE: usize =
-    BLOCK_SIZE + BLOCK_LEN_SIZE + CV_SIZE + COUNTER_SIZE + FLAGS_SIZE;
 
 /// Cols to perform the Compress
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -33,23 +22,13 @@ pub struct Blake3CompressInnerCols<T> {
 
     pub state_ptr: T,
 
-    /// Reads in the state as a block of 16 words, and writes back the state as a block of 16 words.
-    pub mem_reads_block_words: [MemoryReadWriteCols<T>; 16],
+    /// Reads in parts of the state.
+    pub mem_reads_input: [MemoryReadCols<T>; INPUT_SIZE],
 
-    pub mem_read_block_len: MemoryReadCols<T>,
-
-    pub mem_read_cv_words: [MemoryReadCols<T>; 8],
-
-    // u64 represented as two u32s.
-    pub mem_read_counter: [MemoryReadCols<T>; 2],
-
-    pub mem_read_flag: MemoryReadCols<T>,
-
-    pub mem_writes: [MemoryWriteCols<T>; 8],
+    /// Writes the updated state.
+    pub mem_writes: [MemoryWriteCols<T>; MIX_OPERATION_OUTPUT_SIZE],
 
     pub compress_inner: CompressInnerOperation<T>,
-
-    pub final_xor: [XorOperation<T>; 8],
 
     pub is_real: T,
 }

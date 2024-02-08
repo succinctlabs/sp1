@@ -10,30 +10,62 @@ mod mix;
 mod round;
 mod trace;
 
-pub(crate) const BLOCK_SIZE: usize = 16;
-pub(crate) const BLOCK_LEN_SIZE: usize = 16;
-pub(crate) const CV_SIZE: usize = 8;
-pub(crate) const COUNTER_SIZE: usize = 2;
-pub(crate) const FLAGS_SIZE: usize = 1;
+/// The number of `Word`s in the state of the compress inner operation.
+pub(crate) const STATE_SIZE: usize = 16;
 
-/// The number of `Word`s in the input of the compress inner operation.
-pub(crate) const INPUT_SIZE: usize =
-    BLOCK_SIZE + BLOCK_LEN_SIZE + CV_SIZE + COUNTER_SIZE + FLAGS_SIZE;
-
-pub(crate) const OUTPUT_SIZE: usize = BLOCK_SIZE;
+/// The number of `Word`s in the message of the compress inner operation.
+pub(crate) const MSG_SIZE: usize = 16;
 
 /// The number of times we call `round` in the compress inner operation.
 pub(crate) const ROUND_COUNT: usize = 7;
 
 /// The number of times we call `g` in the compress inner operation.
-pub(crate) const OPERATION_COUNT: usize = 7;
+pub(crate) const OPERATION_COUNT: usize = 8;
+
+/// The number of `Word`s in the state that we pass to `g`.
+pub(crate) const NUM_STATE_WORDS_PER_CALL: usize = 4;
+
+/// The number of `Word`s in the message that we pass to `g`.
+pub(crate) const NUM_MSG_WORDS_PER_CALL: usize = 2;
+
+/// The number of `Word`s in the input of `g`.
+pub(crate) const MIX_OPERATION_INPUT_SIZE: usize =
+    NUM_MSG_WORDS_PER_CALL + NUM_STATE_WORDS_PER_CALL;
+
+/// The number of `Word`s in the input of `compress`.
+pub(crate) const INPUT_SIZE: usize = STATE_SIZE + MSG_SIZE;
+
+/// The number of `Word`s to write after calling `g`.
+pub(crate) const MIX_OPERATION_OUTPUT_SIZE: usize = NUM_STATE_WORDS_PER_CALL;
+
+pub(crate) const MSG_SCHEDULE: [[usize; 16]; 7] = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],
+    [3, 4, 10, 12, 13, 2, 7, 14, 6, 5, 9, 0, 11, 15, 8, 1],
+    [10, 7, 12, 9, 14, 3, 13, 15, 4, 0, 11, 2, 5, 8, 1, 6],
+    [12, 13, 9, 11, 15, 10, 14, 8, 7, 2, 5, 3, 0, 1, 6, 4],
+    [9, 14, 11, 5, 8, 12, 15, 1, 13, 3, 0, 10, 2, 6, 4, 7],
+    [11, 15, 5, 0, 1, 9, 8, 6, 14, 10, 2, 12, 3, 4, 7, 13],
+];
+
+/// The `i`-th row of `MSG_SCHEDULE` is the indices used for the `i`-th call to `g`.
+pub(crate) const MIX_OPERATION_INDEX: [[usize; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT] = [
+    [0, 4, 8, 12],
+    [1, 5, 9, 13],
+    [2, 6, 10, 14],
+    [3, 7, 11, 15],
+    [0, 5, 10, 15],
+    [1, 6, 11, 12],
+    [2, 7, 8, 13],
+    [3, 4, 9, 14],
+];
 
 #[derive(Debug, Clone, Copy)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,
     pub state_ptr: u32,
-    pub state_reads: [[[MemoryReadRecord; INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
-    pub state_writes: [[[MemoryWriteRecord; OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
+    pub reads: [[[MemoryReadRecord; MIX_OPERATION_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
+    pub writes: [[[MemoryWriteRecord; MIX_OPERATION_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
 }
 
 pub struct Blake3CompressInnerChip {}
