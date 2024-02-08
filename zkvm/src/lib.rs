@@ -12,7 +12,13 @@ macro_rules! entrypoint {
     ($path:path) => {
         const ZKVM_ENTRY: fn() = $path;
 
+        use $crate::heap::SimpleAlloc;
+
+        #[global_allocator]
+        static HEAP: SimpleAlloc = SimpleAlloc;
+
         mod zkvm_generated_main {
+
             #[no_mangle]
             fn main() {
                 super::ZKVM_ENTRY()
@@ -23,7 +29,6 @@ macro_rules! entrypoint {
 
 #[cfg(target_os = "zkvm")]
 mod zkvm {
-    use crate::heap::SimpleAlloc;
     use crate::syscalls::syscall_halt;
     use getrandom::{register_custom_getrandom, Error};
 
@@ -56,9 +61,6 @@ mod zkvm {
     "#,
         sym STACK_TOP
     );
-
-    #[global_allocator]
-    static HEAP: SimpleAlloc = SimpleAlloc;
 
     static GETRANDOM_WARNING_ONCE: std::sync::Once = std::sync::Once::new();
 

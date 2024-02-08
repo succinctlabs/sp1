@@ -2537,9 +2537,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.6.0"
+version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b0ed1662c5a68664f45b76d18deb0e234aff37207086803165c961eb695e981"
+checksum = "15d167997bd841ec232f5b2b8e0e26606df2e7caa4c31b95ea9ca52b200bd270"
 dependencies = [
  "base64 0.21.7",
  "chrono",
@@ -2547,6 +2547,7 @@ dependencies = [
  "indexmap 1.9.3",
  "indexmap 2.2.2",
  "serde",
+ "serde_derive",
  "serde_json",
  "serde_with_macros",
  "time",
@@ -2554,9 +2555,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.6.0"
+version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "568577ff0ef47b879f736cd66740e022f3672788cdf002a05a4e609ea5a6fb15"
+checksum = "865f9743393e638991566a8b7a479043c2c8da94a33e0a31f18214c9cae0a64d"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2752,7 +2753,7 @@ dependencies = [
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/vm.git#3d8d2c16724db850b90ab3ecd2f8c3475596d1e6"
+source = "git+https://github.com/succinctlabs/vm.git?rev=3ecf6deb509efbb6c97ac3ed531422948fccec56#3ecf6deb509efbb6c97ac3ed531422948fccec56"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3578,7 +3579,7 @@ dependencies = [
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#4333789424ac92b28e3a108da6943c34e606b291"
+source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#a709885b99a95d42d31c1e65585ebea4e1730b21"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -3604,7 +3605,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#4333789424ac92b28e3a108da6943c34e606b291"
+source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#a709885b99a95d42d31c1e65585ebea4e1730b21"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -3617,6 +3618,6 @@ dependencies = [
  "rlp",
  "serde",
  "sha3",
- "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git)",
+ "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git?rev=3ecf6deb509efbb6c97ac3ed531422948fccec56)",
  "thiserror",
 ]
