@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 succinct-zkvm = { path = "../../zkvm" }
+succinct-precompiles = { path = "../../precompiles" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 zeth-lib = { git = "ssh://git@github.com/succinctlabs/zeth-private.git", branch = "chris/zeth-lib", default-features = false }

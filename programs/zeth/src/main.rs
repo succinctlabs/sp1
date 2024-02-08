@@ -2,7 +2,7 @@
 extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
-use succinct_zkvm::io;
+use succinct_precompiles::io;
 use zeth_lib::{
     builder::{BlockBuilderStrategy, EthereumStrategy},
     consts::ETH_MAINNET_CHAIN_SPEC,

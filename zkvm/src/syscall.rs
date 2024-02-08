@@ -33,6 +33,12 @@ pub const SECP256K1_DOUBLE: u32 = 108;
 /// Executes `K256_DECOMPRESS`.
 pub const SECP256K1_DECOMPRESS: u32 = 109;
 
+/// Enter an unconstrained execution block.
+pub const ENTER_UNCONSTRAINED: u32 = 110;
+
+/// Exit an unconstrained execution block.
+pub const EXIT_UNCONSTRAINED: u32 = 111;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
 
@@ -51,6 +57,7 @@ pub extern "C" fn syscall_halt() -> ! {
 }
 
 #[allow(unused_variables)]
+#[no_mangle]
 pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     #[cfg(target_os = "zkvm")]
     unsafe {
@@ -68,6 +75,7 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
 }
 
 #[allow(unused_variables)]
+#[no_mangle]
 pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
     let whole_words: usize = nbytes / 4;
     let remaining_bytes = nbytes % 4;
@@ -304,4 +312,40 @@ pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
 #[no_mangle]
 pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     syscall_write(fd, write_buf, nbytes);
+}
+
+#[no_mangle]
+pub fn syscall_enter_unconstrained() -> bool {
+    #[allow(unused_mut)]
+    let mut continue_unconstrained: u32;
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") ENTER_UNCONSTRAINED,
+            out("a0") continue_unconstrained,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    {
+        println!("Entering unconstrained execution block");
+        continue_unconstrained = 1;
+    }
+
+    continue_unconstrained == 1
+}
+
+#[no_mangle]
+pub fn syscall_exit_unconstrained() {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") EXIT_UNCONSTRAINED,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    println!("Exiting unconstrained execution block");
 }
