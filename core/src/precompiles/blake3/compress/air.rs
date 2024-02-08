@@ -3,7 +3,7 @@ use p3_field::{AbstractField, Field};
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
 use super::{
-    Blake3CompressInnerChip, MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE,
+    Blake3CompressInnerChip, MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
@@ -110,18 +110,67 @@ impl Blake3CompressInnerChip {
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
-        let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
-        let clk_cycle_per_word = 4;
-        let mem_ptr = local.state_ptr + AB::F::from_canonical_usize(4 * STATE_SIZE);
+        // let mut state = [0u32; STATE_SIZE];
+        // for i in 0..NUM_STATE_WORDS_PER_CALL {
+        //     let index_to_read = MIX_OPERATION_INDEX[operation][i];
+        //     let (record, value) = rt.mr(state_ptr + (index_to_read as u32) * 4);
+        //     read_records[round][operation][i] = record;
+        //     state[index_to_read] = value;
+        //     rt.clk += 4;
+        // }
+        let clk_cycle_per_word: AB::Expr = AB::F::from_canonical_usize(4).into();
+        let mut clk: AB::Expr = local.clk.into();
         for i in 0..NUM_STATE_WORDS_PER_CALL {
-            // let (record, value) = rt.mr(local.state_ptr + (index_to_read as u32) * 4);
             builder.constraint_memory_access(
                 local.segment,
-                local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),
+                clk.clone(),
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
                 &local.mem_reads[i],
                 local.is_real,
             );
+            clk += clk_cycle_per_word.clone();
+        }
+        // // Read the message.
+        // let mut message = [0u32; MSG_SIZE];
+        // for i in 0..NUM_MSG_WORDS_PER_CALL {
+        //     let index_to_read = MSG_SCHEDULE[round][2 * operation + i];
+        //     let (record, value) = rt.mr(msg_ptr + (index_to_read as u32) * 4);
+        //     read_records[round][operation][NUM_STATE_WORDS_PER_CALL + i] = record;
+        //     message[index_to_read] = value;
+        //     rt.clk += 4;
+        // }
+
+        let msg_ptr = local.state_ptr + AB::F::from_canonical_usize(4 * STATE_SIZE);
+        for i in 0..NUM_MSG_WORDS_PER_CALL {
+            builder.constraint_memory_access(
+                local.segment,
+                clk.clone(),
+                msg_ptr.clone() + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                &local.mem_reads[NUM_STATE_WORDS_PER_CALL + i],
+                local.is_real,
+            );
+            clk += clk_cycle_per_word.clone();
+        }
+
+        // // Write the state.
+        // for i in 0..NUM_STATE_WORDS_PER_CALL {
+        //     let index_to_write = MIX_OPERATION_INDEX[operation][i];
+        //     let record = rt.mw(
+        //         state_ptr.wrapping_add((index_to_write as u32) * 4),
+        //         results[index_to_write],
+        //     );
+        //     write_records[round][operation][i] = record;
+        //     rt.clk += 4;
+        // }
+        for i in 0..NUM_STATE_WORDS_PER_CALL {
+            builder.constraint_memory_access(
+                local.segment,
+                clk.clone(),
+                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                &local.mem_writes[i],
+                local.is_real,
+            );
+            clk += clk_cycle_per_word.clone();
         }
     }
 
