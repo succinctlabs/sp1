@@ -32,6 +32,7 @@ pub use segment::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -129,7 +130,7 @@ pub struct OpRecord {
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
 pub struct Runtime {
     /// The program.
-    pub program: Program,
+    pub program: Arc<Program>,
 
     /// Current global state.
     pub state: ExecutionState,
@@ -159,7 +160,11 @@ pub struct Runtime {
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let record = ExecutionRecord::default();
+        let program_arc = Arc::new(program);
+        let record = ExecutionRecord {
+            program: program_arc.clone(),
+            ..Default::default()
+        };
 
         let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
         syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
@@ -212,8 +217,8 @@ impl Runtime {
 
         Self {
             record,
-            state: ExecutionState::new(program.pc_start),
-            program,
+            state: ExecutionState::new(program_arc.pc_start),
+            program: program_arc,
             op_record: OpRecord::default(),
             segment_size: env::segment_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
