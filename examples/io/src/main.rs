@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use succinct_core::{utils, SuccinctProver};
 
-const IO_ELF: &[u8] = include_bytes!("../../../programs/io/elf/riscv32im-succinct-zkvm-elf");
+const IO_ELF: &[u8] = include_bytes!("../../../programs/demo/io/elf/riscv32im-succinct-zkvm-elf");
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct MyPointUnaligned {
