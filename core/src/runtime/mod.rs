@@ -154,7 +154,7 @@ impl Runtime {
             program: program_rc.clone(),
             ..Default::default()
         };
-        // Write trace to file if TRACE_FILE is set, write full if TRACE=full
+        // Write pc trace to file if TRACE_FILE is set
         let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
             let file = File::create(trace_file).unwrap();
             Some(BufWriter::new(file))
