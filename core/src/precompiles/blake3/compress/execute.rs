@@ -1,5 +1,6 @@
 use crate::precompiles::blake3::Blake3CompressInnerChip;
 use crate::precompiles::PrecompileRuntime;
+use crate::runtime::Register;
 
 /// The first external round in Blake3.
 ///
@@ -9,8 +10,9 @@ impl Blake3CompressInnerChip {
     pub const NUM_CYCLES: u32 = 101010;
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        todo!();
-        //        let state_ptr = rt.register_unsafe(Register::X10);
+        println!("Blake3CompressInnerChip::execute is running!");
+        let state_ptr = rt.register_unsafe(Register::X10);
+        state_ptr
         //
         //        // Set the clock back to the original value and begin executing the precompile.
         //        let saved_clk = rt.clk;
