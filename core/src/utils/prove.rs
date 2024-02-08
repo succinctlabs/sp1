@@ -26,7 +26,7 @@ use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 pub fn get_cycles(program: Program) -> u64 {
     let mut runtime = Runtime::new(program);
     runtime.run();
-    runtime.global_clk as u64
+    runtime.state.global_clk as u64
 }
 
 pub fn prove(program: Program) {
@@ -58,7 +58,7 @@ pub fn prove_core(runtime: &mut Runtime) {
         runtime.prove::<_, _, BabyBearBlake3, LocalProver<_>>(&config, &mut challenger)
     });
 
-    let cycles = runtime.global_clk;
+    let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     tracing::info!(
         "cycles={}, e2e={}, khz={:.2}",
@@ -71,7 +71,7 @@ pub fn prove_core(runtime: &mut Runtime) {
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
             &segment,
-            Some(&mut runtime.global_segment),
+            Some(&mut runtime.record),
             vec![
                 InteractionKind::Field,
                 InteractionKind::Range,

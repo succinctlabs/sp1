@@ -7,8 +7,8 @@ use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_add_event;
 use crate::precompiles::SyscallRuntime;
-use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
+use crate::runtime::Segment;
 use crate::runtime::Syscall;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
@@ -148,11 +148,11 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         "WeierstrassAddAssign".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         outputs[0].weierstrass_add_events = input.weierstrass_add_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();

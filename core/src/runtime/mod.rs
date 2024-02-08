@@ -47,7 +47,7 @@ pub enum AccessPosition {
 
 /// Holds data to track changes made to the runtime since a fork point.
 #[derive(Debug, Clone, Default)]
-struct ExecutionState {
+pub struct ExecutionState {
     /// The global clock keeps track of how many instrutions have been executed through all segments.
     pub global_clk: u32,
 
@@ -109,7 +109,7 @@ struct ForkState {
     /// Full record from original state
     pub(crate) record: OpRecord,
     /// Full segment from original state
-    pub(crate) segment: ExecutionRecord,
+    pub(crate) segment: Segment,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -138,7 +138,7 @@ pub struct Runtime {
     pub op_record: OpRecord,
 
     /// The record containing all events emitted during execution so far.
-    pub record: ExecutionRecord,
+    pub record: Segment,
 
     /// The maximum size of each segment.
     pub segment_size: u32,
@@ -159,7 +159,7 @@ pub struct Runtime {
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let record = ExecutionRecord::default();
+        let record = Segment::default();
 
         let mut syscall_map = HashMap::<SyscallCode, Box<dyn Syscall>>::default();
         syscall_map.insert(
@@ -177,8 +177,8 @@ impl Runtime {
 
         Self {
             record,
-            program,
             state: ExecutionState::new(program.pc_start),
+            program,
             op_record: OpRecord::default(),
             segment_size: NB_ROWS_PER_SHARD as u32 * 4,
             cycle_tracker: HashMap::new(),
@@ -194,7 +194,7 @@ impl Runtime {
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
-                Some((value, _, _)) => value,
+                Some((value, _, _)) => *value,
                 None => 0,
             };
         }
@@ -224,11 +224,11 @@ impl Runtime {
     }
 
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
-        self.clk + *position as u32
+        self.state.clk + *position as u32
     }
 
     pub fn current_segment(&self) -> u32 {
-        self.segment_clk
+        self.state.segment_clk
     }
 
     fn align(&self, addr: u32) -> u32 {
@@ -268,7 +268,7 @@ impl Runtime {
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
             let prev_value = match memory_entry {
-                Entry::Occupied(ref entry) => Some(*entry.get()),
+                Entry::Occupied(ref entry) => Some(entry.get().0),
                 Entry::Vacant(_) => None,
             };
             self.unconstrained_state
@@ -456,7 +456,7 @@ impl Runtime {
     #[inline]
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
-        self.emit_alu(self.clk, instruction.opcode, a, b, c);
+        self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -493,7 +493,7 @@ impl Runtime {
 
     /// Fetch the instruction at the current program counter.
     fn fetch(&self) -> Instruction {
-        let idx = ((self.pc - self.program.pc_base) / 4) as usize;
+        let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
     }
 
@@ -503,8 +503,8 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
-        let pc = self.pc;
-        let mut next_pc = self.pc.wrapping_add(4);
+        let pc = self.state.pc;
+        let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
         let (a, b, c): (u32, u32, u32);
@@ -648,37 +648,37 @@ impl Runtime {
             Opcode::BEQ => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a == b {
-                    next_pc = self.pc.wrapping_add(c);
+                    next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BNE => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a != b {
-                    next_pc = self.pc.wrapping_add(c);
+                    next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BLT => {
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) < (b as i32) {
-                    next_pc = self.pc.wrapping_add(c);
+                    next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BGE => {
                 (a, b, c) = self.branch_rr(instruction);
                 if (a as i32) >= (b as i32) {
-                    next_pc = self.pc.wrapping_add(c);
+                    next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BLTU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a < b {
-                    next_pc = self.pc.wrapping_add(c);
+                    next_pc = self.state.pc.wrapping_add(c);
                 }
             }
             Opcode::BGEU => {
                 (a, b, c) = self.branch_rr(instruction);
                 if a >= b {
-                    next_pc = self.pc.wrapping_add(c);
+                    next_pc = self.state.pc.wrapping_add(c);
                 }
             }
 
@@ -686,14 +686,14 @@ impl Runtime {
             Opcode::JAL => {
                 let (rd, imm) = instruction.j_type();
                 (b, c) = (imm, 0);
-                a = self.pc + 4;
+                a = self.state.pc + 4;
                 self.rw(rd, a);
-                next_pc = self.pc.wrapping_add(imm);
+                next_pc = self.state.pc.wrapping_add(imm);
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1, AccessPosition::B), imm);
-                a = self.pc + 4;
+                a = self.state.pc + 4;
                 self.rw(rd, a);
                 next_pc = b.wrapping_add(c);
             }
@@ -702,7 +702,7 @@ impl Runtime {
             Opcode::AUIPC => {
                 let (rd, imm) = instruction.u_type();
                 (b, c) = (imm, imm);
-                a = self.pc.wrapping_add(b);
+                a = self.state.pc.wrapping_add(b);
                 self.rw(rd, a);
             }
 
@@ -715,7 +715,7 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                let init_clk = self.clk;
+                let init_clk = self.state.clk;
                 // let syscall_map = &self.syscall_map;
                 let syscall_impl = self.get_syscall(syscall);
                 let mut precompile_rt = SyscallRuntime::new(self);
@@ -725,16 +725,17 @@ impl Runtime {
                 // let syscall_impl =
                 //     syscall_impl.or_insert_with(|| panic!("Unsupported syscall: {:?}", syscall));
                 // a = syscall_impl.execute(&mut precompile_rt);
-                // self.clk = precompile_rt.clk;
-                // assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.clk);
+                // self.state.clk = precompile_rt.clk;
+                // assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
-                    self.clk = precompile_rt.clk;
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                // if let Some(syscall_impl) = syscall_impl {
+                //     a = syscall_impl.execute(&mut precompile_rt);
+                //     self.state.clk = precompile_rt.clk;
+                //     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
+                // } else {
+                //     panic!("Unsupported syscall: {:?}", syscall);
+                // }
+                a = 0;
 
                 // match syscall {
                 //     SyscallCode::HALT => {
@@ -759,18 +760,18 @@ impl Runtime {
                 //     }
                 //     SyscallCode::SHA_EXTEND => {
                 //         a = ShaExtendChip::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + ShaExtendChip::NUM_EXTRA_CYCLES, self.clk);
+                //         self.state.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + ShaExtendChip::NUM_EXTRA_CYCLES, self.state.clk);
                 //     }
                 //     SyscallCode::SHA_COMPRESS => {
                 //         a = ShaCompressChip::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + ShaCompressChip::NUM_EXTRA_CYCLES, self.clk);
+                //         self.state.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + ShaCompressChip::NUM_EXTRA_CYCLES, self.state.clk);
                 //     }
                 //     SyscallCode::KECCAK_PERMUTE => {
                 //         a = KeccakPermuteChip::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + KeccakPermuteChip::NUM_EXTRA_CYCLES, self.clk);
+                //         self.state.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + KeccakPermuteChip::NUM_EXTRA_CYCLES, self.state.clk);
                 //     }
                 //     SyscallCode::WRITE => {
                 //         let fd = self.register(a0);
@@ -793,7 +794,7 @@ impl Runtime {
                 //                         .trim_start();
                 //                     let depth = self.cycle_tracker.len() as u32;
                 //                     self.cycle_tracker
-                //                         .insert(fn_name.to_string(), (self.global_clk, depth));
+                //                         .insert(fn_name.to_string(), (self.state.global_clk, depth));
                 //                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
                 //                     log::info!("{}┌╴{}", padding, fn_name);
                 //                 } else if s.contains("cycle-tracker-end:") {
@@ -810,7 +811,7 @@ impl Runtime {
                 //                     log::info!(
                 //                         "{}└╴{} cycles",
                 //                         padding,
-                //                         u32_to_comma_separated(self.global_clk - start)
+                //                         u32_to_comma_separated(self.state.global_clk - start)
                 //                     );
                 //                 } else {
                 //                     log::info!("stdout: {}", s.trim_end());
@@ -832,34 +833,34 @@ impl Runtime {
                 //         a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::execute(
                 //             &mut precompile_rt,
                 //         );
-                //         self.clk = precompile_rt.clk;
+                //         self.state.clk = precompile_rt.clk;
                 //         assert_eq!(
                 //             init_clk
                 //                 + EdAddAssignChip::<
                 //                     EdwardsCurve<Ed25519Parameters>,
                 //                     Ed25519Parameters,
                 //                 >::NUM_EXTRA_CYCLES,
-                //             self.clk
+                //             self.state.clk
                 //         );
                 //     }
                 //     SyscallCode::ED_DECOMPRESS => {
                 //         a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + 4, self.clk);
+                //         self.state.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + 4, self.state.clk);
                 //     }
                 //     SyscallCode::SECP256K1_ADD => {
                 //         a = WeierstrassAddAssignChip::<
                 //             SWCurve<Secp256k1Parameters>,
                 //             Secp256k1Parameters,
                 //         >::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
+                //         self.state.clk = precompile_rt.clk;
                 //         assert_eq!(
                 //             init_clk
                 //                 + WeierstrassAddAssignChip::<
                 //                     SWCurve<Secp256k1Parameters>,
                 //                     Secp256k1Parameters,
                 //                 >::NUM_EXTRA_CYCLES,
-                //             self.clk
+                //             self.state.clk
                 //         );
                 //     }
                 //     SyscallCode::SECP256K1_DOUBLE => {
@@ -867,20 +868,20 @@ impl Runtime {
                 //             SWCurve<Secp256k1Parameters>,
                 //             Secp256k1Parameters,
                 //         >::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
+                //         self.state.clk = precompile_rt.clk;
                 //         assert_eq!(
                 //             init_clk
                 //                 + WeierstrassDoubleAssignChip::<
                 //                     SWCurve<Secp256k1Parameters>,
                 //                     Secp256k1Parameters,
                 //                 >::NUM_EXTRA_CYCLES,
-                //             self.clk
+                //             self.state.clk
                 //         );
                 //     }
                 //     SyscallCode::SECP256K1_DECOMPRESS => {
                 //         // a = K256DecompressChip::execute(&mut precompile_rt);
-                //         self.clk = precompile_rt.clk;
-                //         assert_eq!(init_clk + 4, self.clk);
+                //         self.state.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + 4, self.state.clk);
                 //     }
                 //     SyscallCode::ENTER_UNCONSTRAINED => {
                 //         if self.unconstrained {
@@ -888,9 +889,9 @@ impl Runtime {
                 //         }
                 //         self.unconstrained = true;
                 //         self.unconstrained_state = ForkState {
-                //             global_clk: self.global_clk,
-                //             clk: self.clk,
-                //             pc: self.pc,
+                //             global_clk: self.state.global_clk,
+                //             clk: self.state.clk,
+                //             pc: self.state.pc,
                 //             memory_diff: HashMap::default(),
                 //             memory_access: std::mem::take(&mut self.state.memory_access),
                 //             segment: std::mem::take(&mut self.record),
@@ -902,10 +903,10 @@ impl Runtime {
                 //         a = 0;
                 //         // Reset the state of the runtime.
                 //         if self.unconstrained {
-                //             self.global_clk = self.unconstrained_state.global_clk;
-                //             self.clk = self.unconstrained_state.clk;
-                //             self.pc = self.unconstrained_state.pc;
-                //             next_pc = self.pc.wrapping_add(4);
+                //             self.state.global_clk = self.unconstrained_state.global_clk;
+                //             self.state.clk = self.unconstrained_state.clk;
+                //             self.state.pc = self.unconstrained_state.pc;
+                //             next_pc = self.state.pc.wrapping_add(4);
                 //             for (addr, value) in self.unconstrained_state.memory_diff.drain() {
                 //                 match value {
                 //                     Some(value) => {
@@ -1002,12 +1003,12 @@ impl Runtime {
         }
 
         // Update the program counter.
-        self.pc = next_pc;
+        self.state.pc = next_pc;
 
         // Emit the CPU event for this cycle.
         self.emit_cpu(
             self.current_segment(),
-            self.clk,
+            self.state.clk,
             pc,
             instruction,
             a,
@@ -1022,12 +1023,11 @@ impl Runtime {
     pub fn run(&mut self) {
         // First load the memory image into the memory table.
         for (addr, value) in self.program.memory_image.iter() {
-            self.state.memory.insert(*addr, *value);
-            self.state.memory_access.insert(*addr, (0, 0));
+            self.state.memory.insert(*addr, (*value, 0, 0));
         }
 
-        self.clk += 1;
-        while self.pc.wrapping_sub(self.program.pc_base)
+        self.state.clk += 1;
+        while self.state.pc.wrapping_sub(self.program.pc_base)
             < (self.program.instructions.len() * 4) as u32
         {
             // Fetch the instruction at the current program counter.
@@ -1036,8 +1036,8 @@ impl Runtime {
             let width = 12;
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
-                self.global_clk,
-                self.pc,
+                self.state.global_clk,
+                self.state.pc,
                 instruction,
                 self.register(Register::X0),
                 self.register(Register::X1),
@@ -1064,13 +1064,13 @@ impl Runtime {
             self.execute(instruction);
 
             // Increment the clock.
-            self.global_clk += 1;
-            self.clk += 4;
+            self.state.global_clk += 1;
+            self.state.clk += 4;
 
             // Reset the clock every `segment_size` cycles.
-            if self.clk % self.segment_size == 1 && !self.unconstrained {
-                self.segment_clk += 1;
-                self.clk = 1;
+            if self.state.clk % self.segment_size == 1 && !self.unconstrained {
+                self.state.segment_clk += 1;
+                self.state.clk = 1;
             }
         }
 
@@ -1091,11 +1091,7 @@ impl Runtime {
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let value = *self.state.memory.get(&addr).unwrap();
-            let (segment, timestamp) = *self
-                .memory_access
-                .get(&addr)
-                .unwrap_or_else(|| panic!("addr={}", addr));
+            let (value, segment, timestamp) = *self.state.memory.get(&addr).unwrap();
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.

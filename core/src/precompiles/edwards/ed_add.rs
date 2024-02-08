@@ -10,7 +10,7 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_add_event;
 use crate::precompiles::SyscallRuntime;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::Segment;
 use crate::runtime::Syscall;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
@@ -122,11 +122,11 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         "EdAddAssign".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         outputs[0].ed_add_events = input.ed_add_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();

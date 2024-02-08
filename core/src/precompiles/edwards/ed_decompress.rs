@@ -9,7 +9,7 @@ use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
 use crate::precompiles::SyscallRuntime;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::Segment;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
@@ -80,7 +80,7 @@ impl<F: Field> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
-        segment: &mut ExecutionRecord,
+        segment: &mut Segment,
     ) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
@@ -265,11 +265,11 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
         "EdDecompress".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         for i in 0..segment.ed_decompress_events.len() {

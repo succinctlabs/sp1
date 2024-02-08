@@ -58,16 +58,16 @@ impl Runtime {
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         local_chips.iter().for_each(|chip| {
-            chip.generate_trace(&mut self.segment);
+            chip.generate_trace(&mut self.record);
         });
 
         // Display the statistics about the workload.
-        tracing::info!("{:#?}", self.segment.stats());
+        tracing::info!("{:#?}", self.record.stats());
 
         // For each chip, shard the events into segments.
         let mut segments: Vec<Segment> = Vec::new();
         local_chips.iter().for_each(|chip| {
-            chip.shard(&self.segment, &mut segments);
+            chip.shard(&self.record, &mut segments);
         });
 
         // Generate and commit the traces for each segment.
@@ -91,7 +91,7 @@ impl Runtime {
 
         // Generate and commit to the global segment.
         let global_main_data =
-            P::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory();
+            P::commit_main(config, &global_chips, &mut self.record).to_in_memory();
 
         // Generate a proof for the global segment.
         let global_proof = P::prove(

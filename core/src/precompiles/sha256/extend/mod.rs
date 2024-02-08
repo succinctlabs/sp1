@@ -46,7 +46,7 @@ pub mod extend_tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
+        runtime::{Instruction, Opcode, Program, Runtime, Segment},
         stark::LocalProver,
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
@@ -72,7 +72,7 @@ pub mod extend_tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
+        let mut segment = Segment::default();
         segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

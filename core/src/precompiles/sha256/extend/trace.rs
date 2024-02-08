@@ -3,12 +3,12 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{runtime::ExecutionRecord, utils::Chip};
+use crate::{runtime::Segment, utils::Chip};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField> Chip<F> for ShaExtendChip {
-    fn name(&self) -> String {ExecutionRecord
+    fn name(&self) -> String {
         "ShaExtend".to_string()
     }
 
