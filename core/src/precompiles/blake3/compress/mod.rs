@@ -1,3 +1,4 @@
+mod air;
 mod columns;
 mod compress_inner;
 mod execute;
@@ -7,6 +8,13 @@ mod trace;
 
 /// The number of `Word`s in a Blake3 block.
 pub(crate) const B3_BLOCK_SIZE: usize = 16;
+#[derive(Debug, Clone, Copy)]
+pub struct Blake3CompressInnerEvent {
+    pub clk: u32,
+    pub state_ptr: u32,
+    // pub state_reads: [[MemoryReadRecord; WIDTH]; P2_EXTERNAL_ROUND_COUNT],
+    // pub state_writes: [[MemoryWriteRecord; WIDTH]; P2_EXTERNAL_ROUND_COUNT],
+}
 
 pub struct Blake3CompressInnerChip {}
 

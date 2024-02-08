@@ -11,7 +11,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let mut new_field_events = Vec::new();
+        // let mut new_field_events = Vec::new();
 
         for i in 0..segment.blake3_compress_inner_events.len() {
             // let event = segment.blake3_external_1_events[i];
