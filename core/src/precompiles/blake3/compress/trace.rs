@@ -49,7 +49,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
 
                     // Assign basic values to the columns.
                     {
-                        cols.segment = F::from_canonical_u32(segment.index);
+                        cols.segment = F::from_canonical_u32(event.segment);
                         cols.clk = F::from_canonical_u32(clk);
 
                         cols.round_index = F::from_canonical_u32(round as u32);

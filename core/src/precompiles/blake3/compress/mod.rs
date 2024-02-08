@@ -63,6 +63,7 @@ pub(crate) const MIX_OPERATION_INDEX: [[usize; NUM_STATE_WORDS_PER_CALL]; OPERAT
 #[derive(Debug, Clone, Copy)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,
+    pub segment: u32,
     pub state_ptr: u32,
     pub reads: [[[MemoryReadRecord; MIX_OPERATION_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
     pub writes: [[[MemoryWriteRecord; MIX_OPERATION_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],

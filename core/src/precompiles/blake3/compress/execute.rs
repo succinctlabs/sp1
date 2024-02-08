@@ -67,9 +67,12 @@ impl Blake3CompressInnerChip {
             }
         }
 
+        let segment_clk = rt.segment_clk();
+
         rt.segment_mut()
             .blake3_compress_inner_events
             .push(Blake3CompressInnerEvent {
+                segment: segment_clk,
                 clk: saved_clk,
                 state_ptr: saved_state_ptr,
                 reads: read_records,
