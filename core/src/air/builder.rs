@@ -1,7 +1,6 @@
 use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
-use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
 use crate::cpu::columns::InstructionCols;
@@ -52,13 +51,6 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         for (left, right) in left.into_iter().zip(right) {
             self.assert_eq(left, right);
         }
-    }
-}
-
-/// A trait which contains methods related to boolean methods in an AIR.
-pub trait BoolAirBuilder: BaseAirBuilder {
-    fn assert_is_bool<I: Into<Self::Expr>>(&mut self, value: Bool<I>) {
-        self.assert_bool(value.0);
     }
 }
 
@@ -472,7 +464,6 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
 /// A trait which contains all helper methods for building an AIR.
 pub trait CurtaAirBuilder:
     BaseAirBuilder
-    + BoolAirBuilder
     + ByteAirBuilder
     + WordAirBuilder
     + AluAirBuilder
@@ -492,7 +483,6 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BoolAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
