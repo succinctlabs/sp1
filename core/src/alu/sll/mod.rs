@@ -43,7 +43,7 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, NB_ROWS_PER_SHARD};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -97,7 +97,7 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
     fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         let shards = input
             .shift_left_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].shift_left_events = shards[i].to_vec();

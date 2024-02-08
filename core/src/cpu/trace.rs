@@ -17,7 +17,7 @@ use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::NB_ROWS_PER_SHARD;
+use crate::utils::env;
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn name(&self) -> String {
@@ -27,7 +27,7 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         let shards = input
             .cpu_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             if i >= outputs.len() {
