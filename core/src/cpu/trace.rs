@@ -10,13 +10,14 @@ use super::columns::{
 use super::{CpuChip, CpuEvent};
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::chip::Chip;
 use crate::cpu::columns::{CpuCols, MemoryColumns};
 use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{Chip, NB_ROWS_PER_SHARD};
+use crate::utils::NB_ROWS_PER_SHARD;
 
 impl<F: PrimeField> Chip<F> for CpuChip {
     fn name(&self) -> String {
@@ -468,7 +469,7 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, Instruction, Runtime, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]

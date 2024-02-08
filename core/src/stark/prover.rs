@@ -1,16 +1,4 @@
-#[cfg(not(feature = "perf"))]
-use crate::stark::debug_constraints;
-
 use itertools::izip;
-
-use super::folder::ProverConstraintFolder;
-use super::permutation::eval_permutation_constraints;
-use super::util::decompose_and_flatten;
-use super::zerofier_coset::ZerofierOnCoset;
-use super::{types::*, StarkConfig};
-use crate::runtime::Segment;
-use crate::stark::permutation::generate_permutation_trace;
-use crate::utils::AirChip;
 use p3_air::TwoRowMatrixView;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -27,6 +15,18 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::max;
 use std::marker::PhantomData;
+
+use super::folder::ProverConstraintFolder;
+use super::permutation::eval_permutation_constraints;
+use super::util::decompose_and_flatten;
+use super::zerofier_coset::ZerofierOnCoset;
+use super::{types::*, StarkConfig};
+use crate::chip::AirChip;
+use crate::runtime::Segment;
+use crate::stark::permutation::generate_permutation_trace;
+
+#[cfg(not(feature = "perf"))]
+use crate::stark::debug_constraints;
 
 pub trait Prover<SC>
 where

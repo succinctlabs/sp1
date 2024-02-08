@@ -9,9 +9,9 @@ use p3_maybe_rayon::prelude::*;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
-
+use crate::chip::Chip;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::utils::{pad_to_power_of_two, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -296,7 +296,10 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;
@@ -304,7 +307,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::LtChip;

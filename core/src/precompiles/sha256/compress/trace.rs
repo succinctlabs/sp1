@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, memory::MemoryCols, runtime::Segment, utils::Chip};
+use crate::{air::Word, chip::Chip, memory::MemoryCols, runtime::Segment};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},

@@ -11,9 +11,9 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::FieldAirBuilder;
+use crate::chip::Chip;
 use crate::runtime::Segment;
 use crate::utils::pad_to_power_of_two;
-use crate::utils::Chip;
 use crate::utils::NB_ROWS_PER_SHARD;
 
 /// The number of main trace columns for `FieldLTUChip`.

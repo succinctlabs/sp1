@@ -4,9 +4,8 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
 use std::ops::{Add, Mul};
 
-use crate::{lookup::Interaction, utils::Chip};
-
 use super::util::batch_multiplicative_inverse_inplace;
+use crate::{chip::Chip, lookup::Interaction};
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
