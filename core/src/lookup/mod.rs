@@ -2,8 +2,8 @@ mod builder;
 
 pub use builder::InteractionBuilder;
 
+use crate::chip::Chip;
 use crate::utils::BabyBearPoseidon2;
-use crate::utils::Chip;
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;

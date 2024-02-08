@@ -1,9 +1,0 @@
-[workspace]
-[package]
-version = "0.1.0"
-name = "secp256k1-decompress-zkvm"
-edition = "2021"
-
-[dependencies]
-succinct-zkvm = { path = "../../zkvm" }
-succinct-precompiles = { path = "../../precompiles" }

@@ -56,9 +56,10 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift};
 use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `ShiftRightChip`.
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
@@ -128,7 +129,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .shift_right_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].shift_right_events = shards[i].to_vec();
@@ -467,7 +468,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;
@@ -475,7 +479,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::ShiftRightChip;

@@ -9,10 +9,11 @@ use std::collections::HashMap;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::instruction::InstructionCols;
-use crate::cpu::columns::opcode::OpcodeSelectorCols;
+use crate::chip::Chip;
+use crate::cpu::columns::InstructionCols;
+use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::ExecutionRecord;
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::pad_to_power_of_two;
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 
@@ -129,9 +130,9 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
+        chip::Chip,
         program::ProgramChip,
         runtime::{ExecutionRecord, Instruction, Opcode, Program},
-        utils::Chip,
     };
 
     #[test]

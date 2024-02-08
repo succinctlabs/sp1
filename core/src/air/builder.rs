@@ -4,8 +4,8 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
-use crate::cpu::columns::instruction::InstructionCols;
-use crate::cpu::columns::opcode::OpcodeSelectorCols;
+use crate::cpu::columns::InstructionCols;
+use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
@@ -481,16 +481,6 @@ pub trait CurtaAirBuilder:
 {
 }
 
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BoolAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
-
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
     fn send(&mut self, message: M) {
         self.inner.send(message);
@@ -501,10 +491,17 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
     }
 }
 
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BoolAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
+
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
-
 impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
-
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
-
 impl<'a, F: Field> EmptyMessageBuilder for DebugConstraintBuilder<'a, F> {}

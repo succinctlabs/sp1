@@ -6,6 +6,7 @@ use crate::alu::{
     AddChip, BitwiseChip, DivRemChip, LtChip, MulChip, ShiftLeft, ShiftRightChip, SubChip,
 };
 use crate::bytes::ByteChip;
+use crate::chip::AirChip;
 use crate::cpu::CpuChip;
 use crate::field::FieldLTUChip;
 use crate::memory::{MemoryChipKind, MemoryGlobalChip};
@@ -22,7 +23,6 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use crate::utils::AirChip;
 
 use p3_challenger::CanObserve;
 use p3_commit::Pcs;
@@ -149,17 +149,9 @@ impl Runtime {
         #[cfg(feature = "perf")]
         {
             for proof in segments_proofs.iter() {
-                sum += proof
-                    .commulative_sums
-                    .iter()
-                    .copied()
-                    .sum::<SC::Challenge>();
+                sum += proof.cumulative_sum();
             }
-            sum += global_proof
-                .commulative_sums
-                .iter()
-                .copied()
-                .sum::<SC::Challenge>();
+            sum += global_proof.cumulative_sum();
         }
 
         match sum.is_zero() {

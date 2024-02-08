@@ -78,7 +78,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d58d9f5da7b40e9bfff0b7e7816700be4019db97d4b6359fe7f94a9e22e42ac"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.7.4",
  "bytes",
 ]
 
@@ -342,6 +342,12 @@ checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
 
 [[package]]
 name = "arrayvec"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
+
+[[package]]
+name = "arrayvec"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
@@ -493,10 +499,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0231f06152bf547e9c2b5194f247cd97aacf6dcd8b15d8e5ec0663f64580da87"
 dependencies = [
  "arrayref",
- "arrayvec",
+ "arrayvec 0.7.4",
  "cc",
  "cfg-if",
- "constant_time_eq",
+ "constant_time_eq 0.3.0",
+ "rayon",
 ]
 
 [[package]]
@@ -656,9 +663,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.18"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e578d6ec4194633722ccf9544794b71b1385c3c027efe0c55db226fc880865c"
+checksum = "80c21025abd42669a92efc996ef13cfb2c5c627858421ea58d5c3b331a6c134f"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -666,21 +673,21 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.4.18"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4df4df40ec50c46000231c914968278b1eb05098cf8f1b3a518a95030e71d1c7"
+checksum = "458bf1f341769dfcf849846f65dffdf9146daa56bcd2a47cb4e1de9915567c99"
 dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
- "strsim",
+ "strsim 0.11.0",
 ]
 
 [[package]]
 name = "clap_derive"
-version = "4.4.7"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf9804afaaf59a91e75b022a30fb7229a7901f60c755489cc61c9b423b836442"
+checksum = "307bc0538d5f0f83b8248db3087aa92fe504e4691294d0c96c0eabc33f47ba47"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -690,9 +697,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
+checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 
 [[package]]
 name = "cli"
@@ -751,6 +758,12 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "constant_time_eq"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
 name = "constant_time_eq"
@@ -943,7 +956,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim",
+ "strsim 0.10.0",
  "syn 2.0.48",
 ]
 
@@ -1092,6 +1105,13 @@ dependencies = [
  "rfc6979",
  "signature",
  "spki",
+]
+
+[[package]]
+name = "ed25519-example"
+version = "0.1.0"
+dependencies = [
+ "succinct-core",
 ]
 
 [[package]]
@@ -1253,7 +1273,7 @@ version = "2.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aab3cef6cc1c9fd7f787043c81ad3052eff2b96a3878ef1526aa446311bdbfc9"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.7.4",
  "bytes",
  "chrono",
  "const-hex",
@@ -1324,7 +1344,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "139834ddba373bbdd213dffe02c8d110508dcf1726c2be27e8d1f7d7e1856418"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.7.4",
  "auto_impl",
  "bytes",
 ]
@@ -1986,6 +2006,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kangarootwelve_xkcp"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8988ead523af3eca105f6c16722f2aee442fc12c0095540a7751ad7de8ce3d91"
+dependencies = [
+ "arrayvec 0.5.2",
+ "cc",
+ "constant_time_eq 0.1.5",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2201,19 +2232,18 @@ checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
 name = "num-integer"
-version = "0.1.45"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
+checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "autocfg",
  "num-traits",
 ]
 
 [[package]]
 name = "num-iter"
-version = "0.1.43"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
+checksum = "d869c01cc0c455284163fd0092f1f93835385ccab5a98a0dcc497b2f8bf055a9"
 dependencies = [
  "autocfg",
  "num-integer",
@@ -2234,9 +2264,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39e3200413f237f41ab11ad6d161bc7239c84dcb631773ccd7de3dfe4b5c267c"
+checksum = "da0df0e5185db44f69b44f26786fe401b6c293d1907744beaa7fa62b2e5a517a"
 dependencies = [
  "autocfg",
  "libm",
@@ -2327,7 +2357,7 @@ version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "786393f80485445794f6043fd3138854dd109cc6c4bd1a6383db304c9ce9b9ce"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.7.4",
  "auto_impl",
  "bytes",
  "ethereum-types",
@@ -2399,7 +2429,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2408,7 +2438,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "rand",
@@ -2418,7 +2448,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -2427,7 +2457,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -2438,7 +2468,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -2449,7 +2479,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2460,7 +2490,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -2471,7 +2501,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -2489,7 +2519,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -2500,7 +2530,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2510,7 +2540,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -2519,7 +2549,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -2531,7 +2561,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -2543,7 +2573,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "rayon",
 ]
@@ -2551,7 +2581,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -2567,7 +2597,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -2583,7 +2613,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "criterion",
  "itertools 0.12.1",
@@ -2599,7 +2629,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -2613,7 +2643,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -2622,7 +2652,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -2640,7 +2670,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky3.git?branch=tamir/air-api-change#235afd82229a0f2f153f2ac369116e8ca9d12978"
+source = "git+ssh://git@github.com/succinctlabs/plonky3.git#a579596aacca45843fb1ee0b3cabe7412d812514"
 dependencies = [
  "serde",
 ]
@@ -2651,7 +2681,7 @@ version = "3.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "881331e34fa842a2fb61cc2db9643a8fedc615e47cfcc52597d1af0db9a7e8fe"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.7.4",
  "bitvec",
  "byte-slice-cast",
  "impl-trait-for-tuples",
@@ -3755,6 +3785,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
+name = "strsim"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ee073c9e4cd00e28217186dbe12796d692868f432bf2e97ee73bed0c56dfa01"
+
+[[package]]
 name = "strum"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3837,6 +3873,7 @@ dependencies = [
  "serde",
  "serde_json",
  "size",
+ "succinct-k12",
  "tempfile",
  "tracing",
  "tracing-forest",
@@ -3852,6 +3889,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "succinct-k12"
+version = "0.1.0"
+dependencies = [
+ "kangarootwelve_xkcp",
+ "p3-symmetric",
 ]
 
 [[package]]

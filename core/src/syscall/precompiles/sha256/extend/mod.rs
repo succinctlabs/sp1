@@ -46,9 +46,10 @@ pub mod extend_tests {
 
     use crate::{
         alu::AluEvent,
+        chip::Chip,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
         stark::LocalProver,
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::ShaExtendChip;

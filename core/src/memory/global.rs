@@ -1,5 +1,6 @@
 use crate::air::{AirInteraction, CurtaAirBuilder, Word};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::chip::Chip;
+use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -145,7 +146,7 @@ mod tests {
     use super::*;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
-    use crate::utils::{setup_logger, BabyBearPoseidon2, Chip, StarkUtils};
+    use crate::utils::{setup_logger, BabyBearPoseidon2, StarkUtils};
 
     #[test]
     fn test_memory_generate_trace() {

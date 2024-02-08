@@ -10,8 +10,9 @@ use p3_maybe_rayon::prelude::*;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
+use crate::chip::Chip;
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `SubChip`.
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
@@ -47,7 +48,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .sub_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].sub_events = shards[i].to_vec();
@@ -165,7 +166,10 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
@@ -174,7 +178,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]

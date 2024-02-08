@@ -21,7 +21,7 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use crate::utils::NB_ROWS_PER_SHARD;
+use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -215,7 +215,7 @@ impl Runtime {
             state: ExecutionState::new(program.pc_start),
             program,
             op_record: OpRecord::default(),
-            segment_size: NB_ROWS_PER_SHARD as u32 * 4,
+            segment_size: env::segment_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
             unconstrained: false,
             unconstrained_state: ForkState::default(),

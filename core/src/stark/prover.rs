@@ -1,14 +1,4 @@
-#[cfg(not(feature = "perf"))]
-use crate::stark::debug_constraints;
-
-use super::folder::ProverConstraintFolder;
-use super::permutation::eval_permutation_constraints;
-use super::util::decompose_and_flatten;
-use super::zerofier_coset::ZerofierOnCoset;
-use super::{types::*, StarkConfig};
-use crate::runtime::ExecutionRecord;
-use crate::stark::permutation::generate_permutation_trace;
-use crate::utils::AirChip;
+use itertools::izip;
 use p3_air::TwoRowMatrixView;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -25,6 +15,18 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::max;
 use std::marker::PhantomData;
+
+use super::folder::ProverConstraintFolder;
+use super::permutation::eval_permutation_constraints;
+use super::util::decompose_and_flatten;
+use super::zerofier_coset::ZerofierOnCoset;
+use super::{types::*, StarkConfig};
+use crate::chip::AirChip;
+use crate::runtime::ExecutionRecord;
+use crate::stark::permutation::generate_permutation_trace;
+
+#[cfg(not(feature = "perf"))]
+use crate::stark::debug_constraints;
 
 pub trait Prover<SC>
 where
@@ -114,7 +116,7 @@ where
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
-        let mut commulative_sums = Vec::with_capacity(chips.len());
+        let mut cumulative_sums = Vec::with_capacity(chips.len());
         tracing::debug_span!("generate permutation traces").in_scope(|| {
             chips
                 .par_iter()
@@ -122,14 +124,14 @@ where
                 .map(|(chip, trace)| {
                     let perm_trace =
                         generate_permutation_trace(chip.as_chip(), trace, &permutation_challenges);
-                    let commulative_sum = perm_trace
+                    let cumulative_sum = perm_trace
                         .row_slice(trace.height() - 1)
                         .last()
                         .copied()
                         .unwrap();
-                    (perm_trace, commulative_sum)
+                    (perm_trace, cumulative_sum)
                 })
-                .unzip_into_vecs(&mut permutation_traces, &mut commulative_sums);
+                .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
         });
 
         // Compute some statistics.
@@ -189,7 +191,7 @@ where
                     Self::quotient_values(
                         config,
                         &*chips[i],
-                        commulative_sums[i],
+                        cumulative_sums[i],
                         log_degrees[i],
                         log_quotient_degree,
                         &main_ldes[i],
@@ -324,11 +326,28 @@ where
                 .into_iter()
                 .map(|mut op| op.pop().unwrap())
                 .collect::<Vec<_>>();
-            let opened_values = SegmentOpenedValues {
-                main: main_opened_values,
-                permutation: permutation_opened_values,
-                quotient: quotient_opened_values,
-            };
+
+            let opened_values = izip!(
+                main_opened_values,
+                permutation_opened_values,
+                quotient_opened_values,
+                cumulative_sums,
+                log_degrees
+            )
+            .map(
+                |(main, permutation, quotient, cumulative_sum, log_degree)| ChipOpenedValues {
+                    preprocessed: AirOpenedValues {
+                        local: vec![],
+                        next: vec![],
+                    },
+                    main,
+                    permutation,
+                    quotient,
+                    cumulative_sum,
+                    log_degree,
+                },
+            )
+            .collect::<Vec<_>>();
 
             SegmentProof::<SC> {
                 commitment: SegmentCommitment {
@@ -336,10 +355,10 @@ where
                     permutation_commit,
                     quotient_commit,
                 },
-                opened_values,
-                commulative_sums,
+                opened_values: SegmentOpenedValues {
+                    chips: opened_values,
+                },
                 opening_proof,
-                degree_bits: log_degrees,
             }
         }
 
@@ -368,7 +387,7 @@ where
     fn quotient_values<C, MainLde, PermLde>(
         config: &SC,
         chip: &C,
-        commulative_sum: SC::Challenge,
+        cumulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,
         main_lde: &MainLde,
@@ -480,7 +499,7 @@ where
                     accumulator,
                 };
                 chip.eval(&mut folder);
-                eval_permutation_constraints(chip, &mut folder, commulative_sum);
+                eval_permutation_constraints(chip, &mut folder, cumulative_sum);
 
                 // quotient(x) = constraints(x) / Z_H(x)
                 let zerofier_inv: SC::PackedVal =

@@ -1,7 +1,7 @@
 use succinct_core::{utils, SuccinctProver};
 
 const FIBONACCI_ELF: &[u8] =
-    include_bytes!("../../../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    include_bytes!("../../../programs/demo/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");

@@ -2,7 +2,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use super::{air::BYTE_MULT_INDICES, ByteChip};
-use crate::{runtime::ExecutionRecord, utils::Chip};
+use crate::{chip::Chip, runtime::ExecutionRecord};
 
 pub const NUM_ROWS: usize = 1 << 16;
 

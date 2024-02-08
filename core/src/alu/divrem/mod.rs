@@ -76,10 +76,11 @@ use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `DivRemChip`.
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
@@ -187,7 +188,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .divrem_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].divrem_events = shards[i].to_vec();
@@ -749,7 +750,10 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;
@@ -757,7 +761,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::DivRemChip;
