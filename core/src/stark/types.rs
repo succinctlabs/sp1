@@ -173,6 +173,7 @@ impl<T> AirOpenedValues<T> {
     }
 }
 
+#[cfg(feature = "perf")]
 impl<SC: StarkConfig> SegmentProof<SC> {
     pub fn cumulative_sum(&self) -> Challenge<SC> {
         self.opened_values
