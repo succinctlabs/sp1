@@ -3,7 +3,8 @@ use std::{fs::File, io::Read};
 use succinct_core::{utils, SuccinctProver};
 use zeth_lib::{input::Input, EthereumTxEssence};
 
-const ZETH_ELF: &[u8] = include_bytes!("../../../programs/zeth/elf/riscv32im-succinct-zkvm-elf");
+const ZETH_ELF: &[u8] =
+    include_bytes!("../../../programs/demo/zeth/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     utils::setup_logger();

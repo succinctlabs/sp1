@@ -1,0 +1,11 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "io-zkvm"
+edition = "2021"
+
+[dependencies]
+succinct-zkvm = { path = "../../../zkvm" }
+succinct-precompiles = { path = "../../../precompiles" }
+serde = { version = "1.0.195", features = ["derive"] }
+bincode = "1.3.3"
