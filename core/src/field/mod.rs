@@ -13,8 +13,8 @@ use crate::air::CurtaAirBuilder;
 use crate::air::FieldAirBuilder;
 use crate::chip::Chip;
 use crate::runtime::Segment;
+use crate::utils::env;
 use crate::utils::pad_to_power_of_two;
-use crate::utils::NB_ROWS_PER_SHARD;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
@@ -52,7 +52,7 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
     fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         let shards = input
             .field_events
-            .chunks(NB_ROWS_PER_SHARD * 4)
+            .chunks(env::segment_size() * 4)
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].field_events = shards[i].to_vec();

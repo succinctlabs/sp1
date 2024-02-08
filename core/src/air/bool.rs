@@ -9,6 +9,7 @@ use valida_derive::AlignedBorrow;
 pub struct Bool<T>(pub T);
 
 impl<F: Field> From<bool> for Bool<F> {
+    /// Converts a boolean value to an AIR value.
     fn from(value: bool) -> Self {
         Self(F::from_bool(value))
     }

@@ -1,4 +1,5 @@
 pub mod ec;
+pub mod env;
 mod logger;
 mod programs;
 mod prove;
@@ -12,8 +13,6 @@ pub use tracer::*;
 pub use programs::*;
 
 use crate::{memory::MemoryCols, operations::field::params::Limbs};
-
-pub const NB_ROWS_PER_SHARD: usize = 1 << 18;
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
