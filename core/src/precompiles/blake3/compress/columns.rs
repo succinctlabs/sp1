@@ -8,14 +8,14 @@ use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::XorOperation;
 
-use super::compress_inner::CompressInnnerOperation;
+use super::compress_inner::CompressInnerOperation;
 
-pub const NUM_BLAKE3_EXTERNAL_COLS: usize = size_of::<Blake3ExternalCols<u8>>();
+pub const NUM_BLAKE3_EXTERNAL_COLS: usize = size_of::<Blake3CompressCols<u8>>();
 
-/// Cols to perform the either the first or the last external round of Blake3.
+/// Cols to perform the Compress
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Blake3ExternalCols<T> {
+pub struct Blake3CompressCols<T> {
     pub segment: T,
     pub clk: T,
 
@@ -32,7 +32,7 @@ pub struct Blake3ExternalCols<T> {
 
     pub mem_writes: [MemoryWriteCols<T>; 8],
 
-    pub compress_inner: CompressInnnerOperation<T>,
+    pub compress_inner: CompressInnerOperation<T>,
 
     pub final_xor: [XorOperation<T>; 8],
 

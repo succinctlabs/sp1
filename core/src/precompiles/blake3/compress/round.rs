@@ -11,6 +11,8 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 
 use super::mix::MixOperation;
+
+pub const NUM_ROUND_COLS: usize = size_of::<RoundOperation<u8>>();
 /// A set of columns needed to compute the `add_rc` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]

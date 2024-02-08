@@ -3,6 +3,9 @@ mod compress_inner;
 mod mix;
 mod round;
 
+/// The number of `Word`s in a Blake3 block.
+pub(crate) const B3_BLOCK_SIZE: usize = 16;
+
 #[cfg(test)]
 pub mod compress_tests {
     use crate::precompiles::blake3::compress::columns::NUM_BLAKE3_EXTERNAL_COLS;

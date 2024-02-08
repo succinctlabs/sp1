@@ -9,33 +9,58 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
+use crate::air::Word;
 use crate::operations::AddOperation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
-/// A set of columns needed to compute the `add_rc` of the input state.
+use crate::runtime::Segment;
+/// A set of columns needed to compute the `g` of the input state.
+///  ``` ignore
+/// fn g(state: &mut BlockWords, a: usize, b: usize, c: usize, d: usize, x: u32, y: u32) {
+///     state[a] = state[a].wrapping_add(state[b]).wrapping_add(x);
+///     state[d] = (state[d] ^ state[a]).rotate_right(16);
+///     state[c] = state[c].wrapping_add(state[d]);
+///     state[b] = (state[b] ^ state[c]).rotate_right(12);
+///     state[a] = state[a].wrapping_add(state[b]).wrapping_add(y);
+///     state[d] = (state[d] ^ state[a]).rotate_right(8);
+///     state[c] = state[c].wrapping_add(state[d]);
+///     state[b] = (state[b] ^ state[c]).rotate_right(7);
+/// }
+///  ```
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MixOperation<T> {
     pub state_a_plus_state_b: AddOperation<T>,
+    pub state_a_plus_state_b_plus_x: AddOperation<T>,
     pub state_d_xor_state_a: XorOperation<T>,
-    // Rotate right 16 can be done by just shifting bytes, so there's no operation necessary.
+    // Rotate right by 16 bits by just shifting bytes.
     pub state_c_plus_state_d: AddOperation<T>,
     pub state_b_xor_state_c: XorOperation<T>,
-
-    /// state[a], state[b], state[c], state[d] after the first 4 ops.
-    pub intermediate_states: [T; 4],
-
-    // Rotate right 12 can be done by just shifting bytes, so there's no operation necessary.
+    // Rotate right by 12 bits by just shifting bytes.
     pub state_a_plus_state_b_2: AddOperation<T>,
     pub state_a_plus_state_b_2_add_y: AddOperation<T>,
-
+    // Rotate right by 8 bits by just shifting bytes.
     pub state_d_xor_state_a_2: XorOperation<T>,
-
     pub state_c_plus_state_d_2: AddOperation<T>,
-
     pub state_b_xor_state_c_2: XorOperation<T>,
     pub state_b_xor_state_c_2_rotate_right_7: FixedRotateRightOperation<T>,
-
-    /// state[a], state[b], state[c], state[d] after all the steps.
+    /// `state[a]`, `state[b]`, `state[c]`, `state[d]` after all the steps.
     pub result: [T; 4],
+}
+
+impl<F: Field> MixOperation<F> {
+    pub fn populate(&mut self, segment: &mut Segment, a_u32: u32, b_u32: u32) -> u32 {
+        todo!();
+    }
+
+    pub fn eval<AB: CurtaAirBuilder>(
+        builder: &mut AB,
+        a: Word<AB::Var>,
+        b: Word<AB::Var>,
+        cols: AddOperation<AB::Var>,
+        is_real: AB::Var,
+    ) {
+        // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
+    }
 }
