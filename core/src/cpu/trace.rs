@@ -129,6 +129,7 @@ impl CpuChip {
         row
     }
 
+    /// Populates columns related to memory.
     fn populate_memory<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -150,6 +151,7 @@ impl CpuChip {
             return;
         }
 
+        // Populate addr_word and addr_aligned columns.
         let memory_columns: &mut MemoryColumns<F> =
             cols.opcode_specific_columns[0..NUM_MEMORY_COLUMNS].borrow_mut();
         let memory_addr = event.b.wrapping_add(event.c);
@@ -170,13 +172,14 @@ impl CpuChip {
             .and_modify(|op_new_events| op_new_events.push(add_event))
             .or_insert(vec![add_event]);
 
+        // Populate memory offsets.
         let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
         memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
         memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
         memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
         memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
 
-        // If it is a load instruction, set the unsigned_mem_val column
+        // If it is a load instruction, set the unsigned_mem_val column.
         let mem_value = event.memory_record.unwrap().value();
         if matches!(
             event.instruction.opcode,
@@ -249,6 +252,7 @@ impl CpuChip {
         }
     }
 
+    /// Populates columns related to branching.
     fn populate_branch<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -344,6 +348,7 @@ impl CpuChip {
         }
     }
 
+    /// Populate columns related to jumping.
     fn populate_jump<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -395,6 +400,7 @@ impl CpuChip {
         }
     }
 
+    /// Populate columns related to AUIPC.
     fn populate_auipc<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -425,7 +431,6 @@ impl CpuChip {
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
         let len: usize = values.len();
         let n_real_rows = values.len() / NUM_CPU_COLS;
-
         let last_row = &values[len - NUM_CPU_COLS..];
         let pc = last_row[CPU_COL_MAP.pc];
         let clk = last_row[CPU_COL_MAP.clk];
@@ -441,7 +446,7 @@ impl CpuChip {
         };
 
         rows[n_real_rows..]
-            .iter_mut() // TODO: can be replaced with par_iter_mut
+            .iter_mut()
             .enumerate()
             .for_each(|(n, padded_row)| {
                 padded_row[CPU_COL_MAP.pc] = pc;
@@ -449,26 +454,23 @@ impl CpuChip {
                 padded_row[CPU_COL_MAP.selectors.is_noop] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
-                // The operands will default by 0, so this will be a no-op anyways.
             });
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use p3_baby_bear::BabyBear;
-
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;
 
+    use super::*;
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, Instruction, Runtime, Segment},
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 
-    use super::*;
     #[test]
     fn generate_trace() {
         let mut segment = Segment::default();
