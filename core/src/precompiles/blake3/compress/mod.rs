@@ -3,6 +3,7 @@ mod compress_inner;
 mod execute;
 mod mix;
 mod round;
+mod trace;
 
 /// The number of `Word`s in a Blake3 block.
 pub(crate) const B3_BLOCK_SIZE: usize = 16;

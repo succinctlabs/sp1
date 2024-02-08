@@ -10,12 +10,12 @@ use crate::operations::XorOperation;
 
 use super::compress_inner::CompressInnerOperation;
 
-pub const NUM_BLAKE3_EXTERNAL_COLS: usize = size_of::<Blake3CompressCols<u8>>();
+pub const NUM_BLAKE3_COMPRESS_INNER_COLS: usize = size_of::<Blake3CompressInnerCols<u8>>();
 
 /// Cols to perform the Compress
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Blake3CompressCols<T> {
+pub struct Blake3CompressInnerCols<T> {
     pub segment: T,
     pub clk: T,
 
