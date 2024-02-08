@@ -1,6 +1,6 @@
 use crate::{
-    precompiles::{keccak256::KeccakPermuteEvent, SyscallContext},
     runtime::{Register, Syscall},
+    syscall::precompiles::{keccak256::KeccakPermuteEvent, SyscallContext},
 };
 
 use p3_keccak_air::{NUM_ROUNDS, RC};

@@ -1,9 +1,9 @@
 use crate::{
-    precompiles::{
+    runtime::{Register, Syscall},
+    syscall::precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
         SyscallContext,
     },
-    runtime::{Register, Syscall},
 };
 
 use super::ShaCompressChip;

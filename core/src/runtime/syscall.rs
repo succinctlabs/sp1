@@ -1,6 +1,8 @@
 use crate::runtime::{Register, Runtime};
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
+use super::ExecutionState;
+
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -68,11 +70,13 @@ impl SyscallCode {
 
 pub trait Syscall {
     /// Execute the syscall and return the resulting value of register a0.
-    fn execute(&self, rt: &mut SyscallContext) -> u32;
+    fn execute(&self, ctx: &mut SyscallContext) -> u32;
 
     /// The number of extra cycles that the syscall takes to execute. Unless this syscall is complex
     /// and requires many cycles, this should be zero.
-    fn num_extra_cycles(&self) -> u32;
+    fn num_extra_cycles(&self) -> u32 {
+        0
+    }
 }
 
 /// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
@@ -80,7 +84,7 @@ pub struct SyscallContext<'a> {
     current_segment: u32,
     pub clk: u32,
 
-    rt: &'a mut Runtime, // Reference
+    pub(crate) rt: &'a mut Runtime,
 }
 
 impl<'a> SyscallContext<'a> {

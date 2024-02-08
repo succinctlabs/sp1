@@ -22,10 +22,10 @@ pub mod field;
 pub mod lookup;
 pub mod memory;
 pub mod operations;
-pub mod precompiles;
 pub mod program;
 pub mod runtime;
 pub mod stark;
+pub mod syscall;
 pub mod utils;
 
 use runtime::{Program, Runtime};

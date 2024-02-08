@@ -7,13 +7,14 @@ mod segment;
 mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
-use crate::precompiles::edwards::EdAddAssignChip;
-use crate::precompiles::edwards::EdDecompressChip;
-use crate::precompiles::k256::K256DecompressChip;
-use crate::precompiles::keccak256::KeccakPermuteChip;
-use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::precompiles::weierstrass::WeierstrassAddAssignChip;
-use crate::precompiles::weierstrass::WeierstrassDoubleAssignChip;
+use crate::syscall::halt::SyscallHalt;
+use crate::syscall::precompiles::edwards::EdAddAssignChip;
+use crate::syscall::precompiles::edwards::EdDecompressChip;
+use crate::syscall::precompiles::k256::K256DecompressChip;
+use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
+use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
+use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
@@ -175,6 +176,7 @@ impl Runtime {
                 Secp256k1Parameters,
             >::new()),
         );
+        syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
 
         Self {
             record,

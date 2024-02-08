@@ -7,12 +7,12 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
-use crate::precompiles::edwards::EdDecompressEvent;
-use crate::precompiles::k256::K256DecompressEvent;
-use crate::precompiles::keccak256::KeccakPermuteEvent;
-use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
-use crate::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::runtime::MemoryRecord;
+use crate::syscall::precompiles::edwards::EdDecompressEvent;
+use crate::syscall::precompiles::k256::K256DecompressEvent;
+use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
+use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 
 #[derive(Default, Clone, Debug)]
 pub struct ExecutionRecord {
