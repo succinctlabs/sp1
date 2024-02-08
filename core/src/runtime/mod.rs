@@ -109,7 +109,7 @@ struct ForkState {
     /// Full record from original state
     pub(crate) record: OpRecord,
     /// Full segment from original state
-    pub(crate) segment: Segment,
+    pub(crate) segment: ExecutionRecord,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -138,7 +138,7 @@ pub struct Runtime {
     pub op_record: OpRecord,
 
     /// The record containing all events emitted during execution so far.
-    pub record: Segment,
+    pub record: ExecutionRecord,
 
     /// The maximum size of each segment.
     pub segment_size: u32,
@@ -159,7 +159,7 @@ pub struct Runtime {
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let record = Segment::default();
+        let record = ExecutionRecord::default();
 
         let mut syscall_map = HashMap::<SyscallCode, Box<dyn Syscall>>::default();
         syscall_map.insert(

@@ -15,7 +15,7 @@ use crate::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
-pub struct Segment {
+pub struct ExecutionRecord {
     /// The index of the segment.
     pub index: u32,
 
@@ -100,7 +100,7 @@ pub struct SegmentStats {
     pub nb_k256_decompress_events: usize,
 }
 
-impl Segment {
+impl ExecutionRecord {
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
         self.byte_lookups
             .entry(blu_event)

@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-use crate::runtime::{Runtime, Segment};
+use crate::runtime::{ExecutionRecord, Runtime};
 
 /// An interaction for a lookup or a permutation argument.
 pub struct Interaction<F: Field> {
@@ -128,8 +128,8 @@ fn babybear_to_int(n: BabyBear) -> i32 {
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
-    segment: &Segment,
-    global_segment: Option<&Segment>,
+    segment: &ExecutionRecord,
+    global_segment: Option<&ExecutionRecord>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
     if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
@@ -213,7 +213,7 @@ pub fn debug_interactions_with_all_chips(
 
 pub fn debug_interactions<F: Field>(
     chip: &dyn Chip<F>,
-    segment: &mut Segment,
+    segment: &mut ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
     BTreeMap<String, Vec<InteractionData<F>>>,

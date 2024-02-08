@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::CurtaAirBuilder;
 use crate::cpu::columns::instruction::InstructionCols;
 use crate::cpu::columns::opcode::OpcodeSelectorCols;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use crate::utils::{pad_to_power_of_two, Chip};
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
@@ -41,15 +41,15 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
         "Program".to_string()
     }
 
-    fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
+    fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.
         let mut instruction_counts = HashMap::new();
-        segment.cpu_events.clone().into_iter().for_each(|event| {
+        record.cpu_events.clone().into_iter().for_each(|event| {
             let pc = event.pc;
             instruction_counts
                 .entry(pc)
@@ -57,14 +57,14 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = segment
+        let rows = record
             .program
             .instructions
             .clone()
             .into_iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = segment.program.pc_base + (i as u32 * 4);
+                let pc = record.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_COLS];
                 let cols: &mut ProgramCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
@@ -130,7 +130,7 @@ mod tests {
 
     use crate::{
         program::ProgramChip,
-        runtime::{Instruction, Opcode, Program, Segment},
+        runtime::{ExecutionRecord, Instruction, Opcode, Program},
         utils::Chip,
     };
 
@@ -145,7 +145,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut segment = Segment {
+        let mut segment = ExecutionRecord {
             program: Arc::new(Program {
                 instructions,
                 pc_start: 0,

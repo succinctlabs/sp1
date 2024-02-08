@@ -7,7 +7,7 @@ use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_double_event;
 use crate::precompiles::limbs_from_biguint;
 use crate::precompiles::SyscallRuntime;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
@@ -161,17 +161,17 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         "WeierstrassDoubleAssign".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..segment.weierstrass_double_events.len() {
-            let event = segment.weierstrass_double_events[i];
+        for i in 0..record.weierstrass_double_events.len() {
+            let event = record.weierstrass_double_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -195,7 +195,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
             rows.push(row);
         }
-        segment.field_events.extend(new_field_events);
+        record.field_events.extend(new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];

@@ -8,7 +8,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{Opcode, Segment};
+use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `BitwiseChip`.
@@ -45,7 +45,7 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         "Bitwise".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .bitwise_events
             .chunks(NB_ROWS_PER_SHARD)
@@ -55,7 +55,7 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
             .bitwise_events
@@ -160,12 +160,12 @@ mod tests {
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
-    use crate::runtime::{Opcode, Segment};
+    use crate::runtime::{ExecutionRecord, Opcode};
     use crate::utils::{BabyBearPoseidon2, Chip, StarkUtils};
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
@@ -177,7 +177,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.bitwise_events = [
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),

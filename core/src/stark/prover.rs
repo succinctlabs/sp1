@@ -6,7 +6,7 @@ use super::permutation::eval_permutation_constraints;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, StarkConfig};
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use crate::stark::permutation::generate_permutation_trace;
 use crate::utils::AirChip;
 use p3_air::TwoRowMatrixView;
@@ -32,7 +32,7 @@ where
 {
     fn generate_segment_traces<F, EF>(
         config: &SC,
-        segments: &mut Vec<Segment>,
+        segments: &mut Vec<ExecutionRecord>,
         chips: &[Box<dyn AirChip<SC>>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
@@ -50,7 +50,7 @@ where
     fn commit_main(
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
-        segment: &mut Segment,
+        segment: &mut ExecutionRecord,
     ) -> MainData<SC>
     where
         SC::Val: PrimeField32,
@@ -509,7 +509,7 @@ where
 {
     fn generate_segment_traces<F, EF>(
         config: &SC,
-        segments: &mut Vec<Segment>,
+        segments: &mut Vec<ExecutionRecord>,
         chips: &[Box<dyn AirChip<SC>>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,

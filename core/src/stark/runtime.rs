@@ -16,7 +16,7 @@ use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::program::ProgramChip;
-use crate::runtime::{Runtime, Segment};
+use crate::runtime::{ExecutionRecord, Runtime};
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
@@ -65,7 +65,7 @@ impl Runtime {
         tracing::info!("{:#?}", self.record.stats());
 
         // For each chip, shard the events into segments.
-        let mut segments: Vec<Segment> = Vec::new();
+        let mut segments: Vec<ExecutionRecord> = Vec::new();
         local_chips.iter().for_each(|chip| {
             chip.shard(&self.record, &mut segments);
         });

@@ -9,7 +9,7 @@ use crate::air::{CurtaAirBuilder, Word};
 use valida_derive::AlignedBorrow;
 
 use crate::operations::AddOperation;
-use crate::runtime::{Opcode, Segment};
+use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `AddChip`.
@@ -41,7 +41,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
         "Add".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .add_events
             .chunks(NB_ROWS_PER_SHARD)
@@ -51,7 +51,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
         for i in 0..segment.add_events.len() {
@@ -126,13 +126,13 @@ mod tests {
     use super::AddChip;
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
+        runtime::{ExecutionRecord, Opcode},
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
@@ -144,7 +144,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         for _ in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);

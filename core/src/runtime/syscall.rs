@@ -1,5 +1,5 @@
 use crate::runtime::{Register, Runtime};
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::Segment};
+use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -94,7 +94,7 @@ impl<'a> SyscallRuntime<'a> {
         }
     }
 
-    pub fn segment_mut(&mut self) -> &mut Segment {
+    pub fn segment_mut(&mut self) -> &mut ExecutionRecord {
         &mut self.rt.record
     }
 

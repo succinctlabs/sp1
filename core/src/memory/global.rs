@@ -3,7 +3,7 @@ use crate::utils::{pad_to_power_of_two, Chip};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::Air;
@@ -41,13 +41,13 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
         "MemoryInit".to_string()
     }
 
-    fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
+    fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let memory_record = match self.kind {
-            MemoryChipKind::Init => &segment.first_memory_record,
-            MemoryChipKind::Finalize => &segment.last_memory_record,
-            MemoryChipKind::Program => &segment.program_memory_record,
+            MemoryChipKind::Init => &record.first_memory_record,
+            MemoryChipKind::Finalize => &record.last_memory_record,
+            MemoryChipKind::Program => &record.program_memory_record,
         };
         let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
             .map(|i| {

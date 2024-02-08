@@ -16,7 +16,7 @@ use crate::cpu::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
-use crate::runtime::{Opcode, Segment};
+use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{Chip, NB_ROWS_PER_SHARD};
 
 impl<F: PrimeField> Chip<F> for CpuChip {
@@ -24,14 +24,14 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         "CPU".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .cpu_events
             .chunks(NB_ROWS_PER_SHARD)
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             if i >= outputs.len() {
-                let mut segment = Segment::default();
+                let mut segment = ExecutionRecord::default();
                 segment.index = (i + 1) as u32;
                 segment.program = input.program.clone();
                 outputs.push(segment);
@@ -40,12 +40,12 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut new_blu_events = Vec::new();
         let mut new_alu_events = HashMap::new();
         let mut new_field_events = Vec::new();
 
-        let rows = segment
+        let rows = record
             .cpu_events
             .iter() // TODO: change this back to par_iter
             .map(|op| {
@@ -58,9 +58,9 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        segment.add_alu_events(new_alu_events);
-        segment.add_byte_lookup_events(new_blu_events);
-        segment.field_events.extend(new_field_events);
+        record.add_alu_events(new_alu_events);
+        record.add_byte_lookup_events(new_blu_events);
+        record.field_events.extend(new_field_events);
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
@@ -454,14 +454,14 @@ mod tests {
     use rand::thread_rng;
 
     use crate::{
-        runtime::{tests::simple_program, Instruction, Runtime, Segment},
+        runtime::{tests::simple_program, ExecutionRecord, Instruction, Runtime},
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 
     use super::*;
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.cpu_events = vec![CpuEvent {
             segment: 1,
             clk: 6,
