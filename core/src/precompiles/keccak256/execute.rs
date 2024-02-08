@@ -1,6 +1,6 @@
 use crate::{
-    precompiles::{keccak256::KeccakPermuteEvent, PrecompileRuntime},
-    runtime::Register,
+    precompiles::{keccak256::KeccakPermuteEvent, SyscallRuntime},
+    runtime::{Register, Syscall},
 };
 
 use p3_keccak_air::{NUM_ROUNDS, RC};
@@ -15,9 +15,12 @@ const PI: [usize; 24] = [
     10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4, 15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1,
 ];
 
-impl KeccakPermuteChip {
-    pub const NUM_CYCLES: u32 = NUM_ROUNDS as u32 * 4;
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+impl Syscall for KeccakPermuteChip {
+    fn num_extra_cycles(&self) -> u32 {
+        NUM_ROUNDS as u32 * 4
+    }
+
+    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
         // Read `state_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
 
@@ -79,7 +82,7 @@ impl KeccakPermuteChip {
             state[0] ^= RC[i];
         }
 
-        rt.clk += Self::NUM_CYCLES - 4;
+        rt.clk += self.num_extra_cycles() - 4;
         let mut values_to_write = Vec::new();
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;

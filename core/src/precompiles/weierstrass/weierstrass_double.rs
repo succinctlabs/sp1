@@ -6,8 +6,9 @@ use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_double_event;
 use crate::precompiles::limbs_from_biguint;
-use crate::precompiles::PrecompileRuntime;
-use crate::runtime::Segment;
+use crate::precompiles::SyscallRuntime;
+use crate::runtime::ExecutionRecord;
+use crate::runtime::Syscall;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -62,6 +63,18 @@ pub struct WeierstrassDoubleAssignChip<E, WP> {
     _marker: PhantomData<(E, WP)>,
 }
 
+impl<E: EllipticCurve, WP> Syscall for WeierstrassDoubleAssignChip<E, WP> {
+    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+        let event = create_ec_double_event::<E>(rt);
+        rt.segment_mut().weierstrass_double_events.push(event);
+        event.p_ptr + 1
+    }
+
+    fn num_extra_cycles(&self) -> u32 {
+        0
+    }
+}
+
 impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E, WP> {
     pub const NUM_CYCLES: u32 = 8;
 
@@ -69,12 +82,6 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E,
         Self {
             _marker: PhantomData,
         }
-    }
-
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        let event = create_ec_double_event::<E>(rt);
-        rt.segment_mut().weierstrass_double_events.push(event);
-        event.p_ptr + 1
     }
 
     fn populate_fp_ops<F: Field>(
@@ -154,11 +161,11 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         "WeierstrassDoubleAssign".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();

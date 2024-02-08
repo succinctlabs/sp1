@@ -9,8 +9,9 @@ use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_add_event;
-use crate::precompiles::PrecompileRuntime;
-use crate::runtime::Segment;
+use crate::precompiles::SyscallRuntime;
+use crate::runtime::ExecutionRecord;
+use crate::runtime::Syscall;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
@@ -64,20 +65,11 @@ pub struct EdAddAssignChip<E, EP> {
 }
 
 impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
-    pub const NUM_CYCLES: u32 = 8;
-
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
         }
     }
-
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
-        rt.segment_mut().ed_add_events.push(event);
-        event.p_ptr + 1
-    }
-
     fn populate_fp_ops<F: Field>(
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
@@ -113,16 +105,28 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
     }
 }
 
+impl<E: EllipticCurve, EP: EdwardsParameters> Syscall for EdAddAssignChip<E, EP> {
+    fn num_extra_cycles(&self) -> u32 {
+        8
+    }
+
+    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+        let event = create_ec_add_event::<E>(rt);
+        rt.segment_mut().ed_add_events.push(event);
+        event.p_ptr + 1
+    }
+}
+
 impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignChip<E, EP> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].ed_add_events = input.ed_add_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();

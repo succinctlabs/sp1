@@ -8,8 +8,9 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::precompiles::PrecompileRuntime;
-use crate::runtime::Segment;
+use crate::precompiles::SyscallRuntime;
+use crate::runtime::ExecutionRecord;
+use crate::runtime::Syscall;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
@@ -67,8 +68,14 @@ impl K256DecompressChip {
     pub fn new() -> Self {
         Self
     }
+}
 
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+impl Syscall for K256DecompressChip {
+    fn num_extra_cycles(&self) -> u32 {
+        0
+    }
+
+    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;
@@ -108,7 +115,7 @@ impl K256DecompressChip {
         let y_memory_records_vec = rt.mw_slice(slice_ptr, &y_words);
         let y_memory_records: [MemoryWriteRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
-        let segment = rt.current_segment;
+        let segment = rt.segment_clk();
         rt.segment_mut()
             .k256_decompress_events
             .push(K256DecompressEvent {
@@ -146,7 +153,7 @@ pub struct K256DecompressCols<T> {
 }
 
 impl<F: Field> K256DecompressCols<F> {
-    pub fn populate(&mut self, event: K256DecompressEvent, segment: &mut Segment) {
+    pub fn populate(&mut self, event: K256DecompressEvent, segment: &mut ExecutionRecord) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.segment = F::from_canonical_u32(event.segment);
@@ -287,11 +294,11 @@ impl<F: Field> Chip<F> for K256DecompressChip {
         "K256Decompress".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].k256_decompress_events = input.k256_decompress_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         for i in 0..segment.k256_decompress_events.len() {

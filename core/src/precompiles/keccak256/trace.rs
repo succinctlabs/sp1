@@ -11,14 +11,14 @@ use crate::{
         columns::{KeccakCols, NUM_KECCAK_COLS},
         STATE_SIZE,
     },
-    runtime::Segment,
+    runtime::ExecutionRecord,
     utils::Chip,
 };
 
 use super::KeccakPermuteChip;
 
 impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
-    fn name(&self) -> String {
+    fn name(&self) -> String {ExecutionRecord
         "KeccakPermute".to_string()
     }
 

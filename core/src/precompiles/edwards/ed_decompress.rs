@@ -8,8 +8,8 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::precompiles::PrecompileRuntime;
-use crate::runtime::Segment;
+use crate::precompiles::SyscallRuntime;
+use crate::runtime::ExecutionRecord;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
@@ -80,7 +80,7 @@ impl<F: Field> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
-        segment: &mut Segment,
+        segment: &mut ExecutionRecord,
     ) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
@@ -197,7 +197,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         }
     }
 
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+    pub fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;
@@ -240,7 +240,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
-        let segment = rt.current_segment;
+        let segment = rt.segment_clk();
         rt.segment_mut()
             .ed_decompress_events
             .push(EdDecompressEvent {
@@ -265,11 +265,11 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
         "EdDecompress".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         for i in 0..segment.ed_decompress_events.len() {

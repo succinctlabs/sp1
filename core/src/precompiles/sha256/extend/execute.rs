@@ -1,14 +1,16 @@
 use crate::{
-    precompiles::{sha256::ShaExtendEvent, PrecompileRuntime},
-    runtime::Register,
+    precompiles::{sha256::ShaExtendEvent, SyscallRuntime},
+    runtime::{Register, Syscall},
 };
 
 use super::ShaExtendChip;
 
-impl ShaExtendChip {
-    pub const NUM_CYCLES: u32 = 48 * 20;
+impl Syscall for ShaExtendChip {
+    fn num_extra_cycles(&self) -> u32 {
+        48 * 20
+    }
 
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
         // Initialize the registers.
         let a0 = Register::X10;
 

@@ -14,7 +14,6 @@ use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::precompiles::PrecompileRuntime;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
@@ -48,6 +47,54 @@ pub enum AccessPosition {
 
 /// Holds data to track changes made to the runtime since a fork point.
 #[derive(Debug, Clone, Default)]
+struct ExecutionState {
+    /// The global clock keeps track of how many instrutions have been executed through all segments.
+    pub global_clk: u32,
+
+    /// The segment clock keeps track of how many segments have been executed.
+    pub segment_clk: u32,
+
+    /// The clock keeps track of how many instructions have been executed in this segment.
+    pub clk: u32,
+
+    /// The program counter.
+    pub pc: u32,
+
+    /// The memory which instructions operate over. Values contain the memory value and last segment
+    /// + timestamp that each memory address was accessed.
+    pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
+
+    /// A stream of input values (global to the entire program).
+    pub input_stream: Vec<u8>,
+
+    /// A ptr to the current position in the input stream incremented by LWA opcode.
+    pub input_stream_ptr: usize,
+
+    /// A stream of output values from the program (global to entire program).
+    pub output_stream: Vec<u8>,
+
+    /// A ptr to the current position in the output stream, incremented when reading from output_stream.
+    pub output_stream_ptr: usize,
+}
+
+impl ExecutionState {
+    fn new(pc_start: u32) -> Self {
+        Self {
+            global_clk: 0,
+            segment_clk: 1,
+            clk: 0,
+            pc: pc_start,
+            memory: HashMap::default(),
+            input_stream: Vec::new(),
+            input_stream_ptr: 0,
+            output_stream: Vec::new(),
+            output_stream_ptr: 0,
+        }
+    }
+}
+
+/// Holds data to track changes made to the runtime since a fork point.
+#[derive(Debug, Clone, Default)]
 struct ForkState {
     /// Original global_clk
     pub(crate) global_clk: u32,
@@ -60,13 +107,13 @@ struct ForkState {
     /// Full memory_access map from original state
     pub(crate) memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
     /// Full record from original state
-    pub(crate) record: Record,
+    pub(crate) record: OpRecord,
     /// Full segment from original state
-    pub(crate) segment: Segment,
+    pub(crate) segment: ExecutionRecord,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub struct Record {
+pub struct OpRecord {
     pub a: Option<MemoryRecordEnum>,
     pub b: Option<MemoryRecordEnum>,
     pub c: Option<MemoryRecordEnum>,
@@ -80,51 +127,18 @@ pub struct Record {
 ///
 /// For more information on the RV32IM instruction set, see the following:
 /// https://www.cs.sfu.ca/~ashriram/Courses/CS295/assets/notebooks/RISCV/RISCV_CARD.pdf
-#[derive(Debug)]
 pub struct Runtime {
-    /// The global clock keeps track of how many instrutions have been executed through all segments.
-    pub global_clk: u32,
-
-    /// The segment clock keeps track of how many segments have been executed.
-    pub segment_clk: u32,
-
-    /// The clock keeps track of how many instructions have been executed in this segment.
-    pub clk: u32,
-
-    /// The program counter.
-    pub pc: u32,
-
     /// The program.
-    pub program: Arc<Program>,
+    pub program: Program,
 
-    /// The memory which instructions operate over.
-    pub memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
+    /// Current global state.
+    pub state: ExecutionState,
 
-    /// Maps a memory address to (segment, timestamp) that it was touched.
-    pub memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
+    /// The record for the current CPU opcode containing relevant events.
+    pub op_record: OpRecord,
 
-    /// A stream of input values (global to the entire program).
-    pub input_stream: Vec<u8>,
-
-    /// A ptr to the current position in the input stream incremented by LWA opcode.
-    pub input_stream_ptr: usize,
-
-    /// A stream of output values from the program (global to entire program).
-    pub output_stream: Vec<u8>,
-
-    /// A ptr to the current position in the output stream, incremented when reading from output_stream.
-    pub output_stream_ptr: usize,
-
-    /// The current segment for this section of the program.
-    pub segment: Segment,
-
-    /// The current record for the CPU event,
-    pub record: Record,
-
-    /// Global information needed for "global" chips, like the memory argument. It's a bit
-    /// semantically incorrect to have this as a "Segment", since it's not really a segment
-    /// in the traditional sense.
-    pub global_segment: Segment,
+    /// The record containing all events emitted during execution so far.
+    pub record: ExecutionRecord,
 
     /// The maximum size of each segment.
     pub segment_size: u32,
@@ -134,39 +148,43 @@ pub struct Runtime {
 
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
-    /// the unconstrained block. The only thing preserved is writes to the hint stream.
+    /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
 
     pub(self) unconstrained_state: ForkState,
+
+    pub syscall_map: HashMap<SyscallCode, Box<dyn Syscall>>,
 }
 
 impl Runtime {
     // Create a new runtime
     pub fn new(program: Program) -> Self {
-        let program_rc = Arc::new(program);
-        let segment = Segment {
-            program: program_rc.clone(),
-            ..Default::default()
-        };
+        let record = ExecutionRecord::default();
+
+        let mut syscall_map = HashMap::<SyscallCode, Box<dyn Syscall>>::default();
+        syscall_map.insert(
+            SyscallCode::KECCAK_PERMUTE,
+            Box::new(KeccakPermuteChip::new()),
+        );
+        syscall_map.insert(SyscallCode::SHA_EXTEND, Box::new(ShaExtendChip::new()));
+        syscall_map.insert(
+            SyscallCode::SECP256K1_ADD,
+            Box::new(WeierstrassAddAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            >::new()),
+        );
+
         Self {
-            global_clk: 0,
-            segment_clk: 1,
-            clk: 0,
-            pc: program_rc.pc_start,
-            program: program_rc,
-            memory: HashMap::default(),
-            memory_access: HashMap::default(),
-            input_stream: Vec::new(),
-            input_stream_ptr: 0,
-            output_stream: Vec::new(),
-            output_stream_ptr: 0,
-            segment,
-            record: Record::default(),
+            record,
+            program,
+            state: ExecutionState::new(program.pc_start),
+            op_record: OpRecord::default(),
             segment_size: NB_ROWS_PER_SHARD as u32 * 4,
-            global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
             unconstrained: false,
             unconstrained_state: ForkState::default(),
+            syscall_map,
         }
     }
 
@@ -175,8 +193,8 @@ impl Runtime {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            registers[i] = match self.memory.get(&addr) {
-                Some(value) => *value,
+            registers[i] = match self.state.memory.get(&addr) {
+                Some((value, _, _)) => value,
                 None => 0,
             };
         }
@@ -186,16 +204,16 @@ impl Runtime {
     /// Get the current value of a register.
     pub fn register(&self, register: Register) -> u32 {
         let addr = register as u32;
-        match self.memory.get(&addr) {
-            Some(value) => *value,
+        match self.state.memory.get(&addr) {
+            Some((value, _, _)) => *value,
             None => 0,
         }
     }
 
     /// Get the current value of a word.
     pub fn word(&self, addr: u32) -> u32 {
-        match self.memory.get(&addr) {
-            Some(value) => *value,
+        match self.state.memory.get(&addr) {
+            Some((value, _, _)) => *value,
             None => 0,
         }
     }
@@ -228,7 +246,26 @@ impl Runtime {
     }
 
     pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
-        let memory_entry = self.memory.entry(addr);
+        let memory_entry = self.state.memory.entry(addr);
+        if self.unconstrained {
+            let prev_value = match memory_entry {
+                Entry::Occupied(ref entry) => Some(entry.get().0),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state
+                .memory_diff
+                .entry(addr)
+                .or_insert(prev_value);
+        }
+        let entry_value = memory_entry.or_insert((0, 0, 0));
+        let (value, prev_segment, prev_timestamp) = *entry_value;
+        (entry_value.1, entry_value.2) = (segment, clk);
+
+        MemoryReadRecord::new(value, segment, clk, prev_segment, prev_timestamp)
+    }
+
+    pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
+        let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
             let prev_value = match memory_entry {
                 Entry::Occupied(ref entry) => Some(*entry.get()),
@@ -239,33 +276,9 @@ impl Runtime {
                 .entry(addr)
                 .or_insert(prev_value);
         }
-        let value = *memory_entry.or_insert(0);
-        let (prev_segment, prev_timestamp) =
-            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
-
-        self.memory_access.insert(addr, (segment, clk));
-
-        MemoryReadRecord::new(value, segment, clk, prev_segment, prev_timestamp)
-    }
-
-    pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
-        let memory_value_entry = self.memory.entry(addr);
-        let (prev_segment, prev_timestamp) =
-            self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
-        if self.unconstrained {
-            let prev_value = match memory_value_entry {
-                Entry::Occupied(ref entry) => Some(*entry.get()),
-                Entry::Vacant(_) => None,
-            };
-            self.unconstrained_state
-                .memory_diff
-                .entry(addr)
-                .or_insert(prev_value);
-        }
-        let memory_value = memory_value_entry.or_insert(0);
-        let prev_value = *memory_value;
-        self.memory_access.insert(addr, (segment, clk));
-        *memory_value = value;
+        let entry_value = memory_entry.or_insert((0, 0, 0));
+        let (prev_value, prev_segment, prev_timestamp) = *entry_value;
+        *entry_value = (value, segment, clk);
         MemoryWriteRecord::new(
             value,
             segment,
@@ -288,10 +301,10 @@ impl Runtime {
 
         if !self.unconstrained {
             match position {
-                AccessPosition::A => self.record.a = Some(record.into()),
-                AccessPosition::B => self.record.b = Some(record.into()),
-                AccessPosition::C => self.record.c = Some(record.into()),
-                AccessPosition::Memory => self.record.memory = Some(record.into()),
+                AccessPosition::A => self.op_record.a = Some(record.into()),
+                AccessPosition::B => self.op_record.b = Some(record.into()),
+                AccessPosition::C => self.op_record.c = Some(record.into()),
+                AccessPosition::Memory => self.op_record.memory = Some(record.into()),
             }
         }
         record.value
@@ -312,20 +325,20 @@ impl Runtime {
         if !self.unconstrained {
             match position {
                 AccessPosition::A => {
-                    assert!(self.record.a.is_none());
-                    self.record.a = Some(record.into());
+                    assert!(self.op_record.a.is_none());
+                    self.op_record.a = Some(record.into());
                 }
                 AccessPosition::B => {
-                    assert!(self.record.b.is_none());
-                    self.record.b = Some(record.into());
+                    assert!(self.op_record.b.is_none());
+                    self.op_record.b = Some(record.into());
                 }
                 AccessPosition::C => {
-                    assert!(self.record.c.is_none());
-                    self.record.c = Some(record.into());
+                    assert!(self.op_record.c.is_none());
+                    self.op_record.c = Some(record.into());
                 }
                 AccessPosition::Memory => {
-                    assert!(self.record.memory.is_none());
-                    self.record.memory = Some(record.into());
+                    assert!(self.op_record.memory.is_none());
+                    self.op_record.memory = Some(record.into());
                 }
             }
         }
@@ -359,7 +372,7 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
-        record: Record,
+        record: OpRecord,
     ) {
         let cpu_event = CpuEvent {
             segment,
@@ -375,7 +388,7 @@ impl Runtime {
             memory: memory_store_value,
             memory_record: record.memory,
         };
-        self.segment.cpu_events.push(cpu_event);
+        self.record.cpu_events.push(cpu_event);
     }
 
     /// Emit an ALU event.
@@ -389,28 +402,28 @@ impl Runtime {
         };
         match opcode {
             Opcode::ADD => {
-                self.segment.add_events.push(event);
+                self.record.add_events.push(event);
             }
             Opcode::SUB => {
-                self.segment.sub_events.push(event);
+                self.record.sub_events.push(event);
             }
             Opcode::XOR | Opcode::OR | Opcode::AND => {
-                self.segment.bitwise_events.push(event);
+                self.record.bitwise_events.push(event);
             }
             Opcode::SLL => {
-                self.segment.shift_left_events.push(event);
+                self.record.shift_left_events.push(event);
             }
             Opcode::SRL | Opcode::SRA => {
-                self.segment.shift_right_events.push(event);
+                self.record.shift_right_events.push(event);
             }
             Opcode::SLT | Opcode::SLTU => {
-                self.segment.lt_events.push(event);
+                self.record.lt_events.push(event);
             }
             Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.segment.mul_events.push(event);
+                self.record.mul_events.push(event);
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                self.segment.divrem_events.push(event);
+                self.record.divrem_events.push(event);
             }
             _ => {}
         }
@@ -484,6 +497,10 @@ impl Runtime {
         self.program.instructions[idx]
     }
 
+    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Box<dyn Syscall>> {
+        self.syscall_map.get(&code)
+    }
+
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.pc;
@@ -493,7 +510,7 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.record = Record::default();
+        self.op_record = OpRecord::default();
 
         match instruction.opcode {
             // Arithmetic instructions.
@@ -696,200 +713,218 @@ impl Runtime {
                 let a1 = Register::X11;
                 let a2 = Register::X12;
                 let syscall_id = self.register(t0);
-                let syscall = Syscall::from_u32(syscall_id);
+                let syscall = SyscallCode::from_u32(syscall_id);
 
                 let init_clk = self.clk;
-                let mut precompile_rt = PrecompileRuntime::new(self);
+                // let syscall_map = &self.syscall_map;
+                let syscall_impl = self.get_syscall(syscall);
+                let mut precompile_rt = SyscallRuntime::new(self);
+                // let syscall_impl = self.syscall_map.get(&syscall).as();
+                // let syscall_impl = syscall_map.entry(syscall);
 
-                match syscall {
-                    Syscall::HALT => {
-                        a = self.register(a0);
-                        next_pc = 0;
-                    }
-                    Syscall::LWA => {
-                        // TODO: in the future this will be used for private vs. public inputs.
-                        let _ = self.register(a0);
-                        let num_bytes = self.register(a1) as usize;
-                        let mut read_bytes = [0u8; 4];
-                        for i in 0..num_bytes {
-                            if self.input_stream_ptr >= self.input_stream.len() {
-                                tracing::error!("Not enough input words were passed in. Use --input to pass in more words.");
-                                exit(1);
-                            }
-                            read_bytes[i] = self.input_stream[self.input_stream_ptr];
-                            self.input_stream_ptr += 1;
-                        }
-                        let word = u32::from_le_bytes(read_bytes);
-                        a = word;
-                    }
-                    Syscall::SHA_EXTEND => {
-                        a = ShaExtendChip::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(init_clk + ShaExtendChip::NUM_CYCLES, self.clk);
-                    }
-                    Syscall::SHA_COMPRESS => {
-                        a = ShaCompressChip::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(init_clk + ShaCompressChip::NUM_CYCLES, self.clk);
-                    }
-                    Syscall::KECCAK_PERMUTE => {
-                        a = KeccakPermuteChip::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(init_clk + KeccakPermuteChip::NUM_CYCLES, self.clk);
-                    }
-                    Syscall::WRITE => {
-                        let fd = self.register(a0);
-                        if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
-                            let write_buf = self.register(a1);
-                            let nbytes = self.register(a2);
-                            // Read nbytes from memory starting at write_buf.
-                            let bytes = (0..nbytes)
-                                .map(|i| self.byte(write_buf + i))
-                                .collect::<Vec<u8>>();
-                            let slice = bytes.as_slice();
-                            if fd == 1 {
-                                let s = core::str::from_utf8(slice).unwrap();
-                                if s.contains("cycle-tracker-start:") {
-                                    let fn_name = s
-                                        .split("cycle-tracker-start:")
-                                        .last()
-                                        .unwrap()
-                                        .trim_end()
-                                        .trim_start();
-                                    let depth = self.cycle_tracker.len() as u32;
-                                    self.cycle_tracker
-                                        .insert(fn_name.to_string(), (self.global_clk, depth));
-                                    let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                                    log::info!("{}┌╴{}", padding, fn_name);
-                                } else if s.contains("cycle-tracker-end:") {
-                                    let fn_name = s
-                                        .split("cycle-tracker-end:")
-                                        .last()
-                                        .unwrap()
-                                        .trim_end()
-                                        .trim_start();
-                                    let (start, depth) =
-                                        self.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
-                                    // Leftpad by 2 spaces for each depth.
-                                    let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                                    log::info!(
-                                        "{}└╴{} cycles",
-                                        padding,
-                                        u32_to_comma_separated(self.global_clk - start)
-                                    );
-                                } else {
-                                    log::info!("stdout: {}", s.trim_end());
-                                }
-                            } else if fd == 2 {
-                                let s = core::str::from_utf8(slice).unwrap();
-                                log::info!("stderr: {}", s.trim_end());
-                            } else if fd == 3 {
-                                self.output_stream.extend_from_slice(slice);
-                            } else if fd == 4 {
-                                self.input_stream.extend_from_slice(slice);
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                        a = 0;
-                    }
-                    Syscall::ED_ADD => {
-                        a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::execute(
-                            &mut precompile_rt,
-                        );
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(
-                            init_clk
-                                + EdAddAssignChip::<
-                                    EdwardsCurve<Ed25519Parameters>,
-                                    Ed25519Parameters,
-                                >::NUM_CYCLES,
-                            self.clk
-                        );
-                    }
-                    Syscall::ED_DECOMPRESS => {
-                        a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(init_clk + 4, self.clk);
-                    }
-                    Syscall::SECP256K1_ADD => {
-                        a = WeierstrassAddAssignChip::<
-                            SWCurve<Secp256k1Parameters>,
-                            Secp256k1Parameters,
-                        >::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(
-                            init_clk
-                                + WeierstrassAddAssignChip::<
-                                    SWCurve<Secp256k1Parameters>,
-                                    Secp256k1Parameters,
-                                >::NUM_CYCLES,
-                            self.clk
-                        );
-                    }
-                    Syscall::SECP256K1_DOUBLE => {
-                        a = WeierstrassDoubleAssignChip::<
-                            SWCurve<Secp256k1Parameters>,
-                            Secp256k1Parameters,
-                        >::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(
-                            init_clk
-                                + WeierstrassDoubleAssignChip::<
-                                    SWCurve<Secp256k1Parameters>,
-                                    Secp256k1Parameters,
-                                >::NUM_CYCLES,
-                            self.clk
-                        );
-                    }
-                    Syscall::SECP256K1_DECOMPRESS => {
-                        a = K256DecompressChip::execute(&mut precompile_rt);
-                        self.clk = precompile_rt.clk;
-                        assert_eq!(init_clk + 4, self.clk);
-                    }
-                    Syscall::ENTER_UNCONSTRAINED => {
-                        if self.unconstrained {
-                            panic!("Unconstrained block is already active.");
-                        }
-                        self.unconstrained = true;
-                        self.unconstrained_state = ForkState {
-                            global_clk: self.global_clk,
-                            clk: self.clk,
-                            pc: self.pc,
-                            memory_diff: HashMap::default(),
-                            memory_access: std::mem::take(&mut self.memory_access),
-                            segment: std::mem::take(&mut self.segment),
-                            record: std::mem::take(&mut self.record),
-                        };
-                        a = 1;
-                    }
-                    Syscall::EXIT_UNCONSTRAINED => {
-                        a = 0;
-                        // Reset the state of the runtime.
-                        if self.unconstrained {
-                            self.global_clk = self.unconstrained_state.global_clk;
-                            self.clk = self.unconstrained_state.clk;
-                            self.pc = self.unconstrained_state.pc;
-                            next_pc = self.pc.wrapping_add(4);
-                            for (addr, value) in self.unconstrained_state.memory_diff.drain() {
-                                match value {
-                                    Some(value) => {
-                                        self.memory.insert(addr, value);
-                                    }
-                                    None => {
-                                        self.memory.remove(&addr);
-                                    }
-                                }
-                            }
-                            self.segment = std::mem::take(&mut self.unconstrained_state.segment);
-                            self.memory_access =
-                                std::mem::take(&mut self.unconstrained_state.memory_access);
-                            self.record = std::mem::take(&mut self.unconstrained_state.record);
-                            self.unconstrained = false;
-                        }
-                        self.unconstrained_state = ForkState::default();
-                    }
+                // let syscall_impl =
+                //     syscall_impl.or_insert_with(|| panic!("Unsupported syscall: {:?}", syscall));
+                // a = syscall_impl.execute(&mut precompile_rt);
+                // self.clk = precompile_rt.clk;
+                // assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.clk);
+
+                if let Some(syscall_impl) = syscall_impl {
+                    a = syscall_impl.execute(&mut precompile_rt);
+                    self.clk = precompile_rt.clk;
+                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.clk);
+                } else {
+                    panic!("Unsupported syscall: {:?}", syscall);
                 }
+
+                // match syscall {
+                //     SyscallCode::HALT => {
+                //         a = self.register(a0);
+                //         next_pc = 0;
+                //     }
+                //     SyscallCode::LWA => {
+                //         // TODO: in the future this will be used for private vs. public inputs.
+                //         let _ = self.register(a0);
+                //         let num_bytes = self.register(a1) as usize;
+                //         let mut read_bytes = [0u8; 4];
+                //         for i in 0..num_bytes {
+                //             if self.input_stream_ptr >= self.input_stream.len() {
+                //                 tracing::error!("Not enough input words were passed in. Use --input to pass in more words.");
+                //                 exit(1);
+                //             }
+                //             read_bytes[i] = self.input_stream[self.input_stream_ptr];
+                //             self.input_stream_ptr += 1;
+                //         }
+                //         let word = u32::from_le_bytes(read_bytes);
+                //         a = word;
+                //     }
+                //     SyscallCode::SHA_EXTEND => {
+                //         a = ShaExtendChip::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + ShaExtendChip::NUM_EXTRA_CYCLES, self.clk);
+                //     }
+                //     SyscallCode::SHA_COMPRESS => {
+                //         a = ShaCompressChip::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + ShaCompressChip::NUM_EXTRA_CYCLES, self.clk);
+                //     }
+                //     SyscallCode::KECCAK_PERMUTE => {
+                //         a = KeccakPermuteChip::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + KeccakPermuteChip::NUM_EXTRA_CYCLES, self.clk);
+                //     }
+                //     SyscallCode::WRITE => {
+                //         let fd = self.register(a0);
+                //         if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
+                //             let write_buf = self.register(a1);
+                //             let nbytes = self.register(a2);
+                //             // Read nbytes from memory starting at write_buf.
+                //             let bytes = (0..nbytes)
+                //                 .map(|i| self.byte(write_buf + i))
+                //                 .collect::<Vec<u8>>();
+                //             let slice = bytes.as_slice();
+                //             if fd == 1 {
+                //                 let s = core::str::from_utf8(slice).unwrap();
+                //                 if s.contains("cycle-tracker-start:") {
+                //                     let fn_name = s
+                //                         .split("cycle-tracker-start:")
+                //                         .last()
+                //                         .unwrap()
+                //                         .trim_end()
+                //                         .trim_start();
+                //                     let depth = self.cycle_tracker.len() as u32;
+                //                     self.cycle_tracker
+                //                         .insert(fn_name.to_string(), (self.global_clk, depth));
+                //                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
+                //                     log::info!("{}┌╴{}", padding, fn_name);
+                //                 } else if s.contains("cycle-tracker-end:") {
+                //                     let fn_name = s
+                //                         .split("cycle-tracker-end:")
+                //                         .last()
+                //                         .unwrap()
+                //                         .trim_end()
+                //                         .trim_start();
+                //                     let (start, depth) =
+                //                         self.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
+                //                     // Leftpad by 2 spaces for each depth.
+                //                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
+                //                     log::info!(
+                //                         "{}└╴{} cycles",
+                //                         padding,
+                //                         u32_to_comma_separated(self.global_clk - start)
+                //                     );
+                //                 } else {
+                //                     log::info!("stdout: {}", s.trim_end());
+                //                 }
+                //             } else if fd == 2 {
+                //                 let s = core::str::from_utf8(slice).unwrap();
+                //                 log::info!("stderr: {}", s.trim_end());
+                //             } else if fd == 3 {
+                //                 self.output_stream.extend_from_slice(slice);
+                //             } else if fd == 4 {
+                //                 self.input_stream.extend_from_slice(slice);
+                //             } else {
+                //                 unreachable!()
+                //             }
+                //         }
+                //         a = 0;
+                //     }
+                //     SyscallCode::ED_ADD => {
+                //         a = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::execute(
+                //             &mut precompile_rt,
+                //         );
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(
+                //             init_clk
+                //                 + EdAddAssignChip::<
+                //                     EdwardsCurve<Ed25519Parameters>,
+                //                     Ed25519Parameters,
+                //                 >::NUM_EXTRA_CYCLES,
+                //             self.clk
+                //         );
+                //     }
+                //     SyscallCode::ED_DECOMPRESS => {
+                //         a = EdDecompressChip::<Ed25519Parameters>::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + 4, self.clk);
+                //     }
+                //     SyscallCode::SECP256K1_ADD => {
+                //         a = WeierstrassAddAssignChip::<
+                //             SWCurve<Secp256k1Parameters>,
+                //             Secp256k1Parameters,
+                //         >::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(
+                //             init_clk
+                //                 + WeierstrassAddAssignChip::<
+                //                     SWCurve<Secp256k1Parameters>,
+                //                     Secp256k1Parameters,
+                //                 >::NUM_EXTRA_CYCLES,
+                //             self.clk
+                //         );
+                //     }
+                //     SyscallCode::SECP256K1_DOUBLE => {
+                //         a = WeierstrassDoubleAssignChip::<
+                //             SWCurve<Secp256k1Parameters>,
+                //             Secp256k1Parameters,
+                //         >::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(
+                //             init_clk
+                //                 + WeierstrassDoubleAssignChip::<
+                //                     SWCurve<Secp256k1Parameters>,
+                //                     Secp256k1Parameters,
+                //                 >::NUM_EXTRA_CYCLES,
+                //             self.clk
+                //         );
+                //     }
+                //     SyscallCode::SECP256K1_DECOMPRESS => {
+                //         // a = K256DecompressChip::execute(&mut precompile_rt);
+                //         self.clk = precompile_rt.clk;
+                //         assert_eq!(init_clk + 4, self.clk);
+                //     }
+                //     SyscallCode::ENTER_UNCONSTRAINED => {
+                //         if self.unconstrained {
+                //             panic!("Unconstrained block is already active.");
+                //         }
+                //         self.unconstrained = true;
+                //         self.unconstrained_state = ForkState {
+                //             global_clk: self.global_clk,
+                //             clk: self.clk,
+                //             pc: self.pc,
+                //             memory_diff: HashMap::default(),
+                //             memory_access: std::mem::take(&mut self.state.memory_access),
+                //             segment: std::mem::take(&mut self.record),
+                //             record: std::mem::take(&mut self.record),
+                //         };
+                //         a = 1;
+                //     }
+                //     SyscallCode::EXIT_UNCONSTRAINED => {
+                //         a = 0;
+                //         // Reset the state of the runtime.
+                //         if self.unconstrained {
+                //             self.global_clk = self.unconstrained_state.global_clk;
+                //             self.clk = self.unconstrained_state.clk;
+                //             self.pc = self.unconstrained_state.pc;
+                //             next_pc = self.pc.wrapping_add(4);
+                //             for (addr, value) in self.unconstrained_state.memory_diff.drain() {
+                //                 match value {
+                //                     Some(value) => {
+                //                         self.state.memory.insert(addr, value);
+                //                     }
+                //                     None => {
+                //                         self.state.memory.remove(&addr);
+                //                     }
+                //                 }
+                //             }
+                //             self.record = std::mem::take(&mut self.unconstrained_state.segment);
+                //             self.state.memory_access =
+                //                 std::mem::take(&mut self.unconstrained_state.memory_access);
+                //             self.record = std::mem::take(&mut self.unconstrained_state.record);
+                //             self.unconstrained = false;
+                //         }
+                //         self.unconstrained_state = ForkState::default();
+                //     }
+                // }
 
                 // We have to do this AFTER the precompile execution because the CPU event
                 // gets emitted at the end of this loop with the incremented clock.
@@ -979,7 +1014,7 @@ impl Runtime {
             b,
             c,
             memory_store_value,
-            self.record,
+            self.op_record,
         );
     }
 
@@ -987,8 +1022,8 @@ impl Runtime {
     pub fn run(&mut self) {
         // First load the memory image into the memory table.
         for (addr, value) in self.program.memory_image.iter() {
-            self.memory.insert(*addr, *value);
-            self.memory_access.insert(*addr, (0, 0));
+            self.state.memory.insert(*addr, *value);
+            self.state.memory_access.insert(*addr, (0, 0));
         }
 
         self.clk += 1;
@@ -1054,9 +1089,9 @@ impl Runtime {
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
-        let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
+        let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let value = *self.memory.get(&addr).unwrap();
+            let value = *self.state.memory.get(&addr).unwrap();
             let (segment, timestamp) = *self
                 .memory_access
                 .get(&addr)
@@ -1110,9 +1145,9 @@ impl Runtime {
             .collect::<Vec<(u32, MemoryRecord, u32)>>();
         program_memory_record.sort_by_key(|&(addr, _, _)| addr);
 
-        self.global_segment.first_memory_record = first_memory_record;
-        self.global_segment.last_memory_record = last_memory_record;
-        self.global_segment.program_memory_record = program_memory_record;
+        self.record.first_memory_record = first_memory_record;
+        self.record.last_memory_record = last_memory_record;
+        self.record.program_memory_record = program_memory_record;
     }
 }
 
