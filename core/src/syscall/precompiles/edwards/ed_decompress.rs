@@ -253,6 +253,10 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
 
         slice_ptr
     }
+
+    fn num_extra_cycles(&self) -> u32 {
+        4
+    }
 }
 
 impl<E: EdwardsParameters> EdDecompressChip<E> {
