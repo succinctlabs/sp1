@@ -1107,6 +1107,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519-example"
+version = "0.1.0"
+dependencies = [
+ "succinct-core",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
