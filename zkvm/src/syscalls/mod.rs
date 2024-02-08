@@ -1,5 +1,22 @@
-#[cfg(target_os = "zkvm")]
-use core::arch::asm;
+mod ed25519;
+mod halt;
+mod io;
+mod keccak_permute;
+mod secp256k1;
+mod sha_compress;
+mod sha_extend;
+mod sys;
+mod unconstrained;
+
+pub use ed25519::*;
+pub use halt::*;
+pub use io::*;
+pub use keccak_permute::*;
+pub use secp256k1::*;
+pub use sha_compress::*;
+pub use sha_extend::*;
+pub use sys::*;
+pub use unconstrained::*;
 
 /// Halts the program.
 pub const HALT: u32 = 100;
