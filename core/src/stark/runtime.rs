@@ -149,17 +149,9 @@ impl Runtime {
         #[cfg(feature = "perf")]
         {
             for proof in segments_proofs.iter() {
-                sum += proof
-                    .commulative_sums
-                    .iter()
-                    .copied()
-                    .sum::<SC::Challenge>();
+                sum += proof.cumulative_sum();
             }
-            sum += global_proof
-                .commulative_sums
-                .iter()
-                .copied()
-                .sum::<SC::Challenge>();
+            sum += global_proof.cumulative_sum();
         }
 
         match sum.is_zero() {
