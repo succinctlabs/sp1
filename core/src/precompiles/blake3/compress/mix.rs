@@ -29,7 +29,7 @@ use crate::runtime::Segment;
 ///  ```
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MixOperation<T> {
+pub struct StateMixOperation<T> {
     pub state_a_plus_state_b: AddOperation<T>,
     pub state_a_plus_state_b_plus_x: AddOperation<T>,
     pub state_d_xor_state_a: XorOperation<T>,
@@ -48,7 +48,7 @@ pub struct MixOperation<T> {
     pub result: [T; 4],
 }
 
-impl<F: Field> MixOperation<F> {
+impl<F: Field> StateMixOperation<F> {
     pub fn populate(&mut self, segment: &mut Segment, a_u32: u32, b_u32: u32) -> u32 {
         todo!();
     }

@@ -10,7 +10,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 
-use super::mix::MixOperation;
+use super::mix::StateMixOperation;
 
 pub const NUM_ROUND_COLS: usize = size_of::<RoundOperation<u8>>();
 /// A set of columns needed to compute the `add_rc` of the input state.
@@ -18,5 +18,5 @@ pub const NUM_ROUND_COLS: usize = size_of::<RoundOperation<u8>>();
 #[repr(C)]
 pub struct RoundOperation<T> {
     pub result: [T; 16],
-    pub g: [MixOperation<T>; 8],
+    pub g: [StateMixOperation<T>; 8],
 }
