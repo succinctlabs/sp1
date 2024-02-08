@@ -1,5 +1,8 @@
-use crate::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::precompiles::blake3::Blake3CompressInnerChip;
+use crate::{
+    precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS,
+    utils::NB_ROWS_PER_SHARD,
+};
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -7,6 +10,16 @@ use p3_matrix::dense::RowMajorMatrix;
 use crate::{runtime::Segment, utils::Chip};
 
 impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        let shards = input
+            .blake3_compress_inner_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        for i in 0..shards.len() {
+            outputs[i].blake3_compress_inner_events = shards[i].to_vec();
+        }
+    }
+
     // TODO: The vast majority of this logic can be shared with the second external round.
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
@@ -74,7 +87,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
             // }
         }
 
-        segment.field_events.extend(new_field_events);
+        // segment.field_events.extend(new_field_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
