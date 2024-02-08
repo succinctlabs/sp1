@@ -2,7 +2,10 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field};
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
-use super::Blake3CompressInnerChip;
+use super::{
+    Blake3CompressInnerChip, MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE,
+    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+};
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
@@ -38,6 +41,16 @@ impl Blake3CompressInnerChip {
         local: &Blake3CompressInnerCols<AB::Var>,
         next: &Blake3CompressInnerCols<AB::Var>,
     ) {
+        // let index_to_read = {
+        //     let acc = AB::Expr::from_canonical_usize(0);
+        //     for round in 0..ROUND_COUNT {
+        //         for operation in 0..OPERATION_COUNT {
+        //             acc += AB::Expr::from_canonical_usize(MIX_OPERATION_INDEX[operation][i])
+        //                 * local.is_operation_index_n[operation]
+        //                 * local.is_round_index_n[round];
+        //         }
+        //     }
+        // };
         // // If this is the i-th round, then the next row should be the (i+1)-th round.
         // for i in 0..P2_EXTERNAL_ROUND_COUNT {
         //     builder.when_transition().when(next.is_real).assert_eq(
@@ -97,26 +110,19 @@ impl Blake3CompressInnerChip {
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
-        // let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
-        // let clk_cycle_per_word = 4;
-        // for i in 0..P2_WIDTH {
-        //     builder.constraint_memory_access(
-        //         local.segment,
-        //         local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),
-        //         local.mem_addr[i],
-        //         &local.mem_reads[i],
-        //         local.is_real,
-        //     );
-        //     builder.constraint_memory_access(
-        //         local.segment,
-        //         local.clk
-        //             + clk_cycle_reads.clone()
-        //             + AB::F::from_canonical_usize(i * clk_cycle_per_word),
-        //         local.mem_addr[i],
-        //         &local.mem_writes[i],
-        //         local.is_real,
-        //     );
-        // }
+        let clk_cycle_reads = AB::Expr::from_canonical_u32(64);
+        let clk_cycle_per_word = 4;
+        let mem_ptr = local.state_ptr + AB::F::from_canonical_usize(4 * STATE_SIZE);
+        for i in 0..NUM_STATE_WORDS_PER_CALL {
+            // let (record, value) = rt.mr(local.state_ptr + (index_to_read as u32) * 4);
+            builder.constraint_memory_access(
+                local.segment,
+                local.clk + AB::F::from_canonical_usize(i * clk_cycle_per_word),
+                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                &local.mem_reads[i],
+                local.is_real,
+            );
+        }
     }
 
     fn constraint_external_ops<AB: CurtaAirBuilder>(
