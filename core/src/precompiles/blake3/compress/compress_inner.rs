@@ -14,11 +14,11 @@ use crate::air::CurtaAirBuilder;
 pub const NUM_COMPRESS_INNER_COLS: usize = size_of::<CompressInnerOperation<u8>>();
 
 use super::round::RoundOperation;
-use super::B3_BLOCK_SIZE;
+use super::BLOCK_SIZE;
 /// A set of columns needed to compute the `add_rc` of the input state.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CompressInnerOperation<T> {
-    pub result: [T; B3_BLOCK_SIZE],
+    pub result: [T; BLOCK_SIZE],
     pub rounds: [RoundOperation<T>; 7],
 }

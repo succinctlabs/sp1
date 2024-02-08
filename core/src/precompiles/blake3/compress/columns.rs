@@ -13,6 +13,17 @@ use super::compress_inner::CompressInnerOperation;
 
 pub const NUM_BLAKE3_COMPRESS_INNER_COLS: usize = size_of::<Blake3CompressInnerCols<u8>>();
 
+pub(crate) const BLOCK_SIZE: usize = 16;
+pub(crate) const BLOCK_LEN_SIZE: usize = 16;
+pub(crate) const CV_SIZE: usize = 8;
+pub(crate) const COUNTER_SIZE: usize = 2;
+pub(crate) const FLAGS_SIZE: usize = 1;
+
+/// The number of `Word`s in the input of the compress inner operation.
+///
+pub(crate) const INPUT_SIZE: usize =
+    BLOCK_SIZE + BLOCK_LEN_SIZE + CV_SIZE + COUNTER_SIZE + FLAGS_SIZE;
+
 /// Cols to perform the Compress
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]

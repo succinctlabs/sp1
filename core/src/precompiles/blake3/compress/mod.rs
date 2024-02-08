@@ -1,3 +1,7 @@
+use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+
+///! This module contains the implementation of the `blake3_compress_inner` precompile based on the
+/// implementation of the `blake3` hash function in Plonky3.
 mod air;
 mod columns;
 mod compress_inner;
@@ -6,14 +10,30 @@ mod mix;
 mod round;
 mod trace;
 
-/// The number of `Word`s in a Blake3 block.
-pub(crate) const B3_BLOCK_SIZE: usize = 16;
+pub(crate) const BLOCK_SIZE: usize = 16;
+pub(crate) const BLOCK_LEN_SIZE: usize = 16;
+pub(crate) const CV_SIZE: usize = 8;
+pub(crate) const COUNTER_SIZE: usize = 2;
+pub(crate) const FLAGS_SIZE: usize = 1;
+
+/// The number of `Word`s in the input of the compress inner operation.
+pub(crate) const INPUT_SIZE: usize =
+    BLOCK_SIZE + BLOCK_LEN_SIZE + CV_SIZE + COUNTER_SIZE + FLAGS_SIZE;
+
+pub(crate) const OUTPUT_SIZE: usize = BLOCK_SIZE;
+
+/// The number of times we call `round` in the compress inner operation.
+pub(crate) const ROUND_COUNT: usize = 7;
+
+/// The number of times we call `g` in the compress inner operation.
+pub(crate) const OPERATION_COUNT: usize = 7;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,
     pub state_ptr: u32,
-    // pub state_reads: [[MemoryReadRecord; WIDTH]; P2_EXTERNAL_ROUND_COUNT],
-    // pub state_writes: [[MemoryWriteRecord; WIDTH]; P2_EXTERNAL_ROUND_COUNT],
+    pub state_reads: [[[MemoryReadRecord; INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
+    pub state_writes: [[[MemoryWriteRecord; OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
 }
 
 pub struct Blake3CompressInnerChip {}
