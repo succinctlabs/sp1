@@ -8,7 +8,7 @@ use num::BigUint;
 
 use crate::air::CurtaAirBuilder;
 use crate::operations::field::params::Limbs;
-use crate::runtime::SyscallRuntime;
+use crate::runtime::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
@@ -27,7 +27,7 @@ pub struct ECAddEvent {
     pub q_memory_records: [MemoryReadRecord; 16],
 }
 
-pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallRuntime) -> ECAddEvent {
+pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEvent {
     let a0 = crate::runtime::Register::X10;
     let a1 = crate::runtime::Register::X11;
 
@@ -83,7 +83,7 @@ pub struct ECDoubleEvent {
     pub p_memory_records: [MemoryWriteRecord; 16],
 }
 
-pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallRuntime) -> ECDoubleEvent {
+pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDoubleEvent {
     let a0 = crate::runtime::Register::X10;
 
     let start_clk = rt.clk;

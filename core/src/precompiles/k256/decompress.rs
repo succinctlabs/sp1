@@ -8,7 +8,7 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::precompiles::SyscallRuntime;
+use crate::precompiles::SyscallContext;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::utils::bytes_to_words_le;
@@ -75,7 +75,7 @@ impl Syscall for K256DecompressChip {
         0
     }
 
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;

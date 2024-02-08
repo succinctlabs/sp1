@@ -6,7 +6,7 @@ use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_double_event;
 use crate::precompiles::limbs_from_biguint;
-use crate::precompiles::SyscallRuntime;
+use crate::precompiles::SyscallContext;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -64,7 +64,7 @@ pub struct WeierstrassDoubleAssignChip<E, WP> {
 }
 
 impl<E: EllipticCurve, WP> Syscall for WeierstrassDoubleAssignChip<E, WP> {
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
         rt.segment_mut().weierstrass_double_events.push(event);
         event.p_ptr + 1

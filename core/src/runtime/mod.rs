@@ -29,6 +29,7 @@ pub use segment::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process::exit;
+use std::rc::Rc;
 use std::sync::Arc;
 pub use syscall::*;
 
@@ -134,11 +135,11 @@ pub struct Runtime {
     /// Current global state.
     pub state: ExecutionState,
 
-    /// The record for the current CPU opcode containing relevant events.
-    pub op_record: OpRecord,
-
     /// The record containing all events emitted during execution so far.
     pub record: ExecutionRecord,
+
+    /// The record for the current CPU opcode containing relevant events.
+    pub op_record: OpRecord,
 
     /// The maximum size of each segment.
     pub segment_size: u32,
@@ -153,7 +154,7 @@ pub struct Runtime {
 
     pub(self) unconstrained_state: ForkState,
 
-    pub syscall_map: HashMap<SyscallCode, Box<dyn Syscall>>,
+    pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
 }
 
 impl Runtime {
@@ -161,15 +162,15 @@ impl Runtime {
     pub fn new(program: Program) -> Self {
         let record = ExecutionRecord::default();
 
-        let mut syscall_map = HashMap::<SyscallCode, Box<dyn Syscall>>::default();
+        let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
         syscall_map.insert(
             SyscallCode::KECCAK_PERMUTE,
-            Box::new(KeccakPermuteChip::new()),
+            Rc::new(KeccakPermuteChip::new()),
         );
-        syscall_map.insert(SyscallCode::SHA_EXTEND, Box::new(ShaExtendChip::new()));
+        syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));
         syscall_map.insert(
             SyscallCode::SECP256K1_ADD,
-            Box::new(WeierstrassAddAssignChip::<
+            Rc::new(WeierstrassAddAssignChip::<
                 SWCurve<Secp256k1Parameters>,
                 Secp256k1Parameters,
             >::new()),
@@ -497,7 +498,7 @@ impl Runtime {
         self.program.instructions[idx]
     }
 
-    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Box<dyn Syscall>> {
+    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
         self.syscall_map.get(&code)
     }
 
@@ -710,32 +711,22 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
-                let a1 = Register::X11;
-                let a2 = Register::X12;
                 let syscall_id = self.register(t0);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 let init_clk = self.state.clk;
                 // let syscall_map = &self.syscall_map;
-                let syscall_impl = self.get_syscall(syscall);
-                let mut precompile_rt = SyscallRuntime::new(self);
-                // let syscall_impl = self.syscall_map.get(&syscall).as();
-                // let syscall_impl = syscall_map.entry(syscall);
+                let syscall_impl = self.get_syscall(syscall).cloned();
+                let mut precompile_rt = SyscallContext::new(self);
 
-                // let syscall_impl =
-                //     syscall_impl.or_insert_with(|| panic!("Unsupported syscall: {:?}", syscall));
-                // a = syscall_impl.execute(&mut precompile_rt);
-                // self.state.clk = precompile_rt.clk;
-                // assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-
-                // if let Some(syscall_impl) = syscall_impl {
-                //     a = syscall_impl.execute(&mut precompile_rt);
-                //     self.state.clk = precompile_rt.clk;
-                //     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                // } else {
-                //     panic!("Unsupported syscall: {:?}", syscall);
-                // }
-                a = 0;
+                if let Some(syscall_impl) = syscall_impl {
+                    a = syscall_impl.execute(&mut precompile_rt);
+                    let clk = precompile_rt.clk;
+                    self.state.clk = clk;
+                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
+                } else {
+                    panic!("Unsupported syscall: {:?}", syscall);
+                }
 
                 // match syscall {
                 //     SyscallCode::HALT => {

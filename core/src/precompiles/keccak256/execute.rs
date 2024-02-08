@@ -1,5 +1,5 @@
 use crate::{
-    precompiles::{keccak256::KeccakPermuteEvent, SyscallRuntime},
+    precompiles::{keccak256::KeccakPermuteEvent, SyscallContext},
     runtime::{Register, Syscall},
 };
 
@@ -20,7 +20,7 @@ impl Syscall for KeccakPermuteChip {
         NUM_ROUNDS as u32 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         // Read `state_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
 

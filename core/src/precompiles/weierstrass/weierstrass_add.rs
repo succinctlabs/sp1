@@ -6,7 +6,7 @@ use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_add_event;
-use crate::precompiles::SyscallRuntime;
+use crate::precompiles::SyscallContext;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
 use crate::runtime::Syscall;
@@ -66,7 +66,7 @@ pub struct WeierstrassAddAssignChip<E, WP> {
 }
 
 impl<E: EllipticCurve, WP> Syscall for WeierstrassAddAssignChip<E, WP> {
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
         rt.segment_mut().weierstrass_add_events.push(event);
         event.p_ptr + 1

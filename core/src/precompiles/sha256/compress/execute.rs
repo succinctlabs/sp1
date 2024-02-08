@@ -1,7 +1,7 @@
 use crate::{
     precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
-        SyscallRuntime,
+        SyscallContext,
     },
     runtime::{Register, Syscall},
 };
@@ -13,7 +13,7 @@ impl Syscall for ShaCompressChip {
         8 * 4 + 64 * 4 + 8 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         // Read `w_ptr` from register a0.
         let w_ptr = rt.register_unsafe(Register::X10);
 

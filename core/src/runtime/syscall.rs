@@ -68,7 +68,7 @@ impl SyscallCode {
 
 pub trait Syscall {
     /// Execute the syscall and return the resulting value of register a0.
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32;
+    fn execute(&self, rt: &mut SyscallContext) -> u32;
 
     /// The number of extra cycles that the syscall takes to execute. Unless this syscall is complex
     /// and requires many cycles, this should be zero.
@@ -76,14 +76,14 @@ pub trait Syscall {
 }
 
 /// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
-pub struct SyscallRuntime<'a> {
+pub struct SyscallContext<'a> {
     current_segment: u32,
     pub clk: u32,
 
     rt: &'a mut Runtime, // Reference
 }
 
-impl<'a> SyscallRuntime<'a> {
+impl<'a> SyscallContext<'a> {
     pub fn new(runtime: &'a mut Runtime) -> Self {
         let current_segment = runtime.current_segment();
         let clk = runtime.state.clk;

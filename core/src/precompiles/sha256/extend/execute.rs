@@ -1,5 +1,5 @@
 use crate::{
-    precompiles::{sha256::ShaExtendEvent, SyscallRuntime},
+    precompiles::{sha256::ShaExtendEvent, SyscallContext},
     runtime::{Register, Syscall},
 };
 
@@ -10,7 +10,7 @@ impl Syscall for ShaExtendChip {
         48 * 20
     }
 
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         // Initialize the registers.
         let a0 = Register::X10;
 

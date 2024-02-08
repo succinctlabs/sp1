@@ -9,7 +9,7 @@ use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::precompiles::create_ec_add_event;
-use crate::precompiles::SyscallRuntime;
+use crate::precompiles::SyscallContext;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::utils::ec::edwards::EdwardsParameters;
@@ -110,7 +110,7 @@ impl<E: EllipticCurve, EP: EdwardsParameters> Syscall for EdAddAssignChip<E, EP>
         8
     }
 
-    fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
         rt.segment_mut().ed_add_events.push(event);
         event.p_ptr + 1

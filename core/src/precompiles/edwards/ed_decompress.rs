@@ -8,7 +8,7 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::precompiles::SyscallRuntime;
+use crate::precompiles::SyscallContext;
 use crate::runtime::ExecutionRecord;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
@@ -197,7 +197,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
         }
     }
 
-    pub fn execute(&self, rt: &mut SyscallRuntime) -> u32 {
+    pub fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;
