@@ -45,7 +45,7 @@ pub fn prove_elf(elf: &[u8]) {
 }
 
 pub fn prove_core(runtime: &mut Runtime) {
-    let config = BabyBearK12::new(&mut rand::thread_rng());
+    let config = BabyBearBlake3::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
 
     let start = Instant::now();
