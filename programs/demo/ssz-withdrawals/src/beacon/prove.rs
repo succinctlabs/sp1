@@ -6,9 +6,7 @@ use std::hint::black_box;
 use std::str::FromStr;
 
 pub fn block_header(block_root: Node) -> BeaconBlockHeader {
-    let mut header = black_box(hints::beacon_header_proof(block_root));
-    let header_root = black_box(header.hash_tree_root().unwrap());
-    header
+    black_box(hints::beacon_header_proof(block_root))
 }
 
 pub fn withdrawals_root(block_root: Node) -> Node {
