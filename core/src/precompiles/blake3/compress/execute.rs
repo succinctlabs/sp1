@@ -7,7 +7,7 @@ use crate::runtime::Register;
 /// TODO: Much of this logic can be shared with the last external round.
 impl Blake3CompressInnerChip {
     // TODO: Fix this!
-    pub const NUM_CYCLES: u32 = 101010;
+    pub const NUM_CYCLES: u32 = 0;
 
     pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
         println!("Blake3CompressInnerChip::execute is running!");
