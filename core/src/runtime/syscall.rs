@@ -1,4 +1,21 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use crate::runtime::{Register, Runtime};
+use crate::syscall::precompiles::edwards::EdAddAssignChip;
+use crate::syscall::precompiles::edwards::EdDecompressChip;
+use crate::syscall::precompiles::k256::K256DecompressChip;
+use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
+use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
+use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
+use crate::syscall::{
+    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
+};
+use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
+use crate::utils::ec::edwards::EdwardsCurve;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
+use crate::utils::ec::weierstrass::SWCurve;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -77,7 +94,7 @@ pub trait Syscall {
     }
 }
 
-/// A runtime for precompiles that is protected so that developers cannot arbitrarily modify the runtime.
+/// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct SyscallContext<'a> {
     current_segment: u32,
     pub clk: u32,
@@ -160,4 +177,57 @@ impl<'a> SyscallContext<'a> {
     pub fn set_next_pc(&mut self, next_pc: u32) {
         self.next_pc = next_pc;
     }
+}
+
+pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
+    let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
+    syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
+    syscall_map.insert(SyscallCode::LWA, Rc::new(SyscallLWA::new()));
+    syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));
+    syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
+    syscall_map.insert(
+        SyscallCode::ED_ADD,
+        Rc::new(EdAddAssignChip::<
+            EdwardsCurve<Ed25519Parameters>,
+            Ed25519Parameters,
+        >::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::ED_DECOMPRESS,
+        Rc::new(EdDecompressChip::<Ed25519Parameters>::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::KECCAK_PERMUTE,
+        Rc::new(KeccakPermuteChip::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::SECP256K1_ADD,
+        Rc::new(WeierstrassAddAssignChip::<
+            SWCurve<Secp256k1Parameters>,
+            Secp256k1Parameters,
+        >::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::SECP256K1_DOUBLE,
+        Rc::new(WeierstrassDoubleAssignChip::<
+            SWCurve<Secp256k1Parameters>,
+            Secp256k1Parameters,
+        >::new()),
+    );
+    syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
+    syscall_map.insert(
+        SyscallCode::SECP256K1_DECOMPRESS,
+        Rc::new(K256DecompressChip::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::ENTER_UNCONSTRAINED,
+        Rc::new(SyscallEnterUnconstrained::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::EXIT_UNCONSTRAINED,
+        Rc::new(SyscallExitUnconstrained::new()),
+    );
+    syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
+
+    syscall_map
 }

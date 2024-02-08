@@ -2,33 +2,21 @@ mod instruction;
 mod io;
 mod opcode;
 mod program;
+mod record;
 mod register;
-mod segment;
+mod state;
 mod syscall;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
-use crate::syscall::precompiles::edwards::EdAddAssignChip;
-use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::k256::K256DecompressChip;
-use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
-use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::syscall::{
-    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
-};
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
+use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
+pub use record::*;
 pub use register::*;
-pub use segment::*;
+pub use state::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -38,6 +26,8 @@ pub use syscall::*;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 
+use self::state::ExecutionState;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AccessPosition {
     Memory = 0,
@@ -46,79 +36,6 @@ pub enum AccessPosition {
     C = 1,
     B = 2,
     A = 3,
-}
-
-/// Holds data to track changes made to the runtime since a fork point.
-#[derive(Debug, Clone, Default)]
-pub struct ExecutionState {
-    /// The global clock keeps track of how many instrutions have been executed through all segments.
-    pub global_clk: u32,
-
-    /// The segment clock keeps track of how many segments have been executed.
-    pub segment_clk: u32,
-
-    /// The clock keeps track of how many instructions have been executed in this segment.
-    pub clk: u32,
-
-    /// The program counter.
-    pub pc: u32,
-
-    /// The memory which instructions operate over. Values contain the memory value and last segment
-    /// + timestamp that each memory address was accessed.
-    pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
-
-    /// A stream of input values (global to the entire program).
-    pub input_stream: Vec<u8>,
-
-    /// A ptr to the current position in the input stream incremented by LWA opcode.
-    pub input_stream_ptr: usize,
-
-    /// A stream of output values from the program (global to entire program).
-    pub output_stream: Vec<u8>,
-
-    /// A ptr to the current position in the output stream, incremented when reading from output_stream.
-    pub output_stream_ptr: usize,
-}
-
-impl ExecutionState {
-    fn new(pc_start: u32) -> Self {
-        Self {
-            global_clk: 0,
-            segment_clk: 1,
-            clk: 0,
-            pc: pc_start,
-            memory: HashMap::default(),
-            input_stream: Vec::new(),
-            input_stream_ptr: 0,
-            output_stream: Vec::new(),
-            output_stream_ptr: 0,
-        }
-    }
-}
-
-/// Holds data to track changes made to the runtime since a fork point.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct ForkState {
-    /// Original global_clk
-    pub(crate) global_clk: u32,
-    /// Original clk
-    pub(crate) clk: u32,
-    /// Original program counter
-    pub(crate) pc: u32,
-    /// Only contains the original memory values for addresses that have been modified
-    pub(crate) memory_diff: HashMap<u32, Option<(u32, u32, u32)>, BuildNoHashHasher<u32>>,
-    /// Full record from original state
-    pub(crate) op_record: OpRecord,
-    /// Full segment from original state
-    pub(crate) record: ExecutionRecord,
-}
-
-#[derive(Debug, Copy, Clone, Default)]
-pub struct OpRecord {
-    pub a: Option<MemoryRecordEnum>,
-    pub b: Option<MemoryRecordEnum>,
-    pub c: Option<MemoryRecordEnum>,
-    pub memory: Option<MemoryRecordEnum>,
 }
 
 /// An implementation of a runtime for the Curta VM.
@@ -166,55 +83,6 @@ impl Runtime {
             ..Default::default()
         };
 
-        let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
-        syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
-        syscall_map.insert(SyscallCode::LWA, Rc::new(SyscallLWA::new()));
-        syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));
-        syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
-        syscall_map.insert(
-            SyscallCode::ED_ADD,
-            Rc::new(EdAddAssignChip::<
-                EdwardsCurve<Ed25519Parameters>,
-                Ed25519Parameters,
-            >::new()),
-        );
-        syscall_map.insert(
-            SyscallCode::ED_DECOMPRESS,
-            Rc::new(EdDecompressChip::<Ed25519Parameters>::new()),
-        );
-        syscall_map.insert(
-            SyscallCode::KECCAK_PERMUTE,
-            Rc::new(KeccakPermuteChip::new()),
-        );
-        syscall_map.insert(
-            SyscallCode::SECP256K1_ADD,
-            Rc::new(WeierstrassAddAssignChip::<
-                SWCurve<Secp256k1Parameters>,
-                Secp256k1Parameters,
-            >::new()),
-        );
-        syscall_map.insert(
-            SyscallCode::SECP256K1_DOUBLE,
-            Rc::new(WeierstrassDoubleAssignChip::<
-                SWCurve<Secp256k1Parameters>,
-                Secp256k1Parameters,
-            >::new()),
-        );
-        syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
-        syscall_map.insert(
-            SyscallCode::SECP256K1_DECOMPRESS,
-            Rc::new(K256DecompressChip::new()),
-        );
-        syscall_map.insert(
-            SyscallCode::ENTER_UNCONSTRAINED,
-            Rc::new(SyscallEnterUnconstrained::new()),
-        );
-        syscall_map.insert(
-            SyscallCode::EXIT_UNCONSTRAINED,
-            Rc::new(SyscallExitUnconstrained::new()),
-        );
-        syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
-
         Self {
             record,
             state: ExecutionState::new(program_arc.pc_start),
@@ -224,7 +92,7 @@ impl Runtime {
             cycle_tracker: HashMap::new(),
             unconstrained: false,
             unconstrained_state: ForkState::default(),
-            syscall_map,
+            syscall_map: default_syscall_map(),
         }
     }
 
@@ -286,8 +154,11 @@ impl Runtime {
     }
 
     pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
+        // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
+            // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+            // original state if it's the first time modifying it.
             let prev_value = match memory_entry {
                 Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
@@ -297,7 +168,9 @@ impl Runtime {
                 .entry(addr)
                 .or_insert(prev_value.copied());
         }
+        // If it's the first time accessing this address, initialize previous values as zero.
         let entry_value = memory_entry.or_insert((0, 0, 0));
+        // Get the last time this memory address was accessed, and then update with current clock.
         let (value, prev_segment, prev_timestamp) = *entry_value;
         (entry_value.1, entry_value.2) = (segment, clk);
 
@@ -305,8 +178,11 @@ impl Runtime {
     }
 
     pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
+        // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
+            // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+            // original state if it's the first time modifying it.
             let prev_value = match memory_entry {
                 Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
@@ -316,7 +192,9 @@ impl Runtime {
                 .entry(addr)
                 .or_insert(prev_value.copied());
         }
+        // If it's the first time accessing this address, initialize previous values as zero.
         let entry_value = memory_entry.or_insert((0, 0, 0));
+        // Get previous values and then update with new values.
         let (prev_value, prev_segment, prev_timestamp) = *entry_value;
         *entry_value = (value, segment, clk);
         MemoryWriteRecord::new(
@@ -754,7 +632,6 @@ impl Runtime {
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 let init_clk = self.state.clk;
-                // let syscall_map = &self.syscall_map;
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
