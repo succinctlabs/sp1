@@ -1,10 +1,8 @@
 use crate::beacon::types::*;
-use crate::beacon::{branch_from_bytes, node_from_bytes};
+use crate::beacon::utils::{branch_from_bytes, node_from_bytes};
 use hex_literal::hex;
 use ssz_rs::prelude::*;
 use std::hint::black_box;
-
-// TODO: Read real data in all of these hints by reading it from outside of the zkvm.
 
 /// Returns the beaacon block's withdrawals root and a corresponding SSZ merkle proof.
 pub fn withdrawals_root_proof(_block_root: Node) -> (Node, Vec<Node>) {
@@ -59,7 +57,6 @@ pub fn withdrawal_proof(_block_root: Node, _index: u32) -> (Withdrawal, Vec<Node
 
 /// Returns the corresponding beacon block header.
 pub fn beacon_header_proof(_block_root: Node) -> BeaconBlockHeader {
-    // TODO: read real data from hint
     BeaconBlockHeader {
         slot: 8225000,
         proposer_index: 980811,
@@ -161,10 +158,9 @@ pub fn validator_proof(_block_root: Node, _index: u64) -> (Validator, Vec<Node>)
     (validator, branch)
 }
 
-// TODO: Historical block root functions may look slightly different with real data
-
-/// Return the historical summary root containing the target slot and a corresponding SSZ proof. The
-/// target slot must be at most (source_slot - 8192).
+/// Return the historical summary root containing the target slot and a corresponding SSZ proof.
+///
+/// The target slot must be at most (source_slot - 8192).
 pub fn historical_far_slot_proof(_block_root: Node, _target_slot: u64) -> (Node, Vec<Node>) {
     // Block root -> historical summary root
     let leaf = node_from_bytes(hex!(
@@ -243,7 +239,8 @@ pub fn historical_far_slot_blockroot_proof(
     (leaf, branch)
 }
 
-/// Returns withdrawal slots, withdrawal indexes, and validator indexes that match the given withdrawal address.
+/// Returns withdrawal slots, withdrawal indexes, and validator indexes that match the given
+/// withdrawal address.
 pub fn withdrawals_range(
     _block_root: Node,
     _start_slot: u64,

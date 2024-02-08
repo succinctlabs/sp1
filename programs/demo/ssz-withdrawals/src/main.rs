@@ -1,24 +1,22 @@
+//! Given an ethereum beacon root, a start slot, an end slot, and an eigenpod address, returns the
+//! sum of all beacon partial withdrawals in [start_slot, end_slot) to the given eigenpod address.
+
 #![no_main]
 extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
-use std::collections::HashMap;
-
-use hex_literal::hex;
-use ssz_rs::prelude::*;
-
 mod beacon;
-mod proof;
 
 use beacon::hints;
-use beacon::node_from_bytes;
 use beacon::prove;
 use beacon::types::*;
+use beacon::utils::node_from_bytes;
+use hex_literal::hex;
+use ssz_rs::prelude::*;
+use std::collections::HashMap;
 
-/// Given a beacon block root, start slot, end slot, and eigenpod address, returns the sum of all
-/// beacon partial withdrawals in [start_slot, end_slot) to the given eigenpod address.
 fn main() {
-    // TODO: read inputs from input byte stream
+    // Get inputs.
     let beacon_block_root = node_from_bytes(hex!(
         "d00c4da1a3ad4d42bd35f128544227d19e163194569d69d54a3d14112e3c897c"
     ));
@@ -45,12 +43,9 @@ fn main() {
         withdrawable_epochs.insert(validator_index, validator.withdrawable_epoch);
     }
 
+    // Compute the sum of all partial withdrawals.
     let mut sum = 0;
-
-    // TODO: can optimize getting historical_block_root if it's near others using parent_root
     for (slot, withdrawal_indexes) in withdrawal_slots {
-        // TODO: can optimize by constructing withdrawals root if more than a few withdrawals are in this slot
-        println!("slot: {}", slot);
         let historical_block_root =
             prove::historical_block_root(beacon_block_root, source_slot, slot);
         let withdrawals_root = prove::withdrawals_root(historical_block_root);
@@ -67,6 +62,5 @@ fn main() {
         }
     }
 
-    // TODO: write to output
     println!("sum: {}", sum);
 }
