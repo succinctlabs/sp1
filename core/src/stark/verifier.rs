@@ -1,4 +1,3 @@
-use crate::utils::AirChip;
 use itertools::izip;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
@@ -13,6 +12,8 @@ use p3_util::log2_ceil_usize;
 use p3_util::reverse_slice_index_bits;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
+
+use crate::chip::AirChip;
 
 use super::folder::VerifierConstraintFolder;
 use super::permutation::eval_permutation_constraints;

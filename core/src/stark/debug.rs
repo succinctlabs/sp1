@@ -6,7 +6,8 @@ use p3_field::{ExtensionField, Field, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
 use crate::air::EmptyMessageBuilder;
-use crate::{stark::permutation::eval_permutation_constraints, utils::Chip};
+use crate::chip::Chip;
+use crate::stark::permutation::eval_permutation_constraints;
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///

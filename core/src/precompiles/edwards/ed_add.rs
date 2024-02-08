@@ -1,4 +1,5 @@
 use crate::air::CurtaAirBuilder;
+use crate::chip::Chip;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -17,7 +18,6 @@ use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
-use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;

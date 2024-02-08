@@ -1,6 +1,7 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
+use crate::chip::Chip;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
@@ -23,7 +24,6 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
-use crate::utils::Chip;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use elliptic_curve::sec1::ToEncodedPoint;

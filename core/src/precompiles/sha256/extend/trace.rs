@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{runtime::Segment, utils::Chip};
+use crate::{chip::Chip, runtime::Segment};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
