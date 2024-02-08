@@ -27,6 +27,7 @@ pub use opcode::*;
 pub use program::*;
 pub use register::*;
 pub use segment::*;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process::exit;
 use std::sync::Arc;
@@ -43,6 +44,25 @@ pub enum AccessPosition {
     C = 1,
     B = 2,
     A = 3,
+}
+
+/// Holds data to track changes made to the runtime since a fork point.
+#[derive(Debug, Clone, Default)]
+struct ForkState {
+    /// Original global_clk
+    pub(crate) global_clk: u32,
+    /// Original clk
+    pub(crate) clk: u32,
+    /// Original program counter
+    pub(crate) pc: u32,
+    /// Only contains the original memory values for addresses that have been modified
+    pub(crate) memory_diff: HashMap<u32, Option<u32>, BuildNoHashHasher<u32>>,
+    /// Full memory_access map from original state
+    pub(crate) memory_access: HashMap<u32, (u32, u32), BuildNoHashHasher<u32>>,
+    /// Full record from original state
+    pub(crate) record: Record,
+    /// Full segment from original state
+    pub(crate) segment: Segment,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -111,6 +131,13 @@ pub struct Runtime {
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
+
+    /// Whether the runtime is in constrained mode or not.
+    /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
+    /// the unconstrained block. The only thing preserved is writes to the hint stream.
+    pub unconstrained: bool,
+
+    pub(self) unconstrained_state: ForkState,
 }
 
 impl Runtime {
@@ -127,8 +154,8 @@ impl Runtime {
             clk: 0,
             pc: program_rc.pc_start,
             program: program_rc,
-            memory: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
-            memory_access: HashMap::with_hasher(BuildNoHashHasher::<u32>::default()),
+            memory: HashMap::default(),
+            memory_access: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
             output_stream: Vec::new(),
@@ -138,6 +165,8 @@ impl Runtime {
             segment_size: NB_ROWS_PER_SHARD as u32 * 4,
             global_segment: Segment::default(),
             cycle_tracker: HashMap::new(),
+            unconstrained: false,
+            unconstrained_state: ForkState::default(),
         }
     }
 
@@ -199,7 +228,18 @@ impl Runtime {
     }
 
     pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
-        let value = *self.memory.entry(addr).or_insert(0);
+        let memory_entry = self.memory.entry(addr);
+        if self.unconstrained {
+            let prev_value = match memory_entry {
+                Entry::Occupied(ref entry) => Some(*entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state
+                .memory_diff
+                .entry(addr)
+                .or_insert(prev_value);
+        }
+        let value = *memory_entry.or_insert(0);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
 
@@ -209,11 +249,23 @@ impl Runtime {
     }
 
     pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
-        let prev_value = *self.memory.entry(addr).or_insert(0);
+        let memory_value_entry = self.memory.entry(addr);
         let (prev_segment, prev_timestamp) =
             self.memory_access.get(&addr).cloned().unwrap_or((0, 0));
+        if self.unconstrained {
+            let prev_value = match memory_value_entry {
+                Entry::Occupied(ref entry) => Some(*entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state
+                .memory_diff
+                .entry(addr)
+                .or_insert(prev_value);
+        }
+        let memory_value = memory_value_entry.or_insert(0);
+        let prev_value = *memory_value;
         self.memory_access.insert(addr, (segment, clk));
-        self.memory.insert(addr, value);
+        *memory_value = value;
         MemoryWriteRecord::new(
             value,
             segment,
@@ -234,11 +286,13 @@ impl Runtime {
             self.clk_from_position(&position),
         );
 
-        match position {
-            AccessPosition::A => self.record.a = Some(record.into()),
-            AccessPosition::B => self.record.b = Some(record.into()),
-            AccessPosition::C => self.record.c = Some(record.into()),
-            AccessPosition::Memory => self.record.memory = Some(record.into()),
+        if !self.unconstrained {
+            match position {
+                AccessPosition::A => self.record.a = Some(record.into()),
+                AccessPosition::B => self.record.b = Some(record.into()),
+                AccessPosition::C => self.record.c = Some(record.into()),
+                AccessPosition::Memory => self.record.memory = Some(record.into()),
+            }
         }
         record.value
     }
@@ -255,22 +309,24 @@ impl Runtime {
         );
 
         // Set the records.
-        match position {
-            AccessPosition::A => {
-                assert!(self.record.a.is_none());
-                self.record.a = Some(record.into());
-            }
-            AccessPosition::B => {
-                assert!(self.record.b.is_none());
-                self.record.b = Some(record.into());
-            }
-            AccessPosition::C => {
-                assert!(self.record.c.is_none());
-                self.record.c = Some(record.into());
-            }
-            AccessPosition::Memory => {
-                assert!(self.record.memory.is_none());
-                self.record.memory = Some(record.into());
+        if !self.unconstrained {
+            match position {
+                AccessPosition::A => {
+                    assert!(self.record.a.is_none());
+                    self.record.a = Some(record.into());
+                }
+                AccessPosition::B => {
+                    assert!(self.record.b.is_none());
+                    self.record.b = Some(record.into());
+                }
+                AccessPosition::C => {
+                    assert!(self.record.c.is_none());
+                    self.record.c = Some(record.into());
+                }
+                AccessPosition::Memory => {
+                    assert!(self.record.memory.is_none());
+                    self.record.memory = Some(record.into());
+                }
             }
         }
     }
@@ -683,7 +739,7 @@ impl Runtime {
                     }
                     Syscall::WRITE => {
                         let fd = self.register(a0);
-                        if fd == 1 || fd == 2 || fd == 3 {
+                        if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
                             let write_buf = self.register(a1);
                             let nbytes = self.register(a2);
                             // Read nbytes from memory starting at write_buf.
@@ -729,6 +785,8 @@ impl Runtime {
                                 log::info!("stderr: {}", s.trim_end());
                             } else if fd == 3 {
                                 self.output_stream.extend_from_slice(slice);
+                            } else if fd == 4 {
+                                self.input_stream.extend_from_slice(slice);
                             } else {
                                 unreachable!()
                             }
@@ -788,6 +846,48 @@ impl Runtime {
                         a = K256DecompressChip::execute(&mut precompile_rt);
                         self.clk = precompile_rt.clk;
                         assert_eq!(init_clk + 4, self.clk);
+                    }
+                    Syscall::ENTER_UNCONSTRAINED => {
+                        if self.unconstrained {
+                            panic!("Unconstrained block is already active.");
+                        }
+                        self.unconstrained = true;
+                        self.unconstrained_state = ForkState {
+                            global_clk: self.global_clk,
+                            clk: self.clk,
+                            pc: self.pc,
+                            memory_diff: HashMap::default(),
+                            memory_access: std::mem::take(&mut self.memory_access),
+                            segment: std::mem::take(&mut self.segment),
+                            record: std::mem::take(&mut self.record),
+                        };
+                        a = 1;
+                    }
+                    Syscall::EXIT_UNCONSTRAINED => {
+                        a = 0;
+                        // Reset the state of the runtime.
+                        if self.unconstrained {
+                            self.global_clk = self.unconstrained_state.global_clk;
+                            self.clk = self.unconstrained_state.clk;
+                            self.pc = self.unconstrained_state.pc;
+                            next_pc = self.pc.wrapping_add(4);
+                            for (addr, value) in self.unconstrained_state.memory_diff.drain() {
+                                match value {
+                                    Some(value) => {
+                                        self.memory.insert(addr, value);
+                                    }
+                                    None => {
+                                        self.memory.remove(&addr);
+                                    }
+                                }
+                            }
+                            self.segment = std::mem::take(&mut self.unconstrained_state.segment);
+                            self.memory_access =
+                                std::mem::take(&mut self.unconstrained_state.memory_access);
+                            self.record = std::mem::take(&mut self.unconstrained_state.record);
+                            self.unconstrained = false;
+                        }
+                        self.unconstrained_state = ForkState::default();
                     }
                 }
 
@@ -933,7 +1033,7 @@ impl Runtime {
             self.clk += 4;
 
             // Reset the clock every `segment_size` cycles.
-            if self.clk % self.segment_size == 1 {
+            if self.clk % self.segment_size == 1 && !self.unconstrained {
                 self.segment_clk += 1;
                 self.clk = 1;
             }
@@ -957,7 +1057,10 @@ impl Runtime {
         let memory_keys = self.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
             let value = *self.memory.get(&addr).unwrap();
-            let (segment, timestamp) = *self.memory_access.get(&addr).unwrap();
+            let (segment, timestamp) = *self
+                .memory_access
+                .get(&addr)
+                .unwrap_or_else(|| panic!("addr={}", addr));
             if segment == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.

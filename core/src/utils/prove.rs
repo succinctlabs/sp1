@@ -32,7 +32,6 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn prove(program: Program) {
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[1, 2]);
         runtime.run();
         runtime
     });
@@ -50,16 +49,28 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     let start = Instant::now();
 
+    // Because proving modifies the segment, clone beforehand if we debug interactions.
+    #[cfg(not(feature = "perf"))]
+    let segment = runtime.segment.clone();
+
     // Prove the program.
     let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)").in_scope(|| {
         runtime.prove::<_, _, BabyBearBlake3, LocalProver<_>>(&config, &mut challenger)
     });
 
+    let cycles = runtime.global_clk;
+    let time = start.elapsed().as_millis();
+    tracing::info!(
+        "cycles={}, e2e={}, khz={:.2}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+    );
+
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        println!("bruh");
         debug_interactions_with_all_chips(
-            &mut runtime.segment,
+            &segment,
             Some(&mut runtime.global_segment),
             vec![
                 InteractionKind::Field,
@@ -72,15 +83,6 @@ pub fn prove_core(runtime: &mut Runtime) {
             ],
         );
     });
-
-    let cycles = runtime.global_clk;
-    let time = start.elapsed().as_millis();
-    tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
-        cycles,
-        time,
-        (cycles as f64 / time as f64),
-    );
 
     // Verify the proof.
     let mut challenger = config.challenger();

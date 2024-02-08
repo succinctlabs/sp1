@@ -385,6 +385,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
+        setup_logger();
         let program = fibonacci_program();
         prove(program);
     }

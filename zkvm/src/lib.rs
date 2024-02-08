@@ -8,11 +8,8 @@ use core::alloc::{GlobalAlloc, Layout};
 
 extern crate alloc;
 
-pub mod io;
 pub mod memory;
 pub mod syscall;
-
-pub use io::*;
 
 pub const WORD_SIZE: usize = 4;
 
