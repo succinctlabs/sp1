@@ -7,8 +7,8 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
-use crate::precompiles::edwards::ed_decompress::EdDecompressEvent;
-use crate::precompiles::k256::decompress::K256DecompressEvent;
+use crate::precompiles::edwards::EdDecompressEvent;
+use crate::precompiles::k256::K256DecompressEvent;
 use crate::precompiles::keccak256::KeccakPermuteEvent;
 use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::precompiles::{ECAddEvent, ECDoubleEvent};
@@ -16,9 +16,10 @@ use crate::runtime::MemoryRecord;
 
 #[derive(Default, Clone, Debug)]
 pub struct Segment {
-    /// The index of this segment in the program.
+    /// The index of the segment.
     pub index: u32,
 
+    /// The program.
     pub program: Arc<Program>,
 
     /// A trace of the CPU events which get emitted during execution.
@@ -75,6 +76,28 @@ pub struct Segment {
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SegmentStats {
+    pub nb_cpu_events: usize,
+    pub nb_add_events: usize,
+    pub nb_mul_events: usize,
+    pub nb_sub_events: usize,
+    pub nb_bitwise_events: usize,
+    pub nb_shift_left_events: usize,
+    pub nb_shift_right_events: usize,
+    pub nb_divrem_events: usize,
+    pub nb_lt_events: usize,
+    pub nb_field_events: usize,
+    pub nb_sha_extend_events: usize,
+    pub nb_sha_compress_events: usize,
+    pub nb_keccak_permute_events: usize,
+    pub nb_ed_add_events: usize,
+    pub nb_ed_decompress_events: usize,
+    pub nb_weierstrass_add_events: usize,
+    pub nb_weierstrass_double_events: usize,
+    pub nb_k256_decompress_events: usize,
 }
 
 impl Segment {
@@ -172,6 +195,29 @@ impl Segment {
                     panic!("Invalid opcode: {:?}", opcode);
                 }
             }
+        }
+    }
+
+    pub fn stats(&self) -> SegmentStats {
+        SegmentStats {
+            nb_cpu_events: self.cpu_events.len(),
+            nb_add_events: self.add_events.len(),
+            nb_mul_events: self.mul_events.len(),
+            nb_sub_events: self.sub_events.len(),
+            nb_bitwise_events: self.bitwise_events.len(),
+            nb_shift_left_events: self.shift_left_events.len(),
+            nb_shift_right_events: self.shift_right_events.len(),
+            nb_divrem_events: self.divrem_events.len(),
+            nb_lt_events: self.lt_events.len(),
+            nb_field_events: self.field_events.len(),
+            nb_sha_extend_events: self.sha_extend_events.len(),
+            nb_sha_compress_events: self.sha_compress_events.len(),
+            nb_keccak_permute_events: self.keccak_permute_events.len(),
+            nb_ed_add_events: self.ed_add_events.len(),
+            nb_ed_decompress_events: self.ed_decompress_events.len(),
+            nb_weierstrass_add_events: self.weierstrass_add_events.len(),
+            nb_weierstrass_double_events: self.weierstrass_double_events.len(),
+            nb_k256_decompress_events: self.k256_decompress_events.len(),
         }
     }
 }

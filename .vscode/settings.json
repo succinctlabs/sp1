@@ -35,6 +35,7 @@
         "programs/sha2/Cargo.toml",
         "programs/ssz-withdrawals/Cargo.toml",
         "programs/zeth/Cargo.toml",
+        "programs/ecrecover/Cargo.toml",
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }

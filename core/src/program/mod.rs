@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
-use crate::cpu::columns::instruction::InstructionCols;
-use crate::cpu::columns::opcode::OpcodeSelectorCols;
+use crate::cpu::columns::InstructionCols;
+use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::Segment;
 use crate::utils::{pad_to_power_of_two, Chip};
 
@@ -27,6 +27,7 @@ pub struct ProgramCols<T> {
 }
 
 /// A chip that implements addition for the opcodes ADD and ADDI.
+#[derive(Default)]
 pub struct ProgramChip;
 
 impl ProgramChip {
@@ -39,6 +40,8 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
     fn name(&self) -> String {
         "Program".to_string()
     }
+
+    fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.

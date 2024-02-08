@@ -58,6 +58,7 @@ pub struct EdAddAssignCols<T> {
     pub(crate) y3_ins: FpDenCols<T>,
 }
 
+#[derive(Default)]
 pub struct EdAddAssignChip<E, EP> {
     _marker: PhantomData<(E, EP)>,
 }
@@ -117,6 +118,10 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         "EdAddAssign".to_string()
     }
 
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].ed_add_events = input.ed_add_events.clone();
+    }
+
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -137,7 +142,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(segment.index);
+            cols.segment = F::from_canonical_u32(event.segment);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
             cols.q_ptr = F::from_canonical_u32(event.q_ptr);
@@ -270,7 +275,7 @@ where
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
 
     use crate::{
         utils::{

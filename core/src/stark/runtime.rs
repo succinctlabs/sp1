@@ -1,119 +1,38 @@
-use crate::alu::divrem::DivRemChip;
-use crate::alu::mul::MulChip;
+use super::prover::Prover;
+use super::types::{MainData, SegmentProof};
+use super::OpeningProof;
+use super::{StarkConfig, VerificationError};
+use crate::alu::{
+    AddChip, BitwiseChip, DivRemChip, LtChip, MulChip, ShiftLeft, ShiftRightChip, SubChip,
+};
 use crate::bytes::ByteChip;
-use crate::field::FieldLTUChip;
-use crate::memory::MemoryGlobalChip;
-
-use crate::alu::{AddChip, BitwiseChip, LtChip, ShiftLeft, ShiftRightChip, SubChip};
 use crate::cpu::CpuChip;
-use crate::memory::MemoryChipKind;
-use crate::precompiles::edwards::ed_add::EdAddAssignChip;
-use crate::precompiles::edwards::ed_decompress::EdDecompressChip;
-use crate::precompiles::k256::decompress::K256DecompressChip;
+use crate::field::FieldLTUChip;
+use crate::memory::{MemoryChipKind, MemoryGlobalChip};
+use crate::precompiles::edwards::{EdAddAssignChip, EdDecompressChip};
+use crate::precompiles::k256::K256DecompressChip;
 use crate::precompiles::keccak256::KeccakPermuteChip;
 use crate::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignChip;
-use crate::precompiles::weierstrass::weierstrass_double::WeierstrassDoubleAssignChip;
+use crate::precompiles::weierstrass::WeierstrassAddAssignChip;
+use crate::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::program::ProgramChip;
-use crate::runtime::Runtime;
+use crate::runtime::{Runtime, Segment};
 use crate::stark::Verifier;
 use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use crate::utils::AirChip;
+
 use p3_challenger::CanObserve;
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::IntoParallelIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-
-use super::OpeningProof;
-
-#[cfg(not(feature = "perf"))]
-use crate::stark::debug_cumulative_sums;
-
 use p3_commit::Pcs;
 use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-
-use super::prover::Prover;
-use super::types::{MainData, SegmentProof};
-use super::{StarkConfig, VerificationError};
-
-pub const NUM_CHIPS: usize = 20;
+use p3_maybe_rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 impl Runtime {
-    pub fn segment_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; NUM_CHIPS]
-    where
-        SC::Val: PrimeField32,
-    {
-        // Initialize chips.
-        let program = ProgramChip::new();
-        let cpu = CpuChip::new();
-        let add = AddChip::default();
-        let sub = SubChip::default();
-        let bitwise = BitwiseChip::default();
-        let mul = MulChip::default();
-        let divrem = DivRemChip::default();
-        let shift_right = ShiftRightChip::default();
-        let shift_left = ShiftLeft::default();
-        let lt = LtChip::default();
-        let bytes = ByteChip::<SC::Val>::new();
-        let field = FieldLTUChip::default();
-        let sha_extend = ShaExtendChip::new();
-        let sha_compress = ShaCompressChip::new();
-        let ed_add = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>, Ed25519Parameters>::new();
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::new();
-        let keccak_permute = KeccakPermuteChip::new();
-        let weierstrass_add =
-            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
-        let weierstrass_double =
-            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>, Secp256k1Parameters>::new();
-        let k256_decompress = K256DecompressChip::new();
-        // This vector contains chips ordered to address dependencies. Some operations, like div,
-        // depend on others like mul for verification. To prevent race conditions and ensure correct
-        // execution sequences, dependent operations are positioned before their dependencies.
-        [
-            Box::new(program),
-            Box::new(cpu),
-            Box::new(sha_extend),
-            Box::new(sha_compress),
-            Box::new(ed_add),
-            Box::new(ed_decompress),
-            Box::new(k256_decompress),
-            Box::new(weierstrass_add),
-            Box::new(weierstrass_double),
-            Box::new(keccak_permute),
-            Box::new(add),
-            Box::new(sub),
-            Box::new(bitwise),
-            Box::new(divrem),
-            Box::new(mul),
-            Box::new(shift_right),
-            Box::new(shift_left),
-            Box::new(lt),
-            Box::new(field),
-            Box::new(bytes),
-        ]
-    }
-
-    pub fn global_chips<SC: StarkConfig>() -> [Box<dyn AirChip<SC>>; 3]
-    where
-        SC::Val: PrimeField32,
-    {
-        // Initialize chips.
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        [
-            Box::new(memory_init),
-            Box::new(memory_finalize),
-            Box::new(program_memory_init),
-        ]
-    }
-
     /// Prove the program.
     ///
     /// The function returns a vector of segment proofs, one for each segment, and a global proof.
@@ -133,107 +52,56 @@ impl Runtime {
         P: Prover<SC>,
         OpeningProof<SC>: Send + Sync,
     {
-        let num_segments = self.segments.len();
-        let (cycle_count, keccak_count, sha_count) =
-            self.segments.iter().fold((0, 0, 0), |acc, s| {
-                (
-                    acc.0 + s.cpu_events.len(),
-                    acc.1 + s.keccak_permute_events.len(),
-                    acc.2 + s.sha_compress_events.len(),
-                )
-            });
-        tracing::info!(
-            "total_cycles: {}, segments: {}, keccak: {}, sha: {}",
-            cycle_count,
-            num_segments,
-            keccak_count,
-            sha_count,
-        );
-        let segment_chips = Self::segment_chips::<SC>();
-
-        let (commitments, segment_main_data) =
-            P::generate_segment_traces::<F, EF>(config, &mut self.segments, &segment_chips);
-
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            commitments.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
-        });
-
-        // We clone the challenger so that each segment can observe the same "global" challenges.
-        let local_segment_proofs: Vec<_> =
-            tracing::info_span!("proving all segments").in_scope(|| {
-                segment_main_data
-                    .into_par_iter()
-                    .enumerate()
-                    .map(|(i, main_data)| {
-                        tracing::info_span!("proving segment", segment = i).in_scope(|| {
-                            P::prove(config, &mut challenger.clone(), &segment_chips, main_data)
-                        })
-                    })
-                    .collect()
-            });
-
-        #[cfg(feature = "proof-debug")]
-        // Verify the segment proofs.
-        tracing::info_span!("proving all segments").in_scope(|| {
-            local_segment_proofs
-                .iter()
-                .enumerate()
-                .for_each(|(i, proof)| {
-                    tracing::info_span!("verifying segment", segment = i).in_scope(|| {
-                        Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
-                            .unwrap()
-                    })
-                })
-        });
-
+        // Get the local and global chips.
+        let local_chips = Self::local_chips::<SC>();
         let global_chips = Self::global_chips::<SC>();
-        let global_main_data =
-            tracing::info_span!("commit main for global segments").in_scope(|| {
-                P::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory()
-            });
-        let global_proof = tracing::info_span!("proving global segments").in_scope(|| {
-            P::prove(
-                config,
-                &mut challenger.clone(),
-                &global_chips,
-                global_main_data,
-            )
+
+        // Generate the trace for each chip to collect events emitted from chips with dependencies.
+        local_chips.iter().for_each(|chip| {
+            chip.generate_trace(&mut self.segment);
         });
 
-        #[cfg(feature = "proof-debug")]
-        // Verify the global proof.
-        tracing::info_span!("verifying global segments").in_scope(|| {
-            Verifier::verify(
-                config,
-                &global_chips,
-                &mut challenger.clone(),
-                &global_proof,
-            )
-            .unwrap()
+        // Display the statistics about the workload.
+        tracing::info!("{:#?}", self.segment.stats());
+
+        // For each chip, shard the events into segments.
+        let mut segments: Vec<Segment> = Vec::new();
+        local_chips.iter().for_each(|chip| {
+            chip.shard(&self.segment, &mut segments);
         });
 
-        #[cfg(not(feature = "perf"))]
-        let mut all_permutation_traces = local_segment_proofs
-            .into_iter()
-            .flat_map(|proof| proof.permutation_traces)
+        // Generate and commit the traces for each segment.
+        let (segment_commits, segment_datas) =
+            P::generate_segment_traces::<F, EF>(config, &mut segments, &local_chips);
+
+        // Observe the challenges for each segment.
+        segment_commits.into_iter().for_each(|commitment| {
+            challenger.observe(commitment);
+        });
+
+        // Generate a proof for each segment. Note that we clone the challenger so we can observe
+        // identical global challenges across the segments.
+        let segment_proofs = segment_datas
+            .into_par_iter()
+            .enumerate()
+            .map(|(_, main_data)| {
+                P::prove(config, &mut challenger.clone(), &local_chips, main_data)
+            })
             .collect::<Vec<_>>();
-        #[cfg(not(feature = "perf"))]
-        all_permutation_traces.extend_from_slice(&global_proof.permutation_traces);
 
-        // Compute the cumulative bus sum from all segments
-        // Make sure that this cumulative bus sum is 0.
-        #[cfg(not(feature = "perf"))]
-        debug_cumulative_sums::<F, EF>(&all_permutation_traces);
+        // Generate and commit to the global segment.
+        let global_main_data =
+            P::commit_main(config, &global_chips, &mut self.global_segment).to_in_memory();
 
-        #[cfg(feature = "perf")]
-        return (local_segment_proofs, global_proof);
+        // Generate a proof for the global segment.
+        let global_proof = P::prove(
+            config,
+            &mut challenger.clone(),
+            &global_chips,
+            global_main_data,
+        );
 
-        #[cfg(not(feature = "perf"))]
-        (vec![], global_proof)
+        (segment_proofs, global_proof)
     }
 
     pub fn verify<F, EF, SC>(
@@ -261,7 +129,7 @@ impl Runtime {
         });
 
         // Verify the segment proofs.
-        let segment_chips = Self::segment_chips::<SC>();
+        let segment_chips = Self::local_chips::<SC>();
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
                 Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
@@ -281,23 +149,73 @@ impl Runtime {
         #[cfg(feature = "perf")]
         {
             for proof in segments_proofs.iter() {
-                sum += proof
-                    .commulative_sums
-                    .iter()
-                    .copied()
-                    .sum::<SC::Challenge>();
+                sum += proof.cumulative_sum();
             }
-            sum += global_proof
-                .commulative_sums
-                .iter()
-                .copied()
-                .sum::<SC::Challenge>();
+            sum += global_proof.cumulative_sum();
         }
 
         match sum.is_zero() {
             true => Ok(()),
-            false => Err(ProgramVerificationError::NonZeroCommulativeSum),
+            false => Err(ProgramVerificationError::NonZeroCumulativeSum),
         }
+    }
+
+    /// Chips used in each segment.
+    ///
+    /// The chips must be ordered to address dependencies. Some operations, like division, depend
+    /// on others, like multiplication, for verification.
+    pub fn local_chips<SC: StarkConfig>() -> Vec<Box<dyn AirChip<SC>>>
+    where
+        SC::Val: PrimeField32,
+    {
+        vec![
+            Box::new(ProgramChip::default()),
+            Box::new(CpuChip::default()),
+            Box::new(ShaExtendChip::default()),
+            Box::new(ShaCompressChip::default()),
+            Box::new(EdAddAssignChip::<
+                EdwardsCurve<Ed25519Parameters>,
+                Ed25519Parameters,
+            >::new()),
+            Box::new(EdDecompressChip::<Ed25519Parameters>::default()),
+            Box::new(K256DecompressChip::default()),
+            Box::new(WeierstrassAddAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            >::new()),
+            Box::new(WeierstrassDoubleAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+                Secp256k1Parameters,
+            >::new()),
+            Box::new(KeccakPermuteChip::new()),
+            Box::new(AddChip::default()),
+            Box::new(SubChip::default()),
+            Box::new(BitwiseChip::default()),
+            Box::new(DivRemChip::default()),
+            Box::new(MulChip::default()),
+            Box::new(ShiftRightChip::default()),
+            Box::new(ShiftLeft::default()),
+            Box::new(LtChip::default()),
+            Box::new(FieldLTUChip::default()),
+            Box::new(ByteChip::<SC::Val>::new()),
+        ]
+    }
+
+    /// Chips used in the global segment.
+    ///
+    /// The chips must be ordered to address dependencies, similar to `segment_chips`.
+    pub fn global_chips<SC: StarkConfig>() -> Vec<Box<dyn AirChip<SC>>>
+    where
+        SC::Val: PrimeField32,
+    {
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        vec![
+            Box::new(memory_init),
+            Box::new(memory_finalize),
+            Box::new(program_memory_init),
+        ]
     }
 }
 
@@ -305,7 +223,7 @@ impl Runtime {
 pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
-    NonZeroCommulativeSum,
+    NonZeroCumulativeSum,
 }
 
 #[cfg(test)]
@@ -459,6 +377,7 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_prove() {
+        setup_logger();
         let program = fibonacci_program();
         prove(program);
     }

@@ -9,7 +9,7 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -43,6 +43,16 @@ pub struct BitwiseCols<T> {
 impl<F: PrimeField> Chip<F> for BitwiseChip {
     fn name(&self) -> String {
         "Bitwise".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        let shards = input
+            .bitwise_events
+            .chunks(NB_ROWS_PER_SHARD)
+            .collect::<Vec<_>>();
+        for i in 0..shards.len() {
+            outputs[i].bitwise_events = shards[i].to_vec();
+        }
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

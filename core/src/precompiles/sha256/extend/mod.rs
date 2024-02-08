@@ -10,6 +10,7 @@ use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaExtendEvent {
+    pub segment: u32,
     pub clk: u32,
     pub w_ptr: u32,
     pub w_i_minus_15_reads: [MemoryReadRecord; 48],
@@ -19,6 +20,7 @@ pub struct ShaExtendEvent {
     pub w_i_writes: [MemoryWriteRecord; 48],
 }
 
+#[derive(Default)]
 pub struct ShaExtendChip;
 
 impl ShaExtendChip {
@@ -45,7 +47,7 @@ pub mod extend_tests {
     use crate::{
         alu::AluEvent,
         runtime::{Instruction, Opcode, Program, Runtime, Segment},
-        stark::prover::LocalProver,
+        stark::LocalProver,
         utils::{BabyBearPoseidon2, Chip, StarkUtils},
     };
 

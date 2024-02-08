@@ -185,6 +185,7 @@ impl<V: Copy> EdDecompressCols<V> {
     }
 }
 
+#[derive(Default)]
 pub struct EdDecompressChip<E> {
     _phantom: PhantomData<E>,
 }
@@ -262,6 +263,10 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
     fn name(&self) -> String {
         "EdDecompress".to_string()
+    }
+
+    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+        outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
     }
 
     fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {

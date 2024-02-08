@@ -1,11 +1,12 @@
-use std::ops::{Add, Mul};
-
-use p3_air::{Air, AirBuilder, PairBuilder, PermutationAirBuilder};
+use p3_air::{Air, ExtensionBuilder, PairBuilder, PermutationAirBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
+use std::ops::{Add, Mul};
 
 use crate::{lookup::Interaction, utils::Chip};
+
+use super::util::batch_multiplicative_inverse_inplace;
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
@@ -53,41 +54,40 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // fingerprint for the interaction.
     let chunk_rate = 1 << 8;
     let permutation_trace_width = all_interactions.len() + 1;
-    let mut permutation_trace_values =
-        tracing::debug_span!("permutation trace values").in_scope(|| {
-            // Compute the permutation trace values in parallel.
-            let mut parallel = main
-                .par_row_chunks(chunk_rate)
-                .flat_map(|rows_chunk| {
-                    rows_chunk
-                        .rows()
-                        .flat_map(|main_row| {
-                            compute_permutation_row(
-                                main_row,
-                                &[],
-                                &all_interactions,
-                                &alphas,
-                                betas.clone(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
+    let mut permutation_trace_values = {
+        // Compute the permutation trace values in parallel.
+        let mut parallel = main
+            .par_row_chunks(chunk_rate)
+            .flat_map(|rows_chunk| {
+                rows_chunk
+                    .rows()
+                    .flat_map(|main_row| {
+                        compute_permutation_row(
+                            main_row,
+                            &[],
+                            &all_interactions,
+                            &alphas,
+                            betas.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
 
-            // Compute the permutation trace values for the remainder.
-            let remainder = main.height() % chunk_rate;
-            for i in 0..remainder {
-                let perm_row = compute_permutation_row(
-                    main.row_slice(main.height() - remainder + i),
-                    &[],
-                    &all_interactions,
-                    &alphas,
-                    betas.clone(),
-                );
-                parallel.extend(perm_row);
-            }
-            parallel
-        });
+        // Compute the permutation trace values for the remainder.
+        let remainder = main.height() % chunk_rate;
+        for i in 0..remainder {
+            let perm_row = compute_permutation_row(
+                main.row_slice(main.height() - remainder + i),
+                &[],
+                &all_interactions,
+                &alphas,
+                betas.clone(),
+            );
+            parallel.extend(perm_row);
+        }
+        parallel
+    };
 
     // The permutation trace is actually the multiplicative inverse of the RLC's we computed above.
     permutation_trace_values
@@ -174,7 +174,7 @@ where
             rlc += AB::ExprEF::from_f(beta) * elem;
         }
         rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
-        builder.assert_one_ext::<AB::ExprEF, AB::ExprEF>(rlc * perm_local[m].into());
+        builder.assert_one_ext(rlc * perm_local[m].into());
 
         let mult_local = interaction
             .multiplicity
@@ -194,9 +194,7 @@ where
     }
 
     // Running sum constraints.
-    builder
-        .when_transition()
-        .assert_eq_ext::<AB::ExprEF, _, _>(lhs, rhs);
+    builder.when_transition().assert_eq_ext(lhs, rhs);
     builder
         .when_first_row()
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
@@ -206,7 +204,7 @@ where
     );
 }
 
-#[inline]
+/// Computes the permutation fingerprint of a row.
 pub fn compute_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     main_row: &[F],
     preprocessed_row: &[F],
@@ -224,27 +222,4 @@ pub fn compute_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
         }
     }
     row
-}
-
-/// A forked verison of the batch_multiplicative_inverse function from Plonky3 to avoid cloning
-/// the input values.
-pub fn batch_multiplicative_inverse_inplace<F: Field>(values: &mut [F]) {
-    // Check if values are zero and construct a new vector with only nonzero values.
-    let mut nonzero_values = Vec::with_capacity(values.len());
-    let mut indices = Vec::with_capacity(values.len());
-    for (i, value) in values.iter().cloned().enumerate() {
-        if value.is_zero() {
-            continue;
-        }
-        nonzero_values.push(value);
-        indices.push(i);
-    }
-
-    // Compute the multiplicative inverse of nonzero values.
-    let inverse_nonzero_values = p3_field::batch_multiplicative_inverse(&nonzero_values);
-
-    // Reconstruct the original vector.
-    for (i, index) in indices.into_iter().enumerate() {
-        values[index] = inverse_nonzero_values[i];
-    }
 }

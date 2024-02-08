@@ -4,7 +4,7 @@
 
 Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed. Install the "cargo prove" CLI.
 ```
-git clone https://github.com/succinctlabs/vm succinct-vm
+git clone ssh://git@github.com/succinctlabs/vm succinct-vm
 cd succinct-vm
 cd cli
 cargo install --locked --path .

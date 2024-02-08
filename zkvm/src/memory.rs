@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::syscall::syscall_halt;
-
 const SYSTEM_START: usize = 0x0C00_0000;
 
 #[allow(clippy::missing_safety_doc)]
@@ -45,7 +43,7 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
 
     // Check to make sure heap doesn't collide with SYSTEM memory.
     if SYSTEM_START < heap_pos {
-        syscall_halt();
+        panic!();
     }
 
     unsafe { HEAP_POS = heap_pos };
