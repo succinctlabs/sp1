@@ -36,6 +36,8 @@ env_logger = "0.10.1"
 num = { version = "0.4.1", features = ["rand"] }
 nohash-hasher = "0.2.0"
 
+succinct-k12 = { path = "../k12" }
+
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
