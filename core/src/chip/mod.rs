@@ -4,8 +4,6 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     lookup::{Interaction, InteractionBuilder},
-    memory::MemoryCols,
-    operations::field::params::Limbs,
     runtime::Segment,
     stark::{
         DebugConstraintBuilder, ProverConstraintFolder, StarkConfig, VerifierConstraintFolder,

@@ -11,19 +11,7 @@ pub use tracer::*;
 #[cfg(test)]
 pub use programs::*;
 
-use p3_air::{Air, BaseAir};
-use p3_field::Field;
-use p3_matrix::dense::RowMajorMatrix;
-
-use crate::{
-    lookup::{Interaction, InteractionBuilder},
-    memory::MemoryCols,
-    operations::field::params::Limbs,
-    runtime::Segment,
-    stark::{
-        DebugConstraintBuilder, ProverConstraintFolder, StarkConfig, VerifierConstraintFolder,
-    },
-};
+use crate::{memory::MemoryCols, operations::field::params::Limbs};
 
 pub const NB_ROWS_PER_SHARD: usize = 1 << 18;
 
