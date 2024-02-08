@@ -6,6 +6,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::{air::Word, runtime::Instruction};
 
+pub const NUM_INSTRUCTION_COLS: usize = size_of::<InstructionCols<u8>>();
+
 /// The column layout for instructions.
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]
