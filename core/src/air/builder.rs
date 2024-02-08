@@ -4,8 +4,8 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
-use crate::cpu::columns::instruction::InstructionCols;
-use crate::cpu::columns::opcode::OpcodeSelectorCols;
+use crate::cpu::columns::InstructionCols;
+use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
