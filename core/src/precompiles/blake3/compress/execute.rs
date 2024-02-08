@@ -33,6 +33,7 @@ impl Blake3CompressInnerChip {
                     state[i] = value;
                     rt.clk += 4;
                 }
+                println!("state: {:?}", state);
 
                 // TODO: call g here!
                 let results = state;

@@ -53,22 +53,17 @@ pub mod compress_tests {
     use crate::utils::setup_logger;
     use crate::Program;
 
+    use super::INPUT_SIZE;
+
     pub fn blake3_compress_internal_program() -> Program {
         let w_ptr = 100;
         let mut instructions = vec![];
-        let block_words_length = 16;
-        let block_len_length = 1;
-        let cv_words_length = 8;
-        let counter_length = 2; // 2 u32's.
-        let flag_length = 1; // 2 u32's.
-        let total_length =
-            block_words_length + block_len_length + cv_words_length + counter_length + flag_length;
 
-        for i in 0..total_length {
-            // Store 100 + i in memory for the i-th word of the state. 100 + i is an arbitrary
+        for i in 0..INPUT_SIZE {
+            // Store 1000 + i in memory for the i-th word of the state. 1000 + i is an arbitrary
             // number that is easy to spot while debugging.
             instructions.extend(vec![
-                Instruction::new(Opcode::ADD, 29, 0, 100 + i as u32, false, true),
+                Instruction::new(Opcode::ADD, 29, 0, 1000 + i as u32, false, true),
                 Instruction::new(Opcode::ADD, 30, 0, w_ptr + i as u32 * 4, false, true),
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
