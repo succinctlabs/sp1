@@ -80,7 +80,7 @@ use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, NB_ROWS_PER_SHARD};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `DivRemChip`.
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
@@ -188,7 +188,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
     fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         let shards = input
             .divrem_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].divrem_events = shards[i].to_vec();

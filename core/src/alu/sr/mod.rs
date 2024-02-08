@@ -59,7 +59,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, NB_ROWS_PER_SHARD};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `ShiftRightChip`.
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
@@ -129,7 +129,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
     fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
         let shards = input
             .shift_right_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].shift_right_events = shards[i].to_vec();
