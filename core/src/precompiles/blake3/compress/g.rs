@@ -33,83 +33,71 @@ use super::g_func;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct GOperation<T> {
-    pub state_a_plus_state_b: AddOperation<T>,
-    pub state_a_plus_state_b_plus_x: AddOperation<T>,
-    pub state_d_xor_state_a: XorOperation<T>,
+    pub a_plus_b: AddOperation<T>,
+    pub a_plus_b_plus_x: AddOperation<T>,
+    pub d_xor_a: XorOperation<T>,
     // Rotate right by 16 bits by just shifting bytes.
-    pub state_c_plus_state_d: AddOperation<T>,
-    pub state_b_xor_state_c: XorOperation<T>,
-    pub state_b_xor_state_c_rotate_right_12: FixedRotateRightOperation<T>,
-    pub state_a_plus_state_b_2: AddOperation<T>,
-    pub state_a_plus_state_b_2_add_y: AddOperation<T>,
+    pub c_plus_d: AddOperation<T>,
+    pub b_xor_c: XorOperation<T>,
+    pub b_xor_c_rotate_right_12: FixedRotateRightOperation<T>,
+    pub a_plus_b_2: AddOperation<T>,
+    pub a_plus_b_2_add_y: AddOperation<T>,
     // Rotate right by 8 bits by just shifting bytes.
-    pub state_d_xor_state_a_2: XorOperation<T>,
-    pub state_c_plus_state_d_2: AddOperation<T>,
-    pub state_b_xor_state_c_2: XorOperation<T>,
-    pub state_b_xor_state_c_2_rotate_right_7: FixedRotateRightOperation<T>,
+    pub d_xor_a_2: XorOperation<T>,
+    pub c_plus_d_2: AddOperation<T>,
+    pub b_xor_c_2: XorOperation<T>,
+    pub b_xor_c_2_rotate_right_7: FixedRotateRightOperation<T>,
     /// `state[a]`, `state[b]`, `state[c]`, `state[d]` after all the steps.
     pub result: [Word<T>; 4],
 }
 
 impl<F: Field> GOperation<F> {
     pub fn populate(&mut self, segment: &mut Segment, input: [u32; 6]) -> [u32; 4] {
-        let mut state_a = input[0];
-        let mut state_b = input[1];
-        let mut state_c = input[2];
-        let mut state_d = input[3];
+        let mut a = input[0];
+        let mut b = input[1];
+        let mut c = input[2];
+        let mut d = input[3];
         let x = input[4];
         let y = input[5];
 
         // First 4 steps.
         {
-            state_a = self
-                .state_a_plus_state_b
-                .populate(segment, state_a, state_b);
-            state_a = self
-                .state_a_plus_state_b_plus_x
-                .populate(segment, state_a, x);
+            // a = a + b + x.
+            a = self.a_plus_b.populate(segment, a, b);
+            a = self.a_plus_b_plus_x.populate(segment, a, x);
 
-            state_d = self.state_d_xor_state_a.populate(segment, state_d, state_a);
-            state_d = state_d.rotate_right(16);
+            // d = (d ^ a).rotate_right(16).
+            d = self.d_xor_a.populate(segment, d, a);
+            d = d.rotate_right(16);
 
-            state_c = self
-                .state_c_plus_state_d
-                .populate(segment, state_c, state_d);
+            // c = c + d.
+            c = self.c_plus_d.populate(segment, c, d);
 
-            state_b = self.state_b_xor_state_c.populate(segment, state_b, state_c);
-            state_b = self
-                .state_b_xor_state_c_rotate_right_12
-                .populate(segment, state_b, 12);
+            // b = (b ^ c).rotate_right(12).
+            b = self.b_xor_c.populate(segment, b, c);
+            b = self.b_xor_c_rotate_right_12.populate(segment, b, 12);
         }
 
         // Second 4 steps.
         {
-            state_a = self
-                .state_a_plus_state_b_2
-                .populate(segment, state_a, state_b);
-            state_a = self
-                .state_a_plus_state_b_2_add_y
-                .populate(segment, state_a, y);
+            // a = a + b + y.
+            a = self.a_plus_b_2.populate(segment, a, b);
+            a = self.a_plus_b_2_add_y.populate(segment, a, y);
 
-            state_d = self
-                .state_d_xor_state_a_2
-                .populate(segment, state_d, state_a);
-            state_d = state_d.rotate_right(8);
+            // d = (d ^ a).rotate_right(8).
+            d = self.d_xor_a_2.populate(segment, d, a);
+            d = d.rotate_right(8);
 
-            state_c = self
-                .state_c_plus_state_d_2
-                .populate(segment, state_c, state_d);
+            // c = c + d.
+            c = self.c_plus_d_2.populate(segment, c, d);
 
-            state_b = self
-                .state_b_xor_state_c_2
-                .populate(segment, state_b, state_c);
-            state_b = self
-                .state_b_xor_state_c_2_rotate_right_7
-                .populate(segment, state_b, 7);
+            // b = (b ^ c).rotate_right(7).
+            b = self.b_xor_c_2.populate(segment, b, c);
+            b = self.b_xor_c_2_rotate_right_7.populate(segment, b, 7);
         }
 
-        assert_eq!([state_a, state_b, state_c, state_d], g_func(input));
-        [state_a, state_b, state_c, state_d]
+        assert_eq!([a, b, c, d], g_func(input));
+        [a, b, c, d]
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
@@ -127,57 +115,64 @@ impl<F: Field> GOperation<F> {
 
         // First 4 steps.
         {
-            AddOperation::<AB::F>::eval(builder, a, b, cols.state_a_plus_state_b, is_real);
-            a = cols.state_a_plus_state_b.value;
-            AddOperation::<AB::F>::eval(builder, a, x, cols.state_a_plus_state_b_plus_x, is_real);
-            a = cols.state_a_plus_state_b_plus_x.value;
+            // a = a + b + x.
+            AddOperation::<AB::F>::eval(builder, a, b, cols.a_plus_b, is_real);
+            a = cols.a_plus_b.value;
+            AddOperation::<AB::F>::eval(builder, a, x, cols.a_plus_b_plus_x, is_real);
+            a = cols.a_plus_b_plus_x.value;
 
-            XorOperation::<AB::F>::eval(builder, d, a, cols.state_d_xor_state_a, is_real);
-            d = cols.state_d_xor_state_a.value;
-
+            // d = (d ^ a).rotate_right(16).
+            XorOperation::<AB::F>::eval(builder, d, a, cols.d_xor_a, is_real);
+            d = cols.d_xor_a.value;
             // Rotate right by 16 bits.
             d = Word([d[1], d[0], d[3], d[2]]);
 
-            AddOperation::<AB::F>::eval(builder, c, d, cols.state_c_plus_state_d, is_real);
-            c = cols.state_c_plus_state_d.value;
+            // c = c + d.
+            AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d, is_real);
+            c = cols.c_plus_d.value;
 
-            XorOperation::<AB::F>::eval(builder, b, c, cols.state_b_xor_state_c, is_real);
-            b = cols.state_b_xor_state_c.value;
+            // b = (b ^ c).rotate_right(12).
+            XorOperation::<AB::F>::eval(builder, b, c, cols.b_xor_c, is_real);
+            b = cols.b_xor_c.value;
             FixedRotateRightOperation::<AB::F>::eval(
                 builder,
                 b,
                 12,
-                cols.state_b_xor_state_c_rotate_right_12,
+                cols.b_xor_c_rotate_right_12,
                 is_real,
             );
-            b = cols.state_b_xor_state_c_rotate_right_12.value;
+            b = cols.b_xor_c_rotate_right_12.value;
         }
 
         // Second 4 steps.
         {
-            AddOperation::<AB::F>::eval(builder, a, b, cols.state_a_plus_state_b_2, is_real);
-            a = cols.state_a_plus_state_b_2.value;
-            AddOperation::<AB::F>::eval(builder, a, y, cols.state_a_plus_state_b_2_add_y, is_real);
-            a = cols.state_a_plus_state_b_2_add_y.value;
+            // a = a + b + y.
+            AddOperation::<AB::F>::eval(builder, a, b, cols.a_plus_b_2, is_real);
+            a = cols.a_plus_b_2.value;
+            AddOperation::<AB::F>::eval(builder, a, y, cols.a_plus_b_2_add_y, is_real);
+            a = cols.a_plus_b_2_add_y.value;
 
-            XorOperation::<AB::F>::eval(builder, d, a, cols.state_d_xor_state_a_2, is_real);
-            d = cols.state_d_xor_state_a_2.value;
+            // d = (d ^ a).rotate_right(8).
+            XorOperation::<AB::F>::eval(builder, d, a, cols.d_xor_a_2, is_real);
+            d = cols.d_xor_a_2.value;
             // Rotate right by 8 bits.
             d = Word([d[1], d[0], d[3], d[2]]);
 
-            AddOperation::<AB::F>::eval(builder, c, d, cols.state_c_plus_state_d_2, is_real);
-            c = cols.state_c_plus_state_d_2.value;
+            // c = c + d.
+            AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d_2, is_real);
+            c = cols.c_plus_d_2.value;
 
-            XorOperation::<AB::F>::eval(builder, b, c, cols.state_b_xor_state_c_2, is_real);
-            b = cols.state_b_xor_state_c_2.value;
+            // b = (b ^ c).rotate_right(7).
+            XorOperation::<AB::F>::eval(builder, b, c, cols.b_xor_c_2, is_real);
+            b = cols.b_xor_c_2.value;
             FixedRotateRightOperation::<AB::F>::eval(
                 builder,
                 b,
                 7,
-                cols.state_b_xor_state_c_2_rotate_right_7,
+                cols.b_xor_c_2_rotate_right_7,
                 is_real,
             );
-            b = cols.state_b_xor_state_c_2_rotate_right_7.value;
+            b = cols.b_xor_c_2_rotate_right_7.value;
         }
 
         let results = [a, b, c, d];
