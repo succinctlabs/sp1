@@ -10,7 +10,7 @@ use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShaExtendEvent {
-    pub segment: u32,
+    pub shard: u32,
     pub clk: u32,
     pub w_ptr: u32,
     pub w_i_minus_15_reads: [MemoryReadRecord; 48],
@@ -73,10 +73,10 @@ pub mod extend_tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        let mut shard = ExecutionRecord::default();
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = ShaExtendChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 

@@ -31,9 +31,9 @@ pub trait Prover<SC>
 where
     SC: StarkConfig,
 {
-    fn generate_segment_traces<F, EF>(
+    fn generate_shard_traces<F, EF>(
         config: &SC,
-        segments: &mut Vec<ExecutionRecord>,
+        shards: &mut Vec<ExecutionRecord>,
         chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
@@ -48,24 +48,20 @@ where
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         MainData<SC>: Serialize + DeserializeOwned;
 
-    fn commit_main(
-        config: &SC,
-        chips: &[ChipRef<SC>],
-        segment: &mut ExecutionRecord,
-    ) -> MainData<SC>
+    fn commit_main(config: &SC, chips: &[ChipRef<SC>], shard: &mut ExecutionRecord) -> MainData<SC>
     where
         SC::Val: PrimeField32,
     {
         // Filter the chips based on what is used.
         let filtered_chips = chips
             .iter()
-            .filter(|chip| chip.include(segment))
+            .filter(|chip| chip.include(shard))
             .collect::<Vec<_>>();
 
         // For each chip, generate the trace.
         let traces = filtered_chips
             .iter()
-            .map(|chip| chip.generate_trace(&mut segment.clone()))
+            .map(|chip| chip.generate_trace(&mut shard.clone()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
@@ -85,13 +81,13 @@ where
         }
     }
 
-    /// Prove the program for the given segment and given a commitment to the main data.
+    /// Prove the program for the given shard and given a commitment to the main data.
     fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[ChipRef<SC>],
         wrapped_main_data: MainDataWrapper<SC>,
-    ) -> SegmentProof<SC>
+    ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
@@ -100,7 +96,7 @@ where
         // Get the traces.
         let main_data = wrapped_main_data
             .materialize()
-            .expect("failed to load segment main data");
+            .expect("failed to load shard main data");
         let traces = main_data.traces;
 
         // Filter the chips.
@@ -371,13 +367,13 @@ where
             )
             .collect::<Vec<_>>();
 
-            SegmentProof::<SC> {
-                commitment: SegmentCommitment {
+            ShardProof::<SC> {
+                commitment: ShardCommitment {
                     main_commit: main_data.main_commit.clone(),
                     permutation_commit,
                     quotient_commit,
                 },
-                opened_values: SegmentOpenedValues {
+                opened_values: ShardOpenedValues {
                     chips: opened_values,
                 },
                 opening_proof,
@@ -399,7 +395,7 @@ where
         });
 
         #[cfg(not(feature = "perf"))]
-        return SegmentProof {
+        return ShardProof {
             main_commit: main_data.main_commit.clone(),
             traces,
             permutation_traces,
@@ -548,9 +544,9 @@ impl<SC> Prover<SC> for LocalProver<SC>
 where
     SC: StarkConfig,
 {
-    fn generate_segment_traces<F, EF>(
+    fn generate_shard_traces<F, EF>(
         config: &SC,
-        segments: &mut Vec<ExecutionRecord>,
+        shards: &mut Vec<ExecutionRecord>,
         chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
@@ -565,30 +561,28 @@ where
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         MainData<SC>: Serialize + DeserializeOwned,
     {
-        let num_segments = segments.len();
+        let num_shards = shards.len();
         // Batch into at most 16 chunks (and at least 1) to limit parallelism.
-        let chunk_size = max(segments.len() / 16, 1);
-        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
-            tracing::info_span!("commit main for all segments").in_scope(|| {
-                segments
+        let chunk_size = max(shards.len() / 16, 1);
+        let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
+            tracing::info_span!("commit main for all shards").in_scope(|| {
+                shards
                     .chunks_mut(chunk_size)
                     .par_bridge()
-                    .flat_map(|segments| {
-                        segments
+                    .flat_map(|shards| {
+                        shards
                             .iter_mut()
-                            .map(|segment| {
-                                let data = tracing::debug_span!(
-                                    "segment commit main",
-                                    segment = segment.index
-                                )
-                                .in_scope(|| Self::commit_main(config, chips, segment));
+                            .map(|shard| {
+                                let data =
+                                    tracing::debug_span!("shard commit main", shard = shard.index)
+                                        .in_scope(|| Self::commit_main(config, chips, shard));
                                 let commitment = data.main_commit.clone();
                                 let file = tempfile::tempfile().unwrap();
                                 // TODO: make this logic configurable?
-                                // At around 64 segments * 1 GB per segment, saving to disk starts
+                                // At around 64 shards * 1 GB per shard, saving to disk starts
                                 // to become necessary.
-                                let data = if num_segments > 64 {
-                                    data.save(file).expect("failed to save segment main data")
+                                let data = if num_shards > 64 {
+                                    data.save(file).expect("failed to save shard main data")
                                 } else {
                                     data.to_in_memory()
                                 };
@@ -603,7 +597,7 @@ where
 
         #[cfg(not(feature = "perf"))]
         {
-            let bytes_written = segment_main_data
+            let bytes_written = shard_main_data
                 .iter()
                 .map(|data| match data {
                     MainDataWrapper::InMemory(_) => 0,
@@ -618,6 +612,6 @@ where
             }
         }
 
-        (commitments, segment_main_data)
+        (commitments, shard_main_data)
     }
 }

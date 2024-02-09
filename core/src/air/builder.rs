@@ -292,15 +292,15 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
-    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify, M>(
+    fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
         &mut self,
-        segment: ESegment,
+        shard: EShard,
         clk: EClk,
         addr: Ea,
         memory_access: &M,
         verify_memory_access: EVerify,
     ) where
-        ESegment: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr> + Clone,
@@ -313,10 +313,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let access = memory_access.access();
 
         //// Check that this memory access occurs after the previous one.
-        // First check if we need to compare between the segment or the clk.
+        // First check if we need to compare between the shard or the clk.
         let use_clk_comparison_expr: Self::Expr = access.use_clk_comparison.clone().into();
-        let current_segment_expr: Self::Expr = segment.into();
-        let prev_segment_expr: Self::Expr = access.prev_segment.clone().into();
+        let current_shard_expr: Self::Expr = shard.into();
+        let prev_shard_expr: Self::Expr = access.prev_shard.clone().into();
         let current_clk_expr: Self::Expr = clk.into();
         let prev_clk_expr: Self::Expr = access.prev_clk.clone().into();
 
@@ -324,15 +324,15 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .assert_bool(use_clk_comparison_expr.clone());
         self.when(verify_memory_access_expr.clone())
             .when(use_clk_comparison_expr.clone())
-            .assert_eq(current_segment_expr.clone(), prev_segment_expr.clone());
+            .assert_eq(current_shard_expr.clone(), prev_shard_expr.clone());
 
         // Verify the previous and current time value that should be used for comparison.
         let one = Self::Expr::one();
         let calculated_prev_time_value = use_clk_comparison_expr.clone() * prev_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * prev_segment_expr.clone();
+            + (one.clone() - use_clk_comparison_expr.clone()) * prev_shard_expr.clone();
         let calculated_current_time_value = use_clk_comparison_expr.clone()
             * current_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * current_segment_expr.clone();
+            + (one.clone() - use_clk_comparison_expr.clone()) * current_shard_expr.clone();
 
         let prev_time_value_expr: Self::Expr = access.prev_time_value.clone().into();
         let current_time_value_expr: Self::Expr = access.current_time_value.clone().into();
@@ -354,12 +354,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
         //// Check the previous and current memory access via a lookup to the memory table.
         let addr_expr = addr.into();
-        let prev_values = once(prev_segment_expr)
+        let prev_values = once(prev_shard_expr)
             .chain(once(prev_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.prev_value().clone().map(Into::into))
             .collect();
-        let current_values = once(current_segment_expr)
+        let current_values = once(current_shard_expr)
             .chain(once(current_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.value().clone().map(Into::into))
@@ -381,15 +381,15 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
-    fn constraint_memory_access_slice<ESegment, Ea, Eb, EVerify, M>(
+    fn constraint_memory_access_slice<EShard, Ea, Eb, EVerify, M>(
         &mut self,
-        segment: ESegment,
+        shard: EShard,
         clk: Self::Expr,
         initial_addr: Ea,
         memory_access_slice: &[M],
         verify_memory_access: EVerify,
     ) where
-        ESegment: Into<Self::Expr> + std::marker::Copy,
+        EShard: Into<Self::Expr> + std::marker::Copy,
         Ea: Into<Self::Expr> + std::marker::Copy,
         Eb: Into<Self::Expr> + std::marker::Copy,
         EVerify: Into<Self::Expr> + std::marker::Copy,
@@ -397,7 +397,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     {
         for i in 0..memory_access_slice.len() {
             self.constraint_memory_access(
-                segment,
+                shard,
                 clk.clone(),
                 initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
                 &memory_access_slice[i],

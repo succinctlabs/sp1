@@ -40,7 +40,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.segment = F::from_canonical_u32(event.segment);
+                cols.shard = F::from_canonical_u32(event.shard);
                 let clk = event.clk + (j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -98,7 +98,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 cols.octet[j % 8] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
-                cols.segment = F::from_canonical_u32(event.segment);
+                cols.shard = F::from_canonical_u32(event.shard);
                 let clk = event.clk + (8 * 4 + j * 4) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
@@ -181,7 +181,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.segment = F::from_canonical_u32(event.segment);
+                cols.shard = F::from_canonical_u32(event.shard);
                 let clk = event.clk + (8 * 4 + 64 * 4 + (j * 4)) as u32;
                 cols.clk = F::from_canonical_u32(clk);
                 cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);

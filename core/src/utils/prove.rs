@@ -51,9 +51,9 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     let machine = RiscvStark::new(config.clone());
 
-    // Because proving modifies the segment, clone beforehand if we debug interactions.
+    // Because proving modifies the shard, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
-    let segment = runtime.record.clone();
+    let shard = runtime.record.clone();
 
     // Prove the program.
     let proof = tracing::info_span!("runtime.prove(...)")
@@ -73,7 +73,7 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
-            &segment,
+            &shard,
             Some(&mut runtime.record),
             vec![
                 InteractionKind::Field,

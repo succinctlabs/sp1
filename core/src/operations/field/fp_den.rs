@@ -253,9 +253,9 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
         let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -264,10 +264,10 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
 
         let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         // This it to test that the proof DOESN'T work if messed up.
         // let row = trace.row_mut(0);
         // row[0] = BabyBear::from_canonical_u8(0);

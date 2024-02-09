@@ -49,7 +49,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .bitwise_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].bitwise_events = shards[i].to_vec();
@@ -60,9 +60,9 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         !record.bitwise_events.is_empty()
     }
 
-    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
+        let rows = shard
             .bitwise_events
             .iter()
             .map(|event| {
@@ -88,7 +88,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                         b: b_b as u32,
                         c: b_c as u32,
                     };
-                    segment
+                    shard
                         .byte_lookups
                         .entry(byte_event)
                         .and_modify(|i| *i += 1)
@@ -171,10 +171,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        let mut shard = ExecutionRecord::default();
+        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -183,15 +183,15 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = ExecutionRecord::default();
-        segment.bitwise_events = [
+        let mut shard = ExecutionRecord::default();
+        shard.bitwise_events = [
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),
             AluEvent::new(0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

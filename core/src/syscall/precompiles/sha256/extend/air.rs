@@ -36,7 +36,7 @@ where
         builder
             .when_transition()
             .when_not(local.cycle_48_end)
-            .assert_eq(local.segment, next.segment);
+            .assert_eq(local.shard, next.shard);
         builder
             .when_transition()
             .when_not(local.cycle_48_end)
@@ -48,7 +48,7 @@ where
 
         // Read w[i-15].
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + (local.i - i_start) * nb_cycles_per_extend,
             local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * nb_bytes_in_word,
             &local.w_i_minus_15,
@@ -57,7 +57,7 @@ where
 
         // Read w[i-2].
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(4),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * nb_bytes_in_word,
             &local.w_i_minus_2,
@@ -66,7 +66,7 @@ where
 
         // Read w[i-16].
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(8),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * nb_bytes_in_word,
             &local.w_i_minus_16,
@@ -75,7 +75,7 @@ where
 
         // Read w[i-7].
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(12),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * nb_bytes_in_word,
             &local.w_i_minus_7,
@@ -169,7 +169,7 @@ where
 
         // Write `s2` to `w[i]`.
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(16),
             local.w_ptr + local.i * nb_bytes_in_word,
             &local.w_i,

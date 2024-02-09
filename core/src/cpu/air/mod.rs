@@ -49,7 +49,7 @@ where
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
@@ -60,7 +60,7 @@ where
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
@@ -73,7 +73,7 @@ where
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
@@ -90,7 +90,7 @@ where
         let memory_columns: MemoryColumns<AB::Var> =
             *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,

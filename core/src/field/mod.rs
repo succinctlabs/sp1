@@ -52,7 +52,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .field_events
-            .chunks(env::segment_size() * 4)
+            .chunks(env::shard_size() * 4)
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].field_events = shards[i].to_vec();

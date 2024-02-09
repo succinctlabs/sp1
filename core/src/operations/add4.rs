@@ -39,7 +39,7 @@ pub struct Add4Operation<T> {
 impl<F: Field> Add4Operation<F> {
     pub fn populate(
         &mut self,
-        segment: &mut ExecutionRecord,
+        shard: &mut ExecutionRecord,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -74,11 +74,11 @@ impl<F: Field> Add4Operation<F> {
 
         // Range check.
         {
-            segment.add_u8_range_checks(&a);
-            segment.add_u8_range_checks(&b);
-            segment.add_u8_range_checks(&c);
-            segment.add_u8_range_checks(&d);
-            segment.add_u8_range_checks(&expected.to_le_bytes());
+            shard.add_u8_range_checks(&a);
+            shard.add_u8_range_checks(&b);
+            shard.add_u8_range_checks(&c);
+            shard.add_u8_range_checks(&d);
+            shard.add_u8_range_checks(&expected.to_le_bytes());
         }
         expected
     }

@@ -42,7 +42,7 @@ pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 #[repr(C)]
 pub struct EdAddAssignCols<T> {
     pub is_real: T,
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
@@ -60,11 +60,11 @@ pub struct EdAddAssignCols<T> {
 }
 
 #[derive(Default)]
-pub struct EdAddAssignChip<E, EP> {
-    _marker: PhantomData<(E, EP)>,
+pub struct EdAddAssignChip<E> {
+    _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
+impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -93,7 +93,7 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
             .f
             .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-        let d = EP::d_biguint();
+        let d = E::d_biguint();
         let d_mul_f = cols
             .d_mul_f
             .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
@@ -105,19 +105,19 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
     }
 }
 
-impl<E: EllipticCurve, EP: EdwardsParameters> Syscall for EdAddAssignChip<E, EP> {
+impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
         8
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.segment_mut().ed_add_events.push(event);
+        rt.record_mut().ed_add_events.push(event);
         event.p_ptr + 1
     }
 }
 
-impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> MachineAir<F> for EdAddAssignChip<E, EP> {
+impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
@@ -150,7 +150,7 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> MachineAir<F> for EdAddA
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(event.segment);
+            cols.shard = F::from_canonical_u32(event.shard);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
             cols.q_ptr = F::from_canonical_u32(event.q_ptr);
@@ -187,13 +187,13 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> MachineAir<F> for EdAddA
     }
 }
 
-impl<F, E: EllipticCurve, EP: EdwardsParameters> BaseAir<F> for EdAddAssignChip<E, EP> {
+impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {
     fn width(&self) -> usize {
         NUM_ED_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve, EP: EdwardsParameters> Air<AB> for EdAddAssignChip<E, EP>
+impl<AB, E: EllipticCurve + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
 where
     AB: CurtaAirBuilder,
 {
@@ -227,7 +227,7 @@ where
 
         // d * f.
         let f = row.f.result;
-        let d_biguint = EP::d_biguint();
+        let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
         row.d_mul_f
@@ -255,7 +255,7 @@ where
         }
 
         builder.constraint_memory_access(
-            row.segment,
+            row.shard,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(11),
             &row.q_ptr_access,
@@ -263,7 +263,7 @@ where
         );
         for i in 0..16 {
             builder.constraint_memory_access(
-                row.segment,
+                row.shard,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.q_access[i as usize],
@@ -272,7 +272,7 @@ where
         }
         for i in 0..16 {
             builder.constraint_memory_access(
-                row.segment,
+                row.shard,
                 row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.p_access[i as usize],

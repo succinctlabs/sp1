@@ -15,10 +15,10 @@ use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
-/// the execution of the segment.
+/// the execution of the shard.
 #[derive(Default, Clone, Debug)]
 pub struct ExecutionRecord {
-    /// The index of the segment.
+    /// The index of the shard.
     pub index: u32,
 
     /// The program.
@@ -81,7 +81,7 @@ pub struct ExecutionRecord {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct SegmentStats {
+pub struct ShardStats {
     pub nb_cpu_events: usize,
     pub nb_add_events: usize,
     pub nb_mul_events: usize,
@@ -116,7 +116,7 @@ impl ExecutionRecord {
         }
     }
 
-    /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the segment.
+    /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the shard.
     pub fn add_u8_range_check(&mut self, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::U8Range,
@@ -200,8 +200,8 @@ impl ExecutionRecord {
         }
     }
 
-    pub fn stats(&self) -> SegmentStats {
-        SegmentStats {
+    pub fn stats(&self) -> ShardStats {
+        ShardStats {
             nb_cpu_events: self.cpu_events.len(),
             nb_add_events: self.add_events.len(),
             nb_mul_events: self.mul_events.len(),
@@ -225,7 +225,7 @@ impl ExecutionRecord {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub struct OpRecord {
+pub struct CpuRecord {
     pub a: Option<MemoryRecordEnum>,
     pub b: Option<MemoryRecordEnum>,
     pub c: Option<MemoryRecordEnum>,

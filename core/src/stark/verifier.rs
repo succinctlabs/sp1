@@ -32,9 +32,9 @@ impl<SC: StarkConfig> Verifier<SC> {
         config: &SC,
         chips: &[ChipRef<SC>],
         challenger: &mut SC::Challenger,
-        proof: &SegmentProof<SC>,
+        proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
-        let SegmentProof {
+        let ShardProof {
             commitment,
             opened_values,
             opening_proof,
@@ -104,7 +104,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|val| SC::Val::two_adic_generator(val.log_degree))
             .collect::<Vec<_>>();
 
-        let SegmentCommitment {
+        let ShardCommitment {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -171,9 +171,9 @@ impl<SC: StarkConfig> Verifier<SC> {
     #[cfg(not(feature = "perf"))]
     pub fn verify(
         _config: &SC,
-        _chips: &[Box<dyn AirChip<SC>>],
+        _chips: Vec<Box<dyn AirChip<SC>>>,
         _challenger: &mut SC::Challenger,
-        _proof: &SegmentProof<SC>,
+        _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
         Ok(())
     }

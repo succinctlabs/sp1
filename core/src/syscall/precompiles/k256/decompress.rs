@@ -45,7 +45,7 @@ use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
 pub struct K256DecompressEvent {
-    pub segment: u32,
+    pub shard: u32,
     pub clk: u32,
     pub ptr: u32,
     pub is_odd: bool,
@@ -115,11 +115,11 @@ impl Syscall for K256DecompressChip {
         let y_memory_records_vec = rt.mw_slice(slice_ptr, &y_words);
         let y_memory_records: [MemoryWriteRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
-        let segment = rt.segment_clk();
-        rt.segment_mut()
+        let shard = rt.current_shard();
+        rt.record_mut()
             .k256_decompress_events
             .push(K256DecompressEvent {
-                segment,
+                shard,
                 clk: start_clk,
                 ptr: slice_ptr,
                 is_odd: is_odd != 0,
@@ -139,7 +139,7 @@ impl Syscall for K256DecompressChip {
 #[repr(C)]
 pub struct K256DecompressCols<T> {
     pub is_real: T,
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
     pub ptr: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
@@ -153,10 +153,10 @@ pub struct K256DecompressCols<T> {
 }
 
 impl<F: Field> K256DecompressCols<F> {
-    pub fn populate(&mut self, event: K256DecompressEvent, segment: &mut ExecutionRecord) {
+    pub fn populate(&mut self, event: K256DecompressEvent, shard: &mut ExecutionRecord) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
-        self.segment = F::from_canonical_u32(event.segment);
+        self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         for i in 0..8 {
@@ -167,7 +167,7 @@ impl<F: Field> K256DecompressCols<F> {
         let x = &BigUint::from_bytes_le(&event.x_bytes);
         self.populate_fp_ops(x);
 
-        segment.field_events.append(&mut new_field_events);
+        shard.field_events.append(&mut new_field_events);
     }
 
     fn populate_fp_ops(&mut self, x: &BigUint) {
@@ -270,7 +270,7 @@ impl<V: Copy> K256DecompressCols<V> {
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
-                self.segment,
+                self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
                 &self.x_access[i],
@@ -279,7 +279,7 @@ impl<V: Copy> K256DecompressCols<V> {
         }
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
-                self.segment,
+                self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
                 &self.y_access[i],

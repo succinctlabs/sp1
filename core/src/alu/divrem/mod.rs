@@ -188,7 +188,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .divrem_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].divrem_events = shards[i].to_vec();
@@ -772,10 +772,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
+        let mut shard = ExecutionRecord::default();
+        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -833,10 +833,10 @@ mod tests {
             divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
-        let mut segment = ExecutionRecord::default();
-        segment.divrem_events = divrem_events;
+        let mut shard = ExecutionRecord::default();
+        shard.divrem_events = divrem_events;
         let chip = DivRemChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

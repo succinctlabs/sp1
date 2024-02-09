@@ -97,7 +97,7 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SegmentCommitment<C> {
+pub struct ShardCommitment<C> {
     pub main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
@@ -120,27 +120,28 @@ pub struct ChipOpenedValues<T: Serialize> {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SegmentOpenedValues<T: Serialize> {
+pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
 #[cfg(feature = "perf")]
 #[derive(Serialize)]
-pub struct SegmentProof<SC: StarkConfig> {
-    pub commitment: SegmentCommitment<Com<SC>>,
-    pub opened_values: SegmentOpenedValues<Challenge<SC>>,
+pub struct ShardProof<SC: StarkConfig> {
+    pub commitment: ShardCommitment<Com<SC>>,
+    pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ids: Vec<String>,
 }
 
 #[cfg(not(feature = "perf"))]
-pub struct SegmentProof<SC: StarkConfig> {
+#[derive(Serialize)]
+pub struct ShardProof<SC: StarkConfig> {
     pub main_commit: Com<SC>,
     pub traces: Vec<ValMat<SC>>,
     pub permutation_traces: Vec<ChallengeMat<SC>>,
 }
 
-impl<T: Serialize> SegmentOpenedValues<T> {
+impl<T: Serialize> ShardOpenedValues<T> {
     pub fn into_values(self) -> OpenedValues<T> {
         let mut main_vals = vec![];
         let mut permutation_vals = vec![];
@@ -177,7 +178,7 @@ impl<T> AirOpenedValues<T> {
 }
 
 #[cfg(feature = "perf")]
-impl<SC: StarkConfig> SegmentProof<SC> {
+impl<SC: StarkConfig> ShardProof<SC> {
     pub fn cumulative_sum(&self) -> Challenge<SC> {
         self.opened_values
             .chips
@@ -189,6 +190,6 @@ impl<SC: StarkConfig> SegmentProof<SC> {
 
 #[derive(Serialize)]
 pub struct Proof<SC: StarkConfig> {
-    pub segment_proofs: Vec<SegmentProof<SC>>,
-    pub global_proof: SegmentProof<SC>,
+    pub shard_proofs: Vec<ShardProof<SC>>,
+    pub global_proof: ShardProof<SC>,
 }

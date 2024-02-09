@@ -80,7 +80,7 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .lt_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].lt_events = shards[i].to_vec();
@@ -319,19 +319,19 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        let mut shard = ExecutionRecord::default();
+        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
-    fn prove_babybear_template(segment: &mut ExecutionRecord) {
+    fn prove_babybear_template(shard: &mut ExecutionRecord) {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
@@ -340,11 +340,11 @@ mod tests {
 
     #[test]
     fn prove_babybear_slt() {
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
 
         const NEG_3: u32 = 0b11111111111111111111111111111101;
         const NEG_4: u32 = 0b11111111111111111111111111111100;
-        segment.lt_events = vec![
+        shard.lt_events = vec![
             // 0 == 3 < 2
             AluEvent::new(0, Opcode::SLT, 0, 3, 2),
             // 1 == 2 < 3
@@ -363,15 +363,15 @@ mod tests {
             AluEvent::new(5, Opcode::SLT, 0, NEG_3, NEG_3),
         ];
 
-        prove_babybear_template(&mut segment);
+        prove_babybear_template(&mut shard);
     }
 
     #[test]
     fn prove_babybear_sltu() {
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
 
         const LARGE: u32 = 0b11111111111111111111111111111101;
-        segment.lt_events = vec![
+        shard.lt_events = vec![
             // 0 == 3 < 2
             AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
             // 1 == 2 < 3
@@ -386,6 +386,6 @@ mod tests {
             AluEvent::new(5, Opcode::SLTU, 0, LARGE, LARGE),
         ];
 
-        prove_babybear_template(&mut segment);
+        prove_babybear_template(&mut shard);
     }
 }
