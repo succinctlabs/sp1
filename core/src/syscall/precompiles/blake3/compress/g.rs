@@ -14,7 +14,7 @@ use crate::air::WORD_SIZE;
 use crate::operations::AddOperation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 
 use super::g_func;
 /// A set of columns needed to compute the `g` of the input state.
@@ -52,7 +52,7 @@ pub struct GOperation<T> {
 }
 
 impl<F: Field> GOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, input: [u32; 6]) -> [u32; 4] {
+    pub fn populate(&mut self, segment: &mut ExecutionRecord, input: [u32; 6]) -> [u32; 4] {
         println!("populate input: {:?}", input);
         let mut a = input[0];
         let mut b = input[1];

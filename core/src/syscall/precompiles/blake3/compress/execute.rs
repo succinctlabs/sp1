@@ -1,11 +1,10 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
-use crate::precompiles::blake3::{
+use crate::runtime::Register;
+use crate::syscall::precompiles::blake3::{
     g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE,
     G_OUTPUT_SIZE, INPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
-use crate::precompiles::PrecompileRuntime;
-use crate::runtime::Register;
 
 /// The `Blake3CompressInnerChip` is a precompile that implements `blake3_compress_inner`.
 impl Blake3CompressInnerChip {

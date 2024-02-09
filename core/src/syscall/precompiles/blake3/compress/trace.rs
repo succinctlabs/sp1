@@ -1,15 +1,13 @@
 use std::borrow::BorrowMut;
 
-use crate::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
-use crate::{
-    precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS,
-    utils::NB_ROWS_PER_SHARD,
-};
+use crate::runtime::ExecutionRecord;
+use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
+use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{runtime::Segment, utils::Chip};
+use crate::chip::Chip;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
@@ -22,7 +20,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
         "Blake3CompressInner".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .blake3_compress_inner_events
             .chunks(NB_ROWS_PER_SHARD)
@@ -33,7 +31,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
     }
 
     // TODO: The vast majority of this logic can be shared with the second external round.
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
