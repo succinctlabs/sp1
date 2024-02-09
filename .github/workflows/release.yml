@@ -128,9 +128,6 @@ jobs:
                 target="${{ matrix.target }}"
                 flags=()
 
-                # `keccak-asm` does not support MSVC or aarch64 Linux.
-                [[ "$target" != *msvc* && "$target" != "aarch64-unknown-linux-gnu" ]] && flags+=(--features=asm-keccak)
-
                 [[ "$target" == *windows* ]] && exe=".exe"
 
                 cargo build --release -p cli --target "$target" "${flags[@]}"
