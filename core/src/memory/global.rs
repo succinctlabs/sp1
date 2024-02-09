@@ -1,5 +1,5 @@
+use crate::air::MachineAir;
 use crate::air::{AirInteraction, CurtaAirBuilder, Word};
-use crate::chip::Chip;
 use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -37,7 +37,7 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
     }
 }
 
-impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
+impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
     fn name(&self) -> String {
         "MemoryInit".to_string()
     }

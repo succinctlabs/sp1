@@ -9,8 +9,8 @@ use p3_maybe_rayon::prelude::*;
 
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
-use crate::chip::Chip;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
@@ -40,7 +40,7 @@ pub struct SubCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for SubChip {
+impl<F: PrimeField> MachineAir<F> for SubChip {
     fn name(&self) -> String {
         "Sub".to_string()
     }
@@ -170,10 +170,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        chip::Chip,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};

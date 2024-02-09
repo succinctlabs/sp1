@@ -1,5 +1,5 @@
 use crate::air::CurtaAirBuilder;
-use crate::chip::Chip;
+use crate::air::MachineAir;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -139,7 +139,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     }
 }
 
-impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
+impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> MachineAir<F>
     for WeierstrassAddAssignChip<E, WP>
 {
     fn name(&self) -> String {

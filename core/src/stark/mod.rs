@@ -16,6 +16,7 @@ pub use config::*;
 pub use debug::*;
 pub use folder::*;
 pub use machine::*;
+pub use permutation::*;
 pub use prover::*;
 pub use types::*;
 pub use verifier::*;

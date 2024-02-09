@@ -45,8 +45,8 @@ pub mod extend_tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
+        air::MachineAir,
         alu::AluEvent,
-        chip::Chip,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
         stark::LocalProver,
         utils::{BabyBearPoseidon2, StarkUtils},

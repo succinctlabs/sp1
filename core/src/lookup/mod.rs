@@ -2,14 +2,15 @@ mod builder;
 
 pub use builder::InteractionBuilder;
 
-use crate::chip::Chip;
+use crate::air::MachineAir;
+use crate::stark::ChipRef;
+use crate::stark::StarkConfig;
 use crate::utils::BabyBearPoseidon2;
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField64;
-use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 
 use std::collections::BTreeMap;
@@ -211,39 +212,40 @@ pub fn debug_interactions_with_all_chips(
     !any_nonzero
 }
 
-pub fn debug_interactions<F: Field>(
-    chip: &dyn Chip<F>,
+pub fn debug_interactions<SC: StarkConfig>(
+    chip: &ChipRef<SC>,
     segment: &mut ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
-    BTreeMap<String, Vec<InteractionData<F>>>,
-    BTreeMap<String, F>,
+    BTreeMap<String, Vec<InteractionData<SC::Val>>>,
+    BTreeMap<String, SC::Val>,
 ) {
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
-    let trace: RowMajorMatrix<F> = chip.generate_trace(segment);
+    let trace = chip.generate_trace(segment);
     let width = chip.width();
-    let mut builder = InteractionBuilder::<F>::new(width);
-    chip.eval(&mut builder);
     let mut main = trace.clone();
-    let all_interactions = chip.all_interactions();
-    let nb_send_interactions = chip.sends().len();
     let height = trace.clone().height();
+
+    let nb_send_interactions = chip.sends().len();
     for row in 0..height {
-        for (m, interaction) in all_interactions.iter().enumerate() {
+        for (m, interaction) in chip
+            .sends()
+            .iter()
+            .chain(chip.receives().iter())
+            .enumerate()
+        {
             if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
             let is_send = m < nb_send_interactions;
-            let multiplicity_eval = interaction
-                .multiplicity
-                .apply::<F, F>(&[], main.row_mut(row));
+            let multiplicity_eval = interaction.multiplicity.apply(&[], main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
                 for value in &interaction.values {
-                    let expr = value.apply::<F, F>(&[], main.row_mut(row));
+                    let expr = value.apply(&[], main.row_mut(row));
                     values.push(expr);
                 }
                 let key = format!(
@@ -262,7 +264,7 @@ pub fn debug_interactions<F: Field>(
                         is_send,
                         multiplicity: multiplicity_eval,
                     });
-                let current = key_to_count.entry(key.clone()).or_insert(F::zero());
+                let current = key_to_count.entry(key.clone()).or_insert(SC::Val::zero());
                 if is_send {
                     *current += multiplicity_eval;
                 } else {

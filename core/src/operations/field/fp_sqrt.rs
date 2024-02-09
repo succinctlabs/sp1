@@ -82,7 +82,7 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpSqrtCols, Limbs};
-    use crate::chip::Chip;
+    use crate::air::MachineAir;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
@@ -117,7 +117,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> Chip<F> for EdSqrtChip<P> {
+    impl<F: Field, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }

@@ -1,20 +1,73 @@
 use p3_air::{Air, BaseAir};
 use p3_field::Field;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_util::log2_ceil_usize;
 
-use crate::lookup::{Interaction, InteractionBuilder};
+use crate::{
+    air::{CurtaAirBuilder, MachineAir},
+    lookup::{Interaction, InteractionBuilder},
+    runtime::ExecutionRecord,
+};
 
 use super::{
-    DebugConstraintBuilder, ProverConstraintFolder, StarkConfig, VerifierConstraintFolder,
+    eval_permutation_constraints, DebugConstraintBuilder, ProverConstraintFolder, StarkConfig,
+    VerifierConstraintFolder,
 };
 
 pub struct Chip<F: Field, A> {
+    /// The underlying AIR of the chip for constraint evaluation.
     air: A,
+    /// The interactions that the chip sends.
     sends: Vec<Interaction<F>>,
+    /// The interactions that the chip receives.
     receives: Vec<Interaction<F>>,
+    /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
+    log_quotient_degree: usize,
 }
 
+pub struct ChipRef<'a, SC: StarkConfig> {
+    air: &'a dyn StarkAir<SC>,
+    sends: &'a [Interaction<SC::Val>],
+    receives: &'a [Interaction<SC::Val>],
+    log_quotient_degree: usize,
+}
+
+impl<F: Field, A> Chip<F, A> {
+    pub fn sends(&self) -> &[Interaction<F>] {
+        &self.sends
+    }
+
+    pub fn receives(&self) -> &[Interaction<F>] {
+        &self.receives
+    }
+
+    pub const fn log_quotient_degree(&self) -> usize {
+        self.log_quotient_degree
+    }
+}
+
+impl<'a, SC: StarkConfig> ChipRef<'a, SC> {
+    pub fn sends(&self) -> &[Interaction<SC::Val>] {
+        self.sends
+    }
+
+    pub fn receives(&self) -> &[Interaction<SC::Val>] {
+        self.receives
+    }
+
+    pub const fn log_quotient_degree(&self) -> usize {
+        self.log_quotient_degree
+    }
+}
+
+/// A trait for AIRs that can be used with STARKs.
+///
+/// This trait is for specifying a trait bound for explicit types of builders used in the stark
+/// proving system. It is automatically implemented on any type that implements `Air<AB>` with
+/// `AB: CurtaAirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkConfig>:
-    Air<InteractionBuilder<SC::Val>>
+    MachineAir<SC::Val>
+    + Air<InteractionBuilder<SC::Val>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
     + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
@@ -22,17 +75,12 @@ pub trait StarkAir<SC: StarkConfig>:
 }
 
 impl<SC: StarkConfig, T> StarkAir<SC> for T where
-    T: Air<InteractionBuilder<SC::Val>>
+    T: MachineAir<SC::Val>
+        + Air<InteractionBuilder<SC::Val>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
-}
-
-pub struct ChipRef<'a, SC: StarkConfig> {
-    air: &'a dyn StarkAir<SC>,
-    sends: &'a [Interaction<SC::Val>],
-    receives: &'a [Interaction<SC::Val>],
 }
 
 impl<F, A> Chip<F, A>
@@ -45,10 +93,15 @@ where
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 
+        // TODO: count constraints from the air.
+        let max_constraint_degree = 3;
+        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
+
         Self {
             air,
             sends,
             receives,
+            log_quotient_degree,
         }
     }
 
@@ -64,19 +117,98 @@ where
             air: &self.air,
             sends: &self.sends,
             receives: &self.receives,
+            log_quotient_degree: self.log_quotient_degree,
         }
     }
 }
+
+impl<F, A> BaseAir<F> for Chip<F, A>
+where
+    F: Field,
+    A: BaseAir<F>,
+{
+    fn width(&self) -> usize {
+        self.air.width()
+    }
+
+    fn preprocessed_trace(&self) -> Option<RowMajorMatrix<F>> {
+        self.air.preprocessed_trace()
+    }
+}
+
+impl<F, A> MachineAir<F> for Chip<F, A>
+where
+    F: Field,
+    A: MachineAir<F>,
+{
+    fn name(&self) -> String {
+        self.air.name()
+    }
+
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+        self.air.generate_trace(record)
+    }
+
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+        self.air.shard(input, outputs);
+    }
+
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        self.air.include(record)
+    }
+}
+
+// Implement AIR directly on Chip, evaluating both execution and permutation constraints.
+impl<F, A, AB> Air<AB> for Chip<F, A>
+where
+    F: Field,
+    A: Air<AB>,
+    AB: CurtaAirBuilder<F = F>,
+{
+    fn eval(&self, builder: &mut AB) {
+        // Evaluate the execution trace constraints.
+        self.air.eval(builder);
+        // Evaluate permutation constraints.
+        eval_permutation_constraints(&self.sends, &self.receives, builder);
+    }
+}
+
+// Implement Air on ChipRef similar to Chip.
 
 impl<'a, SC: StarkConfig> BaseAir<SC::Val> for ChipRef<'a, SC> {
     fn width(&self) -> usize {
         <dyn StarkAir<SC> as BaseAir<SC::Val>>::width(self.air)
     }
+
+    fn preprocessed_trace(&self) -> Option<RowMajorMatrix<SC::Val>> {
+        <dyn StarkAir<SC> as BaseAir<SC::Val>>::preprocessed_trace(self.air)
+    }
+}
+
+impl<'a, SC: StarkConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
+    fn name(&self) -> String {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::name(self.air)
+    }
+
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<SC::Val> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_trace(self.air, record)
+    }
+
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::shard(self.air, input, outputs);
+    }
+
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::include(self.air, record)
+    }
 }
 
 impl<'a, SC: StarkConfig> Air<InteractionBuilder<SC::Val>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut InteractionBuilder<SC::Val>) {
+        // Evaluate the execution trace constraints.
         self.air.eval(builder);
+        // Evaluate permutation constraints.
+        eval_permutation_constraints(self.sends, self.receives, builder);
     }
 }
 

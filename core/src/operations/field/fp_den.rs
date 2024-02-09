@@ -135,7 +135,7 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpDenCols, Limbs};
-    use crate::chip::Chip;
+    use crate::air::MachineAir;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
@@ -173,7 +173,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> Chip<F> for FpDenChip<P> {
+    impl<F: Field, P: FieldParameters> MachineAir<F> for FpDenChip<P> {
         fn name(&self) -> String {
             "FpDen".to_string()
         }

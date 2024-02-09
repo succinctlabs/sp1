@@ -5,7 +5,7 @@ use p3_maybe_rayon::prelude::*;
 use std::ops::{Add, Mul};
 
 use super::util::batch_multiplicative_inverse_inplace;
-use crate::lookup::Interaction;
+use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
@@ -135,12 +135,11 @@ pub fn eval_permutation_constraints<F, AB>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
     builder: &mut AB,
-    cumulative_sum: AB::EF,
 ) where
     F: Field,
     AB::EF: ExtensionField<F>,
     AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
-    AB: PermutationAirBuilder + PairBuilder,
+    AB: MultiTableAirBuilder + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);
@@ -201,6 +200,8 @@ pub fn eval_permutation_constraints<F, AB>(
     builder
         .when_first_row()
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
+
+    let cumulative_sum = builder.cumulative_sum();
     builder.when_last_row().assert_eq_ext(
         *perm_local.last().unwrap(),
         AB::ExprEF::from_f(cumulative_sum),

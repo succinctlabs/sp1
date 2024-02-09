@@ -1,5 +1,5 @@
 use super::StarkConfig;
-use crate::air::EmptyMessageBuilder;
+use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::AbstractField;
 
@@ -9,6 +9,7 @@ pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
     pub main: TwoRowMatrixView<'a, SC::PackedVal>,
     pub perm: TwoRowMatrixView<'a, SC::PackedChallenge>,
     pub perm_challenges: &'a [SC::Challenge],
+    pub cumulative_sum: SC::Challenge,
     pub is_first_row: SC::PackedVal,
     pub is_last_row: SC::PackedVal,
     pub is_transition: SC::PackedVal,
@@ -78,6 +79,14 @@ impl<'a, SC: StarkConfig> PermutationAirBuilder for ProverConstraintFolder<'a, S
     }
 }
 
+impl<'a, SC: StarkConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
+    type Sum = SC::Challenge;
+
+    fn cumulative_sum(&self) -> Self::Sum {
+        self.cumulative_sum
+    }
+}
+
 impl<'a, SC: StarkConfig> PairBuilder for ProverConstraintFolder<'a, SC> {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
@@ -92,6 +101,7 @@ pub struct VerifierConstraintFolder<'a, SC: StarkConfig> {
     pub main: TwoRowMatrixView<'a, SC::Challenge>,
     pub perm: TwoRowMatrixView<'a, SC::Challenge>,
     pub perm_challenges: &'a [SC::Challenge],
+    pub cumulative_sum: SC::Challenge,
     pub is_first_row: SC::Challenge,
     pub is_last_row: SC::Challenge,
     pub is_transition: SC::Challenge,
@@ -154,6 +164,14 @@ impl<'a, SC: StarkConfig> PermutationAirBuilder for VerifierConstraintFolder<'a,
 
     fn permutation_randomness(&self) -> &[Self::EF] {
         self.perm_challenges
+    }
+}
+
+impl<'a, SC: StarkConfig> MultiTableAirBuilder for VerifierConstraintFolder<'a, SC> {
+    type Sum = SC::Challenge;
+
+    fn cumulative_sum(&self) -> Self::Sum {
+        self.cumulative_sum
     }
 }
 

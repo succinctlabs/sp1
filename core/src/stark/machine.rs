@@ -25,6 +25,7 @@ use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use p3_air::BaseAir;
+use p3_commit::Pcs;
 
 use super::Chip;
 use super::ChipRef;
@@ -34,9 +35,15 @@ use super::StarkConfig;
 pub struct MachineRef<'a, SC: StarkConfig> {
     pub local_chips: &'a [ChipRef<'a, SC>],
     pub global_chips: &'a [ChipRef<'a, SC>],
+
+    // Commitment to the preprocessed data
+    preprocessed_local_commitment: Option<Com<SC>>,
+    preprocessed_global_commitment: Option<Com<SC>>,
 }
 
 pub struct RiscvStark<SC: StarkConfig> {
+    config: SC,
+
     program: Chip<SC::Val, ProgramChip>,
     cpu: Chip<SC::Val, CpuChip>,
     sha_extend: Chip<SC::Val, ShaExtendChip>,
@@ -74,7 +81,7 @@ pub struct RiscvStark<SC: StarkConfig> {
 }
 
 impl<SC: StarkConfig> RiscvStark<SC> {
-    pub fn new() -> Self {
+    pub fn new(config: SC) -> Self {
         let program = Chip::new(ProgramChip::default());
         let cpu = Chip::new(CpuChip::default());
         let sha_extend = Chip::new(ShaExtendChip::default());
@@ -111,6 +118,7 @@ impl<SC: StarkConfig> RiscvStark<SC> {
         let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
 
         let mut machine = Self {
+            config,
             program,
             cpu,
             sha_extend,
@@ -145,7 +153,25 @@ impl<SC: StarkConfig> RiscvStark<SC> {
             .iter()
             .flat_map(|chip| chip.preprocessed_trace())
             .collect::<Vec<_>>();
-        let (local_commit, _) = 
+        let (local_commit, _) = machine
+            .config
+            .pcs()
+            .commit_batches(local_preprocessed_traces);
+
+        // Compute commitments to the global preprocessed data
+        let global_preprocessed_traces = machine
+            .global_chips()
+            .iter()
+            .flat_map(|chip| chip.preprocessed_trace())
+            .collect::<Vec<_>>();
+        let (global_commit, _) = machine
+            .config
+            .pcs()
+            .commit_batches(global_preprocessed_traces);
+
+        // Store the commitments in the machine
+        machine.preprocessed_local_commitment = Some(local_commit);
+        machine.preprocessed_global_commitment = Some(global_commit);
 
         machine
     }
@@ -181,5 +207,14 @@ impl<SC: StarkConfig> RiscvStark<SC> {
             self.memory_finalize.as_ref(),
             self.program_memory_init.as_ref(),
         ]
+    }
+
+    pub fn as_ref(&self) -> MachineRef<SC> {
+        MachineRef {
+            local_chips: &self.local_chips(),
+            global_chips: &self.global_chips(),
+            preprocessed_local_commitment: self.preprocessed_local_commitment,
+            preprocessed_global_commitment: self.preprocessed_global_commitment,
+        }
     }
 }

@@ -1,7 +1,7 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
+use crate::air::MachineAir;
 use crate::air::WORD_SIZE;
-use crate::chip::Chip;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
@@ -267,7 +267,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
     }
 }
 
-impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
+impl<F: Field, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }

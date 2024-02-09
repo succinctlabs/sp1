@@ -3,11 +3,11 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{chip::Chip, runtime::ExecutionRecord};
+use crate::{air::MachineAir, runtime::ExecutionRecord};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
-impl<F: PrimeField> Chip<F> for ShaExtendChip {
+impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
     fn name(&self) -> String {
         "ShaExtend".to_string()
     }

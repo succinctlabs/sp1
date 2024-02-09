@@ -72,11 +72,11 @@ use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
 use self::utils::eval_abs_value;
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{ExecutionRecord, Opcode};
@@ -180,7 +180,7 @@ pub struct DivRemCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for DivRemChip {
+impl<F: PrimeField> MachineAir<F> for DivRemChip {
     fn name(&self) -> String {
         "DivRem".to_string()
     }
@@ -754,10 +754,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        chip::Chip,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;

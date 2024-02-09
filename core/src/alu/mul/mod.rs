@@ -34,10 +34,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
@@ -106,7 +106,7 @@ pub struct MulCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for MulChip {
+impl<F: PrimeField> MachineAir<F> for MulChip {
     fn name(&self) -> String {
         "Mul".to_string()
     }
@@ -396,10 +396,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        chip::Chip,
-        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
-    };
+    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;

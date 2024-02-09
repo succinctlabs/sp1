@@ -1,34 +1,31 @@
 use p3_air::{
-    Air, AirBuilder, BaseAir, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
-    TwoRowMatrixView,
+    Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
 };
-use p3_field::{ExtensionField, Field, PrimeField};
+use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
 use crate::air::EmptyMessageBuilder;
-use crate::chip::Chip;
-use crate::stark::permutation::eval_permutation_constraints;
+
+use super::{ChipRef, StarkConfig};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
-    air: &A,
-    main: &RowMajorMatrix<F>,
-    perm: &RowMajorMatrix<EF>,
-    perm_challenges: &[EF],
-) where
-    A: for<'a> Air<DebugConstraintBuilder<'a, F, EF>> + BaseAir<F> + Chip<F> + ?Sized,
-{
+pub fn debug_constraints<SC: StarkConfig>(
+    chip: &ChipRef<SC>,
+    preprocessed: Option<&RowMajorMatrix<SC::Val>>,
+    main: &RowMajorMatrix<SC::Val>,
+    perm: &RowMajorMatrix<SC::Challenge>,
+    perm_challenges: &[SC::Challenge],
+) {
     assert_eq!(main.height(), perm.height());
     let height = main.height();
     if height == 0 {
         return;
     }
 
-    let preprocessed = air.preprocessed_trace();
-    let sends = air.sends();
-    let receives = air.receives();
+    let sends = chip.sends();
+    let receives = chip.receives();
 
     let cumulative_sum = *perm.row_slice(perm.height() - 1).last().unwrap();
 
@@ -52,33 +49,32 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
         let perm_next = perm.row_slice(i_next);
 
         let mut builder = DebugConstraintBuilder {
-            main: TwoRowMatrixView {
-                local: main_local,
-                next: main_next,
-            },
             preprocessed: TwoRowMatrixView {
                 local: preprocessed_local,
                 next: preprocessed_next,
+            },
+            main: TwoRowMatrixView {
+                local: main_local,
+                next: main_next,
             },
             perm: TwoRowMatrixView {
                 local: perm_local,
                 next: perm_next,
             },
             perm_challenges,
-            is_first_row: F::zero(),
-            is_last_row: F::zero(),
-            is_transition: F::one(),
+            is_first_row: SC::Val::zero(),
+            is_last_row: SC::Val::zero(),
+            is_transition: SC::Val::one(),
         };
         if i == 0 {
-            builder.is_first_row = F::one();
+            builder.is_first_row = SC::Val::one();
         }
         if i == height - 1 {
-            builder.is_last_row = F::one();
-            builder.is_transition = F::zero();
+            builder.is_last_row = SC::Val::one();
+            builder.is_transition = SC::Val::zero();
         }
 
-        air.eval(&mut builder);
-        eval_permutation_constraints(&sends, &receives, &mut builder, cumulative_sum);
+        chip.eval(&mut builder);
     });
 }
 
@@ -95,8 +91,8 @@ pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorM
 
 /// A builder for debugging constraints.
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
-    pub(crate) main: TwoRowMatrixView<'a, F>,
     pub(crate) preprocessed: TwoRowMatrixView<'a, F>,
+    pub(crate) main: TwoRowMatrixView<'a, F>,
     pub(crate) perm: TwoRowMatrixView<'a, EF>,
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,

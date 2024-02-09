@@ -2,11 +2,11 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use super::{air::BYTE_MULT_INDICES, ByteChip};
-use crate::{chip::Chip, runtime::ExecutionRecord};
+use crate::{air::MachineAir, runtime::ExecutionRecord};
 
 pub const NUM_ROWS: usize = 1 << 16;
 
-impl<F: Field> Chip<F> for ByteChip<F> {
+impl<F: Field> MachineAir<F> for ByteChip<F> {
     fn name(&self) -> String {
         "Byte".to_string()
     }
