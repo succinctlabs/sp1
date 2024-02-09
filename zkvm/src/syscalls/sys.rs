@@ -24,7 +24,10 @@ pub fn sys_alloc_words(nwords: usize) -> *mut u32 {
     core::ptr::null_mut()
 }
 
+#[allow(unused_unsafe)]
 #[no_mangle]
 pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
-    syscall_write(fd, write_buf, nbytes);
+    unsafe {
+        syscall_write(fd, write_buf, nbytes);
+    }
 }
