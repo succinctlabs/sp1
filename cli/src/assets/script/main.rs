@@ -1,3 +1,5 @@
+//! A simple script to generate and verify the proof of a given program.
+
 use succinct_core::{utils, SuccinctProver};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");

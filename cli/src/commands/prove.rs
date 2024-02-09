@@ -9,7 +9,7 @@ use succinct_core::{
 use crate::CommandExecutor;
 
 #[derive(Parser)]
-#[command(name = "prove", about = "(default) Build and prove a Rust program")]
+#[command(name = "prove", about = "Build and prove a program")]
 pub struct ProveCmd {
     #[clap(short, long, value_parser, num_args = 1.., value_delimiter = ' ')]
     input: Vec<u32>,
