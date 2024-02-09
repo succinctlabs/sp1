@@ -354,6 +354,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
     use rand::Rng;
+    use serde::Deserialize;
 
     use crate::stark::StarkConfig;
 
@@ -379,6 +380,7 @@ pub(super) mod baby_bear_blake3 {
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
+    #[derive(Serialize, Deserialize)]
     pub struct BabyBearBlake3 {
         perm: Perm,
         pcs: Pcs,
