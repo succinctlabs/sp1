@@ -42,7 +42,7 @@ use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EdDecompressEvent {
-    pub segment: u32,
+    pub shard: u32,
     pub clk: u32,
     pub ptr: u32,
     pub sign: bool,
@@ -63,7 +63,7 @@ pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
 #[repr(C)]
 pub struct EdDecompressCols<T> {
     pub is_real: T,
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
     pub ptr: T,
     pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
@@ -81,11 +81,11 @@ impl<F: Field> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
-        segment: &mut ExecutionRecord,
+        shard: &mut ExecutionRecord,
     ) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
-        self.segment = F::from_canonical_u32(event.segment);
+        self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         for i in 0..8 {
@@ -96,7 +96,7 @@ impl<F: Field> EdDecompressCols<F> {
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_fp_ops::<P, E>(y);
 
-        segment.field_events.append(&mut new_field_events);
+        shard.field_events.append(&mut new_field_events);
     }
 
     fn populate_fp_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
@@ -157,7 +157,7 @@ impl<V: Copy> EdDecompressCols<V> {
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
-                self.segment,
+                self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
                 &self.x_access[i],
@@ -166,7 +166,7 @@ impl<V: Copy> EdDecompressCols<V> {
         }
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
-                self.segment,
+                self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
                 &self.y_access[i],
@@ -235,11 +235,11 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
-        let segment = rt.segment_clk();
-        rt.segment_mut()
+        let shard = rt.current_shard();
+        rt.record_mut()
             .ed_decompress_events
             .push(EdDecompressEvent {
-                segment,
+                shard,
                 clk: start_clk,
                 ptr: slice_ptr,
                 sign: sign_bool,

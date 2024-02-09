@@ -38,7 +38,7 @@ where
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
             builder.constraint_memory_access(
-                local.segment,
+                local.shard,
                 local.clk,
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 &local.state_mem[i as usize],

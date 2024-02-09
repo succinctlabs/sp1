@@ -2,24 +2,25 @@ use std::collections::HashMap;
 
 use nohash_hasher::BuildNoHashHasher;
 
-use super::{ExecutionRecord, OpRecord};
+use super::{CpuRecord, ExecutionRecord};
 
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default)]
 pub struct ExecutionState {
-    /// The global clock keeps track of how many instrutions have been executed through all segments.
+    /// The global clock keeps track of how many instrutions have been executed through all shards.
     pub global_clk: u32,
 
-    /// The segment clock keeps track of how many segments have been executed.
-    pub segment_clk: u32,
+    /// The shard clock keeps track of how many shards have been executed.
+    pub current_shard: u32,
 
-    /// The clock keeps track of how many instructions have been executed in this segment.
+    /// The clock increments by 4 (possibly more in syscalls) for each instruction that has been
+    /// executed in this shard.
     pub clk: u32,
 
     /// The program counter.
     pub pc: u32,
 
-    /// The memory which instructions operate over. Values contain the memory value and last segment
+    /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
     pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
 
@@ -40,7 +41,8 @@ impl ExecutionState {
     pub fn new(pc_start: u32) -> Self {
         Self {
             global_clk: 0,
-            segment_clk: 1,
+            // Start at shard 1 since zero is reserved for memory initialization.
+            current_shard: 1,
             clk: 0,
             pc: pc_start,
             memory: HashMap::default(),
@@ -68,8 +70,8 @@ pub(crate) struct ForkState {
     pub(crate) memory_diff: HashMap<u32, Option<(u32, u32, u32)>, BuildNoHashHasher<u32>>,
 
     /// Full record from original state
-    pub(crate) op_record: OpRecord,
+    pub(crate) op_record: CpuRecord,
 
-    /// Full segment from original state
+    /// Full shard from original state
     pub(crate) record: ExecutionRecord,
 }
