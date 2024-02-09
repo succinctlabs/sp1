@@ -288,7 +288,6 @@ where
             .into_par_iter()
             .enumerate()
             .map(|(_, main_data)| {
-                let local_chips = self.local_chips();
                 P::prove(
                     &self.config,
                     &mut challenger.clone(),
@@ -334,9 +333,9 @@ where
         });
 
         // Verify the segment proofs.
+        let local_chips = self.local_chips();
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
-                let local_chips = self.local_chips();
                 Verifier::verify(&self.config, &local_chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
