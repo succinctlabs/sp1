@@ -2753,7 +2753,7 @@ dependencies = [
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/vm.git?rev=7f125b29d38ce06320e4f0182424ae64b6ea1f51#7f125b29d38ce06320e4f0182424ae64b6ea1f51"
+source = "git+https://github.com/succinctlabs/vm.git?rev=74db01ba0013d7e691e5d0edb934cae8adcbf0c2#74db01ba0013d7e691e5d0edb934cae8adcbf0c2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3579,7 +3579,7 @@ dependencies = [
 [[package]]
 name = "zeth-lib"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#b385704812658e060fb4bd819fc14027de4d3769"
+source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#ef3bbc71a1f07976e4a9bd83a7ee052a8376b56c"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -3605,7 +3605,7 @@ dependencies = [
 [[package]]
 name = "zeth-primitives"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#b385704812658e060fb4bd819fc14027de4d3769"
+source = "git+ssh://git@github.com/succinctlabs/zeth-private.git?branch=chris/zeth-lib#ef3bbc71a1f07976e4a9bd83a7ee052a8376b56c"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -3618,6 +3618,6 @@ dependencies = [
  "rlp",
  "serde",
  "sha3",
- "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git?rev=7f125b29d38ce06320e4f0182424ae64b6ea1f51)",
+ "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git?rev=74db01ba0013d7e691e5d0edb934cae8adcbf0c2)",
  "thiserror",
 ]
