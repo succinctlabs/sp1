@@ -65,6 +65,9 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                     }
                     // Memory reads & writes.
                     {
+                        cols.message_ptr_access
+                            .populate(event.message_ptr_record, &mut new_field_events);
+
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
                         for i in 0..G_INPUT_SIZE {
                             cols.mem_reads[i]

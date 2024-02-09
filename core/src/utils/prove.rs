@@ -27,7 +27,6 @@ pub trait StarkUtils: StarkGenericConfig {
     fn uni_stark_config(&self) -> &Self::UniConfig;
 }
 
-#[cfg(not(feature = "perf"))]
 use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
 pub fn get_cycles(program: Program) -> u64 {
@@ -89,7 +88,6 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
             &machine.chips(),

@@ -26,6 +26,10 @@ pub struct Blake3CompressInnerCols<T> {
 
     pub state_ptr: T,
 
+    pub message_ptr: T,
+
+    pub message_ptr_access: MemoryReadCols<T>,
+
     /// Reads in parts of the state.
     pub mem_reads: [MemoryReadCols<T>; G_INPUT_SIZE],
 

@@ -17,8 +17,7 @@ impl Syscall for Blake3CompressInnerChip {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         println!("Blake3CompressInnerChip::execute is running!");
         let state_ptr = rt.register_unsafe(Register::X10);
-        // TODO: I need to constrain the msg_ptr_record(?)
-        let (_msg_ptr_record, msg_ptr) = rt.mr(Register::X11 as u32);
+        let (message_ptr_record, message_ptr) = rt.mr(Register::X11 as u32);
 
         // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
@@ -50,7 +49,7 @@ impl Syscall for Blake3CompressInnerChip {
                 let mut message = [0u32; MSG_SIZE];
                 for i in 0..NUM_MSG_WORDS_PER_CALL {
                     let index_to_read = MSG_SCHEDULE[round][2 * operation + i];
-                    let (record, value) = rt.mr(msg_ptr + (index_to_read as u32) * 4);
+                    let (record, value) = rt.mr(message_ptr + (index_to_read as u32) * 4);
                     read_records[round][operation][NUM_STATE_WORDS_PER_CALL + i] = record;
                     message[index_to_read] = value;
                     input[i + NUM_STATE_WORDS_PER_CALL] = value;
@@ -132,6 +131,8 @@ impl Syscall for Blake3CompressInnerChip {
                 state_ptr: saved_state_ptr,
                 reads: read_records,
                 writes: write_records,
+                message_ptr,
+                message_ptr_record,
             });
 
         state_ptr

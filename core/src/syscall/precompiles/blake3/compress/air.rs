@@ -8,6 +8,7 @@ use super::{
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
+use crate::runtime::Register;
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -96,6 +97,13 @@ impl Blake3CompressInnerChip {
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
+        builder.constraint_memory_access(
+            local.segment,
+            local.clk,
+            AB::F::from_canonical_u32(Register::X11 as u32),
+            &local.message_ptr_access,
+            local.is_real,
+        );
         // let mut state = [0u32; STATE_SIZE];
         // for i in 0..NUM_STATE_WORDS_PER_CALL {
         //     let index_to_read = G_INDEX[operation][i];
