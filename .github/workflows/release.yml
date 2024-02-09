@@ -163,18 +163,18 @@ jobs:
               shell: bash
               run: |
                   if [ "$PLATFORM_NAME" == "linux" ]; then
-                    tar -czvf "foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release cargo-prove
-                    echo "file_name=foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+                    tar -czvf "cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release cargo-prove
+                    echo "file_name=cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
                   elif [ "$PLATFORM_NAME" == "darwin" ]; then
                     # We need to use gtar here otherwise the archive is corrupt.
                     # See: https://github.com/actions/virtual-environments/issues/2619
-                    gtar -czvf "foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release cargo-prove
-                    echo "file_name=foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+                    gtar -czvf "cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release cargo-prove
+                    echo "file_name=cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
                   else
                     cd ./target/${TARGET}/release
-                    7z a -tzip "foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" cargo-prove.exe
-                    mv "foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" ../../../
-                    echo "file_name=foundry_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" >> $GITHUB_OUTPUT
+                    7z a -tzip "cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" cargo-prove.exe
+                    mv "cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" ../../../
+                    echo "file_name=cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" >> $GITHUB_OUTPUT
                   fi
 
             # Creates the release for this specific version
@@ -187,7 +187,7 @@ jobs:
                   body: ${{ needs.prepare.outputs.changelog }}
                   files: |
                       ${{ steps.artifacts.outputs.file_name }}
-                      ${{ steps.man.outputs.foundry_man }}
+                      ${{ steps.man.outputs.cargo_prove_man }}
 
             # If this is a nightly release, it also updates the release
             # tagged `nightly` for compatibility with `foundryup`
@@ -201,7 +201,7 @@ jobs:
                   body: ${{ needs.prepare.outputs.changelog }}
                   files: |
                       ${{ steps.artifacts.outputs.file_name }}
-                      ${{ steps.man.outputs.foundry_man }}
+                      ${{ steps.man.outputs.cargo_prove_man }}
 
     cleanup:
         name: Release cleanup
