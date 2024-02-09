@@ -126,6 +126,10 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
         outputs[0].ed_add_events = input.ed_add_events.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.ed_add_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 

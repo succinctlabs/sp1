@@ -40,6 +40,10 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         }
     }
 
+    fn include(&self, _: &ExecutionRecord) -> bool {
+        true
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut new_blu_events = Vec::new();
         let mut new_alu_events = HashMap::new();
