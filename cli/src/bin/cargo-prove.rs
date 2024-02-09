@@ -5,6 +5,15 @@ use cli::commands::{
     prove::ProveCmd,
 };
 
+const VERSION_MESSAGE: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("VERGEN_GIT_SHA"),
+    " ",
+    env!("VERGEN_BUILD_TIMESTAMP"),
+    ")"
+);
+
 #[derive(Parser)]
 #[command(name = "cargo", bin_name = "cargo")]
 pub enum Cargo {
@@ -12,7 +21,7 @@ pub enum Cargo {
 }
 
 #[derive(clap::Args)]
-#[command(author, version, about, long_about = None, args_conflicts_with_subcommands = true)]
+#[command(author, about, long_about = None, args_conflicts_with_subcommands = true, version = VERSION_MESSAGE)]
 pub struct ProveCli {
     #[clap(subcommand)]
     pub command: Option<ProveCliCommands>,
