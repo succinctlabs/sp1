@@ -31,7 +31,7 @@ pub trait Prover<SC>
 where
     SC: StarkConfig,
 {
-    fn generate_shard_traces<F, EF>(
+    fn commit_shards<F, EF>(
         config: &SC,
         shards: &mut Vec<ExecutionRecord>,
         chips: &[ChipRef<SC>],
@@ -544,7 +544,7 @@ impl<SC> Prover<SC> for LocalProver<SC>
 where
     SC: StarkConfig,
 {
-    fn generate_shard_traces<F, EF>(
+    fn commit_shards<F, EF>(
         config: &SC,
         shards: &mut Vec<ExecutionRecord>,
         chips: &[ChipRef<SC>],

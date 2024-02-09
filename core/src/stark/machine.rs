@@ -275,7 +275,7 @@ where
 
         // Generate and commit the traces for each segment.
         let (segment_commits, shard_data) =
-            P::generate_shard_traces(&self.config, &mut shards, &local_chips);
+            P::commit_shards(&self.config, &mut shards, &local_chips);
 
         // Observe the challenges for each segment.
         segment_commits.into_iter().for_each(|commitment| {
