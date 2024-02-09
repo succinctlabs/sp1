@@ -1,4 +1,4 @@
-use super::{syscall_halt, syscall_write};
+use crate::syscalls::{syscall_halt, syscall_write};
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]

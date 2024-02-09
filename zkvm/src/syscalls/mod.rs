@@ -1,11 +1,22 @@
+#[cfg(not(feature = "syscall-interface"))]
 mod ed25519;
+#[cfg(not(feature = "syscall-interface"))]
 mod halt;
+#[cfg(not(feature = "syscall-interface"))]
 mod io;
+#[cfg(not(feature = "syscall-interface"))]
 mod keccak_permute;
+#[cfg(not(feature = "syscall-interface"))]
+mod memory;
+#[cfg(not(feature = "syscall-interface"))]
 mod secp256k1;
+#[cfg(not(feature = "syscall-interface"))]
 mod sha_compress;
+#[cfg(not(feature = "syscall-interface"))]
 mod sha_extend;
+#[cfg(not(feature = "syscall-interface"))]
 mod sys;
+#[cfg(not(feature = "syscall-interface"))]
 mod unconstrained;
 
 #[cfg(not(feature = "syscall-interface"))]
@@ -14,15 +25,13 @@ mod syscall_def {
     pub use super::halt::*;
     pub use super::io::*;
     pub use super::keccak_permute::*;
+    pub use super::memory::*;
     pub use super::secp256k1::*;
     pub use super::sha_compress::*;
     pub use super::sha_extend::*;
     pub use super::sys::*;
     pub use super::unconstrained::*;
 }
-
-#[cfg(not(feature = "syscall-interface"))]
-pub use syscall_def::*;
 
 #[cfg(feature = "syscall-interface")]
 extern "C" {
@@ -39,7 +48,11 @@ extern "C" {
     pub fn syscall_keccak_permute(state: *mut u64);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
+    pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 }
+
+#[cfg(not(feature = "syscall-interface"))]
+pub use syscall_def::*;
 
 /// Halts the program.
 pub const HALT: u32 = 100;

@@ -1,3 +1,4 @@
+#![allow(unused_unsafe)]
 use bincode;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
