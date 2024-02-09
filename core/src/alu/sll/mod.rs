@@ -104,6 +104,10 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
         }
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.shift_left_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];

@@ -2,7 +2,8 @@
 succinct_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
-use succinct_precompiles::{io, secp256k1::ecrecover};
+use succinct_zkvm::precompiles::io;
+use succinct_zkvm::precompiles::secp256k1::ecrecover;
 
 pub fn main() {
     // recovery param: 1

@@ -1,5 +1,5 @@
 use super::prover::Prover;
-use super::types::{MainData, ShardProof};
+use super::types::MainData;
 use super::OpeningProof;
 use super::{StarkConfig, VerificationError};
 use crate::alu::{
@@ -12,7 +12,7 @@ use crate::field::FieldLTUChip;
 use crate::memory::{MemoryChipKind, MemoryGlobalChip};
 use crate::program::ProgramChip;
 use crate::runtime::{ExecutionRecord, Runtime};
-use crate::stark::Verifier;
+use crate::stark::{Proof, Verifier};
 use crate::syscall::precompiles::edwards::{EdAddAssignChip, EdDecompressChip};
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
@@ -34,11 +34,7 @@ impl Runtime {
     /// Prove the program.
     ///
     /// The function returns a vector of shard proofs, one for each shard, and a global proof.
-    pub fn prove<F, EF, SC, P>(
-        &mut self,
-        config: &SC,
-        challenger: &mut SC::Challenger,
-    ) -> (Vec<ShardProof<SC>>, ShardProof<SC>)
+    pub fn prove<F, EF, SC, P>(&mut self, config: &SC, challenger: &mut SC::Challenger) -> Proof<SC>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -83,7 +79,8 @@ impl Runtime {
             .into_par_iter()
             .enumerate()
             .map(|(_, main_data)| {
-                P::prove(config, &mut challenger.clone(), &local_chips, main_data)
+                let local_chips = Self::local_chips::<SC>();
+                P::prove(config, &mut challenger.clone(), local_chips, main_data)
             })
             .collect::<Vec<_>>();
 
@@ -95,19 +92,21 @@ impl Runtime {
         let global_proof = P::prove(
             config,
             &mut challenger.clone(),
-            &global_chips,
+            global_chips,
             global_main_data,
         );
 
-        (shard_proofs, global_proof)
+        Proof {
+            shard_proofs,
+            global_proof,
+        }
     }
 
     pub fn verify<F, EF, SC>(
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-        shards_proofs: &[ShardProof<SC>],
-        global_proof: &ShardProof<SC>,
+        proof: &Proof<SC>,
     ) -> Result<(), ProgramVerificationError>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -121,16 +120,16 @@ impl Runtime {
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
         tracing::info_span!("observe challenges for all shards").in_scope(|| {
-            shards_proofs.iter().for_each(|proof| {
+            proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
         // Verify the shard proofs.
-        let shard_chips = Self::local_chips::<SC>();
-        for (i, proof) in shards_proofs.iter().enumerate() {
+        for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::info_span!("verifying shard", shard = i).in_scope(|| {
-                Verifier::verify(config, &shard_chips, &mut challenger.clone(), proof)
+                let local_chips = Self::local_chips::<SC>();
+                Verifier::verify(config, local_chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidShardProof)
             })?;
         }
@@ -138,18 +137,23 @@ impl Runtime {
         // Verifiy the global proof.
         let global_chips = Self::global_chips::<SC>();
         tracing::info_span!("verifying global shard").in_scope(|| {
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
-                .map_err(ProgramVerificationError::InvalidGlobalProof)
+            Verifier::verify(
+                config,
+                global_chips,
+                &mut challenger.clone(),
+                &proof.global_proof,
+            )
+            .map_err(ProgramVerificationError::InvalidGlobalProof)
         })?;
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
         {
-            for proof in shards_proofs.iter() {
+            for proof in proof.shard_proofs.iter() {
                 sum += proof.cumulative_sum();
             }
-            sum += global_proof.cumulative_sum();
+            sum += proof.global_proof.cumulative_sum();
         }
 
         match sum.is_zero() {

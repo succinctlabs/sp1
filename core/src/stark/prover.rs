@@ -57,20 +57,32 @@ where
     where
         SC::Val: PrimeField32,
     {
+        // Filter the chips based on what is used.
+        let filtered_chips = chips
+            .iter()
+            .filter(|chip| chip.include(segment))
+            .collect::<Vec<_>>();
+
         // For each chip, generate the trace.
-        let traces = chips
+        let traces = filtered_chips
             .iter()
             .map(|chip| chip.generate_trace(&mut shard.clone()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        println!("finished commit main for shard {}", shard.index);
+
+        // Get the filtered chip ids.
+        let chip_ids = filtered_chips
+            .iter()
+            .map(|chip| chip.name())
+            .collect::<Vec<_>>();
 
         MainData {
             traces,
             main_commit,
             main_data,
+            chip_ids,
         }
     }
 
@@ -78,7 +90,7 @@ where
     fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: Vec<Box<dyn AirChip<SC>>>,
         wrapped_main_data: MainDataWrapper<SC>,
     ) -> ShardProof<SC>
     where
@@ -91,6 +103,13 @@ where
             .materialize()
             .expect("failed to load shard main data");
         let traces = main_data.traces;
+
+        // Filter the chips.
+        let chips: Vec<Box<dyn AirChip<SC>>> = chips
+            .into_iter()
+            .filter(|chip| main_data.chip_ids.contains(&chip.name()))
+            .collect::<Vec<_>>();
+        let chip_ids = chips.iter().map(|chip| chip.name()).collect::<Vec<_>>();
 
         // For each trace, compute the degree.
         let degrees = traces
@@ -359,6 +378,7 @@ where
                     chips: opened_values,
                 },
                 opening_proof,
+                chip_ids,
             }
         }
 

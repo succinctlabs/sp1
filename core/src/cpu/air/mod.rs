@@ -31,8 +31,6 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Clock constraints.
-        builder.when_first_row().assert_one(local.clk);
-
         // TODO: Handle dynamic clock jumps based on precompiles.
         // builder
         //     .when_transition()

@@ -195,6 +195,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         }
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.divrem_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];

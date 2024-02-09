@@ -228,6 +228,10 @@ mod tests {
 
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
+        fn include(&self, record: &ExecutionRecord) -> bool {
+            !record.first_memory_record.is_empty()
+        }
+
         fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;

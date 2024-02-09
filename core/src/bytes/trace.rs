@@ -15,6 +15,10 @@ impl<F: Field> Chip<F> for ByteChip<F> {
         outputs[0].byte_lookups = input.byte_lookups.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.byte_lookups.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut trace = self.initial_trace.clone();
 

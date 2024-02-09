@@ -56,6 +56,10 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         }
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.bitwise_events.is_empty()
+    }
+
     fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = shard

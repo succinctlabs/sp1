@@ -276,6 +276,10 @@ impl<F: Field, E: EdwardsParameters> Chip<F> for EdDecompressChip<E> {
         outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.ed_decompress_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 

@@ -298,6 +298,10 @@ impl<F: Field> Chip<F> for K256DecompressChip {
         outputs[0].k256_decompress_events = input.k256_decompress_events.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.k256_decompress_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -392,7 +396,7 @@ pub mod tests {
             runtime.read_stdout_slice(&mut result);
 
             assert_eq!(result, decompressed);
-            prove_core(&mut runtime)
+            prove_core(&mut runtime);
         }
     }
 }

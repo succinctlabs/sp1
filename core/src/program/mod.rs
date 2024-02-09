@@ -44,6 +44,10 @@ impl<F: PrimeField> Chip<F> for ProgramChip {
 
     fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.cpu_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 

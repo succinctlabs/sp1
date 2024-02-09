@@ -29,7 +29,7 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
-pub fn prove(program: Program) {
+pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -38,12 +38,12 @@ pub fn prove(program: Program) {
     prove_core(&mut runtime)
 }
 
-pub fn prove_elf(elf: &[u8]) {
+pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     let program = Program::from(elf);
     prove(program)
 }
 
-pub fn prove_core(runtime: &mut Runtime) {
+pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> {
     let config = BabyBearBlake3::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
 
@@ -54,16 +54,18 @@ pub fn prove_core(runtime: &mut Runtime) {
     let shard = runtime.record.clone();
 
     // Prove the program.
-    let (shard_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
+    let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| runtime.prove::<_, _, _, LocalProver<_>>(&config, &mut challenger));
-
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
+        "cycles={}, e2e={}, khz={:.2}, proofSize={}kb",
         cycles,
         time,
         (cycles as f64 / time as f64),
+        nb_bytes / 1000
     );
 
     #[cfg(not(feature = "perf"))]
@@ -85,9 +87,9 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     // Verify the proof.
     let mut challenger = config.challenger();
-    runtime
-        .verify(&config, &mut challenger, &shard_proofs, &global_proof)
-        .unwrap();
+    runtime.verify(&config, &mut challenger, &proof).unwrap();
+
+    proof
 }
 
 pub fn uni_stark_prove<SC, A>(
@@ -356,6 +358,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
     use rand::Rng;
+    use serde::Serialize;
 
     use crate::stark::StarkConfig;
 
@@ -384,6 +387,15 @@ pub(super) mod baby_bear_blake3 {
     pub struct BabyBearBlake3 {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearBlake3 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
     }
 
     impl BabyBearBlake3 {

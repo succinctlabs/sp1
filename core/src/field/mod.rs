@@ -59,6 +59,10 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
         }
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.field_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record

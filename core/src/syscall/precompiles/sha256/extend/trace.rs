@@ -16,6 +16,10 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
         outputs[0].sha_extend_events = input.sha_extend_events.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.sha_extend_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
