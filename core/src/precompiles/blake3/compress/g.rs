@@ -73,7 +73,6 @@ impl<F: Field> GOperation<F> {
 
             // c = c + d.
             c = self.c_plus_d.populate(segment, c, d);
-            return g_func(input);
 
             // b = (b ^ c).rotate_right(12).
             b = self.b_xor_c.populate(segment, b, c);
@@ -133,7 +132,6 @@ impl<F: Field> GOperation<F> {
 
             // c = c + d.
             AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d, is_real);
-            return;
             c = cols.c_plus_d.value;
 
             // b = (b ^ c).rotate_right(12).
@@ -161,7 +159,7 @@ impl<F: Field> GOperation<F> {
             XorOperation::<AB::F>::eval(builder, d, a, cols.d_xor_a_2, is_real);
             d = cols.d_xor_a_2.value;
             // Rotate right by 8 bits.
-            d = Word([d[1], d[0], d[3], d[2]]);
+            d = Word([d[1], d[2], d[3], d[0]]);
 
             // c = c + d.
             AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d_2, is_real);
