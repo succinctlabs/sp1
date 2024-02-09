@@ -82,11 +82,11 @@ where
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
-    fn prove(
+    fn prove_shard(
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[ChipRef<SC>],
-        wrapped_main_data: MainDataWrapper<SC>,
+        main_data: MainData<SC>,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
@@ -94,27 +94,19 @@ where
         MainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let main_data = wrapped_main_data
-            .materialize()
-            .expect("failed to load shard main data");
         let traces = main_data.traces;
 
-        // Filter the chips.
-        let chips: Vec<_> = chips
-            .iter()
-            .filter(|chip| main_data.chip_ids.contains(&chip.name()))
-            .collect::<Vec<_>>();
-        let chip_ids = chips.iter().map(|chip| chip.name()).collect::<Vec<_>>();
-
+        // TODO: remove
         // For each trace, compute the degree.
-        let degrees = traces
+        // let degrees = traces
+        //     .iter()
+        //     .map(|trace| trace.height())
+        //     .collect::<Vec<_>>();
+        let log_degrees = traces
             .iter()
-            .map(|trace| trace.height())
+            .map(|trace| log2_strict_usize(trace.height()))
             .collect::<Vec<_>>();
-        let log_degrees = degrees
-            .iter()
-            .map(|d| log2_strict_usize(*d))
-            .collect::<Vec<_>>();
+        // TODO: read dynamically from Chip.
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
         let g_subgroups = log_degrees
@@ -209,7 +201,7 @@ where
                 .map(|i| {
                     Self::quotient_values(
                         config,
-                        chips[i],
+                        &chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
                         &main_ldes[i],
@@ -377,7 +369,7 @@ where
                     chips: opened_values,
                 },
                 opening_proof,
-                chip_ids,
+                chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
             }
         }
 

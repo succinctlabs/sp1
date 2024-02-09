@@ -274,11 +274,10 @@ where
         });
 
         // Generate and commit the traces for each segment.
-        let (segment_commits, shard_data) =
-            P::commit_shards(&self.config, &mut shards, &local_chips);
+        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &local_chips);
 
         // Observe the challenges for each segment.
-        segment_commits.into_iter().for_each(|commitment| {
+        shard_commits.into_iter().for_each(|commitment| {
             challenger.observe(commitment);
         });
 
@@ -286,22 +285,22 @@ where
         // identical global challenges across the segments.
         let shard_proofs = shard_data
             .into_par_iter()
-            .enumerate()
-            .map(|(_, main_data)| {
-                P::prove(
-                    &self.config,
-                    &mut challenger.clone(),
-                    &local_chips,
-                    main_data,
-                )
+            .map(|data| {
+                let data = data.materialize().expect("failed to load shard main data");
+                let chips = self
+                    .local_chips()
+                    .into_iter()
+                    .filter(|chip| data.chip_ids.contains(&chip.name()))
+                    .collect::<Vec<_>>();
+                P::prove_shard(&self.config, &mut challenger.clone(), &chips, data)
             })
             .collect::<Vec<_>>();
 
         // Generate and commit to the global segment.
-        let global_main_data = P::commit_main(&self.config, &global_chips, record).to_in_memory();
+        let global_main_data = P::commit_main(&self.config, &global_chips, record);
 
         // Generate a proof for the global segment.
-        let global_proof = P::prove(
+        let global_proof = P::prove_shard(
             &self.config,
             &mut challenger.clone(),
             &global_chips,
@@ -333,10 +332,14 @@ where
         });
 
         // Verify the segment proofs.
-        let local_chips = self.local_chips();
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
-                Verifier::verify(&self.config, &local_chips, &mut challenger.clone(), proof)
+                let chips = self
+                    .local_chips()
+                    .into_iter()
+                    .filter(|chip| proof.chip_ids.contains(&chip.name()))
+                    .collect::<Vec<_>>();
+                Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
@@ -344,7 +347,7 @@ where
         // Verifiy the global proof.
         let global_chips = self.global_chips();
         tracing::info_span!("verifying global segment").in_scope(|| {
-            Verifier::verify(
+            Verifier::verify_shard(
                 &self.config,
                 &global_chips,
                 &mut challenger.clone(),

@@ -28,7 +28,7 @@ pub struct Verifier<SC>(PhantomData<SC>);
 impl<SC: StarkConfig> Verifier<SC> {
     /// Verify a proof for a collection of air chips.
     #[cfg(feature = "perf")]
-    pub fn verify(
+    pub fn verify_shard(
         config: &SC,
         chips: &[ChipRef<SC>],
         challenger: &mut SC::Challenger,
@@ -38,14 +38,8 @@ impl<SC: StarkConfig> Verifier<SC> {
             commitment,
             opened_values,
             opening_proof,
-            chip_ids,
+            ..
         } = proof;
-
-        // Filter the chips.
-        let chips = chips
-            .iter()
-            .filter(|chip| chip_ids.contains(&chip.name()))
-            .collect::<Vec<_>>();
 
         let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
         let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
@@ -55,21 +49,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             .zip(receives.iter())
             .map(|(s, r)| s.len() + r.len())
             .collect::<Vec<usize>>();
-
-        // // Verify the proof shapes.
-        // for ((chip, interactions), opened_vals) in chips
-        //     .iter()
-        //     .zip(chips_interactions.iter())
-        //     .zip(opened_values.chips.iter())
-        // {
-        //     Self::verify_proof_shape(
-        //         chip.as_ref(),
-        //         interactions.len(),
-        //         opened_vals,
-        //         log_quotient_degree,
-        //     )
-        //     .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
-        // }
 
         let dims = &[
             chips
@@ -178,53 +157,6 @@ impl<SC: StarkConfig> Verifier<SC> {
         Ok(())
     }
 
-    // /// Verify the shape of opening arguments and permutation challenges.
-    // ///
-    // /// This function checks that the preprocessed_opening, main opening, permutation opening,
-    // /// quotient opening have the expected dimensions.
-    // fn verify_proof_shape<C>(
-    //     chip: &C,
-    //     num_interactions: usize,
-    //     opened_values: &ChipOpenedValues<SC::Challenge>,
-    //     log_quotient_degree: usize,
-    // ) -> Result<(), ProofShapeError>
-    // where
-    //     C: AirChip<SC> + ?Sized,
-    // {
-    //     // Todo : check preprocessed shape.
-    //     let preprocesses_width = 0;
-    //     if opened_values.preprocessed.local.len() != preprocesses_width
-    //         || opened_values.preprocessed.next.len() != preprocesses_width
-    //     {
-    //         return Err(ProofShapeError::Preprocessed);
-    //     }
-
-    //     // Check that the main opening rows have lengths that match the chip width.
-    //     let main_width = chip.air_width();
-    //     if opened_values.main.local.len() != main_width
-    //         || opened_values.main.next.len() != main_width
-    //     {
-    //         return Err(ProofShapeError::MainTrace);
-    //     }
-
-    //     // Check that the permutation openninps have lengths that match the number of interactions.
-    //     let perm_width = SC::Challenge::D * (num_interactions + 1);
-    //     if opened_values.permutation.local.len() != perm_width
-    //         || opened_values.permutation.next.len() != perm_width
-    //     {
-    //         return Err(ProofShapeError::Permuation);
-    //     }
-
-    //     // Check that the quotient opening has the expected length for the given degree.
-    //     let quotient_width = SC::Challenge::D << log_quotient_degree;
-    //     if opened_values.quotient.len() != quotient_width {
-    //         return Err(ProofShapeError::Quotient);
-    //     }
-
-    //     Ok(())
-    // }
-
-    #[allow(clippy::too_many_arguments)]
     fn verify_constraints(
         chip: &ChipRef<SC>,
         opening: ChipOpenedValues<SC::Challenge>,
@@ -302,20 +234,10 @@ impl<SC: StarkConfig> Verifier<SC> {
     }
 }
 
-#[derive(Debug)]
-pub enum ProofShapeError {
-    Preprocessed,
-    MainTrace,
-    Permuation,
-    Quotient,
-}
-
 pub struct OodEvaluationMismatch;
 
 #[derive(Debug)]
 pub enum VerificationError {
-    /// The shape of openings does not match the chip shapes.
-    InvalidProofShape(ProofShapeError, String),
     /// opening proof is invalid.
     InvalidopeningArgument,
     /// Out-of-domain evaluation mismatch.
@@ -327,9 +249,6 @@ pub enum VerificationError {
 impl Display for VerificationError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            VerificationError::InvalidProofShape(err, chip) => {
-                write!(f, "Invalid proof shape for chip {}: {:?}", chip, err)
-            }
             VerificationError::InvalidopeningArgument => {
                 write!(f, "Invalid opening argument")
             }
