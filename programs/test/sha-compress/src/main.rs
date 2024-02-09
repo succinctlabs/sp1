@@ -2,7 +2,7 @@
 extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
-use succinct_zkvm::syscall::syscall_sha256_compress;
+use succinct_zkvm::syscalls::syscall_sha256_compress;
 
 pub fn main() {
     let mut w = [1u32; 64];

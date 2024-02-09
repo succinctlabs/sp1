@@ -6,4 +6,3 @@ edition = "2021"
 
 [dependencies]
 succinct-zkvm = { path = "../../../zkvm" }
-succinct-precompiles = { path = "../../../precompiles" }

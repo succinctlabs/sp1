@@ -12,10 +12,11 @@ use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
 use k256::{PublicKey, Scalar, Secp256k1};
 
+use crate::precompiles::io;
 use crate::syscalls::{
     syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double,
 };
-use crate::{io, unconstrained};
+use crate::unconstrained;
 
 /// Decompresses a compressed public key using secp256k1_decompress precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
@@ -146,9 +147,9 @@ impl AffinePoint {
         Self { limbs }
     }
 
-    pub fn add_assign(&mut self, other: &AffinePoint) {
+    pub fn add_assign(&mut self, other: &mut AffinePoint) {
         unsafe {
-            syscall_secp256k1_add(self.limbs.as_mut_ptr(), other.limbs.as_ptr());
+            syscall_secp256k1_add(self.limbs.as_mut_ptr(), other.limbs.as_mut_ptr());
         }
     }
 
@@ -175,14 +176,14 @@ fn double_and_add_base(
     for (a_bit, b_bit) in a_bits.iter().zip(b_bits) {
         if *a_bit {
             match res.as_mut() {
-                Some(res) => res.add_assign(&temp_A),
+                Some(res) => res.add_assign(&mut temp_A),
                 None => res = Some(temp_A),
             };
         }
 
         if b_bit {
             match res.as_mut() {
-                Some(res) => res.add_assign(&temp_B),
+                Some(res) => res.add_assign(&mut temp_B),
                 None => res = Some(temp_B),
             };
         }
