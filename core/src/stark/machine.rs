@@ -75,7 +75,7 @@ pub struct RiscvStark<SC: StarkConfig> {
     shift_left: Chip<SC::Val, ShiftLeft>,
     lt: Chip<SC::Val, LtChip>,
     field_ltu: Chip<SC::Val, FieldLTUChip>,
-    byte: Chip<SC::Val, ByteChip<SC::Val>>,
+    byte: Chip<SC::Val, ByteChip>,
 
     // Global chips
     memory_init: Chip<SC::Val, MemoryGlobalChip>,
@@ -120,7 +120,7 @@ where
         let shift_left = Chip::new(ShiftLeft::default());
         let lt = Chip::new(LtChip::default());
         let field_ltu = Chip::new(FieldLTUChip::default());
-        let byte = Chip::new(ByteChip::<SC::Val>::new());
+        let byte = Chip::new(ByteChip::default());
 
         // Global chips
         let memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Init));
