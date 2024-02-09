@@ -79,13 +79,10 @@ impl ProveCmd {
         runtime.run();
         let proof = prove_core(&mut runtime);
         let serialized_json = serde_json::to_string(&proof).expect("failed to serialize proof");
-        match self.output {
-            Some(ref path) => {
-                let mut file = fs::File::create(path).expect("Failed to create file");
-                file.write_all(serialized_json.as_bytes())
-                    .expect("Failed to write to file");
-            }
-            None => println!("{}", serialized_json),
+        if let Some(ref path) = self.output {
+            let mut file = fs::File::create(path).expect("Failed to create file");
+            file.write_all(serialized_json.as_bytes())
+                .expect("Failed to write to file");
         }
 
         Ok(())
