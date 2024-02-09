@@ -200,7 +200,7 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        let machine = RiscvStark::new(BabyBearPoseidon2::new(&mut thread_rng()));
+        let (machine, prover_data) = RiscvStark::init(BabyBearPoseidon2::new(&mut thread_rng()));
         debug_interactions_with_all_chips(
             &machine.local_chips(),
             &machine.global_chips(),
@@ -218,7 +218,7 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        let machine = RiscvStark::new(BabyBearPoseidon2::new(&mut thread_rng()));
+        let (machine, prover_data) = RiscvStark::init(BabyBearPoseidon2::new(&mut thread_rng()));
         debug_interactions_with_all_chips(
             &machine.local_chips(),
             &machine.global_chips(),

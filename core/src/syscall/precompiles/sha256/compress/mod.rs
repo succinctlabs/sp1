@@ -73,7 +73,7 @@ pub mod compress_tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        let machine = RiscvStark::new(config);
+        let (machine, prover_data) = RiscvStark::init(config);
 
         machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger);
     }

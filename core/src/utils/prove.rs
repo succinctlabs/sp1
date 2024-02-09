@@ -49,7 +49,7 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     let start = Instant::now();
 
-    let machine = RiscvStark::new(config.clone());
+    let (machine, prover_data) = RiscvStark::init(config.clone());
 
     // Because proving modifies the shard, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]

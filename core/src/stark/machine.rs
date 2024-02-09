@@ -42,11 +42,19 @@ use super::ChipRef;
 use super::Com;
 use super::MainData;
 use super::OpeningProof;
+use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::StarkConfig;
 use super::VerificationError;
 use super::Verifier;
+
+pub struct ProverData<SC: StarkConfig> {
+    pub local_preprocessed_traces: Vec<RowMajorMatrix<SC::Val>>,
+    pub local_preprocessed_data: Option<PcsProverData<SC>>,
+    pub global_preprocessed_traces: Vec<RowMajorMatrix<SC::Val>>,
+    pub global_preprocessed_data: Option<PcsProverData<SC>>,
+}
 
 pub struct RiscvStark<SC: StarkConfig> {
     config: SC,
@@ -87,7 +95,7 @@ impl<SC: StarkConfig> RiscvStark<SC>
 where
     SC::Val: PrimeField32,
 {
-    pub fn new(config: SC) -> Self {
+    pub fn init(config: SC) -> (Self, ProverData<SC>) {
         let program = Chip::new(ProgramChip::default());
         let cpu = Chip::new(CpuChip::default());
         let sha_extend = Chip::new(ShaExtendChip::default());
@@ -152,17 +160,17 @@ where
             .iter()
             .flat_map(|chip| chip.preprocessed_trace())
             .collect::<Vec<_>>();
-        let local_commit = if !local_preprocessed_traces.is_empty() {
+        let (local_commit, local_data) = if !local_preprocessed_traces.is_empty() {
             Some(
                 machine
                     .config
                     .pcs()
-                    .commit_batches(local_preprocessed_traces)
-                    .0,
+                    .commit_batches(local_preprocessed_traces.clone()),
             )
         } else {
             None
-        };
+        }
+        .unzip();
 
         // Compute commitments to the global preprocessed data
         let global_preprocessed_traces = machine
@@ -170,23 +178,31 @@ where
             .iter()
             .flat_map(|chip| chip.preprocessed_trace())
             .collect::<Vec<_>>();
-        let global_commit = if !global_preprocessed_traces.is_empty() {
+        let (global_commit, global_data) = if !global_preprocessed_traces.is_empty() {
             Some(
                 machine
                     .config
                     .pcs()
-                    .commit_batches(global_preprocessed_traces)
-                    .0,
+                    .commit_batches(global_preprocessed_traces.clone()),
             )
         } else {
             None
-        };
+        }
+        .unzip();
 
         // Store the commitments in the machine
         machine.preprocessed_local_commitment = local_commit;
         machine.preprocessed_global_commitment = global_commit;
 
-        machine
+        (
+            machine,
+            ProverData {
+                local_preprocessed_traces,
+                local_preprocessed_data: local_data,
+                global_preprocessed_traces,
+                global_preprocessed_data: global_data,
+            },
+        )
     }
 
     pub fn local_chips(&self) -> [ChipRef<SC>; 20] {
