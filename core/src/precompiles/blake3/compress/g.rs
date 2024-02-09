@@ -53,6 +53,7 @@ pub struct GOperation<T> {
 
 impl<F: Field> GOperation<F> {
     pub fn populate(&mut self, segment: &mut Segment, input: [u32; 6]) -> [u32; 4] {
+        println!("populate input: {:?}", input);
         let mut a = input[0];
         let mut b = input[1];
         let mut c = input[2];
@@ -106,6 +107,7 @@ impl<F: Field> GOperation<F> {
         cols: GOperation<AB::Var>,
         is_real: AB::Var,
     ) {
+        builder.assert_bool(is_real);
         let mut a = input[0];
         let mut b = input[1];
         let mut c = input[2];
