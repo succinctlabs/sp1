@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::runtime::{Register, Runtime};
+use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -211,6 +212,10 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     syscall_map.insert(
         SyscallCode::SECP256K1_DECOMPRESS,
         Rc::new(K256DecompressChip::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::BLAKE3_COMPRESS_INNER,
+        Rc::new(Blake3CompressInnerChip::new()),
     );
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
