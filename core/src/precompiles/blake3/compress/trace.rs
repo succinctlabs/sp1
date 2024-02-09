@@ -100,15 +100,16 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                             )
                         }
                     }
-                    if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
-                        println!("cols.round = {:#?}", cols.round_index);
-                        println!("cols.operation = {:#?}", cols.operation_index);
-                        println!("cols.clk = {:#?}", cols.clk);
-                        println!("cols.mem_reads = {:?}", cols.mem_reads);
-                        println!("cols.mem_writes = {:?}", cols.mem_writes);
-                    }
+                    // if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
+                    //     println!("cols.round = {:#?}", cols.round_index);
+                    //     println!("cols.operation = {:#?}", cols.operation_index);
+                    //     println!("cols.clk = {:#?}", cols.clk);
+                    //     println!("cols.mem_reads = {:?}", cols.mem_reads);
+                    //     println!("cols.mem_writes = {:?}", cols.mem_writes);
+                    // }
 
                     cols.is_real = F::one();
+
                     rows.push(row);
                 }
             }
@@ -123,8 +124,20 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
         }
 
         for _ in nb_rows..padded_nb_rows {
-            let row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
+            let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
+            let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
+            // Put this value in this padded row to avoid failing the constraint.
+            cols.round_index = F::from_canonical_usize(ROUND_COUNT);
+
             rows.push(row);
+        }
+        for mut row in rows.clone() {
+            let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
+            println!(
+                "is_operation_index_n[OPERATION_COUNT - 1] = {}, round_index = {}",
+                cols.is_operation_index_n[OPERATION_COUNT - 1],
+                cols.round_index
+            );
         }
 
         // Convert the trace to a row major matrix.

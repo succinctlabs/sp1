@@ -109,17 +109,26 @@ impl Blake3CompressInnerChip {
         for i in 0..OPERATION_COUNT {
             builder.when_transition().when(next.is_real).assert_eq(
                 local.is_operation_index_n[i],
-                next.is_operation_index_n[(i + 1) % ROUND_COUNT],
+                next.is_operation_index_n[(i + 1) % OPERATION_COUNT],
             );
         }
         // If this is the last operation, the round index should be incremented.
-        builder
-            .when_transition()
-            .when(local.is_operation_index_n[OPERATION_COUNT - 1])
-            .assert_eq(
-                local.round_index + AB::F::from_canonical_u32(1),
-                next.round_index,
-            );
+        for i in 0..OPERATION_COUNT {
+            if i + 1 < OPERATION_COUNT {
+                builder
+                    .when_transition()
+                    .when(local.is_operation_index_n[i])
+                    .assert_eq(local.round_index, next.round_index);
+            } else {
+                builder
+                    .when_transition()
+                    .when(local.is_operation_index_n[i])
+                    .assert_eq(
+                        local.round_index + AB::F::from_canonical_u16(1),
+                        next.round_index,
+                    );
+            }
+        }
     }
 
     fn constrain_memory<AB: CurtaAirBuilder>(
