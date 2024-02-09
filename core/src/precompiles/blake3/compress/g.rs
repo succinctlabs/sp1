@@ -10,6 +10,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;
+use crate::air::WORD_SIZE;
 use crate::operations::AddOperation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
@@ -38,7 +39,7 @@ pub struct GOperation<T> {
     // Rotate right by 16 bits by just shifting bytes.
     pub state_c_plus_state_d: AddOperation<T>,
     pub state_b_xor_state_c: XorOperation<T>,
-    // Rotate right by 12 bits by just shifting bytes.
+    pub state_b_xor_state_c_rotate_right_12: FixedRotateRightOperation<T>,
     pub state_a_plus_state_b_2: AddOperation<T>,
     pub state_a_plus_state_b_2_add_y: AddOperation<T>,
     // Rotate right by 8 bits by just shifting bytes.
@@ -47,7 +48,7 @@ pub struct GOperation<T> {
     pub state_b_xor_state_c_2: XorOperation<T>,
     pub state_b_xor_state_c_2_rotate_right_7: FixedRotateRightOperation<T>,
     /// `state[a]`, `state[b]`, `state[c]`, `state[d]` after all the steps.
-    pub result: [T; 4],
+    pub result: [Word<T>; 4],
 }
 
 impl<F: Field> GOperation<F> {
@@ -76,7 +77,9 @@ impl<F: Field> GOperation<F> {
                 .populate(segment, state_c, state_d);
 
             state_b = self.state_b_xor_state_c.populate(segment, state_b, state_c);
-            state_b = state_b.rotate_right(12);
+            state_b = self
+                .state_b_xor_state_c_rotate_right_12
+                .populate(segment, state_b, 12);
         }
 
         // Second 4 steps.
@@ -111,13 +114,79 @@ impl<F: Field> GOperation<F> {
 
     pub fn eval<AB: CurtaAirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Var>,
-        b: Word<AB::Var>,
-        cols: AddOperation<AB::Var>,
+        input: [Word<AB::Var>; 6],
+        cols: GOperation<AB::Var>,
         is_real: AB::Var,
     ) {
-        // TODO: Fill in the logic!
+        let mut a = input[0];
+        let mut b = input[1];
+        let mut c = input[2];
+        let mut d = input[3];
+        let x = input[4];
+        let y = input[5];
+
+        // First 4 steps.
+        {
+            AddOperation::<AB::F>::eval(builder, a, b, cols.state_a_plus_state_b, is_real);
+            a = cols.state_a_plus_state_b.value;
+            AddOperation::<AB::F>::eval(builder, a, x, cols.state_a_plus_state_b_plus_x, is_real);
+            a = cols.state_a_plus_state_b_plus_x.value;
+
+            XorOperation::<AB::F>::eval(builder, d, a, cols.state_d_xor_state_a, is_real);
+            d = cols.state_d_xor_state_a.value;
+
+            // Rotate right by 16 bits.
+            d = Word([d[1], d[0], d[3], d[2]]);
+
+            AddOperation::<AB::F>::eval(builder, c, d, cols.state_c_plus_state_d, is_real);
+            c = cols.state_c_plus_state_d.value;
+
+            XorOperation::<AB::F>::eval(builder, b, c, cols.state_b_xor_state_c, is_real);
+            b = cols.state_b_xor_state_c.value;
+            FixedRotateRightOperation::<AB::F>::eval(
+                builder,
+                b,
+                12,
+                cols.state_b_xor_state_c_rotate_right_12,
+                is_real,
+            );
+            b = cols.state_b_xor_state_c_rotate_right_12.value;
+        }
+
+        // Second 4 steps.
+        {
+            AddOperation::<AB::F>::eval(builder, a, b, cols.state_a_plus_state_b_2, is_real);
+            a = cols.state_a_plus_state_b_2.value;
+            AddOperation::<AB::F>::eval(builder, a, y, cols.state_a_plus_state_b_2_add_y, is_real);
+            a = cols.state_a_plus_state_b_2_add_y.value;
+
+            XorOperation::<AB::F>::eval(builder, d, a, cols.state_d_xor_state_a_2, is_real);
+            d = cols.state_d_xor_state_a_2.value;
+            // Rotate right by 8 bits.
+            d = Word([d[1], d[0], d[3], d[2]]);
+
+            AddOperation::<AB::F>::eval(builder, c, d, cols.state_c_plus_state_d_2, is_real);
+            c = cols.state_c_plus_state_d_2.value;
+
+            XorOperation::<AB::F>::eval(builder, b, c, cols.state_b_xor_state_c_2, is_real);
+            b = cols.state_b_xor_state_c_2.value;
+            FixedRotateRightOperation::<AB::F>::eval(
+                builder,
+                b,
+                7,
+                cols.state_b_xor_state_c_2_rotate_right_7,
+                is_real,
+            );
+            b = cols.state_b_xor_state_c_2_rotate_right_7.value;
+        }
+
+        let results = [a, b, c, d];
+        for i in 0..4 {
+            for j in 0..WORD_SIZE {
+                builder.assert_eq(cols.result[i][j], results[i][j]);
+            }
+        }
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
+        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
 }
