@@ -134,12 +134,11 @@ impl Blake3CompressInnerChip {
         //     rt.clk += 4;
         // }
 
-        let msg_ptr = local.state_ptr + AB::F::from_canonical_usize(4 * STATE_SIZE);
         for i in 0..NUM_MSG_WORDS_PER_CALL {
             builder.constraint_memory_access(
                 local.segment,
                 clk.clone(),
-                msg_ptr.clone() + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
                 &local.mem_reads[NUM_STATE_WORDS_PER_CALL + i],
                 local.is_real,
             );
