@@ -95,6 +95,7 @@ impl Blake3CompressInnerChip {
 pub mod compress_tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
+    use crate::runtime::Register;
     use crate::runtime::SyscallCode;
     use crate::utils::prove;
     use crate::utils::setup_logger;
@@ -102,17 +103,29 @@ pub mod compress_tests {
     use crate::Program;
 
     use super::INPUT_SIZE;
+    use super::MSG_SIZE;
+    use super::STATE_SIZE;
 
     pub fn blake3_compress_internal_program() -> Program {
-        let w_ptr = 100;
+        let state_ptr = 100;
+        let msg_ptr = 500;
         let mut instructions = vec![];
 
-        for i in 0..INPUT_SIZE {
+        for i in 0..STATE_SIZE {
             // Store 1000 + i in memory for the i-th word of the state. 1000 + i is an arbitrary
             // number that is easy to spot while debugging.
             instructions.extend(vec![
                 Instruction::new(Opcode::ADD, 29, 0, 1000 + i as u32, false, true),
-                Instruction::new(Opcode::ADD, 30, 0, w_ptr + i as u32 * 4, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, state_ptr + i as u32 * 4, false, true),
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true),
+            ]);
+        }
+        for i in 0..MSG_SIZE {
+            // Store 2000 + i in memory for the i-th word of the message. 2000 + i is an arbitrary
+            // number that is easy to spot while debugging.
+            instructions.extend(vec![
+                Instruction::new(Opcode::ADD, 29, 0, 2000 + i as u32, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, msg_ptr + i as u32 * 4, false, true),
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
@@ -125,7 +138,8 @@ pub mod compress_tests {
                 false,
                 true,
             ),
-            Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
+            Instruction::new(Opcode::ADD, Register::X10 as u32, 0, state_ptr, false, true),
+            Instruction::new(Opcode::ADD, Register::X11 as u32, 0, msg_ptr, false, true),
             Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
         ]);
         Program::new(instructions, 0, 0)

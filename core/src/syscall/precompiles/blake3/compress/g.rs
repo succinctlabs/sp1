@@ -97,7 +97,11 @@ impl<F: Field> GOperation<F> {
             b = self.b_xor_c_2_rotate_right_7.populate(segment, b, 7);
         }
 
-        println!("assertion! [a, b, c, d] = g_func(input)");
+        println!(
+            "populate output [a, b, c, d] = [{}, {}, {}, {}]",
+            a, b, c, d
+        );
+
         let result = [a, b, c, d];
         assert_eq!(result, g_func(input));
         self.result = [a, b, c, d].map(Word::from);
