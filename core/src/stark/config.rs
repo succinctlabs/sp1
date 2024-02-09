@@ -2,6 +2,7 @@ use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcsWithLde};
 use p3_field::{AbstractExtensionField, ExtensionField, PackedField, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
+use serde::Serialize;
 
 /// A configuration for a STARK.
 pub trait StarkConfig {
@@ -12,7 +13,7 @@ pub trait StarkConfig {
     type PackedVal: PackedField<Scalar = Self::Val>;
 
     /// The field from which random challenges are drawn.
-    type Challenge: ExtensionField<Self::Val> + TwoAdicField;
+    type Challenge: ExtensionField<Self::Val> + TwoAdicField + Serialize;
 
     /// The packed version of `Challenge` to accelerate vector-friendly computations.
     type PackedChallenge: AbstractExtensionField<Self::PackedVal, F = Self::Challenge> + Copy;

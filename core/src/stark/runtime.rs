@@ -85,7 +85,8 @@ impl Runtime {
             .into_par_iter()
             .enumerate()
             .map(|(_, main_data)| {
-                P::prove(config, &mut challenger.clone(), &local_chips, main_data)
+                let local_chips = Self::local_chips::<SC>();
+                P::prove(config, &mut challenger.clone(), local_chips, main_data)
             })
             .collect::<Vec<_>>();
 
@@ -97,7 +98,7 @@ impl Runtime {
         let global_proof = P::prove(
             config,
             &mut challenger.clone(),
-            &global_chips,
+            global_chips,
             global_main_data,
         );
 
@@ -129,10 +130,10 @@ impl Runtime {
         });
 
         // Verify the segment proofs.
-        let segment_chips = Self::local_chips::<SC>();
         for (i, proof) in segments_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
-                Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
+                let local_chips = Self::local_chips::<SC>();
+                Verifier::verify(config, local_chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
@@ -140,7 +141,7 @@ impl Runtime {
         // Verifiy the global proof.
         let global_chips = Self::global_chips::<SC>();
         tracing::info_span!("verifying global segment").in_scope(|| {
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
+            Verifier::verify(config, global_chips, &mut challenger.clone(), global_proof)
                 .map_err(ProgramVerificationError::InvalidGlobalProof)
         })?;
 

@@ -34,6 +34,7 @@ pub struct MainData<SC: StarkConfig> {
     #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
     #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
     pub main_data: PcsProverData<SC>,
+    pub chip_ids: Vec<String>,
 }
 
 impl<SC: StarkConfig> MainData<SC> {
@@ -41,11 +42,13 @@ impl<SC: StarkConfig> MainData<SC> {
         traces: Vec<ValMat<SC>>,
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
+        chip_ids: Vec<String>,
     ) -> Self {
         Self {
             traces,
             main_commit,
             main_data,
+            chip_ids,
         }
     }
 
@@ -95,21 +98,21 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SegmentCommitment<C> {
     pub main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AirOpenedValues<T> {
     pub local: Vec<T>,
     pub next: Vec<T>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ChipOpenedValues<T> {
+#[derive(Debug, Clone, Serialize)]
+pub struct ChipOpenedValues<T: Serialize> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
@@ -118,16 +121,18 @@ pub struct ChipOpenedValues<T> {
     pub log_degree: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct SegmentOpenedValues<T> {
+#[derive(Debug, Clone, Serialize)]
+pub struct SegmentOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
 #[cfg(feature = "perf")]
+#[derive(Serialize)]
 pub struct SegmentProof<SC: StarkConfig> {
     pub commitment: SegmentCommitment<Com<SC>>,
     pub opened_values: SegmentOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
+    pub chip_ids: Vec<String>,
 }
 
 #[cfg(not(feature = "perf"))]
@@ -137,7 +142,7 @@ pub struct SegmentProof<SC: StarkConfig> {
     pub permutation_traces: Vec<ChallengeMat<SC>>,
 }
 
-impl<T> SegmentOpenedValues<T> {
+impl<T: Serialize> SegmentOpenedValues<T> {
     pub fn into_values(self) -> OpenedValues<T> {
         let mut main_vals = vec![];
         let mut permutation_vals = vec![];

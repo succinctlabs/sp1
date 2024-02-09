@@ -56,14 +56,21 @@ pub fn prove_core(runtime: &mut Runtime) {
     // Prove the program.
     let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| runtime.prove::<_, _, _, LocalProver<_>>(&config, &mut challenger));
-
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
+
+    let mut nb_bytes = 0;
+    for segment_proof in segment_proofs.iter() {
+        nb_bytes += bincode::serialize(&segment_proof).unwrap().len();
+    }
+    nb_bytes += bincode::serialize(&global_proof).unwrap().len();
+
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
+        "cycles={}, e2e={}, khz={:.2}, proofSize={}kb",
         cycles,
         time,
         (cycles as f64 / time as f64),
+        nb_bytes / 1000
     );
 
     #[cfg(not(feature = "perf"))]
@@ -356,6 +363,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
     use rand::Rng;
+    use serde::Serialize;
 
     use crate::stark::StarkConfig;
 
@@ -384,6 +392,15 @@ pub(super) mod baby_bear_blake3 {
     pub struct BabyBearBlake3 {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearBlake3 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
     }
 
     impl BabyBearBlake3 {
