@@ -16,7 +16,9 @@ pub struct SyscallReader {
 impl std::io::Read for SyscallReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let len = buf.len();
-        syscall_read(self.fd, buf.as_mut_ptr(), len);
+        unsafe {
+            syscall_read(self.fd, buf.as_mut_ptr(), len);
+        }
         Ok(len)
     }
 }
@@ -29,7 +31,9 @@ impl std::io::Write for SyscallWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let nbytes = buf.len();
         let write_buf = buf.as_ptr();
-        syscall_write(self.fd, write_buf, nbytes);
+        unsafe {
+            syscall_write(self.fd, write_buf, nbytes);
+        }
         Ok(nbytes)
     }
 
