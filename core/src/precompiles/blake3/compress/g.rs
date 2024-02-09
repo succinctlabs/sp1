@@ -49,8 +49,14 @@ pub struct GOperation<T> {
 }
 
 impl<F: Field> GOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, a_u32: u32, b_u32: u32) -> u32 {
-        todo!();
+    pub fn populate(&mut self, input: [u32; 6]) -> [u32; 4] {
+        let a = input[0];
+        let b = input[1];
+        let c = input[2];
+        let d = input[3];
+        // TODO: Fill in the logic!
+
+        [a, b, c, d]
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
@@ -60,6 +66,7 @@ impl<F: Field> GOperation<F> {
         cols: AddOperation<AB::Var>,
         is_real: AB::Var,
     ) {
+        // TODO: Fill in the logic!
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
     }

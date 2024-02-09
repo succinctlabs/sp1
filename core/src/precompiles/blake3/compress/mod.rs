@@ -57,6 +57,24 @@ pub(crate) const G_INDEX: [[usize; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT] =
     [3, 4, 9, 14],
 ];
 
+pub(crate) fn g_func(input: [u32; 6]) -> [u32; 4] {
+    let mut a = input[0];
+    let mut b = input[1];
+    let mut c = input[2];
+    let mut d = input[3];
+    let x = input[4];
+    let y = input[5];
+    a = a.wrapping_add(b).wrapping_add(x);
+    d = (d ^ a).rotate_right(16);
+    c = c.wrapping_add(d);
+    b = (b ^ c).rotate_right(12);
+    a = a.wrapping_add(b).wrapping_add(y);
+    d = (d ^ a).rotate_right(8);
+    c = c.wrapping_add(d);
+    b = (b ^ c).rotate_right(7);
+    [a, b, c, d]
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,

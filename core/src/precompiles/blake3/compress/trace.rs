@@ -13,7 +13,7 @@ use crate::{runtime::Segment, utils::Chip};
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
-    G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
+    g_func, G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
 };
 
@@ -83,8 +83,8 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         .try_into()
                         .unwrap();
 
-                    // TODO: This is when we call the g function on the input.
                     let result = input;
+                    //                    let result = g_func(input);
 
                     // Memory writes.
                     {

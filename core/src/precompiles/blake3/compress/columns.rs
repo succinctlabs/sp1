@@ -7,6 +7,7 @@ use valida_derive::AlignedBorrow;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 
+use super::g::GOperation;
 use super::G_INPUT_SIZE;
 use super::G_OUTPUT_SIZE;
 use super::NUM_MSG_WORDS_PER_CALL;
@@ -45,7 +46,10 @@ pub struct Blake3CompressInnerCols<T> {
     pub state_index: [T; NUM_STATE_WORDS_PER_CALL],
 
     /// The two values from `MSG_SCHEDULE` to pass to `g`.
+    /// TODO: I don't think I need this.
     pub msg_schedule: [T; NUM_MSG_WORDS_PER_CALL],
+
+    pub g: GOperation<T>,
 
     pub is_real: T,
 }
