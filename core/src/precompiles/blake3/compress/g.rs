@@ -14,6 +14,8 @@ use crate::operations::AddOperation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
 use crate::runtime::Segment;
+
+use super::g_func;
 /// A set of columns needed to compute the `g` of the input state.
 ///  ``` ignore
 /// fn g(state: &mut BlockWords, a: usize, b: usize, c: usize, d: usize, x: u32, y: u32) {
@@ -56,7 +58,7 @@ impl<F: Field> GOperation<F> {
         let d = input[3];
         // TODO: Fill in the logic!
 
-        [a, b, c, d]
+        g_func(input)
     }
 
     pub fn eval<AB: CurtaAirBuilder>(

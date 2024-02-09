@@ -1,12 +1,11 @@
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
-
-///! This module contains the implementation of the `blake3_compress_inner` precompile based on the
-/// implementation of the `blake3` hash function in Plonky3.
+//! This module contains the implementation of the `blake3_compress_inner` precompile based on the
+//! implementation of the `blake3` hash function in Plonky3.
 mod air;
 mod columns;
 mod execute;
 mod g;
 mod trace;
+use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 /// The number of `Word`s in the state of the compress inner operation.
 pub(crate) const STATE_SIZE: usize = 16;

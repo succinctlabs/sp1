@@ -1,8 +1,8 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 use crate::precompiles::blake3::{
-    Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE,
-    INPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL,
-    OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE,
+    G_OUTPUT_SIZE, INPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL,
+    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
 use crate::precompiles::PrecompileRuntime;
 use crate::runtime::Register;
@@ -29,11 +29,13 @@ impl Blake3CompressInnerChip {
             for operation in 0..OPERATION_COUNT {
                 // Read the state.
                 let mut state = [0u32; STATE_SIZE];
+                let mut input = [0u32; G_INPUT_SIZE];
                 for i in 0..NUM_STATE_WORDS_PER_CALL {
                     let index_to_read = G_INDEX[operation][i];
                     let (record, value) = rt.mr(state_ptr + (index_to_read as u32) * 4);
                     read_records[round][operation][i] = record;
                     state[index_to_read] = value;
+                    input[i] = value;
                     rt.clk += 4;
                 }
                 // Read the message.
@@ -43,6 +45,7 @@ impl Blake3CompressInnerChip {
                     let (record, value) = rt.mr(msg_ptr + (index_to_read as u32) * 4);
                     read_records[round][operation][NUM_STATE_WORDS_PER_CALL + i] = record;
                     message[index_to_read] = value;
+                    input[i + NUM_STATE_WORDS_PER_CALL] = value;
                     rt.clk += 4;
                 }
                 println!("round: {:?}", round);
@@ -51,14 +54,14 @@ impl Blake3CompressInnerChip {
                 println!("message: {:?}\n", message);
 
                 // TODO: call g here!
-                let results = state;
+                let results = g_func(input);
 
                 // Write the state.
                 for i in 0..NUM_STATE_WORDS_PER_CALL {
                     let index_to_write = G_INDEX[operation][i];
                     let record = rt.mw(
                         state_ptr.wrapping_add((index_to_write as u32) * 4),
-                        results[index_to_write],
+                        results[i],
                     );
                     write_records[round][operation][i] = record;
                     rt.clk += 4;
