@@ -16,7 +16,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let cycles = {
             let mut runtime = Runtime::new(program.clone());
             runtime.run();
-            runtime.global_clk
+            runtime.state.global_clk
         };
         group.bench_function(
             format!("main:{}:{}", p.split('/').last().unwrap(), cycles),

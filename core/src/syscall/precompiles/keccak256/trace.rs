@@ -8,11 +8,11 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     chip::Chip,
-    precompiles::keccak256::{
+    runtime::ExecutionRecord,
+    syscall::precompiles::keccak256::{
         columns::{KeccakCols, NUM_KECCAK_COLS},
         STATE_SIZE,
     },
-    runtime::Segment,
 };
 
 use super::KeccakPermuteChip;
@@ -22,13 +22,13 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
         "KeccakPermute".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].keccak_permute_events = input.keccak_permute_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Figure out number of total rows.
-        let mut num_rows = (segment.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
+        let mut num_rows = (record.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
         if num_rows < 4 {
             num_rows = 4;
         }
@@ -36,7 +36,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
         if num_rows % NUM_ROUNDS != 0 {
             num_total_permutations += 1;
         }
-        let num_real_permutations = segment.keccak_permute_events.len();
+        let num_real_permutations = record.keccak_permute_events.len();
         if num_total_permutations == 0 {
             num_total_permutations = 1;
         }
@@ -48,7 +48,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             let is_real_permutation = permutation_num < num_real_permutations;
 
             let event = if is_real_permutation {
-                Some(&segment.keccak_permute_events[permutation_num])
+                Some(&record.keccak_permute_events[permutation_num])
             } else {
                 None
             };
@@ -111,7 +111,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
             }
         }
 
-        segment.field_events.extend(new_field_events);
+        record.field_events.extend(new_field_events);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

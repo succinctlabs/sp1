@@ -26,7 +26,7 @@ pub mod tests {
         include_bytes!("../../../programs/test/ed-decompress/elf/riscv32im-succinct-zkvm-elf");
 
     pub const FIBONACCI_ELF: &[u8] =
-        include_bytes!("../../../programs/test/ecrecover/elf/riscv32im-succinct-zkvm-elf");
+        include_bytes!("../../../programs/demo/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     pub const KECCAK_PERMUTE_ELF: &[u8] =
         include_bytes!("../../../programs/test/keccak-permute/elf/riscv32im-succinct-zkvm-elf");

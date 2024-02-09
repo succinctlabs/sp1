@@ -4,7 +4,7 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     lookup::{Interaction, InteractionBuilder},
-    runtime::Segment,
+    runtime::ExecutionRecord,
     stark::{
         DebugConstraintBuilder, ProverConstraintFolder, StarkConfig, VerifierConstraintFolder,
     },
@@ -13,9 +13,9 @@ use crate::{
 pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
     fn name(&self) -> String;
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F>;
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F>;
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>);
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>);
 
     fn receives(&self) -> Vec<Interaction<F>> {
         let mut builder = InteractionBuilder::new(self.width());

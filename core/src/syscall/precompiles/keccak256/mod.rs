@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::precompiles::{MemoryReadRecord, MemoryWriteRecord};
+use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
 
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS as P3_NUM_KECCAK_COLS};
 
