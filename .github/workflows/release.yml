@@ -98,9 +98,16 @@ jobs:
                       arch: amd64
         steps:
             - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@stable
+
+            - name: Install nightly toolchain
+              id: rustc-toolchain
+              uses: actions-rs/toolchain@v1
               with:
-                  targets: ${{ matrix.target }}
+                profile: minimal
+                toolchain: nightly-2024-01-25
+                override: true
+                targets: ${{ matrix.target }}
+
             - uses: Swatinem/rust-cache@v2
               with:
                   key: ${{ matrix.target }}
