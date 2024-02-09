@@ -11,7 +11,7 @@ use crate::chip::Chip;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
-    g_func, G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
+    G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
 };
 
@@ -21,23 +21,21 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
     }
 
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .blake3_compress_inner_events
-            .chunks(NB_ROWS_PER_SHARD)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].blake3_compress_inner_events = shards[i].to_vec();
-        }
+        outputs[0].blake3_compress_inner_events = input.blake3_compress_inner_events.clone();
+    }
+
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.blake3_compress_inner_events.is_empty()
     }
 
     // TODO: The vast majority of this logic can be shared with the second external round.
-    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..segment.blake3_compress_inner_events.len() {
-            let event = segment.blake3_compress_inner_events[i];
+        for i in 0..record.blake3_compress_inner_events.len() {
+            let event = record.blake3_compress_inner_events[i];
 
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
@@ -81,7 +79,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         .try_into()
                         .unwrap();
 
-                    let result = cols.g.populate(segment, input);
+                    let result = cols.g.populate(record, input);
 
                     // Memory writes.
                     {
@@ -113,7 +111,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
             }
         }
 
-        segment.field_events.extend(new_field_events);
+        record.field_events.extend(new_field_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
