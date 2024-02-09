@@ -1,17 +1,20 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 use crate::runtime::Register;
+use crate::runtime::Syscall;
 use crate::syscall::precompiles::blake3::{
     g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE,
-    G_OUTPUT_SIZE, INPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL,
-    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    G_OUTPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL,
+    OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
+use crate::syscall::precompiles::SyscallContext;
 
 /// The `Blake3CompressInnerChip` is a precompile that implements `blake3_compress_inner`.
-impl Blake3CompressInnerChip {
-    pub const NUM_CYCLES: u32 =
-        (4 * ROUND_COUNT * OPERATION_COUNT * (G_INPUT_SIZE + NUM_STATE_WORDS_PER_CALL)) as u32;
+impl Syscall for Blake3CompressInnerChip {
+    fn num_extra_cycles(&self) -> u32 {
+        (4 * ROUND_COUNT * OPERATION_COUNT * (G_INPUT_SIZE + NUM_STATE_WORDS_PER_CALL)) as u32
+    }
 
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
         println!("Blake3CompressInnerChip::execute is running!");
         let state_ptr = rt.register_unsafe(Register::X10);
         let msg_ptr = state_ptr + 4 * STATE_SIZE as u32;
