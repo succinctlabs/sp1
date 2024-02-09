@@ -98,13 +98,15 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                             )
                         }
                     }
-                    // if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
-                    //     println!("cols.round = {:#?}", cols.round_index);
-                    //     println!("cols.operation = {:#?}", cols.operation_index);
-                    //     println!("cols.clk = {:#?}", cols.clk);
-                    //     println!("cols.mem_reads = {:?}", cols.mem_reads);
-                    //     println!("cols.mem_writes = {:?}", cols.mem_writes);
-                    // }
+                    if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
+                        println!("cols.round = {:#?}", cols.round_index);
+                        println!("cols.operation = {:#?}", cols.operation_index);
+                        println!("cols.is_real = {:#?}", cols.is_real);
+                        println!("cols.clk = {:#?}", cols.clk);
+                        println!("cols.mem_reads = {:?}", cols.mem_reads);
+                        println!("cols.mem_writes = {:?}", cols.mem_writes);
+                        println!("cols.g.result = {:?}", cols.g.result);
+                    }
 
                     cols.is_real = F::one();
 

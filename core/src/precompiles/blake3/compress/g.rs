@@ -98,8 +98,10 @@ impl<F: Field> GOperation<F> {
         }
 
         println!("assertion! [a, b, c, d] = g_func(input)");
-        assert_eq!([a, b, c, d], g_func(input));
-        [a, b, c, d]
+        let result = [a, b, c, d];
+        assert_eq!(result, g_func(input));
+        self.result = [a, b, c, d].map(Word::from);
+        result
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
@@ -181,8 +183,7 @@ impl<F: Field> GOperation<F> {
         let results = [a, b, c, d];
         for i in 0..4 {
             for j in 0..WORD_SIZE {
-                // TODO: This is wrong also!
-                // builder.assert_eq(cols.result[i][j], results[i][j]);
+                builder.assert_eq(cols.result[i][j], results[i][j]);
             }
         }
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
