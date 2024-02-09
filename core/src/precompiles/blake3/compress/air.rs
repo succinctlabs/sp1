@@ -2,6 +2,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field};
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
+use super::g::GOperation;
 use super::{
     Blake3CompressInnerChip, G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
@@ -219,7 +220,14 @@ impl Blake3CompressInnerChip {
         //     acc
         // });
 
-        // builder.assert_bool(local.is_real);
+        builder.assert_bool(local.is_real);
+
+        GOperation::<AB::F>::eval(
+            builder,
+            local.mem_reads.map(|x| x.access.value),
+            local.g,
+            local.is_real,
+        );
 
         // AddRcOperation::<AB::F>::eval(
         //     builder,
