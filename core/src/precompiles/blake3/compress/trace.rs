@@ -83,7 +83,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         .try_into()
                         .unwrap();
 
-                    let result = g_func(input);
+                    let result = cols.g.populate(segment, input);
 
                     // Memory writes.
                     {

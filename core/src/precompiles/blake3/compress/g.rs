@@ -51,14 +51,62 @@ pub struct GOperation<T> {
 }
 
 impl<F: Field> GOperation<F> {
-    pub fn populate(&mut self, input: [u32; 6]) -> [u32; 4] {
-        let a = input[0];
-        let b = input[1];
-        let c = input[2];
-        let d = input[3];
-        // TODO: Fill in the logic!
+    pub fn populate(&mut self, segment: &mut Segment, input: [u32; 6]) -> [u32; 4] {
+        let mut state_a = input[0];
+        let mut state_b = input[1];
+        let mut state_c = input[2];
+        let mut state_d = input[3];
+        let x = input[4];
+        let y = input[5];
 
-        g_func(input)
+        // First 4 steps.
+        {
+            state_a = self
+                .state_a_plus_state_b
+                .populate(segment, state_a, state_b);
+            state_a = self
+                .state_a_plus_state_b_plus_x
+                .populate(segment, state_a, x);
+
+            state_d = self.state_d_xor_state_a.populate(segment, state_d, state_a);
+            state_d = state_d.rotate_right(16);
+
+            state_c = self
+                .state_c_plus_state_d
+                .populate(segment, state_c, state_d);
+
+            state_b = self.state_b_xor_state_c.populate(segment, state_b, state_c);
+            state_b = state_b.rotate_right(12);
+        }
+
+        // Second 4 steps.
+        {
+            state_a = self
+                .state_a_plus_state_b_2
+                .populate(segment, state_a, state_b);
+            state_a = self
+                .state_a_plus_state_b_2_add_y
+                .populate(segment, state_a, y);
+
+            state_d = self
+                .state_d_xor_state_a_2
+                .populate(segment, state_d, state_a);
+            state_d = state_d.rotate_right(8);
+
+            state_c = self
+                .state_c_plus_state_d_2
+                .populate(segment, state_c, state_d);
+
+            state_b = self
+                .state_b_xor_state_c_2
+                .populate(segment, state_b, state_c);
+            state_b = self
+                .state_b_xor_state_c_2_rotate_right_7
+                .populate(segment, state_b, 7);
+        }
+
+        assert_eq!([state_a, state_b, state_c, state_d], g_func(input));
+        [state_a, state_b, state_c, state_d]
     }
 
     pub fn eval<AB: CurtaAirBuilder>(
