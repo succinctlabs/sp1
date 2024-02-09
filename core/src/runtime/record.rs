@@ -5,17 +5,19 @@ use super::program::Program;
 use super::Opcode;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::CpuEvent;
+use crate::cpu::{CpuEvent, MemoryRecordEnum};
 use crate::field::event::FieldEvent;
-use crate::precompiles::edwards::EdDecompressEvent;
-use crate::precompiles::k256::K256DecompressEvent;
-use crate::precompiles::keccak256::KeccakPermuteEvent;
-use crate::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
-use crate::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::runtime::MemoryRecord;
+use crate::syscall::precompiles::edwards::EdDecompressEvent;
+use crate::syscall::precompiles::k256::K256DecompressEvent;
+use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
+use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 
+/// A record of the execution of a program. Contains event data for everything that happened during
+/// the execution of the segment.
 #[derive(Default, Clone, Debug)]
-pub struct Segment {
+pub struct ExecutionRecord {
     /// The index of the segment.
     pub index: u32,
 
@@ -71,8 +73,8 @@ pub struct Segment {
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
-    /// Information needed for global chips. This shouldn't really be in "Segment" but for
-    /// legacy reasons, we keep this information in this struct for now.
+    /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
+    /// we keep this information in this struct for now.
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
@@ -100,7 +102,7 @@ pub struct SegmentStats {
     pub nb_k256_decompress_events: usize,
 }
 
-impl Segment {
+impl ExecutionRecord {
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
         self.byte_lookups
             .entry(blu_event)
@@ -220,4 +222,12 @@ impl Segment {
             nb_k256_decompress_events: self.k256_decompress_events.len(),
         }
     }
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+pub struct OpRecord {
+    pub a: Option<MemoryRecordEnum>,
+    pub b: Option<MemoryRecordEnum>,
+    pub c: Option<MemoryRecordEnum>,
+    pub memory: Option<MemoryRecordEnum>,
 }

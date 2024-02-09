@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::chip::Chip;
-use crate::runtime::{Opcode, Segment};
+use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `SubChip`.
@@ -45,7 +45,7 @@ impl<F: PrimeField> Chip<F> for SubChip {
         "Sub".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .sub_events
             .chunks(env::segment_size())
@@ -55,9 +55,9 @@ impl<F: PrimeField> Chip<F> for SubChip {
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
+        let rows = record
             .sub_events
             .par_iter()
             .map(|event| {
@@ -177,13 +177,13 @@ mod tests {
     use super::SubChip;
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
+        runtime::{ExecutionRecord, Opcode},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
@@ -195,7 +195,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
 
         for _i in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);

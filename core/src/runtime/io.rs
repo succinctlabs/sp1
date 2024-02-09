@@ -15,11 +15,11 @@ impl Runtime {
     pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();
         bincode::serialize_into(&mut buf, input).expect("serialization failed");
-        self.input_stream.extend(buf);
+        self.state.input_stream.extend(buf);
     }
 
     pub fn write_stdin_slice(&mut self, input: &[u8]) {
-        self.input_stream.extend(input);
+        self.state.input_stream.extend(input);
     }
 
     pub fn read_stdout<T: DeserializeOwned>(&mut self) -> T {
@@ -29,11 +29,11 @@ impl Runtime {
 
     pub fn read_stdout_slice(&mut self, buf: &mut [u8]) {
         let len = buf.len();
-        let start = self.output_stream_ptr;
+        let start = self.state.output_stream_ptr;
         let end = start + len;
-        assert!(end <= self.output_stream.len());
-        buf.copy_from_slice(&self.output_stream[start..end]);
-        self.output_stream_ptr = end;
+        assert!(end <= self.state.output_stream.len());
+        buf.copy_from_slice(&self.state.output_stream[start..end]);
+        self.state.output_stream_ptr = end;
     }
 }
 

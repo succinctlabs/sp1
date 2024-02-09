@@ -79,7 +79,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
-use crate::runtime::{Opcode, Segment};
+use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `DivRemChip`.
@@ -185,7 +185,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         "DivRem".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .divrem_events
             .chunks(env::segment_size())
@@ -195,10 +195,10 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
-        let divrem_events = segment.divrem_events.clone();
+        let divrem_events = record.divrem_events.clone();
         for event in divrem_events.iter() {
             assert!(
                 event.opcode == Opcode::DIVU
@@ -262,7 +262,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                             c: 0,
                         });
                     }
-                    segment.add_byte_lookup_events(blu_events);
+                    record.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -320,7 +320,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         c: event.c,
                         b: quotient,
                     };
-                    segment.mul_events.push(lower_multiplication);
+                    record.mul_events.push(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
                         clk: event.clk,
@@ -336,7 +336,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                         b: quotient,
                     };
 
-                    segment.mul_events.push(upper_multiplication);
+                    record.mul_events.push(upper_multiplication);
 
                     let lt_event = if is_signed_operation(event.opcode) {
                         AluEvent {
@@ -355,14 +355,14 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
                             clk: event.clk,
                         }
                     };
-                    segment.lt_events.push(lt_event);
+                    record.lt_events.push(lt_event);
                 }
 
                 // Range check.
                 {
-                    segment.add_u8_range_checks(&quotient.to_le_bytes());
-                    segment.add_u8_range_checks(&remainder.to_le_bytes());
-                    segment.add_u8_range_checks(&c_times_quotient);
+                    record.add_u8_range_checks(&quotient.to_le_bytes());
+                    record.add_u8_range_checks(&remainder.to_le_bytes());
+                    record.add_u8_range_checks(&c_times_quotient);
                 }
             }
 
@@ -394,7 +394,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
             row
         };
         debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for i in segment.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
+        for i in record.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
@@ -760,7 +760,7 @@ mod tests {
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
+        runtime::{ExecutionRecord, Opcode},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
@@ -768,7 +768,7 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
@@ -829,7 +829,7 @@ mod tests {
             divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.divrem_events = divrem_events;
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

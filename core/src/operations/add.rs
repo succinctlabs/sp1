@@ -9,7 +9,7 @@ use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 
 use crate::bytes::ByteOpcode;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute the add of two words.
@@ -24,7 +24,7 @@ pub struct AddOperation<T> {
 }
 
 impl<F: Field> AddOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, a_u32: u32, b_u32: u32) -> u32 {
+    pub fn populate(&mut self, segment: &mut ExecutionRecord, a_u32: u32, b_u32: u32) -> u32 {
         let expected = a_u32.wrapping_add(b_u32);
         self.value = Word::from(expected);
         let a = a_u32.to_le_bytes();

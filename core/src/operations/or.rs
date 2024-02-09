@@ -9,7 +9,7 @@ use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute the or of two words.
 ///
@@ -22,7 +22,7 @@ pub struct OrOperation<T> {
 }
 
 impl<F: Field> OrOperation<F> {
-    pub fn populate(&mut self, segment: &mut Segment, x: u32, y: u32) -> u32 {
+    pub fn populate(&mut self, segment: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
         let expected = x | y;
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();

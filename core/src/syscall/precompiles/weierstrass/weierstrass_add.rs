@@ -6,10 +6,11 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
-use crate::precompiles::create_ec_add_event;
-use crate::precompiles::PrecompileRuntime;
+use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
-use crate::runtime::Segment;
+use crate::runtime::Syscall;
+use crate::syscall::precompiles::create_ec_add_event;
+use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -64,19 +65,23 @@ pub struct WeierstrassAddAssignChip<E, WP> {
     _marker: PhantomData<(E, WP)>,
 }
 
-impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP> {
-    pub const NUM_CYCLES: u32 = 8;
+impl<E: EllipticCurve, WP> Syscall for WeierstrassAddAssignChip<E, WP> {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+        let event = create_ec_add_event::<E>(rt);
+        rt.segment_mut().weierstrass_add_events.push(event);
+        event.p_ptr + 1
+    }
 
+    fn num_extra_cycles(&self) -> u32 {
+        8
+    }
+}
+
+impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
         }
-    }
-
-    pub fn execute(rt: &mut PrecompileRuntime) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
-        rt.segment_mut().weierstrass_add_events.push(event);
-        event.p_ptr + 1
     }
 
     fn populate_fp_ops<F: Field>(
@@ -141,17 +146,17 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         "WeierstrassAddAssign".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].weierstrass_add_events = input.weierstrass_add_events.clone();
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..segment.weierstrass_add_events.len() {
-            let event = segment.weierstrass_add_events[i];
+        for i in 0..record.weierstrass_add_events.len() {
+            let event = record.weierstrass_add_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -184,7 +189,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
             rows.push(row);
         }
-        segment.field_events.extend(new_field_events);
+        record.field_events.extend(new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];

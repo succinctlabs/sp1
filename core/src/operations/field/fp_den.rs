@@ -140,7 +140,7 @@ mod tests {
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::utils::{BabyBearPoseidon2, StarkUtils};
-    use crate::{air::CurtaAirBuilder, runtime::Segment};
+    use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
     use num::bigint::RandBigInt;
@@ -178,9 +178,9 @@ mod tests {
             "FpDen".to_string()
         }
 
-        fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
+        fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
-        fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
+        fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
@@ -260,7 +260,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
 
         let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
