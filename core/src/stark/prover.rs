@@ -22,6 +22,7 @@ use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, StarkConfig};
 use crate::chip::AirChip;
+use crate::lookup::Interaction;
 use crate::runtime::ExecutionRecord;
 use crate::stark::permutation::generate_permutation_trace;
 
@@ -108,6 +109,10 @@ where
             .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
             .collect::<Vec<_>>();
 
+        // Compute the interactions for all chips
+        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
+        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
+
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
@@ -118,12 +123,13 @@ where
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
         tracing::debug_span!("generate permutation traces").in_scope(|| {
-            chips
+            sends
                 .par_iter()
+                .zip(receives.par_iter())
                 .zip(traces.par_iter())
-                .map(|(chip, trace)| {
+                .map(|((send, rec), trace)| {
                     let perm_trace =
-                        generate_permutation_trace(chip.as_chip(), trace, &permutation_challenges);
+                        generate_permutation_trace(&send, &rec, trace, &permutation_challenges);
                     let cumulative_sum = perm_trace
                         .row_slice(trace.height() - 1)
                         .last()
@@ -191,6 +197,8 @@ where
                     Self::quotient_values(
                         config,
                         &*chips[i],
+                        &sends[i],
+                        &receives[i],
                         cumulative_sums[i],
                         log_degrees[i],
                         log_quotient_degree,
@@ -387,6 +395,8 @@ where
     fn quotient_values<C, MainLde, PermLde>(
         config: &SC,
         chip: &C,
+        sends: &[Interaction<SC::Val>],
+        receives: &[Interaction<SC::Val>],
         cumulative_sum: SC::Challenge,
         degree_bits: usize,
         quotient_degree_bits: usize,
@@ -499,7 +509,7 @@ where
                     accumulator,
                 };
                 chip.eval(&mut folder);
-                eval_permutation_constraints(chip, &mut folder, cumulative_sum);
+                eval_permutation_constraints(sends, receives, &mut folder, cumulative_sum);
 
                 // quotient(x) = constraints(x) / Z_H(x)
                 let zerofier_inv: SC::PackedVal =

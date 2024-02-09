@@ -1,3 +1,4 @@
+mod chip;
 mod config;
 mod debug;
 mod folder;
@@ -10,6 +11,7 @@ mod util;
 mod verifier;
 mod zerofier_coset;
 
+pub use chip::*;
 pub use config::*;
 pub use debug::*;
 pub use folder::*;

@@ -27,6 +27,8 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
     }
 
     let preprocessed = air.preprocessed_trace();
+    let sends = air.sends();
+    let receives = air.receives();
 
     let cumulative_sum = *perm.row_slice(perm.height() - 1).last().unwrap();
 
@@ -76,7 +78,7 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
         }
 
         air.eval(&mut builder);
-        eval_permutation_constraints(air, &mut builder, cumulative_sum);
+        eval_permutation_constraints(&sends, &receives, &mut builder, cumulative_sum);
     });
 }
 

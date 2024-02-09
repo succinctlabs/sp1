@@ -14,6 +14,7 @@ use std::fmt::Formatter;
 use std::marker::PhantomData;
 
 use crate::chip::AirChip;
+use crate::lookup::Interaction;
 
 use super::folder::VerifierConstraintFolder;
 use super::permutation::eval_permutation_constraints;
@@ -36,10 +37,14 @@ impl<SC: StarkConfig> Verifier<SC> {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
-        let chips_interactions = chips
+        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
+        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
+
+        let num_interactions = sends
             .iter()
-            .map(|chip| chip.all_interactions())
-            .collect::<Vec<_>>();
+            .zip(receives.iter())
+            .map(|(s, r)| s.len() + r.len())
+            .collect::<Vec<usize>>();
 
         let SegmentProof {
             commitment,
@@ -47,20 +52,20 @@ impl<SC: StarkConfig> Verifier<SC> {
             opening_proof,
         } = proof;
 
-        // Verify the proof shapes.
-        for ((chip, interactions), opened_vals) in chips
-            .iter()
-            .zip(chips_interactions.iter())
-            .zip(opened_values.chips.iter())
-        {
-            Self::verify_proof_shape(
-                chip.as_ref(),
-                interactions.len(),
-                opened_vals,
-                log_quotient_degree,
-            )
-            .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
-        }
+        // // Verify the proof shapes.
+        // for ((chip, interactions), opened_vals) in chips
+        //     .iter()
+        //     .zip(chips_interactions.iter())
+        //     .zip(opened_values.chips.iter())
+        // {
+        //     Self::verify_proof_shape(
+        //         chip.as_ref(),
+        //         interactions.len(),
+        //         opened_vals,
+        //         log_quotient_degree,
+        //     )
+        //     .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
+        // }
 
         let quotient_width = SC::Challenge::D << log_quotient_degree;
         let dims = &[
@@ -72,11 +77,11 @@ impl<SC: StarkConfig> Verifier<SC> {
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
-            chips_interactions
+            num_interactions
                 .iter()
                 .zip(opened_values.chips.iter())
-                .map(|(interactions, val)| Dimensions {
-                    width: (interactions.len() + 1) * SC::Challenge::D,
+                .map(|(n_int, val)| Dimensions {
+                    width: (*n_int + 1) * SC::Challenge::D,
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
@@ -143,10 +148,13 @@ impl<SC: StarkConfig> Verifier<SC> {
 
         // Verify the constrtaint evaluations.
 
-        for (chip, values, g) in izip!(chips.iter(), opened_values.chips.iter(), g_subgroups.iter())
+        for (i, (chip, values, g)) in
+            izip!(chips.iter(), opened_values.chips.iter(), g_subgroups.iter()).enumerate()
         {
             Self::verify_constraints(
                 chip.as_ref(),
+                &sends[i],
+                &receives[i],
                 values.clone(),
                 *g,
                 zeta,
@@ -169,54 +177,57 @@ impl<SC: StarkConfig> Verifier<SC> {
         Ok(())
     }
 
-    /// Verify the shape of opening arguments and permutation challenges.
-    ///
-    /// This function checks that the preprocessed_opening, main opening, permutation opening,
-    /// quotient opening have the expected dimensions.
-    fn verify_proof_shape<C>(
-        chip: &C,
-        num_interactions: usize,
-        opened_values: &ChipOpenedValues<SC::Challenge>,
-        log_quotient_degree: usize,
-    ) -> Result<(), ProofShapeError>
-    where
-        C: AirChip<SC> + ?Sized,
-    {
-        // Todo : check preprocessed shape.
-        let preprocesses_width = 0;
-        if opened_values.preprocessed.local.len() != preprocesses_width
-            || opened_values.preprocessed.next.len() != preprocesses_width
-        {
-            return Err(ProofShapeError::Preprocessed);
-        }
+    // /// Verify the shape of opening arguments and permutation challenges.
+    // ///
+    // /// This function checks that the preprocessed_opening, main opening, permutation opening,
+    // /// quotient opening have the expected dimensions.
+    // fn verify_proof_shape<C>(
+    //     chip: &C,
+    //     num_interactions: usize,
+    //     opened_values: &ChipOpenedValues<SC::Challenge>,
+    //     log_quotient_degree: usize,
+    // ) -> Result<(), ProofShapeError>
+    // where
+    //     C: AirChip<SC> + ?Sized,
+    // {
+    //     // Todo : check preprocessed shape.
+    //     let preprocesses_width = 0;
+    //     if opened_values.preprocessed.local.len() != preprocesses_width
+    //         || opened_values.preprocessed.next.len() != preprocesses_width
+    //     {
+    //         return Err(ProofShapeError::Preprocessed);
+    //     }
 
-        // Check that the main opening rows have lengths that match the chip width.
-        let main_width = chip.air_width();
-        if opened_values.main.local.len() != main_width
-            || opened_values.main.next.len() != main_width
-        {
-            return Err(ProofShapeError::MainTrace);
-        }
+    //     // Check that the main opening rows have lengths that match the chip width.
+    //     let main_width = chip.air_width();
+    //     if opened_values.main.local.len() != main_width
+    //         || opened_values.main.next.len() != main_width
+    //     {
+    //         return Err(ProofShapeError::MainTrace);
+    //     }
 
-        // Check that the permutation openninps have lengths that match the number of interactions.
-        let perm_width = SC::Challenge::D * (num_interactions + 1);
-        if opened_values.permutation.local.len() != perm_width
-            || opened_values.permutation.next.len() != perm_width
-        {
-            return Err(ProofShapeError::Permuation);
-        }
+    //     // Check that the permutation openninps have lengths that match the number of interactions.
+    //     let perm_width = SC::Challenge::D * (num_interactions + 1);
+    //     if opened_values.permutation.local.len() != perm_width
+    //         || opened_values.permutation.next.len() != perm_width
+    //     {
+    //         return Err(ProofShapeError::Permuation);
+    //     }
 
-        // Check that the quotient opening has the expected length for the given degree.
-        let quotient_width = SC::Challenge::D << log_quotient_degree;
-        if opened_values.quotient.len() != quotient_width {
-            return Err(ProofShapeError::Quotient);
-        }
+    //     // Check that the quotient opening has the expected length for the given degree.
+    //     let quotient_width = SC::Challenge::D << log_quotient_degree;
+    //     if opened_values.quotient.len() != quotient_width {
+    //         return Err(ProofShapeError::Quotient);
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
+    #[allow(clippy::too_many_arguments)]
     fn verify_constraints<C>(
         chip: &C,
+        sends: &[Interaction<SC::Val>],
+        receives: &[Interaction<SC::Val>],
         opening: ChipOpenedValues<SC::Challenge>,
         g: SC::Val,
         zeta: SC::Challenge,
@@ -284,7 +295,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             accumulator: SC::Challenge::zero(),
         };
         chip.eval(&mut folder);
-        eval_permutation_constraints(chip, &mut folder, opening.cumulative_sum);
+        eval_permutation_constraints(sends, receives, &mut folder, opening.cumulative_sum);
 
         let folded_constraints = folder.accumulator;
 

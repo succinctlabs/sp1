@@ -100,7 +100,7 @@ pub struct VerifierConstraintFolder<'a, SC: StarkConfig> {
 }
 
 impl<'a, SC: StarkConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
-    type F = SC::Challenge;
+    type F = SC::Val;
     type Expr = SC::Challenge;
     type Var = SC::Challenge;
     type M = TwoRowMatrixView<'a, SC::Challenge>;
