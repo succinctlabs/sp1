@@ -188,3 +188,9 @@ impl<SC: StarkConfig> SegmentProof<SC> {
             .sum()
     }
 }
+
+#[derive(Serialize)]
+pub struct Proof<SC: StarkConfig> {
+    pub segment_proofs: Vec<SegmentProof<SC>>,
+    pub global_proof: SegmentProof<SC>,
+}

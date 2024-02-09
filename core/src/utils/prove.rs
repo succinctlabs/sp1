@@ -29,7 +29,7 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
-pub fn prove(program: Program) {
+pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -38,12 +38,12 @@ pub fn prove(program: Program) {
     prove_core(&mut runtime)
 }
 
-pub fn prove_elf(elf: &[u8]) {
+pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     let program = Program::from(elf);
     prove(program)
 }
 
-pub fn prove_core(runtime: &mut Runtime) {
+pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> {
     let config = BabyBearBlake3::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
 
@@ -54,16 +54,11 @@ pub fn prove_core(runtime: &mut Runtime) {
     let segment = runtime.record.clone();
 
     // Prove the program.
-    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
+    let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| runtime.prove::<_, _, _, LocalProver<_>>(&config, &mut challenger));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
-
-    let mut nb_bytes = 0;
-    for segment_proof in segment_proofs.iter() {
-        nb_bytes += bincode::serialize(&segment_proof).unwrap().len();
-    }
-    nb_bytes += bincode::serialize(&global_proof).unwrap().len();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     tracing::info!(
         "cycles={}, e2e={}, khz={:.2}, proofSize={}kb",
@@ -92,9 +87,9 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     // Verify the proof.
     let mut challenger = config.challenger();
-    runtime
-        .verify(&config, &mut challenger, &segment_proofs, &global_proof)
-        .unwrap();
+    runtime.verify(&config, &mut challenger, &proof).unwrap();
+
+    proof
 }
 
 pub fn uni_stark_prove<SC, A>(

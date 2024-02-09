@@ -396,7 +396,7 @@ pub mod tests {
             runtime.read_stdout_slice(&mut result);
 
             assert_eq!(result, decompressed);
-            prove_core(&mut runtime)
+            prove_core(&mut runtime);
         }
     }
 }
