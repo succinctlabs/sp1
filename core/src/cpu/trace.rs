@@ -40,7 +40,7 @@ impl<F: PrimeField> Chip<F> for CpuChip {
         }
     }
 
-    fn include(&self, record: &ExecutionRecord) -> bool {
+    fn include(&self, _: &ExecutionRecord) -> bool {
         true
     }
 
