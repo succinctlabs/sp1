@@ -49,4 +49,7 @@ pub mod tests {
 
     pub const SHA2_ELF: &[u8] =
         include_bytes!("../../../programs/test/sha2/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLAKE3_COMPRESS_ELF: &[u8] =
+        include_bytes!("../../../programs/test/blake3-compress/elf/riscv32im-succinct-zkvm-elf");
 }

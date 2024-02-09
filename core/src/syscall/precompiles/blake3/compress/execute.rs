@@ -27,6 +27,7 @@ impl Syscall for Blake3CompressInnerChip {
         let mut write_records =
             [[[MemoryWriteRecord::default(); G_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT];
 
+        let mut state_for_debugging = [0u32; STATE_SIZE];
         for round in 0..ROUND_COUNT {
             for operation in 0..OPERATION_COUNT {
                 // Read the state.
@@ -66,10 +67,12 @@ impl Syscall for Blake3CompressInnerChip {
                         results[i],
                     );
                     write_records[round][operation][i] = record;
+                    state_for_debugging[index_to_write] = results[i];
                     rt.clk += 4;
                 }
             }
         }
+        println!("state_for_debugging: {:?}", state_for_debugging);
 
         let segment_clk = rt.segment_clk();
 

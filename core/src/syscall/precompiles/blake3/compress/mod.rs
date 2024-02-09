@@ -98,6 +98,7 @@ pub mod compress_tests {
     use crate::runtime::SyscallCode;
     use crate::utils::prove;
     use crate::utils::setup_logger;
+    use crate::utils::tests::BLAKE3_COMPRESS_ELF;
     use crate::Program;
 
     use super::INPUT_SIZE;
@@ -137,11 +138,10 @@ pub mod compress_tests {
         prove(program);
     }
 
-    // TODO: Create something like this for blake3.
-    // #[test]
-    // fn test_poseidon2_external_1_simple() {
-    //     setup_logger();
-    //     let program = Program::from(POSEIDON2_EXTERNAL_1_ELF);
-    //     prove(program);
-    // }
+    #[test]
+    fn test_blake3_compress_inner_elf() {
+        setup_logger();
+        let program = Program::from(BLAKE3_COMPRESS_ELF);
+        prove(program);
+    }
 }
