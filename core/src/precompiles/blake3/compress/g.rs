@@ -97,6 +97,7 @@ impl<F: Field> GOperation<F> {
             b = self.b_xor_c_2_rotate_right_7.populate(segment, b, 7);
         }
 
+        println!("assertion! [a, b, c, d] = g_func(input)");
         assert_eq!([a, b, c, d], g_func(input));
         [a, b, c, d]
     }
