@@ -122,7 +122,7 @@ impl<'a> SyscallContext<'a> {
     }
 
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
-        let record = self.rt.mr_core(addr, self.current_segment, self.clk);
+        let record = self.rt.mr(addr, self.current_segment, self.clk);
         (record, record.value)
     }
 
@@ -138,7 +138,7 @@ impl<'a> SyscallContext<'a> {
     }
 
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        self.rt.mw_core(addr, value, self.current_segment, self.clk)
+        self.rt.mw(addr, value, self.current_segment, self.clk)
     }
 
     pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {

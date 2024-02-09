@@ -225,7 +225,7 @@ impl ExecutionRecord {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub struct OpRecord {
+pub struct CpuRecord {
     pub a: Option<MemoryRecordEnum>,
     pub b: Option<MemoryRecordEnum>,
     pub c: Option<MemoryRecordEnum>,

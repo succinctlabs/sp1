@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nohash_hasher::BuildNoHashHasher;
 
-use super::{ExecutionRecord, OpRecord};
+use super::{CpuRecord, ExecutionRecord};
 
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default)]
@@ -68,7 +68,7 @@ pub(crate) struct ForkState {
     pub(crate) memory_diff: HashMap<u32, Option<(u32, u32, u32)>, BuildNoHashHasher<u32>>,
 
     /// Full record from original state
-    pub(crate) op_record: OpRecord,
+    pub(crate) op_record: CpuRecord,
 
     /// Full segment from original state
     pub(crate) record: ExecutionRecord,

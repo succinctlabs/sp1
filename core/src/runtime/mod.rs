@@ -56,7 +56,7 @@ pub struct Runtime {
     pub record: ExecutionRecord,
 
     /// The record for the current CPU opcode containing relevant events.
-    pub op_record: OpRecord,
+    pub cpu_record: CpuRecord,
 
     /// The maximum size of each segment.
     pub segment_size: u32,
@@ -87,7 +87,7 @@ impl Runtime {
             record,
             state: ExecutionState::new(program_arc.pc_start),
             program: program_arc,
-            op_record: OpRecord::default(),
+            cpu_record: CpuRecord::default(),
             segment_size: env::segment_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
             unconstrained: false,
@@ -131,6 +131,7 @@ impl Runtime {
         (word >> ((addr % 4) * 8)) as u8
     }
 
+    #[inline]
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
@@ -143,6 +144,7 @@ impl Runtime {
         addr - addr % 4
     }
 
+    #[inline]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
@@ -153,7 +155,7 @@ impl Runtime {
         }
     }
 
-    pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
+    pub fn mr(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
         // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
@@ -177,7 +179,7 @@ impl Runtime {
         MemoryReadRecord::new(value, segment, clk, prev_segment, prev_timestamp)
     }
 
-    pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
+    pub fn mw(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
         // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
@@ -208,10 +210,10 @@ impl Runtime {
     }
 
     /// Read from memory, assuming that all addresses are aligned.
-    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+    pub fn mr_cpu(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
-        let record = self.mr_core(
+        let record = self.mr(
             addr,
             self.current_segment(),
             self.clk_from_position(&position),
@@ -219,20 +221,20 @@ impl Runtime {
 
         if !self.unconstrained {
             match position {
-                AccessPosition::A => self.op_record.a = Some(record.into()),
-                AccessPosition::B => self.op_record.b = Some(record.into()),
-                AccessPosition::C => self.op_record.c = Some(record.into()),
-                AccessPosition::Memory => self.op_record.memory = Some(record.into()),
+                AccessPosition::A => self.cpu_record.a = Some(record.into()),
+                AccessPosition::B => self.cpu_record.b = Some(record.into()),
+                AccessPosition::C => self.cpu_record.c = Some(record.into()),
+                AccessPosition::Memory => self.cpu_record.memory = Some(record.into()),
             }
         }
         record.value
     }
 
     /// Write to memory.
-    pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
+    pub fn mw_cpu(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
 
-        let record = self.mw_core(
+        let record = self.mw(
             addr,
             value,
             self.current_segment(),
@@ -243,20 +245,20 @@ impl Runtime {
         if !self.unconstrained {
             match position {
                 AccessPosition::A => {
-                    assert!(self.op_record.a.is_none());
-                    self.op_record.a = Some(record.into());
+                    assert!(self.cpu_record.a.is_none());
+                    self.cpu_record.a = Some(record.into());
                 }
                 AccessPosition::B => {
-                    assert!(self.op_record.b.is_none());
-                    self.op_record.b = Some(record.into());
+                    assert!(self.cpu_record.b.is_none());
+                    self.cpu_record.b = Some(record.into());
                 }
                 AccessPosition::C => {
-                    assert!(self.op_record.c.is_none());
-                    self.op_record.c = Some(record.into());
+                    assert!(self.cpu_record.c.is_none());
+                    self.cpu_record.c = Some(record.into());
                 }
                 AccessPosition::Memory => {
-                    assert!(self.op_record.memory.is_none());
-                    self.op_record.memory = Some(record.into());
+                    assert!(self.cpu_record.memory.is_none());
+                    self.cpu_record.memory = Some(record.into());
                 }
             }
         }
@@ -264,7 +266,7 @@ impl Runtime {
 
     /// Read from register.
     pub fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
-        self.mr(register as u32, position)
+        self.mr_cpu(register as u32, position)
     }
 
     /// Write to register.
@@ -275,7 +277,7 @@ impl Runtime {
             return;
         }
         // The only time we are writing to a register is when it is register A.
-        self.mw(register as u32, value, AccessPosition::A)
+        self.mw_cpu(register as u32, value, AccessPosition::A)
     }
 
     /// Emit a CPU event.
@@ -290,7 +292,7 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
-        record: OpRecord,
+        record: CpuRecord,
     ) {
         let cpu_event = CpuEvent {
             segment,
@@ -383,7 +385,7 @@ impl Runtime {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
+        let memory_value = self.mr_cpu(self.align(addr), AccessPosition::Memory);
         (rd, b, c, addr, memory_value)
     }
 
@@ -428,7 +430,7 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.op_record = OpRecord::default();
+        self.cpu_record = CpuRecord::default();
 
         match instruction.opcode {
             // Arithmetic instructions.
@@ -541,7 +543,7 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
             }
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
@@ -552,14 +554,14 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
             }
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
-                self.mw(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
             }
 
             // B-type instructions.
@@ -732,7 +734,7 @@ impl Runtime {
             b,
             c,
             memory_store_value,
-            self.op_record,
+            self.cpu_record,
         );
     }
 
