@@ -66,7 +66,7 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.segment_mut().weierstrass_double_events.push(event);
+        rt.record_mut().weierstrass_double_events.push(event);
         event.p_ptr + 1
     }
 

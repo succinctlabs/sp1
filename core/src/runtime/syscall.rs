@@ -113,12 +113,12 @@ impl<'a> SyscallContext<'a> {
         }
     }
 
-    pub fn segment_mut(&mut self) -> &mut ExecutionRecord {
+    pub fn record_mut(&mut self) -> &mut ExecutionRecord {
         &mut self.rt.record
     }
 
-    pub fn segment_clk(&self) -> u32 {
-        self.rt.state.segment_clk
+    pub fn current_shard(&self) -> u32 {
+        self.rt.state.current_shard
     }
 
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {

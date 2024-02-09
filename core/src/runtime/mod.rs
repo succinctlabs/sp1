@@ -137,7 +137,7 @@ impl Runtime {
     }
 
     pub fn current_segment(&self) -> u32 {
-        self.state.segment_clk
+        self.state.current_shard
     }
 
     fn align(&self, addr: u32) -> u32 {
@@ -787,8 +787,8 @@ impl Runtime {
             self.state.clk += 4;
 
             // Reset the clock every `segment_size` cycles.
-            if self.state.clk % self.segment_size == 1 && !self.unconstrained {
-                self.state.segment_clk += 1;
+            if self.state.global_clk % self.segment_size == 0 && !self.unconstrained {
+                self.state.current_shard += 1;
                 self.state.clk = 1;
             }
         }

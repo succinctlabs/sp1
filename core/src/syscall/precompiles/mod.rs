@@ -61,7 +61,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
     rt.clk += 4;
 
     ECAddEvent {
-        segment: rt.segment_clk(),
+        segment: rt.current_shard(),
         clk: start_clk,
         p_ptr,
         p,
@@ -108,7 +108,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
     rt.clk += 4;
 
     ECDoubleEvent {
-        segment: rt.segment_clk(),
+        segment: rt.current_shard(),
         clk: start_clk,
         p_ptr,
         p,

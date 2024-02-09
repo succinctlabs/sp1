@@ -235,8 +235,8 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
-        let segment = rt.segment_clk();
-        rt.segment_mut()
+        let segment = rt.current_shard();
+        rt.record_mut()
             .ed_decompress_events
             .push(EdDecompressEvent {
                 segment,

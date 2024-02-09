@@ -7,13 +7,13 @@ use super::{CpuRecord, ExecutionRecord};
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default)]
 pub struct ExecutionState {
-    /// The global clock keeps track of how many instrutions have been executed through all segments.
+    /// The global clock keeps track of how many instrutions have been executed through all shards.
     pub global_clk: u32,
 
     /// The segment clock keeps track of how many segments have been executed.
-    pub segment_clk: u32,
+    pub current_shard: u32,
 
-    /// The clock keeps track of how many instructions have been executed in this segment.
+    /// The clock keeps track of how many instructions have been executed in this shard.
     pub clk: u32,
 
     /// The program counter.
@@ -40,7 +40,7 @@ impl ExecutionState {
     pub fn new(pc_start: u32) -> Self {
         Self {
             global_clk: 0,
-            segment_clk: 1,
+            current_shard: 1,
             clk: 0,
             pc: pc_start,
             memory: HashMap::default(),

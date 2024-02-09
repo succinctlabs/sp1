@@ -115,8 +115,8 @@ impl Syscall for K256DecompressChip {
         let y_memory_records_vec = rt.mw_slice(slice_ptr, &y_words);
         let y_memory_records: [MemoryWriteRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
-        let segment = rt.segment_clk();
-        rt.segment_mut()
+        let segment = rt.current_shard();
+        rt.record_mut()
             .k256_decompress_events
             .push(K256DecompressEvent {
                 segment,
