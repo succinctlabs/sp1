@@ -40,6 +40,7 @@ impl ProveCmd {
             "-C",
             "panic=abort",
         ];
+
         Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
