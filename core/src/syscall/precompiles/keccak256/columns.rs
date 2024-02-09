@@ -13,7 +13,7 @@ use super::STATE_NUM_WORDS;
 pub(crate) struct KeccakCols<T> {
     pub p3_keccak_cols: P3KeccakCols<T>,
 
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
 
     pub state_mem: [MemoryReadWriteCols<T>; STATE_NUM_WORDS],

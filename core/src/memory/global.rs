@@ -60,7 +60,7 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
-                cols.segment = F::from_canonical_u32(record.segment);
+                cols.shard = F::from_canonical_u32(record.shard);
                 cols.timestamp = F::from_canonical_u32(record.timestamp);
                 cols.value = record.value.into();
                 cols.is_real = F::from_canonical_u32(multiplicity);
@@ -82,7 +82,7 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryInitCols<T> {
-    pub segment: T,
+    pub shard: T,
     pub timestamp: T,
     pub addr: T,
     pub value: Word<T>,
@@ -122,7 +122,7 @@ where
             ));
         } else {
             let mut values = vec![
-                local.segment.into(),
+                local.shard.into(),
                 local.timestamp.into(),
                 local.addr.into(),
             ];
@@ -157,18 +157,18 @@ mod tests {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let mut segment = runtime.record.clone();
+        let mut shard = runtime.record.clone();
 
         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values);
 
         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values);
 
-        for (addr, record, _) in segment.last_memory_record {
+        for (addr, record, _) in shard.last_memory_record {
             println!("{:?} {:?}", addr, record);
         }
     }

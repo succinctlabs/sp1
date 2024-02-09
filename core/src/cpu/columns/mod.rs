@@ -32,8 +32,8 @@ pub const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = size_of_opcode_specific_columns(
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CpuCols<T> {
-    /// The current segment.
-    pub segment: T,
+    /// The current shard.
+    pub shard: T,
 
     /// The clock cycle value.
     pub clk: T,

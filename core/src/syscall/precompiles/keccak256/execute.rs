@@ -97,7 +97,7 @@ impl Syscall for KeccakPermuteChip {
         rt.clk += 4;
 
         // Push the Keccak permute event.
-        rt.segment_mut()
+        rt.record_mut()
             .keccak_permute_events
             .push(KeccakPermuteEvent {
                 clk: saved_clk,

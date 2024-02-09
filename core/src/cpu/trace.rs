@@ -27,14 +27,14 @@ impl<F: PrimeField> Chip<F> for CpuChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .cpu_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             if i >= outputs.len() {
-                let mut segment = ExecutionRecord::default();
-                segment.index = (i + 1) as u32;
-                segment.program = input.program.clone();
-                outputs.push(segment);
+                let mut shard = ExecutionRecord::default();
+                shard.index = (i + 1) as u32;
+                shard.program = input.program.clone();
+                outputs.push(shard);
             }
             outputs[i].cpu_events = shards[i].to_vec();
         }
@@ -63,7 +63,7 @@ impl<F: PrimeField> Chip<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        // Add the dependency events to the segment.
+        // Add the dependency events to the shard.
         record.add_alu_events(new_alu_events);
         record.add_byte_lookup_events(new_blu_events);
         record.field_events.extend(new_field_events);
@@ -92,7 +92,7 @@ impl CpuChip {
         let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 
         // Populate basic fields.
-        cols.segment = F::from_canonical_u32(event.segment);
+        cols.shard = F::from_canonical_u32(event.shard);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
         cols.instruction.populate(event.instruction);
@@ -478,9 +478,9 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.cpu_events = vec![CpuEvent {
-            segment: 1,
+        let mut shard = ExecutionRecord::default();
+        shard.cpu_events = vec![CpuEvent {
+            shard: 1,
             clk: 6,
             pc: 1,
             instruction: Instruction {
@@ -501,7 +501,7 @@ mod tests {
             memory_record: None,
         }];
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values);
     }
 

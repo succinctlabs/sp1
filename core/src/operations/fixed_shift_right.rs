@@ -43,7 +43,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(&mut self, segment: &mut ExecutionRecord, input: u32, rotation: usize) -> u32 {
+    pub fn populate(&mut self, shard: &mut ExecutionRecord, input: u32, rotation: usize) -> u32 {
         let input_bytes = input.to_le_bytes().map(F::from_canonical_u8);
         let expected = input >> rotation;
 
@@ -76,7 +76,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
                 b: b as u32,
                 c: c as u32,
             };
-            segment
+            shard
                 .byte_lookups
                 .entry(byte_event)
                 .and_modify(|j| *j += 1)
