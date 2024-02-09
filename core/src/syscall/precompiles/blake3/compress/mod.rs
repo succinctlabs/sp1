@@ -95,7 +95,7 @@ impl Blake3CompressInnerChip {
 pub mod compress_tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
-    use crate::runtime::Syscall;
+    use crate::runtime::SyscallCode;
     use crate::utils::prove;
     use crate::utils::setup_logger;
     use crate::Program;
@@ -120,7 +120,7 @@ pub mod compress_tests {
                 Opcode::ADD,
                 5,
                 0,
-                Syscall::BLAKE3_COMPRESS_INNER as u32,
+                SyscallCode::BLAKE3_COMPRESS_INNER as u32,
                 false,
                 true,
             ),
