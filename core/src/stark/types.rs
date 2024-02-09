@@ -94,26 +94,27 @@ impl<SC: StarkConfig> MainDataWrapper<SC> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SegmentCommitment<C> {
     pub main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AirOpenedValues<T> {
     pub local: Vec<T>,
     pub next: Vec<T>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SegmentOpenedValues<T> {
     pub main: Vec<AirOpenedValues<T>>,
     pub permutation: Vec<AirOpenedValues<T>>,
     pub quotient: Vec<QuotientOpenedValues<T>>,
 }
 
+#[derive(Serialize, Deserialize)]
 #[cfg(feature = "perf")]
 pub struct SegmentProof<SC: StarkConfig> {
     pub commitment: SegmentCommitment<Com<SC>>,

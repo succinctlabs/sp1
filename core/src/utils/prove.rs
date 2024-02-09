@@ -2,8 +2,7 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
-    stark::prover::LocalProver,
-    stark::StarkConfig,
+    stark::{prover::LocalProver, SegmentProof, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 
@@ -30,7 +29,7 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.global_clk as u64
 }
 
-pub fn prove(program: Program) {
+pub fn prove(program: Program) -> SegmentProof<BabyBearBlake3> {
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&[1, 2]);
@@ -40,12 +39,12 @@ pub fn prove(program: Program) {
     prove_core(&mut runtime)
 }
 
-pub fn prove_elf(elf: &[u8]) {
+pub fn prove_elf(elf: &[u8]) -> SegmentProof<BabyBearBlake3> {
     let program = Program::from(elf);
     prove(program)
 }
 
-pub fn prove_core(runtime: &mut Runtime) {
+pub fn prove_core(runtime: &mut Runtime) -> SegmentProof<BabyBearBlake3> {
     let config = BabyBearBlake3::new(&mut rand::thread_rng());
     let mut challenger = config.challenger();
 
@@ -88,6 +87,7 @@ pub fn prove_core(runtime: &mut Runtime) {
     runtime
         .verify::<_, _, BabyBearBlake3>(&config, &mut challenger, &segment_proofs, &global_proof)
         .unwrap();
+    global_proof
 }
 
 pub fn uni_stark_prove<SC, A>(
