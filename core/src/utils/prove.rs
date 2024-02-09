@@ -88,6 +88,7 @@ pub fn prove_core(runtime: &mut Runtime) -> SegmentProof<BabyBearBlake3> {
     runtime
         .verify(&config, &mut challenger, &segment_proofs, &global_proof)
         .unwrap();
+    global_proof
 }
 
 pub fn uni_stark_prove<SC, A>(
