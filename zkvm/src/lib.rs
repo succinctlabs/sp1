@@ -81,5 +81,5 @@ mod zkvm {
     register_custom_getrandom!(zkvm_getrandom);
 }
 
-#[cfg(target_os = "zkvm")]
+#[cfg(all(target_os = "zkvm", not(feature = "syscall-interface")))]
 pub use zkvm::*;
