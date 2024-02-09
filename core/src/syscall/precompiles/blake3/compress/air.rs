@@ -99,7 +99,7 @@ impl Blake3CompressInnerChip {
     ) {
         builder.constraint_memory_access(
             local.segment,
-            local.clk,
+            local.message_ptr_access_clk,
             AB::F::from_canonical_u32(Register::X11 as u32),
             &local.message_ptr_access,
             local.is_real,

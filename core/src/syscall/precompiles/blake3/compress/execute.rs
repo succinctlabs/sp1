@@ -17,10 +17,10 @@ impl Syscall for Blake3CompressInnerChip {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         println!("Blake3CompressInnerChip::execute is running!");
         let state_ptr = rt.register_unsafe(Register::X10);
-        let (message_ptr_record, message_ptr) = rt.mr(Register::X11 as u32);
 
         // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
+        let (message_ptr_record, message_ptr) = rt.mr(Register::X11 as u32);
         let saved_state_ptr = state_ptr;
         let mut read_records =
             [[[MemoryReadRecord::default(); G_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT];
