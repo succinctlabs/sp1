@@ -13,6 +13,7 @@ use crate::memory::{MemoryChipKind, MemoryGlobalChip};
 use crate::program::ProgramChip;
 use crate::runtime::{ExecutionRecord, Runtime};
 use crate::stark::{Proof, Verifier};
+use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::{EdAddAssignChip, EdDecompressChip};
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
