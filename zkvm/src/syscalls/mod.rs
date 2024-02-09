@@ -1,25 +1,25 @@
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod ed25519;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod halt;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod io;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod keccak_permute;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod memory;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod secp256k1;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod sha_compress;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod sha_extend;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod sys;
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod unconstrained;
 
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 mod syscall_def {
     pub use super::ed25519::*;
     pub use super::halt::*;
@@ -33,7 +33,7 @@ mod syscall_def {
     pub use super::unconstrained::*;
 }
 
-#[cfg(feature = "syscall-interface")]
+#[cfg(feature = "interface")]
 extern "C" {
     pub fn syscall_halt() -> !;
     pub fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize);
@@ -51,7 +51,7 @@ extern "C" {
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 }
 
-#[cfg(not(feature = "syscall-interface"))]
+#[cfg(not(feature = "interface"))]
 pub use syscall_def::*;
 
 /// Halts the program.
