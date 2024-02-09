@@ -44,21 +44,21 @@ impl<F: PrimeField> Chip<F> for AddChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .add_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].add_events = shards[i].to_vec();
         }
     }
 
-    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
-        for i in 0..segment.add_events.len() {
+        for i in 0..shard.add_events.len() {
             let mut row = [F::zero(); NUM_ADD_COLS];
             let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
-            let event = segment.add_events[i];
-            cols.add_operation.populate(segment, event.b, event.c);
+            let event = shard.add_events[i];
+            cols.add_operation.populate(shard, event.b, event.c);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
             cols.is_real = F::one();
@@ -135,10 +135,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        let mut shard = ExecutionRecord::default();
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -147,18 +147,18 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
         for _ in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
-            segment
+            shard
                 .add_events
                 .push(AluEvent::new(0, Opcode::ADD, result, operand_1, operand_2));
         }
 
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

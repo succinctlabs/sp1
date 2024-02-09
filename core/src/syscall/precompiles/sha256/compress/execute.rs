@@ -84,9 +84,9 @@ impl Syscall for ShaCompressChip {
         }
 
         // Push the SHA extend event.
-        let segment = rt.current_shard();
+        let shard = rt.current_shard();
         rt.record_mut().sha_compress_events.push(ShaCompressEvent {
-            segment,
+            shard,
             clk: saved_clk,
             w_and_h_ptr: saved_w_ptr,
             w: original_w.try_into().unwrap(),

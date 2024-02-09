@@ -240,9 +240,9 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
         let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -251,10 +251,10 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
 
         let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

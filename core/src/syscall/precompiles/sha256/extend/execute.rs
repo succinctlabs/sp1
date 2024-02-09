@@ -66,9 +66,9 @@ impl Syscall for ShaExtendChip {
         }
 
         // Push the SHA extend event.
-        let segment = rt.current_shard();
+        let shard = rt.current_shard();
         rt.record_mut().sha_extend_events.push(ShaExtendEvent {
-            segment,
+            shard,
             clk: clk_init,
             w_ptr: w_ptr_init,
             w_i_minus_15_reads: w_i_minus_15_reads.try_into().unwrap(),

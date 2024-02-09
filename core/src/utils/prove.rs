@@ -49,12 +49,12 @@ pub fn prove_core(runtime: &mut Runtime) {
 
     let start = Instant::now();
 
-    // Because proving modifies the segment, clone beforehand if we debug interactions.
+    // Because proving modifies the shard, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
-    let segment = runtime.record.clone();
+    let shard = runtime.record.clone();
 
     // Prove the program.
-    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
+    let (shard_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| runtime.prove::<_, _, _, LocalProver<_>>(&config, &mut challenger));
 
     let cycles = runtime.state.global_clk;
@@ -69,7 +69,7 @@ pub fn prove_core(runtime: &mut Runtime) {
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
         debug_interactions_with_all_chips(
-            &segment,
+            &shard,
             Some(&mut runtime.record),
             vec![
                 InteractionKind::Field,
@@ -86,7 +86,7 @@ pub fn prove_core(runtime: &mut Runtime) {
     // Verify the proof.
     let mut challenger = config.challenger();
     runtime
-        .verify(&config, &mut challenger, &segment_proofs, &global_proof)
+        .verify(&config, &mut challenger, &shard_proofs, &global_proof)
         .unwrap();
 }
 

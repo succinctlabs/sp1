@@ -97,7 +97,7 @@ impl<F: PrimeField> Chip<F> for ShiftLeft {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .shift_left_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].shift_left_events = shards[i].to_vec();
@@ -359,10 +359,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
+        let mut shard = ExecutionRecord::default();
+        shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -402,10 +402,10 @@ mod tests {
             //shift_events.push(AluEvent::new(0, Opcode::SLL, 14, 8, 6));
         }
 
-        let mut segment = ExecutionRecord::default();
-        segment.shift_left_events = shift_events;
+        let mut shard = ExecutionRecord::default();
+        shard.shift_left_events = shift_events;
         let chip = ShiftLeft::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

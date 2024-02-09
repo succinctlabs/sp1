@@ -94,7 +94,7 @@ pub trait Syscall {
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct SyscallContext<'a> {
-    current_segment: u32,
+    current_shard: u32,
     pub clk: u32,
 
     pub(crate) next_pc: u32,
@@ -103,10 +103,10 @@ pub struct SyscallContext<'a> {
 
 impl<'a> SyscallContext<'a> {
     pub fn new(runtime: &'a mut Runtime) -> Self {
-        let current_segment = runtime.current_segment();
+        let current_shard = runtime.current_shard();
         let clk = runtime.state.clk;
         Self {
-            current_segment,
+            current_shard: current_shard,
             clk,
             next_pc: runtime.state.pc.wrapping_add(4),
             rt: runtime,
@@ -122,7 +122,7 @@ impl<'a> SyscallContext<'a> {
     }
 
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
-        let record = self.rt.mr(addr, self.current_segment, self.clk);
+        let record = self.rt.mr(addr, self.current_shard, self.clk);
         (record, record.value)
     }
 
@@ -138,7 +138,7 @@ impl<'a> SyscallContext<'a> {
     }
 
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        self.rt.mw(addr, value, self.current_segment, self.clk)
+        self.rt.mw(addr, value, self.current_shard, self.clk)
     }
 
     pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {

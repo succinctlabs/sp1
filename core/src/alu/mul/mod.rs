@@ -114,7 +114,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .mul_events
-            .chunks(env::segment_size())
+            .chunks(env::shard_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].mul_events = shards[i].to_vec();
@@ -410,8 +410,8 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = ExecutionRecord::default();
-        segment.mul_events = vec![AluEvent::new(
+        let mut shard = ExecutionRecord::default();
+        shard.mul_events = vec![AluEvent::new(
             0,
             Opcode::MULHSU,
             0x80004000,
@@ -419,7 +419,7 @@ mod tests {
             0xffff8000,
         )];
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 
@@ -428,7 +428,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = ExecutionRecord::default();
+        let mut shard = ExecutionRecord::default();
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
@@ -492,9 +492,9 @@ mod tests {
             mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
         }
 
-        segment.mul_events = mul_events;
+        shard.mul_events = mul_events;
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

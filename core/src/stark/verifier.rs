@@ -31,7 +31,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         config: &SC,
         chips: &[Box<dyn AirChip<SC>>],
         challenger: &mut SC::Challenger,
-        proof: &SegmentProof<SC>,
+        proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
@@ -41,7 +41,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|chip| chip.all_interactions())
             .collect::<Vec<_>>();
 
-        let SegmentProof {
+        let ShardProof {
             commitment,
             opened_values,
             opening_proof,
@@ -95,7 +95,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|val| SC::Val::two_adic_generator(val.log_degree))
             .collect::<Vec<_>>();
 
-        let SegmentCommitment {
+        let ShardCommitment {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -164,7 +164,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         _config: &SC,
         _chips: &[Box<dyn AirChip<SC>>],
         _challenger: &mut SC::Challenger,
-        _proof: &SegmentProof<SC>,
+        _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
         Ok(())
     }

@@ -16,7 +16,7 @@ use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECAddEvent {
-    pub segment: u32,
+    pub shard: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -61,7 +61,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
     rt.clk += 4;
 
     ECAddEvent {
-        segment: rt.current_shard(),
+        shard: rt.current_shard(),
         clk: start_clk,
         p_ptr,
         p,
@@ -76,7 +76,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
 /// Elliptic curve double event.
 #[derive(Debug, Clone, Copy)]
 pub struct ECDoubleEvent {
-    pub segment: u32,
+    pub shard: u32,
     pub clk: u32,
     pub p_ptr: u32,
     pub p: [u32; 16],
@@ -108,7 +108,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
     rt.clk += 4;
 
     ECDoubleEvent {
-        segment: rt.current_shard(),
+        shard: rt.current_shard(),
         clk: start_clk,
         p_ptr,
         p,

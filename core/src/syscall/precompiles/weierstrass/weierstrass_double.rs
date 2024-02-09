@@ -41,7 +41,7 @@ pub const NUM_WEIERSTRASS_DOUBLE_COLS: usize = size_of::<WeierstrassDoubleAssign
 #[repr(C)]
 pub struct WeierstrassDoubleAssignCols<T> {
     pub is_real: T,
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
     pub p_ptr: T,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
@@ -180,7 +180,7 @@ impl<F: Field, E: EllipticCurve + WeierstrassParameters> Chip<F>
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(event.segment);
+            cols.shard = F::from_canonical_u32(event.shard);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
 
@@ -325,7 +325,7 @@ where
         }
 
         builder.constraint_memory_access_slice(
-            row.segment,
+            row.shard,
             row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
             row.p_ptr,
             &row.p_access,

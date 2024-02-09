@@ -190,8 +190,8 @@ mod tests {
     #[test]
     fn generate_trace() {
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
-        let mut segment = ExecutionRecord::default();
-        let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let mut shard = ExecutionRecord::default();
+        let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         // println!("{:?}", trace.values)
     }
 
@@ -201,8 +201,8 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
-        let mut segment = ExecutionRecord::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let mut shard = ExecutionRecord::default();
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

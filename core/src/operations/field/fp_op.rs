@@ -302,8 +302,8 @@ mod tests {
         for op in [FpOperation::Add, FpOperation::Mul, FpOperation::Sub].iter() {
             println!("op: {:?}", op);
             let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(*op);
-            let mut segment = ExecutionRecord::default();
-            let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+            let mut shard = ExecutionRecord::default();
+            let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
             // println!("{:?}", trace.values)
         }
     }
@@ -325,8 +325,8 @@ mod tests {
             let mut challenger = config.challenger();
 
             let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(*op);
-            let mut segment = ExecutionRecord::default();
-            let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+            let mut shard = ExecutionRecord::default();
+            let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
             let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
             let mut challenger = config.challenger();

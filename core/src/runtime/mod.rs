@@ -58,8 +58,8 @@ pub struct Runtime {
     /// The record for the current CPU opcode containing relevant events.
     pub cpu_record: CpuRecord,
 
-    /// The maximum size of each segment.
-    pub segment_size: u32,
+    /// The maximum size of each shard.
+    pub shard_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
@@ -88,7 +88,7 @@ impl Runtime {
             state: ExecutionState::new(program_arc.pc_start),
             program: program_arc,
             cpu_record: CpuRecord::default(),
-            segment_size: env::segment_size() as u32 * 4,
+            shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
             unconstrained: false,
             unconstrained_state: ForkState::default(),
@@ -136,7 +136,7 @@ impl Runtime {
         self.state.clk + *position as u32
     }
 
-    pub fn current_segment(&self) -> u32 {
+    pub fn current_shard(&self) -> u32 {
         self.state.current_shard
     }
 
@@ -155,7 +155,7 @@ impl Runtime {
         }
     }
 
-    pub fn mr(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
+    pub fn mr(&mut self, addr: u32, shard: u32, clk: u32) -> MemoryReadRecord {
         // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
@@ -173,13 +173,13 @@ impl Runtime {
         // If it's the first time accessing this address, initialize previous values as zero.
         let entry_value = memory_entry.or_insert((0, 0, 0));
         // Get the last time this memory address was accessed, and then update with current clock.
-        let (value, prev_segment, prev_timestamp) = *entry_value;
-        (entry_value.1, entry_value.2) = (segment, clk);
+        let (value, prev_shard, prev_timestamp) = *entry_value;
+        (entry_value.1, entry_value.2) = (shard, clk);
 
-        MemoryReadRecord::new(value, segment, clk, prev_segment, prev_timestamp)
+        MemoryReadRecord::new(value, shard, clk, prev_shard, prev_timestamp)
     }
 
-    pub fn mw(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
+    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, clk: u32) -> MemoryWriteRecord {
         // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
@@ -197,16 +197,9 @@ impl Runtime {
         // If it's the first time accessing this address, initialize previous values as zero.
         let entry_value = memory_entry.or_insert((0, 0, 0));
         // Get previous values and then update with new values.
-        let (prev_value, prev_segment, prev_timestamp) = *entry_value;
-        *entry_value = (value, segment, clk);
-        MemoryWriteRecord::new(
-            value,
-            segment,
-            clk,
-            prev_value,
-            prev_segment,
-            prev_timestamp,
-        )
+        let (prev_value, prev_shard, prev_timestamp) = *entry_value;
+        *entry_value = (value, shard, clk);
+        MemoryWriteRecord::new(value, shard, clk, prev_value, prev_shard, prev_timestamp)
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -215,7 +208,7 @@ impl Runtime {
 
         let record = self.mr(
             addr,
-            self.current_segment(),
+            self.current_shard(),
             self.clk_from_position(&position),
         );
 
@@ -237,7 +230,7 @@ impl Runtime {
         let record = self.mw(
             addr,
             value,
-            self.current_segment(),
+            self.current_shard(),
             self.clk_from_position(&position),
         );
 
@@ -284,7 +277,7 @@ impl Runtime {
     #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
-        segment: u32,
+        shard: u32,
         clk: u32,
         pc: u32,
         instruction: Instruction,
@@ -295,7 +288,7 @@ impl Runtime {
         record: CpuRecord,
     ) {
         let cpu_event = CpuEvent {
-            segment,
+            shard,
             clk,
             pc,
             instruction,
@@ -726,7 +719,7 @@ impl Runtime {
 
         // Emit the CPU event for this cycle.
         self.emit_cpu(
-            self.current_segment(),
+            self.current_shard(),
             self.state.clk,
             pc,
             instruction,
@@ -786,10 +779,10 @@ impl Runtime {
             self.state.global_clk += 1;
             self.state.clk += 4;
 
-            // Reset the clock every `segment_size` cycles.
-            if self.state.global_clk % self.segment_size == 0 && !self.unconstrained {
+            // Every `shard_size` cycles, increment shard and reset clk within the shard.
+            if self.state.global_clk % self.shard_size == 0 && !self.unconstrained {
                 self.state.current_shard += 1;
-                self.state.clk = 1;
+                self.state.clk = 0;
             }
         }
 
@@ -810,8 +803,8 @@ impl Runtime {
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let (value, segment, timestamp) = *self.state.memory.get(&addr).unwrap();
-            if segment == 0 && timestamp == 0 {
+            let (value, shard, timestamp) = *self.state.memory.get(&addr).unwrap();
+            if shard == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
@@ -826,7 +819,7 @@ impl Runtime {
                     addr,
                     MemoryRecord {
                         value: 0,
-                        segment: 0,
+                        shard: 0,
                         timestamp: 0,
                     },
                     1,
@@ -837,7 +830,7 @@ impl Runtime {
                 addr,
                 MemoryRecord {
                     value,
-                    segment,
+                    shard,
                     timestamp,
                 },
                 1,
@@ -851,7 +844,7 @@ impl Runtime {
                     addr,
                     MemoryRecord {
                         value,
-                        segment: 0,
+                        shard: 0,
                         timestamp: 0,
                     },
                     used,

@@ -77,7 +77,7 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
                     .copy_from_slice(p3_keccak_row);
 
                 let col: &mut KeccakCols<F> = row.as_mut_slice().borrow_mut();
-                col.segment = F::from_canonical_u32(SEGMENT_NUM);
+                col.shard = F::from_canonical_u32(SEGMENT_NUM);
                 col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
 
                 // if this is the first row, then populate read memory accesses

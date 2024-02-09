@@ -42,7 +42,7 @@ pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 #[repr(C)]
 pub struct EdAddAssignCols<T> {
     pub is_real: T,
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
@@ -146,7 +146,7 @@ impl<F: Field, E: EllipticCurve + EdwardsParameters> Chip<F> for EdAddAssignChip
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(event.segment);
+            cols.shard = F::from_canonical_u32(event.shard);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
             cols.q_ptr = F::from_canonical_u32(event.q_ptr);
@@ -251,7 +251,7 @@ where
         }
 
         builder.constraint_memory_access(
-            row.segment,
+            row.shard,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(11),
             &row.q_ptr_access,
@@ -259,7 +259,7 @@ where
         );
         for i in 0..16 {
             builder.constraint_memory_access(
-                row.segment,
+                row.shard,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.q_access[i as usize],
@@ -268,7 +268,7 @@ where
         }
         for i in 0..16 {
             builder.constraint_memory_access(
-                row.segment,
+                row.shard,
                 row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.p_access[i as usize],
