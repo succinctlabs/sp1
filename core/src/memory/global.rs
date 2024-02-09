@@ -1,9 +1,10 @@
 use crate::air::{AirInteraction, CurtaAirBuilder, Word};
-use crate::utils::{pad_to_power_of_two, Chip};
+use crate::chip::Chip;
+use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::Air;
@@ -41,13 +42,13 @@ impl<F: PrimeField> Chip<F> for MemoryGlobalChip {
         "MemoryInit".to_string()
     }
 
-    fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
+    fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let memory_record = match self.kind {
-            MemoryChipKind::Init => &segment.first_memory_record,
-            MemoryChipKind::Finalize => &segment.last_memory_record,
-            MemoryChipKind::Program => &segment.program_memory_record,
+            MemoryChipKind::Init => &record.first_memory_record,
+            MemoryChipKind::Finalize => &record.last_memory_record,
+            MemoryChipKind::Program => &record.program_memory_record,
         };
         let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
             .map(|i| {
@@ -136,7 +137,7 @@ mod tests {
 
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
-    use crate::precompiles::sha256::extend_tests::sha_extend_program;
+    use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
@@ -145,14 +146,14 @@ mod tests {
     use super::*;
     use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
-    use crate::utils::{setup_logger, BabyBearPoseidon2, Chip, StarkUtils};
+    use crate::utils::{setup_logger, BabyBearPoseidon2, StarkUtils};
 
     #[test]
     fn test_memory_generate_trace() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let mut segment = runtime.global_segment.clone();
+        let mut segment = runtime.record.clone();
 
         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
@@ -179,7 +180,7 @@ mod tests {
 
         let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
@@ -194,8 +195,8 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
         debug_interactions_with_all_chips(
-            &runtime.segment,
-            Some(&runtime.global_segment),
+            &runtime.record,
+            Some(&runtime.record),
             vec![InteractionKind::Memory],
         );
     }
@@ -207,6 +208,6 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&[10]);
         runtime.run();
-        debug_interactions_with_all_chips(&runtime.segment, None, vec![InteractionKind::Byte]);
+        debug_interactions_with_all_chips(&runtime.record, None, vec![InteractionKind::Byte]);
     }
 }

@@ -10,8 +10,9 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::chip::Chip;
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -76,19 +77,19 @@ impl<F: PrimeField> Chip<F> for LtChip {
         "Lt".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .lt_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].lt_events = shards[i].to_vec();
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
+        let rows = record
             .lt_events
             .par_iter()
             .map(|event| {
@@ -296,29 +297,32 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        runtime::{ExecutionRecord, Opcode},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::LtChip;
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
     }
 
-    fn prove_babybear_template(segment: &mut Segment) {
+    fn prove_babybear_template(segment: &mut ExecutionRecord) {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
@@ -332,7 +336,7 @@ mod tests {
 
     #[test]
     fn prove_babybear_slt() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
 
         const NEG_3: u32 = 0b11111111111111111111111111111101;
         const NEG_4: u32 = 0b11111111111111111111111111111100;
@@ -360,7 +364,7 @@ mod tests {
 
     #[test]
     fn prove_babybear_sltu() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
 
         const LARGE: u32 = 0b11111111111111111111111111111101;
         segment.lt_events = vec![

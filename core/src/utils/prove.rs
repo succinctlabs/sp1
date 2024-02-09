@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
-    stark::{prover::LocalProver, SegmentProof, StarkConfig},
+    stark::{LocalProver, SegmentProof, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 
@@ -26,13 +26,12 @@ use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 pub fn get_cycles(program: Program) -> u64 {
     let mut runtime = Runtime::new(program);
     runtime.run();
-    runtime.global_clk as u64
+    runtime.state.global_clk as u64
 }
 
 pub fn prove(program: Program) -> SegmentProof<BabyBearBlake3> {
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[1, 2]);
         runtime.run();
         runtime
     });
@@ -50,17 +49,28 @@ pub fn prove_core(runtime: &mut Runtime) -> SegmentProof<BabyBearBlake3> {
 
     let start = Instant::now();
 
+    // Because proving modifies the segment, clone beforehand if we debug interactions.
+    #[cfg(not(feature = "perf"))]
+    let segment = runtime.record.clone();
+
     // Prove the program.
-    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        runtime.prove::<_, _, BabyBearBlake3, LocalProver<_>>(&config, &mut challenger)
-    });
+    let (segment_proofs, global_proof) = tracing::info_span!("runtime.prove(...)")
+        .in_scope(|| runtime.prove::<_, _, _, LocalProver<_>>(&config, &mut challenger));
+
+    let cycles = runtime.state.global_clk;
+    let time = start.elapsed().as_millis();
+    tracing::info!(
+        "cycles={}, e2e={}, khz={:.2}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+    );
 
     #[cfg(not(feature = "perf"))]
     tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        println!("bruh");
         debug_interactions_with_all_chips(
-            &mut runtime.segment,
-            Some(&mut runtime.global_segment),
+            &segment,
+            Some(&mut runtime.record),
             vec![
                 InteractionKind::Field,
                 InteractionKind::Range,
@@ -73,19 +83,10 @@ pub fn prove_core(runtime: &mut Runtime) -> SegmentProof<BabyBearBlake3> {
         );
     });
 
-    let cycles = runtime.global_clk;
-    let time = start.elapsed().as_millis();
-    tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
-        cycles,
-        time,
-        (cycles as f64 / time as f64),
-    );
-
     // Verify the proof.
     let mut challenger = config.challenger();
     runtime
-        .verify::<_, _, BabyBearBlake3>(&config, &mut challenger, &segment_proofs, &global_proof)
+        .verify(&config, &mut challenger, &segment_proofs, &global_proof)
         .unwrap();
     global_proof
 }
@@ -120,6 +121,8 @@ where
     p3_uni_stark::verify(config.uni_stark_config(), air, challenger, proof)
 }
 
+pub use baby_bear_k12::BabyBearK12;
+pub use baby_bear_keccak::BabyBearKeccak;
 pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
@@ -354,7 +357,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
     use rand::Rng;
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkConfig;
 
@@ -438,6 +441,114 @@ pub(super) mod baby_bear_blake3 {
     }
 
     impl p3_uni_stark::StarkGenericConfig for BabyBearBlake3 {
+        type Val = Val;
+        type Challenge = Challenge;
+        type PackedChallenge = PackedChallenge;
+        type Pcs = Pcs;
+        type Challenger = Challenger;
+        type PackedVal = <Val as Field>::Packing;
+
+        fn pcs(&self) -> &Self::Pcs {
+            &self.pcs
+        }
+    }
+}
+
+pub(super) mod baby_bear_k12 {
+
+    use p3_baby_bear::BabyBear;
+    use p3_challenger::DuplexChallenger;
+    use p3_commit::ExtensionMmcs;
+    use p3_dft::Radix2DitParallel;
+    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
+    use p3_merkle_tree::FieldMerkleTreeMmcs;
+    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
+    use rand::Rng;
+    use succinct_k12::KangarooTwelve;
+
+    use crate::stark::StarkConfig;
+
+    use super::StarkUtils;
+
+    pub type Val = BabyBear;
+    pub type Domain = Val;
+    pub type Challenge = BinomialExtensionField<Val, 4>;
+    pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+    type MyHash = SerializingHasher32<KangarooTwelve>;
+
+    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+
+    pub type Dft = Radix2DitParallel;
+
+    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+
+    type Pcs =
+        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
+
+    pub struct BabyBearK12 {
+        perm: Perm,
+        pcs: Pcs,
+    }
+
+    impl BabyBearK12 {
+        pub fn new<R: Rng>(rng: &mut R) -> Self {
+            let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+
+            let hash = MyHash::new(KangarooTwelve {});
+
+            let compress = MyCompress::new(perm.clone());
+
+            let val_mmcs = ValMmcs::new(hash, compress);
+
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+
+            let dft = Dft {};
+
+            let fri_config = FriConfig {
+                log_blowup: 1,
+                num_queries: 100,
+                proof_of_work_bits: 16,
+                mmcs: challenge_mmcs,
+            };
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
+
+            Self { pcs, perm }
+        }
+    }
+
+    impl StarkUtils for BabyBearK12 {
+        type UniConfig = Self;
+
+        fn challenger(&self) -> Self::Challenger {
+            Challenger::new(self.perm.clone())
+        }
+
+        fn uni_stark_config(&self) -> &Self::UniConfig {
+            self
+        }
+    }
+
+    impl StarkConfig for BabyBearK12 {
+        type Val = Val;
+        type Challenge = Challenge;
+        type PackedChallenge = PackedChallenge;
+        type Pcs = Pcs;
+        type Challenger = Challenger;
+        type PackedVal = <Val as Field>::Packing;
+
+        fn pcs(&self) -> &Self::Pcs {
+            &self.pcs
+        }
+    }
+
+    impl p3_uni_stark::StarkGenericConfig for BabyBearK12 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;

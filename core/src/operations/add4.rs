@@ -11,7 +11,7 @@ use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
 use crate::bytes::ByteOpcode;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute the add of four words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -39,7 +39,7 @@ pub struct Add4Operation<T> {
 impl<F: Field> Add4Operation<F> {
     pub fn populate(
         &mut self,
-        segment: &mut Segment,
+        segment: &mut ExecutionRecord,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,

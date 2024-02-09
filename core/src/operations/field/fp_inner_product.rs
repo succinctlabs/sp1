@@ -130,11 +130,12 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpInnerProductCols, Limbs};
+    use crate::chip::Chip;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::CurtaAirBuilder, runtime::Segment, utils::Chip};
+    use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
     use num::bigint::RandBigInt;
@@ -171,9 +172,9 @@ mod tests {
             "FpInnerProduct".to_string()
         }
 
-        fn shard(&self, _: &Segment, _: &mut Vec<Segment>) {}
+        fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
-        fn generate_trace(&self, _: &mut Segment) -> RowMajorMatrix<F> {
+        fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<(Vec<BigUint>, Vec<BigUint>)> = (0..num_rows - 4)
@@ -239,7 +240,7 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
         println!("{:?}", trace.values)
@@ -250,7 +251,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
 
         let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);

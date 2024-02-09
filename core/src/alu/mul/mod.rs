@@ -37,9 +37,10 @@ use valida_derive::AlignedBorrow;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
+use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -110,20 +111,20 @@ impl<F: PrimeField> Chip<F> for MulChip {
         "Mul".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .mul_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].mul_events = shards[i].to_vec();
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
-        let mul_events = segment.mul_events.clone();
+        let mul_events = record.mul_events.clone();
         for event in mul_events.iter() {
             assert!(
                 event.opcode == Opcode::MUL
@@ -173,7 +174,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
                             c: 0,
                         });
                     }
-                    segment.add_byte_lookup_events(blu_events);
+                    record.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -211,8 +212,8 @@ impl<F: PrimeField> Chip<F> for MulChip {
 
             // Range check.
             {
-                segment.add_u16_range_checks(&carry);
-                segment.add_u8_range_checks(&product.map(|x| x as u8));
+                record.add_u16_range_checks(&carry);
+                record.add_u8_range_checks(&product.map(|x| x as u8));
             }
 
             rows.push(row);
@@ -391,22 +392,25 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::thread_rng;
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        runtime::{ExecutionRecord, Opcode},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::MulChip;
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.mul_events = vec![AluEvent::new(
             0,
             Opcode::MULHSU,
@@ -424,7 +428,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         let mut mul_events: Vec<AluEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![

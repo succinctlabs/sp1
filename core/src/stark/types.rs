@@ -4,6 +4,7 @@ use std::{
 };
 
 use bincode::{deserialize_from, Error};
+use p3_air::TwoRowMatrixView;
 use p3_commit::{OpenedValues, Pcs};
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
@@ -107,11 +108,19 @@ pub struct AirOpenedValues<T> {
     pub next: Vec<T>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChipOpenedValues<T> {
+    pub preprocessed: AirOpenedValues<T>,
+    pub main: AirOpenedValues<T>,
+    pub permutation: AirOpenedValues<T>,
+    pub quotient: Vec<T>,
+    pub cumulative_sum: T,
+    pub log_degree: usize,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SegmentOpenedValues<T> {
-    pub main: Vec<AirOpenedValues<T>>,
-    pub permutation: Vec<AirOpenedValues<T>>,
-    pub quotient: Vec<QuotientOpenedValues<T>>,
+    pub chips: Vec<ChipOpenedValues<T>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -119,9 +128,7 @@ pub struct SegmentOpenedValues<T> {
 pub struct SegmentProof<SC: StarkConfig> {
     pub commitment: SegmentCommitment<Com<SC>>,
     pub opened_values: SegmentOpenedValues<Challenge<SC>>,
-    pub commulative_sums: Vec<SC::Challenge>,
     pub opening_proof: OpeningProof<SC>,
-    pub degree_bits: Vec<usize>,
 }
 
 #[cfg(not(feature = "perf"))]
@@ -133,18 +140,47 @@ pub struct SegmentProof<SC: StarkConfig> {
 
 impl<T> SegmentOpenedValues<T> {
     pub fn into_values(self) -> OpenedValues<T> {
-        let Self {
-            main,
-            permutation,
-            quotient,
-        } = self;
+        let mut main_vals = vec![];
+        let mut permutation_vals = vec![];
+        let mut quotient_vals = vec![];
 
         let to_values = |values: AirOpenedValues<T>| vec![values.local, values.next];
+        for chip_values in self.chips {
+            let ChipOpenedValues {
+                main,
+                permutation,
+                quotient,
+                ..
+            } = chip_values;
 
-        vec![
-            main.into_iter().map(to_values).collect::<Vec<_>>(),
-            permutation.into_iter().map(to_values).collect::<Vec<_>>(),
-            quotient.into_iter().map(|v| vec![v]).collect::<Vec<_>>(),
-        ]
+            main_vals.push(to_values(main));
+            permutation_vals.push(to_values(permutation));
+            quotient_vals.push(vec![quotient]);
+        }
+
+        vec![main_vals, permutation_vals, quotient_vals]
+
+        // vec![
+        //     main.into_iter().map(to_values).collect::<Vec<_>>(),
+        //     permutation.into_iter().map(to_values).collect::<Vec<_>>(),
+        //     quotient.into_iter().map(|v| vec![v]).collect::<Vec<_>>(),
+        // ]
+    }
+}
+
+impl<T> AirOpenedValues<T> {
+    pub fn view(&self) -> TwoRowMatrixView<T> {
+        TwoRowMatrixView::new(&self.local, &self.next)
+    }
+}
+
+#[cfg(feature = "perf")]
+impl<SC: StarkConfig> SegmentProof<SC> {
+    pub fn cumulative_sum(&self) -> Challenge<SC> {
+        self.opened_values
+            .chips
+            .iter()
+            .map(|c| c.cumulative_sum)
+            .sum()
     }
 }

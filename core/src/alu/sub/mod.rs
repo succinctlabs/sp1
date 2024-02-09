@@ -10,8 +10,9 @@ use p3_maybe_rayon::prelude::*;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::chip::Chip;
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `SubChip`.
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
@@ -44,19 +45,19 @@ impl<F: PrimeField> Chip<F> for SubChip {
         "Sub".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .sub_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].sub_events = shards[i].to_vec();
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
+        let rows = record
             .sub_events
             .par_iter()
             .map(|event| {
@@ -165,7 +166,10 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        chip::Chip,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
@@ -173,13 +177,13 @@ mod tests {
     use super::SubChip;
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        runtime::{ExecutionRecord, Opcode},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
@@ -191,7 +195,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
 
         for _i in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);

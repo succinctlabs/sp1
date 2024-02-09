@@ -10,7 +10,7 @@ use crate::bytes::utils::shr_carry;
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute `>>` of a word with a fixed offset R.
@@ -43,7 +43,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(&mut self, segment: &mut Segment, input: u32, rotation: usize) -> u32 {
+    pub fn populate(&mut self, segment: &mut ExecutionRecord, input: u32, rotation: usize) -> u32 {
         let input_bytes = input.to_le_bytes().map(F::from_canonical_u8);
         let expected = input >> rotation;
 

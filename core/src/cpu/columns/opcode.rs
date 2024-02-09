@@ -6,6 +6,8 @@ use valida_derive::AlignedBorrow;
 
 use crate::runtime::{Instruction, Opcode};
 
+pub const NUM_OPCODE_SELECTOR_COLS: usize = size_of::<OpcodeSelectorCols<u8>>();
+
 /// The column layout for opcode selectors.
 #[derive(AlignedBorrow, Clone, Copy, Default, Debug)]
 #[repr(C)]

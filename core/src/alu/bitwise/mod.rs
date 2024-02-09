@@ -8,8 +8,9 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::chip::Chip;
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -45,17 +46,17 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         "Bitwise".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .bitwise_events
-            .chunks(NB_ROWS_PER_SHARD)
+            .chunks(env::segment_size())
             .collect::<Vec<_>>();
         for i in 0..shards.len() {
             outputs[i].bitwise_events = shards[i].to_vec();
         }
     }
 
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = segment
             .bitwise_events
@@ -155,17 +156,18 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
+    use crate::chip::Chip;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use rand::thread_rng;
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
-    use crate::runtime::{Opcode, Segment};
-    use crate::utils::{BabyBearPoseidon2, Chip, StarkUtils};
+    use crate::runtime::{ExecutionRecord, Opcode};
+    use crate::utils::{BabyBearPoseidon2, StarkUtils};
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
@@ -177,7 +179,7 @@ mod tests {
         let config = BabyBearPoseidon2::new(&mut thread_rng());
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut segment = ExecutionRecord::default();
         segment.bitwise_events = [
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),
