@@ -1,10 +1,10 @@
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{CurtaAirBuilder, MachineAir},
+    air::{CurtaAirBuilder, MachineAir, MultiTableAirBuilder},
     lookup::{Interaction, InteractionBuilder},
     runtime::ExecutionRecord,
 };
@@ -163,7 +163,7 @@ impl<F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
     A: Air<AB>,
-    AB: CurtaAirBuilder<F = F>,
+    AB: CurtaAirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.
@@ -203,15 +203,6 @@ impl<'a, SC: StarkConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
     }
 }
 
-impl<'a, SC: StarkConfig> Air<InteractionBuilder<SC::Val>> for ChipRef<'a, SC> {
-    fn eval(&self, builder: &mut InteractionBuilder<SC::Val>) {
-        // Evaluate the execution trace constraints.
-        self.air.eval(builder);
-        // Evaluate permutation constraints.
-        eval_permutation_constraints(self.sends, self.receives, builder);
-    }
-}
-
 impl<'a, 'b, SC: StarkConfig> Air<ProverConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut ProverConstraintFolder<'b, SC>) {
         <dyn StarkAir<SC> as Air<ProverConstraintFolder<'b, SC>>>::eval(self.air, builder);
@@ -221,5 +212,15 @@ impl<'a, 'b, SC: StarkConfig> Air<ProverConstraintFolder<'b, SC>> for ChipRef<'a
 impl<'a, 'b, SC: StarkConfig> Air<VerifierConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut VerifierConstraintFolder<'b, SC>) {
         <dyn StarkAir<SC> as Air<VerifierConstraintFolder<'b, SC>>>::eval(self.air, builder);
+    }
+}
+
+impl<'a, 'b, SC: StarkConfig> Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>
+    for ChipRef<'a, SC>
+{
+    fn eval(&self, builder: &mut DebugConstraintBuilder<'b, SC::Val, SC::Challenge>) {
+        <dyn StarkAir<SC> as Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>>::eval(
+            self.air, builder,
+        );
     }
 }

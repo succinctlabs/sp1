@@ -22,4 +22,4 @@ pub use types::*;
 pub use verifier::*;
 
 #[cfg(test)]
-pub use runtime::tests;
+pub use machine::tests;

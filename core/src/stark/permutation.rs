@@ -1,4 +1,4 @@
-use p3_air::{ExtensionBuilder, PairBuilder, PermutationAirBuilder};
+use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
@@ -202,10 +202,9 @@ pub fn eval_permutation_constraints<F, AB>(
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
 
     let cumulative_sum = builder.cumulative_sum();
-    builder.when_last_row().assert_eq_ext(
-        *perm_local.last().unwrap(),
-        AB::ExprEF::from_f(cumulative_sum),
-    );
+    builder
+        .when_last_row()
+        .assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum);
 }
 
 /// Computes the permutation fingerprint of a row.

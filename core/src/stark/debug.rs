@@ -1,6 +1,7 @@
 use p3_air::{
     Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
 };
+use p3_field::AbstractField;
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
@@ -23,11 +24,6 @@ pub fn debug_constraints<SC: StarkConfig>(
     if height == 0 {
         return;
     }
-
-    let sends = chip.sends();
-    let receives = chip.receives();
-
-    let cumulative_sum = *perm.row_slice(perm.height() - 1).last().unwrap();
 
     // Check that constraints are satisfied.
     (0..height).for_each(|i| {

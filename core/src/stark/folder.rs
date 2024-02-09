@@ -80,10 +80,10 @@ impl<'a, SC: StarkConfig> PermutationAirBuilder for ProverConstraintFolder<'a, S
 }
 
 impl<'a, SC: StarkConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
-    type Sum = SC::Challenge;
+    type Sum = SC::PackedChallenge;
 
     fn cumulative_sum(&self) -> Self::Sum {
-        self.cumulative_sum
+        SC::PackedChallenge::from_f(self.cumulative_sum)
     }
 }
 

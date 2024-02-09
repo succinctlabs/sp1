@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, StarkConfig},
+    stark::{LocalProver, RiscvStark, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 
@@ -49,13 +49,15 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     let start = Instant::now();
 
+    let machine = RiscvStark::new(config.clone());
+
     // Because proving modifies the segment, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
     let segment = runtime.record.clone();
 
     // Prove the program.
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| runtime.prove::<_, _, _, LocalProver<_>>(&config, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -87,7 +89,7 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     // Verify the proof.
     let mut challenger = config.challenger();
-    runtime.verify(&config, &mut challenger, &proof).unwrap();
+    machine.verify(&mut challenger, &proof).unwrap();
 
     proof
 }
@@ -401,7 +403,10 @@ pub(super) mod baby_bear_blake3 {
     impl BabyBearBlake3 {
         pub fn new<R: Rng>(rng: &mut R) -> Self {
             let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+            Self::from_perm(perm)
+        }
 
+        fn from_perm(perm: Perm) -> Self {
             let hash = MyHash::new(Blake3 {});
 
             let compress = MyCompress::new(perm.clone());
@@ -421,6 +426,12 @@ pub(super) mod baby_bear_blake3 {
             let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
+        }
+    }
+
+    impl Clone for BabyBearBlake3 {
+        fn clone(&self) -> Self {
+            Self::from_perm(self.perm.clone())
         }
     }
 

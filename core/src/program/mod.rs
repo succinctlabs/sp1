@@ -134,6 +134,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
+        air::MachineAir,
         program::ProgramChip,
         runtime::{ExecutionRecord, Instruction, Opcode, Program},
     };

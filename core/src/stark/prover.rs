@@ -1,5 +1,5 @@
 use itertools::izip;
-use p3_air::TwoRowMatrixView;
+use p3_air::{Air, TwoRowMatrixView};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
@@ -17,12 +17,10 @@ use std::cmp::max;
 use std::marker::PhantomData;
 
 use super::folder::ProverConstraintFolder;
-use super::permutation::eval_permutation_constraints;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
-use super::{types::*, StarkConfig};
-use crate::chip::AirChip;
-use crate::lookup::Interaction;
+use super::{types::*, ChipRef, StarkConfig};
+use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::stark::permutation::generate_permutation_trace;
 
@@ -36,7 +34,7 @@ where
     fn generate_segment_traces<F, EF>(
         config: &SC,
         segments: &mut Vec<ExecutionRecord>,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<MainDataWrapper<SC>>,
@@ -52,7 +50,7 @@ where
 
     fn commit_main(
         config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[ChipRef<SC>],
         segment: &mut ExecutionRecord,
     ) -> MainData<SC>
     where
@@ -91,7 +89,7 @@ where
     fn prove(
         config: &SC,
         challenger: &mut SC::Challenger,
-        chips: Vec<Box<dyn AirChip<SC>>>,
+        chips: &[ChipRef<SC>],
         wrapped_main_data: MainDataWrapper<SC>,
     ) -> SegmentProof<SC>
     where
@@ -106,8 +104,8 @@ where
         let traces = main_data.traces;
 
         // Filter the chips.
-        let chips: Vec<Box<dyn AirChip<SC>>> = chips
-            .into_iter()
+        let chips: Vec<_> = chips
+            .iter()
             .filter(|chip| main_data.chip_ids.contains(&chip.name()))
             .collect::<Vec<_>>();
         let chip_ids = chips.iter().map(|chip| chip.name()).collect::<Vec<_>>();
@@ -215,12 +213,9 @@ where
                 .map(|i| {
                     Self::quotient_values(
                         config,
-                        &*chips[i],
-                        &sends[i],
-                        &receives[i],
+                        chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
-                        log_quotient_degree,
                         &main_ldes[i],
                         &permutation_ldes[i],
                         &permutation_challenges,
@@ -412,14 +407,11 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn quotient_values<C, MainLde, PermLde>(
+    fn quotient_values<MainLde, PermLde>(
         config: &SC,
-        chip: &C,
-        sends: &[Interaction<SC::Val>],
-        receives: &[Interaction<SC::Val>],
+        chip: &ChipRef<SC>,
         cumulative_sum: SC::Challenge,
         degree_bits: usize,
-        quotient_degree_bits: usize,
         main_lde: &MainLde,
         permutation_lde: &PermLde,
         perm_challenges: &[SC::Challenge],
@@ -427,11 +419,11 @@ where
     ) -> Vec<SC::Challenge>
     where
         SC: StarkConfig,
-        C: AirChip<SC> + ?Sized,
         MainLde: MatrixGet<SC::Val> + Sync,
         PermLde: MatrixGet<SC::Val> + Sync,
     {
         let degree = 1 << degree_bits;
+        let quotient_degree_bits = chip.log_quotient_degree();
         let quotient_size_bits = degree_bits + quotient_degree_bits;
         let quotient_size = 1 << quotient_size_bits;
         let g_subgroup = SC::Val::two_adic_generator(degree_bits);
@@ -522,6 +514,7 @@ where
                         next: &perm_next,
                     },
                     perm_challenges,
+                    cumulative_sum,
                     is_first_row,
                     is_last_row,
                     is_transition,
@@ -529,7 +522,6 @@ where
                     accumulator,
                 };
                 chip.eval(&mut folder);
-                eval_permutation_constraints(sends, receives, &mut folder, cumulative_sum);
 
                 // quotient(x) = constraints(x) / Z_H(x)
                 let zerofier_inv: SC::PackedVal =
@@ -559,7 +551,7 @@ where
     fn generate_segment_traces<F, EF>(
         config: &SC,
         segments: &mut Vec<ExecutionRecord>,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<MainDataWrapper<SC>>,

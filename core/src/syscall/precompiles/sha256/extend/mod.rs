@@ -48,7 +48,7 @@ pub mod extend_tests {
         air::MachineAir,
         alu::AluEvent,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
-        stark::LocalProver,
+        stark::{LocalProver, RiscvStark},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
@@ -90,6 +90,8 @@ pub mod extend_tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
+        let machine = RiscvStark::new(config);
+
+        machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger);
     }
 }

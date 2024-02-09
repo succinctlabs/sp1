@@ -1,4 +1,7 @@
+use crate::air::MachineAir;
 use itertools::izip;
+use p3_air::Air;
+use p3_air::BaseAir;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
 use p3_commit::UnivariatePcs;
@@ -8,20 +11,17 @@ use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 
-use p3_util::log2_ceil_usize;
 use p3_util::reverse_slice_index_bits;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
-use crate::chip::AirChip;
-use crate::lookup::Interaction;
-
 use super::folder::VerifierConstraintFolder;
-use super::permutation::eval_permutation_constraints;
 use super::types::*;
 use super::StarkConfig;
 
 use core::fmt::Display;
+
+use super::ChipRef;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
@@ -30,12 +30,10 @@ impl<SC: StarkConfig> Verifier<SC> {
     #[cfg(feature = "perf")]
     pub fn verify(
         config: &SC,
-        chips: Vec<Box<dyn AirChip<SC>>>,
+        chips: &[ChipRef<SC>],
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
     ) -> Result<(), VerificationError> {
-        let max_constraint_degree = 3;
-        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
         let SegmentProof {
             commitment,
             opened_values,
@@ -45,7 +43,7 @@ impl<SC: StarkConfig> Verifier<SC> {
 
         // Filter the chips.
         let chips = chips
-            .into_iter()
+            .iter()
             .filter(|chip| chip_ids.contains(&chip.name()))
             .collect::<Vec<_>>();
 
@@ -73,13 +71,12 @@ impl<SC: StarkConfig> Verifier<SC> {
         //     .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
         // }
 
-        let quotient_width = SC::Challenge::D << log_quotient_degree;
         let dims = &[
             chips
                 .iter()
                 .zip(opened_values.chips.iter())
                 .map(|(chip, val)| Dimensions {
-                    width: chip.air_width(),
+                    width: chip.width(),
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
@@ -91,10 +88,11 @@ impl<SC: StarkConfig> Verifier<SC> {
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
-            (0..chips.len())
+            chips
+                .iter()
                 .zip(opened_values.chips.iter())
-                .map(|(_, val)| Dimensions {
-                    width: quotient_width,
+                .map(|(chip, val)| Dimensions {
+                    width: SC::Challenge::D << chip.log_quotient_degree(),
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
@@ -132,9 +130,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|g| vec![zeta, zeta * *g])
             .collect::<Vec<_>>();
 
-        let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
-        let quotient_opening_points = (0..chips.len())
-            .map(|_| vec![zeta_quot_pow])
+        let quotient_opening_points = chips
+            .iter()
+            .map(|chip| vec![zeta.exp_power_of_2(chip.log_quotient_degree())])
             .collect::<Vec<_>>();
 
         config
@@ -154,13 +152,10 @@ impl<SC: StarkConfig> Verifier<SC> {
 
         // Verify the constrtaint evaluations.
 
-        for (i, (chip, values, g)) in
-            izip!(chips.iter(), opened_values.chips.iter(), g_subgroups.iter()).enumerate()
+        for (chip, values, g) in izip!(chips.iter(), opened_values.chips.iter(), g_subgroups.iter())
         {
             Self::verify_constraints(
-                chip.as_ref(),
-                &sends[i],
-                &receives[i],
+                chip,
                 values.clone(),
                 *g,
                 zeta,
@@ -230,19 +225,14 @@ impl<SC: StarkConfig> Verifier<SC> {
     // }
 
     #[allow(clippy::too_many_arguments)]
-    fn verify_constraints<C>(
-        chip: &C,
-        sends: &[Interaction<SC::Val>],
-        receives: &[Interaction<SC::Val>],
+    fn verify_constraints(
+        chip: &ChipRef<SC>,
         opening: ChipOpenedValues<SC::Challenge>,
         g: SC::Val,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-    ) -> Result<(), OodEvaluationMismatch>
-    where
-        C: AirChip<SC> + ?Sized,
-    {
+    ) -> Result<(), OodEvaluationMismatch> {
         let z_h = zeta.exp_power_of_2(opening.log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
         let is_last_row = z_h / (zeta - g.inverse());
@@ -294,6 +284,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
+            cumulative_sum: opening.cumulative_sum,
             is_first_row,
             is_last_row,
             is_transition,
@@ -301,7 +292,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             accumulator: SC::Challenge::zero(),
         };
         chip.eval(&mut folder);
-        eval_permutation_constraints(sends, receives, &mut folder, opening.cumulative_sum);
 
         let folded_constraints = folder.accumulator;
 
