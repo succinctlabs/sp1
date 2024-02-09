@@ -27,7 +27,8 @@ impl Syscall for Blake3CompressInnerChip {
         let mut write_records =
             [[[MemoryWriteRecord::default(); G_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT];
 
-        let mut state_for_debugging = [0u32; STATE_SIZE];
+        let mut output_state_for_debugging = [0u32; STATE_SIZE];
+        let mut input_state_for_debugging: [Option<u32>; STATE_SIZE] = [None; STATE_SIZE];
         for round in 0..ROUND_COUNT {
             for operation in 0..OPERATION_COUNT {
                 // Read the state.
@@ -39,6 +40,9 @@ impl Syscall for Blake3CompressInnerChip {
                     read_records[round][operation][i] = record;
                     state[index_to_read] = value;
                     input[i] = value;
+                    if input_state_for_debugging[index_to_read].is_none() {
+                        input_state_for_debugging[index_to_read] = Some(value);
+                    }
                     rt.clk += 4;
                 }
                 // Read the message.
@@ -67,12 +71,55 @@ impl Syscall for Blake3CompressInnerChip {
                         results[i],
                     );
                     write_records[round][operation][i] = record;
-                    state_for_debugging[index_to_write] = results[i];
+                    output_state_for_debugging[index_to_write] = results[i];
                     rt.clk += 4;
                 }
             }
         }
-        println!("state_for_debugging: {:?}", state_for_debugging);
+
+        let input = input_state_for_debugging.map(|x| x.unwrap().to_le_bytes());
+        let results = output_state_for_debugging.map(|x| x.to_le_bytes());
+        println!("state_for_debugging: {:?}", input);
+        println!("state_for_debugging: {:?}", results);
+        let exp_input_state = [
+            [64, 65, 66, 67],
+            [68, 69, 70, 71],
+            [72, 73, 74, 75],
+            [76, 77, 78, 79],
+            [80, 81, 82, 83],
+            [84, 85, 86, 87],
+            [88, 89, 90, 91],
+            [92, 93, 94, 95],
+            [103, 230, 9, 106],
+            [133, 174, 103, 187],
+            [114, 243, 110, 60],
+            [58, 245, 79, 165],
+            [96, 0, 0, 0],
+            [0, 0, 0, 0],
+            [64, 0, 0, 0],
+            [97, 0, 0, 0],
+        ];
+        assert_eq!(input, exp_input_state, "input state is not as expected");
+
+        let exp_results = [
+            [239, 181, 94, 129],
+            [58, 124, 80, 104],
+            [126, 210, 5, 157],
+            [255, 58, 238, 89],
+            [252, 106, 170, 12],
+            [233, 56, 58, 31],
+            [215, 16, 105, 97],
+            [11, 229, 238, 73],
+            [6, 79, 155, 180],
+            [197, 73, 116, 0],
+            [127, 22, 16, 39],
+            [116, 174, 85, 5],
+            [61, 94, 87, 6],
+            [236, 10, 36, 238],
+            [119, 171, 207, 171],
+            [189, 216, 43, 250],
+        ];
+        assert_eq!(results, exp_results, "output state is not as expected");
 
         let segment_clk = rt.segment_clk();
 
