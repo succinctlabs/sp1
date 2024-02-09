@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use std::{env, fs, process::Command};
+use std::{env, fs, io::Write, path::PathBuf, process::Command};
 use succinct_core::{
     runtime::{Program, Runtime},
     utils::{self, prove_core},
@@ -13,6 +13,9 @@ use crate::CommandExecutor;
 pub struct ProveCmd {
     #[clap(short, long, value_parser, num_args = 1.., value_delimiter = ' ')]
     input: Vec<u32>,
+
+    #[clap(long, action)]
+    output: Option<PathBuf>,
 
     #[clap(long, action)]
     profile: bool,
@@ -74,7 +77,13 @@ impl ProveCmd {
             runtime.write_stdin(&input);
         }
         runtime.run();
-        prove_core(&mut runtime);
+        let proof = prove_core(&mut runtime);
+        let serialized_json = serde_json::to_string(&proof).expect("failed to serialize proof");
+        if let Some(ref path) = self.output {
+            let mut file = fs::File::create(path).expect("Failed to create file");
+            file.write_all(serialized_json.as_bytes())
+                .expect("Failed to write to file");
+        }
 
         Ok(())
     }
