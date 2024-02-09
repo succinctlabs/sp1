@@ -170,7 +170,7 @@ impl<SC: StarkConfig> Verifier<SC> {
     #[cfg(not(feature = "perf"))]
     pub fn verify(
         _config: &SC,
-        _chips: &[Box<dyn AirChip<SC>>],
+        _chips: Vec<Box<dyn AirChip<SC>>>,
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {

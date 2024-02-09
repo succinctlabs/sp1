@@ -60,7 +60,7 @@ where
         // Filter the chips based on what is used.
         let filtered_chips = chips
             .iter()
-            .filter(|chip| chip.include(segment))
+            .filter(|chip| chip.include(shard))
             .collect::<Vec<_>>();
 
         // For each chip, generate the trace.

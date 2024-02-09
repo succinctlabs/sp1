@@ -136,6 +136,7 @@ pub struct ShardProof<SC: StarkConfig> {
 }
 
 #[cfg(not(feature = "perf"))]
+#[derive(Serialize)]
 pub struct ShardProof<SC: StarkConfig> {
     pub main_commit: Com<SC>,
     pub traces: Vec<ValMat<SC>>,
