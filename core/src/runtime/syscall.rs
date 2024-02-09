@@ -106,7 +106,7 @@ impl<'a> SyscallContext<'a> {
         let current_shard = runtime.current_shard();
         let clk = runtime.state.clk;
         Self {
-            current_shard: current_shard,
+            current_shard,
             clk,
             next_pc: runtime.state.pc.wrapping_add(4),
             rt: runtime,
