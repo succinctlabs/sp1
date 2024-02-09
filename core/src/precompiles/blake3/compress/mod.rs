@@ -4,10 +4,8 @@ use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 /// implementation of the `blake3` hash function in Plonky3.
 mod air;
 mod columns;
-mod compress_inner;
 mod execute;
-mod mix;
-mod round;
+mod g;
 mod trace;
 
 /// The number of `Word`s in the state of the compress inner operation.
@@ -29,14 +27,13 @@ pub(crate) const NUM_STATE_WORDS_PER_CALL: usize = 4;
 pub(crate) const NUM_MSG_WORDS_PER_CALL: usize = 2;
 
 /// The number of `Word`s in the input of `g`.
-pub(crate) const MIX_OPERATION_INPUT_SIZE: usize =
-    NUM_MSG_WORDS_PER_CALL + NUM_STATE_WORDS_PER_CALL;
+pub(crate) const G_INPUT_SIZE: usize = NUM_MSG_WORDS_PER_CALL + NUM_STATE_WORDS_PER_CALL;
 
 /// The number of `Word`s in the input of `compress`.
 pub(crate) const INPUT_SIZE: usize = STATE_SIZE + MSG_SIZE;
 
 /// The number of `Word`s to write after calling `g`.
-pub(crate) const MIX_OPERATION_OUTPUT_SIZE: usize = NUM_STATE_WORDS_PER_CALL;
+pub(crate) const G_OUTPUT_SIZE: usize = NUM_STATE_WORDS_PER_CALL;
 
 pub(crate) const MSG_SCHEDULE: [[usize; MSG_SIZE]; ROUND_COUNT] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -48,8 +45,8 @@ pub(crate) const MSG_SCHEDULE: [[usize; MSG_SIZE]; ROUND_COUNT] = [
     [11, 15, 5, 0, 1, 9, 8, 6, 14, 10, 2, 12, 3, 4, 7, 13],
 ];
 
-/// The `i`-th row of `MSG_SCHEDULE` is the indices used for the `i`-th call to `g`.
-pub(crate) const MIX_OPERATION_INDEX: [[usize; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT] = [
+/// The `i`-th row of `G_INDEX` is the indices used for the `i`-th call to `g`.
+pub(crate) const G_INDEX: [[usize; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT] = [
     [0, 4, 8, 12],
     [1, 5, 9, 13],
     [2, 6, 10, 14],
@@ -65,8 +62,8 @@ pub struct Blake3CompressInnerEvent {
     pub clk: u32,
     pub segment: u32,
     pub state_ptr: u32,
-    pub reads: [[[MemoryReadRecord; MIX_OPERATION_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
-    pub writes: [[[MemoryWriteRecord; MIX_OPERATION_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
+    pub reads: [[[MemoryReadRecord; G_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
+    pub writes: [[[MemoryWriteRecord; G_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
 }
 
 pub struct Blake3CompressInnerChip {}

@@ -8,8 +8,8 @@ use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 
 use super::compress_inner::CompressInnerOperation;
-use super::MIX_OPERATION_INPUT_SIZE;
-use super::MIX_OPERATION_OUTPUT_SIZE;
+use super::G_INPUT_SIZE;
+use super::G_OUTPUT_SIZE;
 use super::NUM_MSG_WORDS_PER_CALL;
 use super::NUM_STATE_WORDS_PER_CALL;
 use super::OPERATION_COUNT;
@@ -27,10 +27,10 @@ pub struct Blake3CompressInnerCols<T> {
     pub state_ptr: T,
 
     /// Reads in parts of the state.
-    pub mem_reads: [MemoryReadCols<T>; MIX_OPERATION_INPUT_SIZE],
+    pub mem_reads: [MemoryReadCols<T>; G_INPUT_SIZE],
 
     /// Writes the updated state.
-    pub mem_writes: [MemoryWriteCols<T>; MIX_OPERATION_OUTPUT_SIZE],
+    pub mem_writes: [MemoryWriteCols<T>; G_OUTPUT_SIZE],
 
     /// Indicates which call of `g` is being performed.
     pub operation_index: T,

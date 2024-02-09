@@ -3,8 +3,8 @@ use p3_field::{AbstractField, Field};
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
 use super::{
-    Blake3CompressInnerChip, MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE, MSG_SCHEDULE,
-    NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    Blake3CompressInnerChip, G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
+    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
@@ -30,7 +30,7 @@ where
 
         self.constrain_memory(builder, local);
 
-        self.constraint_external_ops(builder, local);
+        self.constraint_compress_ops(builder, local);
     }
 }
 
@@ -56,6 +56,7 @@ impl Blake3CompressInnerChip {
                 .assert_eq(index, AB::F::from_canonical_usize(i));
         }
     }
+
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
@@ -81,13 +82,14 @@ impl Blake3CompressInnerChip {
 
                 let mut acc = AB::Expr::from_canonical_usize(0);
                 for operation in 0..OPERATION_COUNT {
-                    acc += AB::Expr::from_canonical_usize(MIX_OPERATION_INDEX[operation][i])
+                    acc += AB::Expr::from_canonical_usize(G_INDEX[operation][i])
                         * local.is_operation_index_n[operation];
                 }
                 acc
             };
             builder.assert_eq(local.state_index[i], index_to_read);
         }
+
         // Calculate the MSG_SCHEDULE index to read from the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
             let index_to_read = {
@@ -138,7 +140,7 @@ impl Blake3CompressInnerChip {
     ) {
         // let mut state = [0u32; STATE_SIZE];
         // for i in 0..NUM_STATE_WORDS_PER_CALL {
-        //     let index_to_read = MIX_OPERATION_INDEX[operation][i];
+        //     let index_to_read = G_INDEX[operation][i];
         //     let (record, value) = rt.mr(state_ptr + (index_to_read as u32) * 4);
         //     read_records[round][operation][i] = record;
         //     state[index_to_read] = value;
@@ -180,7 +182,7 @@ impl Blake3CompressInnerChip {
 
         // // Write the state.
         // for i in 0..NUM_STATE_WORDS_PER_CALL {
-        //     let index_to_write = MIX_OPERATION_INDEX[operation][i];
+        //     let index_to_write = G_INDEX[operation][i];
         //     let record = rt.mw(
         //         state_ptr.wrapping_add((index_to_write as u32) * 4),
         //         results[index_to_write],
@@ -200,7 +202,7 @@ impl Blake3CompressInnerChip {
         }
     }
 
-    fn constraint_external_ops<AB: CurtaAirBuilder>(
+    fn constraint_compress_ops<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,

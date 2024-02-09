@@ -13,8 +13,8 @@ use crate::{runtime::Segment, utils::Chip};
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
-    MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE, MIX_OPERATION_OUTPUT_SIZE, MSG_SCHEDULE,
-    NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
+    G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
+    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
 };
 
 impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
@@ -59,8 +59,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         cols.is_operation_index_n[operation] = F::one();
 
                         for i in 0..NUM_STATE_WORDS_PER_CALL {
-                            cols.state_index[i] =
-                                F::from_canonical_usize(MIX_OPERATION_INDEX[operation][i]);
+                            cols.state_index[i] = F::from_canonical_usize(G_INDEX[operation][i]);
                         }
 
                         for i in 0..NUM_MSG_WORDS_PER_CALL {
@@ -71,13 +70,13 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                     // Memory reads & writes.
                     {
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
-                        for i in 0..MIX_OPERATION_INPUT_SIZE {
+                        for i in 0..G_INPUT_SIZE {
                             cols.mem_reads[i]
                                 .populate(event.reads[round][operation][i], &mut new_field_events);
                             clk += 4;
                         }
                     }
-                    let input: [u32; MIX_OPERATION_INPUT_SIZE] = event.reads[round][operation]
+                    let input: [u32; G_INPUT_SIZE] = event.reads[round][operation]
                         .iter()
                         .map(|read| read.value)
                         .collect::<Vec<_>>()
@@ -89,7 +88,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
 
                     // Memory writes.
                     {
-                        for i in 0..MIX_OPERATION_OUTPUT_SIZE {
+                        for i in 0..G_OUTPUT_SIZE {
                             cols.mem_writes[i]
                                 .populate(event.writes[round][operation][i], &mut new_field_events);
                             clk += 4;
