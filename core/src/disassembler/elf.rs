@@ -72,37 +72,37 @@ impl Elf {
             panic!("invalid entrypoint");
         }
 
-        // Get the shards of the ELF file.
-        let shards = elf.segments().expect("failed to get shards");
-        if shards.len() > 256 {
+        // Get the segments of the ELF file.
+        let segments = elf.segments().expect("failed to get segments");
+        if segments.len() > 256 {
             panic!("too many program headers");
         }
 
         let mut instructions: Vec<u32> = Vec::new();
         let mut base_address = u32::MAX;
 
-        // Only read shards that are executable instructions that are also PT_LOAD.
-        for shard in shards.iter().filter(|x| x.p_type == PT_LOAD) {
-            // Get the file size of the shard as an u32.
-            let file_size: u32 = shard
+        // Only read segments that are executable instructions that are also PT_LOAD.
+        for segment in segments.iter().filter(|x| x.p_type == PT_LOAD) {
+            // Get the file size of the segment as an u32.
+            let file_size: u32 = segment
                 .p_filesz
                 .try_into()
                 .expect("filesize was larger than 32 bits");
             if file_size == MAXIMUM_MEMORY_SIZE {
-                panic!("invalid shard file_size");
+                panic!("invalid segment file_size");
             }
 
-            // Get the memory size of the shard as an u32.
-            let mem_size: u32 = shard
+            // Get the memory size of the segment as an u32.
+            let mem_size: u32 = segment
                 .p_memsz
                 .try_into()
                 .expect("mem_size was larger than 32 bits");
             if mem_size == MAXIMUM_MEMORY_SIZE {
-                panic!("Invalid shard mem_size");
+                panic!("Invalid segment mem_size");
             }
 
-            // Get the virtual address of the shard as an u32.
-            let vaddr: u32 = shard
+            // Get the virtual address of the segment as an u32.
+            let vaddr: u32 = segment
                 .p_vaddr
                 .try_into()
                 .expect("vaddr was larger than 32 bits");
@@ -112,19 +112,19 @@ impl Elf {
 
             // If the virtual address is less than the first memory address, then update the first
             // memory address.
-            if (shard.p_flags & PF_X) != 0 && base_address > vaddr {
+            if (segment.p_flags & PF_X) != 0 && base_address > vaddr {
                 base_address = vaddr;
             }
 
-            // Get the offset to the shard.
-            let offset: u32 = shard
+            // Get the offset to the segment.
+            let offset: u32 = segment
                 .p_offset
                 .try_into()
                 .expect("offset was larger than 32 bits");
 
-            // Read the shard and decode each word as an instruction.
+            // Read the segment and decode each word as an instruction.
             for i in (0..mem_size).step_by(WORD_SIZE) {
-                let addr = vaddr.checked_add(i).expect("invalid shard vaddr");
+                let addr = vaddr.checked_add(i).expect("invalid segment vaddr");
                 if addr == MAXIMUM_MEMORY_SIZE {
                     panic!("address [0x{addr:08x}] exceeds maximum address for guest programs [0x{MAXIMUM_MEMORY_SIZE:08x}]");
                 }
@@ -140,11 +140,11 @@ impl Elf {
                 let len = min(file_size - i, WORD_SIZE as u32);
                 for j in 0..len {
                     let offset = (offset + i + j) as usize;
-                    let byte = input.get(offset).expect("invalid shard offset");
+                    let byte = input.get(offset).expect("invalid segment offset");
                     word |= (*byte as u32) << (j * 8);
                 }
                 image.insert(addr, word);
-                if (shard.p_flags & PF_X) != 0 {
+                if (segment.p_flags & PF_X) != 0 {
                     instructions.push(word);
                 }
             }
