@@ -223,7 +223,7 @@ jobs:
     issue:
         name: Open an issue
         runs-on: ubuntu-latest
-        needs: [prepare, release-docker, release, cleanup]
+        needs: [prepare, release, cleanup]
         if: failure()
         steps:
             - uses: actions/checkout@v4
