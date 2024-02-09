@@ -3,7 +3,7 @@ extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 extern "C" {
-    fn syscall_blake3_compress(p: *mut u32, q: *const u32);
+    fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
 }
 
 pub fn main() {
@@ -21,7 +21,7 @@ pub fn main() {
     ];
 
     unsafe {
-        syscall_blake3_compress(
+        syscall_blake3_compress_inner(
             input_state.as_mut_ptr() as *mut u32,
             input_message.as_ptr() as *const u32,
         );
