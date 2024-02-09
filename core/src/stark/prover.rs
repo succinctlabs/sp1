@@ -129,7 +129,7 @@ where
                 .zip(traces.par_iter())
                 .map(|((send, rec), trace)| {
                     let perm_trace =
-                        generate_permutation_trace(&send, &rec, trace, &permutation_challenges);
+                        generate_permutation_trace(send, rec, trace, &permutation_challenges);
                     let cumulative_sum = perm_trace
                         .row_slice(trace.height() - 1)
                         .last()

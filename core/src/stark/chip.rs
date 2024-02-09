@@ -21,6 +21,14 @@ pub trait StarkAir<SC: StarkConfig>:
 {
 }
 
+impl<SC: StarkConfig, T> StarkAir<SC> for T where
+    T: Air<InteractionBuilder<SC::Val>>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+{
+}
+
 pub struct ChipRef<'a, SC: StarkConfig> {
     air: &'a dyn StarkAir<SC>,
     sends: &'a [Interaction<SC::Val>],
