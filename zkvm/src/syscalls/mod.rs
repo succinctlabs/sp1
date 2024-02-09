@@ -1,4 +1,6 @@
 #[cfg(not(feature = "interface"))]
+mod blake3_compress;
+#[cfg(not(feature = "interface"))]
 mod ed25519;
 #[cfg(not(feature = "interface"))]
 mod halt;
@@ -46,6 +48,7 @@ extern "C" {
     pub fn syscall_secp256k1_double(p: *mut u32);
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_keccak_permute(state: *mut u64);
+    pub fn syscall_blake3_compress(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
