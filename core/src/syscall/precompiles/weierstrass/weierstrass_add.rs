@@ -190,6 +190,8 @@ impl<F: Field, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             }
             cols.q_ptr_access
                 .populate(event.q_ptr_record, &mut new_field_events);
+            println!("hey look at cols.q_ptr_access = {:#?}", cols.q_ptr_access);
+            println!("hey look at cols.clk = {:#?}", cols.clk);
 
             rows.push(row);
         }

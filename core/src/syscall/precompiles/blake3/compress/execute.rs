@@ -22,6 +22,9 @@ impl Syscall for Blake3CompressInnerChip {
         let saved_clk = rt.clk;
         let (message_ptr_record, message_ptr) = rt.mr(Register::X11 as u32);
         println!("message_ptr = {:?}", message_ptr);
+        println!("message_ptr_record = {:?}", message_ptr_record);
+        println!("saved_clk = {:?}", saved_clk);
+        println!("rt.clk = {:?}", rt.clk);
         let saved_state_ptr = state_ptr;
         let mut read_records =
             [[[MemoryReadRecord::default(); G_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT];

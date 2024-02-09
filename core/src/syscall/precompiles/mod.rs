@@ -44,6 +44,9 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
     if q_ptr % 4 != 0 {
         panic!();
     }
+    println!("q_ptr = {:?}", q_ptr);
+    println!("start_clk = {:?}", start_clk);
+    println!("q_ptr_record = {:?}", q_ptr_record);
 
     let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
     let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);

@@ -69,15 +69,12 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         cols.message_ptr_access_clk = F::from_canonical_u32(event.clk);
                         cols.message_ptr_access
                             .populate(event.message_ptr_record, &mut new_field_events);
-                        println!("event.clk = {:#?}", event.clk);
+                        println!("looking at... cols.clk = {:#?}", cols.clk);
                         println!(
-                            "message_ptr_access.clk = {:#?}",
-                            cols.message_ptr_access.access.current_time_value
+                            "looking at... cols.message_ptr_access_clk = {:#?}",
+                            cols.message_ptr_access_clk
                         );
-                        println!(
-                            "message_ptr_access.prevclk = {:#?}",
-                            cols.message_ptr_access.access.prev_time_value
-                        );
+                        println!("message_ptr_access = {:#?}", cols.message_ptr_access);
 
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
                         for i in 0..G_INPUT_SIZE {
