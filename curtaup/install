@@ -56,4 +56,4 @@ if [[ "$OSTYPE" =~ ^darwin ]] && [[ ! -f /usr/local/opt/openssl/lib/libssl.3.dyl
 fi
 
 echo && echo "Detected your preferred shell is ${PREF_SHELL} and added curtaup to PATH. Run 'source ${PROFILE}' or start a new terminal session to use curtaup."
-echo "Then, simply run 'curtaup' to install Foundry."
+echo "Then, simply run 'curtaup' to install Curta."
