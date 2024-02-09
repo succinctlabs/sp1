@@ -51,6 +51,10 @@ impl<F: PrimeField> Chip<F> for AddChip {
         }
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.add_events.is_empty()
+    }
+
     fn generate_trace(&self, segment: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];

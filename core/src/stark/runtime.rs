@@ -1,5 +1,5 @@
 use super::prover::Prover;
-use super::types::{MainData, SegmentProof};
+use super::types::MainData;
 use super::OpeningProof;
 use super::{StarkConfig, VerificationError};
 use crate::alu::{
@@ -12,7 +12,7 @@ use crate::field::FieldLTUChip;
 use crate::memory::{MemoryChipKind, MemoryGlobalChip};
 use crate::program::ProgramChip;
 use crate::runtime::{ExecutionRecord, Runtime};
-use crate::stark::Verifier;
+use crate::stark::{Proof, Verifier};
 use crate::syscall::precompiles::edwards::{EdAddAssignChip, EdDecompressChip};
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
@@ -36,11 +36,7 @@ impl Runtime {
     /// Prove the program.
     ///
     /// The function returns a vector of segment proofs, one for each segment, and a global proof.
-    pub fn prove<F, EF, SC, P>(
-        &mut self,
-        config: &SC,
-        challenger: &mut SC::Challenger,
-    ) -> (Vec<SegmentProof<SC>>, SegmentProof<SC>)
+    pub fn prove<F, EF, SC, P>(&mut self, config: &SC, challenger: &mut SC::Challenger) -> Proof<SC>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -85,7 +81,8 @@ impl Runtime {
             .into_par_iter()
             .enumerate()
             .map(|(_, main_data)| {
-                P::prove(config, &mut challenger.clone(), &local_chips, main_data)
+                let local_chips = Self::local_chips::<SC>();
+                P::prove(config, &mut challenger.clone(), local_chips, main_data)
             })
             .collect::<Vec<_>>();
 
@@ -97,19 +94,21 @@ impl Runtime {
         let global_proof = P::prove(
             config,
             &mut challenger.clone(),
-            &global_chips,
+            global_chips,
             global_main_data,
         );
 
-        (segment_proofs, global_proof)
+        Proof {
+            segment_proofs,
+            global_proof,
+        }
     }
 
     pub fn verify<F, EF, SC>(
         &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
-        segments_proofs: &[SegmentProof<SC>],
-        global_proof: &SegmentProof<SC>,
+        proof: &Proof<SC>,
     ) -> Result<(), ProgramVerificationError>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -123,16 +122,16 @@ impl Runtime {
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            segments_proofs.iter().for_each(|proof| {
+            proof.segment_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
         // Verify the segment proofs.
-        let segment_chips = Self::local_chips::<SC>();
-        for (i, proof) in segments_proofs.iter().enumerate() {
+        for (i, proof) in proof.segment_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
-                Verifier::verify(config, &segment_chips, &mut challenger.clone(), proof)
+                let local_chips = Self::local_chips::<SC>();
+                Verifier::verify(config, local_chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
@@ -140,18 +139,23 @@ impl Runtime {
         // Verifiy the global proof.
         let global_chips = Self::global_chips::<SC>();
         tracing::info_span!("verifying global segment").in_scope(|| {
-            Verifier::verify(config, &global_chips, &mut challenger.clone(), global_proof)
-                .map_err(ProgramVerificationError::InvalidGlobalProof)
+            Verifier::verify(
+                config,
+                global_chips,
+                &mut challenger.clone(),
+                &proof.global_proof,
+            )
+            .map_err(ProgramVerificationError::InvalidGlobalProof)
         })?;
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
         {
-            for proof in segments_proofs.iter() {
+            for proof in proof.segment_proofs.iter() {
                 sum += proof.cumulative_sum();
             }
-            sum += global_proof.cumulative_sum();
+            sum += proof.global_proof.cumulative_sum();
         }
 
         match sum.is_zero() {

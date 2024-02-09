@@ -163,6 +163,10 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
         outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.weierstrass_double_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 

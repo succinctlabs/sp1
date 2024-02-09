@@ -17,6 +17,8 @@ pub trait Chip<F: Field>: Air<InteractionBuilder<F>> {
 
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>);
 
+    fn include(&self, record: &ExecutionRecord) -> bool;
+
     fn receives(&self) -> Vec<Interaction<F>> {
         let mut builder = InteractionBuilder::new(self.width());
         self.eval(&mut builder);

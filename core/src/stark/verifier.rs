@@ -30,12 +30,24 @@ impl<SC: StarkConfig> Verifier<SC> {
     #[cfg(feature = "perf")]
     pub fn verify(
         config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: Vec<Box<dyn AirChip<SC>>>,
         challenger: &mut SC::Challenger,
         proof: &SegmentProof<SC>,
     ) -> Result<(), VerificationError> {
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
+        let SegmentProof {
+            commitment,
+            opened_values,
+            opening_proof,
+            chip_ids,
+        } = proof;
+
+        // Filter the chips.
+        let chips = chips
+            .into_iter()
+            .filter(|chip| chip_ids.contains(&chip.name()))
+            .collect::<Vec<_>>();
 
         let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
         let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
@@ -45,12 +57,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             .zip(receives.iter())
             .map(|(s, r)| s.len() + r.len())
             .collect::<Vec<usize>>();
-
-        let SegmentProof {
-            commitment,
-            opened_values,
-            opening_proof,
-        } = proof;
 
         // // Verify the proof shapes.
         // for ((chip, interactions), opened_vals) in chips

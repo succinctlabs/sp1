@@ -26,6 +26,10 @@ impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
         outputs[0].keccak_permute_events = input.keccak_permute_events.clone();
     }
 
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        !record.keccak_permute_events.is_empty()
+    }
+
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Figure out number of total rows.
         let mut num_rows = (record.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
