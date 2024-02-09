@@ -19,10 +19,8 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 
 use p3_challenger::CanObserve;
 use p3_commit::Pcs;
@@ -173,20 +171,11 @@ impl Runtime {
             Box::new(CpuChip::default()),
             Box::new(ShaExtendChip::default()),
             Box::new(ShaCompressChip::default()),
-            Box::new(EdAddAssignChip::<
-                EdwardsCurve<Ed25519Parameters>,
-                Ed25519Parameters,
-            >::new()),
+            Box::new(EdAddAssignChip::<Ed25519>::new()),
             Box::new(EdDecompressChip::<Ed25519Parameters>::default()),
             Box::new(K256DecompressChip::default()),
-            Box::new(WeierstrassAddAssignChip::<
-                SWCurve<Secp256k1Parameters>,
-                Secp256k1Parameters,
-            >::new()),
-            Box::new(WeierstrassDoubleAssignChip::<
-                SWCurve<Secp256k1Parameters>,
-                Secp256k1Parameters,
-            >::new()),
+            Box::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
+            Box::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
             Box::new(KeccakPermuteChip::new()),
             Box::new(AddChip::default()),
             Box::new(SubChip::default()),

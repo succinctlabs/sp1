@@ -12,10 +12,8 @@ use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
     SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
 };
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -187,10 +185,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
     syscall_map.insert(
         SyscallCode::ED_ADD,
-        Rc::new(EdAddAssignChip::<
-            EdwardsCurve<Ed25519Parameters>,
-            Ed25519Parameters,
-        >::new()),
+        Rc::new(EdAddAssignChip::<Ed25519>::new()),
     );
     syscall_map.insert(
         SyscallCode::ED_DECOMPRESS,
@@ -202,17 +197,11 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_ADD,
-        Rc::new(WeierstrassAddAssignChip::<
-            SWCurve<Secp256k1Parameters>,
-            Secp256k1Parameters,
-        >::new()),
+        Rc::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_DOUBLE,
-        Rc::new(WeierstrassDoubleAssignChip::<
-            SWCurve<Secp256k1Parameters>,
-            Secp256k1Parameters,
-        >::new()),
+        Rc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
     );
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
     syscall_map.insert(

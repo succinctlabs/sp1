@@ -11,7 +11,6 @@ use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::ec::NUM_WORDS_EC_POINT;
@@ -61,11 +60,11 @@ pub struct WeierstrassAddAssignCols<T> {
 }
 
 #[derive(Default)]
-pub struct WeierstrassAddAssignChip<E, WP> {
-    _marker: PhantomData<(E, WP)>,
+pub struct WeierstrassAddAssignChip<E> {
+    _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve, WP> Syscall for WeierstrassAddAssignChip<E, WP> {
+impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
         rt.segment_mut().weierstrass_add_events.push(event);
@@ -77,7 +76,7 @@ impl<E: EllipticCurve, WP> Syscall for WeierstrassAddAssignChip<E, WP> {
     }
 }
 
-impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP> {
+impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -139,9 +138,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     }
 }
 
-impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
-    for WeierstrassAddAssignChip<E, WP>
-{
+impl<F: Field, E: EllipticCurve> Chip<F> for WeierstrassAddAssignChip<E> {
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
     }
@@ -207,15 +204,13 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
     }
 }
 
-impl<F, E: EllipticCurve, WP: WeierstrassParameters> BaseAir<F>
-    for WeierstrassAddAssignChip<E, WP>
-{
+impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
     fn width(&self) -> usize {
         NUM_WEIERSTRASS_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve, WP: WeierstrassParameters> Air<AB> for WeierstrassAddAssignChip<E, WP>
+impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
 where
     AB: CurtaAirBuilder,
 {

@@ -60,11 +60,11 @@ pub struct EdAddAssignCols<T> {
 }
 
 #[derive(Default)]
-pub struct EdAddAssignChip<E, EP> {
-    _marker: PhantomData<(E, EP)>,
+pub struct EdAddAssignChip<E> {
+    _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
+impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -93,7 +93,7 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
             .f
             .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
 
-        let d = EP::d_biguint();
+        let d = E::d_biguint();
         let d_mul_f = cols
             .d_mul_f
             .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
@@ -105,7 +105,7 @@ impl<E: EllipticCurve, EP: EdwardsParameters> EdAddAssignChip<E, EP> {
     }
 }
 
-impl<E: EllipticCurve, EP: EdwardsParameters> Syscall for EdAddAssignChip<E, EP> {
+impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
         8
     }
@@ -117,7 +117,7 @@ impl<E: EllipticCurve, EP: EdwardsParameters> Syscall for EdAddAssignChip<E, EP>
     }
 }
 
-impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignChip<E, EP> {
+impl<F: Field, E: EllipticCurve + EdwardsParameters> Chip<F> for EdAddAssignChip<E> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
@@ -183,13 +183,13 @@ impl<F: Field, E: EllipticCurve, EP: EdwardsParameters> Chip<F> for EdAddAssignC
     }
 }
 
-impl<F, E: EllipticCurve, EP: EdwardsParameters> BaseAir<F> for EdAddAssignChip<E, EP> {
+impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {
     fn width(&self) -> usize {
         NUM_ED_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve, EP: EdwardsParameters> Air<AB> for EdAddAssignChip<E, EP>
+impl<AB, E: EllipticCurve + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
 where
     AB: CurtaAirBuilder,
 {
@@ -223,7 +223,7 @@ where
 
         // d * f.
         let f = row.f.result;
-        let d_biguint = EP::d_biguint();
+        let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
         row.d_mul_f

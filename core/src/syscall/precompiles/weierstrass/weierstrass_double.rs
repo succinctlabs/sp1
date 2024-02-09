@@ -59,11 +59,11 @@ pub struct WeierstrassDoubleAssignCols<T> {
 }
 
 #[derive(Default)]
-pub struct WeierstrassDoubleAssignChip<E, WP> {
-    _marker: PhantomData<(E, WP)>,
+pub struct WeierstrassDoubleAssignChip<E> {
+    _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve, WP> Syscall for WeierstrassDoubleAssignChip<E, WP> {
+impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
         rt.segment_mut().weierstrass_double_events.push(event);
@@ -75,7 +75,7 @@ impl<E: EllipticCurve, WP> Syscall for WeierstrassDoubleAssignChip<E, WP> {
     }
 }
 
-impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E, WP> {
+impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -89,7 +89,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E,
     ) {
         // This populates necessary field operations to double a point on a Weierstrass curve.
 
-        let a = WP::a_int();
+        let a = E::a_int();
 
         // slope = slope_numerator / slope_denominator.
         let slope = {
@@ -152,8 +152,8 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassDoubleAssignChip<E,
     }
 }
 
-impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
-    for WeierstrassDoubleAssignChip<E, WP>
+impl<F: Field, E: EllipticCurve + WeierstrassParameters> Chip<F>
+    for WeierstrassDoubleAssignChip<E>
 {
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
@@ -211,15 +211,13 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
     }
 }
 
-impl<F, E: EllipticCurve, WP: WeierstrassParameters> BaseAir<F>
-    for WeierstrassDoubleAssignChip<E, WP>
-{
+impl<F, E: EllipticCurve + WeierstrassParameters> BaseAir<F> for WeierstrassDoubleAssignChip<E> {
     fn width(&self) -> usize {
         NUM_WEIERSTRASS_DOUBLE_COLS
     }
 }
 
-impl<AB, E: EllipticCurve, WP: WeierstrassParameters> Air<AB> for WeierstrassDoubleAssignChip<E, WP>
+impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassDoubleAssignChip<E>
 where
     AB: CurtaAirBuilder,
 {
@@ -231,7 +229,7 @@ where
         let p_y = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
         // a in the Weierstrass form: y^2 = x^3 + a * x + b.
-        let a = limbs_from_biguint::<AB, E::BaseField>(&WP::a_int());
+        let a = limbs_from_biguint::<AB, E::BaseField>(&E::a_int());
 
         // slope = slope_numerator / slope_denominator.
         let slope = {

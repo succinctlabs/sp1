@@ -30,6 +30,26 @@ pub trait EdwardsParameters: EllipticCurveParameters {
 #[serde(bound = "")]
 pub struct EdwardsCurve<E: EdwardsParameters>(pub E);
 
+impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
+    const D: [u16; MAX_NB_LIMBS] = E::D;
+
+    fn generator() -> (BigUint, BigUint) {
+        E::generator()
+    }
+
+    fn prime_group_order() -> BigUint {
+        E::prime_group_order()
+    }
+
+    fn d_biguint() -> BigUint {
+        E::d_biguint()
+    }
+
+    fn neutral() -> (BigUint, BigUint) {
+        E::neutral()
+    }
+}
+
 impl<E: EdwardsParameters> EllipticCurveParameters for EdwardsCurve<E> {
     type BaseField = E::BaseField;
 }
