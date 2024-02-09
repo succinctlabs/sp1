@@ -165,6 +165,7 @@ impl Blake3CompressInnerChip {
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
+        builder.assert_bool(local.is_real);
         // Calculate the 4 indices to read from the state. This corresponds to a, b, c, and d.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
             let index_to_read = {
@@ -209,19 +210,7 @@ impl Blake3CompressInnerChip {
             builder.assert_eq(local.msg_schedule[i], index_to_read);
         }
 
-        // // Convert each Word into one field element. MemoryRead returns an array of Words, but we
-        // // need to perform operations within the field.
-        // let input_state = local.mem_reads.map(|read| {
-        //     let mut acc: AB::Expr = AB::F::zero().into();
-        //     for i in 0..WORD_SIZE {
-        //         let shift: AB::Expr = AB::F::from_canonical_usize(1 << (8 * i)).into();
-        //         acc += read.access.value[i].into() * shift;
-        //     }
-        //     acc
-        // });
-
-        builder.assert_bool(local.is_real);
-
+        // Call the g function.
         GOperation::<AB::F>::eval(
             builder,
             local.mem_reads.map(|x| x.access.value),
@@ -229,22 +218,14 @@ impl Blake3CompressInnerChip {
             local.is_real,
         );
 
-        // AddRcOperation::<AB::F>::eval(
-        //     builder,
-        //     input_state,
-        //     local.is_round_n,
-        //     local.round_constant,
-        //     local.add_rc,
-        //     local.is_real,
-        // );
+        // Finally, the results of the g function should be written to the memory.
 
-        // SBoxOperation::<AB::F>::eval(builder, local.add_rc.result, local.sbox, local.is_real);
-
-        // ExternalLinearPermuteOperation::<AB::F>::eval(
-        //     builder,
-        //     local.sbox.acc.map(|x| *x.last().unwrap()),
-        //     local.external_linear_permute,
-        //     local.is_real,
-        // );
+        for i in 0..NUM_STATE_WORDS_PER_CALL {
+            for j in 0..WORD_SIZE {
+                builder
+                    .when(local.is_real)
+                    .assert_eq(local.mem_writes[i].access.value[j], local.g.result[i][j]);
+            }
+        }
     }
 }
