@@ -16,6 +16,7 @@ mod is_zero;
 mod is_zero_word;
 mod not;
 mod or;
+mod selector;
 mod xor;
 
 pub use add::*;
@@ -29,4 +30,5 @@ pub use is_zero::*;
 pub use is_zero_word::*;
 pub use not::*;
 pub use or::*;
+pub use selector::*;
 pub use xor::*;

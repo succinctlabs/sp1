@@ -3,8 +3,8 @@ use p3_field::{AbstractField, Field};
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
 use super::{
-    Blake3CompressInnerChip, MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE, NUM_MSG_WORDS_PER_CALL,
-    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    Blake3CompressInnerChip, MIX_OPERATION_INDEX, MIX_OPERATION_INPUT_SIZE, MSG_SCHEDULE,
+    NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
 use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
@@ -35,74 +35,91 @@ where
 }
 
 impl Blake3CompressInnerChip {
+    fn constrain_index_selector<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        selector: &[AB::Var],
+        index: AB::Var,
+        is_real: AB::Var,
+    ) {
+        let mut acc: AB::Expr = AB::F::zero().into();
+        for i in 0..selector.len() {
+            acc += selector[i].into();
+            builder.assert_bool(selector[i])
+        }
+        builder
+            .when(is_real)
+            .assert_eq(acc, AB::F::from_canonical_usize(1));
+        for i in 0..selector.len() {
+            builder
+                .when(selector[i])
+                .assert_eq(index, AB::F::from_canonical_usize(i));
+        }
+    }
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
         next: &Blake3CompressInnerCols<AB::Var>,
     ) {
-        // let index_to_read = {
-        //     let acc = AB::Expr::from_canonical_usize(0);
-        //     for round in 0..ROUND_COUNT {
-        //         for operation in 0..OPERATION_COUNT {
-        //             acc += AB::Expr::from_canonical_usize(MIX_OPERATION_INDEX[operation][i])
-        //                 * local.is_operation_index_n[operation]
-        //                 * local.is_round_index_n[round];
-        //         }
-        //     }
-        // };
-        // // If this is the i-th round, then the next row should be the (i+1)-th round.
-        // for i in 0..P2_EXTERNAL_ROUND_COUNT {
-        //     builder.when_transition().when(next.is_real).assert_eq(
-        //         local.is_round_n[i],
-        //         next.is_round_n[(i + 1) % P2_EXTERNAL_ROUND_COUNT],
-        //     );
-        //     builder.assert_bool(local.is_round_n[i]);
-        // }
+        // Calculate the 4 indices to read from the state. This corresponds to a, b, c, and d.
+        for i in 0..NUM_STATE_WORDS_PER_CALL {
+            let index_to_read = {
+                self.constrain_index_selector(
+                    builder,
+                    &local.is_operation_index_n,
+                    local.operation_index,
+                    local.is_real,
+                );
 
-        // // Exactly one of the is_round_n flags is set.
-        // {
-        //     let sum_is_round_n = {
-        //         let mut acc: AB::Expr = AB::F::zero().into();
-        //         for i in 0..P2_EXTERNAL_ROUND_COUNT {
-        //             acc += local.is_round_n[i].into();
-        //         }
-        //         acc
-        //     };
+                self.constrain_index_selector(
+                    builder,
+                    &local.is_round_index_n,
+                    local.round_index,
+                    local.is_real,
+                );
 
-        //     builder
-        //         .when(local.is_real)
-        //         .assert_eq(sum_is_round_n, AB::F::from_canonical_usize(1));
-        // }
+                let mut acc = AB::Expr::from_canonical_usize(0);
+                for operation in 0..OPERATION_COUNT {
+                    acc += AB::Expr::from_canonical_usize(MIX_OPERATION_INDEX[operation][i])
+                        * local.is_operation_index_n[operation];
+                }
+                acc
+            };
+            builder.assert_eq(local.state_index[i], index_to_read);
+        }
+        // Calculate the MSG_SCHEDULE index to read from the message.
+        for i in 0..NUM_MSG_WORDS_PER_CALL {
+            let index_to_read = {
+                let mut acc = AB::Expr::from_canonical_usize(0);
+                for round in 0..ROUND_COUNT {
+                    for operation in 0..OPERATION_COUNT {
+                        acc +=
+                            AB::Expr::from_canonical_usize(MSG_SCHEDULE[round][2 * operation + i])
+                                * local.is_operation_index_n[operation]
+                                * local.is_round_index_n[round];
+                    }
+                }
+                acc
+            };
+            builder.assert_eq(local.msg_schedule[i], index_to_read);
+        }
 
-        // // Calculate the current round number.
-        // {
-        //     let round = {
-        //         let mut acc: AB::Expr = AB::F::zero().into();
-
-        //         for i in 0..P2_EXTERNAL_ROUND_COUNT {
-        //             acc += local.is_round_n[i] * AB::F::from_canonical_usize(i);
-        //         }
-        //         acc
-        //     };
-        //     builder.assert_eq(round, local.round_number);
-        // }
-
-        // // Calculate the round constants for this round.
-        // {
-        //     for i in 0..P2_WIDTH {
-        //         let round_constant = {
-        //             let mut acc: AB::Expr = AB::F::zero().into();
-
-        //             for j in 0..P2_EXTERNAL_ROUND_COUNT {
-        //                 acc += local.is_round_n[j].into()
-        //                     * AB::F::from_wrapped_u32(P2_ROUND_CONSTANTS[j][i]);
-        //             }
-        //             acc
-        //         };
-        //         builder.assert_eq(round_constant, local.round_constant[i]);
-        //     }
-        // }
+        // If this is the i-th operation, then the next row should be the (i+1)-th operation.
+        for i in 0..OPERATION_COUNT {
+            builder.when_transition().when(next.is_real).assert_eq(
+                local.is_operation_index_n[i],
+                next.is_operation_index_n[(i + 1) % ROUND_COUNT],
+            );
+        }
+        // If this is the last operation, the round index should be incremented.
+        builder
+            .when_transition()
+            .when(local.is_operation_index_n[OPERATION_COUNT - 1])
+            .assert_eq(
+                local.round_index + AB::F::from_canonical_u32(1),
+                next.round_index,
+            );
     }
 
     fn constrain_memory<AB: CurtaAirBuilder>(
