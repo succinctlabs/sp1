@@ -4,8 +4,7 @@ const ED25519_ELF: &[u8] =
     include_bytes!("../../../programs/demo/tendermint/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
-    // // // // Generate proof.
-    // utils::setup_tracer();
+    // Generate proof.
     utils::setup_logger();
     let stdin = SuccinctStdin::new();
     let proof = SuccinctProver::prove(ED25519_ELF, stdin).expect("proving failed");
