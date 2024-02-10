@@ -82,7 +82,6 @@ pub struct Blake3CompressInnerEvent {
     pub message_ptr: u32,
     pub reads: [[[MemoryReadRecord; G_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
     pub writes: [[[MemoryWriteRecord; G_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT],
-    pub message_ptr_record: MemoryReadRecord,
 }
 
 pub struct Blake3CompressInnerChip {}

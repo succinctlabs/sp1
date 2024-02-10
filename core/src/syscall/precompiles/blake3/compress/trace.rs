@@ -66,15 +66,6 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                     // Memory reads & writes.
                     {
                         cols.message_ptr = F::from_canonical_u32(event.message_ptr);
-                        cols.message_ptr_access_clk = F::from_canonical_u32(event.clk);
-                        cols.message_ptr_access
-                            .populate(event.message_ptr_record, &mut new_field_events);
-                        println!("looking at... cols.clk = {:#?}", cols.clk);
-                        println!(
-                            "looking at... cols.message_ptr_access_clk = {:#?}",
-                            cols.message_ptr_access_clk
-                        );
-                        println!("message_ptr_access = {:#?}", cols.message_ptr_access);
 
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
                         for i in 0..G_INPUT_SIZE {
@@ -113,11 +104,6 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         println!("cols.mem_reads = {:?}", cols.mem_reads);
                         println!("cols.mem_writes = {:?}", cols.mem_writes);
                         println!("cols.message_ptr = {:?}", cols.message_ptr);
-                        println!("cols.message_ptr_access = {:?}", cols.message_ptr_access);
-                        println!(
-                            "cols.message_ptr_access_clk = {:?}",
-                            cols.message_ptr_access_clk
-                        );
                         println!("cols.g.result = {:?}", cols.g.result);
                     }
 
