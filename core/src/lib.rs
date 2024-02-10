@@ -16,7 +16,6 @@ extern crate alloc;
 pub mod air;
 pub mod alu;
 pub mod bytes;
-pub mod chip;
 pub mod cpu;
 pub mod disassembler;
 pub mod field;
