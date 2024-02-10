@@ -502,6 +502,7 @@ pub(super) mod baby_bear_k12 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
+    use serde::Serialize;
     use succinct_k12::KangarooTwelve;
 
     use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
@@ -531,6 +532,15 @@ pub(super) mod baby_bear_k12 {
     pub struct BabyBearK12 {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearK12 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
     }
 
     impl BabyBearK12 {
