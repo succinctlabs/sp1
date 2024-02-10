@@ -44,7 +44,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 }
 
 pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> {
-    let config = BabyBearBlake3::new(&mut rand::thread_rng());
+    let config = BabyBearBlake3::new();
     let mut challenger = config.challenger();
 
     let start = Instant::now();
@@ -140,9 +140,8 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-    use rand::Rng;
 
-    use crate::stark::StarkConfig;
+    use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
 
     use super::StarkUtils;
 
@@ -172,8 +171,8 @@ pub(super) mod baby_bear_poseidon2 {
     }
 
     impl BabyBearPoseidon2 {
-        pub fn new<R: Rng>(rng: &mut R) -> Self {
-            let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+        pub fn new() -> Self {
+            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
 
             let hash = MyHash::new(perm.clone());
 
@@ -248,9 +247,8 @@ pub(super) mod baby_bear_keccak {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use rand::Rng;
 
-    use crate::stark::StarkConfig;
+    use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
 
     use super::StarkUtils;
 
@@ -281,8 +279,8 @@ pub(super) mod baby_bear_keccak {
 
     impl BabyBearKeccak {
         #[allow(dead_code)]
-        pub fn new<R: Rng>(rng: &mut R) -> Self {
-            let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+        pub fn new() -> Self {
+            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
 
             let hash = MyHash::new(Keccak256Hash {});
 
@@ -357,10 +355,9 @@ pub(super) mod baby_bear_blake3 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use rand::Rng;
     use serde::Serialize;
 
-    use crate::stark::StarkConfig;
+    use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
 
     use super::StarkUtils;
 
@@ -399,8 +396,8 @@ pub(super) mod baby_bear_blake3 {
     }
 
     impl BabyBearBlake3 {
-        pub fn new<R: Rng>(rng: &mut R) -> Self {
-            let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+        pub fn new() -> Self {
+            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
 
             let hash = MyHash::new(Blake3 {});
 
@@ -474,10 +471,9 @@ pub(super) mod baby_bear_k12 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use rand::Rng;
     use succinct_k12::KangarooTwelve;
 
-    use crate::stark::StarkConfig;
+    use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
 
     use super::StarkUtils;
 
@@ -507,8 +503,8 @@ pub(super) mod baby_bear_k12 {
     }
 
     impl BabyBearK12 {
-        pub fn new<R: Rng>(rng: &mut R) -> Self {
-            let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+        pub fn new() -> Self {
+            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
 
             let hash = MyHash::new(KangarooTwelve {});
 
