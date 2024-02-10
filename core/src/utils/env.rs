@@ -12,9 +12,8 @@ pub fn shard_size() -> usize {
 
 /// Gets the number of shards after which we should save the shard commits to disk.
 pub fn save_disk_threshold() -> usize {
-    let value = match std::env::var("SAVE_DISK_THRESHOLD") {
+    match std::env::var("SAVE_DISK_THRESHOLD") {
         Ok(val) => val.parse().unwrap(),
         Err(_) => 256,
-    };
-    value
+    }
 }

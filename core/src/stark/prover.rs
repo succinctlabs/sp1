@@ -15,7 +15,6 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::cmp::max;
 use std::marker::PhantomData;
 
 use super::folder::ProverConstraintFolder;
@@ -565,31 +564,23 @@ where
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
         let save_disk_threshold = env::save_disk_threshold();
-        // Batch into at most 16 chunks (and at least 1) to limit parallelism.
-        // let chunk_size = max(shards.len() / 16, 1);
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
                 shards
-                    .par_chunks_mut(1)
-                    .flat_map_iter(|shards| {
-                        shards
-                            .iter_mut()
-                            .map(|shard| {
-                                let data =
-                                    tracing::info_span!("shard commit main", shard = shard.index)
-                                        .in_scope(|| Self::commit_main(config, chips, shard));
-                                let commitment = data.main_commit.clone();
-                                let file = tempfile::tempfile().unwrap();
-                                let data = if num_shards > save_disk_threshold {
-                                    tracing::info_span!("saving trace to disk").in_scope(|| {
-                                        data.save(file).expect("failed to save shard main data")
-                                    })
-                                } else {
-                                    data.to_in_memory()
-                                };
-                                (commitment, data)
+                    .into_par_iter()
+                    .map(|shard| {
+                        let data = tracing::info_span!("shard commit main", shard = shard.index)
+                            .in_scope(|| Self::commit_main(config, chips, shard));
+                        let commitment = data.main_commit.clone();
+                        let file = tempfile::tempfile().unwrap();
+                        let data = if num_shards > save_disk_threshold {
+                            tracing::info_span!("saving trace to disk").in_scope(|| {
+                                data.save(file).expect("failed to save shard main data")
                             })
-                            .collect::<Vec<_>>()
+                        } else {
+                            data.to_in_memory()
+                        };
+                        (commitment, data)
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
