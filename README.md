@@ -4,7 +4,7 @@ The first performant, 100% open-source, contributor-friendly zero-knowledge virt
 
 ![](assets/curta.svg)
 
- Curta is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is performant, customizable and will stand the test of time. **We invite the community to join us in this ambitious journey to build an open-source public good to democratize access to programmable truth.**
+ Curta is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is *performant*, *customizable* and will stand the *test of time*. **We invite the community to join us in this ambitious journey to build an open-source public good to democratize access to programmable truth.**
 
 **[Install](https://getcurta.succinct.xyz)**
 | [Docs]()
