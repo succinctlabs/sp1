@@ -1,8 +1,8 @@
 use std::sync::Once;
 
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
-use tracing_subscriber::fmt::format::FmtSpan;
 
 static INIT: Once = Once::new();
 

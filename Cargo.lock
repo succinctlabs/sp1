@@ -2426,6 +2426,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ssz"
+version = "0.1.0"
+dependencies = [
+ "succinct-core",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
