@@ -4,4 +4,4 @@ name = "tendermint-example"
 edition = "2021"
 
 [dependencies]
-succinct-core = { path = "../../core" }
+succinct-core = { path = "../../core", features = ["neon"]  }
