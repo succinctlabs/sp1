@@ -371,6 +371,7 @@ pub mod tests {
     use rand::SeedableRng;
 
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
+    use crate::utils::BabyBearBlake3;
     use crate::{
         runtime::{Program, Runtime},
         utils::{prove_core, setup_logger},
@@ -396,7 +397,8 @@ pub mod tests {
             runtime.read_stdout_slice(&mut result);
 
             assert_eq!(result, decompressed);
-            prove_core(&mut runtime);
+            let config = BabyBearBlake3::new();
+            prove_core(config, &mut runtime);
         }
     }
 }

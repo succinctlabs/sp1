@@ -3,9 +3,14 @@ use std::time::Instant;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, RiscvStark, StarkGenericConfig},
+    stark::{LocalProver, MainData, OpeningProof},
+    stark::{RiscvStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
+use p3_commit::Pcs;
+use p3_field::PrimeField32;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use size::Size;
 
 pub trait StarkUtils: StarkGenericConfig {
@@ -37,7 +42,8 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
         runtime.run();
         runtime
     });
-    prove_core(&mut runtime)
+    let config = BabyBearBlake3::new();
+    prove_core(config, &mut runtime)
 }
 
 pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
@@ -45,8 +51,18 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     prove(program)
 }
 
-pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> {
-    let config = BabyBearBlake3::new();
+pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize + Clone>(
+    config: SC,
+    runtime: &mut Runtime,
+) -> crate::stark::Proof<SC>
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+    MainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
     let mut challenger = config.challenger();
 
     let start = Instant::now();
@@ -141,6 +157,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
+    use serde::Serialize;
 
     use crate::stark::StarkGenericConfig;
 
@@ -169,6 +186,21 @@ pub(super) mod baby_bear_poseidon2 {
     pub struct BabyBearPoseidon2 {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearPoseidon2 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
+    }
+
+    impl Clone for BabyBearPoseidon2 {
+        fn clone(&self) -> Self {
+            Self::new()
+        }
     }
 
     impl BabyBearPoseidon2 {
@@ -249,6 +281,7 @@ pub(super) mod baby_bear_keccak {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
+    use serde::Serialize;
 
     use crate::stark::StarkGenericConfig;
 
@@ -279,6 +312,15 @@ pub(super) mod baby_bear_keccak {
         pcs: Pcs,
     }
 
+    impl Serialize for BabyBearKeccak {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
+    }
+
     impl BabyBearKeccak {
         #[allow(dead_code)]
         pub fn new() -> Self {
@@ -303,6 +345,12 @@ pub(super) mod baby_bear_keccak {
             let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
+        }
+    }
+
+    impl Clone for BabyBearKeccak {
+        fn clone(&self) -> Self {
+            Self::new()
         }
     }
 
