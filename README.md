@@ -1,10 +1,12 @@
 # Curta
 
-The first performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM). Curta zkVM verifies the execution of arbitrary Rust (or any LLVM-compiled language) programs, allowing developers to use programmable truth with normal code. 
+The first performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs.
 
 ![](assets/curta.svg)
 
-**[Install](https://paradigmxyz.github.io/reth/installation/installation.html)**
+ Curta is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is performant, customizable and will stand the test of time. **We invite the community to join us in this ambitious journey to build an open-source public good to democratize access to programmable truth.**
+
+**[Install](https://getcurta.succinct.xyz)**
 | [Docs]()
 | [Examples]()
 
