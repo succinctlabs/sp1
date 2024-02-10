@@ -1,7 +1,6 @@
 //! A simple program to be proven inside the zkVM.
 
 #![no_main]
-extern crate succinct_zkvm;
 succinct_zkvm::entrypoint!(main);
 
 pub fn main() {
