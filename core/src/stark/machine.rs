@@ -50,10 +50,8 @@ use super::VerificationError;
 use super::Verifier;
 
 pub struct ProverData<SC: StarkGenericConfig> {
-    pub local_preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
-    pub local_preprocessed_data: Option<PcsProverData<SC>>,
-    pub global_preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
-    pub global_preprocessed_data: Option<PcsProverData<SC>>,
+    pub preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
+    pub preprocessed_data: Option<PcsProverData<SC>>,
 }
 
 pub struct RiscvStark<SC: StarkGenericConfig> {
@@ -81,14 +79,12 @@ pub struct RiscvStark<SC: StarkGenericConfig> {
     field_ltu: Chip<SC::Val, FieldLTUChip>,
     byte: Chip<SC::Val, ByteChip>,
 
-    // Global chips
     memory_init: Chip<SC::Val, MemoryGlobalChip>,
     memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
     program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
 
     // Commitment to the preprocessed data
-    preprocessed_local_commitment: Option<Com<SC>>,
-    preprocessed_global_commitment: Option<Com<SC>>,
+    preprocessed_commitment: Option<Com<SC>>,
 }
 
 impl<SC: StarkGenericConfig> RiscvStark<SC>
@@ -150,62 +146,40 @@ where
             memory_finalize,
             program_memory_init,
 
-            preprocessed_local_commitment: None,
-            preprocessed_global_commitment: None,
+            preprocessed_commitment: None,
         };
 
         // Compute commitments to the preprocessed data
-        let local_preprocessed_traces = machine
-            .local_chips()
+        let preprocessed_traces = machine
+            .chips()
             .iter()
             .map(|chip| chip.preprocessed_trace())
             .collect::<Vec<_>>();
-        let local_traces = local_preprocessed_traces
+        let traces = preprocessed_traces
             .iter()
             .flatten()
             .cloned()
             .collect::<Vec<_>>();
-        let (local_commit, local_data) = if !local_traces.is_empty() {
-            Some(machine.config.pcs().commit_batches(local_traces))
-        } else {
-            None
-        }
-        .unzip();
-
-        // Compute commitments to the global preprocessed data
-        let global_preprocessed_traces = machine
-            .global_chips()
-            .iter()
-            .map(|chip| chip.preprocessed_trace())
-            .collect::<Vec<_>>();
-        let global_traces = global_preprocessed_traces
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        let (global_commit, global_data) = if !global_traces.is_empty() {
-            Some(machine.config.pcs().commit_batches(global_traces))
+        let (commit, data) = if !traces.is_empty() {
+            Some(machine.config.pcs().commit_batches(traces))
         } else {
             None
         }
         .unzip();
 
         // Store the commitments in the machine
-        machine.preprocessed_local_commitment = local_commit;
-        machine.preprocessed_global_commitment = global_commit;
+        machine.preprocessed_commitment = commit;
 
         (
             machine,
             ProverData {
-                local_preprocessed_traces,
-                local_preprocessed_data: local_data,
-                global_preprocessed_traces,
-                global_preprocessed_data: global_data,
+                preprocessed_traces,
+                preprocessed_data: data,
             },
         )
     }
 
-    pub fn local_chips(&self) -> [ChipRef<SC>; 20] {
+    pub fn chips(&self) -> [ChipRef<SC>; 23] {
         [
             self.program.as_ref(),
             self.cpu.as_ref(),
@@ -227,11 +201,6 @@ where
             self.lt.as_ref(),
             self.field_ltu.as_ref(),
             self.byte.as_ref(),
-        ]
-    }
-
-    pub fn global_chips(&self) -> [ChipRef<SC>; 3] {
-        [
             self.memory_init.as_ref(),
             self.memory_finalize.as_ref(),
             self.program_memory_init.as_ref(),
@@ -257,11 +226,10 @@ where
         OpeningProof<SC>: Send + Sync,
     {
         // Get the local and global chips.
-        let local_chips = self.local_chips();
-        let global_chips = self.global_chips();
+        let chips = self.chips();
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        local_chips.iter().for_each(|chip| {
+        chips.iter().for_each(|chip| {
             chip.generate_trace(record);
         });
 
@@ -270,12 +238,12 @@ where
 
         // For each chip, shard the events into segments.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
-        local_chips.iter().for_each(|chip| {
+        chips.iter().for_each(|chip| {
             chip.shard(record, &mut shards);
         });
 
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &local_chips);
+        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
 
         // Observe the challenges for each segment.
         shard_commits.into_iter().for_each(|commitment| {
@@ -289,7 +257,7 @@ where
             .map(|data| {
                 let data = data.materialize().expect("failed to load shard main data");
                 let chips = self
-                    .local_chips()
+                    .chips()
                     .into_iter()
                     .filter(|chip| data.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
@@ -298,29 +266,13 @@ where
                     &mut challenger.clone(),
                     &chips,
                     data,
-                    &prover_data.local_preprocessed_traces,
-                    &prover_data.local_preprocessed_data,
+                    &prover_data.preprocessed_traces,
+                    &prover_data.preprocessed_data,
                 )
             })
             .collect::<Vec<_>>();
 
-        // Generate and commit to the global segment.
-        let global_main_data = P::commit_main(&self.config, &global_chips, record);
-
-        // Generate a proof for the global segment.
-        let global_proof = P::prove_shard(
-            &self.config,
-            &mut challenger.clone(),
-            &global_chips,
-            global_main_data,
-            &prover_data.global_preprocessed_traces,
-            &prover_data.global_preprocessed_data,
-        );
-
-        Proof {
-            shard_proofs,
-            global_proof,
-        }
+        Proof { shard_proofs }
     }
 
     pub fn verify(
@@ -345,7 +297,7 @@ where
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
                 let chips = self
-                    .local_chips()
+                    .chips()
                     .into_iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
@@ -354,18 +306,6 @@ where
             })?;
         }
 
-        // Verifiy the global proof.
-        let global_chips = self.global_chips();
-        tracing::info_span!("verifying global segment").in_scope(|| {
-            Verifier::verify_shard(
-                &self.config,
-                &global_chips,
-                &mut challenger.clone(),
-                &proof.global_proof,
-            )
-            .map_err(ProgramVerificationError::InvalidGlobalProof)
-        })?;
-
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
@@ -373,7 +313,6 @@ where
             for proof in proof.shard_proofs.iter() {
                 sum += proof.cumulative_sum();
             }
-            sum += proof.global_proof.cumulative_sum();
         }
 
         match sum.is_zero() {

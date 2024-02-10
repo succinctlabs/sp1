@@ -8,7 +8,6 @@ use p3_matrix::Matrix;
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::stark::{ChipRef, StarkGenericConfig};
-use crate::utils::BabyBearPoseidon2;
 
 use super::InteractionKind;
 
@@ -110,48 +109,25 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
 
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
-pub fn debug_interactions_with_all_chips(
-    local_chips: &[ChipRef<BabyBearPoseidon2>],
-    global_chips: &[ChipRef<BabyBearPoseidon2>],
+pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>(
+    chips: &[ChipRef<SC>],
     segment: &ExecutionRecord,
-    global_segment: Option<&ExecutionRecord>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
-    if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
-        panic!("Memory interactions requires global segment.");
-    }
-
     let mut final_map = BTreeMap::new();
 
     let mut segment = segment.clone();
 
-    for chip in local_chips.iter() {
+    for chip in chips.iter() {
         let (_, count) = debug_interactions(chip, &mut segment, interaction_kinds.clone());
 
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
             let entry = final_map
                 .entry(key.clone())
-                .or_insert((BabyBear::zero(), BTreeMap::new()));
+                .or_insert((SC::Val::zero(), BTreeMap::new()));
             entry.0 += *value;
-            *entry.1.entry(chip.name()).or_insert(BabyBear::zero()) += *value;
-        }
-    }
-
-    if let Some(global_segment) = global_segment {
-        let mut global_segment = global_segment.clone();
-        for chip in global_chips.iter() {
-            let (_, count) =
-                debug_interactions(chip, &mut global_segment, interaction_kinds.clone());
-
-            tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
-            for (key, value) in count.iter() {
-                let entry = final_map
-                    .entry(key.clone())
-                    .or_insert((BabyBear::zero(), BTreeMap::new()));
-                entry.0 += *value;
-                *entry.1.entry(chip.name()).or_insert(BabyBear::zero()) += *value;
-            }
+            *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
         }
     }
 
@@ -160,7 +136,7 @@ pub fn debug_interactions_with_all_chips(
 
     let mut any_nonzero = false;
     for (key, (value, chip_values)) in final_map.clone() {
-        if !BabyBear::is_zero(&value) {
+        if !SC::Val::is_zero(&value) {
             tracing::debug!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,

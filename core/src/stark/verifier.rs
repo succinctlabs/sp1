@@ -148,15 +148,16 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
     }
 
     #[cfg(not(feature = "perf"))]
-    pub fn verify(
+    pub fn verify_shard(
         _config: &SC,
-        _chips: Vec<Box<dyn AirChip<SC>>>,
+        _chips: &[ChipRef<SC>],
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
         Ok(())
     }
 
+    #[cfg(feature = "perf")]
     fn verify_constraints(
         chip: &ChipRef<SC>,
         opening: ChipOpenedValues<SC::Challenge>,

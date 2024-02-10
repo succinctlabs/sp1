@@ -39,13 +39,34 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
 
 impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
     fn name(&self) -> String {
-        "MemoryInit".to_string()
+        match self.kind {
+            MemoryChipKind::Init => "MemoryInit".to_string(),
+            MemoryChipKind::Finalize => "MemoryFinalize".to_string(),
+            MemoryChipKind::Program => "MemoryProgram".to_string(),
+        }
     }
 
-    fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
+    fn shard(&self, input: &ExecutionRecord, output: &mut Vec<ExecutionRecord>) {
+        let last = output.last_mut().unwrap();
+        match self.kind {
+            MemoryChipKind::Init => {
+                last.first_memory_record = input.first_memory_record.clone();
+            }
+            MemoryChipKind::Finalize => {
+                last.last_memory_record = input.last_memory_record.clone();
+            }
+            MemoryChipKind::Program => {
+                last.program_memory_record = input.program_memory_record.clone();
+            }
+        }
+    }
 
-    fn include(&self, _: &ExecutionRecord) -> bool {
-        true
+    fn include(&self, reccord: &ExecutionRecord) -> bool {
+        match self.kind {
+            MemoryChipKind::Init => !reccord.first_memory_record.is_empty(),
+            MemoryChipKind::Finalize => !reccord.last_memory_record.is_empty(),
+            MemoryChipKind::Program => !reccord.program_memory_record.is_empty(),
+        }
     }
 
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
@@ -201,10 +222,8 @@ mod tests {
 
         let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips(
-            &machine.local_chips(),
-            &machine.global_chips(),
+            &machine.chips(),
             &runtime.record,
-            Some(&runtime.record),
             vec![InteractionKind::Memory],
         );
     }
@@ -219,10 +238,8 @@ mod tests {
 
         let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips(
-            &machine.local_chips(),
-            &machine.global_chips(),
+            &machine.chips(),
             &runtime.record,
-            None,
             vec![InteractionKind::Byte],
         );
     }

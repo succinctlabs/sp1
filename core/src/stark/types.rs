@@ -18,6 +18,8 @@ pub type Val<SC> = <SC as StarkGenericConfig>::Val;
 pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
+#[allow(dead_code)]
+type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
 pub type Com<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
 pub type PcsProverData<SC> =
@@ -143,6 +145,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub traces: Vec<ValMat<SC>>,
     pub permutation_traces: Vec<ChallengeMat<SC>>,
+    pub chip_ids: Vec<String>,
 }
 
 impl<T: Serialize> ShardOpenedValues<T> {
@@ -166,15 +169,10 @@ impl<T: Serialize> ShardOpenedValues<T> {
         }
 
         vec![main_vals, permutation_vals, quotient_vals]
-
-        // vec![
-        //     main.into_iter().map(to_values).collect::<Vec<_>>(),
-        //     permutation.into_iter().map(to_values).collect::<Vec<_>>(),
-        //     quotient.into_iter().map(|v| vec![v]).collect::<Vec<_>>(),
-        // ]
     }
 }
 
+#[cfg(feature = "perf")]
 impl<T> AirOpenedValues<T> {
     pub fn view(&self) -> TwoRowMatrixView<T> {
         TwoRowMatrixView::new(&self.local, &self.next)
@@ -195,5 +193,4 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 #[derive(Serialize)]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
-    pub global_proof: ShardProof<SC>,
 }

@@ -1,4 +1,6 @@
 use itertools::izip;
+#[cfg(not(feature = "perf"))]
+use p3_air::BaseAir;
 use p3_air::{Air, TwoRowMatrixView};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -98,12 +100,6 @@ where
         // Get the traces.
         let traces = main_data.traces;
 
-        // TODO: remove
-        // For each trace, compute the degree.
-        // let degrees = traces
-        //     .iter()
-        //     .map(|trace| trace.height())
-        //     .collect::<Vec<_>>();
         let log_degrees = traces
             .iter()
             .map(|trace| log2_strict_usize(trace.height()))
@@ -300,7 +296,7 @@ where
             // Check the shape of the main trace openings.
             assert_eq!(openings[0].len(), chips.len());
             for (chip, opening) in chips.iter().zip(openings[0].iter()) {
-                let width = chip.air_width();
+                let width = chip.width();
                 assert_eq!(opening.len(), 2);
                 assert_eq!(opening[0].len(), width);
                 assert_eq!(opening[1].len(), width);
@@ -386,7 +382,8 @@ where
         tracing::info_span!("debug constraints").in_scope(|| {
             for i in 0..chips.len() {
                 debug_constraints(
-                    &*chips[i],
+                    &chips[i],
+                    None,
                     &traces[i],
                     &permutation_traces[i],
                     &permutation_challenges,
@@ -399,6 +396,7 @@ where
             main_commit: main_data.main_commit.clone(),
             traces,
             permutation_traces,
+            chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
         };
     }
 
