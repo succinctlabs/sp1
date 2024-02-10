@@ -1,9 +1,15 @@
 use anyhow::Result;
 use clap::Parser;
-use std::{env, fs, io::Write, path::PathBuf, process::Command};
+use std::{
+    env,
+    fs::{self, File},
+    io::Read,
+    path::PathBuf,
+    process::Command,
+};
 use succinct_core::{
-    runtime::{Program, Runtime},
-    utils::{self, prove_core},
+    utils::{self},
+    SuccinctProver, SuccinctStdin,
 };
 
 use crate::CommandExecutor;
@@ -72,18 +78,22 @@ impl ProveCmd {
             utils::setup_tracer();
         }
 
-        let program = Program::from_elf(elf_path.as_path().as_str());
-        let mut runtime = Runtime::new(program);
+        let mut elf = Vec::new();
+        File::open(elf_path.as_path().as_str())
+            .expect("failed to open input file")
+            .read_to_end(&mut elf)
+            .expect("failed to read from input file");
+
+        let mut stdin = SuccinctStdin::new();
         for input in self.input.clone() {
-            runtime.write_stdin(&input);
+            stdin.write(&input);
         }
-        runtime.run();
-        let proof = prove_core(&mut runtime);
-        let serialized_json = serde_json::to_string(&proof).expect("failed to serialize proof");
+        let proof = SuccinctProver::prove(&elf, stdin).unwrap();
+
         if let Some(ref path) = self.output {
-            let mut file = fs::File::create(path).expect("Failed to create file");
-            file.write_all(serialized_json.as_bytes())
-                .expect("Failed to write to file");
+            proof
+                .save(path.to_str().unwrap())
+                .expect("failed to save proof");
         }
 
         Ok(())
