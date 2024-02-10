@@ -571,19 +571,20 @@ where
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
                 shards
-                    .chunks_mut(chunk_size)
-                    .par_bridge()
-                    .flat_map(|shards| {
+                    .par_chunks_mut(chunk_size)
+                    .flat_map_iter(|shards| {
                         shards
                             .iter_mut()
                             .map(|shard| {
                                 let data =
-                                    tracing::debug_span!("shard commit main", shard = shard.index)
+                                    tracing::info_span!("shard commit main", shard = shard.index)
                                         .in_scope(|| Self::commit_main(config, chips, shard));
                                 let commitment = data.main_commit.clone();
                                 let file = tempfile::tempfile().unwrap();
                                 let data = if num_shards > save_disk_threshold {
-                                    data.save(file).expect("failed to save shard main data")
+                                    tracing::info_span!("saving trace to disk").in_scope(|| {
+                                        data.save(file).expect("failed to save shard main data")
+                                    })
                                 } else {
                                     data.to_in_memory()
                                 };
