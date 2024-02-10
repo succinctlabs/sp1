@@ -71,6 +71,7 @@ impl Blake3CompressInnerChip {
                 next.is_operation_index_n[(i + 1) % OPERATION_COUNT],
             );
         }
+
         // If this is the last operation, the round index should be incremented. Otherwise, the
         // round index should remain the same.
         for i in 0..OPERATION_COUNT {
@@ -136,13 +137,6 @@ impl Blake3CompressInnerChip {
                     local.is_real,
                 );
 
-                self.constrain_index_selector(
-                    builder,
-                    &local.is_round_index_n,
-                    local.round_index,
-                    local.is_real,
-                );
-
                 let mut acc = AB::Expr::from_canonical_usize(0);
                 for operation in 0..OPERATION_COUNT {
                     acc += AB::Expr::from_canonical_usize(G_INDEX[operation][i])
@@ -156,7 +150,15 @@ impl Blake3CompressInnerChip {
         // Calculate the indices to read from the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
             let index_to_read = {
+                self.constrain_index_selector(
+                    builder,
+                    &local.is_round_index_n,
+                    local.round_index,
+                    local.is_real,
+                );
+
                 let mut acc = AB::Expr::from_canonical_usize(0);
+
                 for round in 0..ROUND_COUNT {
                     for operation in 0..OPERATION_COUNT {
                         acc +=

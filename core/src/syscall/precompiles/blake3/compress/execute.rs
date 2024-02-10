@@ -8,7 +8,6 @@ use crate::syscall::precompiles::blake3::{
 };
 use crate::syscall::precompiles::SyscallContext;
 
-/// The `Blake3CompressInnerChip` is a precompile that implements `blake3_compress_inner`.
 impl Syscall for Blake3CompressInnerChip {
     fn num_extra_cycles(&self) -> u32 {
         (4 * ROUND_COUNT * OPERATION_COUNT) as u32
