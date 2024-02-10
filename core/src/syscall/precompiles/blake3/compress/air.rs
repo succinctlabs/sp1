@@ -97,36 +97,6 @@ impl Blake3CompressInnerChip {
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
-        // Read & write the state.
-        for i in 0..NUM_STATE_WORDS_PER_CALL {
-            builder.constraint_memory_access(
-                local.segment,
-                local.clk,
-                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.state_reads_writes[i],
-                local.is_real,
-            );
-        }
-
-        // Read the message.
-        for i in 0..NUM_MSG_WORDS_PER_CALL {
-            builder.constraint_memory_access(
-                local.segment,
-                local.clk,
-                local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.message_reads[i],
-                local.is_real,
-            );
-        }
-    }
-
-    fn constraint_compress_ops<AB: CurtaAirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &Blake3CompressInnerCols<AB::Var>,
-    ) {
-        builder.assert_bool(local.is_real);
-
         // Calculate the 4 indices to read from the state. This corresponds to a, b, c, and d.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
             let index_to_read = {
@@ -145,6 +115,17 @@ impl Blake3CompressInnerChip {
                 acc
             };
             builder.assert_eq(local.state_index[i], index_to_read);
+        }
+
+        // Read & write the state.
+        for i in 0..NUM_STATE_WORDS_PER_CALL {
+            builder.constraint_memory_access(
+                local.segment,
+                local.clk,
+                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                &local.state_reads_writes[i],
+                local.is_real,
+            );
         }
 
         // Calculate the indices to read from the message.
@@ -171,6 +152,25 @@ impl Blake3CompressInnerChip {
             };
             builder.assert_eq(local.msg_schedule[i], index_to_read);
         }
+
+        // Read the message.
+        for i in 0..NUM_MSG_WORDS_PER_CALL {
+            builder.constraint_memory_access(
+                local.segment,
+                local.clk,
+                local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                &local.message_reads[i],
+                local.is_real,
+            );
+        }
+    }
+
+    fn constraint_compress_ops<AB: CurtaAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Blake3CompressInnerCols<AB::Var>,
+    ) {
+        builder.assert_bool(local.is_real);
 
         // Call g and write the result to the state.
         {
