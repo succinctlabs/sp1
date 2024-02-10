@@ -114,7 +114,7 @@ impl Blake3CompressInnerChip {
                 local.segment,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.message_reads[NUM_STATE_WORDS_PER_CALL + i],
+                &local.message_reads[i],
                 local.is_real,
             );
         }
@@ -126,6 +126,7 @@ impl Blake3CompressInnerChip {
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
         builder.assert_bool(local.is_real);
+
         // Calculate the 4 indices to read from the state. This corresponds to a, b, c, and d.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
             let index_to_read = {
@@ -153,7 +154,7 @@ impl Blake3CompressInnerChip {
             builder.assert_eq(local.state_index[i], index_to_read);
         }
 
-        // Calculate the MSG_SCHEDULE index to read from the message.
+        // Calculate the indices to read from the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
             let index_to_read = {
                 let mut acc = AB::Expr::from_canonical_usize(0);
@@ -170,25 +171,28 @@ impl Blake3CompressInnerChip {
             builder.assert_eq(local.msg_schedule[i], index_to_read);
         }
 
-        let input = [
-            local.state_reads_writes[0].prev_value,
-            local.state_reads_writes[1].prev_value,
-            local.state_reads_writes[2].prev_value,
-            local.state_reads_writes[3].prev_value,
-            local.message_reads[0].access.value,
-            local.message_reads[1].access.value,
-        ];
+        // Call g and write the result to the state.
+        {
+            let input = [
+                local.state_reads_writes[0].prev_value,
+                local.state_reads_writes[1].prev_value,
+                local.state_reads_writes[2].prev_value,
+                local.state_reads_writes[3].prev_value,
+                local.message_reads[0].access.value,
+                local.message_reads[1].access.value,
+            ];
 
-        // Call the g function.
-        GOperation::<AB::F>::eval(builder, input, local.g, local.is_real);
+            // Call the g function.
+            GOperation::<AB::F>::eval(builder, input, local.g, local.is_real);
 
-        // Finally, the results of the g function should be written to the memory.
-
-        for i in 0..NUM_STATE_WORDS_PER_CALL {
-            for j in 0..WORD_SIZE {
-                builder
-                    .when(local.is_real)
-                    .assert_eq(local.message_reads[i].access.value[j], local.g.result[i][j]);
+            // Finally, the results of the g function should be written to the memory.
+            for i in 0..NUM_STATE_WORDS_PER_CALL {
+                for j in 0..WORD_SIZE {
+                    builder.when(local.is_real).assert_eq(
+                        local.state_reads_writes[i].access.value[j],
+                        local.g.result[i][j],
+                    );
+                }
             }
         }
     }

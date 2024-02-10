@@ -65,7 +65,7 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         }
                     }
 
-                    // Read in the message.
+                    // Memory columns.
                     {
                         cols.message_ptr = F::from_canonical_u32(event.message_ptr);
                         for i in 0..NUM_MSG_WORDS_PER_CALL {
@@ -76,23 +76,6 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                         }
 
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
-                        // We read & write the state, so we don't need to do anything here.
-                    }
-
-                    // Apply the `g` operation.
-                    {
-                        let input: [u32; G_INPUT_SIZE] = event.message_reads[round][operation]
-                            .iter()
-                            .map(|read| read.value)
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .unwrap();
-
-                        let result = cols.g.populate(record, input);
-                    }
-
-                    // Write the state.
-                    {
                         for i in 0..NUM_STATE_WORDS_PER_CALL {
                             cols.state_reads_writes[i].populate(
                                 MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
@@ -105,6 +88,21 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                             //)
                         }
                     }
+
+                    // Apply the `g` operation.
+                    {
+                        let input: [u32; G_INPUT_SIZE] = [
+                            event.state_writes[round][operation][0].prev_value,
+                            event.state_writes[round][operation][1].prev_value,
+                            event.state_writes[round][operation][2].prev_value,
+                            event.state_writes[round][operation][3].prev_value,
+                            event.message_reads[round][operation][0].value,
+                            event.message_reads[round][operation][1].value,
+                        ];
+
+                        cols.g.populate(record, input);
+                    }
+
                     clk += 4;
                     if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
                         println!("cols.round = {:#?}", cols.round_index);
