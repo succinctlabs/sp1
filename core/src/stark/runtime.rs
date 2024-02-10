@@ -376,6 +376,13 @@ pub mod tests {
     }
 
     #[test]
+    fn test_ssz_withdrawals_prove() {
+        setup_logger();
+        let program = ssz_withdrawals_program();
+        prove(program);
+    }
+
+    #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
         prove(program);

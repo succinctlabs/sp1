@@ -5,6 +5,7 @@ use crate::{
     stark::{LocalProver, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
+use size::Size;
 
 pub trait StarkUtils: StarkConfig {
     type UniConfig: p3_uni_stark::StarkGenericConfig<
@@ -61,11 +62,11 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}, proofSize={}kb",
+        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
         cycles,
         time,
         (cycles as f64 / time as f64),
-        nb_bytes / 1000
+        Size::from_bytes(nb_bytes),
     );
 
     #[cfg(not(feature = "perf"))]
