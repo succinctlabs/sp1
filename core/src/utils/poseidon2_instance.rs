@@ -5,7 +5,7 @@ use p3_field::AbstractField;
 lazy_static! {
     // These constants are created by a RNG.
 
-    // This will be compatible with a poseidon2 permutation of
+    // This will be compatible with a poseidon2 permutation config with
     // a state width of 16 and total rounds (both full and partial) of 30.
     pub static ref RC_16_30: [[BabyBear; 16]; 30] = [
         [
