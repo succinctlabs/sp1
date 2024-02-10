@@ -1,14 +1,13 @@
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, Field};
+use p3_field::AbstractField;
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
 use super::g::GOperation;
 use super::{
-    Blake3CompressInnerChip, G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
-    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    Blake3CompressInnerChip, G_INDEX, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
+    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
 };
-use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
-use crate::runtime::Register;
+use crate::air::{CurtaAirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;

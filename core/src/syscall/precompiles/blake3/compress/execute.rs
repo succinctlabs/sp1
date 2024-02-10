@@ -2,9 +2,9 @@ use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::blake3::{
-    g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE,
-    G_OUTPUT_SIZE, INPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL,
-    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE,
+    MSG_SIZE, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
+    STATE_SIZE,
 };
 use crate::syscall::precompiles::SyscallContext;
 
@@ -15,7 +15,6 @@ impl Syscall for Blake3CompressInnerChip {
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        println!("Blake3CompressInnerChip::execute is running!");
         // TODO: These pointers have to be constrained.
         let state_ptr = rt.register_unsafe(Register::X10);
         let message_ptr = rt.register_unsafe(Register::X11);

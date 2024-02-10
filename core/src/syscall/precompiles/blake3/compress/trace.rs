@@ -12,8 +12,8 @@ use crate::chip::Chip;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
-    G_INDEX, G_INPUT_SIZE, G_OUTPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
-    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
+    G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL,
+    OPERATION_COUNT,
 };
 
 impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
@@ -29,7 +29,6 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
         !record.blake3_compress_inner_events.is_empty()
     }
 
-    // TODO: The vast majority of this logic can be shared with the second external round.
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -81,11 +80,6 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                                 MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
                                 &mut new_field_events,
                             );
-                            //assert_eq!(
-                            //    result[i], event.state_writes[round][operation][i].value,
-                            //    "round: {:?}, operation: {:?}, i: {:?}",
-                            //    round, operation, i
-                            //)
                         }
                     }
 
@@ -104,16 +98,6 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                     }
 
                     clk += 4;
-                    if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
-                        println!("cols.round = {:#?}", cols.round_index);
-                        println!("cols.operation = {:#?}", cols.operation_index);
-                        println!("cols.is_real = {:#?}", cols.is_real);
-                        println!("cols.clk = {:#?}", cols.clk);
-                        // println!("cols.mem_reads = {:?}", cols.mem_reads);
-                        println!("cols.mem_writes = {:?}", cols.message_reads);
-                        println!("cols.message_ptr = {:?}", cols.message_ptr);
-                        println!("cols.g.result = {:?}", cols.g.result);
-                    }
 
                     cols.is_real = F::one();
 
@@ -133,18 +117,11 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
         for _ in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
             let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
+
             // Put this value in this padded row to avoid failing the constraint.
             cols.round_index = F::from_canonical_usize(ROUND_COUNT);
 
             rows.push(row);
-        }
-        for mut row in rows.clone() {
-            let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
-            println!(
-                "is_operation_index_n[OPERATION_COUNT - 1] = {}, round_index = {}",
-                cols.is_operation_index_n[OPERATION_COUNT - 1],
-                cols.round_index
-            );
         }
 
         // Convert the trace to a row major matrix.

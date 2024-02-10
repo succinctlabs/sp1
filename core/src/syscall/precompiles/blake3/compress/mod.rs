@@ -28,12 +28,6 @@ pub(crate) const NUM_MSG_WORDS_PER_CALL: usize = 2;
 /// The number of `Word`s in the input of `g`.
 pub(crate) const G_INPUT_SIZE: usize = NUM_MSG_WORDS_PER_CALL + NUM_STATE_WORDS_PER_CALL;
 
-/// The number of `Word`s in the input of `compress`.
-pub(crate) const INPUT_SIZE: usize = STATE_SIZE + MSG_SIZE;
-
-/// The number of `Word`s to write after calling `g`.
-pub(crate) const G_OUTPUT_SIZE: usize = NUM_STATE_WORDS_PER_CALL;
-
 pub(crate) const MSG_SCHEDULE: [[usize; MSG_SIZE]; ROUND_COUNT] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],
@@ -104,7 +98,6 @@ pub mod compress_tests {
     use crate::utils::tests::BLAKE3_COMPRESS_ELF;
     use crate::Program;
 
-    use super::INPUT_SIZE;
     use super::MSG_SIZE;
     use super::STATE_SIZE;
 

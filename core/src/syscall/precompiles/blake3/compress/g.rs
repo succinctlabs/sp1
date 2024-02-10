@@ -1,8 +1,5 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use num::integer::Roots;
-use p3_air::AirBuilder;
-use p3_field::AbstractField;
 use p3_field::Field;
 
 use std::mem::size_of;
@@ -53,7 +50,6 @@ pub struct GOperation<T> {
 
 impl<F: Field> GOperation<F> {
     pub fn populate(&mut self, segment: &mut ExecutionRecord, input: [u32; 6]) -> [u32; 4] {
-        println!("populate input: {:?}", input);
         let mut a = input[0];
         let mut b = input[1];
         let mut c = input[2];
@@ -97,14 +93,9 @@ impl<F: Field> GOperation<F> {
             b = self.b_xor_c_2_rotate_right_7.populate(segment, b, 7);
         }
 
-        println!(
-            "populate output [a, b, c, d] = [{}, {}, {}, {}]",
-            a, b, c, d
-        );
-
         let result = [a, b, c, d];
         assert_eq!(result, g_func(input));
-        self.result = [a, b, c, d].map(Word::from);
+        self.result = result.map(Word::from);
         result
     }
 
