@@ -31,6 +31,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
@@ -130,6 +131,7 @@ impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssi
         !record.ed_add_events.is_empty()
     }
 
+    #[instrument(name = "generate Ed Add trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
