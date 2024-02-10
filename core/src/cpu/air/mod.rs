@@ -20,6 +20,7 @@ impl<AB> Air<AB> for CpuChip
 where
     AB: CurtaAirBuilder,
 {
+    #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();

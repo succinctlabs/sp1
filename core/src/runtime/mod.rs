@@ -414,6 +414,14 @@ impl Runtime {
         self.syscall_map.get(&code)
     }
 
+    fn max_syscall_cycles(&self) -> u32 {
+        self.syscall_map
+            .values()
+            .map(|syscall| syscall.num_extra_cycles())
+            .max()
+            .unwrap_or(0)
+    }
+
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
@@ -738,6 +746,8 @@ impl Runtime {
             self.state.memory.insert(*addr, (*value, 0, 0));
         }
 
+        let max_syscall_cycles = self.max_syscall_cycles();
+
         self.state.clk += 1;
         while self.state.pc.wrapping_sub(self.program.pc_base)
             < (self.program.instructions.len() * 4) as u32
@@ -779,8 +789,9 @@ impl Runtime {
             self.state.global_clk += 1;
             self.state.clk += 4;
 
-            // Every `shard_size` cycles, increment shard and reset clk within the shard.
-            if self.state.global_clk % self.shard_size == 0 && !self.unconstrained {
+            // If there's not enough cycles left for another instruction, move to the next shard.
+            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
+            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
             }
@@ -862,7 +873,10 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{runtime::Register, utils::tests::FIBONACCI_ELF};
+    use crate::{
+        runtime::Register,
+        utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
+    };
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -877,6 +891,10 @@ pub mod tests {
 
     pub fn fibonacci_program() -> Program {
         Program::from(FIBONACCI_ELF)
+    }
+
+    pub fn ssz_withdrawals_program() -> Program {
+        Program::from(SSZ_WITHDRAWALS_ELF)
     }
 
     pub fn ecall_lwa_program() -> Program {
