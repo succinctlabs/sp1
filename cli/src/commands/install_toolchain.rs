@@ -28,11 +28,32 @@ impl InstallToolchainCmd {
 
         // Setup variables.
         let root_dir = home_dir().unwrap().join(".cargo-prove");
-        match fs::remove_dir_all(&root_dir) {
-            Ok(_) => println!("Succesfully removed existing ~/.cargo-prove directory.."),
+        match fs::read_dir(&root_dir) {
+            Ok(entries) =>
+            {
+                #[allow(clippy::manual_flatten)]
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let entry_path = entry.path();
+                        if entry_path.is_dir() && entry_path.file_name().unwrap() != "bin" {
+                            if let Err(err) = fs::remove_dir_all(&entry_path) {
+                                println!("Failed to remove directory {:?}: {}", entry_path, err);
+                            }
+                        } else if entry_path.is_file() && entry_path.file_name().unwrap() != "bin" {
+                            if let Err(err) = fs::remove_file(&entry_path) {
+                                println!("Failed to remove file {:?}: {}", entry_path, err);
+                            }
+                        }
+                    }
+                }
+            }
             Err(_) => println!("No existing ~/.cargo-prove directory to remove."),
         }
-        fs::create_dir_all(&root_dir)?;
+        println!("Succesfully cleaned up ~/.cargo-prove directory.");
+        match fs::create_dir_all(&root_dir) {
+            Ok(_) => println!("Succesfully created ~/.cargo-prove directory."),
+            Err(err) => println!("Failed to create ~/.cargo-prove directory: {}", err),
+        };
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());

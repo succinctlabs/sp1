@@ -13,6 +13,7 @@ pub use config::*;
 pub use debug::*;
 pub use folder::*;
 pub use prover::*;
+pub use runtime::ProgramVerificationError;
 pub use types::*;
 pub use verifier::*;
 

@@ -2,10 +2,42 @@
 
 ## Install
 
-Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed. Install the "cargo prove" CLI.
+Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed. Open your terminal and run the following command:
+
 ```
-git clone ssh://git@github.com/succinctlabs/vm succinct-vm
-cd succinct-vm
+curl -L https://curta.succinct.xyz | bash
+```
+
+This will install `curtaup`, then simply follow the instructions on the screen, which will make the `curtaup` command available in your CLI.
+Running `curtaup` will install the latest (nightly) precompiled binary for `cargo-prove` and the custom rust toolchain for the zkVM. 
+
+## Quickstart
+
+Create a new project:
+
+```
+cargo prove new fibonacci
+```
+
+Build a binary that can be run in the zkVM:
+
+```
+cd program && cargo prove build
+```
+
+Generate and verify the execution of the binary:
+```
+cd script && cargo run --release
+```
+
+Note that the `RUST_LOG` and `RUST_TRACER` enviroment variables can be set to different status levels to get more fine-grained logging and debugging information.
+
+## Build
+
+If you want to build the `cargo-prove` CLI from source, run the following commands:
+```
+git clone ssh://git@github.com/succinctlabs/vm
+cd vm
 cd cli
 cargo install --locked --path .
 ```
@@ -19,36 +51,6 @@ cargo prove install-toolchain
 Otherwise, you will need to build the toolchain from source.
 ```
 cargo prove build-toolchain
-```
-
-## Quickstart
-
-Just `cargo prove`. Run `cargo prove --help` to see all options. You can control the logging level with `RUST_LOG`.
-
-```
-cd programs/fibonacci
-cargo prove
-```
-
-To create a new project, run `cargo prove new <name>`.
-
-```
-cargo prove new fibonacci
-cd fibonacci
-```
-
-## Profile
-
-To get a performance breakdown of proving, run the profiler. You can control the logging level with `RUST_TRACER`.
-```
-cargo prove --profile
-```
-
-## Benchmark
-
-To benchmark the proving time of programs with statistical guarantees, run the benchmark.
-```
-cd core && cargo bench --features perf
 ```
 
 ## Development
