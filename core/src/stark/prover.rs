@@ -17,7 +17,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::max;
 use std::marker::PhantomData;
-use std::mem;
 
 use super::folder::ProverConstraintFolder;
 use super::util::decompose_and_flatten;
