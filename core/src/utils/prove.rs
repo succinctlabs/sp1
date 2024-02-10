@@ -92,7 +92,10 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     // Verify the proof.
     let mut challenger = config.challenger();
+    let time = std::time::Instant::now();
     machine.verify(&mut challenger, &proof).unwrap();
+    let elapsed = time.elapsed().as_millis();
+    tracing::info!("verification time: {}ms", elapsed);
 
     proof
 }

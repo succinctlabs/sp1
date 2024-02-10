@@ -54,6 +54,10 @@ pub struct ProverData<SC: StarkGenericConfig> {
     pub preprocessed_data: Option<PcsProverData<SC>>,
 }
 
+pub struct PublicParameters<SC: StarkGenericConfig> {
+    pub preprocessed_commitment: Option<Com<SC>>,
+}
+
 pub struct RiscvStark<SC: StarkGenericConfig> {
     config: SC,
 
