@@ -17,6 +17,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::max;
 use std::marker::PhantomData;
+use std::mem;
 
 use super::folder::ProverConstraintFolder;
 use super::util::decompose_and_flatten;
@@ -25,6 +26,7 @@ use super::{types::*, ChipRef, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::stark::permutation::generate_permutation_trace;
+use crate::utils::env;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
@@ -560,6 +562,10 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
     {
         let num_shards = shards.len();
+        println!("num_shards={}", num_shards);
+        // At around 64 shards * 1 GB per shard, saving to disk starts
+        // to become necessary.
+        let save_disk_threshold = env::save_disk_threshold();
         // Batch into at most 16 chunks (and at least 1) to limit parallelism.
         let chunk_size = max(shards.len() / 16, 1);
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
@@ -576,10 +582,7 @@ where
                                         .in_scope(|| Self::commit_main(config, chips, shard));
                                 let commitment = data.main_commit.clone();
                                 let file = tempfile::tempfile().unwrap();
-                                // TODO: make this logic configurable?
-                                // At around 64 shards * 1 GB per shard, saving to disk starts
-                                // to become necessary.
-                                let data = if num_shards > 64 {
+                                let data = if num_shards > save_disk_threshold {
                                     data.save(file).expect("failed to save shard main data")
                                 } else {
                                     data.to_in_memory()

@@ -5,8 +5,7 @@ const ED25519_ELF: &[u8] =
 
 fn main() {
     // Generate proof.
-    // utils::setup_logger();
-    utils::setup_tracer();
+    utils::setup_logger();
     let stdin = SuccinctStdin::new();
     let proof = SuccinctProver::prove(ED25519_ELF, stdin).expect("proving failed");
 

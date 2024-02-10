@@ -227,23 +227,29 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
         OpeningProof<SC>: Send + Sync,
     {
-        // Display the statistics about the workload.
-        tracing::info!("{:#?}", record.stats());
-
         // Get the local and global chips.
         let chips = self.chips();
+
+        tracing::info!("Generating trace for each chip.");
+        // Display the statistics about the workload. This must be run after generate_trace.
+        tracing::info!("Record stats before: {:#?}", record.stats());
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
             chip.generate_trace(record);
         });
 
+        // Display the statistics about the workload. This must be run after generate_trace.
+        tracing::info!("{:#?}", record.stats());
+
+        tracing::info!("Sharding execution record by chip.");
         // For each chip, shard the events into segments.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
         chips.iter().for_each(|chip| {
             chip.shard(record, &mut shards);
         });
 
+        tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
 

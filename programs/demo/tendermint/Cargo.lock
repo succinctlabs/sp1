@@ -126,8 +126,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c359b7249347e46fb28804470d071c921156ad62b3eef5d34e2ba867533dec8"
+source = "git+ssh://git@github.com/succinctlabs/dalek-ng-private.git#01f43665631d2c33385708d41d0c26dbb1baa0ea"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -214,13 +213,12 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
+source = "git+ssh://git@github.com/succinctlabs/ed25519-consensus-private.git#e9f03604509ceabedaf31f66a70c28297d7af6c2"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
  "rand_core",
- "sha2 0.9.9",
+ "sha2 0.9.8",
  "zeroize",
 ]
 
@@ -661,9 +659,8 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.9.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d58a1e1bf39749807d89cf2d98ac2dfa0ff1cb3faa38fbb64dd88ac8013d800"
+version = "0.9.8"
+source = "git+ssh://git@github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -915,3 +912,8 @@ dependencies = [
  "quote",
  "syn 2.0.48",
 ]
+
+[[patch.unused]]
+name = "sha2"
+version = "0.10.6"
+source = "git+ssh://git@github.com/succinctbot/RustCrypto-hashes.git?branch=main#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"
