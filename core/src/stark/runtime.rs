@@ -227,6 +227,7 @@ pub mod tests {
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
