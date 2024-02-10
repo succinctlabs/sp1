@@ -151,6 +151,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
+    use serde::Serialize;
 
     use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
 
@@ -179,6 +180,15 @@ pub(super) mod baby_bear_poseidon2 {
     pub struct BabyBearPoseidon2 {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearPoseidon2 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
     }
 
     impl BabyBearPoseidon2 {
@@ -258,6 +268,7 @@ pub(super) mod baby_bear_keccak {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
+    use serde::Serialize;
 
     use crate::{stark::StarkConfig, utils::poseidon2_instance::RC_16_30};
 
@@ -286,6 +297,15 @@ pub(super) mod baby_bear_keccak {
     pub struct BabyBearKeccak {
         perm: Perm,
         pcs: Pcs,
+    }
+
+    impl Serialize for BabyBearKeccak {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_none()
+        }
     }
 
     impl BabyBearKeccak {
