@@ -127,7 +127,6 @@ where
     p3_uni_stark::verify(config.uni_stark_config(), air, challenger, proof)
 }
 
-pub use baby_bear_k12::BabyBearK12;
 pub use baby_bear_keccak::BabyBearKeccak;
 pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
@@ -464,114 +463,6 @@ pub(super) mod baby_bear_blake3 {
     }
 
     impl p3_uni_stark::StarkGenericConfig for BabyBearBlake3 {
-        type Val = Val;
-        type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
-        type Pcs = Pcs;
-        type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
-
-        fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
-        }
-    }
-}
-
-pub(super) mod baby_bear_k12 {
-
-    use crate::utils::prove::RC_16_30;
-    use p3_baby_bear::BabyBear;
-    use p3_challenger::DuplexChallenger;
-    use p3_commit::ExtensionMmcs;
-    use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field};
-    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
-    use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use succinct_k12::KangarooTwelve;
-
-    use crate::stark::StarkGenericConfig;
-
-    use super::StarkUtils;
-
-    pub type Val = BabyBear;
-    pub type Domain = Val;
-    pub type Challenge = BinomialExtensionField<Val, 4>;
-    pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<KangarooTwelve>;
-
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
-
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
-    pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-
-    pub type Dft = Radix2DitParallel;
-
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
-
-    type Pcs =
-        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
-
-    pub struct BabyBearK12 {
-        perm: Perm,
-        pcs: Pcs,
-    }
-
-    impl BabyBearK12 {
-        pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-
-            let hash = MyHash::new(KangarooTwelve {});
-
-            let compress = MyCompress::new(perm.clone());
-
-            let val_mmcs = ValMmcs::new(hash, compress);
-
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
-
-            let dft = Dft {};
-
-            let fri_config = FriConfig {
-                log_blowup: 1,
-                num_queries: 100,
-                proof_of_work_bits: 16,
-                mmcs: challenge_mmcs,
-            };
-            let pcs = Pcs::new(fri_config, dft, val_mmcs);
-
-            Self { pcs, perm }
-        }
-    }
-
-    impl StarkUtils for BabyBearK12 {
-        type UniConfig = Self;
-
-        fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
-        }
-
-        fn uni_stark_config(&self) -> &Self::UniConfig {
-            self
-        }
-    }
-
-    impl StarkGenericConfig for BabyBearK12 {
-        type Val = Val;
-        type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
-        type Pcs = Pcs;
-        type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
-
-        fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
-        }
-    }
-
-    impl p3_uni_stark::StarkGenericConfig for BabyBearK12 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;

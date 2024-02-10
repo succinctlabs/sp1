@@ -114,8 +114,6 @@ where
         let lt = Chip::new(LtChip::default());
         let field_ltu = Chip::new(FieldLTUChip::default());
         let byte = Chip::new(ByteChip::default());
-
-        // Global chips
         let memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Init));
         let memory_finalize = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Finalize));
         let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
