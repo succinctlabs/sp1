@@ -230,13 +230,22 @@ where
         // Get the local and global chips.
         let chips = self.chips();
 
+        tracing::info!("Generating trace for each chip.");
+        // Display the statistics about the workload. This is incomplete because it's run before
+        // generate_trace, which can adds events to the record.
+        tracing::info!(
+            "Record stats before generate_trace (incomplete): {:#?}",
+            record.stats()
+        );
+
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
             chip.generate_trace(record);
         });
 
-        // Display the statistics about the workload.
-        tracing::info!("{:#?}", record.stats());
+        // Display the statistics about the workload after generate_trace.
+        tracing::info!("Record stats finalized {:#?}", record.stats());
+        tracing::info!("Sharding execution record by chip.");
 
         // For each chip, shard the events into segments.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
@@ -244,12 +253,15 @@ where
             chip.shard(record, &mut shards);
         });
 
+        tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
 
         // Observe the challenges for each segment.
-        shard_commits.into_iter().for_each(|commitment| {
-            challenger.observe(commitment);
+        tracing::info_span!("observing all challenges").in_scope(|| {
+            shard_commits.into_iter().for_each(|commitment| {
+                challenger.observe(commitment);
+            });
         });
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
@@ -257,20 +269,23 @@ where
         let shard_proofs = shard_data
             .into_par_iter()
             .map(|data| {
-                let data = data.materialize().expect("failed to load shard main data");
+                let data = tracing::info_span!("materializing data")
+                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
                 let chips = self
                     .chips()
                     .into_iter()
                     .filter(|chip| data.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
-                P::prove_shard(
-                    &self.config,
-                    &mut challenger.clone(),
-                    &chips,
-                    data,
-                    &prover_data.preprocessed_traces,
-                    &prover_data.preprocessed_data,
-                )
+                tracing::info_span!("proving shard").in_scope(|| {
+                    P::prove_shard(
+                        &self.config,
+                        &mut challenger.clone(),
+                        &chips,
+                        data,
+                        &prover_data.preprocessed_traces,
+                        &prover_data.preprocessed_data,
+                    )
+                })
             })
             .collect::<Vec<_>>();
 

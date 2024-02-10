@@ -7,6 +7,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -59,6 +60,7 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
         !record.sub_events.is_empty()
     }
 
+    #[instrument(name = "generate sub trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record

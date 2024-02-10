@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufWriter, Seek},
+    io::{BufReader, BufWriter, Seek},
 };
 
 use bincode::{deserialize_from, Error};
@@ -60,17 +60,14 @@ impl<SC: StarkGenericConfig> MainData<SC> {
     where
         MainData<SC>: Serialize,
     {
-        let start = std::time::Instant::now();
         let mut writer = BufWriter::new(&file);
         bincode::serialize_into(&mut writer, self)?;
         drop(writer);
-        let elapsed = start.elapsed();
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
         trace!(
-            "wrote {} after {:?}",
-            Size::from_bytes(bytes_written),
-            elapsed
+            "wrote {} while saving MainData",
+            Size::from_bytes(bytes_written)
         );
         Ok(MainDataWrapper::TempFile(file, bytes_written))
     }
@@ -92,10 +89,10 @@ impl<SC: StarkGenericConfig> MainDataWrapper<SC> {
     {
         match self {
             Self::InMemory(data) => Ok(data),
-            Self::TempFile(mut file, _) => {
-                file.seek(std::io::SeekFrom::Start(0))?;
-                let data = deserialize_from(&mut file)?;
-
+            Self::TempFile(file, _) => {
+                let mut buffer = BufReader::new(&file);
+                buffer.seek(std::io::SeekFrom::Start(0))?;
+                let data = deserialize_from(&mut buffer)?;
                 Ok(data)
             }
         }

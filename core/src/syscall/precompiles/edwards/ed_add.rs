@@ -1,5 +1,6 @@
 use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;
+use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -29,8 +30,11 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
@@ -130,46 +134,51 @@ impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssi
         !record.ed_add_events.is_empty()
     }
 
+    #[instrument(name = "generate Ed Add trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        let (mut rows, new_field_events_list): (Vec<[F; NUM_ED_ADD_COLS]>, Vec<Vec<FieldEvent>>) =
+            record
+                .ed_add_events
+                .par_iter()
+                .map(|event| {
+                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
-        let mut new_field_events = Vec::new();
+                    // Decode affine points.
+                    let p = &event.p;
+                    let q = &event.q;
+                    let p = AffinePoint::<E>::from_words_le(p);
+                    let (p_x, p_y) = (p.x, p.y);
+                    let q = AffinePoint::<E>::from_words_le(q);
+                    let (q_x, q_y) = (q.x, q.y);
 
-        for i in 0..record.ed_add_events.len() {
-            let event = record.ed_add_events[i];
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+                    // Populate basic columns.
+                    cols.is_real = F::one();
+                    cols.shard = F::from_canonical_u32(event.shard);
+                    cols.clk = F::from_canonical_u32(event.clk);
+                    cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+                    cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-            // Decode affine points.
-            let p = &event.p;
-            let q = &event.q;
-            let p = AffinePoint::<E>::from_words_le(p);
-            let (p_x, p_y) = (p.x, p.y);
-            let q = AffinePoint::<E>::from_words_le(q);
-            let (q_x, q_y) = (q.x, q.y);
+                    Self::populate_fp_ops(cols, p_x, p_y, q_x, q_y);
 
-            // Populate basic columns.
-            cols.is_real = F::one();
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+                    // Populate the memory access columns.
+                    let mut new_field_events = Vec::new();
+                    for i in 0..16 {
+                        cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
+                    }
+                    for i in 0..16 {
+                        cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
+                    }
+                    cols.q_ptr_access
+                        .populate(event.q_ptr_record, &mut new_field_events);
 
-            Self::populate_fp_ops(cols, p_x, p_y, q_x, q_y);
+                    (row, new_field_events)
+                })
+                .unzip();
 
-            // Populate the memory access columns.
-            for i in 0..16 {
-                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
-            }
-            for i in 0..16 {
-                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
-            }
-            cols.q_ptr_access
-                .populate(event.q_ptr_record, &mut new_field_events);
-
-            rows.push(row);
+        for new_field_events in new_field_events_list {
+            record.field_events.extend(new_field_events);
         }
-        record.field_events.extend(new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];

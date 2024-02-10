@@ -4,6 +4,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -60,6 +61,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         !record.bitwise_events.is_empty()
     }
 
+    #[instrument(name = "generate bitwise trace", skip_all)]
     fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = shard

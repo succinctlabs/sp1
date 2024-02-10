@@ -741,10 +741,12 @@ impl Runtime {
 
     /// Execute the program.
     pub fn run(&mut self) {
-        // First load the memory image into the memory table.
-        for (addr, value) in self.program.memory_image.iter() {
-            self.state.memory.insert(*addr, (*value, 0, 0));
-        }
+        tracing::info_span!("load memory").in_scope(|| {
+            // First load the memory image into the memory table.
+            for (addr, value) in self.program.memory_image.iter() {
+                self.state.memory.insert(*addr, (*value, 0, 0));
+            }
+        });
 
         let max_syscall_cycles = self.max_syscall_cycles();
 
@@ -799,7 +801,7 @@ impl Runtime {
 
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
-        self.postprocess();
+        tracing::info_span!("postprocess").in_scope(|| self.postprocess());
     }
 
     fn postprocess(&mut self) {

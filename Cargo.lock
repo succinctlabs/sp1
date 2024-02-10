@@ -2590,6 +2590,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint-example"
+version = "0.1.0"
+dependencies = [
+ "succinct-core",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"

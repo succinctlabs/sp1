@@ -70,7 +70,6 @@ pub mod compress_tests {
 
         let program = sha_compress_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run();
 
         let (machine, prover_data) = RiscvStark::init(config);
