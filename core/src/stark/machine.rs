@@ -227,6 +227,9 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
         OpeningProof<SC>: Send + Sync,
     {
+        // Display the statistics about the workload.
+        tracing::info!("{:#?}", record.stats());
+
         // Get the local and global chips.
         let chips = self.chips();
 
@@ -234,9 +237,6 @@ where
         chips.iter().for_each(|chip| {
             chip.generate_trace(record);
         });
-
-        // Display the statistics about the workload.
-        tracing::info!("{:#?}", record.stats());
 
         // For each chip, shard the events into segments.
         let mut shards: Vec<ExecutionRecord> = Vec::new();

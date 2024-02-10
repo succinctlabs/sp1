@@ -1,9 +1,10 @@
-use succinct_core::{SuccinctProver, SuccinctStdin, SuccinctVerifier};
+use succinct_core::{utils, SuccinctProver, SuccinctStdin, SuccinctVerifier};
 
 const FIBONACCI_IO_ELF: &[u8] =
     include_bytes!("../../../programs/demo/fibonacci-io/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
+    utils::setup_logger();
     // Generate proof.
     let mut stdin = SuccinctStdin::new();
     stdin.write(&5000u32);

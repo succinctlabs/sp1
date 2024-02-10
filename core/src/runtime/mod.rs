@@ -21,6 +21,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Instant;
 pub use syscall::*;
 
 use p3_baby_bear::BabyBear;
@@ -741,6 +742,7 @@ impl Runtime {
 
     /// Execute the program.
     pub fn run(&mut self) {
+        let start = Instant::now();
         // First load the memory image into the memory table.
         for (addr, value) in self.program.memory_image.iter() {
             self.state.memory.insert(*addr, (*value, 0, 0));
@@ -800,6 +802,8 @@ impl Runtime {
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
         self.postprocess();
+        let time = start.elapsed().as_secs();
+        tracing::info!("Runtime execution took {}s", time);
     }
 
     fn postprocess(&mut self) {

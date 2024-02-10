@@ -68,7 +68,9 @@ impl SuccinctProver {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&stdin.buffer.data);
-        runtime.run();
+        tracing::info_span!("runtime.run(...)").in_scope(|| {
+            runtime.run();
+        });
         let proof = prove_core(&mut runtime);
         Ok(SuccinctProofWithIO {
             proof,
