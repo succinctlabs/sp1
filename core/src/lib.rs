@@ -33,7 +33,6 @@ pub mod utils;
 pub use io::*;
 
 use anyhow::Result;
-use rand::{rngs::StdRng, SeedableRng};
 use runtime::{Program, Runtime};
 use serde::Serialize;
 use stark::{ProgramVerificationError, Proof};
