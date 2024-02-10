@@ -63,7 +63,14 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         rows_with_events.into_iter().for_each(|row_with_events| {
             let (row, alu_events, blu_events, field_events) = row_with_events;
             rows.extend(row);
-            new_alu_events.extend(alu_events);
+            for (key, value) in alu_events {
+                new_alu_events
+                    .entry(key)
+                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
+                        op_new_events.extend(value.clone())
+                    })
+                    .or_insert(value);
+            }
             new_blu_events.extend(blu_events);
             new_field_events.extend(field_events);
         });
