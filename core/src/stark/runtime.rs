@@ -103,7 +103,6 @@ impl Runtime {
     }
 
     pub fn verify<F, EF, SC>(
-        &mut self,
         config: &SC,
         challenger: &mut SC::Challenger,
         proof: &Proof<SC>,

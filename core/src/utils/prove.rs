@@ -88,7 +88,7 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     // Verify the proof.
     let mut challenger = config.challenger();
-    runtime.verify(&config, &mut challenger, &proof).unwrap();
+    Runtime::verify(&config, &mut challenger, &proof).unwrap();
 
     proof
 }

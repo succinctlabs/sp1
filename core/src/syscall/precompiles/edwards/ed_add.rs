@@ -290,20 +290,18 @@ mod tests {
             self,
             tests::{ED25519_ELF, ED_ADD_ELF},
         },
-        SuccinctProver,
+        SuccinctProver, SuccinctStdin,
     };
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        let prover = SuccinctProver::new();
-        prover.run_and_prove(ED_ADD_ELF);
+        SuccinctProver::prove(ED_ADD_ELF, SuccinctStdin::new()).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        let prover = SuccinctProver::new();
-        prover.run_and_prove(ED25519_ELF);
+        SuccinctProver::prove(ED25519_ELF, SuccinctStdin::new()).unwrap();
     }
 }
