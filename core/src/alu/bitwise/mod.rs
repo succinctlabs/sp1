@@ -162,7 +162,6 @@ mod tests {
 
     use crate::air::MachineAir;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use rand::thread_rng;
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
@@ -180,7 +179,7 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();

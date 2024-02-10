@@ -2,10 +2,8 @@ use super::utils::biguint_from_limbs;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::operations::field::params::NUM_LIMBS;
-use num::bigint::RandBigInt;
 use num::BigUint;
 use p3_field::Field;
-use rand::rngs::OsRng;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 
@@ -26,10 +24,6 @@ pub trait FieldParameters:
 
     fn nb_bits() -> usize {
         Self::NB_BITS_PER_LIMB * Self::NB_LIMBS
-    }
-
-    fn rand() -> BigUint {
-        OsRng.gen_biguint_below(&Self::modulus())
     }
 
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {

@@ -5,7 +5,6 @@ mod folder;
 mod machine;
 mod permutation;
 mod prover;
-mod runtime;
 mod types;
 mod util;
 mod verifier;

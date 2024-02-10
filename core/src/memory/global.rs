@@ -146,7 +146,6 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
 
     use super::*;
     use crate::runtime::tests::simple_program;
@@ -176,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_memory_prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let program = simple_program();
@@ -200,7 +199,7 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        let (machine, prover_data) = RiscvStark::init(BabyBearPoseidon2::new(&mut thread_rng()));
+        let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips(
             &machine.local_chips(),
             &machine.global_chips(),
@@ -218,7 +217,7 @@ mod tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        let (machine, prover_data) = RiscvStark::init(BabyBearPoseidon2::new(&mut thread_rng()));
+        let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips(
             &machine.local_chips(),
             &machine.global_chips(),

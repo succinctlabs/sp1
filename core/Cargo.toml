@@ -27,14 +27,13 @@ p3-blake3 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-maybe-rayon = { workspace = true }
-rand = "0.8.5"
 p3-util = { workspace = true }
 itertools = "0.12.0"
 rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 log = "0.4.20"
-env_logger = "0.10.1"
-num = { version = "0.4.1", features = ["rand"] }
+num = { version = "0.4.1" }
 nohash-hasher = "0.2.0"
+lazy_static = "1.4"
 
 succinct-k12 = { path = "../k12" }
 
@@ -53,9 +52,14 @@ serde_json = { version = "1.0.113", default-features = false, features = [
 ] }
 k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
+anyhow = "1.0.79"
+serial_test = "3.0.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
+num = { version = "0.4.1", features = ["rand"] }
+rand = "0.8.5"
+
 
 [features]
 perf = ["parallel"]

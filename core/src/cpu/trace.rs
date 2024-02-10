@@ -467,7 +467,6 @@ impl CpuChip {
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
 
     use super::*;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
@@ -520,7 +519,7 @@ mod tests {
 
     #[test]
     fn prove_trace() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let program = simple_program();

@@ -1,3 +1,5 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 use p3_air::{
     Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
 };
@@ -5,7 +7,7 @@ use p3_field::AbstractField;
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::EmptyMessageBuilder;
+use crate::air::{EmptyMessageBuilder, MachineAir};
 
 use super::{ChipRef, StarkGenericConfig};
 
@@ -69,8 +71,14 @@ pub fn debug_constraints<SC: StarkGenericConfig>(
             builder.is_last_row = SC::Val::one();
             builder.is_transition = SC::Val::zero();
         }
-
-        chip.eval(&mut builder);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            chip.eval(&mut builder);
+        }));
+        if result.is_err() {
+            println!("local: {:?}", main_local);
+            println!("next:  {:?}", main_local);
+            panic!("failed at row {} of chip {}", i, chip.name());
+        }
     });
 }
 
@@ -170,7 +178,11 @@ where
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        assert_eq!(x.into(), F::zero(), "constraints must evaluate to zero");
+        let f: F = x.into();
+        if f != F::zero() {
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            panic!("constraint failed: {}", backtrace);
+        }
     }
 }
 

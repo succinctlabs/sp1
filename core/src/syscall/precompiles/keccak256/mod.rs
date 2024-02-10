@@ -49,7 +49,7 @@ pub mod permute_tests {
         runtime::{Instruction, Opcode, Program, Runtime},
         stark::{LocalProver, RiscvStark},
         utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
-        SuccinctProver,
+        SuccinctProver, SuccinctStdin,
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -81,7 +81,7 @@ pub mod permute_tests {
     #[test]
     fn prove_babybear() {
         utils::setup_logger();
-        let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let program = keccak_permute_program();
@@ -101,7 +101,6 @@ pub mod permute_tests {
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
-        let prover = SuccinctProver::new();
-        prover.run_and_prove(KECCAK_PERMUTE_ELF);
+        SuccinctProver::prove(KECCAK_PERMUTE_ELF, SuccinctStdin::new()).unwrap();
     }
 }

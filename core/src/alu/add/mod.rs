@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();

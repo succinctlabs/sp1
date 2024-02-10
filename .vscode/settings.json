@@ -25,6 +25,7 @@
         "programs/test/ed-decompress/Cargo.toml",
         "programs/demo/ed25519/Cargo.toml",
         "programs/demo/fibonacci/Cargo.toml",
+        "programs/demo/fibonacci-io/Cargo.toml",
         "programs/demo/io/Cargo.toml",
         "programs/test/keccak-permute/Cargo.toml",
         "programs/test/secp256k1-add/Cargo.toml",

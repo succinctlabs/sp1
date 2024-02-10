@@ -307,7 +307,6 @@ mod tests {
     };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
 
     use crate::{
         alu::AluEvent,
@@ -327,7 +326,7 @@ mod tests {
     }
 
     fn prove_babybear_template(shard: &mut ExecutionRecord) {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let chip = LtChip::default();

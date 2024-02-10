@@ -88,7 +88,7 @@ where
         chips: &[ChipRef<SC>],
         main_data: MainData<SC>,
         preprocessed_traces: &[Option<RowMajorMatrix<SC::Val>>],
-        preprocessed_data: &Option<PcsProverData<SC>>,
+        _preprocessed_data: &Option<PcsProverData<SC>>,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
