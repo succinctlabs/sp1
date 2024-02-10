@@ -1,5 +1,5 @@
 use crate::air::CurtaAirBuilder;
-use crate::chip::Chip;
+use crate::air::MachineAir;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -117,7 +117,7 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 }
 
-impl<F: Field, E: EllipticCurve + EdwardsParameters> Chip<F> for EdAddAssignChip<E> {
+impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }

@@ -11,7 +11,7 @@ use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::FieldAirBuilder;
-use crate::chip::Chip;
+use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::utils::env;
 use crate::utils::pad_to_power_of_two;
@@ -44,7 +44,7 @@ pub struct FieldLTUCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for FieldLTUChip {
+impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
@@ -96,7 +96,7 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
     }
 }
 
-pub const LTU_NB_BITS: usize = 22;
+pub const LTU_NB_BITS: usize = 25;
 
 impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {

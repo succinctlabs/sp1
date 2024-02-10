@@ -1,14 +1,15 @@
-use super::StarkConfig;
-use crate::air::EmptyMessageBuilder;
+use super::StarkGenericConfig;
+use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::AbstractField;
 
 /// A folder for prover constraints.
-pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
+pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub preprocessed: TwoRowMatrixView<'a, SC::PackedVal>,
     pub main: TwoRowMatrixView<'a, SC::PackedVal>,
     pub perm: TwoRowMatrixView<'a, SC::PackedChallenge>,
     pub perm_challenges: &'a [SC::Challenge],
+    pub cumulative_sum: SC::Challenge,
     pub is_first_row: SC::PackedVal,
     pub is_last_row: SC::PackedVal,
     pub is_transition: SC::PackedVal,
@@ -16,7 +17,7 @@ pub struct ProverConstraintFolder<'a, SC: StarkConfig> {
     pub accumulator: SC::PackedChallenge,
 }
 
-impl<'a, SC: StarkConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     type F = SC::Val;
     type Expr = SC::PackedVal;
     type Var = SC::PackedVal;
@@ -49,7 +50,7 @@ impl<'a, SC: StarkConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     }
 }
 
-impl<'a, SC: StarkConfig> ExtensionBuilder for ProverConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a, SC> {
     type EF = SC::Challenge;
 
     type ExprEF = SC::PackedChallenge;
@@ -66,7 +67,7 @@ impl<'a, SC: StarkConfig> ExtensionBuilder for ProverConstraintFolder<'a, SC> {
     }
 }
 
-impl<'a, SC: StarkConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
     type MP = TwoRowMatrixView<'a, SC::PackedChallenge>;
 
     fn permutation(&self) -> Self::MP {
@@ -78,20 +79,29 @@ impl<'a, SC: StarkConfig> PermutationAirBuilder for ProverConstraintFolder<'a, S
     }
 }
 
-impl<'a, SC: StarkConfig> PairBuilder for ProverConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
+    type Sum = SC::PackedChallenge;
+
+    fn cumulative_sum(&self) -> Self::Sum {
+        SC::PackedChallenge::from_f(self.cumulative_sum)
+    }
+}
+
+impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
     }
 }
 
-impl<'a, SC: StarkConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
+impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
 /// A folder for verifier constraints.
-pub struct VerifierConstraintFolder<'a, SC: StarkConfig> {
+pub struct VerifierConstraintFolder<'a, SC: StarkGenericConfig> {
     pub preprocessed: TwoRowMatrixView<'a, SC::Challenge>,
     pub main: TwoRowMatrixView<'a, SC::Challenge>,
     pub perm: TwoRowMatrixView<'a, SC::Challenge>,
     pub perm_challenges: &'a [SC::Challenge],
+    pub cumulative_sum: SC::Challenge,
     pub is_first_row: SC::Challenge,
     pub is_last_row: SC::Challenge,
     pub is_transition: SC::Challenge,
@@ -99,8 +109,8 @@ pub struct VerifierConstraintFolder<'a, SC: StarkConfig> {
     pub accumulator: SC::Challenge,
 }
 
-impl<'a, SC: StarkConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
-    type F = SC::Challenge;
+impl<'a, SC: StarkGenericConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
+    type F = SC::Val;
     type Expr = SC::Challenge;
     type Var = SC::Challenge;
     type M = TwoRowMatrixView<'a, SC::Challenge>;
@@ -132,7 +142,7 @@ impl<'a, SC: StarkConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
     }
 }
 
-impl<'a, SC: StarkConfig> ExtensionBuilder for VerifierConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> ExtensionBuilder for VerifierConstraintFolder<'a, SC> {
     type EF = SC::Challenge;
     type ExprEF = SC::Challenge;
     type VarEF = SC::Challenge;
@@ -145,7 +155,7 @@ impl<'a, SC: StarkConfig> ExtensionBuilder for VerifierConstraintFolder<'a, SC> 
     }
 }
 
-impl<'a, SC: StarkConfig> PermutationAirBuilder for VerifierConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for VerifierConstraintFolder<'a, SC> {
     type MP = TwoRowMatrixView<'a, SC::Challenge>;
 
     fn permutation(&self) -> Self::MP {
@@ -157,10 +167,18 @@ impl<'a, SC: StarkConfig> PermutationAirBuilder for VerifierConstraintFolder<'a,
     }
 }
 
-impl<'a, SC: StarkConfig> PairBuilder for VerifierConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for VerifierConstraintFolder<'a, SC> {
+    type Sum = SC::Challenge;
+
+    fn cumulative_sum(&self) -> Self::Sum {
+        self.cumulative_sum
+    }
+}
+
+impl<'a, SC: StarkGenericConfig> PairBuilder for VerifierConstraintFolder<'a, SC> {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
     }
 }
 
-impl<'a, SC: StarkConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
+impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}

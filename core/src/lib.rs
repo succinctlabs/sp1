@@ -16,7 +16,6 @@ extern crate alloc;
 pub mod air;
 pub mod alu;
 pub mod bytes;
-pub mod chip;
 pub mod cpu;
 pub mod disassembler;
 pub mod field;
@@ -35,7 +34,7 @@ pub use io::*;
 use anyhow::Result;
 use runtime::{Program, Runtime};
 use serde::Serialize;
-use stark::{ProgramVerificationError, Proof};
+use stark::{ProgramVerificationError, Proof, RiscvStark};
 use std::fs;
 use utils::{prove_core, BabyBearBlake3, StarkUtils};
 
@@ -85,7 +84,8 @@ impl SuccinctVerifier {
     pub fn verify(elf: &[u8], proof: &SuccinctProofWithIO) -> Result<(), ProgramVerificationError> {
         let config = BabyBearBlake3::new();
         let mut challenger = config.challenger();
-        Runtime::verify(&config, &mut challenger, &proof.proof)
+        let (machine, prover_data) = RiscvStark::init(config);
+        machine.verify(&mut challenger, &proof.proof)
     }
 }
 

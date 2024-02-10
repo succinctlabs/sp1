@@ -45,10 +45,10 @@ pub mod extend_tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
+        air::MachineAir,
         alu::AluEvent,
-        chip::Chip,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
-        stark::LocalProver,
+        stark::{LocalProver, RiscvStark},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
@@ -90,6 +90,8 @@ pub mod extend_tests {
         runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
+        let (machine, prover_data) = RiscvStark::init(config);
+
+        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
     }
 }
