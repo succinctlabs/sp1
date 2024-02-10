@@ -5,6 +5,7 @@ use crate::{
     stark::{LocalProver, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
+use rand::{rngs::StdRng, SeedableRng};
 
 pub trait StarkUtils: StarkConfig {
     type UniConfig: p3_uni_stark::StarkGenericConfig<
@@ -44,7 +45,8 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 }
 
 pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> {
-    let config = BabyBearBlake3::new(&mut rand::thread_rng());
+    let mut rng: StdRng = SeedableRng::from_seed([17; 32]);
+    let config = BabyBearBlake3::new(&mut rng);
     let mut challenger = config.challenger();
 
     let start = Instant::now();
@@ -87,7 +89,7 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
 
     // Verify the proof.
     let mut challenger = config.challenger();
-    runtime.verify(&config, &mut challenger, &proof).unwrap();
+    Runtime::verify(&config, &mut challenger, &proof).unwrap();
 
     proof
 }
