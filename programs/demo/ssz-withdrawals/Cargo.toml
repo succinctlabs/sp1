@@ -14,3 +14,7 @@ hex = "0.4.3"
 serde_with = { version = "3.4.0", features = ["hex"] }
 serde = { version = "1.0.195", features = ["derive"] }
 alloy-primitives = "0.6.0"
+
+[patch.crates-io]
+# Patch sha2 so we can use sha precompiles
+sha2-v0-9-8 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", package = "sha2", branch = "v0.9.8" }

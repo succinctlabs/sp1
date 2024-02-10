@@ -72,7 +72,9 @@ impl SuccinctProver {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&stdin.buffer.data);
-        runtime.run();
+        tracing::info_span!("runtime.run(...)").in_scope(|| {
+            runtime.run();
+        });
         let config = BabyBearBlake3::new();
         let proof = prove_core(config, &mut runtime);
         Ok(SuccinctProofWithIO {

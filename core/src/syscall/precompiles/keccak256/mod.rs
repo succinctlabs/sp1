@@ -74,7 +74,6 @@ pub mod permute_tests {
     pub fn test_keccak_permute_program_execute() {
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run()
     }
 
@@ -85,17 +84,11 @@ pub mod permute_tests {
         let mut challenger = config.challenger();
 
         let program = keccak_permute_program();
-        let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-            let mut runtime = Runtime::new(program);
-            runtime.write_stdin_slice(&[10]);
-            runtime.run();
-            runtime
-        });
+        let mut runtime = Runtime::new(program);
+        runtime.run();
 
         let (machine, prover_data) = RiscvStark::init(config);
-        tracing::info_span!("runtime.prove(...)").in_scope(|| {
-            machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
-        });
+        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
     }
 
     #[test]

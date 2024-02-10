@@ -217,7 +217,6 @@ mod tests {
         setup_logger();
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run();
 
         let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
@@ -233,7 +232,6 @@ mod tests {
         setup_logger();
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run();
 
         let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
