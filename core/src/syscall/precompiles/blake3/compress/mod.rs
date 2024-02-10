@@ -7,9 +7,6 @@ mod g;
 mod trace;
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
-/// The number of `Word`s in the state of the compress inner operation.
-pub(crate) const STATE_SIZE: usize = 16;
-
 /// The number of `Word`s in the message of the compress inner operation.
 pub(crate) const MSG_SIZE: usize = 16;
 
