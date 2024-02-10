@@ -87,7 +87,6 @@ pub mod extend_tests {
 
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run();
 
         let (machine, prover_data) = RiscvStark::init(config);

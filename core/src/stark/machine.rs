@@ -231,18 +231,22 @@ where
         let chips = self.chips();
 
         tracing::info!("Generating trace for each chip.");
-        // Display the statistics about the workload. This must be run after generate_trace.
-        tracing::info!("Record stats before: {:#?}", record.stats());
+        // Display the statistics about the workload. This is incomplete because it's run before
+        // generate_trace, which can adds events to the record.
+        tracing::info!(
+            "Record stats before generate_trace (incomplete): {:#?}",
+            record.stats()
+        );
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
             chip.generate_trace(record);
         });
 
-        // Display the statistics about the workload. This must be run after generate_trace.
-        tracing::info!("{:#?}", record.stats());
-
+        // Display the statistics about the workload after generate_trace.
+        tracing::info!("Record stats finalized {:#?}", record.stats());
         tracing::info!("Sharding execution record by chip.");
+
         // For each chip, shard the events into segments.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
         chips.iter().for_each(|chip| {

@@ -60,18 +60,11 @@ impl<SC: StarkGenericConfig> MainData<SC> {
     where
         MainData<SC>: Serialize,
     {
-        let start = std::time::Instant::now();
         let mut writer = BufWriter::new(&file);
         bincode::serialize_into(&mut writer, self)?;
         drop(writer);
-        let elapsed = start.elapsed();
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
-        trace!(
-            "wrote {} after {:?}",
-            Size::from_bytes(bytes_written),
-            elapsed
-        );
         Ok(MainDataWrapper::TempFile(file, bytes_written))
     }
 

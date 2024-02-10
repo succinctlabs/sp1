@@ -4,7 +4,8 @@ const FIBONACCI_IO_ELF: &[u8] =
     include_bytes!("../../../programs/demo/fibonacci-io/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
-    utils::setup_logger();
+    // utils::setup_logger();
+    utils::setup_tracer();
     // Generate proof.
     let mut stdin = SuccinctStdin::new();
     stdin.write(&5000u32);

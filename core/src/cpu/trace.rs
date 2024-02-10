@@ -1,8 +1,3 @@
-use p3_field::PrimeField;
-use p3_matrix::dense::RowMajorMatrix;
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-
 use super::columns::{
     AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
     NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
@@ -18,6 +13,11 @@ use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::env;
+use p3_field::PrimeField;
+use p3_matrix::dense::RowMajorMatrix;
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+use tracing::instrument;
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {
     fn name(&self) -> String {
@@ -44,6 +44,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         true
     }
 
+    #[instrument(name = "generate CPU trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         let mut new_blu_events = Vec::new();
         let mut new_alu_events = HashMap::new();

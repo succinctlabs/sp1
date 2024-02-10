@@ -16,6 +16,8 @@ use crate::runtime::ExecutionRecord;
 use crate::utils::env;
 use crate::utils::pad_to_power_of_two;
 
+use tracing::instrument;
+
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
 
@@ -63,6 +65,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         !record.field_events.is_empty()
     }
 
+    #[instrument(name = "generate FieldLTU trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record
