@@ -10,3 +10,6 @@ pgo-data.profdata
 
 # MacOS nuisances
 .DS_Store
+
+# Proofs
+**/proof-with-pis.json

@@ -1,6 +1,6 @@
 use hex_literal::hex;
-use std::{fs::File, io::Read};
-use succinct_core::{utils, SuccinctProver};
+use std::fs::File;
+use succinct_core::{utils, SuccinctProver, SuccinctStdin, SuccinctVerifier};
 use zeth_lib::{input::Input, EthereumTxEssence};
 
 const ZETH_ELF: &[u8] =
@@ -9,16 +9,20 @@ const ZETH_ELF: &[u8] =
 fn main() {
     utils::setup_logger();
 
+    // Get inputs.
     let file = File::open("./fixtures/19116035.bin").unwrap();
     let input: Input<EthereumTxEssence> = bincode::deserialize_from(file).unwrap();
+    let mut stdin = SuccinctStdin::new();
+    stdin.write::<Input<EthereumTxEssence>>(&input);
 
-    let mut prover = SuccinctProver::new();
-    prover.write_stdin::<Input<EthereumTxEssence>>(&input);
-    let mut runtime = prover.run(ZETH_ELF);
-    let mut result_hash = [0u8; 32];
-    runtime.read_exact(&mut result_hash).unwrap();
+    // Generate proof.
+    let mut proof = SuccinctProver::prove(ZETH_ELF, stdin).expect("proving failed");
+
+    // Read output.
+    let result_hash = proof.stdout.read::<[u8; 32]>();
     let expected_hash = hex!("09ab1a9eed392e53193a9ab5201e81f7cbcdb3ed5f4c51f46e16589ad847e113");
     assert_eq!(result_hash, expected_hash);
 
-    prover.prove(&mut runtime);
+    // Verify proof.
+    SuccinctVerifier::verify(ZETH_ELF, &proof).expect("verification failed");
 }

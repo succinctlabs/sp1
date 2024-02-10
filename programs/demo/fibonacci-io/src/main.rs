@@ -12,5 +12,7 @@ pub fn main() {
         a = b;
         b = sum;
     }
+
+    succinct_zkvm::io::write(&a);
     succinct_zkvm::io::write(&b);
 }
