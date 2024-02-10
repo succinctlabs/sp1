@@ -2,9 +2,12 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, StarkConfig},
+    stark::{LocalProver, MainData, OpeningProof, StarkConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
+use p3_commit::Pcs;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use size::Size;
 
 pub trait StarkUtils: StarkConfig {
@@ -36,7 +39,8 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
         runtime.run();
         runtime
     });
-    prove_core(&mut runtime)
+    let config = BabyBearBlake3::new();
+    prove_core(config, &mut runtime)
 }
 
 pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
@@ -44,8 +48,18 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     prove(program)
 }
 
-pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> {
-    let config = BabyBearBlake3::new();
+pub fn prove_core<SC: StarkConfig + StarkUtils + Send + Sync + Serialize>(
+    config: SC,
+    runtime: &mut Runtime,
+) -> crate::stark::Proof<SC>
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+    MainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkConfig>::Val: p3_field::PrimeField32,
+{
     let mut challenger = config.challenger();
 
     let start = Instant::now();
