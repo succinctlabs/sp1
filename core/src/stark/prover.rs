@@ -567,11 +567,11 @@ where
         // to become necessary.
         let save_disk_threshold = env::save_disk_threshold();
         // Batch into at most 16 chunks (and at least 1) to limit parallelism.
-        let chunk_size = max(shards.len() / 16, 1);
+        // let chunk_size = max(shards.len() / 16, 1);
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
                 shards
-                    .par_chunks_mut(chunk_size)
+                    .par_chunks_mut(1)
                     .flat_map_iter(|shards| {
                         shards
                             .iter_mut()
