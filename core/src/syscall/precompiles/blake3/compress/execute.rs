@@ -3,8 +3,8 @@ use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::blake3::{
     g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, G_INPUT_SIZE,
-    G_OUTPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL,
-    OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
+    G_OUTPUT_SIZE, INPUT_SIZE, MSG_SCHEDULE, MSG_SIZE, NUM_MSG_WORDS_PER_CALL,
+    NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
 use crate::syscall::precompiles::SyscallContext;
 
@@ -38,44 +38,47 @@ impl Syscall for Blake3CompressInnerChip {
                 // Read the state.
                 let mut state = [0u32; STATE_SIZE];
                 let mut input = [0u32; G_INPUT_SIZE];
-                for i in 0..NUM_STATE_WORDS_PER_CALL {
-                    let index_to_read = G_INDEX[operation][i];
-                    let (record, value) = rt.mr(state_ptr + (index_to_read as u32) * 4);
-                    read_records[round][operation][i] = record;
-                    state[index_to_read] = value;
-                    input[i] = value;
-                    if input_state_for_debugging[index_to_read].is_none() {
-                        input_state_for_debugging[index_to_read] = Some(value);
+                let state_index = G_INDEX[operation];
+                let message_index: [usize; NUM_MSG_WORDS_PER_CALL] = [
+                    MSG_SCHEDULE[round][2 * operation],
+                    MSG_SCHEDULE[round][2 * operation + 1],
+                ];
+                let mut new_read_records = vec![];
+                let mut input = vec![];
+                // Read the message.
+                let mut message = [0u32; MSG_SIZE];
+
+                for index in state_index.iter() {
+                    let (record, value) = rt.mr(state_ptr + (*index as u32) * 4);
+                    new_read_records.push(record);
+                    input.push(value);
+                    if input_state_for_debugging[*index].is_none() {
+                        input_state_for_debugging[*index] = Some(value);
                     }
                     rt.clk += 4;
                 }
-                // Read the message.
-                let mut message = [0u32; MSG_SIZE];
-                for i in 0..NUM_MSG_WORDS_PER_CALL {
-                    let index_to_read = MSG_SCHEDULE[round][2 * operation + i];
-                    let (record, value) = rt.mr(message_ptr + (index_to_read as u32) * 4);
-                    read_records[round][operation][NUM_STATE_WORDS_PER_CALL + i] = record;
-                    message[index_to_read] = value;
-                    input[i + NUM_STATE_WORDS_PER_CALL] = value;
+                for index in message_index.iter() {
+                    let (record, value) = rt.mr(message_ptr + (*index as u32) * 4);
+                    new_read_records.push(record);
+                    message[*index] = value;
+                    input.push(value);
                     rt.clk += 4;
                 }
+                read_records[round][operation] = new_read_records.try_into().unwrap();
                 println!("round: {:?}", round);
                 println!("operation: {:?}", operation);
                 println!("state: {:?}", state.map(|x| x.to_le_bytes()));
                 println!("message: {:?}\n", message.map(|x| x.to_le_bytes()));
 
                 // TODO: call g here!
-                let results = g_func(input);
+                let results = g_func(input.try_into().unwrap());
 
                 // Write the state.
                 for i in 0..NUM_STATE_WORDS_PER_CALL {
-                    let index_to_write = G_INDEX[operation][i];
-                    let record = rt.mw(
-                        state_ptr.wrapping_add((index_to_write as u32) * 4),
-                        results[i],
-                    );
+                    let index = state_index[i];
+                    let record = rt.mw(state_ptr.wrapping_add((index as u32) * 4), results[i]);
                     write_records[round][operation][i] = record;
-                    output_state_for_debugging[index_to_write] = results[i];
+                    output_state_for_debugging[index] = results[i];
                     rt.clk += 4;
                 }
             }
@@ -124,6 +127,7 @@ impl Syscall for Blake3CompressInnerChip {
             [189, 216, 43, 250],
         ];
         assert_eq!(results, exp_results, "output state is not as expected");
+        println!("input and output are exactly what i expected!");
 
         let segment_clk = rt.segment_clk();
 
