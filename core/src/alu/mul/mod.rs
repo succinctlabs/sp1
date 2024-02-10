@@ -96,16 +96,16 @@ pub struct MulCols<T> {
     /// The sign extension of `c`.
     pub c_sign_extend: T,
 
-    /// Flag indicating whether the opcode is `MUL` (u32 x u32).
+    /// Flag indicating whether the opcode is `MUL` (`u32 x u32`).
     pub is_mul: T,
 
-    /// Flag indicating whether the opcode is `MULH` (i32 x i32, upper half).
+    /// Flag indicating whether the opcode is `MULH` (`i32 x i32`, upper half).
     pub is_mulh: T,
 
-    /// Flag indicating whether the opcode is `MULHU` (u32 x u32, upper half).
+    /// Flag indicating whether the opcode is `MULHU` (`u32 x u32`, upper half).
     pub is_mulhu: T,
 
-    /// Flag indicating whether the opcode is `MULHSU` (i32 x u32, upper half).
+    /// Flag indicating whether the opcode is `MULHSU` (`i32 x u32`, upper half).
     pub is_mulhsu: T,
 
     /// Selector to know whether this row is enabled.
