@@ -8,7 +8,7 @@ use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::chip::Chip;
+use crate::air::MachineAir;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
@@ -16,7 +16,7 @@ use super::{
     OPERATION_COUNT,
 };
 
-impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
+impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()
     }
