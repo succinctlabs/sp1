@@ -127,7 +127,7 @@ where
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::debug_span!("generate permutation traces").in_scope(|| {
+        tracing::info_span!("generate permutation traces").in_scope(|| {
             sends
                 .par_iter()
                 .zip(receives.par_iter())
@@ -168,7 +168,7 @@ where
         }
 
         // Commit to the permutation traces.
-        let flattened_permutation_traces = tracing::debug_span!("flatten permutation traces")
+        let flattened_permutation_traces = tracing::info_span!("flatten permutation traces")
             .in_scope(|| {
                 permutation_traces
                     .par_iter()
@@ -176,13 +176,13 @@ where
                     .collect::<Vec<_>>()
             });
         let (permutation_commit, permutation_data) =
-            tracing::debug_span!("commit permutation traces")
+            tracing::info_span!("commit permutation traces")
                 .in_scope(|| config.pcs().commit_batches(flattened_permutation_traces));
         challenger.observe(permutation_commit.clone());
 
         // For each chip, compute the quotient polynomial.
         let log_stride_for_quotient = config.pcs().log_blowup() - log_quotient_degree;
-        let main_ldes = tracing::debug_span!("get main ldes").in_scope(|| {
+        let main_ldes = tracing::info_span!("get main ldes").in_scope(|| {
             config
                 .pcs()
                 .get_ldes(&main_data.main_data)
@@ -190,7 +190,7 @@ where
                 .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
                 .collect::<Vec<_>>()
         });
-        let permutation_ldes = tracing::debug_span!("get perm ldes").in_scope(|| {
+        let permutation_ldes = tracing::info_span!("get perm ldes").in_scope(|| {
             config
                 .pcs()
                 .get_ldes(&permutation_data)
@@ -201,7 +201,7 @@ where
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
-        let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
+        let quotient_values = tracing::info_span!("compute quotient values").in_scope(|| {
             (0..chips.len())
                 .into_par_iter()
                 .map(|i| {
@@ -220,7 +220,7 @@ where
         });
 
         // Compute the quotient chunks.
-        let quotient_chunks = tracing::debug_span!("decompose and flatten").in_scope(|| {
+        let quotient_chunks = tracing::info_span!("decompose and flatten").in_scope(|| {
             quotient_values
                 .into_iter()
                 .map(|values| {
@@ -241,14 +241,14 @@ where
         }
 
         let num_quotient_chunks = quotient_chunks.len();
-        let coset_shifts = tracing::debug_span!("coset shift").in_scope(|| {
+        let coset_shifts = tracing::info_span!("coset shift").in_scope(|| {
             let shift = config
                 .pcs()
                 .coset_shift()
                 .exp_power_of_2(log_quotient_degree);
             vec![shift; chips.len()]
         });
-        let (quotient_commit, quotient_data) = tracing::debug_span!("commit shifted batches")
+        let (quotient_commit, quotient_data) = tracing::info_span!("commit shifted batches")
             .in_scope(|| {
                 config
                     .pcs()
@@ -262,7 +262,7 @@ where
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
         let trace_opening_points =
-            tracing::debug_span!("compute trace opening points").in_scope(|| {
+            tracing::info_span!("compute trace opening points").in_scope(|| {
                 g_subgroups
                     .iter()
                     .map(|g| vec![zeta, zeta * *g])
@@ -274,7 +274,7 @@ where
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
-        let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
+        let (openings, opening_proof) = tracing::info_span!("open multi batches").in_scope(|| {
             config.pcs().open_multi_batches(
                 &[
                     (&main_data.main_data, &trace_opening_points),

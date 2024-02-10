@@ -254,8 +254,10 @@ where
         let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
 
         // Observe the challenges for each segment.
-        shard_commits.into_iter().for_each(|commitment| {
-            challenger.observe(commitment);
+        tracing::info_span!("observing all challenges").in_scope(|| {
+            shard_commits.into_iter().for_each(|commitment| {
+                challenger.observe(commitment);
+            });
         });
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
@@ -263,20 +265,23 @@ where
         let shard_proofs = shard_data
             .into_par_iter()
             .map(|data| {
-                let data = data.materialize().expect("failed to load shard main data");
+                let data = tracing::info_span!("materializing data")
+                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
                 let chips = self
                     .chips()
                     .into_iter()
                     .filter(|chip| data.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
-                P::prove_shard(
-                    &self.config,
-                    &mut challenger.clone(),
-                    &chips,
-                    data,
-                    &prover_data.preprocessed_traces,
-                    &prover_data.preprocessed_data,
-                )
+                tracing::info_span!("proving shard").in_scope(|| {
+                    P::prove_shard(
+                        &self.config,
+                        &mut challenger.clone(),
+                        &chips,
+                        data,
+                        &prover_data.preprocessed_traces,
+                        &prover_data.preprocessed_data,
+                    )
+                })
             })
             .collect::<Vec<_>>();
 
