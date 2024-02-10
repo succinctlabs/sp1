@@ -317,13 +317,8 @@ where
         let product = {
             for i in 0..PRODUCT_SIZE {
                 if i == 0 {
-                    // When i = 0, there is no carry from the previous term as
-                    // there is no previous term.
                     builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
                 } else {
-                    // When 0 < i < PRODUCT_SIZE, there is a carry from the
-                    // previous term, and there's a carry from this term. This is
-                    // true even for the highest term due to the possible sign bits.
                     builder.assert_eq(
                         local.product[i],
                         m[i].clone() + local.carry[i - 1] - local.carry[i] * base,
