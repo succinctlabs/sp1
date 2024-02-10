@@ -1,4 +1,4 @@
-use succinct_core::{SuccinctProver, SuccinctStdin};
+use succinct_core::{SuccinctProver, SuccinctStdin, SuccinctVerifier};
 
 const FIBONACCI_IO_ELF: &[u8] =
     include_bytes!("../../../programs/demo/fibonacci-io/elf/riscv32im-succinct-zkvm-elf");
@@ -16,7 +16,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof.
-    // SuccinctVerifier::verify(FIBONACCI_IO_ELF, &proof).expect("verification failed");
+    SuccinctVerifier::verify(FIBONACCI_IO_ELF, &proof).expect("verification failed");
 
     // Save proof.
     proof
