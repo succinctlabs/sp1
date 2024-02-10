@@ -1,5 +1,22 @@
 //! This module contains the implementation of the `blake3_compress_inner` precompile based on the
 //! implementation of the `blake3` hash function in BLAKE3.
+//!
+//! Pseudo-code.
+//!
+//! state = [0u32; 16]
+//! message = [0u32; 16]
+//!
+//! for round in 0..7 {
+//!    for operation in 0..8 {
+//!       // Pick 4 indices a, b, c, d for the state, based on the operation index.
+//!       // Pick 2 indices x, y for the message, based on both the round and the operation index.
+//!       // g takes those 6 values, and updates the 4 state values, at indices a, b, c, d.
+//!       g(&mut state[a], &mut state[b], &mut state[c], &mut state[d], message[x], message[y]);
+//!   }
+//! }
+//!
+//! Note that this precompile is only the blake3 compress inner function. The Blake3 compress
+//! function has a series of 8 XOR operations after the compress inner function.
 mod air;
 mod columns;
 mod execute;
@@ -96,7 +113,9 @@ pub mod compress_tests {
     use crate::Program;
 
     use super::MSG_SIZE;
-    use super::STATE_SIZE;
+
+    /// The number of `Word`s in the state of the compress inner operation.
+    const STATE_SIZE: usize = 16;
 
     pub fn blake3_compress_internal_program() -> Program {
         let state_ptr = 100;
