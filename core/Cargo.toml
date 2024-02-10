@@ -52,7 +52,6 @@ k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
 anyhow = "1.0.79"
 serial_test = "3.0.0"
-measure_time = "0.8.2"
 
 [dev-dependencies]
 criterion = "0.5.1"

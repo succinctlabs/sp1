@@ -10,9 +10,7 @@ pub fn shard_size() -> usize {
     value
 }
 
-/// Gets the number of rows which by default should be used for each chip to maximize padding.
-///
-/// Some chips, such as FieldLTU, may use a constant multiple of this value to optimize performance.
+/// Gets the number of shards after which we should save the shard commits to disk.
 pub fn save_disk_threshold() -> usize {
     let value = match std::env::var("SAVE_DISK_THRESHOLD") {
         Ok(val) => val.parse().unwrap(),

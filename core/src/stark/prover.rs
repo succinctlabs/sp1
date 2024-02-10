@@ -17,7 +17,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::max;
 use std::marker::PhantomData;
-use std::mem;
 
 use super::folder::ProverConstraintFolder;
 use super::util::decompose_and_flatten;
@@ -562,9 +561,9 @@ where
         MainData<SC>: Serialize + DeserializeOwned,
     {
         let num_shards = shards.len();
-        println!("num_shards={}", num_shards);
-        // At around 64 shards * 1 GB per shard, saving to disk starts
-        // to become necessary.
+        tracing::info!("num_shards={}", num_shards);
+        // Get the number of shards that is the threshold for saving shards to disk instead of
+        // keeping all the shards in memory.
         let save_disk_threshold = env::save_disk_threshold();
         // Batch into at most 16 chunks (and at least 1) to limit parallelism.
         // let chunk_size = max(shards.len() / 16, 1);

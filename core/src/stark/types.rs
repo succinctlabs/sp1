@@ -65,6 +65,10 @@ impl<SC: StarkGenericConfig> MainData<SC> {
         drop(writer);
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
+        trace!(
+            "wrote {} while saving MainData",
+            Size::from_bytes(bytes_written)
+        );
         Ok(MainDataWrapper::TempFile(file, bytes_written))
     }
 
