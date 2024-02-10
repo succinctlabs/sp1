@@ -1,6 +1,7 @@
 pub mod ec;
 pub mod env;
 mod logger;
+mod poseidon2_instance;
 mod programs;
 mod prove;
 mod tracer;

@@ -65,7 +65,7 @@ pub mod compress_tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let program = sha_compress_program();
