@@ -12,21 +12,25 @@ use size::Size;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
-use super::StarkConfig;
+use super::StarkGenericConfig;
 
-pub type Val<SC> = <SC as StarkConfig>::Val;
-pub type OpeningProof<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
-pub type OpeningError<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
-pub type Challenge<SC> = <SC as StarkConfig>::Challenge;
+pub type Val<SC> = <SC as StarkGenericConfig>::Val;
+pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
+pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
+pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
-pub type Com<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
-pub type PcsProverData<SC> = <<SC as StarkConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
+pub type Com<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
+pub type PcsProverData<SC> =
+    <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
 #[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "SC: StarkConfig", deserialize = "SC: StarkConfig"))]
-pub struct MainData<SC: StarkConfig> {
+#[serde(bound(
+    serialize = "SC: StarkGenericConfig",
+    deserialize = "SC: StarkGenericConfig"
+))]
+pub struct MainData<SC: StarkGenericConfig> {
     pub traces: Vec<ValMat<SC>>,
     pub main_commit: Com<SC>,
     #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
@@ -35,7 +39,7 @@ pub struct MainData<SC: StarkConfig> {
     pub chip_ids: Vec<String>,
 }
 
-impl<SC: StarkConfig> MainData<SC> {
+impl<SC: StarkGenericConfig> MainData<SC> {
     pub fn new(
         traces: Vec<ValMat<SC>>,
         main_commit: Com<SC>,
@@ -74,12 +78,12 @@ impl<SC: StarkConfig> MainData<SC> {
     }
 }
 
-pub enum MainDataWrapper<SC: StarkConfig> {
+pub enum MainDataWrapper<SC: StarkGenericConfig> {
     InMemory(MainData<SC>),
     TempFile(File, u64),
 }
 
-impl<SC: StarkConfig> MainDataWrapper<SC> {
+impl<SC: StarkGenericConfig> MainDataWrapper<SC> {
     pub fn materialize(self) -> Result<MainData<SC>, Error>
     where
         MainData<SC>: DeserializeOwned,
@@ -126,7 +130,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 
 #[cfg(feature = "perf")]
 #[derive(Serialize)]
-pub struct ShardProof<SC: StarkConfig> {
+pub struct ShardProof<SC: StarkGenericConfig> {
     pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
@@ -135,7 +139,7 @@ pub struct ShardProof<SC: StarkConfig> {
 
 #[cfg(not(feature = "perf"))]
 #[derive(Serialize)]
-pub struct ShardProof<SC: StarkConfig> {
+pub struct ShardProof<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub traces: Vec<ValMat<SC>>,
     pub permutation_traces: Vec<ChallengeMat<SC>>,
@@ -178,7 +182,7 @@ impl<T> AirOpenedValues<T> {
 }
 
 #[cfg(feature = "perf")]
-impl<SC: StarkConfig> ShardProof<SC> {
+impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn cumulative_sum(&self) -> Challenge<SC> {
         self.opened_values
             .chips
@@ -189,7 +193,7 @@ impl<SC: StarkConfig> ShardProof<SC> {
 }
 
 #[derive(Serialize)]
-pub struct Proof<SC: StarkConfig> {
+pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub global_proof: ShardProof<SC>,
 }

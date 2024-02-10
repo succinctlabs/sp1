@@ -32,6 +32,7 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
+    preprocessed: &Option<RowMajorMatrix<F>>,
     main: &RowMajorMatrix<F>,
     random_elements: &[EF],
 ) -> RowMajorMatrix<EF> {
@@ -55,24 +56,47 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     let permutation_trace_width = sends.len() + receives.len() + 1;
     let mut permutation_trace_values = {
         // Compute the permutation trace values in parallel.
-        let mut parallel = main
-            .par_row_chunks(chunk_rate)
-            .flat_map(|rows_chunk| {
-                rows_chunk
-                    .rows()
-                    .flat_map(|main_row| {
-                        compute_permutation_row(
-                            main_row,
-                            &[],
-                            sends,
-                            receives,
-                            &alphas,
-                            betas.clone(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+
+        let mut parallel = match preprocessed {
+            Some(prep) => main
+                .par_row_chunks(chunk_rate)
+                .zip(prep.par_row_chunks(chunk_rate))
+                .flat_map(|(main_rows_chunk, prep_rows_chunk)| {
+                    main_rows_chunk
+                        .rows()
+                        .zip(prep_rows_chunk.rows())
+                        .flat_map(|(main_row, prep_row)| {
+                            compute_permutation_row(
+                                main_row,
+                                prep_row,
+                                sends,
+                                receives,
+                                &alphas,
+                                betas.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>(),
+            None => main
+                .par_row_chunks(chunk_rate)
+                .flat_map(|main_rows_chunk| {
+                    main_rows_chunk
+                        .rows()
+                        .flat_map(|main_row| {
+                            compute_permutation_row(
+                                main_row,
+                                &[],
+                                sends,
+                                receives,
+                                &alphas,
+                                betas.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>(),
+        };
 
         // Compute the permutation trace values for the remainder.
         let remainder = main.height() % chunk_rate;

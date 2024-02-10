@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    eval_permutation_constraints, DebugConstraintBuilder, ProverConstraintFolder, StarkConfig,
-    VerifierConstraintFolder,
+    eval_permutation_constraints, DebugConstraintBuilder, ProverConstraintFolder,
+    StarkGenericConfig, VerifierConstraintFolder,
 };
 
 pub struct Chip<F: Field, A> {
@@ -25,7 +25,7 @@ pub struct Chip<F: Field, A> {
     log_quotient_degree: usize,
 }
 
-pub struct ChipRef<'a, SC: StarkConfig> {
+pub struct ChipRef<'a, SC: StarkGenericConfig> {
     air: &'a dyn StarkAir<SC>,
     sends: &'a [Interaction<SC::Val>],
     receives: &'a [Interaction<SC::Val>],
@@ -46,7 +46,7 @@ impl<F: Field, A> Chip<F, A> {
     }
 }
 
-impl<'a, SC: StarkConfig> ChipRef<'a, SC> {
+impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
     pub fn sends(&self) -> &[Interaction<SC::Val>] {
         self.sends
     }
@@ -65,7 +65,7 @@ impl<'a, SC: StarkConfig> ChipRef<'a, SC> {
 /// This trait is for specifying a trait bound for explicit types of builders used in the stark
 /// proving system. It is automatically implemented on any type that implements `Air<AB>` with
 /// `AB: CurtaAirBuilder`. Users should not need to implement this trait manually.
-pub trait StarkAir<SC: StarkConfig>:
+pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
     + Air<InteractionBuilder<SC::Val>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -74,7 +74,7 @@ pub trait StarkAir<SC: StarkConfig>:
 {
 }
 
-impl<SC: StarkConfig, T> StarkAir<SC> for T where
+impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
     T: MachineAir<SC::Val>
         + Air<InteractionBuilder<SC::Val>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -109,7 +109,7 @@ where
         self.sends.len() + self.receives.len()
     }
 
-    pub fn as_ref<SC: StarkConfig<Val = F>>(&self) -> ChipRef<SC>
+    pub fn as_ref<SC: StarkGenericConfig<Val = F>>(&self) -> ChipRef<SC>
     where
         A: StarkAir<SC>,
     {
@@ -175,7 +175,7 @@ where
 
 // Implement Air on ChipRef similar to Chip.
 
-impl<'a, SC: StarkConfig> BaseAir<SC::Val> for ChipRef<'a, SC> {
+impl<'a, SC: StarkGenericConfig> BaseAir<SC::Val> for ChipRef<'a, SC> {
     fn width(&self) -> usize {
         <dyn StarkAir<SC> as BaseAir<SC::Val>>::width(self.air)
     }
@@ -185,7 +185,7 @@ impl<'a, SC: StarkConfig> BaseAir<SC::Val> for ChipRef<'a, SC> {
     }
 }
 
-impl<'a, SC: StarkConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
+impl<'a, SC: StarkGenericConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
     fn name(&self) -> String {
         <dyn StarkAir<SC> as MachineAir<SC::Val>>::name(self.air)
     }
@@ -203,19 +203,19 @@ impl<'a, SC: StarkConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
     }
 }
 
-impl<'a, 'b, SC: StarkConfig> Air<ProverConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
+impl<'a, 'b, SC: StarkGenericConfig> Air<ProverConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut ProverConstraintFolder<'b, SC>) {
         <dyn StarkAir<SC> as Air<ProverConstraintFolder<'b, SC>>>::eval(self.air, builder);
     }
 }
 
-impl<'a, 'b, SC: StarkConfig> Air<VerifierConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
+impl<'a, 'b, SC: StarkGenericConfig> Air<VerifierConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut VerifierConstraintFolder<'b, SC>) {
         <dyn StarkAir<SC> as Air<VerifierConstraintFolder<'b, SC>>>::eval(self.air, builder);
     }
 }
 
-impl<'a, 'b, SC: StarkConfig> Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>
+impl<'a, 'b, SC: StarkGenericConfig> Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>
     for ChipRef<'a, SC>
 {
     fn eval(&self, builder: &mut DebugConstraintBuilder<'b, SC::Val, SC::Challenge>) {

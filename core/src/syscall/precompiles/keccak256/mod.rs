@@ -94,7 +94,7 @@ pub mod permute_tests {
 
         let (machine, prover_data) = RiscvStark::init(config);
         tracing::info_span!("runtime.prove(...)").in_scope(|| {
-            machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger);
+            machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
         });
     }
 

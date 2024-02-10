@@ -2,11 +2,11 @@ use std::time::Instant;
 
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, RiscvStark, StarkConfig},
+    stark::{LocalProver, RiscvStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 
-pub trait StarkUtils: StarkConfig {
+pub trait StarkUtils: StarkGenericConfig {
     type UniConfig: p3_uni_stark::StarkGenericConfig<
         Val = Self::Val,
         PackedVal = Self::PackedVal,
@@ -56,8 +56,9 @@ pub fn prove_core(runtime: &mut Runtime) -> crate::stark::Proof<BabyBearBlake3> 
     let shard = runtime.record.clone();
 
     // Prove the program.
-    let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger));
+    let proof = tracing::info_span!("runtime.prove(...)").in_scope(|| {
+        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger)
+    });
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -144,7 +145,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use rand::Rng;
 
-    use crate::stark::StarkConfig;
+    use crate::stark::StarkGenericConfig;
 
     use super::StarkUtils;
 
@@ -211,7 +212,7 @@ pub(super) mod baby_bear_poseidon2 {
         }
     }
 
-    impl StarkConfig for BabyBearPoseidon2 {
+    impl StarkGenericConfig for BabyBearPoseidon2 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
@@ -252,7 +253,7 @@ pub(super) mod baby_bear_keccak {
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
     use rand::Rng;
 
-    use crate::stark::StarkConfig;
+    use crate::stark::StarkGenericConfig;
 
     use super::StarkUtils;
 
@@ -320,7 +321,7 @@ pub(super) mod baby_bear_keccak {
         }
     }
 
-    impl StarkConfig for BabyBearKeccak {
+    impl StarkGenericConfig for BabyBearKeccak {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
@@ -362,7 +363,7 @@ pub(super) mod baby_bear_blake3 {
     use rand::Rng;
     use serde::Serialize;
 
-    use crate::stark::StarkConfig;
+    use crate::stark::StarkGenericConfig;
 
     use super::StarkUtils;
 
@@ -447,7 +448,7 @@ pub(super) mod baby_bear_blake3 {
         }
     }
 
-    impl StarkConfig for BabyBearBlake3 {
+    impl StarkGenericConfig for BabyBearBlake3 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;
@@ -488,7 +489,7 @@ pub(super) mod baby_bear_k12 {
     use rand::Rng;
     use succinct_k12::KangarooTwelve;
 
-    use crate::stark::StarkConfig;
+    use crate::stark::StarkGenericConfig;
 
     use super::StarkUtils;
 
@@ -555,7 +556,7 @@ pub(super) mod baby_bear_k12 {
         }
     }
 
-    impl StarkConfig for BabyBearK12 {
+    impl StarkGenericConfig for BabyBearK12 {
         type Val = Val;
         type Challenge = Challenge;
         type PackedChallenge = PackedChallenge;

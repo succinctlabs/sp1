@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
-use super::StarkConfig;
+use super::StarkGenericConfig;
 
 use core::fmt::Display;
 
@@ -25,7 +25,7 @@ use super::ChipRef;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
-impl<SC: StarkConfig> Verifier<SC> {
+impl<SC: StarkGenericConfig> Verifier<SC> {
     /// Verify a proof for a collection of air chips.
     #[cfg(feature = "perf")]
     pub fn verify_shard(

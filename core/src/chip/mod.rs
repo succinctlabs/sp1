@@ -6,7 +6,7 @@
 //     lookup::{Interaction, InteractionBuilder},
 //     runtime::ExecutionRecord,
 //     stark::{
-//         DebugConstraintBuilder, ProverConstraintFolder, StarkConfig, VerifierConstraintFolder,
+//         DebugConstraintBuilder, ProverConstraintFolder, StarkGenericConfig, VerifierConstraintFolder,
 //     },
 // };
 
@@ -42,7 +42,7 @@
 //     }
 // }
 
-// pub trait AirChip<SC: StarkConfig>:
+// pub trait AirChip<SC: StarkGenericConfig>:
 //     Chip<SC::Val>
 //     + for<'a> Air<ProverConstraintFolder<'a, SC>>
 //     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
@@ -55,7 +55,7 @@
 //     fn as_chip(&self) -> &dyn Chip<SC::Val>;
 // }
 
-// impl<SC: StarkConfig, T> AirChip<SC> for T
+// impl<SC: StarkGenericConfig, T> AirChip<SC> for T
 // where
 //     T: Chip<SC::Val>
 //         + for<'a> Air<ProverConstraintFolder<'a, SC>>

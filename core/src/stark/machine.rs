@@ -45,18 +45,18 @@ use super::OpeningProof;
 use super::PcsProverData;
 use super::Proof;
 use super::Prover;
-use super::StarkConfig;
+use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
-pub struct ProverData<SC: StarkConfig> {
-    pub local_preprocessed_traces: Vec<RowMajorMatrix<SC::Val>>,
+pub struct ProverData<SC: StarkGenericConfig> {
+    pub local_preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
     pub local_preprocessed_data: Option<PcsProverData<SC>>,
-    pub global_preprocessed_traces: Vec<RowMajorMatrix<SC::Val>>,
+    pub global_preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
     pub global_preprocessed_data: Option<PcsProverData<SC>>,
 }
 
-pub struct RiscvStark<SC: StarkConfig> {
+pub struct RiscvStark<SC: StarkGenericConfig> {
     config: SC,
 
     program: Chip<SC::Val, ProgramChip>,
@@ -91,7 +91,7 @@ pub struct RiscvStark<SC: StarkConfig> {
     preprocessed_global_commitment: Option<Com<SC>>,
 }
 
-impl<SC: StarkConfig> RiscvStark<SC>
+impl<SC: StarkGenericConfig> RiscvStark<SC>
 where
     SC::Val: PrimeField32,
 {
@@ -158,15 +158,15 @@ where
         let local_preprocessed_traces = machine
             .local_chips()
             .iter()
-            .flat_map(|chip| chip.preprocessed_trace())
+            .map(|chip| chip.preprocessed_trace())
             .collect::<Vec<_>>();
-        let (local_commit, local_data) = if !local_preprocessed_traces.is_empty() {
-            Some(
-                machine
-                    .config
-                    .pcs()
-                    .commit_batches(local_preprocessed_traces.clone()),
-            )
+        let local_traces = local_preprocessed_traces
+            .iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        let (local_commit, local_data) = if !local_traces.is_empty() {
+            Some(machine.config.pcs().commit_batches(local_traces))
         } else {
             None
         }
@@ -176,15 +176,15 @@ where
         let global_preprocessed_traces = machine
             .global_chips()
             .iter()
-            .flat_map(|chip| chip.preprocessed_trace())
+            .map(|chip| chip.preprocessed_trace())
             .collect::<Vec<_>>();
-        let (global_commit, global_data) = if !global_preprocessed_traces.is_empty() {
-            Some(
-                machine
-                    .config
-                    .pcs()
-                    .commit_batches(global_preprocessed_traces.clone()),
-            )
+        let global_traces = global_preprocessed_traces
+            .iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        let (global_commit, global_data) = if !global_traces.is_empty() {
+            Some(machine.config.pcs().commit_batches(global_traces))
         } else {
             None
         }
@@ -243,6 +243,7 @@ where
     /// The function returns a vector of segment proofs, one for each segment, and a global proof.
     pub fn prove<P>(
         &self,
+        prover_data: &ProverData<SC>,
         record: &mut ExecutionRecord,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
@@ -292,7 +293,14 @@ where
                     .into_iter()
                     .filter(|chip| data.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
-                P::prove_shard(&self.config, &mut challenger.clone(), &chips, data)
+                P::prove_shard(
+                    &self.config,
+                    &mut challenger.clone(),
+                    &chips,
+                    data,
+                    &prover_data.local_preprocessed_traces,
+                    &prover_data.local_preprocessed_data,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -305,6 +313,8 @@ where
             &mut challenger.clone(),
             &global_chips,
             global_main_data,
+            &prover_data.global_preprocessed_traces,
+            &prover_data.global_preprocessed_data,
         );
 
         Proof {

@@ -7,12 +7,12 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
 use crate::air::EmptyMessageBuilder;
 
-use super::{ChipRef, StarkConfig};
+use super::{ChipRef, StarkGenericConfig};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<SC: StarkConfig>(
+pub fn debug_constraints<SC: StarkGenericConfig>(
     chip: &ChipRef<SC>,
     preprocessed: Option<&RowMajorMatrix<SC::Val>>,
     main: &RowMajorMatrix<SC::Val>,

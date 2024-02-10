@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use super::folder::ProverConstraintFolder;
 use super::util::decompose_and_flatten;
 use super::zerofier_coset::ZerofierOnCoset;
-use super::{types::*, ChipRef, StarkConfig};
+use super::{types::*, ChipRef, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::stark::permutation::generate_permutation_trace;
@@ -29,7 +29,7 @@ use crate::stark::debug_constraints;
 
 pub trait Prover<SC>
 where
-    SC: StarkConfig,
+    SC: StarkGenericConfig,
 {
     fn commit_shards<F, EF>(
         config: &SC,
@@ -42,7 +42,7 @@ where
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC: StarkGenericConfig<Val = F, Challenge = EF> + Send + Sync,
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
@@ -87,6 +87,8 @@ where
         challenger: &mut SC::Challenger,
         chips: &[ChipRef<SC>],
         main_data: MainData<SC>,
+        preprocessed_traces: &[Option<RowMajorMatrix<SC::Val>>],
+        preprocessed_data: &Option<PcsProverData<SC>>,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
@@ -132,11 +134,17 @@ where
                 .par_iter()
                 .zip(receives.par_iter())
                 .zip(traces.par_iter())
-                .map(|((send, rec), trace)| {
-                    let perm_trace =
-                        generate_permutation_trace(send, rec, trace, &permutation_challenges);
+                .zip(preprocessed_traces.par_iter())
+                .map(|(((send, rec), main_trace), prep_trace)| {
+                    let perm_trace = generate_permutation_trace(
+                        send,
+                        rec,
+                        prep_trace,
+                        main_trace,
+                        &permutation_challenges,
+                    );
                     let cumulative_sum = perm_trace
-                        .row_slice(trace.height() - 1)
+                        .row_slice(main_trace.height() - 1)
                         .last()
                         .copied()
                         .unwrap();
@@ -406,7 +414,7 @@ where
         alpha: SC::Challenge,
     ) -> Vec<SC::Challenge>
     where
-        SC: StarkConfig,
+        SC: StarkGenericConfig,
         MainLde: MatrixGet<SC::Val> + Sync,
         PermLde: MatrixGet<SC::Val> + Sync,
     {
@@ -534,7 +542,7 @@ pub struct LocalProver<SC>(PhantomData<SC>);
 
 impl<SC> Prover<SC> for LocalProver<SC>
 where
-    SC: StarkConfig,
+    SC: StarkGenericConfig,
 {
     fn commit_shards<F, EF>(
         config: &SC,
@@ -547,7 +555,7 @@ where
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC: StarkGenericConfig<Val = F, Challenge = EF> + Send + Sync,
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,

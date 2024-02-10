@@ -7,7 +7,7 @@ use p3_matrix::Matrix;
 
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
-use crate::stark::{ChipRef, StarkConfig};
+use crate::stark::{ChipRef, StarkGenericConfig};
 use crate::utils::BabyBearPoseidon2;
 
 use super::InteractionKind;
@@ -44,7 +44,7 @@ fn babybear_to_int(n: BabyBear) -> i32 {
     }
 }
 
-pub fn debug_interactions<SC: StarkConfig>(
+pub fn debug_interactions<SC: StarkGenericConfig>(
     chip: &ChipRef<SC>,
     segment: &mut ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,

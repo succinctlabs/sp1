@@ -1,7 +1,7 @@
 // use super::prover::Prover;
 // use super::types::MainData;
 // use super::OpeningProof;
-// use super::{StarkConfig, VerificationError};
+// use super::{StarkGenericConfig, VerificationError};
 // use crate::runtime::{ExecutionRecord, Runtime};
 // use crate::stark::{Proof, Verifier};
 
@@ -22,7 +22,7 @@
 //     pub fn prove<SC, P>(&mut self, config: &SC, challenger: &mut SC::Challenger) -> Proof<SC>
 //     where
 //         SC::Val: PrimeField32,
-//         SC: StarkConfig + Send + Sync,
+//         SC: StarkGenericConfig + Send + Sync,
 //         SC::Challenger: Clone,
 //         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
 //         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
@@ -94,7 +94,7 @@
 //     ) -> Result<(), ProgramVerificationError>
 //     where
 //         SC::Val: PrimeField32,
-//         SC: StarkConfig + Send + Sync,
+//         SC: StarkGenericConfig + Send + Sync,
 //         SC::Challenger: Clone,
 //         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
 //         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
@@ -149,7 +149,7 @@
 //     // ///
 //     // /// The chips must be ordered to address dependencies. Some operations, like division, depend
 //     // /// on others, like multiplication, for verification.
-//     // pub fn local_chips<SC: StarkConfig>() -> Vec<Box<dyn AirChip<SC>>>
+//     // pub fn local_chips<SC: StarkGenericConfig>() -> Vec<Box<dyn AirChip<SC>>>
 //     // where
 //     //     SC::Val: PrimeField32,
 //     // {
@@ -189,7 +189,7 @@
 //     // /// Chips used in the global segment.
 //     // ///
 //     // /// The chips must be ordered to address dependencies, similar to `segment_chips`.
-//     // pub fn global_chips<SC: StarkConfig>() -> Vec<Box<dyn AirChip<SC>>>
+//     // pub fn global_chips<SC: StarkGenericConfig>() -> Vec<Box<dyn AirChip<SC>>>
 //     // where
 //     //     SC::Val: PrimeField32,
 //     // {
