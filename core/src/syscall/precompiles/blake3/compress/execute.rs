@@ -19,10 +19,9 @@ impl Syscall for Blake3CompressInnerChip {
 
         // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
-        let saved_state_ptr = state_ptr;
-        let mut message_read_records =
+        let mut message_reads =
             [[[MemoryReadRecord::default(); NUM_MSG_WORDS_PER_CALL]; OPERATION_COUNT]; ROUND_COUNT];
-        let mut state_write_records = [[[MemoryWriteRecord::default(); NUM_STATE_WORDS_PER_CALL];
+        let mut state_writes = [[[MemoryWriteRecord::default(); NUM_STATE_WORDS_PER_CALL];
             OPERATION_COUNT]; ROUND_COUNT];
 
         for round in 0..ROUND_COUNT {
@@ -41,18 +40,21 @@ impl Syscall for Blake3CompressInnerChip {
                     }
                     for i in 0..NUM_MSG_WORDS_PER_CALL {
                         let (record, value) = rt.mr(message_ptr + (message_index[i] as u32) * 4);
-                        message_read_records[round][operation][i] = record;
+                        message_reads[round][operation][i] = record;
                         input.push(value);
                     }
                 }
 
+                // Call g.
                 let results = g_func(input.try_into().unwrap());
 
                 // Write the state.
                 for i in 0..NUM_STATE_WORDS_PER_CALL {
-                    state_write_records[round][operation][i] =
+                    state_writes[round][operation][i] =
                         rt.mw(state_ptr + (state_index[i] as u32) * 4, results[i]);
                 }
+
+                // Increment the clock for the next call of g.
                 rt.clk += 4;
             }
         }
@@ -64,9 +66,9 @@ impl Syscall for Blake3CompressInnerChip {
             .push(Blake3CompressInnerEvent {
                 shard,
                 clk: saved_clk,
-                state_ptr: saved_state_ptr,
-                message_reads: message_read_records,
-                state_writes: state_write_records,
+                state_ptr,
+                message_reads,
+                state_writes,
                 message_ptr,
             });
 
