@@ -1,6 +1,6 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::stark::StarkConfig;
+use crate::stark::StarkGenericConfig;
 use crate::utils::Buffer;
 use crate::Proof;
 
@@ -68,7 +68,7 @@ impl SuccinctStdout {
     }
 }
 
-pub fn serialize_proof<S, SC: StarkConfig + Serialize>(
+pub fn serialize_proof<S, SC: StarkGenericConfig + Serialize>(
     proof: &Proof<SC>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>

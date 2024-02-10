@@ -6,8 +6,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
-use crate::chip::Chip;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
@@ -36,7 +36,7 @@ pub struct AddCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for AddChip {
+impl<F: PrimeField> MachineAir<F> for AddChip {
     fn name(&self) -> String {
         "Add".to_string()
     }
@@ -125,7 +125,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use rand::{thread_rng, Rng};

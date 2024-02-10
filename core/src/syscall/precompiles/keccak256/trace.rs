@@ -7,7 +7,7 @@ use p3_keccak_air::{generate_trace_rows, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    chip::Chip,
+    air::MachineAir,
     runtime::ExecutionRecord,
     syscall::precompiles::keccak256::{
         columns::{KeccakCols, NUM_KECCAK_COLS},
@@ -17,7 +17,7 @@ use crate::{
 
 use super::KeccakPermuteChip;
 
-impl<F: PrimeField32> Chip<F> for KeccakPermuteChip {
+impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     fn name(&self) -> String {
         "KeccakPermute".to_string()
     }

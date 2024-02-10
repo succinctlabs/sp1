@@ -1,5 +1,5 @@
 use crate::air::CurtaAirBuilder;
-use crate::chip::Chip;
+use crate::air::MachineAir;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -11,6 +11,7 @@ use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::ec::NUM_WORDS_EC_POINT;
@@ -138,7 +139,9 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     }
 }
 
-impl<F: Field, E: EllipticCurve> Chip<F> for WeierstrassAddAssignChip<E> {
+impl<F: Field, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
+    for WeierstrassAddAssignChip<E>
+{
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
     }

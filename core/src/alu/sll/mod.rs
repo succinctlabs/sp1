@@ -39,8 +39,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
-use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
@@ -89,7 +89,7 @@ pub struct ShiftLeftCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for ShiftLeft {
+impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     fn name(&self) -> String {
         "ShiftLeft".to_string()
     }
@@ -346,7 +346,7 @@ where
 mod tests {
 
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;

@@ -1,3 +1,4 @@
+use p3_air::PermutationAirBuilder;
 use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
@@ -459,6 +460,12 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             InteractionKind::Program,
         ));
     }
+}
+
+pub trait MultiTableAirBuilder: PermutationAirBuilder {
+    type Sum: Into<Self::ExprEF>;
+
+    fn cumulative_sum(&self) -> Self::Sum;
 }
 
 /// A trait which contains all helper methods for building an AIR.

@@ -8,9 +8,9 @@ use super::columns::{
     NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
 };
 use super::{CpuChip, CpuEvent};
+use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::cpu::columns::{CpuCols, MemoryColumns};
 use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
@@ -19,7 +19,7 @@ use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::env;
 
-impl<F: PrimeField> Chip<F> for CpuChip {
+impl<F: PrimeField> MachineAir<F> for CpuChip {
     fn name(&self) -> String {
         "CPU".to_string()
     }
