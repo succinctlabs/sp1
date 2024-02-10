@@ -197,6 +197,12 @@ pub(super) mod baby_bear_poseidon2 {
         }
     }
 
+    impl Clone for BabyBearPoseidon2 {
+        fn clone(&self) -> Self {
+            Self::new()
+        }
+    }
+
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
             let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
@@ -339,6 +345,12 @@ pub(super) mod baby_bear_keccak {
             let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
             Self { pcs, perm }
+        }
+    }
+
+    impl Clone for BabyBearKeccak {
+        fn clone(&self) -> Self {
+            Self::new()
         }
     }
 
