@@ -1,5 +1,5 @@
 //! This module contains the implementation of the `blake3_compress_inner` precompile based on the
-//! implementation of the `blake3` hash function in Plonky3.
+//! implementation of the `blake3` hash function in BLAKE3.
 mod air;
 mod columns;
 mod execute;
