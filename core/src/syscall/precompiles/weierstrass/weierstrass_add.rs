@@ -11,7 +11,6 @@ use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::ec::NUM_WORDS_EC_POINT;
@@ -42,7 +41,7 @@ pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u
 #[repr(C)]
 pub struct WeierstrassAddAssignCols<T> {
     pub is_real: T,
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
@@ -61,14 +60,14 @@ pub struct WeierstrassAddAssignCols<T> {
 }
 
 #[derive(Default)]
-pub struct WeierstrassAddAssignChip<E, WP> {
-    _marker: PhantomData<(E, WP)>,
+pub struct WeierstrassAddAssignChip<E> {
+    _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve, WP> Syscall for WeierstrassAddAssignChip<E, WP> {
+impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.segment_mut().weierstrass_add_events.push(event);
+        rt.record_mut().weierstrass_add_events.push(event);
         event.p_ptr + 1
     }
 
@@ -77,7 +76,7 @@ impl<E: EllipticCurve, WP> Syscall for WeierstrassAddAssignChip<E, WP> {
     }
 }
 
-impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP> {
+impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -139,9 +138,7 @@ impl<E: EllipticCurve, WP: WeierstrassParameters> WeierstrassAddAssignChip<E, WP
     }
 }
 
-impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
-    for WeierstrassAddAssignChip<E, WP>
-{
+impl<F: Field, E: EllipticCurve> Chip<F> for WeierstrassAddAssignChip<E> {
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
     }
@@ -174,7 +171,7 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.segment = F::from_canonical_u32(event.segment);
+            cols.shard = F::from_canonical_u32(event.shard);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.p_ptr = F::from_canonical_u32(event.p_ptr);
             cols.q_ptr = F::from_canonical_u32(event.q_ptr);
@@ -211,15 +208,13 @@ impl<F: Field, E: EllipticCurve, WP: WeierstrassParameters> Chip<F>
     }
 }
 
-impl<F, E: EllipticCurve, WP: WeierstrassParameters> BaseAir<F>
-    for WeierstrassAddAssignChip<E, WP>
-{
+impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
     fn width(&self) -> usize {
         NUM_WEIERSTRASS_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve, WP: WeierstrassParameters> Air<AB> for WeierstrassAddAssignChip<E, WP>
+impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
 where
     AB: CurtaAirBuilder,
 {
@@ -313,21 +308,21 @@ where
         }
 
         builder.constraint_memory_access(
-            row.segment,
+            row.shard,
             row.clk, // clk + 0 -> C
             AB::F::from_canonical_u32(Register::X11 as u32),
             &row.q_ptr_access,
             row.is_real,
         );
         builder.constraint_memory_access_slice(
-            row.segment,
+            row.shard,
             row.clk.into(), // clk + 0 -> Memory
             row.q_ptr,
             &row.q_access,
             row.is_real,
         );
         builder.constraint_memory_access_slice(
-            row.segment,
+            row.shard,
             row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
             row.p_ptr,
             &row.p_access,

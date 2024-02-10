@@ -5,8 +5,8 @@ use super::memory::MemoryRecordEnum;
 /// A standard format for describing CPU operations that need to be proven.
 #[derive(Debug, Copy, Clone)]
 pub struct CpuEvent {
-    /// The current segment.
-    pub segment: u32,
+    /// The current shard.
+    pub shard: u32,
 
     /// The current clock.
     pub clk: u32,

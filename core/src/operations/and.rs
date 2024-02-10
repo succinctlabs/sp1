@@ -21,7 +21,7 @@ pub struct AndOperation<T> {
 }
 
 impl<F: Field> AndOperation<F> {
-    pub fn populate(&mut self, segment: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
+    pub fn populate(&mut self, shard: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
         let expected = x & y;
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
@@ -36,7 +36,7 @@ impl<F: Field> AndOperation<F> {
                 b: x_bytes[i] as u32,
                 c: y_bytes[i] as u32,
             };
-            segment
+            shard
                 .byte_lookups
                 .entry(byte_event)
                 .and_modify(|j| *j += 1)

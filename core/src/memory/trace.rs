@@ -8,12 +8,12 @@ impl<F: Field> MemoryWriteCols<F> {
     pub fn populate(&mut self, record: MemoryWriteRecord, new_field_events: &mut Vec<FieldEvent>) {
         let current_record = MemoryRecord {
             value: record.value,
-            segment: record.segment,
+            shard: record.shard,
             timestamp: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.prev_value,
-            segment: record.prev_segment,
+            shard: record.prev_shard,
             timestamp: record.prev_timestamp,
         };
         self.prev_value = prev_record.value.into();
@@ -26,12 +26,12 @@ impl<F: Field> MemoryReadCols<F> {
     pub fn populate(&mut self, record: MemoryReadRecord, new_field_events: &mut Vec<FieldEvent>) {
         let current_record = MemoryRecord {
             value: record.value,
-            segment: record.segment,
+            shard: record.shard,
             timestamp: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.value,
-            segment: record.prev_segment,
+            shard: record.prev_shard,
             timestamp: record.prev_timestamp,
         };
         self.access
@@ -58,12 +58,12 @@ impl<F: Field> MemoryReadWriteCols<F> {
     ) {
         let current_record = MemoryRecord {
             value: record.value,
-            segment: record.segment,
+            shard: record.shard,
             timestamp: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.prev_value,
-            segment: record.prev_segment,
+            shard: record.prev_shard,
             timestamp: record.prev_timestamp,
         };
         self.prev_value = prev_record.value.into();
@@ -78,12 +78,12 @@ impl<F: Field> MemoryReadWriteCols<F> {
     ) {
         let current_record = MemoryRecord {
             value: record.value,
-            segment: record.segment,
+            shard: record.shard,
             timestamp: record.timestamp,
         };
         let prev_record = MemoryRecord {
             value: record.value,
-            segment: record.prev_segment,
+            shard: record.prev_shard,
             timestamp: record.prev_timestamp,
         };
         self.prev_value = prev_record.value.into();
@@ -101,22 +101,22 @@ impl<F: Field> MemoryAccessCols<F> {
     ) {
         self.value = current_record.value.into();
 
-        self.prev_segment = F::from_canonical_u32(prev_record.segment);
+        self.prev_shard = F::from_canonical_u32(prev_record.shard);
         self.prev_clk = F::from_canonical_u32(prev_record.timestamp);
 
         // Fill columns used for verifying current memory access time value is greater than previous's.
-        let use_clk_comparison = prev_record.segment == current_record.segment;
+        let use_clk_comparison = prev_record.shard == current_record.shard;
         self.use_clk_comparison = F::from_bool(use_clk_comparison);
         let prev_time_value = if use_clk_comparison {
             prev_record.timestamp
         } else {
-            prev_record.segment
+            prev_record.shard
         };
         self.prev_time_value = F::from_canonical_u32(prev_time_value);
         let current_time_value = if use_clk_comparison {
             current_record.timestamp
         } else {
-            current_record.segment
+            current_record.shard
         };
         self.current_time_value = F::from_canonical_u32(current_time_value);
 

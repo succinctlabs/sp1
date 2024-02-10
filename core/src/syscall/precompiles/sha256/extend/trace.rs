@@ -31,7 +31,7 @@ impl<F: PrimeField> Chip<F> for ShaExtendChip {
                 let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.populate_flags(j);
-                cols.segment = F::from_canonical_u32(event.segment);
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.clk = F::from_canonical_u32(event.clk);
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 

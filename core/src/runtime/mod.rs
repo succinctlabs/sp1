@@ -56,10 +56,10 @@ pub struct Runtime {
     pub record: ExecutionRecord,
 
     /// The record for the current CPU opcode containing relevant events.
-    pub op_record: OpRecord,
+    pub cpu_record: CpuRecord,
 
-    /// The maximum size of each segment.
-    pub segment_size: u32,
+    /// The maximum size of each shard.
+    pub shard_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
@@ -87,8 +87,8 @@ impl Runtime {
             record,
             state: ExecutionState::new(program_arc.pc_start),
             program: program_arc,
-            op_record: OpRecord::default(),
-            segment_size: env::segment_size() as u32 * 4,
+            cpu_record: CpuRecord::default(),
+            shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
             unconstrained: false,
             unconstrained_state: ForkState::default(),
@@ -131,18 +131,20 @@ impl Runtime {
         (word >> ((addr % 4) * 8)) as u8
     }
 
+    #[inline]
     fn clk_from_position(&self, position: &AccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
 
-    pub fn current_segment(&self) -> u32 {
-        self.state.segment_clk
+    pub fn current_shard(&self) -> u32 {
+        self.state.current_shard
     }
 
     fn align(&self, addr: u32) -> u32 {
         addr - addr % 4
     }
 
+    #[inline]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
@@ -153,7 +155,7 @@ impl Runtime {
         }
     }
 
-    pub fn mr_core(&mut self, addr: u32, segment: u32, clk: u32) -> MemoryReadRecord {
+    pub fn mr(&mut self, addr: u32, shard: u32, clk: u32) -> MemoryReadRecord {
         // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
@@ -171,13 +173,13 @@ impl Runtime {
         // If it's the first time accessing this address, initialize previous values as zero.
         let entry_value = memory_entry.or_insert((0, 0, 0));
         // Get the last time this memory address was accessed, and then update with current clock.
-        let (value, prev_segment, prev_timestamp) = *entry_value;
-        (entry_value.1, entry_value.2) = (segment, clk);
+        let (value, prev_shard, prev_timestamp) = *entry_value;
+        (entry_value.1, entry_value.2) = (shard, clk);
 
-        MemoryReadRecord::new(value, segment, clk, prev_segment, prev_timestamp)
+        MemoryReadRecord::new(value, shard, clk, prev_shard, prev_timestamp)
     }
 
-    pub fn mw_core(&mut self, addr: u32, value: u32, segment: u32, clk: u32) -> MemoryWriteRecord {
+    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, clk: u32) -> MemoryWriteRecord {
         // Get the memory entry.
         let memory_entry = self.state.memory.entry(addr);
         if self.unconstrained {
@@ -195,47 +197,40 @@ impl Runtime {
         // If it's the first time accessing this address, initialize previous values as zero.
         let entry_value = memory_entry.or_insert((0, 0, 0));
         // Get previous values and then update with new values.
-        let (prev_value, prev_segment, prev_timestamp) = *entry_value;
-        *entry_value = (value, segment, clk);
-        MemoryWriteRecord::new(
-            value,
-            segment,
-            clk,
-            prev_value,
-            prev_segment,
-            prev_timestamp,
-        )
+        let (prev_value, prev_shard, prev_timestamp) = *entry_value;
+        *entry_value = (value, shard, clk);
+        MemoryWriteRecord::new(value, shard, clk, prev_value, prev_shard, prev_timestamp)
     }
 
     /// Read from memory, assuming that all addresses are aligned.
-    pub fn mr(&mut self, addr: u32, position: AccessPosition) -> u32 {
+    pub fn mr_cpu(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
-        let record = self.mr_core(
+        let record = self.mr(
             addr,
-            self.current_segment(),
+            self.current_shard(),
             self.clk_from_position(&position),
         );
 
         if !self.unconstrained {
             match position {
-                AccessPosition::A => self.op_record.a = Some(record.into()),
-                AccessPosition::B => self.op_record.b = Some(record.into()),
-                AccessPosition::C => self.op_record.c = Some(record.into()),
-                AccessPosition::Memory => self.op_record.memory = Some(record.into()),
+                AccessPosition::A => self.cpu_record.a = Some(record.into()),
+                AccessPosition::B => self.cpu_record.b = Some(record.into()),
+                AccessPosition::C => self.cpu_record.c = Some(record.into()),
+                AccessPosition::Memory => self.cpu_record.memory = Some(record.into()),
             }
         }
         record.value
     }
 
     /// Write to memory.
-    pub fn mw(&mut self, addr: u32, value: u32, position: AccessPosition) {
+    pub fn mw_cpu(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
 
-        let record = self.mw_core(
+        let record = self.mw(
             addr,
             value,
-            self.current_segment(),
+            self.current_shard(),
             self.clk_from_position(&position),
         );
 
@@ -243,20 +238,20 @@ impl Runtime {
         if !self.unconstrained {
             match position {
                 AccessPosition::A => {
-                    assert!(self.op_record.a.is_none());
-                    self.op_record.a = Some(record.into());
+                    assert!(self.cpu_record.a.is_none());
+                    self.cpu_record.a = Some(record.into());
                 }
                 AccessPosition::B => {
-                    assert!(self.op_record.b.is_none());
-                    self.op_record.b = Some(record.into());
+                    assert!(self.cpu_record.b.is_none());
+                    self.cpu_record.b = Some(record.into());
                 }
                 AccessPosition::C => {
-                    assert!(self.op_record.c.is_none());
-                    self.op_record.c = Some(record.into());
+                    assert!(self.cpu_record.c.is_none());
+                    self.cpu_record.c = Some(record.into());
                 }
                 AccessPosition::Memory => {
-                    assert!(self.op_record.memory.is_none());
-                    self.op_record.memory = Some(record.into());
+                    assert!(self.cpu_record.memory.is_none());
+                    self.cpu_record.memory = Some(record.into());
                 }
             }
         }
@@ -264,7 +259,7 @@ impl Runtime {
 
     /// Read from register.
     pub fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
-        self.mr(register as u32, position)
+        self.mr_cpu(register as u32, position)
     }
 
     /// Write to register.
@@ -275,14 +270,14 @@ impl Runtime {
             return;
         }
         // The only time we are writing to a register is when it is register A.
-        self.mw(register as u32, value, AccessPosition::A)
+        self.mw_cpu(register as u32, value, AccessPosition::A)
     }
 
     /// Emit a CPU event.
     #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
-        segment: u32,
+        shard: u32,
         clk: u32,
         pc: u32,
         instruction: Instruction,
@@ -290,10 +285,10 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
-        record: OpRecord,
+        record: CpuRecord,
     ) {
         let cpu_event = CpuEvent {
-            segment,
+            shard,
             clk,
             pc,
             instruction,
@@ -383,7 +378,7 @@ impl Runtime {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr(self.align(addr), AccessPosition::Memory);
+        let memory_value = self.mr_cpu(self.align(addr), AccessPosition::Memory);
         (rd, b, c, addr, memory_value)
     }
 
@@ -419,6 +414,14 @@ impl Runtime {
         self.syscall_map.get(&code)
     }
 
+    fn max_syscall_cycles(&self) -> u32 {
+        self.syscall_map
+            .values()
+            .map(|syscall| syscall.num_extra_cycles())
+            .max()
+            .unwrap_or(0)
+    }
+
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
@@ -428,7 +431,7 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.op_record = OpRecord::default();
+        self.cpu_record = CpuRecord::default();
 
         match instruction.opcode {
             // Arithmetic instructions.
@@ -541,7 +544,7 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
             }
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
@@ -552,14 +555,14 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
             }
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
-                self.mw(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
             }
 
             // B-type instructions.
@@ -724,7 +727,7 @@ impl Runtime {
 
         // Emit the CPU event for this cycle.
         self.emit_cpu(
-            self.current_segment(),
+            self.current_shard(),
             self.state.clk,
             pc,
             instruction,
@@ -732,7 +735,7 @@ impl Runtime {
             b,
             c,
             memory_store_value,
-            self.op_record,
+            self.cpu_record,
         );
     }
 
@@ -742,6 +745,8 @@ impl Runtime {
         for (addr, value) in self.program.memory_image.iter() {
             self.state.memory.insert(*addr, (*value, 0, 0));
         }
+
+        let max_syscall_cycles = self.max_syscall_cycles();
 
         self.state.clk += 1;
         while self.state.pc.wrapping_sub(self.program.pc_base)
@@ -784,10 +789,11 @@ impl Runtime {
             self.state.global_clk += 1;
             self.state.clk += 4;
 
-            // Reset the clock every `segment_size` cycles.
-            if self.state.clk % self.segment_size == 1 && !self.unconstrained {
-                self.state.segment_clk += 1;
-                self.state.clk = 1;
+            // If there's not enough cycles left for another instruction, move to the next shard.
+            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
+            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
+                self.state.current_shard += 1;
+                self.state.clk = 0;
             }
         }
 
@@ -808,8 +814,8 @@ impl Runtime {
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let (value, segment, timestamp) = *self.state.memory.get(&addr).unwrap();
-            if segment == 0 && timestamp == 0 {
+            let (value, shard, timestamp) = *self.state.memory.get(&addr).unwrap();
+            if shard == 0 && timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
@@ -824,7 +830,7 @@ impl Runtime {
                     addr,
                     MemoryRecord {
                         value: 0,
-                        segment: 0,
+                        shard: 0,
                         timestamp: 0,
                     },
                     1,
@@ -835,7 +841,7 @@ impl Runtime {
                 addr,
                 MemoryRecord {
                     value,
-                    segment,
+                    shard,
                     timestamp,
                 },
                 1,
@@ -849,7 +855,7 @@ impl Runtime {
                     addr,
                     MemoryRecord {
                         value,
-                        segment: 0,
+                        shard: 0,
                         timestamp: 0,
                     },
                     used,
@@ -867,7 +873,10 @@ impl Runtime {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::{runtime::Register, utils::tests::FIBONACCI_ELF};
+    use crate::{
+        runtime::Register,
+        utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
+    };
 
     use super::{Instruction, Opcode, Program, Runtime};
 
@@ -882,6 +891,10 @@ pub mod tests {
 
     pub fn fibonacci_program() -> Program {
         Program::from(FIBONACCI_ELF)
+    }
+
+    pub fn ssz_withdrawals_program() -> Program {
+        Program::from(SSZ_WITHDRAWALS_ELF)
     }
 
     pub fn ecall_lwa_program() -> Program {

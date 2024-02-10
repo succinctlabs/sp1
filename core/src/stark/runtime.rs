@@ -19,10 +19,8 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 
 use p3_challenger::CanObserve;
 use p3_commit::Pcs;
@@ -35,7 +33,7 @@ use serde::Serialize;
 impl Runtime {
     /// Prove the program.
     ///
-    /// The function returns a vector of segment proofs, one for each segment, and a global proof.
+    /// The function returns a vector of shard proofs, one for each shard, and a global proof.
     pub fn prove<F, EF, SC, P>(&mut self, config: &SC, challenger: &mut SC::Challenger) -> Proof<SC>
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -60,24 +58,24 @@ impl Runtime {
         // Display the statistics about the workload.
         tracing::info!("{:#?}", self.record.stats());
 
-        // For each chip, shard the events into segments.
-        let mut segments: Vec<ExecutionRecord> = Vec::new();
+        // For each chip, shard the events into shards.
+        let mut shards: Vec<ExecutionRecord> = Vec::new();
         local_chips.iter().for_each(|chip| {
-            chip.shard(&self.record, &mut segments);
+            chip.shard(&self.record, &mut shards);
         });
 
-        // Generate and commit the traces for each segment.
-        let (segment_commits, segment_datas) =
-            P::generate_segment_traces::<F, EF>(config, &mut segments, &local_chips);
+        // Generate and commit the traces for each shard.
+        let (shard_commits, shard_datas) =
+            P::generate_shard_traces::<F, EF>(config, &mut shards, &local_chips);
 
-        // Observe the challenges for each segment.
-        segment_commits.into_iter().for_each(|commitment| {
+        // Observe the challenges for each shard.
+        shard_commits.into_iter().for_each(|commitment| {
             challenger.observe(commitment);
         });
 
-        // Generate a proof for each segment. Note that we clone the challenger so we can observe
-        // identical global challenges across the segments.
-        let segment_proofs = segment_datas
+        // Generate a proof for each shard. Note that we clone the challenger so we can observe
+        // identical global challenges across the shards.
+        let shard_proofs = shard_datas
             .into_par_iter()
             .enumerate()
             .map(|(_, main_data)| {
@@ -86,11 +84,11 @@ impl Runtime {
             })
             .collect::<Vec<_>>();
 
-        // Generate and commit to the global segment.
+        // Generate and commit to the global shard.
         let global_main_data =
             P::commit_main(config, &global_chips, &mut self.record).to_in_memory();
 
-        // Generate a proof for the global segment.
+        // Generate a proof for the global shard.
         let global_proof = P::prove(
             config,
             &mut challenger.clone(),
@@ -99,7 +97,7 @@ impl Runtime {
         );
 
         Proof {
-            segment_proofs,
+            shard_proofs,
             global_proof,
         }
     }
@@ -120,24 +118,24 @@ impl Runtime {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
-            proof.segment_proofs.iter().for_each(|proof| {
+        tracing::info_span!("observe challenges for all shards").in_scope(|| {
+            proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
-        // Verify the segment proofs.
-        for (i, proof) in proof.segment_proofs.iter().enumerate() {
-            tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+        // Verify the shard proofs.
+        for (i, proof) in proof.shard_proofs.iter().enumerate() {
+            tracing::info_span!("verifying shard", shard = i).in_scope(|| {
                 let local_chips = Self::local_chips::<SC>();
                 Verifier::verify(config, local_chips, &mut challenger.clone(), proof)
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
+                    .map_err(ProgramVerificationError::InvalidShardProof)
             })?;
         }
 
         // Verifiy the global proof.
         let global_chips = Self::global_chips::<SC>();
-        tracing::info_span!("verifying global segment").in_scope(|| {
+        tracing::info_span!("verifying global shard").in_scope(|| {
             Verifier::verify(
                 config,
                 global_chips,
@@ -151,7 +149,7 @@ impl Runtime {
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
         {
-            for proof in proof.segment_proofs.iter() {
+            for proof in proof.shard_proofs.iter() {
                 sum += proof.cumulative_sum();
             }
             sum += proof.global_proof.cumulative_sum();
@@ -163,7 +161,7 @@ impl Runtime {
         }
     }
 
-    /// Chips used in each segment.
+    /// Chips used in each shard.
     ///
     /// The chips must be ordered to address dependencies. Some operations, like division, depend
     /// on others, like multiplication, for verification.
@@ -176,20 +174,11 @@ impl Runtime {
             Box::new(CpuChip::default()),
             Box::new(ShaExtendChip::default()),
             Box::new(ShaCompressChip::default()),
-            Box::new(EdAddAssignChip::<
-                EdwardsCurve<Ed25519Parameters>,
-                Ed25519Parameters,
-            >::new()),
+            Box::new(EdAddAssignChip::<Ed25519>::new()),
             Box::new(EdDecompressChip::<Ed25519Parameters>::default()),
             Box::new(K256DecompressChip::default()),
-            Box::new(WeierstrassAddAssignChip::<
-                SWCurve<Secp256k1Parameters>,
-                Secp256k1Parameters,
-            >::new()),
-            Box::new(WeierstrassDoubleAssignChip::<
-                SWCurve<Secp256k1Parameters>,
-                Secp256k1Parameters,
-            >::new()),
+            Box::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
+            Box::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
             Box::new(KeccakPermuteChip::new()),
             Box::new(AddChip::default()),
             Box::new(SubChip::default()),
@@ -204,9 +193,9 @@ impl Runtime {
         ]
     }
 
-    /// Chips used in the global segment.
+    /// Chips used in the global shard.
     ///
-    /// The chips must be ordered to address dependencies, similar to `segment_chips`.
+    /// The chips must be ordered to address dependencies, similar to `shard_chips`.
     pub fn global_chips<SC: StarkConfig>() -> Vec<Box<dyn AirChip<SC>>>
     where
         SC::Val: PrimeField32,
@@ -224,7 +213,7 @@ impl Runtime {
 
 #[derive(Debug)]
 pub enum ProgramVerificationError {
-    InvalidSegmentProof(VerificationError),
+    InvalidShardProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
 }
@@ -237,12 +226,14 @@ pub mod tests {
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
     use crate::utils::prove;
     use crate::utils::setup_logger;
+    use serial_test::serial;
 
     #[test]
     fn test_simple_prove() {
@@ -382,6 +373,14 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
+        prove(program);
+    }
+
+    #[test]
+    #[serial]
+    fn test_ssz_withdrawals_prove() {
+        setup_logger();
+        let program = ssz_withdrawals_program();
         prove(program);
     }
 

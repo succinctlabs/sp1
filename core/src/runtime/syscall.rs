@@ -12,10 +12,8 @@ use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
     SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
 };
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
+use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -96,7 +94,7 @@ pub trait Syscall {
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
 pub struct SyscallContext<'a> {
-    current_segment: u32,
+    current_shard: u32,
     pub clk: u32,
 
     pub(crate) next_pc: u32,
@@ -105,26 +103,26 @@ pub struct SyscallContext<'a> {
 
 impl<'a> SyscallContext<'a> {
     pub fn new(runtime: &'a mut Runtime) -> Self {
-        let current_segment = runtime.current_segment();
+        let current_shard = runtime.current_shard();
         let clk = runtime.state.clk;
         Self {
-            current_segment,
+            current_shard,
             clk,
             next_pc: runtime.state.pc.wrapping_add(4),
             rt: runtime,
         }
     }
 
-    pub fn segment_mut(&mut self) -> &mut ExecutionRecord {
+    pub fn record_mut(&mut self) -> &mut ExecutionRecord {
         &mut self.rt.record
     }
 
-    pub fn segment_clk(&self) -> u32 {
-        self.rt.state.segment_clk
+    pub fn current_shard(&self) -> u32 {
+        self.rt.state.current_shard
     }
 
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
-        let record = self.rt.mr_core(addr, self.current_segment, self.clk);
+        let record = self.rt.mr(addr, self.current_shard, self.clk);
         (record, record.value)
     }
 
@@ -140,7 +138,7 @@ impl<'a> SyscallContext<'a> {
     }
 
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        self.rt.mw_core(addr, value, self.current_segment, self.clk)
+        self.rt.mw(addr, value, self.current_shard, self.clk)
     }
 
     pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {
@@ -187,10 +185,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
     syscall_map.insert(
         SyscallCode::ED_ADD,
-        Rc::new(EdAddAssignChip::<
-            EdwardsCurve<Ed25519Parameters>,
-            Ed25519Parameters,
-        >::new()),
+        Rc::new(EdAddAssignChip::<Ed25519>::new()),
     );
     syscall_map.insert(
         SyscallCode::ED_DECOMPRESS,
@@ -202,17 +197,11 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_ADD,
-        Rc::new(WeierstrassAddAssignChip::<
-            SWCurve<Secp256k1Parameters>,
-            Secp256k1Parameters,
-        >::new()),
+        Rc::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
     );
     syscall_map.insert(
         SyscallCode::SECP256K1_DOUBLE,
-        Rc::new(WeierstrassDoubleAssignChip::<
-            SWCurve<Secp256k1Parameters>,
-            Secp256k1Parameters,
-        >::new()),
+        Rc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
     );
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
     syscall_map.insert(

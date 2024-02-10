@@ -1,3 +1,5 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 use p3_air::{
     Air, AirBuilder, BaseAir, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
     TwoRowMatrixView,
@@ -75,7 +77,14 @@ pub fn debug_constraints<F: PrimeField, EF: ExtensionField<F>, A>(
             builder.is_transition = F::zero();
         }
 
-        air.eval(&mut builder);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            air.eval(&mut builder);
+        }));
+        if result.is_err() {
+            println!("local: {:?}", main_local);
+            println!("next:  {:?}", main_local);
+            panic!("failed at row {} of chip {}", i, air.name());
+        }
         eval_permutation_constraints(air, &mut builder, cumulative_sum);
     });
 }
@@ -176,7 +185,11 @@ where
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        assert_eq!(x.into(), F::zero(), "constraints must evaluate to zero");
+        let f: F = x.into();
+        if f != F::zero() {
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            panic!("constraint failed: {}", backtrace);
+        }
     }
 }
 

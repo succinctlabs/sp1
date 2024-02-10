@@ -150,7 +150,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut segment = ExecutionRecord {
+        let mut shard = ExecutionRecord {
             program: Arc::new(Program {
                 instructions,
                 pc_start: 0,
@@ -160,7 +160,7 @@ mod tests {
             ..Default::default()
         };
         let chip = ProgramChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
 }

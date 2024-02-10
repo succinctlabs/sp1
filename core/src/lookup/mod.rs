@@ -128,25 +128,25 @@ fn babybear_to_int(n: BabyBear) -> i32 {
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips(
-    segment: &ExecutionRecord,
-    global_segment: Option<&ExecutionRecord>,
+    shard: &ExecutionRecord,
+    global_shard: Option<&ExecutionRecord>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
-    if interaction_kinds.contains(&InteractionKind::Memory) && global_segment.is_none() {
-        panic!("Memory interactions requires global segment.");
+    if interaction_kinds.contains(&InteractionKind::Memory) && global_shard.is_none() {
+        panic!("Memory interactions requires global shard.");
     }
 
     // Here, we collect all the chips.
-    let segment_chips = Runtime::local_chips::<BabyBearPoseidon2>();
+    let shard_chips = Runtime::local_chips::<BabyBearPoseidon2>();
     let global_chips = Runtime::global_chips::<BabyBearPoseidon2>();
 
     let mut final_map = BTreeMap::new();
 
-    let mut segment = segment.clone();
+    let mut shard = shard.clone();
 
-    for chip in &segment_chips {
+    for chip in &shard_chips {
         let (_, count) =
-            debug_interactions::<BabyBear>(chip.as_chip(), &mut segment, interaction_kinds.clone());
+            debug_interactions::<BabyBear>(chip.as_chip(), &mut shard, interaction_kinds.clone());
 
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
@@ -158,12 +158,12 @@ pub fn debug_interactions_with_all_chips(
         }
     }
 
-    if let Some(global_segment) = global_segment {
-        let mut global_segment = global_segment.clone();
+    if let Some(global_shard) = global_shard {
+        let mut global_shard = global_shard.clone();
         for chip in global_chips {
             let (_, count) = debug_interactions::<BabyBear>(
                 chip.as_chip(),
-                &mut global_segment,
+                &mut global_shard,
                 interaction_kinds.clone(),
             );
 
@@ -213,7 +213,7 @@ pub fn debug_interactions_with_all_chips(
 
 pub fn debug_interactions<F: Field>(
     chip: &dyn Chip<F>,
-    segment: &mut ExecutionRecord,
+    shard: &mut ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
     BTreeMap<String, Vec<InteractionData<F>>>,
@@ -222,7 +222,7 @@ pub fn debug_interactions<F: Field>(
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
-    let trace: RowMajorMatrix<F> = chip.generate_trace(segment);
+    let trace: RowMajorMatrix<F> = chip.generate_trace(shard);
     let width = chip.width();
     let mut builder = InteractionBuilder::<F>::new(width);
     chip.eval(&mut builder);
