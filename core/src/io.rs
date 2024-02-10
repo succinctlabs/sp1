@@ -1,6 +1,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::utils::{BabyBearBlake3, Buffer};
+use crate::stark::StarkGenericConfig;
+use crate::utils::Buffer;
 use crate::Proof;
 
 /// Standard input for the prover.
@@ -67,7 +68,10 @@ impl SuccinctStdout {
     }
 }
 
-pub fn serialize_proof<S>(proof: &Proof<BabyBearBlake3>, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize_proof<S, SC: StarkGenericConfig + Serialize>(
+    proof: &Proof<SC>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
