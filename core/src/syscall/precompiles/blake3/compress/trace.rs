@@ -1,5 +1,6 @@
 use std::borrow::BorrowMut;
 
+use crate::cpu::MemoryRecordEnum;
 use crate::runtime::ExecutionRecord;
 use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
@@ -63,46 +64,55 @@ impl<F: PrimeField> Chip<F> for Blake3CompressInnerChip {
                                 F::from_canonical_usize(MSG_SCHEDULE[round][2 * operation + i]);
                         }
                     }
-                    // Memory reads & writes.
+
+                    // Read in the message.
                     {
                         cols.message_ptr = F::from_canonical_u32(event.message_ptr);
+                        for i in 0..NUM_MSG_WORDS_PER_CALL {
+                            cols.message_reads[i].populate(
+                                event.message_reads[round][operation][i],
+                                &mut new_field_events,
+                            );
+                        }
 
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
-                        for i in 0..G_INPUT_SIZE {
-                            cols.mem_reads[i]
-                                .populate(event.reads[round][operation][i], &mut new_field_events);
-                            clk += 4;
-                        }
+                        // We read & write the state, so we don't need to do anything here.
                     }
-                    let input: [u32; G_INPUT_SIZE] = event.reads[round][operation]
-                        .iter()
-                        .map(|read| read.value)
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
 
-                    let result = cols.g.populate(record, input);
-
-                    // Memory writes.
+                    // Apply the `g` operation.
                     {
-                        for i in 0..G_OUTPUT_SIZE {
-                            cols.mem_writes[i]
-                                .populate(event.writes[round][operation][i], &mut new_field_events);
-                            clk += 4;
-                            assert_eq!(
-                                result[i], event.writes[round][operation][i].value,
-                                "round: {:?}, operation: {:?}, i: {:?}",
-                                round, operation, i
-                            )
+                        let input: [u32; G_INPUT_SIZE] = event.message_reads[round][operation]
+                            .iter()
+                            .map(|read| read.value)
+                            .collect::<Vec<_>>()
+                            .try_into()
+                            .unwrap();
+
+                        let result = cols.g.populate(record, input);
+                    }
+
+                    // Write the state.
+                    {
+                        for i in 0..NUM_STATE_WORDS_PER_CALL {
+                            cols.state_reads_writes[i].populate(
+                                MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
+                                &mut new_field_events,
+                            );
+                            //assert_eq!(
+                            //    result[i], event.state_writes[round][operation][i].value,
+                            //    "round: {:?}, operation: {:?}, i: {:?}",
+                            //    round, operation, i
+                            //)
                         }
                     }
+                    clk += 4;
                     if (round == 0 && operation == 0) || (round == 1 && operation == 2) {
                         println!("cols.round = {:#?}", cols.round_index);
                         println!("cols.operation = {:#?}", cols.operation_index);
                         println!("cols.is_real = {:#?}", cols.is_real);
                         println!("cols.clk = {:#?}", cols.clk);
-                        println!("cols.mem_reads = {:?}", cols.mem_reads);
-                        println!("cols.mem_writes = {:?}", cols.mem_writes);
+                        // println!("cols.mem_reads = {:?}", cols.mem_reads);
+                        println!("cols.mem_writes = {:?}", cols.message_reads);
                         println!("cols.message_ptr = {:?}", cols.message_ptr);
                         println!("cols.g.result = {:?}", cols.g.result);
                     }

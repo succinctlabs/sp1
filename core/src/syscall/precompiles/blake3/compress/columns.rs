@@ -5,6 +5,7 @@ use std::mem::size_of;
 use valida_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadCols;
+use crate::memory::MemoryReadWriteCols;
 use crate::memory::MemoryWriteCols;
 
 use super::g::GOperation;
@@ -28,11 +29,11 @@ pub struct Blake3CompressInnerCols<T> {
 
     pub message_ptr: T,
 
-    /// Reads in parts of the state.
-    pub mem_reads: [MemoryReadCols<T>; G_INPUT_SIZE],
+    /// Reads and writes a part of the state.
+    pub state_reads_writes: [MemoryReadWriteCols<T>; NUM_STATE_WORDS_PER_CALL],
 
-    /// Writes the updated state.
-    pub mem_writes: [MemoryWriteCols<T>; G_OUTPUT_SIZE],
+    /// Reads a part of the message.
+    pub message_reads: [MemoryReadCols<T>; NUM_MSG_WORDS_PER_CALL],
 
     /// Indicates which call of `g` is being performed.
     pub operation_index: T,

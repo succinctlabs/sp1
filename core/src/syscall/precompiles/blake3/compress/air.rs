@@ -7,7 +7,7 @@ use super::{
     Blake3CompressInnerChip, G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT, STATE_SIZE,
 };
-use crate::air::{CurtaAirBuilder, WORD_SIZE};
+use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
 use crate::runtime::Register;
 
 use core::borrow::Borrow;
@@ -97,66 +97,26 @@ impl Blake3CompressInnerChip {
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
     ) {
-        // let mut state = [0u32; STATE_SIZE];
-        // for i in 0..NUM_STATE_WORDS_PER_CALL {
-        //     let index_to_read = G_INDEX[operation][i];
-        //     let (record, value) = rt.mr(state_ptr + (index_to_read as u32) * 4);
-        //     read_records[round][operation][i] = record;
-        //     state[index_to_read] = value;
-        //     rt.clk += 4;
-        // }
-        let clk_cycle_per_word: AB::Expr = AB::F::from_canonical_usize(4).into();
-        let mut clk: AB::Expr = local.clk.into();
+        // Read & write the state.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
             builder.constraint_memory_access(
                 local.segment,
-                clk.clone(),
+                local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.mem_reads[i],
+                &local.state_reads_writes[i],
                 local.is_real,
             );
-            clk += clk_cycle_per_word.clone();
         }
-        // // Read the message.
-        // let mut message = [0u32; MSG_SIZE];
-        // for i in 0..NUM_MSG_WORDS_PER_CALL {
-        //     let index_to_read = MSG_SCHEDULE[round][2 * operation + i];
-        //     let (record, value) = rt.mr(msg_ptr + (index_to_read as u32) * 4);
-        //     read_records[round][operation][NUM_STATE_WORDS_PER_CALL + i] = record;
-        //     message[index_to_read] = value;
-        //     rt.clk += 4;
-        // }
 
+        // Read the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
             builder.constraint_memory_access(
                 local.segment,
-                clk.clone(),
+                local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.mem_reads[NUM_STATE_WORDS_PER_CALL + i],
+                &local.message_reads[NUM_STATE_WORDS_PER_CALL + i],
                 local.is_real,
             );
-            clk += clk_cycle_per_word.clone();
-        }
-
-        // // Write the state.
-        // for i in 0..NUM_STATE_WORDS_PER_CALL {
-        //     let index_to_write = G_INDEX[operation][i];
-        //     let record = rt.mw(
-        //         state_ptr.wrapping_add((index_to_write as u32) * 4),
-        //         results[index_to_write],
-        //     );
-        //     write_records[round][operation][i] = record;
-        //     rt.clk += 4;
-        // }
-        for i in 0..NUM_STATE_WORDS_PER_CALL {
-            builder.constraint_memory_access(
-                local.segment,
-                clk.clone(),
-                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.mem_writes[i],
-                local.is_real,
-            );
-            clk += clk_cycle_per_word.clone();
         }
     }
 
@@ -210,13 +170,17 @@ impl Blake3CompressInnerChip {
             builder.assert_eq(local.msg_schedule[i], index_to_read);
         }
 
+        let input = [
+            local.state_reads_writes[0].prev_value,
+            local.state_reads_writes[1].prev_value,
+            local.state_reads_writes[2].prev_value,
+            local.state_reads_writes[3].prev_value,
+            local.message_reads[0].access.value,
+            local.message_reads[1].access.value,
+        ];
+
         // Call the g function.
-        GOperation::<AB::F>::eval(
-            builder,
-            local.mem_reads.map(|x| x.access.value),
-            local.g,
-            local.is_real,
-        );
+        GOperation::<AB::F>::eval(builder, input, local.g, local.is_real);
 
         // Finally, the results of the g function should be written to the memory.
 
@@ -224,7 +188,7 @@ impl Blake3CompressInnerChip {
             for j in 0..WORD_SIZE {
                 builder
                     .when(local.is_real)
-                    .assert_eq(local.mem_writes[i].access.value[j], local.g.result[i][j]);
+                    .assert_eq(local.message_reads[i].access.value[j], local.g.result[i][j]);
             }
         }
     }

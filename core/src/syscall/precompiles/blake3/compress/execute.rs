@@ -11,7 +11,7 @@ use crate::syscall::precompiles::SyscallContext;
 /// The `Blake3CompressInnerChip` is a precompile that implements `blake3_compress_inner`.
 impl Syscall for Blake3CompressInnerChip {
     fn num_extra_cycles(&self) -> u32 {
-        (4 * ROUND_COUNT * OPERATION_COUNT * (G_INPUT_SIZE + NUM_STATE_WORDS_PER_CALL)) as u32
+        (4 * ROUND_COUNT * OPERATION_COUNT) as u32
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
@@ -26,10 +26,10 @@ impl Syscall for Blake3CompressInnerChip {
         println!("saved_clk = {:?}", saved_clk);
         println!("rt.clk = {:?}", rt.clk);
         let saved_state_ptr = state_ptr;
-        let mut read_records =
-            [[[MemoryReadRecord::default(); G_INPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT];
-        let mut write_records =
-            [[[MemoryWriteRecord::default(); G_OUTPUT_SIZE]; OPERATION_COUNT]; ROUND_COUNT];
+        let mut message_read_records =
+            [[[MemoryReadRecord::default(); NUM_MSG_WORDS_PER_CALL]; OPERATION_COUNT]; ROUND_COUNT];
+        let mut state_write_records = [[[MemoryWriteRecord::default(); NUM_STATE_WORDS_PER_CALL];
+            OPERATION_COUNT]; ROUND_COUNT];
 
         let mut output_state_for_debugging = [0u32; STATE_SIZE];
         let mut input_state_for_debugging: [Option<u32>; STATE_SIZE] = [None; STATE_SIZE];
@@ -38,33 +38,31 @@ impl Syscall for Blake3CompressInnerChip {
                 // Read the state.
                 let mut state = [0u32; STATE_SIZE];
                 let mut input = [0u32; G_INPUT_SIZE];
+
                 let state_index = G_INDEX[operation];
                 let message_index: [usize; NUM_MSG_WORDS_PER_CALL] = [
                     MSG_SCHEDULE[round][2 * operation],
                     MSG_SCHEDULE[round][2 * operation + 1],
                 ];
-                let mut new_read_records = vec![];
+
                 let mut input = vec![];
                 // Read the message.
                 let mut message = [0u32; MSG_SIZE];
 
                 for index in state_index.iter() {
-                    let (record, value) = rt.mr(state_ptr + (*index as u32) * 4);
-                    new_read_records.push(record);
+                    let value = rt.word_unsafe(state_ptr + (*index as u32) * 4);
                     input.push(value);
                     if input_state_for_debugging[*index].is_none() {
                         input_state_for_debugging[*index] = Some(value);
                     }
-                    rt.clk += 4;
                 }
-                for index in message_index.iter() {
-                    let (record, value) = rt.mr(message_ptr + (*index as u32) * 4);
-                    new_read_records.push(record);
-                    message[*index] = value;
+                for i in 0..NUM_MSG_WORDS_PER_CALL {
+                    let index = message_index[i];
+                    let (record, value) = rt.mr(message_ptr + (index as u32) * 4);
+                    message_read_records[round][operation][i] = record;
+                    message[index] = value;
                     input.push(value);
-                    rt.clk += 4;
                 }
-                read_records[round][operation] = new_read_records.try_into().unwrap();
                 println!("round: {:?}", round);
                 println!("operation: {:?}", operation);
                 println!("state: {:?}", state.map(|x| x.to_le_bytes()));
@@ -76,11 +74,11 @@ impl Syscall for Blake3CompressInnerChip {
                 // Write the state.
                 for i in 0..NUM_STATE_WORDS_PER_CALL {
                     let index = state_index[i];
-                    let record = rt.mw(state_ptr.wrapping_add((index as u32) * 4), results[i]);
-                    write_records[round][operation][i] = record;
+                    let record = rt.mw(state_ptr + (index as u32) * 4, results[i]);
+                    state_write_records[round][operation][i] = record;
                     output_state_for_debugging[index] = results[i];
-                    rt.clk += 4;
                 }
+                rt.clk += 4;
             }
         }
 
@@ -137,8 +135,8 @@ impl Syscall for Blake3CompressInnerChip {
                 segment: segment_clk,
                 clk: saved_clk,
                 state_ptr: saved_state_ptr,
-                reads: read_records,
-                writes: write_records,
+                message_reads: message_read_records,
+                state_writes: state_write_records,
                 message_ptr,
             });
 
