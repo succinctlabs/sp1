@@ -19,15 +19,15 @@ Create a new project:
 cargo prove new fibonacci
 ```
 
-Generate a proof:
+Build a binary that can be run in the zkVM:
 
 ```
-cargo prove
+cd program && cargo prove build
 ```
 
-Profile a proof:
+Generate and verify the execution of the binary:
 ```
-cargo prove --profile
+cd script && cargo run --release
 ```
 
 Note that the `RUST_LOG` and `RUST_TRACER` enviroment variables can be set to different status levels to get more fine-grained logging and debugging information.
