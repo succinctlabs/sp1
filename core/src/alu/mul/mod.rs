@@ -84,28 +84,28 @@ pub struct MulCols<T> {
     /// An array storing the product of `b * c` after the carry propagation.
     pub product: [T; PRODUCT_SIZE],
 
-    /// The most significant bit of b.
+    /// The most significant bit of `b`.
     pub b_msb: T,
 
-    /// The most significant bit of c.
+    /// The most significant bit of `c`.
     pub c_msb: T,
 
-    /// The sign extension of b.
+    /// The sign extension of `b`.
     pub b_sign_extend: T,
 
-    /// The sign extension of c.
+    /// The sign extension of `c`.
     pub c_sign_extend: T,
 
-    /// Flag indicating whether the opcode is MUL (u32 x u32).
+    /// Flag indicating whether the opcode is `MUL` (u32 x u32).
     pub is_mul: T,
 
-    /// Flag indicating whether the opcode is MULH (i32 x i32, upper half).
+    /// Flag indicating whether the opcode is `MULH` (i32 x i32, upper half).
     pub is_mulh: T,
 
-    /// Flag indicating whether the opcode is MULHU (u32 x u32, upper half).
+    /// Flag indicating whether the opcode is `MULHU` (u32 x u32, upper half).
     pub is_mulhu: T,
 
-    /// Flag indicating whether the opcode is MULHSU (i32 x u32, upper half).
+    /// Flag indicating whether the opcode is `MULHSU` (i32 x u32, upper half).
     pub is_mulhsu: T,
 
     /// Selector to know whether this row is enabled.
