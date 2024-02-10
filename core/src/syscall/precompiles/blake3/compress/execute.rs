@@ -57,12 +57,12 @@ impl Syscall for Blake3CompressInnerChip {
             }
         }
 
-        let segment_clk = rt.segment_clk();
+        let shard = rt.current_shard();
 
-        rt.segment_mut()
+        rt.record_mut()
             .blake3_compress_inner_events
             .push(Blake3CompressInnerEvent {
-                segment: segment_clk,
+                shard,
                 clk: saved_clk,
                 state_ptr: saved_state_ptr,
                 message_reads: message_read_records,

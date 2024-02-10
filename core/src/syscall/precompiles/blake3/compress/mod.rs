@@ -71,7 +71,7 @@ pub(crate) fn g_func(input: [u32; 6]) -> [u32; 4] {
 #[derive(Debug, Clone, Copy)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,
-    pub segment: u32,
+    pub shard: u32,
     pub state_ptr: u32,
     pub message_ptr: u32,
     pub message_reads: [[[MemoryReadRecord; NUM_MSG_WORDS_PER_CALL]; OPERATION_COUNT]; ROUND_COUNT],
