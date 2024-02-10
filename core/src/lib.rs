@@ -87,8 +87,7 @@ impl SuccinctVerifier {
         elf: &[u8],
         proof: &SuccinctProofWithPublicInputs,
     ) -> Result<(), ProgramVerificationError> {
-        let mut rng: StdRng = SeedableRng::from_seed([17; 32]);
-        let config = BabyBearBlake3::new(&mut rng);
+        let config = BabyBearBlake3::new();
         let mut challenger = config.challenger();
         Runtime::verify(&config, &mut challenger, &proof.proof)
     }

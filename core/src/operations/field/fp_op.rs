@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut rand::thread_rng());
+        let config = BabyBearPoseidon2::new();
 
         for op in [
             FpOperation::Add,
