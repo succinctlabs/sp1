@@ -6,11 +6,12 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 
-use crate::chip::Chip;
+use crate::air::MachineAir;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
@@ -72,7 +73,7 @@ impl LtCols<u32> {
     }
 }
 
-impl<F: PrimeField> Chip<F> for LtChip {
+impl<F: PrimeField> MachineAir<F> for LtChip {
     fn name(&self) -> String {
         "Lt".to_string()
     }
@@ -91,6 +92,7 @@ impl<F: PrimeField> Chip<F> for LtChip {
         !record.lt_events.is_empty()
     }
 
+    #[instrument(name = "generate lt trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record
@@ -302,7 +304,7 @@ where
 mod tests {
 
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;

@@ -42,7 +42,7 @@ pub mod compress_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::LocalProver,
+        stark::{LocalProver, RiscvStark},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
@@ -70,9 +70,10 @@ pub mod compress_tests {
 
         let program = sha_compress_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run();
 
-        runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
+        let (machine, prover_data) = RiscvStark::init(config);
+
+        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
     }
 }

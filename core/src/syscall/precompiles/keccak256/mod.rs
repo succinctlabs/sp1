@@ -47,7 +47,7 @@ impl KeccakPermuteChip {
 pub mod permute_tests {
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::LocalProver,
+        stark::{LocalProver, RiscvStark},
         utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
         SuccinctProver, SuccinctStdin,
     };
@@ -74,7 +74,6 @@ pub mod permute_tests {
     pub fn test_keccak_permute_program_execute() {
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&[10]);
         runtime.run()
     }
 
@@ -85,16 +84,11 @@ pub mod permute_tests {
         let mut challenger = config.challenger();
 
         let program = keccak_permute_program();
-        let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-            let mut runtime = Runtime::new(program);
-            runtime.write_stdin_slice(&[10]);
-            runtime.run();
-            runtime
-        });
+        let mut runtime = Runtime::new(program);
+        runtime.run();
 
-        tracing::info_span!("runtime.prove(...)").in_scope(|| {
-            runtime.prove::<_, _, BabyBearPoseidon2, LocalProver<_>>(&config, &mut challenger);
-        });
+        let (machine, prover_data) = RiscvStark::init(config);
+        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
     }
 
     #[test]

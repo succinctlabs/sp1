@@ -4,11 +4,12 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
@@ -41,7 +42,7 @@ pub struct BitwiseCols<T> {
     pub is_and: T,
 }
 
-impl<F: PrimeField> Chip<F> for BitwiseChip {
+impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
@@ -60,6 +61,7 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
         !record.bitwise_events.is_empty()
     }
 
+    #[instrument(name = "generate bitwise trace", skip_all)]
     fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = shard
@@ -160,7 +162,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::chip::Chip;
+    use crate::air::MachineAir;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     use super::BitwiseChip;

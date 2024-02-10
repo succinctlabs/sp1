@@ -4,10 +4,11 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
-use crate::chip::Chip;
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
@@ -36,7 +37,7 @@ pub struct AddCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for AddChip {
+impl<F: PrimeField> MachineAir<F> for AddChip {
     fn name(&self) -> String {
         "Add".to_string()
     }
@@ -55,6 +56,7 @@ impl<F: PrimeField> Chip<F> for AddChip {
         !record.add_events.is_empty()
     }
 
+    #[instrument(name = "generate add trace", skip_all)]
     fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
@@ -125,7 +127,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use rand::{thread_rng, Rng};

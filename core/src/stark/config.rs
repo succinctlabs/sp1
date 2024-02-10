@@ -5,7 +5,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use serde::Serialize;
 
 /// A configuration for a STARK.
-pub trait StarkConfig {
+pub trait StarkGenericConfig {
     /// The field over which trace data is encoded.
     type Val: TwoAdicField;
 

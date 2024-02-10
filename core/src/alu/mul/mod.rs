@@ -32,12 +32,13 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
@@ -106,7 +107,7 @@ pub struct MulCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for MulChip {
+impl<F: PrimeField> MachineAir<F> for MulChip {
     fn name(&self) -> String {
         "Mul".to_string()
     }
@@ -125,6 +126,7 @@ impl<F: PrimeField> Chip<F> for MulChip {
         !record.mul_events.is_empty()
     }
 
+    #[instrument(name = "generate mul trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
@@ -397,7 +399,7 @@ where
 mod tests {
 
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;

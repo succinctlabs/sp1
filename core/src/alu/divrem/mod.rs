@@ -69,14 +69,15 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 use self::utils::eval_abs_value;
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{ExecutionRecord, Opcode};
@@ -180,7 +181,7 @@ pub struct DivRemCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for DivRemChip {
+impl<F: PrimeField> MachineAir<F> for DivRemChip {
     fn name(&self) -> String {
         "DivRem".to_string()
     }
@@ -199,6 +200,7 @@ impl<F: PrimeField> Chip<F> for DivRemChip {
         !record.divrem_events.is_empty()
     }
 
+    #[instrument(name = "generate divrem trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
@@ -755,7 +757,7 @@ where
 mod tests {
 
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;

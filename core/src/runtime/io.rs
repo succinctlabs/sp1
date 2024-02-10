@@ -42,7 +42,7 @@ pub mod tests {
     use super::*;
     use crate::runtime::Program;
     use crate::utils::tests::IO_ELF;
-    use crate::utils::{self, prove_core};
+    use crate::utils::{self, prove_core, BabyBearBlake3};
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -96,6 +96,7 @@ pub mod tests {
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);
         runtime.run();
-        prove_core(&mut runtime);
+        let config = BabyBearBlake3::new();
+        prove_core(config, &mut runtime);
     }
 }

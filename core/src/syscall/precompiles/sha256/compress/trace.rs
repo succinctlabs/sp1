@@ -3,14 +3,14 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::Word, chip::Chip, memory::MemoryCols, runtime::ExecutionRecord};
+use crate::{air::MachineAir, air::Word, memory::MemoryCols, runtime::ExecutionRecord};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
     ShaCompressChip, SHA_COMPRESS_K,
 };
 
-impl<F: PrimeField> Chip<F> for ShaCompressChip {
+impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
     fn name(&self) -> String {
         "ShaCompress".to_string()
     }

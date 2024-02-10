@@ -1,7 +1,7 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
+use crate::air::MachineAir;
 use crate::air::Word;
-use crate::chip::Chip;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
@@ -289,7 +289,7 @@ impl<V: Copy> K256DecompressCols<V> {
     }
 }
 
-impl<F: Field> Chip<F> for K256DecompressChip {
+impl<F: Field> MachineAir<F> for K256DecompressChip {
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }
@@ -371,6 +371,7 @@ pub mod tests {
     use rand::SeedableRng;
 
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
+    use crate::utils::BabyBearBlake3;
     use crate::{
         runtime::{Program, Runtime},
         utils::{prove_core, setup_logger},
@@ -396,7 +397,8 @@ pub mod tests {
             runtime.read_stdout_slice(&mut result);
 
             assert_eq!(result, decompressed);
-            prove_core(&mut runtime);
+            let config = BabyBearBlake3::new();
+            prove_core(config, &mut runtime);
         }
     }
 }

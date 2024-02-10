@@ -50,13 +50,14 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift};
 use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::chip::Chip;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
@@ -121,7 +122,7 @@ pub struct ShiftRightCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for ShiftRightChip {
+impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
     fn name(&self) -> String {
         "ShiftRight".to_string()
     }
@@ -140,6 +141,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
         !record.shift_right_events.is_empty()
     }
 
+    #[instrument(name = "generate sr trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_RIGHT_COLS]> = Vec::new();
@@ -473,7 +475,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        chip::Chip,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;

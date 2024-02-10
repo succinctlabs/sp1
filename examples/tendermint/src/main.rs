@@ -1,7 +1,7 @@
 use succinct_core::{utils, SuccinctProver, SuccinctStdin, SuccinctVerifier};
 
 const ED25519_ELF: &[u8] =
-    include_bytes!("../../../programs/demo/ed25519/elf/riscv32im-succinct-zkvm-elf");
+    include_bytes!("../../../programs/demo/tendermint/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // Generate proof.

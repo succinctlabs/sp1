@@ -25,23 +25,18 @@ pub const NUM_BYTE_OPS: usize = 9;
 ///
 /// The chip contains a preprocessed table of all possible byte operations. Other chips can then
 /// use lookups into this table to compute their own operations.
-#[derive(Debug, Clone)]
-pub struct ByteChip<F> {
-    //// A map from a byte lookup to the corresponding row it appears in the table and the index of
-    /// the result in the array of multiplicities.
-    event_map: BTreeMap<ByteLookupEvent, (usize, usize)>,
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ByteChip;
 
-    /// The trace containing the enumeration of all byte operations.
+impl ByteChip {
+    /// Creates the preprocessed byte trace and event map.
     ///
-    /// The rows of the matrix loop over all pairs of bytes and record the results of all byte
-    /// operations on them. Each result has an associated lookup multiplicity, which is the number
-    /// of times that result was looked up in the program. The multiplicities are initialized at
-    /// zero.
-    initial_trace: RowMajorMatrix<F>,
-}
-
-impl<F: Field> ByteChip<F> {
-    pub fn new() -> Self {
+    /// This function returns a pair `(trace, map)`, where:
+    ///  - `trace` is a matrix containing all possible byte operations.
+    /// - `map` is a map map from a byte lookup to the corresponding row it appears in the table and
+    /// the index of the result in the array of multiplicities.
+    pub fn trace_and_map<F: Field>(
+    ) -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
         let mut event_map = BTreeMap::new();
@@ -113,9 +108,6 @@ impl<F: Field> ByteChip<F> {
             }
         }
 
-        Self {
-            event_map,
-            initial_trace,
-        }
+        (initial_trace, event_map)
     }
 }
