@@ -5,7 +5,7 @@ use p3_maybe_rayon::prelude::*;
 
 use p3_util::log2_strict_usize;
 
-use super::StarkConfig;
+use super::StarkGenericConfig;
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
@@ -98,7 +98,7 @@ fn decompose<F: TwoAdicField>(poly: Vec<F>, shift: F, log_chunks: usize) -> Vec<
 /// Decompose the quotient polynomial into chunks using a generalization of even-odd decomposition.
 /// Then, arrange the results in a row-major matrix, so that each chunk of the decomposed polynomial
 /// becomes `D` columns of the resulting matrix, where `D` is the field extension degree.
-pub fn decompose_and_flatten<SC: StarkConfig>(
+pub fn decompose_and_flatten<SC: StarkGenericConfig>(
     quotient_poly: Vec<SC::Challenge>,
     shift: SC::Challenge,
     log_chunks: usize,

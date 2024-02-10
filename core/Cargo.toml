@@ -35,8 +35,6 @@ num = { version = "0.4.1" }
 nohash-hasher = "0.2.0"
 lazy_static = "1.4"
 
-succinct-k12 = { path = "../k12" }
-
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
