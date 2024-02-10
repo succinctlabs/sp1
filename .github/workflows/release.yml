@@ -1,3 +1,5 @@
+# Reference: https://github.com/foundry-rs/foundry/blob/master/.github/workflows/release.yml
+
 name: release
 
 on:

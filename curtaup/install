@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Reference: https://github.com/foundry-rs/foundry/blob/master/foundryup/install
+
 set -e
 
 echo Installing curtaup...
