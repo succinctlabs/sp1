@@ -8,9 +8,12 @@
 //!
 //! for round in 0..7 {
 //!    for operation in 0..8 {
-//!       // Pick 4 indices a, b, c, d for the state, based on the operation index.
-//!       // Pick 2 indices x, y for the message, based on both the round and the operation index.
+//!       // * Pick 4 indices a, b, c, d for the state, based on the operation index.
+//!       // * Pick 2 indices x, y for the message, based on both the round and the operation index.
+//!       //
 //!       // g takes those 6 values, and updates the 4 state values, at indices a, b, c, d.
+//!       //
+//!       // Each call of g becomes one row in the trace.
 //!       g(&mut state[a], &mut state[b], &mut state[c], &mut state[d], message[x], message[y]);
 //!   }
 //! }
@@ -42,6 +45,9 @@ pub(crate) const NUM_MSG_WORDS_PER_CALL: usize = 2;
 /// The number of `Word`s in the input of `g`.
 pub(crate) const G_INPUT_SIZE: usize = NUM_MSG_WORDS_PER_CALL + NUM_STATE_WORDS_PER_CALL;
 
+/// 2-dimensional array specifying which message values `g` should access. Values at `(i, 2 * j)`
+/// and `(i, 2 * j + 1)` are the indices of the message values that `g` should access in the `j`-th
+/// call of the `i`-th round.
 pub(crate) const MSG_SCHEDULE: [[usize; MSG_SIZE]; ROUND_COUNT] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],

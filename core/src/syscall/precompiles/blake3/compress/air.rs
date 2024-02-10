@@ -31,11 +31,13 @@ where
 
         self.constrain_memory(builder, local);
 
-        self.constraint_compress_ops(builder, local);
+        self.constraint_g_operation(builder, local);
     }
 }
 
 impl Blake3CompressInnerChip {
+    /// Constrains the given index is correct for the given selector. The `selector` is an
+    /// `n`-dimensional boolean array whose `i`-th element is true if and only if the index is `i`.
     fn constrain_index_selector<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
@@ -58,6 +60,7 @@ impl Blake3CompressInnerChip {
         }
     }
 
+    /// Constrains the control flow flags such as the operation index and the round index.
     fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
@@ -92,6 +95,7 @@ impl Blake3CompressInnerChip {
         }
     }
 
+    /// Constrain the memory access for the state and the message.
     fn constrain_memory<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
@@ -165,7 +169,8 @@ impl Blake3CompressInnerChip {
         }
     }
 
-    fn constraint_compress_ops<AB: CurtaAirBuilder>(
+    /// Constrains the input and the output of the `g` operation.
+    fn constraint_g_operation<AB: CurtaAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,

@@ -21,8 +21,10 @@ pub struct Blake3CompressInnerCols<T> {
     pub segment: T,
     pub clk: T,
 
+    /// The pointer to the state.
     pub state_ptr: T,
 
+    /// The pointer to the message.
     pub message_ptr: T,
 
     /// Reads and writes a part of the state.
