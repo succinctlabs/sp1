@@ -37,6 +37,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -108,6 +109,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         !record.shift_left_events.is_empty()
     }
 
+    #[instrument(name = "generate sll trace", skip_all)]
     fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];

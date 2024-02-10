@@ -4,6 +4,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -55,6 +56,7 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         !record.add_events.is_empty()
     }
 
+    #[instrument(name = "generate add trace", skip_all)]
     fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];

@@ -16,7 +16,7 @@ pub fn shard_size() -> usize {
 pub fn save_disk_threshold() -> usize {
     let value = match std::env::var("SAVE_DISK_THRESHOLD") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 8,
+        Err(_) => 64,
     };
     value
 }
