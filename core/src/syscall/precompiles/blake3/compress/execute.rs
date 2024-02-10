@@ -27,8 +27,6 @@ impl Syscall for Blake3CompressInnerChip {
 
         for round in 0..ROUND_COUNT {
             for operation in 0..OPERATION_COUNT {
-                // Read the state.
-
                 let state_index = G_INDEX[operation];
                 let message_index: [usize; NUM_MSG_WORDS_PER_CALL] = [
                     MSG_SCHEDULE[round][2 * operation],
@@ -36,14 +34,16 @@ impl Syscall for Blake3CompressInnerChip {
                 ];
 
                 let mut input = vec![];
-
-                for index in state_index.iter() {
-                    input.push(rt.word_unsafe(state_ptr + (*index as u32) * 4));
-                }
-                for i in 0..NUM_MSG_WORDS_PER_CALL {
-                    let (record, value) = rt.mr(message_ptr + (message_index[i] as u32) * 4);
-                    message_read_records[round][operation][i] = record;
-                    input.push(value);
+                // Read the input to g.
+                {
+                    for index in state_index.iter() {
+                        input.push(rt.word_unsafe(state_ptr + (*index as u32) * 4));
+                    }
+                    for i in 0..NUM_MSG_WORDS_PER_CALL {
+                        let (record, value) = rt.mr(message_ptr + (message_index[i] as u32) * 4);
+                        message_read_records[round][operation][i] = record;
+                        input.push(value);
+                    }
                 }
 
                 let results = g_func(input.try_into().unwrap());
