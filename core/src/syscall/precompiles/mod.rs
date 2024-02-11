@@ -1,3 +1,4 @@
+pub mod blake3;
 pub mod edwards;
 pub mod k256;
 pub mod keccak256;
