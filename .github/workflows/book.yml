@@ -82,8 +82,8 @@ jobs:
         with:
           cache-on-failure: true
 
-      # - name: Build book
-      #   run: mdbook build
+      - name: Build book
+        run: mdbook build
 
       # - name: Build docs
       #   run: cargo docs
