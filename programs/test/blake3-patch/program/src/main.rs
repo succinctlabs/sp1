@@ -3,6 +3,8 @@
 #![no_main]
 curta_zkvm::entrypoint!(main);
 
+use blake3;
+
 pub fn main() {
     let n = curta_zkvm::io::read::<u32>();
     let mut a = 0;

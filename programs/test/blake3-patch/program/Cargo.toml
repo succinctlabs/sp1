@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies]
 curta-zkvm = { git = "https://github.com/succinctlabs/curta.git" }
+blake3 = { git = "https://github.com/succinctlabs/BLAKE3.git", rev = "471bf5a1c1efbe1ff3e866f82d2e08751ec4d294" }
