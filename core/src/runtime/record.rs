@@ -8,6 +8,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::{CpuEvent, MemoryRecordEnum};
 use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
+use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
@@ -72,6 +73,8 @@ pub struct ExecutionRecord {
     pub weierstrass_double_events: Vec<ECDoubleEvent>,
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
+
+    pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.

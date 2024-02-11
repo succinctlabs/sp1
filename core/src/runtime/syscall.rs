@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::runtime::{Register, Runtime};
+use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -56,6 +57,9 @@ pub enum SyscallCode {
     /// Exit unconstrained block.
     EXIT_UNCONSTRAINED = 111,
 
+    /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
+    BLAKE3_COMPRESS_INNER = 112,
+
     WRITE = 999,
 }
 
@@ -75,6 +79,7 @@ impl SyscallCode {
             109 => SyscallCode::SECP256K1_DECOMPRESS,
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
+            112 => SyscallCode::BLAKE3_COMPRESS_INNER,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -207,6 +212,10 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     syscall_map.insert(
         SyscallCode::SECP256K1_DECOMPRESS,
         Rc::new(K256DecompressChip::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::BLAKE3_COMPRESS_INNER,
+        Rc::new(Blake3CompressInnerChip::new()),
     );
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
