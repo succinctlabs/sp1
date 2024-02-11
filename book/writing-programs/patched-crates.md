@@ -34,6 +34,16 @@ You may also need to update your `Cargo.lock` file. For example:
 cargo update -p ed25519-consensus
 ```
 
+If you want to patch with a private repo, you have to use the following adjustment in your `Cargo.toml`:
+
+```toml
+ed25519-consensus = { git = "ssh://git@github.com/succinctlabs/ed25519-consensus-private.git" }
+```
+and use the following command to apply the patch (assuming you have your ssh keys setup properly with Github):
+```
+CARGO_NET_GIT_FETCH_WITH_CLI=true cargo update -p ed25519-consensus
+```
+
 ### Sanity Checks
 
 **You must make sure your patch is in the workspace root, otherwise it will not be applied.**
