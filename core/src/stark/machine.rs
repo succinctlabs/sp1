@@ -239,7 +239,7 @@ where
         let mut shards = self.shard(record);
 
         tracing::info!("Generating the shard proofs.");
-        P::prove_shards(self, &mut shards, challenger)
+        P::prove_shards(self, pk, &mut shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {

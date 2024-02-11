@@ -1,3 +1,4 @@
+use super::ProvingKey;
 use super::{quotient_values, RiscvStark};
 use itertools::izip;
 #[cfg(not(feature = "perf"))]
@@ -30,6 +31,7 @@ use crate::stark::debug_constraints;
 pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
         machine: &RiscvStark<SC>,
+        pk: &ProvingKey<SC>,
         shards: &mut Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>;
@@ -47,6 +49,7 @@ where
 {
     fn prove_shards(
         machine: &RiscvStark<SC>,
+        pk: &ProvingKey<SC>,
         shards: &mut Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
