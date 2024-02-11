@@ -12,7 +12,7 @@ To learn more about this, go to [Custom Precompiles]().
 
 ## Supported Precompiles
 
-Typically, we recommend you interact with precompiles through [patches](./patches.md), which are crates patched
+Typically, we recommend you interact with precompiles through [patches](./patched-crates.md), which are crates patched
 to use these precompiles under the hood. However, if you are an advanced user you can interact
 with the precompiles directly using extern system calls.
 
