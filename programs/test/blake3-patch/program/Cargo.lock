@@ -56,7 +56,7 @@ dependencies = [
 [[package]]
 name = "blake3"
 version = "1.5.0"
-source = "git+https://github.com/succinctlabs/BLAKE3.git?rev=471bf5a1c1efbe1ff3e866f82d2e08751ec4d294#471bf5a1c1efbe1ff3e866f82d2e08751ec4d294"
+source = "git+https://github.com/succinctlabs/BLAKE3.git?rev=adf8f4bc94bbd189cd2b5a1641f1935f43cde6aa#adf8f4bc94bbd189cd2b5a1641f1935f43cde6aa"
 dependencies = [
  "arrayref",
  "arrayvec",
