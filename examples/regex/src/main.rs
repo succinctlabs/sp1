@@ -12,7 +12,7 @@ fn main() {
     let mut stdin = CurtaStdin::new();
 
     let pattern = "a+".to_string();
-    let target_string = "bottle".to_string();
+    let target_string = "an era of truth, not trust".to_string();
 
     // Write in a simple regex pattern.
     stdin.write(&pattern);
