@@ -185,6 +185,8 @@ where
 
         let (commit, data) = self.config.pcs().commit_batches(vec![byte_trace.clone()]);
 
+        // TODO: commit to the program trace as well.
+
         let verifying_key = VerifyingKey {
             commit,
             byte_dimensions: byte_trace.dimensions(),
