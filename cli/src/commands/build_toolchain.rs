@@ -37,7 +37,7 @@ impl BuildToolchainCmd {
                 };
                 Command::new("git").args(["clone", &repo_url]).run()?;
                 Command::new("git")
-                    .args(["checkout", "rustc-17.0"])
+                    .args(["checkout", "rustc-1.75"])
                     .current_dir("rust")
                     .run()?;
                 Command::new("git")
