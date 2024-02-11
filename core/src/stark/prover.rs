@@ -29,24 +29,73 @@ use crate::utils::env;
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
 
-pub trait Prover<SC>
-where
-    SC: StarkGenericConfig,
-{
-    fn commit_shards<F, EF>(
+pub trait Prover<SC: StarkGenericConfig> {
+    fn prove_shards(
         config: &SC,
-        shards: &mut Vec<ExecutionRecord>,
         all_chips: &[ChipRef<SC>],
-    ) -> (Vec<Com<SC>>, Vec<ShardMainDataWrapper<SC>>)
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkGenericConfig<Val = F, Challenge = EF> + Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        ShardMainData<SC>: Serialize + DeserializeOwned;
+        shards: &mut Vec<ExecutionRecord>,
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC>;
+}
 
+impl<SC> Prover<SC> for LocalProver<SC>
+where
+    SC::Val: PrimeField32 + TwoAdicField + Send + Sync,
+    SC: StarkGenericConfig + Send + Sync,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    PcsProof<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
+    fn prove_shards(
+        config: &SC,
+        all_chips: &[ChipRef<SC>],
+        shards: &mut Vec<ExecutionRecord>,
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC> {
+        tracing::info!("Generating and commiting traces for each shard.");
+        // Generate and commit the traces for each segment.
+        let (shard_commits, shard_data) = Self::commit_shards(config, shards, all_chips);
+
+        // Observe the challenges for each segment.
+        tracing::info_span!("observing all challenges").in_scope(|| {
+            shard_commits.into_iter().for_each(|commitment| {
+                challenger.observe(commitment);
+            });
+        });
+
+        // Generate a proof for each segment. Note that we clone the challenger so we can observe
+        // identical global challenges across the segments.
+        let shard_proofs = shard_data
+            .into_par_iter()
+            .map(|data| {
+                let data = tracing::info_span!("materializing data")
+                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
+                let chips = all_chips
+                    .iter()
+                    .filter(|chip| data.chip_ids.contains(&chip.name()))
+                    .collect::<Vec<_>>();
+                tracing::info_span!("proving shard")
+                    .in_scope(|| Self::prove_shard(config, &chips, data, &mut challenger.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        Proof { shard_proofs }
+    }
+}
+
+pub struct LocalProver<SC>(PhantomData<SC>);
+
+impl<SC> LocalProver<SC>
+where
+    SC::Val: PrimeField + TwoAdicField + PrimeField32,
+    SC: StarkGenericConfig + Send + Sync,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
     fn commit_main(
         config: &SC,
         chips: &[ChipRef<SC>],
@@ -87,9 +136,9 @@ where
     /// Prove the program for the given shard and given a commitment to the main data.
     fn prove_shard(
         config: &SC,
-        challenger: &mut SC::Challenger,
-        chips: &[ChipRef<SC>],
+        chips: &[&ChipRef<SC>],
         shard_data: ShardMainData<SC>,
+        challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
@@ -203,7 +252,7 @@ where
                 .map(|i| {
                     Self::quotient_values(
                         config,
-                        &chips[i],
+                        chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
                         &main_ldes[i],
@@ -532,14 +581,7 @@ where
             })
             .collect()
     }
-}
 
-pub struct LocalProver<SC>(PhantomData<SC>);
-
-impl<SC> Prover<SC> for LocalProver<SC>
-where
-    SC: StarkGenericConfig,
-{
     fn commit_shards<F, EF>(
         config: &SC,
         shards: &mut Vec<ExecutionRecord>,

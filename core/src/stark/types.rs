@@ -24,6 +24,7 @@ type ValMat<SC> = RowMajorMatrix<Val<SC>>;
 pub type Com<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
 pub type PcsProverData<SC> =
     <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
+pub type PcsProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 

@@ -242,36 +242,7 @@ where
         // Get all the chips included in the machine.
         let all_chips = self.chips();
 
-        tracing::info!("Generating and commiting traces for each shard.");
-        // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &all_chips);
-
-        // Observe the challenges for each segment.
-        tracing::info_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
-        });
-
-        // Generate a proof for each segment. Note that we clone the challenger so we can observe
-        // identical global challenges across the segments.
-        let shard_proofs = shard_data
-            .into_par_iter()
-            .map(|data| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = self
-                    .chips()
-                    .into_iter()
-                    .filter(|chip| data.chip_ids.contains(&chip.name()))
-                    .collect::<Vec<_>>();
-                tracing::info_span!("proving shard").in_scope(|| {
-                    P::prove_shard(&self.config, &mut challenger.clone(), &chips, data)
-                })
-            })
-            .collect::<Vec<_>>();
-
-        Proof { shard_proofs }
+        P::prove_shards(&self.config, &all_chips, &mut shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {
