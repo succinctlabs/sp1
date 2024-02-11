@@ -4,6 +4,7 @@ use crate::cpu::MemoryRecordEnum;
 use crate::runtime::ExecutionRecord;
 use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
+use crate::utils::pad_rows;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -108,21 +109,15 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
 
         record.field_events.extend(new_field_events);
 
-        let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-
-        for _ in nb_rows..padded_nb_rows {
+        pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
             let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
 
             // Put this value in this padded row to avoid failing the constraint.
             cols.round_index = F::from_canonical_usize(ROUND_COUNT);
 
-            rows.push(row);
-        }
+            row
+        });
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
