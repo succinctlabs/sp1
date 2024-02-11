@@ -5,7 +5,7 @@ name = "ssz-withdrawals-zkvm"
 edition = "2021"
 
 [dependencies]
-succinct-zkvm = { path = "../../../zkvm" }
+curta-zkvm = { path = "../../../zkvm" }
 hex-literal = "0.4.1"
 sha2 = "0.9.8"
 ssz_rs = { version = "0.9.0", features = ["serde"] }

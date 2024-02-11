@@ -9,27 +9,27 @@ In this section, we cover how you pass inputs and outputs to the zkVM and create
 
 ## Reading Data
 
-For most usecases, use the `succinct_zkvm::io::read::<T>` method:
+For most usecases, use the `curta_zkvm::io::read::<T>` method:
 
 ```rust,noplayground
-let a = succinct_zkvm::io::read::<u32>();
-let b = succinct_zkvm::io::read::<u64>();
-let c = succinct_zkvm::io::read::<String>();
+let a = curta_zkvm::io::read::<u32>();
+let b = curta_zkvm::io::read::<u64>();
+let c = curta_zkvm::io::read::<String>();
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to read bytes directly, you can also use `succinct_zkvm::io::read_slice`.
+Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to read bytes directly, you can also use `curta_zkvm::io::read_slice`.
 
 ## Writing Data
 
-For most usecases, use the `succinct_zkvm::io::write::<T>` method:
+For most usecases, use the `curta_zkvm::io::write::<T>` method:
 
 ```rust,noplayground
-succinct_zkvm::io::write::<u32>(&a);
-succinct_zkvm::io::write::<u64>(&b);
-succinct_zkvm::io::write::<String>(&c);
+curta_zkvm::io::write::<u32>(&a);
+curta_zkvm::io::write::<u64>(&b);
+curta_zkvm::io::write::<String>(&c);
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you want to write bytes directly, you can also use `succinct_zkvm::io::write_slice`.
+Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you want to write bytes directly, you can also use `curta_zkvm::io::write_slice`.
 
 ## Creating Serializable Types
 

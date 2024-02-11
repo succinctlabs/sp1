@@ -1,6 +1,5 @@
 #![no_main]
-extern crate succinct_zkvm;
-succinct_zkvm::entrypoint!(main);
+curta_zkvm::entrypoint!(main);
 
 use hex_literal::hex;
 use sha2::{Digest, Sha256};
