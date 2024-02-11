@@ -335,19 +335,19 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
-    use crate::utils::prove;
+    use crate::utils::run_test;
     use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
         let program = simple_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
         let program = ecall_lwa_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -368,7 +368,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -381,7 +381,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -393,7 +393,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -415,7 +415,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -430,7 +430,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            prove(program);
+            run_test(program).unwrap();
         }
     }
 
@@ -445,7 +445,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            prove(program);
+            run_test(program).unwrap();
         }
     }
 
@@ -467,7 +467,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -476,12 +476,12 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 }
