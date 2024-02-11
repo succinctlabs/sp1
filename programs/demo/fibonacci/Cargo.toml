@@ -5,4 +5,4 @@ name = "fibonacci-zkvm"
 edition = "2021"
 
 [dependencies]
-succinct-zkvm = { path = "../../../zkvm" }
+curta-zkvm = { path = "../../../zkvm" }

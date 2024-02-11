@@ -33,7 +33,7 @@ cd program
 
 #### Cargo Manifest
 
-Inside this crate, add the `succinct-zkvm` crate as a dependency. Your `Cargo.toml` should look like as follows:
+Inside this crate, add the `curta-zkvm` crate as a dependency. Your `Cargo.toml` should look like as follows:
 
 ```rust,noplayground
 [workspace]
@@ -43,10 +43,10 @@ name = "program"
 edition = "2021"
 
 [dependencies]
-succinct-zkvm = { git = "https://github.com/succinctlabs/vm.git" }
+curta-zkvm = { git = "https://github.com/succinctlabs/curta.git" }
 ```
 
-The `succinct-zkvm` crate includes necessary utilities to ensure succesful program execution, handling inputs and outputs,
+The `curta-zkvm` crate includes necessary utilities to ensure succesful program execution, handling inputs and outputs,
 precompiles, patches, and more.
 
 #### Main.rs
@@ -56,7 +56,7 @@ properly compiles.
 
 ```rust,noplayground
 #![no_main]
-succinct_zkvm::entrypoint!(main);
+curta_zkvm::entrypoint!(main);
 ```
 
 These two lines of code wrap your main function with some additional logic to ensure that your program executes correctly.

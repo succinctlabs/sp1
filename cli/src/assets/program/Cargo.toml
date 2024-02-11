@@ -5,4 +5,4 @@ name = "unnamed-program"
 edition = "2021"
 
 [dependencies]
-succinct-zkvm = { git = "https://github.com/succinctlabs/vm.git" }
+curta-zkvm = { git = "https://github.com/succinctlabs/curta.git" }

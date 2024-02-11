@@ -328,12 +328,12 @@ where
 pub mod tests {
     use crate::{
         utils::{self, tests::ED_DECOMPRESS_ELF},
-        SuccinctProver, SuccinctStdin,
+        CurtaProver, CurtaStdin,
     };
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        SuccinctProver::prove(ED_DECOMPRESS_ELF, SuccinctStdin::new()).unwrap();
+        CurtaProver::prove(ED_DECOMPRESS_ELF, CurtaStdin::new()).unwrap();
     }
 }

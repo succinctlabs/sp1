@@ -1,10 +1,10 @@
 //! A simple program to be proven inside the zkVM.
 
 #![no_main]
-succinct_zkvm::entrypoint!(main);
+curta_zkvm::entrypoint!(main);
 
 pub fn main() {
-    let n = succinct_zkvm::io::read::<u32>();
+    let n = curta_zkvm::io::read::<u32>();
     let mut a = 0;
     let mut b = 1;
     let mut sum;
@@ -14,6 +14,6 @@ pub fn main() {
         b = sum;
     }
 
-    succinct_zkvm::io::write(&a);
-    succinct_zkvm::io::write(&b);
+    curta_zkvm::io::write(&a);
+    curta_zkvm::io::write(&b);
 }

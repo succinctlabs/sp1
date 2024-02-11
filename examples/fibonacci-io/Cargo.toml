@@ -4,4 +4,4 @@ name = "fibonacci-io-example"
 edition = "2021"
 
 [dependencies]
-succinct-core = { path = "../../core" }
+curta-core = { path = "../../core" }

@@ -4,7 +4,7 @@ The first performant, 100% open-source, contributor-friendly zero-knowledge virt
 
 ![](assets/curta.svg)
 
- Curta is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is *performant*, *customizable* and will stand the *test of time*. **We invite the community to join us in this ambitious journey to build an open-source public good to democratize access to programmable truth.**
+Curta is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is *performant*, *customizable* and will stand the *test of time*.
 
 **[Install](https://getcurta.succinct.xyz)**
 | [Docs]()
@@ -37,7 +37,7 @@ cd program && cargo prove build
 
 Generate and verify the execution of the binary:
 ```
-cd script && cargo run --release
+cd script && RUSTFLAGS="-C target-cpu=native" cargo run --release
 ```
 
 Note that the `RUST_LOG` and `RUST_TRACER` enviroment variables can be set to different status levels to get more fine-grained logging and debugging information.
@@ -46,7 +46,7 @@ Note that the `RUST_LOG` and `RUST_TRACER` enviroment variables can be set to di
 
 If you want to build the `cargo-prove` CLI from source, run the following commands:
 ```
-git clone ssh://git@github.com/succinctlabs/vm
+git clone ssh://git@github.com/succinctlabs/curta
 cd vm
 cd cli
 cargo install --locked --path .
@@ -72,6 +72,6 @@ Note that if you use `cargo prove new` inside a monorepo, you will need to add t
 
 We would like to acknowledge the projects below whose previous work has been instrumental in making this project a reality.
 
-- [Plonky3](https://github.com/Plonky3/Plonky3): The Succinct zkVM's prover is powered by the Plonky3 toolkit.
-- [Valida](https://github.com/valida-xyz/valida): The Succinct zkVM cross-table lookups, prover, and chip design, including constraints, are inspired by Valida.
-- [RISC0](https://github.com/risc0/risc0): The Succinct zkVM rust toolchain, install/build scripts, and our RISCV runtime borrow code from RISC0.
+- [Plonky3](https://github.com/Plonky3/Plonky3): The Curta zkVM's prover is powered by the Plonky3 toolkit.
+- [Valida](https://github.com/valida-xyz/valida): The Curta zkVM cross-table lookups, prover, and chip design, including constraints, are inspired by Valida.
+- [RISC0](https://github.com/risc0/risc0): The Curta zkVM rust toolchain, install/build scripts, and our RISCV runtime borrow code from RISC0.

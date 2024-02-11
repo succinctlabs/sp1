@@ -94,6 +94,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "curta-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "der"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -213,8 +226,8 @@ name = "io-zkvm"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "curta-zkvm",
  "serde",
- "succinct-zkvm",
 ]
 
 [[package]]
@@ -393,19 +406,6 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
-
-[[package]]
-name = "succinct-zkvm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
 
 [[package]]
 name = "syn"

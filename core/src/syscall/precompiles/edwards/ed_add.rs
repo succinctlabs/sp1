@@ -299,18 +299,18 @@ mod tests {
             self,
             tests::{ED25519_ELF, ED_ADD_ELF},
         },
-        SuccinctProver, SuccinctStdin,
+        CurtaProver, CurtaStdin,
     };
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        SuccinctProver::prove(ED_ADD_ELF, SuccinctStdin::new()).unwrap();
+        CurtaProver::prove(ED_ADD_ELF, CurtaStdin::new()).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        SuccinctProver::prove(ED25519_ELF, SuccinctStdin::new()).unwrap();
+        CurtaProver::prove(ED25519_ELF, CurtaStdin::new()).unwrap();
     }
 }

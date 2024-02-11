@@ -8,7 +8,7 @@ description = "A book on all things Reth"
 
 [output.html]
 theme = "book/theme"
-git-repository-url = "https://github.com/succinctlabs/vm"
+git-repository-url = "https://github.com/succinctlabs/curta"
 default-theme = "ayu"
 no-section-label = true
 
