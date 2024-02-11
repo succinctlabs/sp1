@@ -247,7 +247,7 @@ where
 
     pub fn verify(
         &self,
-        vk: &VerifyingKey<SC>,
+        _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>

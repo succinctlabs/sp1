@@ -140,7 +140,7 @@ where
     /// Prove the program for the given shard and given a commitment to the main data.
     fn prove_shard(
         config: &SC,
-        pk: &ProvingKey<SC>,
+        _pk: &ProvingKey<SC>,
         chips: &[&ChipRef<SC>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
