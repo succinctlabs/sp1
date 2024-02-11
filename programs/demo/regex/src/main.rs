@@ -1,6 +1,8 @@
 //! A simple program that takes a regex pattern and a string and returns whether the string
 //! matches the pattern.
 
+use regex::Regex;
+
 // These two lines are necessary for the program to properly compile.
 //
 // Under the hood, we wrap your main function with some extra code so that it behaves properly
@@ -8,15 +10,10 @@
 #![no_main]
 curta_zkvm::entrypoint!(main);
 
-extern crate regex;
-use regex::Regex;
-
 pub fn main() {
     // Read two inputs from the prover: a regex pattern and a target string.
     let pattern = curta_zkvm::io::read::<String>();
     let target_string = curta_zkvm::io::read::<String>();
-    println!("pattern: {}", pattern);
-    println!("target_string: {}", target_string);
 
     // Try to compile the regex pattern. If it fails, write `false` as output and return.
     let regex = match Regex::new(&pattern) {
@@ -28,7 +25,6 @@ pub fn main() {
 
     // Perform the regex search on the target string.
     let result = regex.is_match(&target_string);
-    println!("result: {}", result);
 
     // Write the result (true or false) to the output.
     curta_zkvm::io::write(&result);
