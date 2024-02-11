@@ -48,7 +48,7 @@ impl ProveCmd {
         ];
 
         Command::new("cargo")
-            .env("RUSTUP_TOOLCHAIN", "succinct")
+            .env("RUSTUP_TOOLCHAIN", "curta")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .env("SUCCINCT_BUILD_IGNORE", "1")
             .args(["build", "--release", "--target", build_target, "--locked"])
