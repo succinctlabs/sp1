@@ -5,4 +5,4 @@ name = "blake3-patch-script"
 edition = "2021"
 
 [dependencies]
-succinct-core = { git = "https://github.com/succinctlabs/vm.git" }
+curta-core = { git = "https://github.com/succinctlabs/curta.git" }
