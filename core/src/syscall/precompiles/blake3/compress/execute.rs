@@ -16,6 +16,7 @@ impl Syscall for Blake3CompressInnerChip {
         // TODO: These pointers have to be constrained.
         let state_ptr = rt.register_unsafe(Register::X10);
         let message_ptr = rt.register_unsafe(Register::X11);
+        println!("Blake3CompressInnerChip::execute is running");
 
         let saved_clk = rt.clk;
         let mut message_reads =
