@@ -67,16 +67,15 @@ where
 
     let start = Instant::now();
 
-    let (machine, prover_data) = RiscvStark::init(config.clone());
+    let machine = RiscvStark::new(config);
 
     // Because proving modifies the shard, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
     let shard = runtime.record.clone();
 
     // Prove the program.
-    let proof = tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger)
-    });
+    let proof = tracing::info_span!("runtime.prove(...)")
+        .in_scope(|| machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

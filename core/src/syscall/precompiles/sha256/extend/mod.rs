@@ -89,8 +89,8 @@ pub mod extend_tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let (machine, prover_data) = RiscvStark::init(config);
+        let machine = RiscvStark::new(config);
 
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
+        machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger);
     }
 }

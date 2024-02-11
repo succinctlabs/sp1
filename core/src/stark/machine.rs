@@ -26,7 +26,6 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use p3_air::BaseAir;
 use p3_challenger::CanObserve;
 use p3_commit::Pcs;
 use p3_field::AbstractField;
@@ -39,9 +38,7 @@ use serde::Serialize;
 
 use super::Chip;
 use super::ChipRef;
-use super::Com;
 use super::OpeningProof;
-use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::ShardMainData;
@@ -49,13 +46,12 @@ use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
-pub struct ProverData<SC: StarkGenericConfig> {
-    pub preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
-    pub preprocessed_data: Option<PcsProverData<SC>>,
+pub struct ProvingKey<SC: StarkGenericConfig> {
+    _marker: std::marker::PhantomData<SC>,
 }
 
-pub struct PublicParameters<SC: StarkGenericConfig> {
-    pub preprocessed_commitment: Option<Com<SC>>,
+pub struct VerifyingKey<SC: StarkGenericConfig> {
+    _marker: std::marker::PhantomData<SC>,
 }
 
 pub struct RiscvStark<SC: StarkGenericConfig> {
@@ -86,16 +82,13 @@ pub struct RiscvStark<SC: StarkGenericConfig> {
     memory_init: Chip<SC::Val, MemoryGlobalChip>,
     memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
     program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
-
-    // Commitment to the preprocessed data
-    preprocessed_commitment: Option<Com<SC>>,
 }
 
 impl<SC: StarkGenericConfig> RiscvStark<SC>
 where
     SC::Val: PrimeField32,
 {
-    pub fn init(config: SC) -> (Self, ProverData<SC>) {
+    pub fn new(config: SC) -> Self {
         let program = Chip::new(ProgramChip::default());
         let cpu = Chip::new(CpuChip::default());
         let sha_extend = Chip::new(ShaExtendChip::default());
@@ -122,7 +115,7 @@ where
         let memory_finalize = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Finalize));
         let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
 
-        let mut machine = Self {
+        Self {
             config,
             program,
             cpu,
@@ -147,38 +140,7 @@ where
             memory_init,
             memory_finalize,
             program_memory_init,
-
-            preprocessed_commitment: None,
-        };
-
-        // Compute commitments to the preprocessed data
-        let preprocessed_traces = machine
-            .chips()
-            .iter()
-            .map(|chip| chip.preprocessed_trace())
-            .collect::<Vec<_>>();
-        let traces = preprocessed_traces
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        let (commit, data) = if !traces.is_empty() {
-            Some(machine.config.pcs().commit_batches(traces))
-        } else {
-            None
         }
-        .unzip();
-
-        // Store the commitments in the machine
-        machine.preprocessed_commitment = commit;
-
-        (
-            machine,
-            ProverData {
-                preprocessed_traces,
-                preprocessed_data: data,
-            },
-        )
     }
 
     pub fn chips(&self) -> [ChipRef<SC>; 23] {
@@ -214,7 +176,6 @@ where
     /// The function returns a vector of segment proofs, one for each segment, and a global proof.
     pub fn prove<P>(
         &self,
-        prover_data: &ProverData<SC>,
         record: &mut ExecutionRecord,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
@@ -277,14 +238,7 @@ where
                     .filter(|chip| data.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
                 tracing::info_span!("proving shard").in_scope(|| {
-                    P::prove_shard(
-                        &self.config,
-                        &mut challenger.clone(),
-                        &chips,
-                        data,
-                        &prover_data.preprocessed_traces,
-                        &prover_data.preprocessed_data,
-                    )
+                    P::prove_shard(&self.config, &mut challenger.clone(), &chips, data)
                 })
             })
             .collect::<Vec<_>>();

@@ -219,7 +219,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
+        let machine = RiscvStark::new(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips(
             &machine.chips(),
             &runtime.record,
@@ -234,7 +234,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let (machine, _prover_data) = RiscvStark::init(BabyBearPoseidon2::new());
+        let machine = RiscvStark::new(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips(
             &machine.chips(),
             &runtime.record,

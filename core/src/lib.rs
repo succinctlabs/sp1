@@ -121,7 +121,7 @@ impl SuccinctVerifier {
     ) -> Result<(), ProgramVerificationError> {
         let config = BabyBearBlake3::new();
         let mut challenger = config.challenger();
-        let (machine, prover_data) = RiscvStark::init(config);
+        let machine = RiscvStark::new(config);
         machine.verify(&mut challenger, &proof.proof)
     }
 
@@ -142,7 +142,7 @@ impl SuccinctVerifier {
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let mut challenger = config.challenger();
-        let (machine, prover_data) = RiscvStark::init(config);
+        let machine = RiscvStark::new(config);
         machine.verify(&mut challenger, &proof.proof)
     }
 }

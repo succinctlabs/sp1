@@ -37,10 +37,7 @@ where
         config: &SC,
         shards: &mut Vec<ExecutionRecord>,
         chips: &[ChipRef<SC>],
-    ) -> (
-        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<ShardMainDataWrapper<SC>>,
-    )
+    ) -> (Vec<Com<SC>>, Vec<ShardMainDataWrapper<SC>>)
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
@@ -92,9 +89,7 @@ where
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[ChipRef<SC>],
-        main_data: ShardMainData<SC>,
-        preprocessed_traces: &[Option<RowMajorMatrix<SC::Val>>],
-        _preprocessed_data: &Option<PcsProverData<SC>>,
+        shard_data: ShardMainData<SC>,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
@@ -102,7 +97,7 @@ where
         ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let traces = main_data.traces;
+        let traces = shard_data.traces;
 
         let log_degrees = traces
             .iter()
@@ -134,12 +129,11 @@ where
                 .par_iter()
                 .zip(receives.par_iter())
                 .zip(traces.par_iter())
-                .zip(preprocessed_traces.par_iter())
-                .map(|(((send, rec), main_trace), prep_trace)| {
+                .map(|((send, rec), main_trace)| {
                     let perm_trace = generate_permutation_trace(
                         send,
                         rec,
-                        prep_trace,
+                        &None,
                         main_trace,
                         &permutation_challenges,
                     );
@@ -187,7 +181,7 @@ where
         let main_ldes = tracing::info_span!("get main ldes").in_scope(|| {
             config
                 .pcs()
-                .get_ldes(&main_data.main_data)
+                .get_ldes(&shard_data.main_data)
                 .into_iter()
                 .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
                 .collect::<Vec<_>>()
@@ -279,7 +273,7 @@ where
         let (openings, opening_proof) = tracing::info_span!("open multi batches").in_scope(|| {
             config.pcs().open_multi_batches(
                 &[
-                    (&main_data.main_data, &trace_opening_points),
+                    (&shard_data.main_data, &trace_opening_points),
                     (&permutation_data, &trace_opening_points),
                     (&quotient_data, &quotient_opening_points),
                 ],
@@ -369,7 +363,7 @@ where
 
             ShardProof::<SC> {
                 commitment: ShardCommitment {
-                    main_commit: main_data.main_commit.clone(),
+                    main_commit: shard_data.main_commit.clone(),
                     permutation_commit,
                     quotient_commit,
                 },
