@@ -1,4 +1,4 @@
-# Curta zkVM
+# Curta
 
 [![Telegram Chat][tg-badge]][tg-url]
 
