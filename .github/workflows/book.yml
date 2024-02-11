@@ -120,24 +120,24 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # deploy:
-  #   # Only deploy if a push to main
-  #   if: github.ref_name == 'main' && github.event_name == 'push'
-  #   runs-on: ubuntu-latest
-  #   needs: [lint, build]
+  deploy:
+    # Only deploy if a push to main
+    if: github.ref_name == 'main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [lint, build]
 
-  #   # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
-  #   permissions:
-  #     pages: write
-  #     id-token: write
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write
+      id-token: write
 
-  #   environment:
-  #     name: github-pages
-  #     url: ${{ steps.deployment.outputs.page_url }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
-  #   timeout-minutes: 60
+    timeout-minutes: 60
 
-  #   steps:
-  #     - name: Deploy to GitHub Pages
-  #       id: deployment
-  #       uses: actions/deploy-pages@v2
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
