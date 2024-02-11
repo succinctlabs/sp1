@@ -1,8 +1,8 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "fibonacci-zkvm"
+name = "fibonacci-io-zkvm"
 edition = "2021"
 
 [dependencies]
-succinct-zkvm = { path = "../../../zkvm" }
+curta-zkvm = { path = "../../../zkvm" }
