@@ -335,41 +335,6 @@ where
             )
         });
 
-        // // Checking the shapes of openings match our expectations.
-        // //
-        // // This is a sanity check to make sure we are using the API correctly. We should remove this
-        // // once everything is stable.
-
-        // #[cfg(not(feature = "perf"))]
-        // {
-        //     // Check for the correct number of opening collections.
-        //     assert_eq!(openings.len(), 3);
-
-        //     // Check the shape of the main trace openings.
-        //     assert_eq!(openings[0].len(), chips.len());
-        //     for (chip, opening) in chips.iter().zip(openings[0].iter()) {
-        //         let width = chip.width();
-        //         assert_eq!(opening.len(), 2);
-        //         assert_eq!(opening[0].len(), width);
-        //         assert_eq!(opening[1].len(), width);
-        //     }
-        //     // Check the shape of the permutation trace openings.
-        //     assert_eq!(openings[1].len(), chips.len());
-        //     for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
-        //         let width = perm.width() * SC::Challenge::D;
-        //         assert_eq!(opening.len(), 2);
-        //         assert_eq!(opening[0].len(), width);
-        //         assert_eq!(opening[1].len(), width);
-        //     }
-        //     // Check the shape of the quotient openings.
-        //     assert_eq!(openings[2].len(), chips.len());
-        //     for opening in openings[2].iter() {
-        //         let width = SC::Challenge::D << log_quotient_degree;
-        //         assert_eq!(opening.len(), 1);
-        //         assert_eq!(opening[0].len(), width);
-        //     }
-        // }
-
         #[cfg(feature = "perf")]
         {
             // Collect the opened values for each chip.

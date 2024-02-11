@@ -35,30 +35,26 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Dimensions;
 use p3_matrix::Matrix;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use super::Chip;
 use super::ChipRef;
 use super::Com;
-use super::OpeningProof;
 use super::PcsProverData;
 use super::Proof;
 use super::Prover;
-use super::ShardMainData;
 use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
 pub struct ProvingKey<SC: StarkGenericConfig> {
-    data: PcsProverData<SC>,
-    byte_trace: RowMajorMatrix<SC::Val>,
+    pub data: PcsProverData<SC>,
+    pub byte_trace: RowMajorMatrix<SC::Val>,
     // program_trace: RowMajorMatrix<SC::Val>,
 }
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
-    commit: Com<SC>,
-    byte_dimensions: Dimensions,
+    pub commit: Com<SC>,
+    pub byte_dimensions: Dimensions,
     // program_dimensions: Dimensions,
 }
 
@@ -232,21 +228,12 @@ where
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<P>(
+    pub fn prove<P: Prover<SC>>(
         &self,
         pk: &ProvingKey<SC>,
         record: &mut ExecutionRecord,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC>
-    where
-        P: Prover<SC>,
-        SC: Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        ShardMainData<SC>: Serialize + DeserializeOwned,
-        OpeningProof<SC>: Send + Sync,
-    {
+    ) -> Proof<SC> {
         tracing::info!("Sharding the execution record.");
         let mut shards = self.shard(record);
 
