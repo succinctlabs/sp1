@@ -17,7 +17,6 @@ impl Syscall for Blake3CompressInnerChip {
         let state_ptr = rt.register_unsafe(Register::X10);
         let message_ptr = rt.register_unsafe(Register::X11);
 
-        // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
         let mut message_reads =
             [[[MemoryReadRecord::default(); NUM_MSG_WORDS_PER_CALL]; OPERATION_COUNT]; ROUND_COUNT];
