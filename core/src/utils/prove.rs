@@ -68,7 +68,7 @@ where
     let start = Instant::now();
 
     let machine = RiscvStark::new(config);
-    let (pk, vk) = machine.get_keys(runtime.program.as_ref());
+    let (pk, vk) = machine.setup(runtime.program.as_ref());
 
     // Because proving modifies the shard, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]

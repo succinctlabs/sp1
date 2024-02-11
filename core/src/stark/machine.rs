@@ -144,6 +144,7 @@ where
         }
     }
 
+    /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> [ChipRef<SC>; 23] {
         [
             self.program.as_ref(),
@@ -172,7 +173,11 @@ where
         ]
     }
 
-    pub fn get_keys(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    /// The setup preprocessing phase.
+    ///
+    /// Given a program, this function generates the proving and verifying keys. The keys correspond
+    /// to the program code and other preprocessed colunms such as lookup tables.
+    pub fn setup(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
         let proving_key = ProvingKey {
             _marker: std::marker::PhantomData,
         };

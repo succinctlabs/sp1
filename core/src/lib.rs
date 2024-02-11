@@ -122,7 +122,7 @@ impl CurtaVerifier {
         let config = BabyBearBlake3::new();
         let mut challenger = config.challenger();
         let machine = RiscvStark::new(config);
-        let (_, vk) = machine.get_keys(&Program::from(elf));
+        let (_, vk) = machine.setup(&Program::from(elf));
         machine.verify(&vk, &proof.proof, &mut challenger)
     }
 
@@ -145,7 +145,7 @@ impl CurtaVerifier {
         let mut challenger = config.challenger();
         let machine = RiscvStark::new(config);
 
-        let (_, vk) = machine.get_keys(&Program::from(elf));
+        let (_, vk) = machine.setup(&Program::from(elf));
         machine.verify(&vk, &proof.proof, &mut challenger)
     }
 }
