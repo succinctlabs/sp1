@@ -1,6 +1,5 @@
 #![no_main]
-extern crate succinct_zkvm;
-succinct_zkvm::entrypoint!(main);
+curta_zkvm::entrypoint!(main);
 
 pub fn main() {
     let n = 50000;

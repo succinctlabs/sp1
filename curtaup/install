@@ -10,7 +10,7 @@ BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
 CURTA_DIR=${CURTA_DIR-"$BASE_DIR/.cargo-prove"}
 CURTA_BIN_DIR="$CURTA_DIR/bin"
 
-BIN_URL="https://raw.githubusercontent.com/succinctlabs/vm/main/curtaup/curtaup"
+BIN_URL="https://raw.githubusercontent.com/succinctlabs/curta/main/curtaup/curtaup"
 BIN_PATH="$CURTA_BIN_DIR/curtaup"
 
 

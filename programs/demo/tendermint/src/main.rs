@@ -1,6 +1,5 @@
 #![no_main]
-
-extern crate succinct_zkvm;
+curta_zkvm::entrypoint!(main);
 
 use core::time::Duration;
 use serde::Deserialize;
@@ -10,8 +9,6 @@ use tendermint_light_client_verifier::{
     types::{LightBlock, SignedHeader, ValidatorSet},
     ProdVerifier, Verdict, Verifier,
 };
-
-succinct_zkvm::entrypoint!(main);
 
 #[derive(Debug, Deserialize)]
 pub struct CommitResponse {
