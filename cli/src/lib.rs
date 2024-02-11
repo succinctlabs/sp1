@@ -9,7 +9,7 @@ use std::fs::File as SyncFile;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
+pub const RUSTUP_TOOLCHAIN_NAME: &str = "curta";
 
 trait CommandExecutor {
     fn run(&mut self) -> Result<()>;
