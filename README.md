@@ -1,5 +1,7 @@
 # Curta
 
+[![Telegram Chat][tg-badge]][tg-url]
+
 The first performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs.
 
 ![](assets/curta.svg)
@@ -9,6 +11,9 @@ Curta is inspired by the open-source software movement and takes a collaborative
 **[Install](https://getcurta.succinct.xyz)**
 | [Docs]()
 | [Examples]()
+
+[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https://tg.sumanjay.workers.dev/succinct_curta
+[tg-url]: https://t.me/succinct_curta
 
 ## Install
 
@@ -46,7 +51,7 @@ Note that the `RUST_LOG` and `RUST_TRACER` enviroment variables can be set to di
 
 If you want to build the `cargo-prove` CLI from source, run the following commands:
 ```
-git clone ssh://git@github.com/succinctlabs/curta
+git clone https://github.com/succinctlabs/curta.git
 cd vm
 cd cli
 cargo install --locked --path .
