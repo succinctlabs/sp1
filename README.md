@@ -51,7 +51,7 @@ Note that the `RUST_LOG` and `RUST_TRACER` enviroment variables can be set to di
 
 If you want to build the `cargo-prove` CLI from source, run the following commands:
 ```
-git clone ssh://git@github.com/succinctlabs/curta
+git clone https://github.com/succinctlabs/curta.git
 cd vm
 cd cli
 cargo install --locked --path .
