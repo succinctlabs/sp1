@@ -36,6 +36,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
     pub chip_ids: Vec<String>,
+    pub index: usize,
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
@@ -44,12 +45,14 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
         chip_ids: Vec<String>,
+        index: usize,
     ) -> Self {
         Self {
             traces,
             main_commit,
             main_data,
             chip_ids,
+            index,
         }
     }
 
@@ -127,6 +130,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 #[cfg(feature = "perf")]
 #[derive(Serialize)]
 pub struct ShardProof<SC: StarkGenericConfig> {
+    pub index: usize,
     pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,

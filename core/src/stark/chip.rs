@@ -6,7 +6,7 @@ use p3_util::log2_ceil_usize;
 use crate::{
     air::{CurtaAirBuilder, MachineAir, MultiTableAirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::ExecutionRecord,
+    runtime::{ExecutionRecord, Program},
 };
 
 use super::{
@@ -156,6 +156,14 @@ where
     fn include(&self, record: &ExecutionRecord) -> bool {
         self.air.include(record)
     }
+
+    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+        <A as MachineAir<F>>::preprocessed_trace(&self.air, program)
+    }
+
+    fn preprocessed_width(&self) -> usize {
+        self.air.preprocessed_width()
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.
@@ -200,6 +208,14 @@ impl<'a, SC: StarkGenericConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
 
     fn include(&self, record: &ExecutionRecord) -> bool {
         <dyn StarkAir<SC> as MachineAir<SC::Val>>::include(self.air, record)
+    }
+
+    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_trace(self.air, program)
+    }
+
+    fn preprocessed_width(&self) -> usize {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_width(self.air)
     }
 }
 

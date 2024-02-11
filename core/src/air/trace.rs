@@ -1,8 +1,8 @@
 use p3_air::BaseAir;
 use p3_field::Field;
-use p3_matrix::{dense::RowMajorMatrix, Dimensions};
+use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, Program};
 
 /// An AIR that is part of a Risc-V AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
@@ -19,12 +19,13 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
 
     fn include(&self, record: &ExecutionRecord) -> bool;
 
-    fn preprocessed_dimensions(&self) -> Option<Dimensions> {
-        None
+    /// The number of preprocessed columns in the trace.
+    fn preprocessed_width(&self) -> usize {
+        0
     }
 
     #[allow(unused_variables)]
-    fn preprocessed_trace(&self, record: &ExecutionRecord) -> Option<RowMajorMatrix<F>> {
+    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
         None
     }
 }

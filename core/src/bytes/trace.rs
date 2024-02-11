@@ -2,7 +2,10 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use super::{air::BYTE_MULT_INDICES, ByteChip};
-use crate::{air::MachineAir, runtime::ExecutionRecord};
+use crate::{
+    air::MachineAir,
+    runtime::{ExecutionRecord, Program},
+};
 
 pub const NUM_ROWS: usize = 1 << 16;
 
@@ -32,5 +35,17 @@ impl<F: Field> MachineAir<F> for ByteChip {
         }
 
         trace
+    }
+
+    fn preprocessed_width(&self) -> usize {
+        10
+    }
+
+    fn preprocessed_trace(&self, _program: &Program) -> Option<RowMajorMatrix<F>> {
+        let values = (0..10 * NUM_ROWS)
+            .map(|i| F::from_canonical_usize(i))
+            .collect();
+
+        Some(RowMajorMatrix::new(values, 10))
     }
 }

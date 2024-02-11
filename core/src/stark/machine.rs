@@ -33,12 +33,16 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Dimensions;
+use p3_matrix::Matrix;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use super::Chip;
 use super::ChipRef;
+use super::Com;
 use super::OpeningProof;
+use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::ShardMainData;
@@ -47,11 +51,15 @@ use super::VerificationError;
 use super::Verifier;
 
 pub struct ProvingKey<SC: StarkGenericConfig> {
-    _marker: std::marker::PhantomData<SC>,
+    data: PcsProverData<SC>,
+    byte_trace: RowMajorMatrix<SC::Val>,
+    // program_trace: RowMajorMatrix<SC::Val>,
 }
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
-    _marker: std::marker::PhantomData<SC>,
+    commit: Com<SC>,
+    byte_dimensions: Dimensions,
+    // program_dimensions: Dimensions,
 }
 
 pub struct RiscvStark<SC: StarkGenericConfig> {
@@ -177,12 +185,16 @@ where
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
     pub fn setup(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
-        let proving_key = ProvingKey {
-            _marker: std::marker::PhantomData,
-        };
+        let byte_trace = self.byte.preprocessed_trace(program).unwrap();
+
+        let (commit, data) = self.config.pcs().commit_batches(vec![byte_trace.clone()]);
+
         let verifying_key = VerifyingKey {
-            _marker: std::marker::PhantomData,
+            commit,
+            byte_dimensions: byte_trace.dimensions(),
         };
+        let proving_key = ProvingKey { data, byte_trace };
+
         (proving_key, verifying_key)
     }
 
