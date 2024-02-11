@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, MainData, OpeningProof},
+    stark::{LocalProver, OpeningProof, ShardMainData},
     stark::{RiscvStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
@@ -60,7 +60,7 @@ where
     OpeningProof<SC>: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-    MainData<SC>: Serialize + DeserializeOwned,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     let mut challenger = config.challenger();
@@ -105,6 +105,9 @@ where
             ],
         );
     });
+
+    let mut challenger = machine.config().challenger();
+    machine.verify(&mut challenger, &proof).unwrap();
 
     proof
 }

@@ -37,7 +37,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use runtime::{Program, Runtime};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use stark::{MainData, OpeningProof, ProgramVerificationError, Proof};
+use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
 use stark::{RiscvStark, StarkGenericConfig};
 use std::fs;
 use utils::{prove_core, BabyBearBlake3, StarkUtils};
@@ -96,7 +96,7 @@ impl SuccinctProver {
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let program = Program::from(elf);
@@ -138,7 +138,7 @@ impl SuccinctVerifier {
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let mut challenger = config.challenger();

@@ -40,11 +40,11 @@ use serde::Serialize;
 use super::Chip;
 use super::ChipRef;
 use super::Com;
-use super::MainData;
 use super::OpeningProof;
 use super::PcsProverData;
 use super::Proof;
 use super::Prover;
+use super::ShardMainData;
 use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
@@ -224,7 +224,7 @@ where
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
         OpeningProof<SC>: Send + Sync,
     {
         // Get the local and global chips.
@@ -290,6 +290,10 @@ where
             .collect::<Vec<_>>();
 
         Proof { shard_proofs }
+    }
+
+    pub const fn config(&self) -> &SC {
+        &self.config
     }
 
     pub fn verify(

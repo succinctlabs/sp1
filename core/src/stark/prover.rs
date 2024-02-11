@@ -39,7 +39,7 @@ where
         chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
+        Vec<ShardMainDataWrapper<SC>>,
     )
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -48,9 +48,13 @@ where
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned;
+        ShardMainData<SC>: Serialize + DeserializeOwned;
 
-    fn commit_main(config: &SC, chips: &[ChipRef<SC>], shard: &mut ExecutionRecord) -> MainData<SC>
+    fn commit_main(
+        config: &SC,
+        chips: &[ChipRef<SC>],
+        shard: &mut ExecutionRecord,
+    ) -> ShardMainData<SC>
     where
         SC::Val: PrimeField32,
     {
@@ -75,7 +79,7 @@ where
             .map(|chip| chip.name())
             .collect::<Vec<_>>();
 
-        MainData {
+        ShardMainData {
             traces,
             main_commit,
             main_data,
@@ -88,14 +92,14 @@ where
         config: &SC,
         challenger: &mut SC::Challenger,
         chips: &[ChipRef<SC>],
-        main_data: MainData<SC>,
+        main_data: ShardMainData<SC>,
         preprocessed_traces: &[Option<RowMajorMatrix<SC::Val>>],
         _preprocessed_data: &Option<PcsProverData<SC>>,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
-        MainData<SC>: DeserializeOwned,
+        ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
         let traces = main_data.traces;
@@ -548,7 +552,7 @@ where
         chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
+        Vec<ShardMainDataWrapper<SC>>,
     )
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -557,7 +561,7 @@ where
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
     {
         let num_shards = shards.len();
         tracing::info!("num_shards={}", num_shards);
@@ -592,8 +596,8 @@ where
             let bytes_written = shard_main_data
                 .iter()
                 .map(|data| match data {
-                    MainDataWrapper::InMemory(_) => 0,
-                    MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                    ShardMainDataWrapper::InMemory(_) => 0,
+                    ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
                 })
                 .sum::<u64>();
             if bytes_written > 0 {
