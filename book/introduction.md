@@ -8,8 +8,8 @@
 
 Curta zkVM is the first performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that verifies the execution of arbitrary Rust (or any LLVM-compiled language) programs. 
 
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fparadigm%5Freth
-[tg-url]: https://t.me/paradigm_reth
+[tg-badge]: https://tg.sumanjay.workers.dev/succinct_curta
+[tg-url]: https://t.me/succinct_curta
 
 ## The future of truth is programmable
 
