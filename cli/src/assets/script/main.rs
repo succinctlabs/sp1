@@ -2,7 +2,7 @@
 
 use succinct_core::{SuccinctProver, SuccinctStdin, SuccinctVerifier};
 
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
     // Generate proof.

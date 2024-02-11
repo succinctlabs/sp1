@@ -37,7 +37,7 @@ impl ProveCmd {
         let root_package = metadata.root_package();
         let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-        let build_target = "riscv32im-succinct-zkvm-elf";
+        let build_target = "riscv32im-curta-zkvm-elf";
         let rust_flags = [
             "-C",
             "passes=loweratomic",
@@ -62,7 +62,7 @@ impl ProveCmd {
             .join(root_package_name.unwrap());
         let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
         fs::create_dir_all(&elf_dir)?;
-        fs::copy(&elf_path, elf_dir.join("riscv32im-succinct-zkvm-elf"))?;
+        fs::copy(&elf_path, elf_dir.join("riscv32im-curta-zkvm-elf"))?;
 
         if !self.profile {
             match env::var("RUST_LOG") {

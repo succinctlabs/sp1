@@ -21,7 +21,7 @@ After following the instructions, you can run `curtaup` to install the toolchain
 curtaup
 ```
 
-This will install support for the `riscv32im-succinct-zkvm-elf` compilation target within your Rust compiler
+This will install support for the `riscv32im-curta-zkvm-elf` compilation target within your Rust compiler
 and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness. 
 
 You can verify the installation by running `cargo prove --version`:
