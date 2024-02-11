@@ -187,25 +187,7 @@ where
         (proving_key, verifying_key)
     }
 
-    /// Prove the execution record is valid.
-    ///
-    /// Given a proving key `pk` and a matching execution record `record`, this function generates
-    /// a STARK proof that the execution record is valid.
-    pub fn prove<P>(
-        &self,
-        pk: &ProvingKey<SC>,
-        record: &mut ExecutionRecord,
-        challenger: &mut SC::Challenger,
-    ) -> Proof<SC>
-    where
-        P: Prover<SC>,
-        SC: Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        ShardMainData<SC>: Serialize + DeserializeOwned,
-        OpeningProof<SC>: Send + Sync,
-    {
+    pub fn shard(&self, record: &mut ExecutionRecord) -> Vec<ExecutionRecord> {
         // Get the local and global chips.
         let chips = self.chips();
 
@@ -232,9 +214,37 @@ where
             chip.shard(record, &mut shards);
         });
 
+        shards
+    }
+
+    /// Prove the execution record is valid.
+    ///
+    /// Given a proving key `pk` and a matching execution record `record`, this function generates
+    /// a STARK proof that the execution record is valid.
+    pub fn prove<P>(
+        &self,
+        pk: &ProvingKey<SC>,
+        record: &mut ExecutionRecord,
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC>
+    where
+        P: Prover<SC>,
+        SC: Send + Sync,
+        SC::Challenger: Clone,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+        OpeningProof<SC>: Send + Sync,
+    {
+        tracing::info!("Sharding the execution record.");
+        let mut shards = self.shard(record);
+
+        // Get all the chips included in the machine.
+        let all_chips = self.chips();
+
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
+        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &all_chips);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {

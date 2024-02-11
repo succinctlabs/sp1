@@ -36,7 +36,7 @@ where
     fn commit_shards<F, EF>(
         config: &SC,
         shards: &mut Vec<ExecutionRecord>,
-        chips: &[ChipRef<SC>],
+        all_chips: &[ChipRef<SC>],
     ) -> (Vec<Com<SC>>, Vec<ShardMainDataWrapper<SC>>)
     where
         F: PrimeField + TwoAdicField + PrimeField32,
