@@ -16,6 +16,9 @@ no-section-label = true
 enable = true
 level = 1
 
+[output.html.playground]
+runnable = false
+
 [build]
 build-dir = "target/book"
 

@@ -34,7 +34,7 @@ Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you wa
 ## Creating Serializable Types
 
 Typically, you can implement the `Serialize` and `Deserialize` traits using a simple derive macro on a struct.
-```
+```rust
 use serde::{Serialize, de::Deserialize};
 
 #[derive(Serialize, Deserialize)]
