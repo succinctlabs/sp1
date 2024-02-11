@@ -52,5 +52,5 @@ For more complex usecases, refer to the [Serde docs](https://serde.rs/).
 Here is a basic example of using inputs and outputs with more complex types.
 
 ```rust
-{{#include ../../../programs/demo/io/src/main.rs}}
+{{#include ../../programs/demo/io/src/main.rs}}
 ```

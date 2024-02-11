@@ -11,5 +11,5 @@ To make this more concrete, let's walk through a simple example of generate a pr
 ## Fibonacci
 
 ```rust
-{{#include ../../../examples/fibonacci-io/src/main.rs}}
+{{#include ../../examples/fibonacci-io/src/main.rs}}
 ```
