@@ -10,6 +10,6 @@ To make this more concrete, let's walk through a simple example of generate a pr
 
 ## Fibonacci
 
-```rust
+```rust,noplayground
 {{#include ../../examples/fibonacci-io/src/main.rs}}
 ```

@@ -25,7 +25,7 @@ cd script
 
 Inside this crate, add the `succinct-core` crate as a dependency. Your `Cargo.toml` should look like as follows:
 
-```rust
+```rust,noplayground
 [workspace]
 [package]
 version = "0.1.0"

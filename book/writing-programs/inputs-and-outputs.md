@@ -11,7 +11,7 @@ In this section, we cover how you pass inputs and outputs to the zkVM and create
 
 For most usecases, use the `succinct_zkvm::io::read::<T>` method:
 
-```rust
+```rust,noplayground
 let a = succinct_zkvm::io::read::<u32>();
 let b = succinct_zkvm::io::read::<u64>();
 let c = succinct_zkvm::io::read::<String>();
@@ -23,7 +23,7 @@ Note that `T` must implement the `Serialize` and `Deserialize` trait. If you wan
 
 For most usecases, use the `succinct_zkvm::io::write::<T>` method:
 
-```rust
+```rust,noplayground
 succinct_zkvm::io::write::<u32>(&a);
 succinct_zkvm::io::write::<u64>(&b);
 succinct_zkvm::io::write::<String>(&c);
@@ -34,7 +34,7 @@ Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you wa
 ## Creating Serializable Types
 
 Typically, you can implement the `Serialize` and `Deserialize` traits using a simple derive macro on a struct.
-```rust
+```rust,noplayground
 use serde::{Serialize, de::Deserialize};
 
 #[derive(Serialize, Deserialize)]
@@ -51,6 +51,6 @@ For more complex usecases, refer to the [Serde docs](https://serde.rs/).
 
 Here is a basic example of using inputs and outputs with more complex types.
 
-```rust
+```rust,noplayground
 {{#include ../../programs/demo/io/src/main.rs}}
 ```

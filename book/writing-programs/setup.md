@@ -35,7 +35,7 @@ cd program
 
 Inside this crate, add the `succinct-zkvm` crate as a dependency. Your `Cargo.toml` should look like as follows:
 
-```rust
+```rust,noplayground
 [workspace]
 [package]
 version = "0.1.0"
@@ -54,7 +54,7 @@ precompiles, patches, and more.
 Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that the crate
 properly compiles.
 
-```rust
+```rust,noplayground
 #![no_main]
 succinct_zkvm::entrypoint!(main);
 ```

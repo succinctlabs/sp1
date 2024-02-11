@@ -20,7 +20,7 @@ with the precompiles directly using extern system calls.
 
 Executes the SHA256 extend operation on a word array.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_sha256_extend(w: *mut u32);
 ```
 
@@ -28,7 +28,7 @@ pub extern "C" fn syscall_sha256_extend(w: *mut u32);
 
 Executes the SHA256 compress operation on a word array and a given state.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32);
 ```
 
@@ -36,7 +36,7 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32);
 
 Executes the Keccak256 permutation function on the given state.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_keccak_permute(state: *mut u64);
 ```
 
@@ -44,7 +44,7 @@ pub extern "C" fn syscall_keccak_permute(state: *mut u64);
 
 Adds two points on the ed25519 curve. The result is stored in the first point.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_ed_add(p: *mut u32, q: *mut u32);
 ```
 
@@ -56,7 +56,7 @@ The second half of the input array should contain the compressed Y point with th
 the sign bit. The first half of the input array will be overwritten with the decompressed point,
 and the sign bit will be removed.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64])
 ```
 
@@ -64,7 +64,7 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64])
 
 Adds two Secp256k1 points. The result is stored in the first point.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_secp256k1_add(p: *mut u32, q: *mut u32)
 ```
 
@@ -72,7 +72,7 @@ pub extern "C" fn syscall_secp256k1_add(p: *mut u32, q: *mut u32)
 
 Doubles a Secp256k1 point. The result is stored in the first point.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_secp256k1_double(p: *mut u32)
 ```
 
@@ -83,6 +83,6 @@ Decompess a Secp256k1 point.
 The input array should be 32 bytes long, with the first 16 bytes containing the X coordinate in
 big-endian format. The second half of the input will be overwritten with the decompressed point.
 
-```rust
+```rust,noplayground
 pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
 ```

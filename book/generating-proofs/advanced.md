@@ -5,7 +5,7 @@
 We recommend that during development of large programs (> 1 million cycles) that you do not generate proofs each time.
 Instead, you should have your script only execute the program with the RISC-V runtime and read `stdout`. Here is an example:
 
-```rust
+```rust,noplayground
 use succinct_core::{SuccinctProver, SuccinctStdin, SuccinctVerifier};
 
 // The ELF file with the RISC-V bytecode of the program from above.
@@ -33,14 +33,14 @@ If execution of your program succeeds, then proof generation should succeed as w
 
 For maximal performance, you should run proof generation with the following command and vary your `shard_size` depending on your program's number of cycles.
 
-```rust
+```rust,noplayground
 SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```
 
 You can also use the `SAVE_DISK_THRESHOLD` env variable to control whether shards are saved to disk or not.
 This is useful for controlling memory usage.
 
-```rust
+```rust,noplayground
 SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```
 
@@ -48,13 +48,13 @@ SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu
 
 Blake3 on ARM machines requires using the `neon` feature of `succinct-core`. For examples in the the succinct-core repo, you can use:
 
-```rust
+```rust,noplayground
 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release --features neon
 ```
 
 Otherwise, make sure to include the "neon" feature when importing `succinct-zkvm` in your `Cargo.toml`:
 
-```toml
+```toml,noplayground
 succinct-core = { git = "ssh://git@github.com/succinctlabs/vm.git", features = [ "neon" ] }
 ```
 
@@ -66,7 +66,7 @@ You can either use `utils::setup_logger()` or `utils::setup_tracer()` to enable 
 
 Tracing will show more detailed timing information. 
 
-```rust
+```rust,noplayground
 utils::setup_tracer();
 ```
 
@@ -76,7 +76,7 @@ RUST_TRACER=info cargo run --release
 ```
 
 **Logging:**
-```rust
+```rust,noplayground
 utils::setup_logger();
 ```
 
