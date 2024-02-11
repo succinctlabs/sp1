@@ -1,4 +1,4 @@
-use super::quotient_values;
+use super::{quotient_values, RiscvStark};
 use itertools::izip;
 #[cfg(not(feature = "perf"))]
 use p3_air::BaseAir;
@@ -29,8 +29,7 @@ use crate::stark::debug_constraints;
 
 pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
-        config: &SC,
-        all_chips: &[ChipRef<SC>],
+        machine: &RiscvStark<SC>,
         shards: &mut Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>;
@@ -47,14 +46,15 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
     fn prove_shards(
-        config: &SC,
-        all_chips: &[ChipRef<SC>],
+        machine: &RiscvStark<SC>,
         shards: &mut Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
+        let config = machine.config();
+        let all_chips = machine.chips();
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(config, shards, all_chips);
+        let (shard_commits, shard_data) = Self::commit_shards(config, shards, &all_chips);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {

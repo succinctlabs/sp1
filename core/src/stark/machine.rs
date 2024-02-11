@@ -33,7 +33,6 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -239,10 +238,8 @@ where
         tracing::info!("Sharding the execution record.");
         let mut shards = self.shard(record);
 
-        // Get all the chips included in the machine.
-        let all_chips = self.chips();
-
-        P::prove_shards(&self.config, &all_chips, &mut shards, challenger)
+        tracing::info!("Generating the shard proofs.");
+        P::prove_shards(self, &mut shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {
