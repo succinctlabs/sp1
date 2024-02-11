@@ -5,6 +5,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-succinct-zkvm = { path = "../../../zkvm" }
+curta-zkvm = { path = "../../../zkvm" }
 hex-literal = "0.4.1"
 num = { version = "0.4.1", default-features = false }

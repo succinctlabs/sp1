@@ -1,15 +1,15 @@
 use anyhow::Result;
 use clap::Parser;
+use curta_core::{
+    utils::{self},
+    CurtaProver, CurtaStdin,
+};
 use std::{
     env,
     fs::{self, File},
     io::Read,
     path::PathBuf,
     process::Command,
-};
-use succinct_core::{
-    utils::{self},
-    SuccinctProver, SuccinctStdin,
 };
 
 use crate::CommandExecutor;
@@ -84,11 +84,11 @@ impl ProveCmd {
             .read_to_end(&mut elf)
             .expect("failed to read from input file");
 
-        let mut stdin = SuccinctStdin::new();
+        let mut stdin = CurtaStdin::new();
         for input in self.input.clone() {
             stdin.write(&input);
         }
-        let proof = SuccinctProver::prove(&elf, stdin).unwrap();
+        let proof = CurtaProver::prove(&elf, stdin).unwrap();
 
         if let Some(ref path) = self.output {
             proof

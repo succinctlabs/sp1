@@ -6,25 +6,25 @@ use crate::Proof;
 
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize)]
-pub struct SuccinctStdin {
+pub struct CurtaStdin {
     pub buffer: Buffer,
 }
 
 /// Standard output for the prover.
 #[derive(Serialize, Deserialize)]
-pub struct SuccinctStdout {
+pub struct CurtaStdout {
     pub buffer: Buffer,
 }
 
-impl SuccinctStdin {
-    /// Create a new `SuccinctStdin`.
+impl CurtaStdin {
+    /// Create a new `CurtaStdin`.
     pub fn new() -> Self {
         Self {
             buffer: Buffer::new(),
         }
     }
 
-    /// Create a `SuccinctStdin` from a slice of bytes.
+    /// Create a `CurtaStdin` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: Buffer::from(data),
@@ -42,15 +42,15 @@ impl SuccinctStdin {
     }
 }
 
-impl SuccinctStdout {
-    /// Create a new `SuccinctStdout`.
+impl CurtaStdout {
+    /// Create a new `CurtaStdout`.
     pub fn new() -> Self {
         Self {
             buffer: Buffer::new(),
         }
     }
 
-    /// Create a `SuccinctStdout` from a slice of bytes.
+    /// Create a `CurtaStdout` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: Buffer::from(data),

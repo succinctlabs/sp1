@@ -39,7 +39,7 @@ Make sure you have installed the [dependencies](https://github.com/rust-lang/rus
 Clone the `curta` repository and navigate to the root directory. 
 
 ```bash
-git clone git@github.com:succinctlabs/vm.git
+git clone git@github.com:succinctlabs/curta.git
 cd vm
 cd cli
 cargo install --locked --path .

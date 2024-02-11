@@ -76,10 +76,10 @@ main() {
     exit 0
   fi
 
-  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/vm}
+  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/curta}
 
   # Install by downloading binaries
-  if [[ "$CURTAUP_REPO" == "succinctlabs/vm" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
+  if [[ "$CURTAUP_REPO" == "succinctlabs/curta" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
     CURTAUP_VERSION=${CURTAUP_VERSION:-nightly}
     CURTAUP_TAG=$CURTAUP_VERSION
 
@@ -291,16 +291,14 @@ banner() {
 
   ________  ______  _________ 
   / ____/ / / / __ \/_  __/   |        
- / /   / / / / /_/ / / / / /| |           Let's build the world's best
-/ /___/ /_/ / _, _/ / / / ___ |                  zkVM, together.
+ / /   / / / / /_/ / / / / /| |           A performant, 100% open-source,
+/ /___/ /_/ / _, _/ / / / ___ |             contributor-friendly, zkVM.
 \____/\____/_/ |_| /_/ /_/  |_| 
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 
 Repo       : https://github.com/succinctlabs/curta
-Book       : https://curta.succinct.xyz                      
-Chat       : https://t.me/curta/                         
-Support    : https://t.me/curta-support/
+Book       : https://succinctlabs.github.io/curta
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 

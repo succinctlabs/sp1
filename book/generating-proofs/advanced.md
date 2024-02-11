@@ -6,16 +6,16 @@ We recommend that during development of large programs (> 1 million cycles) that
 Instead, you should have your script only execute the program with the RISC-V runtime and read `stdout`. Here is an example:
 
 ```rust,noplayground
-use succinct_core::{SuccinctProver, SuccinctStdin, SuccinctVerifier};
+use curta_core::{CurtaProver, CurtaStdin, CurtaVerifier};
 
 // The ELF file with the RISC-V bytecode of the program from above.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
-    let mut stdin = SuccinctStdin::new(); 
+    let mut stdin = CurtaStdin::new(); 
     let n = 5000u32;
     stdin.write(&n); 
-    let mut stdout = SuccinctProver::execute(ELF, stdin).expect("execution failed");
+    let mut stdout = CurtaProver::execute(ELF, stdin).expect("execution failed");
     let a = stdout.read::<u32>(); 
     let b = stdout.read::<u32>();
 
@@ -46,16 +46,16 @@ SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu
 
 #### Blake3 on ARM machines
 
-Blake3 on ARM machines requires using the `neon` feature of `succinct-core`. For examples in the the succinct-core repo, you can use:
+Blake3 on ARM machines requires using the `neon` feature of `curta-core`. For examples in the the curta-core repo, you can use:
 
 ```rust,noplayground
 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release --features neon
 ```
 
-Otherwise, make sure to include the "neon" feature when importing `succinct-zkvm` in your `Cargo.toml`:
+Otherwise, make sure to include the "neon" feature when importing `curta-zkvm` in your `Cargo.toml`:
 
 ```toml,noplayground
-succinct-core = { git = "ssh://git@github.com/succinctlabs/vm.git", features = [ "neon" ] }
+curta-core = { git = "ssh://git@github.com/succinctlabs/curta.git", features = [ "neon" ] }
 ```
 
 ## Logging and Tracing Information
