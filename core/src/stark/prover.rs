@@ -1,15 +1,15 @@
+use super::quotient_values;
 use itertools::izip;
 #[cfg(not(feature = "perf"))]
 use p3_air::BaseAir;
-use p3_air::{Air, TwoRowMatrixView};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
-use p3_field::{ExtensionField, PackedField, PrimeField};
+use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{ExtensionField, PrimeField};
 use p3_field::{PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRows;
-use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
+use p3_matrix::{Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
@@ -17,9 +17,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
 
-use super::folder::ProverConstraintFolder;
 use super::util::decompose_and_flatten;
-use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, ChipRef, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
@@ -250,7 +248,7 @@ where
             (0..chips.len())
                 .into_par_iter()
                 .map(|i| {
-                    Self::quotient_values(
+                    quotient_values(
                         config,
                         chips[i],
                         cumulative_sums[i],
@@ -445,141 +443,6 @@ where
             permutation_traces,
             chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
         };
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn quotient_values<MainLde, PermLde>(
-        config: &SC,
-        chip: &ChipRef<SC>,
-        cumulative_sum: SC::Challenge,
-        degree_bits: usize,
-        main_lde: &MainLde,
-        permutation_lde: &PermLde,
-        perm_challenges: &[SC::Challenge],
-        alpha: SC::Challenge,
-    ) -> Vec<SC::Challenge>
-    where
-        SC: StarkGenericConfig,
-        MainLde: MatrixGet<SC::Val> + Sync,
-        PermLde: MatrixGet<SC::Val> + Sync,
-    {
-        let degree = 1 << degree_bits;
-        let quotient_degree_bits = chip.log_quotient_degree();
-        let quotient_size_bits = degree_bits + quotient_degree_bits;
-        let quotient_size = 1 << quotient_size_bits;
-        let g_subgroup = SC::Val::two_adic_generator(degree_bits);
-        let g_extended = SC::Val::two_adic_generator(quotient_size_bits);
-        let subgroup_last = g_subgroup.inverse();
-        let coset_shift = config.pcs().coset_shift();
-        let next_step = 1 << quotient_degree_bits;
-
-        let coset: Vec<_> =
-            cyclic_subgroup_coset_known_order(g_extended, coset_shift, quotient_size).collect();
-
-        let zerofier_on_coset =
-            ZerofierOnCoset::new(degree_bits, quotient_degree_bits, coset_shift);
-
-        // Evaluations of L_first(x) = Z_H(x) / (x - 1) on our coset s H.
-        let lagrange_first_evals = zerofier_on_coset.lagrange_basis_unnormalized(0);
-        let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
-
-        let ext_degree = SC::Challenge::D;
-
-        (0..quotient_size)
-            .into_par_iter()
-            .step_by(SC::PackedVal::WIDTH)
-            .flat_map_iter(|i_local_start| {
-                let wrap = |i| i % quotient_size;
-                let i_next_start = wrap(i_local_start + next_step);
-                let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
-
-                let x = *SC::PackedVal::from_slice(&coset[i_range.clone()]);
-                let is_transition = x - subgroup_last;
-                let is_first_row =
-                    *SC::PackedVal::from_slice(&lagrange_first_evals[i_range.clone()]);
-                let is_last_row = *SC::PackedVal::from_slice(&lagrange_last_evals[i_range]);
-
-                let local: Vec<_> = (0..main_lde.width())
-                    .map(|col| {
-                        SC::PackedVal::from_fn(|offset| {
-                            let row = wrap(i_local_start + offset);
-                            main_lde.get(row, col)
-                        })
-                    })
-                    .collect();
-                let next: Vec<_> = (0..main_lde.width())
-                    .map(|col| {
-                        SC::PackedVal::from_fn(|offset| {
-                            let row = wrap(i_next_start + offset);
-                            main_lde.get(row, col)
-                        })
-                    })
-                    .collect();
-
-                let perm_local: Vec<_> = (0..permutation_lde.width())
-                    .step_by(ext_degree)
-                    .map(|col| {
-                        SC::PackedChallenge::from_base_fn(|i| {
-                            SC::PackedVal::from_fn(|offset| {
-                                let row = wrap(i_local_start + offset);
-                                permutation_lde.get(row, col + i)
-                            })
-                        })
-                    })
-                    .collect();
-
-                let perm_next: Vec<_> = (0..permutation_lde.width())
-                    .step_by(ext_degree)
-                    .map(|col| {
-                        SC::PackedChallenge::from_base_fn(|i| {
-                            SC::PackedVal::from_fn(|offset| {
-                                let row = wrap(i_next_start + offset);
-                                permutation_lde.get(row, col + i)
-                            })
-                        })
-                    })
-                    .collect();
-
-                let accumulator = SC::PackedChallenge::zero();
-                let mut folder = ProverConstraintFolder {
-                    preprocessed: TwoRowMatrixView {
-                        local: &[],
-                        next: &[],
-                    },
-                    main: TwoRowMatrixView {
-                        local: &local,
-                        next: &next,
-                    },
-                    perm: TwoRowMatrixView {
-                        local: &perm_local,
-                        next: &perm_next,
-                    },
-                    perm_challenges,
-                    cumulative_sum,
-                    is_first_row,
-                    is_last_row,
-                    is_transition,
-                    alpha,
-                    accumulator,
-                };
-                chip.eval(&mut folder);
-
-                // quotient(x) = constraints(x) / Z_H(x)
-                let zerofier_inv: SC::PackedVal =
-                    zerofier_on_coset.eval_inverse_packed(i_local_start);
-                let quotient = folder.accumulator * zerofier_inv;
-
-                // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
-                (0..SC::PackedVal::WIDTH).map(move |idx_in_packing| {
-                    let quotient_value = (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
-                        .map(|coeff_idx| {
-                            quotient.as_base_slice()[coeff_idx].as_slice()[idx_in_packing]
-                        })
-                        .collect::<Vec<_>>();
-                    SC::Challenge::from_base_slice(&quotient_value)
-                })
-            })
-            .collect()
     }
 
     fn commit_shards<F, EF>(
