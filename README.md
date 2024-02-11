@@ -8,9 +8,9 @@ The first performant, 100% open-source, contributor-friendly zero-knowledge virt
 
 Curta is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is *performant*, *customizable* and will stand the *test of time*.
 
-**[Install](https://getcurta.succinct.xyz)**
-| [Docs]()
-| [Examples]()
+**[Install](https://succinctlabs.github.io/curta/getting-started/install.html)**
+| [Docs](https://succinctlabs.github.io/curta)
+| [Examples](https://github.com/succinctlabs/curta/tree/main/examples)
 
 [tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https://tg.sumanjay.workers.dev/succinct_curta
 [tg-url]: https://t.me/succinct_curta
