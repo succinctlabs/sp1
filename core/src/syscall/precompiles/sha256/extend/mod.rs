@@ -91,6 +91,7 @@ pub mod extend_tests {
 
         let machine = RiscvStark::new(config);
 
-        machine.prove::<LocalProver<_>>(&mut runtime.record, &mut challenger);
+        let (pk, _) = machine.get_keys(runtime.program.as_ref());
+        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
     }
 }

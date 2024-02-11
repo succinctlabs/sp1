@@ -14,6 +14,7 @@ use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
 use crate::program::ProgramChip;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Program;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -171,11 +172,23 @@ where
         ]
     }
 
-    /// Prove the program.
+    pub fn get_keys(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+        let proving_key = ProvingKey {
+            _marker: std::marker::PhantomData,
+        };
+        let verifying_key = VerifyingKey {
+            _marker: std::marker::PhantomData,
+        };
+        (proving_key, verifying_key)
+    }
+
+    /// Prove the execution record is valid.
     ///
-    /// The function returns a vector of segment proofs, one for each segment, and a global proof.
+    /// Given a proving key `pk` and a matching execution record `record`, this function generates
+    /// a STARK proof that the execution record is valid.
     pub fn prove<P>(
         &self,
+        pk: &ProvingKey<SC>,
         record: &mut ExecutionRecord,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
@@ -252,8 +265,9 @@ where
 
     pub fn verify(
         &self,
-        challenger: &mut SC::Challenger,
+        vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
+        challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Val: PrimeField32,
