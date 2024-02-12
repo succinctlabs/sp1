@@ -1,6 +1,4 @@
 use crate::air::Polynomial;
-use p3_baby_bear::BabyBear;
-use p3_field::Field;
 use p3_field::PrimeField32;
 use std::fmt::Debug;
 use std::ops::Index;
@@ -58,7 +56,7 @@ impl<'a, T: Debug + Default + Clone> From<Iter<'a, T>> for Limbs<T> {
 }
 
 // TODO: we probably won't need this in the future when we do things properly.
-pub fn convert_polynomial<F: Field>(value: Polynomial<BabyBear>) -> Limbs<F> {
+pub fn convert_polynomial<F: PrimeField32>(value: Polynomial<F>) -> Limbs<F> {
     let inner_u8 = value
         .as_coefficients()
         .iter()
@@ -69,8 +67,7 @@ pub fn convert_polynomial<F: Field>(value: Polynomial<BabyBear>) -> Limbs<F> {
     Limbs(inner)
 }
 
-// TODO: we probably won't need this in the future when we do things properly.
-pub fn convert_vec<F: Field>(value: Vec<BabyBear>) -> Vec<F> {
+pub fn convert_vec<F: PrimeField32>(value: Vec<F>) -> Vec<F> {
     value
         .iter()
         .map(|x| x.as_canonical_u32() as u8)

@@ -9,8 +9,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
-use p3_baby_bear::BabyBear;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
@@ -35,18 +34,13 @@ pub struct FpOpCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: Field> FpOpCols<F> {
+impl<F: PrimeField32> FpOpCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
         op: FpOperation,
     ) -> BigUint {
-        /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
-        /// support that. This is a hack, since we always use BabyBear, to get around that, but
-        /// all operations using "PF" should use "F" in the future.
-        type PF = BabyBear;
-
         if b == &BigUint::zero() && op == FpOperation::Div {
             // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
             assert_eq!(
@@ -67,7 +61,7 @@ impl<F: Field> FpOpCols<F> {
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
             self.populate::<P>(&result, b, FpOperation::Add);
-            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
+            let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
             self.result = convert_polynomial(p_result);
             return result;
         }
@@ -85,13 +79,13 @@ impl<F: Field> FpOpCols<F> {
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
             self.populate::<P>(&result, b, FpOperation::Mul);
-            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
+            let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
             self.result = convert_polynomial(p_result);
             return result;
         }
 
-        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
-        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
 
         // Compute field addition in the integers.
         let modulus = &P::modulus();
@@ -109,9 +103,9 @@ impl<F: Field> FpOpCols<F> {
         }
 
         // Make little endian polynomial limbs.
-        let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(modulus).into();
-        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
+        let p_modulus: Polynomial<F> = P::to_limbs_field::<F>(modulus).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
 
         // Compute the vanishing polynomial.
         let p_op = match op {
@@ -119,7 +113,7 @@ impl<F: Field> FpOpCols<F> {
             FpOperation::Mul => &p_a * &p_b,
             FpOperation::Sub | FpOperation::Div => unreachable!(),
         };
-        let p_vanishing: Polynomial<PF> = &p_op - &p_result - &p_carry * &p_modulus;
+        let p_vanishing: Polynomial<F> = &p_op - &p_result - &p_carry * &p_modulus;
         debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
         let p_witness = compute_root_quotient_and_shift(

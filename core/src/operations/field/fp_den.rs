@@ -8,8 +8,7 @@ use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
-use p3_baby_bear::BabyBear;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
@@ -28,18 +27,13 @@ pub struct FpDenCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: Field> FpDenCols<F> {
+impl<F: PrimeField32> FpDenCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
         sign: bool,
     ) -> BigUint {
-        /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
-        /// support that. This is a hack, since we always use BabyBear, to get around that, but
-        /// all operations using "PF" should use "F" in the future.
-        type PF = BabyBear;
-
         let p = P::modulus();
         let minus_b_int = &p - b;
         let b_signed = if sign { b.clone() } else { minus_b_int };
@@ -59,11 +53,11 @@ impl<F: Field> FpDenCols<F> {
         debug_assert!(carry < p);
         debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
 
-        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
-        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
-        let p_p: Polynomial<PF> = P::to_limbs_field::<PF>(&p).into();
-        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
+        let p_p: Polynomial<F> = P::to_limbs_field::<F>(&p).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
 
         // Compute the vanishing polynomial.
         let vanishing_poly = if sign {

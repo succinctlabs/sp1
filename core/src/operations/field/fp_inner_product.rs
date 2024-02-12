@@ -9,9 +9,7 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
 use num::Zero;
-use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::{AbstractField, PrimeField32};
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
@@ -28,21 +26,12 @@ pub struct FpInnerProductCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: Field> FpInnerProductCols<F> {
+impl<F: PrimeField32> FpInnerProductCols<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
-        /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
-        /// support that. This is a hack, since we always use BabyBear, to get around that, but
-        /// all operations using "PF" should use "F" in the future.
-        type PF = BabyBear;
-
-        let p_a_vec: Vec<Polynomial<PF>> = a
-            .iter()
-            .map(|x| P::to_limbs_field::<PF>(x).into())
-            .collect();
-        let p_b_vec: Vec<Polynomial<PF>> = b
-            .iter()
-            .map(|x| P::to_limbs_field::<PF>(x).into())
-            .collect();
+        let p_a_vec: Vec<Polynomial<F>> =
+            a.iter().map(|x| P::to_limbs_field::<F>(x).into()).collect();
+        let p_b_vec: Vec<Polynomial<F>> =
+            b.iter().map(|x| P::to_limbs_field::<F>(x).into()).collect();
 
         let modulus = &P::modulus();
         let inner_product = a
@@ -56,15 +45,15 @@ impl<F: Field> FpInnerProductCols<F> {
         assert!(carry < &(2u32 * modulus));
         assert_eq!(carry * modulus, inner_product - result);
 
-        let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(modulus).into();
-        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(result).into();
-        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(carry).into();
+        let p_modulus: Polynomial<F> = P::to_limbs_field::<F>(modulus).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F>(result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(carry).into();
 
         // Compute the vanishing polynomial.
         let p_inner_product = p_a_vec
             .into_iter()
             .zip(p_b_vec)
-            .fold(Polynomial::<PF>::new(vec![PF::zero()]), |acc, (c, d)| {
+            .fold(Polynomial::<F>::new(vec![F::zero()]), |acc, (c, d)| {
                 acc + &c * &d
             });
         let p_vanishing = p_inner_product - &p_result - &p_carry * &p_modulus;
