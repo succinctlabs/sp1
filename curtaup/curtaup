@@ -128,7 +128,7 @@ main() {
 
     # Compute the URL of the release tarball in the curta repository.
     RELEASE_URL="https://github.com/${CURTAUP_REPO}/releases/download/${CURTAUP_TAG}/"
-    RELEASE_URL="https://curta-vm-artifacts.s3.us-west-2.amazonaws.com/"
+    RELEASE_URL="https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${CURTAUP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
     MAN_TARBALL_URL="${RELEASE_URL}cargo_prove_man_${CURTAUP_VERSION}.tar.gz"
 
