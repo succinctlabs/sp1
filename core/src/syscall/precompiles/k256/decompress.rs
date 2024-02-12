@@ -6,9 +6,9 @@ use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
-use crate::operations::field::fp_op::FpOpCols;
-use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::fp_sqrt::FpSqrtCols;
+use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOperation;
+use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
@@ -144,11 +144,11 @@ pub struct K256DecompressCols<T> {
     pub ptr: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) x_2: FpOpCols<T>,
-    pub(crate) x_3: FpOpCols<T>,
-    pub(crate) x_3_plus_b: FpOpCols<T>,
-    pub(crate) y: FpSqrtCols<T>,
-    pub(crate) neg_y: FpOpCols<T>,
+    pub(crate) x_2: FieldOpCols<T>,
+    pub(crate) x_3: FieldOpCols<T>,
+    pub(crate) x_3_plus_b: FieldOpCols<T>,
+    pub(crate) y: FieldSqrtCols<T>,
+    pub(crate) neg_y: FieldOpCols<T>,
     pub(crate) y_least_bits: [T; 8],
 }
 
@@ -165,29 +165,29 @@ impl<F: PrimeField32> K256DecompressCols<F> {
         }
 
         let x = &BigUint::from_bytes_le(&event.x_bytes);
-        self.populate_fp_ops(x);
+        self.populate_field_ops(x);
 
         shard.field_events.append(&mut new_field_events);
     }
 
-    fn populate_fp_ops(&mut self, x: &BigUint) {
+    fn populate_field_ops(&mut self, x: &BigUint) {
         // Y = sqrt(x^3 + b)
-        let x_2 = self
-            .x_2
-            .populate::<Secp256k1BaseField>(&x.clone(), &x.clone(), FpOperation::Mul);
+        let x_2 =
+            self.x_2
+                .populate::<Secp256k1BaseField>(&x.clone(), &x.clone(), FieldOperation::Mul);
         let x_3 = self
             .x_3
-            .populate::<Secp256k1BaseField>(&x_2, x, FpOperation::Mul);
+            .populate::<Secp256k1BaseField>(&x_2, x, FieldOperation::Mul);
         let b = Secp256k1Parameters::b_int();
-        let x_3_plus_b = self
-            .x_3_plus_b
-            .populate::<Secp256k1BaseField>(&x_3, &b, FpOperation::Add);
+        let x_3_plus_b =
+            self.x_3_plus_b
+                .populate::<Secp256k1BaseField>(&x_3, &b, FieldOperation::Add);
         let y = self
             .y
             .populate::<Secp256k1BaseField>(&x_3_plus_b, secp256k1_sqrt);
         let zero = BigUint::zero();
         self.neg_y
-            .populate::<Secp256k1BaseField>(&zero, &y, FpOperation::Sub);
+            .populate::<Secp256k1BaseField>(&zero, &y, FieldOperation::Sub);
         // Decompose bits of least significant Y byte
         let y_bytes = y.to_bytes_le();
         let y_lsb = if y_bytes.is_empty() { 0 } else { y_bytes[0] };
@@ -208,12 +208,12 @@ impl<V: Copy> K256DecompressCols<V> {
 
         let x = limbs_from_prev_access(&self.x_access);
         self.x_2
-            .eval::<AB, Secp256k1BaseField, _, _>(builder, &x, &x, FpOperation::Mul);
+            .eval::<AB, Secp256k1BaseField, _, _>(builder, &x, &x, FieldOperation::Mul);
         self.x_3.eval::<AB, Secp256k1BaseField, _, _>(
             builder,
             &self.x_2.result,
             &x,
-            FpOperation::Mul,
+            FieldOperation::Mul,
         );
         let b = Secp256k1Parameters::b_int();
         let b_const = Secp256k1BaseField::to_limbs_field::<AB::F>(&b);
@@ -221,7 +221,7 @@ impl<V: Copy> K256DecompressCols<V> {
             builder,
             &self.x_3.result,
             &b_const,
-            FpOperation::Add,
+            FieldOperation::Add,
         );
         self.y
             .eval::<AB, Secp256k1BaseField>(builder, &self.x_3_plus_b.result);
@@ -229,7 +229,7 @@ impl<V: Copy> K256DecompressCols<V> {
             builder,
             &[AB::Expr::zero()].iter(),
             &self.y.multiplication.result,
-            FpOperation::Sub,
+            FieldOperation::Sub,
         );
 
         // Constrain decomposition of least significant byte of Y into `y_least_bits`
@@ -335,7 +335,7 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
                     .unwrap();
                 cols.x_access[i].access.value = Word(word_bytes);
             }
-            cols.populate_fp_ops(&dummy_value);
+            cols.populate_field_ops(&dummy_value);
             row
         });
 

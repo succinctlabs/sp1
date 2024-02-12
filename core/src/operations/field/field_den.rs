@@ -12,14 +12,16 @@ use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-// a / (1 + b) if sign
-// a/ -b if !sign
-/// A set of columns to compute `FpDen(a, b)` where a, b are field elements.
+/// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
+///
+/// `a / (1 + b)` if `sign`
+/// `a / -b` if `!sign`
+///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpDenCols<T> {
+pub struct FieldDenCols<T> {
     /// The result of `a den b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
@@ -27,7 +29,7 @@ pub struct FpDenCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: PrimeField32> FpDenCols<F> {
+impl<F: PrimeField32> FieldDenCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
@@ -83,7 +85,7 @@ impl<F: PrimeField32> FpDenCols<F> {
     }
 }
 
-impl<V: Copy> FpDenCols<V> {
+impl<V: Copy> FieldDenCols<V> {
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
         &self,
@@ -128,7 +130,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FpDenCols, Limbs};
+    use super::{FieldDenCols, Limbs};
     use crate::air::MachineAir;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
@@ -148,17 +150,17 @@ mod tests {
     pub struct TestCols<T> {
         pub a: Limbs<T>,
         pub b: Limbs<T>,
-        pub a_den_b: FpDenCols<T>,
+        pub a_den_b: FieldDenCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
-    struct FpDenChip<P: FieldParameters> {
+    struct FieldDenChip<P: FieldParameters> {
         pub sign: bool,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FpDenChip<P> {
+    impl<P: FieldParameters> FieldDenChip<P> {
         pub fn new(sign: bool) -> Self {
             Self {
                 sign,
@@ -167,9 +169,9 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FpDenChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldDenChip<P> {
         fn name(&self) -> String {
-            "FpDen".to_string()
+            "FieldDen".to_string()
         }
 
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
@@ -221,13 +223,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FpDenChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldDenChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FpDenChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FieldDenChip<P>
     where
         AB: CurtaAirBuilder,
     {
@@ -248,7 +250,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
+        let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
@@ -260,7 +262,7 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
 
-        let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
+        let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         // This it to test that the proof DOESN'T work if messed up.
         // let row = trace.row_mut(0);

@@ -13,12 +13,12 @@ use p3_field::{AbstractField, PrimeField32};
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-/// A set of columns to compute `FpInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
+/// A set of columns to compute `FieldInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpInnerProductCols<T> {
+pub struct FieldInnerProductCols<T> {
     /// The result of `a inner product b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
@@ -26,7 +26,7 @@ pub struct FpInnerProductCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: PrimeField32> FpInnerProductCols<F> {
+impl<F: PrimeField32> FieldInnerProductCols<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
         let p_a_vec: Vec<Polynomial<F>> =
             a.iter().map(|x| P::to_limbs_field::<F>(x).into()).collect();
@@ -75,7 +75,7 @@ impl<F: PrimeField32> FpInnerProductCols<F> {
     }
 }
 
-impl<V: Copy> FpInnerProductCols<V> {
+impl<V: Copy> FieldInnerProductCols<V> {
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
         &self,
@@ -118,7 +118,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FpInnerProductCols, Limbs};
+    use super::{FieldInnerProductCols, Limbs};
     use crate::air::MachineAir;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
@@ -139,16 +139,16 @@ mod tests {
     pub struct TestCols<T> {
         pub a: [Limbs<T>; 1],
         pub b: [Limbs<T>; 1],
-        pub a_ip_b: FpInnerProductCols<T>,
+        pub a_ip_b: FieldInnerProductCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
-    struct FpIpChip<P: FieldParameters> {
+    struct FieldIpChip<P: FieldParameters> {
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FpIpChip<P> {
+    impl<P: FieldParameters> FieldIpChip<P> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -156,9 +156,9 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FpIpChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldIpChip<P> {
         fn name(&self) -> String {
-            "FpInnerProduct".to_string()
+            "FieldInnerProduct".to_string()
         }
 
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
@@ -208,13 +208,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FpIpChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldIpChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FpIpChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FieldIpChip<P>
     where
         AB: CurtaAirBuilder,
     {
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
+        let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         println!("{:?}", trace.values)
     }
@@ -246,7 +246,7 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
 
-        let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
+        let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
         let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
