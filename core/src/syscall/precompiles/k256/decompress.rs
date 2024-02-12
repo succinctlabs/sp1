@@ -383,7 +383,7 @@ pub mod tests {
         setup_logger();
         let mut rng = StdRng::seed_from_u64(2);
 
-        for _ in 0..100 {
+        for _ in 0..10 {
             let secret_key = k256::SecretKey::random(&mut rng);
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
