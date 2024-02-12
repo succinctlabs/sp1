@@ -8,14 +8,11 @@ The first step is to create a new project using the `cargo prove new <name>` com
 
 ```bash
 cargo prove new fibonacci
+cd fibonacci
 ```
 
 This will create a new project with the following structure:
 
-```bash
-cd fibonacci
-tree . -L 3
-```
 ```
 .
 ├── program
@@ -64,9 +61,9 @@ cd ../script
 RUST_LOG=info cargo run --release
 ```
 ```
-    Compiling hello_curta-script v0.1.0 (/Users/umaroy/Documents/hello_curta/script)
+    Compiling fibonacci-script v0.1.0 (/Users/umaroy/Documents/fibonacci/script)
     Finished release [optimized] target(s) in 26.14s
-    Running `target/release/hello_curta-script`
+    Running `target/release/fibonacci-script`
 a: 3867074829
 b: 2448710421
 succesfully generated and verified proof for the program!

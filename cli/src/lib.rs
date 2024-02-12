@@ -65,6 +65,9 @@ pub fn get_target() -> &'static str {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
     return "x86_64-unknown-linux-gnu";
 
+    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+    return "aarch64-unknown-linux-gnu";
+
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
     return "aarch64-apple-darwin";
 
@@ -74,10 +77,13 @@ pub fn get_target() -> &'static str {
 #[allow(unreachable_code)]
 pub fn get_toolchain_download_url() -> &'static str {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-    return "https://pub-5a5700b3c94a450dae3005a3dfca3013.r2.dev/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz";
+    return "https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz";
+
+    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+    return "https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/rust-toolchain-aarch64-unknown-linux-gnu.tar.gz";
 
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-    return "https://pub-5a5700b3c94a450dae3005a3dfca3013.r2.dev/rust-toolchain-aarch64-apple-darwin.tar.gz";
+    return "https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/rust-toolchain-aarch64-apple-darwin.tar.gz";
 
     panic!("Unsupported architecture. Please build the toolchain from source.")
 }
