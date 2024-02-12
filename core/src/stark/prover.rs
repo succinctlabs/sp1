@@ -411,7 +411,7 @@ where
 
         #[cfg(not(feature = "perf"))]
         return ShardProof {
-            main_commit: main_data.main_commit.clone(),
+            main_commit: shard_data.main_commit.clone(),
             traces,
             permutation_traces,
             chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),

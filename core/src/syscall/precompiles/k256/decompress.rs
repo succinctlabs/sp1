@@ -251,26 +251,18 @@ impl<V: Copy> K256DecompressCols<V> {
         // Interpret the lowest bit of Y as whether it is odd or not.
         let y_is_odd = self.y_least_bits[0];
 
-        // When y_is_odd and should_be_odd are both true or both false, result is y, else -y.
+        // When y_is_odd == should_be_odd, result is y
+        // Equivalent: y_is_odd != !should_be_odd
         let y_limbs = limbs_from_access(&self.y_access);
         builder
             .when(self.is_real)
-            .when(
-                (y_is_odd.into() * should_be_odd.clone())
-                    + ((AB::Expr::one() - y_is_odd.into())
-                        * (AB::Expr::one() - should_be_odd.clone())),
-            )
+            .when_ne(y_is_odd.into(), AB::Expr::one() - should_be_odd.clone())
             .assert_all_eq(self.y.multiplication.result, y_limbs);
+        // When y_is_odd != should_be_odd, result is -y.
         builder
             .when(self.is_real)
             .when_ne(y_is_odd, should_be_odd)
             .assert_all_eq(self.neg_y.result, y_limbs);
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            self.is_real.into() * self.is_real.into() * self.is_real.into()
-                - self.is_real.into() * self.is_real.into() * self.is_real.into(),
-        );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
@@ -391,6 +383,7 @@ pub mod tests {
             let compressed = public_key.to_sec1_bytes();
 
             let inputs = CurtaStdin::from(&compressed);
+
             let mut proof = CurtaProver::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
