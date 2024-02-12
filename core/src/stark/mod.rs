@@ -5,6 +5,7 @@ mod folder;
 mod machine;
 mod permutation;
 mod prover;
+mod quotient;
 mod types;
 mod util;
 mod verifier;
@@ -17,6 +18,7 @@ pub use folder::*;
 pub use machine::*;
 pub use permutation::*;
 pub use prover::*;
+pub use quotient::*;
 pub use types::*;
 pub use verifier::*;
 
