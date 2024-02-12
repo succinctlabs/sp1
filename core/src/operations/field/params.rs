@@ -1,5 +1,4 @@
 use crate::air::Polynomial;
-use p3_field::PrimeField32;
 use std::fmt::Debug;
 use std::ops::Index;
 use std::slice::Iter;
@@ -53,26 +52,6 @@ impl<'a, T: Debug + Default + Clone> From<Iter<'a, T>> for Limbs<T> {
         let inner = vec.try_into().unwrap();
         Self(inner)
     }
-}
-
-// TODO: we probably won't need this in the future when we do things properly.
-pub fn convert_polynomial<F: PrimeField32>(value: Polynomial<F>) -> Limbs<F> {
-    let inner_u8 = value
-        .as_coefficients()
-        .iter()
-        .map(|x| x.as_canonical_u32() as u8)
-        .map(|x| F::from_canonical_u8(x))
-        .collect::<Vec<_>>();
-    let inner = inner_u8.try_into().unwrap();
-    Limbs(inner)
-}
-
-pub fn convert_vec<F: PrimeField32>(value: Vec<F>) -> Vec<F> {
-    value
-        .iter()
-        .map(|x| x.as_canonical_u32() as u8)
-        .map(|x| F::from_canonical_u8(x))
-        .collect::<Vec<_>>()
 }
 
 #[cfg(test)]

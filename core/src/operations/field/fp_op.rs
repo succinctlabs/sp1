@@ -1,5 +1,5 @@
+use super::params::Limbs;
 use super::params::NUM_WITNESS_LIMBS;
-use super::params::{convert_polynomial, convert_vec, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::CurtaAirBuilder;
@@ -61,8 +61,7 @@ impl<F: PrimeField32> FpOpCols<F> {
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
             self.populate::<P>(&result, b, FpOperation::Add);
-            let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-            self.result = convert_polynomial(p_result);
+            self.result = P::to_limbs_field::<F>(&result);
             return result;
         }
 
@@ -79,8 +78,7 @@ impl<F: PrimeField32> FpOpCols<F> {
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
             self.populate::<P>(&result, b, FpOperation::Mul);
-            let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-            self.result = convert_polynomial(p_result);
+            self.result = P::to_limbs_field::<F>(&result);
             return result;
         }
 
@@ -123,10 +121,10 @@ impl<F: PrimeField32> FpOpCols<F> {
         );
         let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
-        self.result = convert_polynomial(p_result);
-        self.carry = convert_polynomial(p_carry);
-        self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
-        self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
+        self.result = p_result.into();
+        self.carry = p_carry.into();
+        self.witness_low = p_witness_low.try_into().unwrap();
+        self.witness_high = p_witness_high.try_into().unwrap();
 
         result
     }

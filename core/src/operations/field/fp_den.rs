@@ -1,5 +1,5 @@
+use super::params::Limbs;
 use super::params::NUM_WITNESS_LIMBS;
-use super::params::{convert_polynomial, convert_vec, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::CurtaAirBuilder;
