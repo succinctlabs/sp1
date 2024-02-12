@@ -27,4 +27,3 @@
 - [Basics](./generating-proofs/basics.md)
 
 - [Advanced](./generating-proofs/advanced.md)
-
