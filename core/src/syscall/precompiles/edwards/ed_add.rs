@@ -27,7 +27,7 @@ use num::Zero;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
@@ -74,7 +74,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             _marker: PhantomData,
         }
     }
-    fn populate_fp_ops<F: Field>(
+    fn populate_fp_ops<F: PrimeField32>(
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -121,7 +121,7 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 }
 
-impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }

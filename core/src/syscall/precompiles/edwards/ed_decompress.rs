@@ -32,7 +32,7 @@ use num::One;
 use num::Zero;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::marker::PhantomData;
 
@@ -77,7 +77,7 @@ pub struct EdDecompressCols<T> {
     pub(crate) neg_x: FpOpCols<T>,
 }
 
-impl<F: Field> EdDecompressCols<F> {
+impl<F: PrimeField32> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
@@ -267,7 +267,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
     }
 }
 
-impl<F: Field, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
+impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }

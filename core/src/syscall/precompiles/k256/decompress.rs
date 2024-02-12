@@ -35,7 +35,7 @@ use num::Zero;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::str::FromStr;
 
@@ -152,7 +152,7 @@ pub struct K256DecompressCols<T> {
     pub(crate) y_least_bits: [T; 8],
 }
 
-impl<F: Field> K256DecompressCols<F> {
+impl<F: PrimeField32> K256DecompressCols<F> {
     pub fn populate(&mut self, event: K256DecompressEvent, shard: &mut ExecutionRecord) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
@@ -289,7 +289,7 @@ impl<V: Copy> K256DecompressCols<V> {
     }
 }
 
-impl<F: Field> MachineAir<F> for K256DecompressChip {
+impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }

@@ -26,6 +26,7 @@ use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::fmt::Debug;
@@ -84,7 +85,7 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
         }
     }
 
-    fn populate_fp_ops<F: Field>(
+    fn populate_fp_ops<F: PrimeField32>(
         cols: &mut WeierstrassAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
