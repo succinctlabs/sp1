@@ -343,13 +343,13 @@ pub mod tests {
 
     use crate::{
         runtime::Program,
-        utils::{prove, setup_logger, tests::SECP256K1_DOUBLE_ELF},
+        utils::{run_test, setup_logger, tests::SECP256K1_DOUBLE_ELF},
     };
 
     #[test]
     fn test_secp256k1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_DOUBLE_ELF);
-        prove(program);
+        run_test(program).unwrap();
     }
 }

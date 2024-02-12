@@ -28,6 +28,9 @@ pub struct ExecutionRecord {
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
 
+    /// Multiplicity counts for each instruction in the program.
+    pub instruction_counts: HashMap<u32, usize>,
+
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
 

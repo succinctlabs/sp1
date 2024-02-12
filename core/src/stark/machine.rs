@@ -14,6 +14,7 @@ use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
 use crate::program::ProgramChip;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Program;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
@@ -27,22 +28,18 @@ use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
 use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
-use p3_air::BaseAir;
 use p3_challenger::CanObserve;
 use p3_commit::Pcs;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use p3_matrix::Dimensions;
+use p3_matrix::Matrix;
 
 use super::Chip;
 use super::ChipRef;
 use super::Com;
-use super::MainData;
-use super::OpeningProof;
 use super::PcsProverData;
 use super::Proof;
 use super::Prover;
@@ -50,13 +47,18 @@ use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
-pub struct ProverData<SC: StarkGenericConfig> {
-    pub preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
-    pub preprocessed_data: Option<PcsProverData<SC>>,
+pub struct ProvingKey<SC: StarkGenericConfig> {
+    pub data: PcsProverData<SC>,
+    pub byte_trace: RowMajorMatrix<SC::Val>,
+    // TODO:
+    // program_trace: RowMajorMatrix<SC::Val>,
 }
 
-pub struct PublicParameters<SC: StarkGenericConfig> {
-    pub preprocessed_commitment: Option<Com<SC>>,
+pub struct VerifyingKey<SC: StarkGenericConfig> {
+    pub commit: Com<SC>,
+    pub byte_dimensions: Dimensions,
+    // TODO:
+    // program_dimensions: Dimensions,
 }
 
 pub struct RiscvStark<SC: StarkGenericConfig> {
@@ -88,16 +90,13 @@ pub struct RiscvStark<SC: StarkGenericConfig> {
     memory_init: Chip<SC::Val, MemoryGlobalChip>,
     memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
     program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
-
-    // Commitment to the preprocessed data
-    preprocessed_commitment: Option<Com<SC>>,
 }
 
 impl<SC: StarkGenericConfig> RiscvStark<SC>
 where
     SC::Val: PrimeField32,
 {
-    pub fn init(config: SC) -> (Self, ProverData<SC>) {
+    pub fn new(config: SC) -> Self {
         let program = Chip::new(ProgramChip::default());
         let cpu = Chip::new(CpuChip::default());
         let sha_extend = Chip::new(ShaExtendChip::default());
@@ -125,7 +124,7 @@ where
         let memory_finalize = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Finalize));
         let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
 
-        let mut machine = Self {
+        Self {
             config,
             program,
             cpu,
@@ -151,40 +150,10 @@ where
             memory_init,
             memory_finalize,
             program_memory_init,
-
-            preprocessed_commitment: None,
-        };
-
-        // Compute commitments to the preprocessed data
-        let preprocessed_traces = machine
-            .chips()
-            .iter()
-            .map(|chip| chip.preprocessed_trace())
-            .collect::<Vec<_>>();
-        let traces = preprocessed_traces
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        let (commit, data) = if !traces.is_empty() {
-            Some(machine.config.pcs().commit_batches(traces))
-        } else {
-            None
         }
-        .unzip();
-
-        // Store the commitments in the machine
-        machine.preprocessed_commitment = commit;
-
-        (
-            machine,
-            ProverData {
-                preprocessed_traces,
-                preprocessed_data: data,
-            },
-        )
     }
 
+    /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> [ChipRef<SC>; 24] {
         [
             self.program.as_ref(),
@@ -214,24 +183,27 @@ where
         ]
     }
 
-    /// Prove the program.
+    /// The setup preprocessing phase.
     ///
-    /// The function returns a vector of segment proofs, one for each segment, and a global proof.
-    pub fn prove<P>(
-        &self,
-        prover_data: &ProverData<SC>,
-        record: &mut ExecutionRecord,
-        challenger: &mut SC::Challenger,
-    ) -> Proof<SC>
-    where
-        P: Prover<SC>,
-        SC: Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
-        OpeningProof<SC>: Send + Sync,
-    {
+    /// Given a program, this function generates the proving and verifying keys. The keys correspond
+    /// to the program code and other preprocessed colunms such as lookup tables.
+    pub fn setup(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+        let byte_trace = self.byte.preprocessed_trace(program).unwrap();
+
+        let (commit, data) = self.config.pcs().commit_batches(vec![byte_trace.clone()]);
+
+        // TODO: commit to the program trace as well.
+
+        let verifying_key = VerifyingKey {
+            commit,
+            byte_dimensions: byte_trace.dimensions(),
+        };
+        let proving_key = ProvingKey { data, byte_trace };
+
+        (proving_key, verifying_key)
+    }
+
+    pub fn shard(&self, record: &mut ExecutionRecord) -> Vec<ExecutionRecord> {
         // Get the local and global chips.
         let chips = self.chips();
 
@@ -258,49 +230,35 @@ where
             chip.shard(record, &mut shards);
         });
 
-        tracing::info!("Generating and commiting traces for each shard.");
-        // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
+        shards
+    }
 
-        // Observe the challenges for each segment.
-        tracing::info_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
-        });
+    /// Prove the execution record is valid.
+    ///
+    /// Given a proving key `pk` and a matching execution record `record`, this function generates
+    /// a STARK proof that the execution record is valid.
+    pub fn prove<P: Prover<SC>>(
+        &self,
+        pk: &ProvingKey<SC>,
+        record: &mut ExecutionRecord,
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC> {
+        tracing::info!("Sharding the execution record.");
+        let mut shards = self.shard(record);
 
-        // Generate a proof for each segment. Note that we clone the challenger so we can observe
-        // identical global challenges across the segments.
-        let shard_proofs = shard_data
-            .into_par_iter()
-            .map(|data| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = self
-                    .chips()
-                    .into_iter()
-                    .filter(|chip| data.chip_ids.contains(&chip.name()))
-                    .collect::<Vec<_>>();
-                tracing::info_span!("proving shard").in_scope(|| {
-                    P::prove_shard(
-                        &self.config,
-                        &mut challenger.clone(),
-                        &chips,
-                        data,
-                        &prover_data.preprocessed_traces,
-                        &prover_data.preprocessed_data,
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
+        tracing::info!("Generating the shard proofs.");
+        P::prove_shards(self, pk, &mut shards, challenger)
+    }
 
-        Proof { shard_proofs }
+    pub const fn config(&self) -> &SC {
+        &self.config
     }
 
     pub fn verify(
         &self,
-        challenger: &mut SC::Challenger,
+        _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
+        challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Val: PrimeField32,
@@ -363,19 +321,19 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
-    use crate::utils::prove;
+    use crate::utils::run_test;
     use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
         let program = simple_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
         let program = ecall_lwa_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -396,7 +354,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -409,7 +367,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -421,7 +379,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -443,7 +401,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -458,7 +416,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            prove(program);
+            run_test(program).unwrap();
         }
     }
 
@@ -473,7 +431,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            prove(program);
+            run_test(program).unwrap();
         }
     }
 
@@ -495,7 +453,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -504,12 +462,12 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 }

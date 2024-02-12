@@ -24,41 +24,41 @@ type ValMat<SC> = RowMajorMatrix<Val<SC>>;
 pub type Com<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
 pub type PcsProverData<SC> =
     <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
+pub type PcsProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
 #[derive(Serialize, Deserialize)]
-#[serde(bound(
-    serialize = "SC: StarkGenericConfig",
-    deserialize = "SC: StarkGenericConfig"
-))]
-pub struct MainData<SC: StarkGenericConfig> {
+#[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
+#[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
+pub struct ShardMainData<SC: StarkGenericConfig> {
     pub traces: Vec<ValMat<SC>>,
     pub main_commit: Com<SC>,
-    #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
-    #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
     pub main_data: PcsProverData<SC>,
     pub chip_ids: Vec<String>,
+    pub index: usize,
 }
 
-impl<SC: StarkGenericConfig> MainData<SC> {
+impl<SC: StarkGenericConfig> ShardMainData<SC> {
     pub fn new(
         traces: Vec<ValMat<SC>>,
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
         chip_ids: Vec<String>,
+        index: usize,
     ) -> Self {
         Self {
             traces,
             main_commit,
             main_data,
             chip_ids,
+            index,
         }
     }
 
-    pub fn save(&self, file: File) -> Result<MainDataWrapper<SC>, Error>
+    pub fn save(&self, file: File) -> Result<ShardMainDataWrapper<SC>, Error>
     where
-        MainData<SC>: Serialize,
+        ShardMainData<SC>: Serialize,
     {
         let mut writer = BufWriter::new(&file);
         bincode::serialize_into(&mut writer, self)?;
@@ -66,26 +66,26 @@ impl<SC: StarkGenericConfig> MainData<SC> {
         let metadata = file.metadata()?;
         let bytes_written = metadata.len();
         trace!(
-            "wrote {} while saving MainData",
+            "wrote {} while saving ShardMainData",
             Size::from_bytes(bytes_written)
         );
-        Ok(MainDataWrapper::TempFile(file, bytes_written))
+        Ok(ShardMainDataWrapper::TempFile(file, bytes_written))
     }
 
-    pub fn to_in_memory(self) -> MainDataWrapper<SC> {
-        MainDataWrapper::InMemory(self)
+    pub fn to_in_memory(self) -> ShardMainDataWrapper<SC> {
+        ShardMainDataWrapper::InMemory(self)
     }
 }
 
-pub enum MainDataWrapper<SC: StarkGenericConfig> {
-    InMemory(MainData<SC>),
+pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
+    InMemory(ShardMainData<SC>),
     TempFile(File, u64),
 }
 
-impl<SC: StarkGenericConfig> MainDataWrapper<SC> {
-    pub fn materialize(self) -> Result<MainData<SC>, Error>
+impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
+    pub fn materialize(self) -> Result<ShardMainData<SC>, Error>
     where
-        MainData<SC>: DeserializeOwned,
+        ShardMainData<SC>: DeserializeOwned,
     {
         match self {
             Self::InMemory(data) => Ok(data),
@@ -130,6 +130,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 #[cfg(feature = "perf")]
 #[derive(Serialize)]
 pub struct ShardProof<SC: StarkGenericConfig> {
+    pub index: usize,
     pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
