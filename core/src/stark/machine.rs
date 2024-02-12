@@ -50,12 +50,14 @@ use super::Verifier;
 pub struct ProvingKey<SC: StarkGenericConfig> {
     pub data: PcsProverData<SC>,
     pub byte_trace: RowMajorMatrix<SC::Val>,
+    // TODO:
     // program_trace: RowMajorMatrix<SC::Val>,
 }
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub byte_dimensions: Dimensions,
+    // TODO:
     // program_dimensions: Dimensions,
 }
 
