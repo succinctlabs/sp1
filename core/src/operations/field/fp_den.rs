@@ -74,10 +74,10 @@ impl<F: PrimeField32> FpDenCols<F> {
         );
         let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
-        self.result = convert_polynomial(p_result);
-        self.carry = convert_polynomial(p_carry);
-        self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
-        self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
+        self.result = p_result.into();
+        self.carry = p_carry.into();
+        self.witness_low = p_witness_low.try_into().unwrap();
+        self.witness_high = p_witness_high.try_into().unwrap();
 
         result
     }
