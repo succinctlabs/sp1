@@ -27,9 +27,6 @@ pub trait StarkUtils: StarkGenericConfig {
     fn uni_stark_config(&self) -> &Self::UniConfig;
 }
 
-#[cfg(not(feature = "perf"))]
-use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-
 pub fn get_cycles(program: Program) -> u64 {
     let mut runtime = Runtime::new(program);
     runtime.run();
@@ -102,10 +99,6 @@ where
     let machine = RiscvStark::new(config);
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
-    // Because proving modifies the shard, clone beforehand if we debug interactions.
-    #[cfg(not(feature = "perf"))]
-    let shard = runtime.record.clone();
-
     // Prove the program.
     let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
@@ -120,23 +113,6 @@ where
         (cycles as f64 / time as f64),
         Size::from_bytes(nb_bytes),
     );
-
-    #[cfg(not(feature = "perf"))]
-    tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(
-            &machine.chips(),
-            &shard,
-            vec![
-                InteractionKind::Field,
-                InteractionKind::Range,
-                InteractionKind::Byte,
-                InteractionKind::Alu,
-                InteractionKind::Memory,
-                InteractionKind::Program,
-                InteractionKind::Instruction,
-            ],
-        );
-    });
 
     proof
 }
