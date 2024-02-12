@@ -4,6 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct Buffer {
     pub data: Vec<u8>,
+    #[serde(skip)]
     pub ptr: usize,
 }
 
@@ -34,6 +35,11 @@ impl Buffer {
         let nb_bytes = bincode::serialized_size(&result).expect("failed to get serialized size");
         self.ptr += nb_bytes as usize;
         result
+    }
+
+    pub fn read_slice(&mut self, slice: &mut [u8]) {
+        slice.copy_from_slice(&self.data[self.ptr..self.ptr + slice.len()]);
+        self.ptr += slice.len();
     }
 
     /// Write the serializable object from the buffer.
