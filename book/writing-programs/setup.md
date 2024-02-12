@@ -19,7 +19,7 @@ To build the program, simply run:
 cargo prove build
 ```
 
-This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`.
+This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-curta-zkvm-elf`.
 
 
 ## Manual
@@ -70,4 +70,4 @@ To build the program, simply run:
 cargo prove build
 ```
 
-This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`.
+This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-curta-zkvm-elf`.
