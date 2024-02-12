@@ -147,7 +147,7 @@ jobs:
 
                 [[ "$target" == *windows* ]] && exe=".exe"
 
-                cargo build --release -p cli --target "$target" "${flags[@]}"
+                cargo build --release -p curta-cli --target "$target" "${flags[@]}"
 
                 bins=(cargo-prove)
                 for name in "${bins[@]}"; do
