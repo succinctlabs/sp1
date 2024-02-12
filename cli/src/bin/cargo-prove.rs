@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use cli::commands::{
+use curta_cli::commands::{
     build::BuildCmd, build_toolchain::BuildToolchainCmd, install_toolchain::InstallToolchainCmd,
     new::NewCmd, prove::ProveCmd,
 };

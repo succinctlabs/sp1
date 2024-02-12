@@ -49,7 +49,7 @@ pub mod permute_tests {
         runtime::{Instruction, Opcode, Program, Runtime},
         stark::{LocalProver, RiscvStark},
         utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
-        SuccinctProver, SuccinctStdin,
+        CurtaProver, CurtaStdin,
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -87,13 +87,14 @@ pub mod permute_tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let (machine, prover_data) = RiscvStark::init(config);
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
+        let machine = RiscvStark::new(config);
+        let (pk, _) = machine.setup(runtime.program.as_ref());
+        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
-        SuccinctProver::prove(KECCAK_PERMUTE_ELF, SuccinctStdin::new()).unwrap();
+        CurtaProver::prove(KECCAK_PERMUTE_ELF, CurtaStdin::new()).unwrap();
     }
 }

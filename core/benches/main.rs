@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use succinct_core::runtime::{Program, Runtime};
-use succinct_core::utils::prove;
+use curta_core::runtime::{Program, Runtime};
+use curta_core::utils::prove;
 
 #[allow(unreachable_code)]
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -11,7 +11,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     let programs = ["fibonacci"];
     for p in programs {
-        let elf_path = format!("../programs/demo/{}/elf/riscv32im-succinct-zkvm-elf", p);
+        let elf_path = format!("../programs/demo/{}/elf/riscv32im-curta-zkvm-elf", p);
         let program = Program::from_elf(&elf_path);
         let cycles = {
             let mut runtime = Runtime::new(program.clone());

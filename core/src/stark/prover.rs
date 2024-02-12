@@ -1,15 +1,16 @@
+use super::ProvingKey;
+use super::{quotient_values, RiscvStark};
 use itertools::izip;
 #[cfg(not(feature = "perf"))]
 use p3_air::BaseAir;
-use p3_air::{Air, TwoRowMatrixView};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
-use p3_field::{ExtensionField, PackedField, PrimeField};
+use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{ExtensionField, PrimeField};
 use p3_field::{PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRows;
-use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
+use p3_matrix::{Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
@@ -17,9 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
 
-use super::folder::ProverConstraintFolder;
 use super::util::decompose_and_flatten;
-use super::zerofier_coset::ZerofierOnCoset;
 use super::{types::*, ChipRef, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
@@ -29,28 +28,82 @@ use crate::utils::env;
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
 
-pub trait Prover<SC>
-where
-    SC: StarkGenericConfig,
-{
-    fn commit_shards<F, EF>(
-        config: &SC,
+pub trait Prover<SC: StarkGenericConfig> {
+    fn prove_shards(
+        machine: &RiscvStark<SC>,
+        pk: &ProvingKey<SC>,
         shards: &mut Vec<ExecutionRecord>,
-        chips: &[ChipRef<SC>],
-    ) -> (
-        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
-    )
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkGenericConfig<Val = F, Challenge = EF> + Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned;
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC>;
+}
 
-    fn commit_main(config: &SC, chips: &[ChipRef<SC>], shard: &mut ExecutionRecord) -> MainData<SC>
+impl<SC> Prover<SC> for LocalProver<SC>
+where
+    SC::Val: PrimeField32 + TwoAdicField + Send + Sync,
+    SC: StarkGenericConfig + Send + Sync,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    PcsProof<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
+    fn prove_shards(
+        machine: &RiscvStark<SC>,
+        pk: &ProvingKey<SC>,
+        shards: &mut Vec<ExecutionRecord>,
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC> {
+        let config = machine.config();
+        let all_chips = machine.chips();
+        tracing::info!("Generating and commiting traces for each shard.");
+        // Generate and commit the traces for each segment.
+        let (shard_commits, shard_data) = Self::commit_shards(config, shards, &all_chips);
+
+        // Observe the challenges for each segment.
+        tracing::info_span!("observing all challenges").in_scope(|| {
+            shard_commits.into_iter().for_each(|commitment| {
+                challenger.observe(commitment);
+            });
+        });
+
+        // Generate a proof for each segment. Note that we clone the challenger so we can observe
+        // identical global challenges across the segments.
+        let shard_proofs = shard_data
+            .into_par_iter()
+            .map(|data| {
+                let data = tracing::info_span!("materializing data")
+                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
+                let chips = all_chips
+                    .iter()
+                    .filter(|chip| data.chip_ids.contains(&chip.name()))
+                    .collect::<Vec<_>>();
+                tracing::info_span!("proving shard").in_scope(|| {
+                    Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Proof { shard_proofs }
+    }
+}
+
+pub struct LocalProver<SC>(PhantomData<SC>);
+
+impl<SC> LocalProver<SC>
+where
+    SC::Val: PrimeField + TwoAdicField + PrimeField32,
+    SC: StarkGenericConfig + Send + Sync,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
+    fn commit_main(
+        config: &SC,
+        chips: &[ChipRef<SC>],
+        shard: &mut ExecutionRecord,
+        index: usize,
+    ) -> ShardMainData<SC>
     where
         SC::Val: PrimeField32,
     {
@@ -75,30 +128,30 @@ where
             .map(|chip| chip.name())
             .collect::<Vec<_>>();
 
-        MainData {
+        ShardMainData {
             traces,
             main_commit,
             main_data,
             chip_ids,
+            index,
         }
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
     fn prove_shard(
         config: &SC,
+        _pk: &ProvingKey<SC>,
+        chips: &[&ChipRef<SC>],
+        shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
-        chips: &[ChipRef<SC>],
-        main_data: MainData<SC>,
-        preprocessed_traces: &[Option<RowMajorMatrix<SC::Val>>],
-        _preprocessed_data: &Option<PcsProverData<SC>>,
     ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
-        MainData<SC>: DeserializeOwned,
+        ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let traces = main_data.traces;
+        let traces = shard_data.traces;
 
         let log_degrees = traces
             .iter()
@@ -130,12 +183,11 @@ where
                 .par_iter()
                 .zip(receives.par_iter())
                 .zip(traces.par_iter())
-                .zip(preprocessed_traces.par_iter())
-                .map(|(((send, rec), main_trace), prep_trace)| {
+                .map(|((send, rec), main_trace)| {
                     let perm_trace = generate_permutation_trace(
                         send,
                         rec,
-                        prep_trace,
+                        &None,
                         main_trace,
                         &permutation_challenges,
                     );
@@ -183,7 +235,7 @@ where
         let main_ldes = tracing::info_span!("get main ldes").in_scope(|| {
             config
                 .pcs()
-                .get_ldes(&main_data.main_data)
+                .get_ldes(&shard_data.main_data)
                 .into_iter()
                 .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
                 .collect::<Vec<_>>()
@@ -203,9 +255,9 @@ where
             (0..chips.len())
                 .into_par_iter()
                 .map(|i| {
-                    Self::quotient_values(
+                    quotient_values(
                         config,
-                        &chips[i],
+                        chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
                         &main_ldes[i],
@@ -275,48 +327,13 @@ where
         let (openings, opening_proof) = tracing::info_span!("open multi batches").in_scope(|| {
             config.pcs().open_multi_batches(
                 &[
-                    (&main_data.main_data, &trace_opening_points),
+                    (&shard_data.main_data, &trace_opening_points),
                     (&permutation_data, &trace_opening_points),
                     (&quotient_data, &quotient_opening_points),
                 ],
                 challenger,
             )
         });
-
-        // Checking the shapes of openings match our expectations.
-        //
-        // This is a sanity check to make sure we are using the API correctly. We should remove this
-        // once everything is stable.
-
-        #[cfg(not(feature = "perf"))]
-        {
-            // Check for the correct number of opening collections.
-            assert_eq!(openings.len(), 3);
-
-            // Check the shape of the main trace openings.
-            assert_eq!(openings[0].len(), chips.len());
-            for (chip, opening) in chips.iter().zip(openings[0].iter()) {
-                let width = chip.width();
-                assert_eq!(opening.len(), 2);
-                assert_eq!(opening[0].len(), width);
-                assert_eq!(opening[1].len(), width);
-            }
-            // Check the shape of the permutation trace openings.
-            assert_eq!(openings[1].len(), chips.len());
-            for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
-                let width = perm.width() * SC::Challenge::D;
-                assert_eq!(opening.len(), 2);
-                assert_eq!(opening[0].len(), width);
-                assert_eq!(opening[1].len(), width);
-            }
-            // Check the shape of the quotient openings.
-            assert_eq!(openings[2].len(), chips.len());
-            for opening in openings[2].iter() {
-                let width = SC::Challenge::D << log_quotient_degree;
-                assert_eq!(opening.len(), 1);
-                assert_eq!(opening[0].len(), width);
-            }
-        }
 
         #[cfg(feature = "perf")]
         {
@@ -364,8 +381,9 @@ where
             .collect::<Vec<_>>();
 
             ShardProof::<SC> {
+                index: shard_data.index,
                 commitment: ShardCommitment {
-                    main_commit: main_data.main_commit.clone(),
+                    main_commit: shard_data.main_commit.clone(),
                     permutation_commit,
                     quotient_commit,
                 },
@@ -400,155 +418,13 @@ where
         };
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn quotient_values<MainLde, PermLde>(
-        config: &SC,
-        chip: &ChipRef<SC>,
-        cumulative_sum: SC::Challenge,
-        degree_bits: usize,
-        main_lde: &MainLde,
-        permutation_lde: &PermLde,
-        perm_challenges: &[SC::Challenge],
-        alpha: SC::Challenge,
-    ) -> Vec<SC::Challenge>
-    where
-        SC: StarkGenericConfig,
-        MainLde: MatrixGet<SC::Val> + Sync,
-        PermLde: MatrixGet<SC::Val> + Sync,
-    {
-        let degree = 1 << degree_bits;
-        let quotient_degree_bits = chip.log_quotient_degree();
-        let quotient_size_bits = degree_bits + quotient_degree_bits;
-        let quotient_size = 1 << quotient_size_bits;
-        let g_subgroup = SC::Val::two_adic_generator(degree_bits);
-        let g_extended = SC::Val::two_adic_generator(quotient_size_bits);
-        let subgroup_last = g_subgroup.inverse();
-        let coset_shift = config.pcs().coset_shift();
-        let next_step = 1 << quotient_degree_bits;
-
-        let coset: Vec<_> =
-            cyclic_subgroup_coset_known_order(g_extended, coset_shift, quotient_size).collect();
-
-        let zerofier_on_coset =
-            ZerofierOnCoset::new(degree_bits, quotient_degree_bits, coset_shift);
-
-        // Evaluations of L_first(x) = Z_H(x) / (x - 1) on our coset s H.
-        let lagrange_first_evals = zerofier_on_coset.lagrange_basis_unnormalized(0);
-        let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
-
-        let ext_degree = SC::Challenge::D;
-
-        (0..quotient_size)
-            .into_par_iter()
-            .step_by(SC::PackedVal::WIDTH)
-            .flat_map_iter(|i_local_start| {
-                let wrap = |i| i % quotient_size;
-                let i_next_start = wrap(i_local_start + next_step);
-                let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
-
-                let x = *SC::PackedVal::from_slice(&coset[i_range.clone()]);
-                let is_transition = x - subgroup_last;
-                let is_first_row =
-                    *SC::PackedVal::from_slice(&lagrange_first_evals[i_range.clone()]);
-                let is_last_row = *SC::PackedVal::from_slice(&lagrange_last_evals[i_range]);
-
-                let local: Vec<_> = (0..main_lde.width())
-                    .map(|col| {
-                        SC::PackedVal::from_fn(|offset| {
-                            let row = wrap(i_local_start + offset);
-                            main_lde.get(row, col)
-                        })
-                    })
-                    .collect();
-                let next: Vec<_> = (0..main_lde.width())
-                    .map(|col| {
-                        SC::PackedVal::from_fn(|offset| {
-                            let row = wrap(i_next_start + offset);
-                            main_lde.get(row, col)
-                        })
-                    })
-                    .collect();
-
-                let perm_local: Vec<_> = (0..permutation_lde.width())
-                    .step_by(ext_degree)
-                    .map(|col| {
-                        SC::PackedChallenge::from_base_fn(|i| {
-                            SC::PackedVal::from_fn(|offset| {
-                                let row = wrap(i_local_start + offset);
-                                permutation_lde.get(row, col + i)
-                            })
-                        })
-                    })
-                    .collect();
-
-                let perm_next: Vec<_> = (0..permutation_lde.width())
-                    .step_by(ext_degree)
-                    .map(|col| {
-                        SC::PackedChallenge::from_base_fn(|i| {
-                            SC::PackedVal::from_fn(|offset| {
-                                let row = wrap(i_next_start + offset);
-                                permutation_lde.get(row, col + i)
-                            })
-                        })
-                    })
-                    .collect();
-
-                let accumulator = SC::PackedChallenge::zero();
-                let mut folder = ProverConstraintFolder {
-                    preprocessed: TwoRowMatrixView {
-                        local: &[],
-                        next: &[],
-                    },
-                    main: TwoRowMatrixView {
-                        local: &local,
-                        next: &next,
-                    },
-                    perm: TwoRowMatrixView {
-                        local: &perm_local,
-                        next: &perm_next,
-                    },
-                    perm_challenges,
-                    cumulative_sum,
-                    is_first_row,
-                    is_last_row,
-                    is_transition,
-                    alpha,
-                    accumulator,
-                };
-                chip.eval(&mut folder);
-
-                // quotient(x) = constraints(x) / Z_H(x)
-                let zerofier_inv: SC::PackedVal =
-                    zerofier_on_coset.eval_inverse_packed(i_local_start);
-                let quotient = folder.accumulator * zerofier_inv;
-
-                // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
-                (0..SC::PackedVal::WIDTH).map(move |idx_in_packing| {
-                    let quotient_value = (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
-                        .map(|coeff_idx| {
-                            quotient.as_base_slice()[coeff_idx].as_slice()[idx_in_packing]
-                        })
-                        .collect::<Vec<_>>();
-                    SC::Challenge::from_base_slice(&quotient_value)
-                })
-            })
-            .collect()
-    }
-}
-
-pub struct LocalProver<SC>(PhantomData<SC>);
-
-impl<SC> Prover<SC> for LocalProver<SC>
-where
-    SC: StarkGenericConfig,
-{
     fn commit_shards<F, EF>(
         config: &SC,
         shards: &mut Vec<ExecutionRecord>,
         chips: &[ChipRef<SC>],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
+        Vec<ShardMainDataWrapper<SC>>,
     )
     where
         F: PrimeField + TwoAdicField + PrimeField32,
@@ -557,7 +433,7 @@ where
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
     {
         let num_shards = shards.len();
         tracing::info!("num_shards={}", num_shards);
@@ -568,9 +444,10 @@ where
             tracing::info_span!("commit main for all shards").in_scope(|| {
                 shards
                     .into_par_iter()
-                    .map(|shard| {
+                    .enumerate()
+                    .map(|(i, shard)| {
                         let data = tracing::info_span!("shard commit main", shard = shard.index)
-                            .in_scope(|| Self::commit_main(config, chips, shard));
+                            .in_scope(|| Self::commit_main(config, chips, shard, i));
                         let commitment = data.main_commit.clone();
                         let file = tempfile::tempfile().unwrap();
                         let data = if num_shards > save_disk_threshold {
@@ -592,8 +469,8 @@ where
             let bytes_written = shard_main_data
                 .iter()
                 .map(|data| match data {
-                    MainDataWrapper::InMemory(_) => 0,
-                    MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                    ShardMainDataWrapper::InMemory(_) => 0,
+                    ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
                 })
                 .sum::<u64>();
             if bytes_written > 0 {

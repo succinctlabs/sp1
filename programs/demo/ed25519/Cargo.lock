@@ -94,6 +94,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "curta-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "curve25519-dalek"
 version = "4.1.1"
 source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
@@ -182,9 +195,9 @@ dependencies = [
 name = "ed25519-zkvm"
 version = "0.1.0"
 dependencies = [
+ "curta-zkvm",
  "ed25519-dalek",
  "hex-literal",
- "succinct-zkvm",
 ]
 
 [[package]]
@@ -475,19 +488,6 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
-
-[[package]]
-name = "succinct-zkvm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
 
 [[package]]
 name = "syn"

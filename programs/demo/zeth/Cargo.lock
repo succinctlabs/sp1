@@ -601,6 +601,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "curta-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2740,19 +2753,6 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 [[package]]
 name = "succinct-zkvm"
 version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "succinct-zkvm"
-version = "0.1.0"
 source = "git+https://github.com/succinctlabs/vm.git?rev=74db01ba0013d7e691e5d0edb934cae8adcbf0c2#74db01ba0013d7e691e5d0edb934cae8adcbf0c2"
 dependencies = [
  "anyhow",
@@ -3570,9 +3570,9 @@ name = "zeth"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "curta-zkvm",
  "serde",
  "serde_json",
- "succinct-zkvm 0.1.0",
  "zeth-lib",
 ]
 
@@ -3618,6 +3618,6 @@ dependencies = [
  "rlp",
  "serde",
  "sha3",
- "succinct-zkvm 0.1.0 (git+https://github.com/succinctlabs/vm.git?rev=74db01ba0013d7e691e5d0edb934cae8adcbf0c2)",
+ "succinct-zkvm",
  "thiserror",
 ]

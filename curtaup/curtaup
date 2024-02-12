@@ -5,7 +5,7 @@
 set -eo pipefail
 
 BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
-CURTA_DIR=${CURTA_DIR:-"$BASE_DIR/.cargo-prove"}
+CURTA_DIR=${CURTA_DIR:-"$BASE_DIR/.curta"}
 CURTA_BIN_DIR="$CURTA_DIR/bin"
 mkdir -p $CURTA_BIN_DIR
 
@@ -76,10 +76,10 @@ main() {
     exit 0
   fi
 
-  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/vm}
+  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/curta}
 
   # Install by downloading binaries
-  if [[ "$CURTAUP_REPO" == "succinctlabs/vm" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
+  if [[ "$CURTAUP_REPO" == "succinctlabs/curta" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
     CURTAUP_VERSION=${CURTAUP_VERSION:-nightly}
     CURTAUP_TAG=$CURTAUP_VERSION
 
@@ -128,7 +128,7 @@ main() {
 
     # Compute the URL of the release tarball in the curta repository.
     RELEASE_URL="https://github.com/${CURTAUP_REPO}/releases/download/${CURTAUP_TAG}/"
-    RELEASE_URL="https://curta-vm-artifacts.s3.us-west-2.amazonaws.com/"
+    RELEASE_URL="https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${CURTAUP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
     MAN_TARBALL_URL="${RELEASE_URL}cargo_prove_man_${CURTAUP_VERSION}.tar.gz"
 
@@ -291,16 +291,15 @@ banner() {
 
   ________  ______  _________ 
   / ____/ / / / __ \/_  __/   |        
- / /   / / / / /_/ / / / / /| |           Let's build the world's best
-/ /___/ /_/ / _, _/ / / / ___ |                  zkVM, together.
+ / /   / / / / /_/ / / / / /| |           A performant, 100%% open-source,
+/ /___/ /_/ / _, _/ / / / ___ |             contributor-friendly, zkVM.
 \____/\____/_/ |_| /_/ /_/  |_| 
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 
 Repo       : https://github.com/succinctlabs/curta
-Book       : https://curta.succinct.xyz                      
-Chat       : https://t.me/curta/                         
-Support    : https://t.me/curta-support/
+Book       : https://succinctlabs.github.io/curta
+Telegram   : https://t.me/succinct_curta
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 

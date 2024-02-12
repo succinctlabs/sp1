@@ -1,16 +1,16 @@
-use succinct_core::{utils, SuccinctProver, SuccinctStdin, SuccinctVerifier};
+use curta_core::{utils, CurtaProver, CurtaStdin, CurtaVerifier};
 
 const ED25519_ELF: &[u8] =
-    include_bytes!("../../../programs/demo/ed25519/elf/riscv32im-succinct-zkvm-elf");
+    include_bytes!("../../../programs/demo/ed25519/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
     // Generate proof.
     utils::setup_logger();
-    let stdin = SuccinctStdin::new();
-    let proof = SuccinctProver::prove(ED25519_ELF, stdin).expect("proving failed");
+    let stdin = CurtaStdin::new();
+    let proof = CurtaProver::prove(ED25519_ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SuccinctVerifier::verify(ED25519_ELF, &proof).expect("verification failed");
+    CurtaVerifier::verify(ED25519_ELF, &proof).expect("verification failed");
 
     // Save proof.
     proof
