@@ -291,7 +291,7 @@ banner() {
 
   ________  ______  _________ 
   / ____/ / / / __ \/_  __/   |        
- / /   / / / / /_/ / / / / /| |           A performant, 100% open-source,
+ / /   / / / / /_/ / / / / /| |           A performant, 100%% open-source,
 / /___/ /_/ / _, _/ / / / ___ |             contributor-friendly, zkVM.
 \____/\____/_/ |_| /_/ /_/  |_| 
 
