@@ -1,4 +1,4 @@
-use super::fp_op::FpOpCols;
+use super::field_op::FpOpCols;
 use super::params::Limbs;
 use crate::air::CurtaAirBuilder;
 use crate::utils::ec::field::FieldParameters;
@@ -35,7 +35,7 @@ impl<F: PrimeField32> FpSqrtCols<F> {
         // Use FpOpCols to compute result * result.
         let sqrt_squared =
             self.multiplication
-                .populate::<P>(&sqrt, &sqrt, super::fp_op::FpOperation::Mul);
+                .populate::<P>(&sqrt, &sqrt, super::field_op::FpOperation::Mul);
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
@@ -70,7 +70,7 @@ impl<V: Copy> FpSqrtCols<V> {
             builder,
             &sqrt,
             &sqrt,
-            super::fp_op::FpOperation::Mul,
+            super::field_op::FpOperation::Mul,
         );
     }
 }
