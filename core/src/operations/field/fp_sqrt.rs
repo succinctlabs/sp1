@@ -5,7 +5,7 @@ use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
-use p3_field::{Field, PrimeField32};
+use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
