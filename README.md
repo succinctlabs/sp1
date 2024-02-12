@@ -2,7 +2,7 @@
 
 [![Telegram Chat][tg-badge]][tg-url]
 
-The first performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs.
+A performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs.
 
 ![](assets/curta.svg)
 
