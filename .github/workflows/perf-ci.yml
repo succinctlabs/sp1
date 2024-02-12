@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   benchmark:
-    runs-on: buildjet-32vcpu-ubuntu-2204
+    runs-on: warp-ubuntu-latest-arm64-16x
     if: contains(github.event.pull_request.title, 'perf') || contains(github.event.pull_request.body, 'perf')
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"

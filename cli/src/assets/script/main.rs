@@ -21,7 +21,7 @@ fn main() {
 
     // Save proof.
     proof
-        .save("proof-with-pis.json")
+        .save("proof-with-io.json")
         .expect("saving proof failed");
 
     println!("succesfully generated and verified proof for the program!")

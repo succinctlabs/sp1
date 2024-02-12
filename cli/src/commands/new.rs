@@ -7,6 +7,7 @@ const PROGRAM_CARGO_TOML: &str = include_str!("../assets/program/Cargo.toml");
 const PROGRAM_MAIN_RS: &str = include_str!("../assets/program/main.rs");
 const SCRIPT_CARGO_TOML: &str = include_str!("../assets/script/Cargo.toml");
 const SCRIPT_MAIN_RS: &str = include_str!("../assets/script/main.rs");
+const SCRIPT_RUST_TOOLCHAIN: &str = include_str!("../assets/script/rust-toolchain");
 
 #[derive(Parser)]
 #[command(
@@ -44,6 +45,7 @@ impl NewCmd {
             SCRIPT_CARGO_TOML.replace("unnamed", &self.name),
         )?;
         fs::write(script_root.join("src").join("main.rs"), SCRIPT_MAIN_RS)?;
+        fs::write(script_root.join("rust-toolchain"), SCRIPT_RUST_TOOLCHAIN)?;
 
         println!(
             "    \x1b[1m{}\x1b[0m {} ({})",

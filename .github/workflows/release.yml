@@ -81,7 +81,7 @@ jobs:
                       svm_target_platform: linux-amd64
                       platform: linux
                       arch: amd64
-                    - runner: buildjet-4vcpu-ubuntu-2204-arm
+                    - runner: warp-ubuntu-latest-arm64-4x
                       target: aarch64-unknown-linux-gnu
                       svm_target_platform: linux-aarch64
                       platform: linux
@@ -147,7 +147,7 @@ jobs:
 
                 [[ "$target" == *windows* ]] && exe=".exe"
 
-                cargo build --release -p cli --target "$target" "${flags[@]}"
+                cargo build --release -p curta-cli --target "$target" "${flags[@]}"
 
                 bins=(cargo-prove)
                 for name in "${bins[@]}"; do

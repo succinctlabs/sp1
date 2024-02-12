@@ -122,18 +122,15 @@ impl BuildToolchainCmd {
         let tar_gz_path = format!("rust-toolchain-{}.tar.gz", target);
         Command::new("tar")
             .args([
+                "--exclude",
+                "lib/rustlib/src",
+                "--exclude",
+                "lib/rustlib/rustc-src",
                 "-hczvf",
                 &tar_gz_path,
                 "-C",
                 toolchain_dir.to_str().unwrap(),
                 ".",
-                "--exclude",
-                toolchain_dir.join("lib/rustlib/src").to_str().unwrap(),
-                "--exclude",
-                toolchain_dir
-                    .join("lib/rustlib/rustc-src")
-                    .to_str()
-                    .unwrap(),
             ])
             .run()?;
         println!("Succesfully compressed the toolchain to {}.", tar_gz_path);

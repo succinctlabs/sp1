@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   benchmark:
-    runs-on: buildjet-32vcpu-ubuntu-2204
+    runs-on: warp-ubuntu-latest-arm64-16x
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
