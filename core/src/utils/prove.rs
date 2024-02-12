@@ -79,33 +79,32 @@ where
     });
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}",
+        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
         cycles,
         time,
         (cycles as f64 / time as f64),
+        Size::from_bytes(nb_bytes),
     );
 
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
-    tracing::info!("proof size: {}", Size::from_bytes(nb_bytes as u64));
-
-    // #[cfg(not(feature = "perf"))]
-    // tracing::info_span!("debug interactions with all chips").in_scope(|| {
-    //     debug_interactions_with_all_chips(
-    //         &machine.chips(),
-    //         &shard,
-    //         vec![
-    //             InteractionKind::Field,
-    //             InteractionKind::Range,
-    //             InteractionKind::Byte,
-    //             InteractionKind::Alu,
-    //             InteractionKind::Memory,
-    //             InteractionKind::Program,
-    //             InteractionKind::Instruction,
-    //         ],
-    //     );
-    // });
+    #[cfg(not(feature = "perf"))]
+    tracing::info_span!("debug interactions with all chips").in_scope(|| {
+        debug_interactions_with_all_chips(
+            &machine.chips(),
+            &shard,
+            vec![
+                InteractionKind::Field,
+                InteractionKind::Range,
+                InteractionKind::Byte,
+                InteractionKind::Alu,
+                InteractionKind::Memory,
+                InteractionKind::Program,
+                InteractionKind::Instruction,
+            ],
+        );
+    });
 
     proof
 }

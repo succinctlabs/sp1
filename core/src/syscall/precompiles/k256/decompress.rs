@@ -392,12 +392,6 @@ pub mod tests {
 
             let inputs = SuccinctStdin::from(&compressed);
             let mut proof = SuccinctProver::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
-            // let first_half: [u8; 32] = proof.stdout.read();
-            // let second_half: [u8; 32] = proof.stdout.read();
-            // let last_byte: u8 = proof.stdout.read();
-            // result[..32].copy_from_slice(&first_half);
-            // result[32..64].copy_from_slice(&second_half);
-            // result[64] = last_byte;
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
