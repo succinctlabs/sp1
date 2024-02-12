@@ -5,7 +5,7 @@ use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
-use p3_field::Field;
+use p3_field::{Field, PrimeField32};
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
@@ -21,7 +21,7 @@ pub struct FpSqrtCols<T> {
     pub multiplication: FpOpCols<T>,
 }
 
-impl<F: Field> FpSqrtCols<F> {
+impl<F: PrimeField32> FpSqrtCols<F> {
     /// Populates the trace.
     ///
     /// `P` is the parameter of the field that each limb lives in.
@@ -79,7 +79,7 @@ impl<V: Copy> FpSqrtCols<V> {
 mod tests {
     use num::{BigUint, One, Zero};
     use p3_air::BaseAir;
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
 
     use super::{FpSqrtCols, Limbs};
     use crate::air::MachineAir;
@@ -117,7 +117,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }

@@ -126,7 +126,7 @@ impl<V: Copy> FpDenCols<V> {
 mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
 
     use super::{FpDenCols, Limbs};
     use crate::air::MachineAir;
@@ -167,7 +167,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> MachineAir<F> for FpDenChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FpDenChip<P> {
         fn name(&self) -> String {
             "FpDen".to_string()
         }

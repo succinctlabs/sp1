@@ -173,7 +173,7 @@ impl<V: Copy> FpOpCols<V> {
 mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
 
     use super::{FpOpCols, FpOperation, Limbs};
     use crate::air::MachineAir;
@@ -215,7 +215,7 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> MachineAir<F> for FpOpChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FpOpChip<P> {
         fn name(&self) -> String {
             format!("FpOp{:?}", self.operation)
         }
