@@ -14,6 +14,7 @@ use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
 use crate::program::ProgramChip;
 use crate::runtime::ExecutionRecord;
+use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -72,6 +73,7 @@ pub struct RiscvStark<SC: StarkGenericConfig> {
     weierstrass_double_assign:
         Chip<SC::Val, WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>>,
     keccak_permute: Chip<SC::Val, KeccakPermuteChip>,
+    blake3_compress_inner: Chip<SC::Val, Blake3CompressInnerChip>,
     add: Chip<SC::Val, AddChip>,
     sub: Chip<SC::Val, SubChip>,
     bitwise: Chip<SC::Val, BitwiseChip>,
@@ -108,6 +110,7 @@ where
         let weierstrass_double_assign =
             Chip::new(WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new());
         let keccak_permute = Chip::new(KeccakPermuteChip::new());
+        let blake3_compress_inner = Chip::new(Blake3CompressInnerChip::new());
         let add = Chip::new(AddChip::default());
         let sub = Chip::new(SubChip::default());
         let bitwise = Chip::new(BitwiseChip::default());
@@ -134,6 +137,7 @@ where
             weierstrass_add_assign,
             weierstrass_double_assign,
             keccak_permute,
+            blake3_compress_inner,
             add,
             sub,
             bitwise,
@@ -181,7 +185,7 @@ where
         )
     }
 
-    pub fn chips(&self) -> [ChipRef<SC>; 23] {
+    pub fn chips(&self) -> [ChipRef<SC>; 24] {
         [
             self.program.as_ref(),
             self.cpu.as_ref(),
@@ -193,6 +197,7 @@ where
             self.weierstrass_add_assign.as_ref(),
             self.weierstrass_double_assign.as_ref(),
             self.keccak_permute.as_ref(),
+            self.blake3_compress_inner.as_ref(),
             self.add.as_ref(),
             self.sub.as_ref(),
             self.bitwise.as_ref(),
