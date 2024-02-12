@@ -251,7 +251,7 @@ impl<V: Copy> K256DecompressCols<V> {
         // Interpret the lowest bit of Y as whether it is odd or not.
         let y_is_odd = self.y_least_bits[0];
 
-        // When y_is_odd == should_be_odd, the result is y, otherwise it is -y.
+        // When y_is_odd and should_be_odd are both true or both false, result is y, else -y.
         let y_limbs = limbs_from_access(&self.y_access);
         builder
             .when(self.is_real)

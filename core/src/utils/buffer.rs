@@ -48,4 +48,9 @@ impl Buffer {
         bincode::serialize_into(&mut tmp, data).expect("serialization failed");
         self.data.extend(tmp);
     }
+
+    /// Write the slice of bytes to the buffer.
+    pub fn write_slice(&mut self, slice: &[u8]) {
+        self.data.extend_from_slice(slice);
+    }
 }
