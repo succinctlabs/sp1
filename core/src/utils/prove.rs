@@ -74,7 +74,7 @@ where
     let shard = runtime.record.clone();
 
     // Prove the program.
-    let proof = tracing::info_span!("runtime.prove(...)").in_scope(|| {
+    let proof = tracing::info_span!("prove").in_scope(|| {
         machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger)
     });
     let cycles = runtime.state.global_clk;
