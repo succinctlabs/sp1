@@ -36,9 +36,19 @@ impl CurtaStdin {
         self.buffer.read()
     }
 
+    /// Read a slice of bytes from the buffer.
+    pub fn read_slice(&mut self, slice: &mut [u8]) {
+        self.buffer.read_slice(slice);
+    }
+
     /// Write a value to the buffer.
     pub fn write<T: Serialize + DeserializeOwned>(&mut self, data: &T) {
         self.buffer.write(data);
+    }
+
+    /// Write a slice of bytes to the buffer.
+    pub fn write_slice(&mut self, slice: &[u8]) {
+        self.buffer.write_slice(slice);
     }
 }
 
@@ -62,9 +72,19 @@ impl CurtaStdout {
         self.buffer.read()
     }
 
+    /// Read a slice of bytes from the buffer.
+    pub fn read_slice(&mut self, slice: &mut [u8]) {
+        self.buffer.read_slice(slice);
+    }
+
     /// Write a value to the buffer.
     pub fn write<T: Serialize + DeserializeOwned>(&mut self, data: &T) {
         self.buffer.write(data);
+    }
+
+    /// Write a slice of bytes to the buffer.
+    pub fn write_slice(&mut self, slice: &[u8]) {
+        self.buffer.write_slice(slice);
     }
 }
 

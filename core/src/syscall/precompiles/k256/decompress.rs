@@ -251,22 +251,18 @@ impl<V: Copy> K256DecompressCols<V> {
         // Interpret the lowest bit of Y as whether it is odd or not.
         let y_is_odd = self.y_least_bits[0];
 
-        // When y_is_odd == should_be_odd, the result is y, otherwise it is -y.
+        // When y_is_odd == should_be_odd, result is y
+        // Equivalent: y_is_odd != !should_be_odd
         let y_limbs = limbs_from_access(&self.y_access);
         builder
             .when(self.is_real)
-            .when(AB::Expr::one() - (y_is_odd.into() - should_be_odd.clone()))
+            .when_ne(y_is_odd.into(), AB::Expr::one() - should_be_odd.clone())
             .assert_all_eq(self.y.multiplication.result, y_limbs);
+        // When y_is_odd != should_be_odd, result is -y.
         builder
             .when(self.is_real)
             .when_ne(y_is_odd, should_be_odd)
             .assert_all_eq(self.neg_y.result, y_limbs);
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            self.is_real.into() * self.is_real.into() * self.is_real.into()
-                - self.is_real.into() * self.is_real.into() * self.is_real.into(),
-        );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
@@ -370,35 +366,30 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
+    use crate::utils::setup_logger;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
-    use crate::utils::BabyBearBlake3;
-    use crate::{
-        runtime::{Program, Runtime},
-        utils::{prove_core, setup_logger},
-    };
+    use crate::{CurtaProver, CurtaStdin, CurtaVerifier};
 
     #[test]
     fn test_k256_decompress() {
         setup_logger();
         let mut rng = StdRng::seed_from_u64(2);
 
-        for _ in 0..4 {
+        for _ in 0..10 {
             let secret_key = k256::SecretKey::random(&mut rng);
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
-            let mut result: [u8; 65] = [0; 65];
 
-            let program = Program::from(SECP256K1_DECOMPRESS_ELF);
-            let mut runtime = Runtime::new(program);
-            runtime.write_stdin_slice(&compressed);
-            runtime.run();
-            runtime.read_stdout_slice(&mut result);
+            let inputs = CurtaStdin::from(&compressed);
 
+            let mut proof = CurtaProver::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
+            let mut result = [0; 65];
+            proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
-            let config = BabyBearBlake3::new();
-            prove_core(config, &mut runtime);
+
+            CurtaVerifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
         }
     }
 }
