@@ -1,3 +1,4 @@
+mod execution;
 mod instruction;
 mod io;
 mod opcode;
@@ -10,6 +11,7 @@ mod syscall;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
+pub use execution::*;
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;

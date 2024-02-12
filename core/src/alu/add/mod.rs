@@ -13,6 +13,8 @@ use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
+use super::AluEvent;
+
 /// The number of main trace columns for `AddChip`.
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
 
@@ -38,6 +40,8 @@ pub struct AddCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for AddChip {
+    type Event = AluEvent;
+
     fn name(&self) -> String {
         "Add".to_string()
     }
