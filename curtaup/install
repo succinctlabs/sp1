@@ -13,7 +13,6 @@ CURTA_BIN_DIR="$CURTA_DIR/bin"
 BIN_URL="https://raw.githubusercontent.com/succinctlabs/curta/main/curtaup/curtaup"
 BIN_PATH="$CURTA_BIN_DIR/curtaup"
 
-
 # Create the .curta bin directory and curtaup binary if it doesn't exist.
 mkdir -p $CURTA_BIN_DIR
 curl -# -L $BIN_URL -o $BIN_PATH
