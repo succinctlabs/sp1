@@ -376,7 +376,7 @@ pub mod tests {
 
     use crate::utils::setup_logger;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
-    use crate::{SuccinctProver, SuccinctStdin, SuccinctVerifier};
+    use crate::{CurtaProver, CurtaStdin, CurtaVerifier};
 
     #[test]
     fn test_k256_decompress() {
@@ -390,13 +390,13 @@ pub mod tests {
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
 
-            let inputs = SuccinctStdin::from(&compressed);
-            let mut proof = SuccinctProver::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
+            let inputs = CurtaStdin::from(&compressed);
+            let mut proof = CurtaProver::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
 
-            SuccinctVerifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
+            CurtaVerifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
         }
     }
 }
