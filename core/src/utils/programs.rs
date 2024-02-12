@@ -34,9 +34,8 @@ pub mod tests {
     pub const SECP256K1_ADD_ELF: &[u8] =
         include_bytes!("../../../programs/test/secp256k1-add/elf/riscv32im-curta-zkvm-elf");
 
-    pub const SECP256K1_DECOMPRESS_ELF: &[u8] = include_bytes!(
-        "../../../programs/test/secp256k1-decompress/elf/riscv32im-curta-zkvm-elf"
-    );
+    pub const SECP256K1_DECOMPRESS_ELF: &[u8] =
+        include_bytes!("../../../programs/test/secp256k1-decompress/elf/riscv32im-curta-zkvm-elf");
 
     pub const SECP256K1_DOUBLE_ELF: &[u8] =
         include_bytes!("../../../programs/test/secp256k1-double/elf/riscv32im-curta-zkvm-elf");
