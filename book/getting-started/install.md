@@ -48,7 +48,7 @@ cargo prove build-toolchain
 
 Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine.
 
-To verify the installation of the tooolchain, run and make sure you see `succinct`:
+To verify the installation of the tooolchain, run and make sure you see `curta`:
 
 ```bash
 rustup toolchain list
@@ -57,5 +57,5 @@ rustup toolchain list
 You can delete your existing installation of the toolchain with:
 
 ```bash
-rustup toolchain remove succinct
+rustup toolchain remove curta
 ```
