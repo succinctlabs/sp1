@@ -34,15 +34,22 @@ pub struct ShaExtendCols<T> {
     pub cycle_48_start: T,
     pub cycle_48_end: T,
 
+    /// The input to `s0`.
     pub w_i_minus_15: MemoryReadCols<T>,
+
+    /// `s0 := (w[i-15] rightrotate  7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift  3)`.
     pub s0: S0Operation<T>,
 
-    /// Computing `s1`.
+    /// The input to `s1`.
     pub w_i_minus_2: MemoryReadCols<T>,
+
+    /// `s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)`.
     pub s1: S1Operation<T>,
 
-    /// Computing `s2`.
+    /// An input to `s2`.
     pub w_i_minus_16: MemoryReadCols<T>,
+
+    /// An input to `s2`.
     pub w_i_minus_7: MemoryReadCols<T>,
 
     /// `w[i] := w[i-16] + s0 + w[i-7] + s1`.

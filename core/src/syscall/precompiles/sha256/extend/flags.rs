@@ -65,7 +65,7 @@ impl ShaExtendChip {
             .when_transition()
             .assert_eq(local.cycle_16 * g, next.cycle_16);
 
-        // Calculate whether it's the beggining of the cycle of 16 rows.
+        // Calculate whether it's the beginning of the cycle of 16 rows.
         builder.assert_eq(local.cycle_16 - g, local.cycle_16_minus_g);
         builder.assert_eq(
             one.clone() - local.cycle_16_minus_g * local.cycle_16_minus_g_inv,
