@@ -27,13 +27,19 @@ impl FromStr for Input {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if PathBuf::from(s).exists() {
             Ok(Input::FilePath(PathBuf::from(s)))
-        } else if s.len() % 2 == 0 && s.chars().all(|c| c.is_ascii_hexdigit()) {
+        } else if s.len() % 2 == 0 {
             // Remove 0x prefix if present
             let s = if s.starts_with("0x") {
                 s.strip_prefix("0x").unwrap()
             } else {
                 s
             };
+            if s.is_empty() {
+                return Ok(Input::HexBytes(Vec::new()));
+            }
+            if !s.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err("Invalid hex string.".to_string());
+            }
             let bytes = hex::decode(s).map_err(|e| e.to_string())?;
             Ok(Input::HexBytes(bytes))
         } else {
@@ -46,7 +52,7 @@ impl FromStr for Input {
 #[command(name = "prove", about = "Build and prove a program")]
 pub struct ProveCmd {
     #[clap(value_parser)]
-    input: Input,
+    input: Option<Input>,
 
     #[clap(long, action)]
     output: Option<PathBuf>,
@@ -65,7 +71,7 @@ impl ProveCmd {
         let root_package = metadata.root_package();
         let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-        let build_target = "riscv32im-curta-zkvm-elf";
+        let build_target = "riscv32im-succinct-zkvm-elf";
         let rust_flags = [
             "-C",
             "passes=loweratomic",
@@ -76,7 +82,7 @@ impl ProveCmd {
         ];
 
         Command::new("cargo")
-            .env("RUSTUP_TOOLCHAIN", "curta")
+            .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .env("SUCCINCT_BUILD_IGNORE", "1")
             .args(["build", "--release", "--target", build_target, "--locked"])
@@ -90,7 +96,7 @@ impl ProveCmd {
             .join(root_package_name.unwrap());
         let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
         fs::create_dir_all(&elf_dir)?;
-        fs::copy(&elf_path, elf_dir.join("riscv32im-curta-zkvm-elf"))?;
+        fs::copy(&elf_path, elf_dir.join("riscv32im-succinct-zkvm-elf"))?;
 
         if !self.profile {
             match env::var("RUST_LOG") {
@@ -113,15 +119,17 @@ impl ProveCmd {
             .expect("failed to read from input file");
 
         let mut stdin = CurtaStdin::new();
-        match self.input {
-            Input::FilePath(ref path) => {
-                let mut file = File::open(path).expect("failed to open input file");
-                let mut bytes = Vec::new();
-                file.read_to_end(&mut bytes)?;
-                stdin.write_slice(&bytes);
-            }
-            Input::HexBytes(ref bytes) => {
-                stdin.write_slice(bytes);
+        if let Some(ref input) = self.input {
+            match input {
+                Input::FilePath(ref path) => {
+                    let mut file = File::open(path).expect("failed to open input file");
+                    let mut bytes = Vec::new();
+                    file.read_to_end(&mut bytes)?;
+                    stdin.write_slice(&bytes);
+                }
+                Input::HexBytes(ref bytes) => {
+                    stdin.write_slice(bytes);
+                }
             }
         }
         let proof = CurtaProver::prove(&elf, stdin).unwrap();
