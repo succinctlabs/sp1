@@ -59,7 +59,7 @@ impl BuildToolchainCmd {
         // Build the toolchain (stage 1).
         Command::new("python3")
             .env(
-                "CARGO_TARGET_RISCV32IM_SP1_ZKVM_ELF_RUSTFLAGS",
+                "CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS",
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build"])
@@ -69,7 +69,7 @@ impl BuildToolchainCmd {
         // Build the toolchain (stage 2).
         Command::new("python3")
             .env(
-                "CARGO_TARGET_RISCV32IM_SP1_ZKVM_ELF_RUSTFLAGS",
+                "CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS",
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build", "--stage", "2"])
