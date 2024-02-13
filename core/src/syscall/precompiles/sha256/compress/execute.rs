@@ -10,7 +10,7 @@ use super::ShaCompressChip;
 
 impl Syscall for ShaCompressChip {
     fn num_extra_cycles(&self) -> u32 {
-        8 * 4 + 64 * 4 + 8 * 4
+        8 * 4 + 64 * 4
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
@@ -72,14 +72,14 @@ impl Syscall for ShaCompressChip {
         }
 
         // Execute the "finalize" phase.
-        let v = [a, b, c, d, e, f, g, h];
-        for i in 0..8 {
-            let record = rt.mw(
-                w_ptr.wrapping_add((H_START_IDX + i as u32) * 4),
-                hx[i].wrapping_add(v[i]),
-            );
-            h_write_records.push(record);
-            rt.clk += 4;
+        {
+            let values = [a, b, c, d, e, f, g, h]
+                .iter()
+                .zip(hx.iter())
+                .map(|(x, y)| *x + *y)
+                .collect::<Vec<u32>>();
+            let records = rt.mw_slice(w_ptr.wrapping_add(H_START_IDX.wrapping_mul(4)), &values);
+            h_write_records.extend_from_slice(&records);
         }
 
         // Push the SHA extend event.
