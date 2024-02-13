@@ -36,7 +36,7 @@ use p3_commit::Pcs;
 use p3_matrix::dense::RowMajorMatrix;
 use runtime::{Program, Runtime};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
 use stark::{RiscvStark, StarkGenericConfig};
 use std::fs;
@@ -49,7 +49,7 @@ pub struct CurtaProver;
 pub struct CurtaVerifier;
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CurtaProofWithIO<SC: StarkGenericConfig + Serialize> {
     #[serde(serialize_with = "serialize_proof")]
     pub proof: Proof<SC>,
