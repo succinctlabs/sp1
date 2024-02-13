@@ -21,13 +21,20 @@ enum Input {
     HexBytes(Vec<u8>),
 }
 
+fn is_valid_hex_string(s: &str) -> bool {
+    if s.len() % 2 != 0 {
+        return false;
+    }
+    // All hex digits with optional 0x prefix
+    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit())
+        || s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 impl FromStr for Input {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if PathBuf::from(s).exists() {
-            Ok(Input::FilePath(PathBuf::from(s)))
-        } else if s.len() % 2 == 0 {
+        if is_valid_hex_string(s) {
             // Remove 0x prefix if present
             let s = if s.starts_with("0x") {
                 s.strip_prefix("0x").unwrap()
@@ -42,6 +49,8 @@ impl FromStr for Input {
             }
             let bytes = hex::decode(s).map_err(|e| e.to_string())?;
             Ok(Input::HexBytes(bytes))
+        } else if PathBuf::from(s).exists() {
+            Ok(Input::FilePath(PathBuf::from(s)))
         } else {
             Err("Input must be a valid file path or hex string.".to_string())
         }
@@ -51,7 +60,7 @@ impl FromStr for Input {
 #[derive(Parser)]
 #[command(name = "prove", about = "Build and prove a program")]
 pub struct ProveCmd {
-    #[clap(value_parser)]
+    #[clap(long, value_parser)]
     input: Option<Input>,
 
     #[clap(long, action)]
