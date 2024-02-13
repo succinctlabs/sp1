@@ -1,5 +1,5 @@
 use crate::air::MachineAir;
-use crate::air::{AirInteraction, CurtaAirBuilder, Word};
+use crate::air::{AirInteraction, SP1AirBuilder, Word};
 use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -7,12 +7,12 @@ use p3_matrix::dense::RowMajorMatrix;
 use crate::runtime::ExecutionRecord;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use curta_derive::AlignedBorrow;
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
+use sp1_derive::AlignedBorrow;
 
 #[derive(PartialEq)]
 pub enum MemoryChipKind {
@@ -121,7 +121,7 @@ const fn make_col_map() -> MemoryInitCols<usize> {
 
 impl<AB> Air<AB> for MemoryGlobalChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

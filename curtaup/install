@@ -4,16 +4,16 @@
 
 set -e
 
-echo Installing curtaup...
+echo Installing sp1up...
 
 BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
-CURTA_DIR=${CURTA_DIR-"$BASE_DIR/.curta"}
+CURTA_DIR=${CURTA_DIR-"$BASE_DIR/.sp1"}
 CURTA_BIN_DIR="$CURTA_DIR/bin"
 
-BIN_URL="https://curta.succinct.xyz/curtaup"
-BIN_PATH="$CURTA_BIN_DIR/curtaup"
+BIN_URL="https://sp1.succinct.xyz/sp1up"
+BIN_PATH="$CURTA_BIN_DIR/sp1up"
 
-# Create the .curta bin directory and curtaup binary if it doesn't exist.
+# Create the .sp1 bin directory and sp1up binary if it doesn't exist.
 mkdir -p $CURTA_BIN_DIR
 curl -# -L $BIN_URL -o $BIN_PATH
 chmod +x $BIN_PATH
@@ -37,13 +37,13 @@ case $SHELL in
     PREF_SHELL=ash
     ;;
 *)
-    echo "curtaup: could not detect shell, manually add ${CURTA_BIN_DIR} to your PATH."
+    echo "sp1up: could not detect shell, manually add ${CURTA_BIN_DIR} to your PATH."
     exit 1
 esac
 
-# Only add curtaup if it isn't already in PATH.
+# Only add sp1up if it isn't already in PATH.
 if [[ ":$PATH:" != *":${CURTA_BIN_DIR}:"* ]]; then
-    # Add the curtaup directory to the path and ensure the old PATH variables remain.
+    # Add the sp1up directory to the path and ensure the old PATH variables remain.
     echo >> $PROFILE && echo "export PATH=\"\$PATH:$CURTA_BIN_DIR\"" >> $PROFILE
 fi
 
@@ -57,5 +57,5 @@ if [[ "$OSTYPE" =~ ^darwin ]] && [[ ! -f /usr/local/opt/openssl/lib/libssl.3.dyl
     echo && echo "warning: libusb not found. You may need to install it manually on MacOS via Homebrew (brew install openssl)."
 fi
 
-echo && echo "Detected your preferred shell is ${PREF_SHELL} and added curtaup to PATH. Run 'source ${PROFILE}' or start a new terminal session to use curtaup."
-echo "Then, simply run 'curtaup' to install Curta."
+echo && echo "Detected your preferred shell is ${PREF_SHELL} and added sp1up to PATH. Run 'source ${PROFILE}' or start a new terminal session to use sp1up."
+echo "Then, simply run 'sp1up' to install SP1."

@@ -12,7 +12,7 @@ const SCRIPT_RUST_TOOLCHAIN: &str = include_str!("../assets/script/rust-toolchai
 #[derive(Parser)]
 #[command(
     name = "new",
-    about = "Setup a new project that runs inside the Curta zkVM."
+    about = "Setup a new project that runs inside the SP1 zkVM."
 )]
 pub struct NewCmd {
     name: String,

@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::ShaCompressChip;
-use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
@@ -19,7 +19,7 @@ impl<F> BaseAir<F> for ShaCompressChip {
 
 impl<AB> Air<AB> for ShaCompressChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -37,7 +37,7 @@ where
 }
 
 impl ShaCompressChip {
-    fn contrain_control_flow_flags<AB: CurtaAirBuilder>(
+    fn contrain_control_flow_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -119,7 +119,7 @@ impl ShaCompressChip {
         );
     }
 
-    fn constrain_memory<AB: CurtaAirBuilder>(
+    fn constrain_memory<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -184,7 +184,7 @@ impl ShaCompressChip {
         }
     }
 
-    fn constrain_compression_ops<AB: CurtaAirBuilder>(
+    fn constrain_compression_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -345,7 +345,7 @@ impl ShaCompressChip {
         );
     }
 
-    fn constrain_finalize_ops<AB: CurtaAirBuilder>(
+    fn constrain_finalize_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,

@@ -493,104 +493,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cargo_metadata",
- "clap",
- "curta-core",
- "dirs",
- "downloader",
- "flate2",
- "futures-util",
- "hex",
- "indicatif",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "tar",
- "tokio",
- "vergen",
- "yansi",
-]
-
-[[package]]
-name = "curta-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "clap",
- "criterion",
- "curta-derive",
- "curve25519-dalek",
- "elf",
- "elliptic-curve",
- "flate2",
- "hex",
- "itertools 0.12.1",
- "k256",
- "lazy_static",
- "log",
- "nohash-hasher",
- "num",
- "p3-air",
- "p3-baby-bear",
- "p3-blake3",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-keccak",
- "p3-keccak-air",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-mds",
- "p3-merkle-tree",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "rand",
- "rrs-lib",
- "serde",
- "serde_json",
- "serial_test",
- "size",
- "tempfile",
- "tracing",
- "tracing-forest",
- "tracing-log",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "curta-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "curta-zkvm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -718,7 +620,7 @@ dependencies = [
 name = "ed25519-example"
 version = "0.1.0"
 dependencies = [
- "curta-core",
+ "sp1-core",
 ]
 
 [[package]]
@@ -811,7 +713,7 @@ checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 name = "fibonacci-io-example"
 version = "0.1.0"
 dependencies = [
- "curta-core",
+ "sp1-core",
 ]
 
 [[package]]
@@ -2107,7 +2009,7 @@ dependencies = [
 name = "regex-example"
 version = "0.1.0"
 dependencies = [
- "curta-core",
+ "sp1-core",
 ]
 
 [[package]]
@@ -2492,6 +2394,104 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cargo_metadata",
+ "clap",
+ "dirs",
+ "downloader",
+ "flate2",
+ "futures-util",
+ "hex",
+ "indicatif",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sp1-core",
+ "tar",
+ "tokio",
+ "vergen",
+ "yansi",
+]
+
+[[package]]
+name = "sp1-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap",
+ "criterion",
+ "curve25519-dalek",
+ "elf",
+ "elliptic-curve",
+ "flate2",
+ "hex",
+ "itertools 0.12.1",
+ "k256",
+ "lazy_static",
+ "log",
+ "nohash-hasher",
+ "num",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-blake3",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-keccak",
+ "p3-keccak-air",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-mds",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "p3-util",
+ "rand",
+ "rrs-lib",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "size",
+ "sp1-derive",
+ "tempfile",
+ "tracing",
+ "tracing-forest",
+ "tracing-log",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "sp1-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "sp1-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2511,7 +2511,7 @@ dependencies = [
 name = "ssz"
 version = "0.1.0"
 dependencies = [
- "curta-core",
+ "sp1-core",
 ]
 
 [[package]]
@@ -2608,7 +2608,7 @@ dependencies = [
 name = "tendermint-example"
 version = "0.1.0"
 dependencies = [
- "curta-core",
+ "sp1-core",
 ]
 
 [[package]]

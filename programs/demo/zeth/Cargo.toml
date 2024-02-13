@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-curta-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 zeth-lib = { git = "ssh://git@github.com/succinctlabs/zeth-private.git", branch = "chris/zeth-lib", default-features = false }

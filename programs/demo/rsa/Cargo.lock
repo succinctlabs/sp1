@@ -131,7 +131,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta-zkvm"
+name = "sp1-zkvm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -507,7 +507,7 @@ dependencies = [
 name = "rsa-zkvm"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
+ "sp1-zkvm",
  "digest 0.10.7",
  "rand",
  "rsa",

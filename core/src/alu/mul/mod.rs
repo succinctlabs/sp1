@@ -27,16 +27,16 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
 use crate::air::MachineAir;
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{SP1AirBuilder, Word};
 use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
@@ -244,7 +244,7 @@ impl<F> BaseAir<F> for MulChip {
 
 impl<AB> Air<AB> for MulChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

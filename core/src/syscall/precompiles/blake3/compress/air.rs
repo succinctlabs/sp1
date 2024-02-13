@@ -7,7 +7,7 @@ use super::{
     Blake3CompressInnerChip, G_INDEX, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
 };
-use crate::air::{CurtaAirBuilder, WORD_SIZE};
+use crate::air::{SP1AirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -20,7 +20,7 @@ impl<F> BaseAir<F> for Blake3CompressInnerChip {
 
 impl<AB> Air<AB> for Blake3CompressInnerChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -38,7 +38,7 @@ where
 impl Blake3CompressInnerChip {
     /// Constrains the given index is correct for the given selector. The `selector` is an
     /// `n`-dimensional boolean array whose `i`-th element is true if and only if the index is `i`.
-    fn constrain_index_selector<AB: CurtaAirBuilder>(
+    fn constrain_index_selector<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         selector: &[AB::Var],
@@ -61,7 +61,7 @@ impl Blake3CompressInnerChip {
     }
 
     /// Constrains the control flow flags such as the operation index and the round index.
-    fn constrain_control_flow_flags<AB: CurtaAirBuilder>(
+    fn constrain_control_flow_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
@@ -96,7 +96,7 @@ impl Blake3CompressInnerChip {
     }
 
     /// Constrain the memory access for the state and the message.
-    fn constrain_memory<AB: CurtaAirBuilder>(
+    fn constrain_memory<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
@@ -170,7 +170,7 @@ impl Blake3CompressInnerChip {
     }
 
     /// Constrains the input and the output of the `g` operation.
-    fn constraint_g_operation<AB: CurtaAirBuilder>(
+    fn constraint_g_operation<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,

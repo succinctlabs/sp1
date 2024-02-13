@@ -1,27 +1,27 @@
 # Installation
 
-Curta currently runs on Linux and macOS. You can either use prebuilt binaries through Curtaup or
+SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through SP1up or
 build the toolchain and CLI from source.
 
 Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
-Curtaup is the Curta zkVM toolchain installer. Open your terminal and run the following command and follow the instructions:
+SP1up is the SP1 zkVM toolchain installer. Open your terminal and run the following command and follow the instructions:
 
 ```bash
-curl -L https://curta.succinct.xyz | bash
+curl -L https://sp1.succinct.xyz | bash
 ```
 
-This will install Curtaup, then simply follow the instructions on-screen, which will make the `curtaup` command available in your CLI.
+This will install SP1up, then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
 
-After following the instructions, you can run `curtaup` to install the toolchain:
+After following the instructions, you can run `sp1up` to install the toolchain:
 
 ```bash
-curtaup
+sp1up
 ```
 
-This will install support for the `riscv32im-curta-zkvm-elf` compilation target within your Rust compiler
+This will install support for the `riscv32im-sp1-zkvm-elf` compilation target within your Rust compiler
 and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness. 
 
 You can verify the installation by running `cargo prove --version`:
@@ -36,10 +36,10 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 
-Clone the `curta` repository and navigate to the root directory. 
+Clone the `sp1` repository and navigate to the root directory. 
 
 ```bash
-git clone git@github.com:succinctlabs/curta.git
+git clone git@github.com:succinctlabs/sp1.git
 cd vm
 cd cli
 cargo install --locked --path .

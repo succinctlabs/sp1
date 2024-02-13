@@ -1,9 +1,9 @@
 #![no_main]
-curta_zkvm::entrypoint!(main);
+sp1_zkvm::entrypoint!(main);
 
 use std::hint::black_box;
 
-#[curta_derive::cycle_tracker]
+#[sp1_derive::cycle_tracker]
 pub fn f(x: usize) -> usize {
     x + 1
 }

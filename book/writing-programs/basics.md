@@ -1,7 +1,7 @@
 # Writing Programs: Basics 
 
 A zero-knowledge proof generally proves that some function `f` when applied to some input `x` produces some output `y` (i.e. `f(x) = y`).
-In the context of the Curta zkVM:
+In the context of the SP1 zkVM:
 
 - `f` is written in normal rust code.
 - `x` are bytes that can be serialized / deserialized into objects
@@ -11,7 +11,7 @@ To make this more concrete, let's walk through a simple example of writing a Fib
 
 ## Fibonacci
 
-This program is from the `programs` directory in the Curta zkVM repo which contains several program examples of varying complexity.
+This program is from the `programs` directory in the SP1 zkVM repo which contains several program examples of varying complexity.
 
 ```rust,noplayground
 {{#include ../../programs/demo/fibonacci-io/src/main.rs}}

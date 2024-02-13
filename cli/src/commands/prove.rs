@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
-use curta_core::{
+use sp1_core::{
     utils::{self},
-    CurtaProver, CurtaStdin,
+    SP1Prover, SP1Stdin,
 };
 use std::{
     env,
@@ -80,7 +80,7 @@ impl ProveCmd {
         let root_package = metadata.root_package();
         let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-        let build_target = "riscv32im-curta-zkvm-elf";
+        let build_target = "riscv32im-sp1-zkvm-elf";
         let rust_flags = [
             "-C",
             "passes=loweratomic",
@@ -91,7 +91,7 @@ impl ProveCmd {
         ];
 
         Command::new("cargo")
-            .env("RUSTUP_TOOLCHAIN", "curta")
+            .env("RUSTUP_TOOLCHAIN", "sp1")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .env("SUCCINCT_BUILD_IGNORE", "1")
             .args(["build", "--release", "--target", build_target, "--locked"])
@@ -105,7 +105,7 @@ impl ProveCmd {
             .join(root_package_name.unwrap());
         let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
         fs::create_dir_all(&elf_dir)?;
-        fs::copy(&elf_path, elf_dir.join("riscv32im-curta-zkvm-elf"))?;
+        fs::copy(&elf_path, elf_dir.join("riscv32im-sp1-zkvm-elf"))?;
 
         if !self.profile {
             match env::var("RUST_LOG") {
@@ -127,7 +127,7 @@ impl ProveCmd {
             .read_to_end(&mut elf)
             .expect("failed to read from input file");
 
-        let mut stdin = CurtaStdin::new();
+        let mut stdin = SP1Stdin::new();
         if let Some(ref input) = self.input {
             match input {
                 Input::FilePath(ref path) => {
@@ -141,7 +141,7 @@ impl ProveCmd {
                 }
             }
         }
-        let proof = CurtaProver::prove(&elf, stdin).unwrap();
+        let proof = SP1Prover::prove(&elf, stdin).unwrap();
 
         if let Some(ref path) = self.output {
             proof

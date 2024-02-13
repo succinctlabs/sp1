@@ -6,10 +6,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::collections::HashMap;
 
-use curta_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::ExecutionRecord;
@@ -102,7 +102,7 @@ impl<F> BaseAir<F> for ProgramChip {
 
 impl<AB> Air<AB> for ProgramChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

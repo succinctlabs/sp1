@@ -5,7 +5,7 @@
 set -eo pipefail
 
 BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
-CURTA_DIR=${CURTA_DIR:-"$BASE_DIR/.curta"}
+CURTA_DIR=${CURTA_DIR:-"$BASE_DIR/.sp1"}
 CURTA_BIN_DIR="$CURTA_DIR/bin"
 mkdir -p $CURTA_BIN_DIR
 
@@ -51,7 +51,7 @@ main() {
     fi
   fi
 
-  # Installs curta from a local repository if --path parameter is provided
+  # Installs sp1 from a local repository if --path parameter is provided
   if [[ -n "$CURTAUP_LOCAL_REPO" ]]; then
     need_cmd cargo
 
@@ -76,10 +76,10 @@ main() {
     exit 0
   fi
 
-  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/curta}
+  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/sp1}
 
   # Install by downloading binaries
-  if [[ "$CURTAUP_REPO" == "succinctlabs/curta" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
+  if [[ "$CURTAUP_REPO" == "succinctlabs/sp1" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
     CURTAUP_VERSION=${CURTAUP_VERSION:-nightly}
     CURTAUP_TAG=$CURTAUP_VERSION
 
@@ -92,7 +92,7 @@ main() {
       CURTAUP_TAG="${CURTAUP_VERSION}"
     fi
 
-    say "installing curta (version ${CURTAUP_VERSION}, tag ${CURTAUP_TAG})"
+    say "installing sp1 (version ${CURTAUP_VERSION}, tag ${CURTAUP_TAG})"
 
     uname_s=$(uname -s)
     PLATFORM=$(tolower "${CURTAUP_PLATFORM:-$uname_s}")
@@ -126,7 +126,7 @@ main() {
       ARCHITECTURE="amd64" # Amd.
     fi
 
-    # Compute the URL of the release tarball in the curta repository.
+    # Compute the URL of the release tarball in the sp1 repository.
     RELEASE_URL="https://github.com/${CURTAUP_REPO}/releases/download/${CURTAUP_TAG}/"
     RELEASE_URL="https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${CURTAUP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
@@ -195,7 +195,7 @@ EOF
       ensure git checkout "$CURTAUP_COMMIT"
     fi
 
-    # Build the repo and install the binaries locally to the .curta bin directory.
+    # Build the repo and install the binaries locally to the .sp1 bin directory.
     ensure cargo build --bins --release
     for bin in "${BINS[@]}"; do
       for try_path in target/release/$bin target/release/$bin.exe; do
@@ -212,12 +212,12 @@ EOF
 
 usage() {
   cat 1>&2 <<EOF
-The installer for the Curta zkVM.
+The installer for the SP1 zkVM.
 
-Update or revert to a specific curta version with ease.
+Update or revert to a specific sp1 version with ease.
 
 USAGE:
-    curtaup <OPTIONS>
+    sp1up <OPTIONS>
 
 OPTIONS:
     -h, --help      Print help information
@@ -233,7 +233,7 @@ EOF
 }
 
 say() {
-  printf "curtaup: %s\n" "$1"
+  printf "sp1up: %s\n" "$1"
 }
 
 warn() {
@@ -284,7 +284,7 @@ download() {
   fi
 }
 
-# Banner Function for curta 
+# Banner Function for sp1 
 banner() {
   printf "
 .______  ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______
@@ -297,9 +297,9 @@ banner() {
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 
-Repo       : https://github.com/succinctlabs/curta
-Book       : https://succinctlabs.github.io/curta
-Telegram   : https://t.me/succinct_curta
+Repo       : https://github.com/succinctlabs/sp1
+Book       : https://succinctlabs.github.io/sp1
+Telegram   : https://t.me/succinct_sp1
 
 ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 

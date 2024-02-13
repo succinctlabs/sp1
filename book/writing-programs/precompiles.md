@@ -1,13 +1,13 @@
 # Precompiles
 
-Precompiles are built into the Curta zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing. 
+Precompiles are built into the SP1 zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing. 
 Under the hood, precompiles are implemented as custom tables dedicated to proving one or few operations. **They typically improve the performance
 of executing expensive operations by a few order of magnitudes.**
 
 Inside the zkVM, precompiles are exposed as system calls executed through the `ecall` RISC-V instruction.
 Each precompile has a unique system call number and implements an interface for the computation.
 
-Curta zkVM also has been designed specifically to make it easy for external contributors to create and extend the zkVM with their own precompiles.
+SP1 zkVM also has been designed specifically to make it easy for external contributors to create and extend the zkVM with their own precompiles.
 To learn more about this, go to [Custom Precompiles]().
 
 ## Supported Precompiles

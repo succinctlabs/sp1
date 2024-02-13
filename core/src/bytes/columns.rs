@@ -1,6 +1,6 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use curta_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
 use super::NUM_BYTE_OPS;

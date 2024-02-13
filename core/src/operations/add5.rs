@@ -1,11 +1,11 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use curta_derive::AlignedBorrow;
 use p3_air::AirBuilder;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
 use p3_field::AbstractField;
@@ -75,7 +75,7 @@ impl<F: Field> Add5Operation<F> {
         expected
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         words: &[Word<AB::Var>; 5],
         is_real: AB::Var,
