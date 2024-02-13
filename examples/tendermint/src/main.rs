@@ -1,7 +1,7 @@
 use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 const ED25519_ELF: &[u8] =
-    include_bytes!("../../../programs/demo/tendermint/elf/riscv32im-curta-zkvm-elf");
+    include_bytes!("../../../programs/demo/tendermint/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // Generate proof.
