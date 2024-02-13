@@ -17,8 +17,7 @@ impl Syscall for ShaCompressChip {
         // Read `w_ptr` from register a0.
         let w_ptr = rt.register_unsafe(Register::X10);
 
-        // Set the clock back to the original value and begin executing the
-        // precompile.
+        // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
         let saved_w_ptr = w_ptr;
         let mut h_read_records = Vec::new();
