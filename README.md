@@ -4,8 +4,6 @@
 
 A performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs.
 
-![](assets/sp1.svg)
-
 SP1 is inspired by the open-source software movement and takes a collaborative approach towards building the best zkVM for rollups, coprocessors and other ZKP applications. We envision a diversity of contributors integrating the latest ZK innovations, creating a zkVM that is _performant_, _customizable_ and will stand the _test of time_.
 
 **[Install](https://succinctlabs.github.io/sp1/getting-started/install.html)**
