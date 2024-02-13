@@ -279,18 +279,6 @@ impl ShaCompressChip {
 
         builder
             .when(is_finalize)
-            .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
-
-        AddOperation::<AB::F>::eval(
-            builder,
-            local.mem.prev_value,
-            local.finalized_operand,
-            local.finalize_add,
-            is_finalize,
-        );
-
-        builder
-            .when(is_finalize)
             .assert_word_eq(*local.mem.value(), local.finalize_add.value);
     }
 }

@@ -65,6 +65,22 @@ impl<F: Field> AddOperation<F> {
         cols: AddOperation<AB::Var>,
         is_real: AB::Var,
     ) {
+        Self::eval_expr(
+            builder,
+            a.map(|x| x.into()),
+            b.map(|x| x.into()),
+            cols,
+            is_real,
+        );
+    }
+
+    pub fn eval_expr<AB: CurtaAirBuilder>(
+        builder: &mut AB,
+        a: Word<AB::Expr>,
+        b: Word<AB::Expr>,
+        cols: AddOperation<AB::Var>,
+        is_real: AB::Var,
+    ) {
         let one = AB::Expr::one();
         let base = AB::F::from_canonical_u32(256);
 
@@ -72,10 +88,10 @@ impl<F: Field> AddOperation<F> {
 
         // For each limb, assert that difference between the carried result and the non-carried
         // result is either zero or the base.
-        let overflow_0 = a[0] + b[0] - cols.value[0];
-        let overflow_1 = a[1] + b[1] - cols.value[1] + cols.carry[0];
-        let overflow_2 = a[2] + b[2] - cols.value[2] + cols.carry[1];
-        let overflow_3 = a[3] + b[3] - cols.value[3] + cols.carry[2];
+        let overflow_0 = a[0].clone() + b[0].clone() - cols.value[0];
+        let overflow_1 = a[1].clone() + b[1].clone() - cols.value[1] + cols.carry[0];
+        let overflow_2 = a[2].clone() + b[2].clone() - cols.value[2] + cols.carry[1];
+        let overflow_3 = a[3].clone() + b[3].clone() - cols.value[3] + cols.carry[2];
         builder_is_real.assert_zero(overflow_0.clone() * (overflow_0.clone() - base));
         builder_is_real.assert_zero(overflow_1.clone() * (overflow_1.clone() - base));
         builder_is_real.assert_zero(overflow_2.clone() * (overflow_2.clone() - base));
@@ -105,6 +121,6 @@ impl<F: Field> AddOperation<F> {
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
+        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
 }

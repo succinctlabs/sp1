@@ -70,11 +70,6 @@ pub struct ShaCompressCols<T> {
     /// The next value of `a` is `temp1 + temp2`.
     pub temp1_add_temp2: AddOperation<T>,
 
-    // This is a materialized column that will have value of a || b || c ... || h depending on
-    // the row of the finalized phase.  This column will need to be verified.
-    // Note this is needed since the AddOperation gadget can only accept AB::Var types as inputs.
-    // TODO: Modify AddOperation to accept AB::Expr types as inputs.
-    pub finalized_operand: Word<T>,
     pub finalize_add: AddOperation<T>,
 
     pub is_compression: T,

@@ -185,7 +185,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
     }
 
     /// Check that each limb of the given slice is a u8.
-    fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    fn slice_range_check_u8<EWord: Into<Self::Expr> + Clone, EMult: Into<Self::Expr> + Clone>(
         &mut self,
         input: &[EWord],
         mult: EMult,
@@ -195,8 +195,8 @@ pub trait WordAirBuilder: ByteAirBuilder {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                input[index],
-                input[index + 1],
+                input[index].clone(),
+                input[index + 1].clone(),
                 mult.clone(),
             );
             index += 2;
@@ -205,7 +205,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                input[index],
+                input[index].clone(),
                 Self::Expr::zero(),
                 mult.clone(),
             );

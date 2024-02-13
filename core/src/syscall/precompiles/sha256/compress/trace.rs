@@ -190,18 +190,6 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 cols.g = Word::from(v[6]);
                 cols.h = Word::from(v[7]);
 
-                match j {
-                    0 => cols.finalized_operand = cols.a,
-                    1 => cols.finalized_operand = cols.b,
-                    2 => cols.finalized_operand = cols.c,
-                    3 => cols.finalized_operand = cols.d,
-                    4 => cols.finalized_operand = cols.e,
-                    5 => cols.finalized_operand = cols.f,
-                    6 => cols.finalized_operand = cols.g,
-                    7 => cols.finalized_operand = cols.h,
-                    _ => panic!("unsupported j"),
-                };
-
                 cols.is_real = F::one();
 
                 rows.push(row);
