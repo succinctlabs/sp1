@@ -44,6 +44,8 @@ pub struct ShaExtendCols<T> {
     /// Computing `s2`.
     pub w_i_minus_16: MemoryReadCols<T>,
     pub w_i_minus_7: MemoryReadCols<T>,
+
+    /// `w[i] := w[i-16] + s0 + w[i-7] + s1`.
     pub s2: Add4Operation<T>,
 
     /// Result.
