@@ -7,12 +7,12 @@ use p3_matrix::dense::RowMajorMatrix;
 use crate::runtime::ExecutionRecord;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
+use curta_derive::AlignedBorrow;
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
-use valida_derive::AlignedBorrow;
 
 #[derive(PartialEq)]
 pub enum MemoryChipKind {

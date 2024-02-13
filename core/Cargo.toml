@@ -9,10 +9,9 @@ serde = { version = "1.0", features = ["derive"] }
 p3-field = { workspace = true }
 p3-air = { workspace = true }
 p3-matrix = { workspace = true }
-valida-derive = { workspace = true }
 p3-baby-bear = { workspace = true }
 elf = "0.7.4"
-
+curta-derive = { path = "../derive" }
 p3-commit = { workspace = true }
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
