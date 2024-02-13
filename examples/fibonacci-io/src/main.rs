@@ -2,7 +2,7 @@ use curta_core::{utils, CurtaProver, CurtaStdin, CurtaVerifier};
 
 /// The ELF we want to execute inside the zkVM.
 const FIBONACCI_IO_ELF: &[u8] =
-    include_bytes!("../../../programs/demo/fibonacci-io/elf/riscv32im-curta-zkvm-elf");
+    include_bytes!("../../../programs/demo/rsa/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
     // Setup a tracer for logging.
