@@ -99,20 +99,20 @@ impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardCommitment<C> {
     pub main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AirOpenedValues<T> {
     pub local: Vec<T>,
     pub next: Vec<T>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChipOpenedValues<T: Serialize> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
@@ -122,13 +122,13 @@ pub struct ChipOpenedValues<T: Serialize> {
     pub log_degree: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
 #[cfg(feature = "perf")]
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
     pub commitment: ShardCommitment<Com<SC>>,
@@ -188,7 +188,7 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
 }
