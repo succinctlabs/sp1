@@ -73,7 +73,7 @@ impl ShaCompressChip {
         }
 
         //// Constrain octet_num columns
-        // Verify taht all of the octet_num columns are bool.
+        // Verify that all of the octet_num columns are bool.
         for i in 0..10 {
             builder.assert_bool(local.octet_num[i]);
         }
@@ -219,7 +219,6 @@ impl ShaCompressChip {
         // TODO: We need to constrain temp1.
 
         // Calculate maj := (a and b) xor (a and c) xor (b and c).
-
         let maj = {
             MajOperation::<AB::F>::eval(
                 builder,
@@ -232,8 +231,13 @@ impl ShaCompressChip {
             local.maj.maj.value
         };
 
-        AddOperation::<AB::F>::eval(builder, s0, maj, local.temp2, local.is_compression);
+        // Calculate temp2 := S0 + maj.
+        let temp2 = {
+            AddOperation::<AB::F>::eval(builder, s0, maj, local.temp2, local.is_compression);
+            local.temp2.value
+        };
 
+        // Calculate d + temp1 for the new value of e.
         AddOperation::<AB::F>::eval(
             builder,
             local.d,
@@ -242,10 +246,11 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        // Calculate temp1 + temp2 for the new value of a.
         AddOperation::<AB::F>::eval(
             builder,
             local.temp1.value,
-            local.temp2.value,
+            temp2,
             local.temp1_add_temp2,
             local.is_compression,
         );
@@ -259,8 +264,8 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h, for each of the
         // phase's 8 rows.
-        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and [a,b,c,...,h]
-        // which will act as a selector.
+        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and
+        // [a,b,c,...,h] which will act as a selector.
         let add_operands = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];
