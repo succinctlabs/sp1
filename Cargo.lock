@@ -718,6 +718,7 @@ name = "ed25519-example"
 version = "0.1.0"
 dependencies = [
  "curta-core",
+ "serde_json",
 ]
 
 [[package]]
