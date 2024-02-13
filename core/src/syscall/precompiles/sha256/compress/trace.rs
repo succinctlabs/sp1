@@ -136,7 +136,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
                 let temp1 = cols
                     .temp1
-                    .populate(h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                    .populate(record, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
 
                 let a_rr_2 = cols.a_rr_2.populate(output, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(output, a, 13);
