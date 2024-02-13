@@ -5,7 +5,6 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use p3_maybe_rayon::prelude::*;
 
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
@@ -50,7 +49,7 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = input
@@ -83,6 +82,13 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
                 cols.is_real = F::one();
+
+                // Range check
+                {
+                    output.add_u8_range_checks(&a);
+                    output.add_u8_range_checks(&b);
+                    output.add_u8_range_checks(&c);
+                }
                 row
             })
             .collect::<Vec<_>>();
@@ -142,6 +148,13 @@ where
         builder.assert_bool(local.carry[0]);
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
+
+        // Range check.
+        {
+            builder.slice_range_check_u8(&local.a.0, local.is_real);
+            builder.slice_range_check_u8(&local.b.0, local.is_real);
+            builder.slice_range_check_u8(&local.c.0, local.is_real);
+        }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
