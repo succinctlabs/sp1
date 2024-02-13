@@ -7,8 +7,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
+use curta_derive::AlignedBorrow;
 use tracing::instrument;
-use valida_derive::AlignedBorrow;
 
 use crate::air::{CurtaAirBuilder, Word};
 use crate::air::{ExecutionAir, MachineAir};

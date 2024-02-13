@@ -13,9 +13,9 @@ pub use memory::*;
 pub use opcode::*;
 
 use core::borrow::{Borrow, BorrowMut};
+use curta_derive::AlignedBorrow;
 use p3_util::indices_arr;
 use std::mem::{size_of, transmute};
-use valida_derive::AlignedBorrow;
 
 use crate::{
     air::Word,

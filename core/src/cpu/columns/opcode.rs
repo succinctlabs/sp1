@@ -1,8 +1,8 @@
 use core::borrow::{Borrow, BorrowMut};
+use curta_derive::AlignedBorrow;
 use p3_field::PrimeField;
 use std::mem::size_of;
 use std::vec::IntoIter;
-use valida_derive::AlignedBorrow;
 
 use crate::runtime::{Instruction, Opcode};
 

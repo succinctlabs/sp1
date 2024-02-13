@@ -37,9 +37,9 @@ use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::marker::PhantomData;
 
+use curta_derive::AlignedBorrow;
 use p3_matrix::dense::RowMajorMatrix;
 use std::fmt::Debug;
-use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EdDecompressEvent {

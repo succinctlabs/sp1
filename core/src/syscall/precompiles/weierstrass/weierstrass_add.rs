@@ -21,6 +21,7 @@ use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use curta_derive::AlignedBorrow;
 use num::BigUint;
 use num::Zero;
 use p3_air::AirBuilder;
@@ -31,7 +32,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use valida_derive::AlignedBorrow;
 
 pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
 
