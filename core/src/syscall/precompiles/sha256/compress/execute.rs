@@ -22,7 +22,6 @@ impl Syscall for ShaCompressChip {
         let saved_w_ptr = w_ptr;
         let mut h_read_records = Vec::new();
         let mut w_i_read_records = Vec::new();
-        let mut h_write_records = Vec::new();
 
         // Execute the "initialize" phase.
         const H_START_IDX: u32 = 64;
@@ -72,15 +71,14 @@ impl Syscall for ShaCompressChip {
         }
 
         // Execute the "finalize" phase.
-        {
+        let h_write_records = {
             let values = [a, b, c, d, e, f, g, h]
                 .iter()
                 .zip(hx.iter())
                 .map(|(x, y)| *x + *y)
                 .collect::<Vec<u32>>();
-            let records = rt.mw_slice(w_ptr.wrapping_add(H_START_IDX.wrapping_mul(4)), &values);
-            h_write_records.extend_from_slice(&records);
-        }
+            rt.mw_slice(w_ptr.wrapping_add(H_START_IDX.wrapping_mul(4)), &values)
+        };
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
