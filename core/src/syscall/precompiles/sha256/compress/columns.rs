@@ -23,13 +23,14 @@ pub struct ShaCompressCols<T> {
     pub clk: T,
     pub w_and_h_ptr: T,
 
-    /// The bits for cycle 8.
+    /// The bits for cycle 8. `octet_num[9]` tells whether it is the finalize phase, and
+    /// `octet_num[0]` tells whether it is the initialize phase.
     pub octet: [T; 8],
 
-    // This will specify which octet we are currently processing.
-    // The first octet is for initialize.
-    // The next 8 octets are for compress.
-    // The last octet is for finalize.
+    /// This will specify which octet we are currently processing.
+    /// - The first octet is for initialize.
+    /// - The next 8 octets are for compress.
+    /// - The last octet is for finalize.
     pub octet_num: [T; 10],
 
     pub mem: MemoryReadWriteCols<T>,
@@ -81,13 +82,7 @@ pub struct ShaCompressCols<T> {
     pub finalized_operand: Word<T>,
     pub finalize_add: AddOperation<T>,
 
-    // We don't have an explicity column for initialize phase.
-    // Instead, we can use octet_num[0] for that.
-    // pub is_initialize: T,
     pub is_compression: T,
 
-    // We don't have an explicity column for finalize phase.
-    // Instead, we can use octet_num[9] for that.
-    // pub is_finalize: T,
     pub is_real: T,
 }
