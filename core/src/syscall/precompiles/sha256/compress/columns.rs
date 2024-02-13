@@ -46,19 +46,28 @@ pub struct ShaCompressCols<T> {
     pub g: Word<T>,
     pub h: Word<T>,
 
+    /// `S1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25)`.
     pub s1: S1Operation<T>,
 
+    /// `ch := (e and f) xor ((not e) and g)`.
     pub ch: ChOperation<T>,
 
+    /// `temp1 := h + S1 + ch + k[i] + w[i]`.
     pub temp1: Add5Operation<T>,
 
+    /// `S0 := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22)`.
     pub s0: S0Operation<T>,
 
+    /// `maj := (a and b) xor (a and c) xor (b and c)`.
     pub maj: MajOperation<T>,
 
+    /// `temp2 := S0 + maj`.
     pub temp2: AddOperation<T>,
 
+    /// The next value of `e` is `d + temp1`.
     pub d_add_temp1: AddOperation<T>,
+
+    /// The next value of `a` is `temp1 + temp2`.
     pub temp1_add_temp2: AddOperation<T>,
 
     // This is a materialized column that will have value of a || b || c ... || h depending on
