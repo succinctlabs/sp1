@@ -17,14 +17,12 @@ impl Syscall for ShaCompressChip {
         // Read `w_ptr` from register a0.
         let w_ptr = rt.register_unsafe(Register::X10);
 
-        // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
-        let saved_w_ptr = w_ptr;
         let mut w_i_read_records = Vec::new();
 
         // Execute the "initialize" phase.
-        const H_START_IDX: u32 = 64;
-        let h_address = H_START_IDX.wrapping_mul(4).wrapping_add(w_ptr);
+        let h_start_index = 64u32;
+        let h_address = w_ptr.wrapping_add(4 * h_start_index);
         let (h_read_records, hx) = rt.mr_slice(h_address, 8);
         rt.clk += 4;
 
@@ -79,7 +77,7 @@ impl Syscall for ShaCompressChip {
         rt.record_mut().sha_compress_events.push(ShaCompressEvent {
             shard,
             clk: saved_clk,
-            w_and_h_ptr: saved_w_ptr,
+            w_and_h_ptr: w_ptr,
             w: original_w.try_into().unwrap(),
             h: hx.try_into().unwrap(),
             h_read_records: h_read_records.try_into().unwrap(),
