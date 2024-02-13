@@ -2,10 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{
-    lookup::Interaction,
-    runtime::{ExecutionRecord, Host, Program},
-};
+use crate::runtime::{ExecutionRecord, Host, Program};
 
 /// An AIR that is part of a Risc-V AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
@@ -33,11 +30,4 @@ pub trait ExecutionAir<F: Field, H: Host>: MachineAir<F> {
     fn shard(&self, input: &H::Record, outputs: &mut Vec<H::Record>);
 
     fn include(&self, record: &ExecutionRecord) -> bool;
-}
-
-/// Runtime Air for RISC-V arithmetization.
-pub struct RtAir<F: Field, A> {
-    air: A,
-    sends: Interaction<F>,
-    receives: Interaction<F>,
 }

@@ -36,7 +36,7 @@ impl<F: Field, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for ByteChi
         !record.byte_lookups.is_empty()
     }
 
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, _host: &mut H) -> RowMajorMatrix<F> {
         let (mut trace, event_map) = ByteChip::trace_and_map::<F>();
 
         for (lookup, mult) in record.byte_lookups.iter() {

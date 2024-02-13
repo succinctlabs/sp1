@@ -1,11 +1,11 @@
-use super::fp_op::FpOpCols;
+use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::CurtaAirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
@@ -13,15 +13,15 @@ use valida_derive::AlignedBorrow;
 /// limb lives.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpSqrtCols<T> {
+pub struct FieldSqrtCols<T> {
     /// The multiplication operation to verify that the sqrt and the input match.
     ///
     /// In order to save space, we actually store the sqrt of the input in `multiplication.result`
     /// since we'll receive the input again in the `eval` function.
-    pub multiplication: FpOpCols<T>,
+    pub multiplication: FieldOpCols<T>,
 }
 
-impl<F: Field> FpSqrtCols<F> {
+impl<F: PrimeField32> FieldSqrtCols<F> {
     /// Populates the trace.
     ///
     /// `P` is the parameter of the field that each limb lives in.
@@ -32,24 +32,23 @@ impl<F: Field> FpSqrtCols<F> {
     ) -> BigUint {
         let sqrt = sqrt_fn(a);
 
-        // Use FpOpCols to compute result * result.
+        // Use FieldOpCols to compute result * result.
         let sqrt_squared =
             self.multiplication
-                .populate::<P>(&sqrt, &sqrt, super::fp_op::FpOperation::Mul);
+                .populate::<P>(&sqrt, &sqrt, super::field_op::FieldOperation::Mul);
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
 
-        // This is a hack to save a column in FpSqrtCols. We will receive the value a again in the
+        // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
-        // self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
         self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
 
         sqrt
     }
 }
 
-impl<V: Copy> FpSqrtCols<V> {
+impl<V: Copy> FieldSqrtCols<V> {
     /// Calculates the square root of `a`.
     pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
         &self,
@@ -70,7 +69,7 @@ impl<V: Copy> FpSqrtCols<V> {
             builder,
             &sqrt,
             &sqrt,
-            super::fp_op::FpOperation::Mul,
+            super::field_op::FieldOperation::Mul,
         );
     }
 }
@@ -79,11 +78,13 @@ impl<V: Copy> FpSqrtCols<V> {
 mod tests {
     use num::{BigUint, One, Zero};
     use p3_air::BaseAir;
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
 
-    use super::{FpSqrtCols, Limbs};
-    use crate::air::{ExecutionAir, MachineAir};
-    use crate::runtime::{EmptyHost, Host};
+    use super::{FieldSqrtCols, Limbs};
+    use crate::air::ExecutionAir;
+    use crate::air::MachineAir;
+    use crate::runtime::EmptyHost;
+    use crate::runtime::Host;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
@@ -101,7 +102,7 @@ mod tests {
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
-        pub sqrt: FpSqrtCols<T>,
+        pub sqrt: FieldSqrtCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
@@ -118,13 +119,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
     }
 
-    impl<F: Field, P: FieldParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
+    impl<F: PrimeField32, P: FieldParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
         for EdSqrtChip<P>
     {
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
@@ -199,7 +200,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
         let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&shard, &mut EmptyHost::default());
         // println!("{:?}", trace.values)
     }
@@ -210,7 +211,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);

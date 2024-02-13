@@ -5,10 +5,10 @@ use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::fp_den::FpDenCols;
-use crate::operations::field::fp_inner_product::FpInnerProductCols;
-use crate::operations::field::fp_op::FpOpCols;
-use crate::operations::field::fp_op::FpOperation;
+use crate::operations::field::field_den::FieldDenCols;
+use crate::operations::field::field_inner_product::FieldInnerProductCols;
+use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::Syscall;
@@ -28,7 +28,7 @@ use num::Zero;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
@@ -54,14 +54,14 @@ pub struct EdAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FpInnerProductCols<T>,
-    pub(crate) y3_numerator: FpInnerProductCols<T>,
-    pub(crate) x1_mul_y1: FpOpCols<T>,
-    pub(crate) x2_mul_y2: FpOpCols<T>,
-    pub(crate) f: FpOpCols<T>,
-    pub(crate) d_mul_f: FpOpCols<T>,
-    pub(crate) x3_ins: FpDenCols<T>,
-    pub(crate) y3_ins: FpDenCols<T>,
+    pub(crate) x3_numerator: FieldInnerProductCols<T>,
+    pub(crate) y3_numerator: FieldInnerProductCols<T>,
+    pub(crate) x1_mul_y1: FieldOpCols<T>,
+    pub(crate) x2_mul_y2: FieldOpCols<T>,
+    pub(crate) f: FieldOpCols<T>,
+    pub(crate) d_mul_f: FieldOpCols<T>,
+    pub(crate) x3_ins: FieldDenCols<T>,
+    pub(crate) y3_ins: FieldDenCols<T>,
 }
 
 #[derive(Default)]
@@ -75,7 +75,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             _marker: PhantomData,
         }
     }
-    fn populate_fp_ops<F: Field>(
+    fn populate_field_ops<F: PrimeField32>(
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -90,18 +90,18 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
         let x1_mul_y1 = cols
             .x1_mul_y1
-            .populate::<E::BaseField>(&p_x, &p_y, FpOperation::Mul);
+            .populate::<E::BaseField>(&p_x, &p_y, FieldOperation::Mul);
         let x2_mul_y2 = cols
             .x2_mul_y2
-            .populate::<E::BaseField>(&q_x, &q_y, FpOperation::Mul);
+            .populate::<E::BaseField>(&q_x, &q_y, FieldOperation::Mul);
         let f = cols
             .f
-            .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
         let d_mul_f = cols
             .d_mul_f
-            .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
+            .populate::<E::BaseField>(&f, &d, FieldOperation::Mul);
 
         cols.x3_ins
             .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
@@ -122,13 +122,13 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 }
 
-impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
 }
 
-impl<F: Field, E: EllipticCurve + EdwardsParameters, H: Host<Record = ExecutionRecord>>
+impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters, H: Host<Record = ExecutionRecord>>
     ExecutionAir<F, H> for EdAddAssignChip<E>
 {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
@@ -164,7 +164,7 @@ impl<F: Field, E: EllipticCurve + EdwardsParameters, H: Host<Record = ExecutionR
                     cols.p_ptr = F::from_canonical_u32(event.p_ptr);
                     cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-                    Self::populate_fp_ops(cols, p_x, p_y, q_x, q_y);
+                    Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
                     // Populate the memory access columns.
                     let mut new_field_events = Vec::new();
@@ -189,7 +189,7 @@ impl<F: Field, E: EllipticCurve + EdwardsParameters, H: Host<Record = ExecutionR
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
+            Self::populate_field_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row
         });
 
@@ -230,14 +230,14 @@ where
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, E::BaseField, _, _>(builder, &x1, &y1, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &x1, &y1, FieldOperation::Mul);
         row.x2_mul_y2
-            .eval::<AB, E::BaseField, _, _>(builder, &x2, &y2, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &x2, &y2, FieldOperation::Mul);
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
         row.f
-            .eval::<AB, E::BaseField, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         // d * f.
         let f = row.f.result;
@@ -245,7 +245,7 @@ where
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
         row.d_mul_f
-            .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FpOperation::Mul);
+            .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FieldOperation::Mul);
 
         let d_mul_f = row.d_mul_f.result;
 

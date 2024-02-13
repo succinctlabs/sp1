@@ -1,5 +1,5 @@
+use super::params::Limbs;
 use super::params::NUM_WITNESS_LIMBS;
-use super::params::{convert_polynomial, convert_vec, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::CurtaAirBuilder;
@@ -8,19 +8,20 @@ use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
-use p3_baby_bear::BabyBear;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
-// a / (1 + b) if sign
-// a/ -b if !sign
-/// A set of columns to compute `FpDen(a, b)` where a, b are field elements.
+/// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
+///
+/// `a / (1 + b)` if `sign`
+/// `a / -b` if `!sign`
+///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpDenCols<T> {
+pub struct FieldDenCols<T> {
     /// The result of `a den b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
@@ -28,18 +29,13 @@ pub struct FpDenCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: Field> FpDenCols<F> {
+impl<F: PrimeField32> FieldDenCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
         sign: bool,
     ) -> BigUint {
-        /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
-        /// support that. This is a hack, since we always use BabyBear, to get around that, but
-        /// all operations using "PF" should use "F" in the future.
-        type PF = BabyBear;
-
         let p = P::modulus();
         let minus_b_int = &p - b;
         let b_signed = if sign { b.clone() } else { minus_b_int };
@@ -59,11 +55,11 @@ impl<F: Field> FpDenCols<F> {
         debug_assert!(carry < p);
         debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
 
-        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
-        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
-        let p_p: Polynomial<PF> = P::to_limbs_field::<PF>(&p).into();
-        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
+        let p_p: Polynomial<F> = P::to_limbs_field::<F>(&p).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
 
         // Compute the vanishing polynomial.
         let vanishing_poly = if sign {
@@ -80,16 +76,16 @@ impl<F: Field> FpDenCols<F> {
         );
         let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
-        self.result = convert_polynomial(p_result);
-        self.carry = convert_polynomial(p_carry);
-        self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
-        self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
+        self.result = p_result.into();
+        self.carry = p_carry.into();
+        self.witness_low = p_witness_low.try_into().unwrap();
+        self.witness_high = p_witness_high.try_into().unwrap();
 
         result
     }
 }
 
-impl<V: Copy> FpDenCols<V> {
+impl<V: Copy> FieldDenCols<V> {
     #[allow(unused_variables)]
     pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
         &self,
@@ -132,11 +128,13 @@ impl<V: Copy> FpDenCols<V> {
 mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
 
-    use super::{FpDenCols, Limbs};
-    use crate::air::{ExecutionAir, MachineAir};
-    use crate::runtime::{EmptyHost, Host};
+    use super::{FieldDenCols, Limbs};
+    use crate::air::ExecutionAir;
+    use crate::air::MachineAir;
+    use crate::runtime::EmptyHost;
+    use crate::runtime::Host;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
@@ -155,17 +153,17 @@ mod tests {
     pub struct TestCols<T> {
         pub a: Limbs<T>,
         pub b: Limbs<T>,
-        pub a_den_b: FpDenCols<T>,
+        pub a_den_b: FieldDenCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
-    struct FpDenChip<P: FieldParameters> {
+    struct FieldDenChip<P: FieldParameters> {
         pub sign: bool,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FpDenChip<P> {
+    impl<P: FieldParameters> FieldDenChip<P> {
         pub fn new(sign: bool) -> Self {
             Self {
                 sign,
@@ -174,14 +172,14 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> MachineAir<F> for FpDenChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldDenChip<P> {
         fn name(&self) -> String {
-            "FpDen".to_string()
+            "FieldDen".to_string()
         }
     }
 
-    impl<F: Field, P: FieldParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
-        for FpDenChip<P>
+    impl<F: PrimeField32, P: FieldParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
+        for FieldDenChip<P>
     {
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
@@ -232,13 +230,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FpDenChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldDenChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FpDenChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FieldDenChip<P>
     where
         AB: CurtaAirBuilder,
     {
@@ -258,8 +256,8 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut shard = ExecutionRecord::default();
-        let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
+        let shard = ExecutionRecord::default();
+        let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
@@ -272,7 +270,7 @@ mod tests {
 
         let shard = ExecutionRecord::default();
 
-        let chip: FpDenChip<Ed25519BaseField> = FpDenChip::new(true);
+        let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut EmptyHost::default());
         // This it to test that the proof DOESN'T work if messed up.
