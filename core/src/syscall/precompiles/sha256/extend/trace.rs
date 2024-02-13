@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::MachineAir, runtime::ExecutionRecord};
+use crate::{air::MachineAir, runtime::ExecutionRecord, utils::pad_rows};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
@@ -62,15 +62,12 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
         output.add_field_events(&new_field_events);
 
         let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-        for i in nb_rows..padded_nb_rows {
-            let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
+
+        pad_rows(&mut rows, || [F::zero(); NUM_SHA_EXTEND_COLS]);
+
+        for i in nb_rows..rows.len() {
+            let cols: &mut ShaExtendCols<F> = rows[i].as_mut_slice().borrow_mut();
             cols.populate_flags(i);
-            rows.push(row);
         }
 
         // Convert the trace to a row major matrix.
