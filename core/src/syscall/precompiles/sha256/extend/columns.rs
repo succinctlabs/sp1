@@ -11,6 +11,8 @@ use crate::operations::FixedRotateRightOperation;
 use crate::operations::FixedShiftRightOperation;
 use crate::operations::XorOperation;
 
+use super::s0::S0Operation;
+
 pub const NUM_SHA_EXTEND_COLS: usize = size_of::<ShaExtendCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -34,13 +36,8 @@ pub struct ShaExtendCols<T> {
     pub cycle_48_start: T,
     pub cycle_48_end: T,
 
-    /// Computing `s0`.
     pub w_i_minus_15: MemoryReadCols<T>,
-    pub w_i_minus_15_rr_7: FixedRotateRightOperation<T>,
-    pub w_i_minus_15_rr_18: FixedRotateRightOperation<T>,
-    pub w_i_minus_15_rs_3: FixedShiftRightOperation<T>,
-    pub s0_intermediate: XorOperation<T>,
-    pub s0: XorOperation<T>,
+    pub s0: S0Operation<T>,
 
     /// Computing `s1`.
     pub w_i_minus_2: MemoryReadCols<T>,

@@ -1,5 +1,6 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 
+use super::s0::S0Operation;
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::air::{BaseAirBuilder, SP1AirBuilder};
 use crate::memory::MemoryCols;
@@ -83,41 +84,15 @@ where
         );
 
         // Compute `s0`.
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            *local.w_i_minus_15.value(),
-            7,
-            local.w_i_minus_15_rr_7,
-            local.is_real,
-        );
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            *local.w_i_minus_15.value(),
-            18,
-            local.w_i_minus_15_rr_18,
-            local.is_real,
-        );
-        FixedShiftRightOperation::<AB::F>::eval(
-            builder,
-            *local.w_i_minus_15.value(),
-            3,
-            local.w_i_minus_15_rs_3,
-            local.is_real,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.w_i_minus_15_rr_7.value,
-            local.w_i_minus_15_rr_18.value,
-            local.s0_intermediate,
-            local.is_real,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.s0_intermediate.value,
-            local.w_i_minus_15_rs_3.value,
-            local.s0,
-            local.is_real,
-        );
+        let s0 = {
+            S0Operation::<AB::F>::eval(
+                builder,
+                local.w_i_minus_15.access.value,
+                local.s0,
+                local.is_real,
+            );
+            local.s0.s0.value
+        };
 
         // Compute `s1`.
         FixedRotateRightOperation::<AB::F>::eval(
@@ -160,7 +135,7 @@ where
         Add4Operation::<AB::F>::eval(
             builder,
             *local.w_i_minus_16.value(),
-            local.s0.value,
+            s0,
             *local.w_i_minus_7.value(),
             local.s1.value,
             local.is_real,

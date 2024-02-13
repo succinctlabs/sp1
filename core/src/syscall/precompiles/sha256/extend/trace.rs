@@ -40,15 +40,7 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
                 cols.w_i_minus_7
                     .populate(event.w_i_minus_7_reads[j], &mut new_field_events);
 
-                // Compute `s0`.
-                let w_i_minus_15 = event.w_i_minus_15_reads[j].value;
-                let w_i_minus_15_rr_7 = cols.w_i_minus_15_rr_7.populate(output, w_i_minus_15, 7);
-                let w_i_minus_15_rr_18 = cols.w_i_minus_15_rr_18.populate(output, w_i_minus_15, 18);
-                let w_i_minus_15_rs_3 = cols.w_i_minus_15_rs_3.populate(output, w_i_minus_15, 3);
-                let s0_intermediate =
-                    cols.s0_intermediate
-                        .populate(output, w_i_minus_15_rr_7, w_i_minus_15_rr_18);
-                let s0 = cols.s0.populate(output, s0_intermediate, w_i_minus_15_rs_3);
+                let s0 = cols.s0.populate(output, event.w_i_minus_15_reads[j].value);
 
                 // Compute `s1`.
                 let w_i_minus_2 = event.w_i_minus_2_reads[j].value;

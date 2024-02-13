@@ -2,6 +2,7 @@ mod air;
 mod columns;
 mod execute;
 mod flags;
+mod s0;
 mod trace;
 
 pub use columns::*;
