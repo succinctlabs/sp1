@@ -45,6 +45,9 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+    #[cfg(not(feature = "perf"))]
+    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -59,6 +62,13 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let start = Instant::now();
     let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
+
+    #[cfg(not(feature = "perf"))]
+    assert!(debug_interactions_with_all_chips(
+        &machine.chips(),
+        &runtime.record,
+        InteractionKind::all_kinds(),
+    ));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

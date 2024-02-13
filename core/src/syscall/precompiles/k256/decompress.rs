@@ -1,5 +1,6 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
+
 use crate::air::MachineAir;
 use crate::air::Word;
 use crate::cpu::MemoryReadRecord;
@@ -153,7 +154,7 @@ pub struct K256DecompressCols<T> {
 }
 
 impl<F: PrimeField32> K256DecompressCols<F> {
-    pub fn populate(&mut self, event: K256DecompressEvent, shard: &mut ExecutionRecord) {
+    pub fn populate(&mut self, event: K256DecompressEvent, record: &mut ExecutionRecord) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
@@ -167,7 +168,7 @@ impl<F: PrimeField32> K256DecompressCols<F> {
         let x = &BigUint::from_bytes_le(&event.x_bytes);
         self.populate_field_ops(x);
 
-        shard.field_events.append(&mut new_field_events);
+        record.add_field_events(&new_field_events);
     }
 
     fn populate_field_ops(&mut self, x: &BigUint) {
@@ -290,22 +291,18 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
         "K256Decompress".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].k256_decompress_events = input.k256_decompress_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.k256_decompress_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for i in 0..record.k256_decompress_events.len() {
-            let event = record.k256_decompress_events[i];
+        for i in 0..input.k256_decompress_events.len() {
+            let event = input.k256_decompress_events[i];
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate(event, record);
+            cols.populate(event, output);
 
             rows.push(row);
         }

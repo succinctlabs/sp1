@@ -35,6 +35,20 @@ pub enum InteractionKind {
     Field = 7,
 }
 
+impl InteractionKind {
+    pub fn all_kinds() -> Vec<InteractionKind> {
+        vec![
+            InteractionKind::Memory,
+            InteractionKind::Program,
+            InteractionKind::Instruction,
+            InteractionKind::Alu,
+            InteractionKind::Byte,
+            InteractionKind::Range,
+            InteractionKind::Field,
+        ]
+    }
+}
+
 impl<F: Field> Interaction<F> {
     /// Create a new interaction.
     pub fn new(
