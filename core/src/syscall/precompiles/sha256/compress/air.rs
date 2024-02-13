@@ -3,11 +3,12 @@ use p3_field::AbstractField;
 
 use super::ch::ChOperation;
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
+use super::s0::S0Operation;
 use super::s1::S1Operation;
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::{AddOperation, AndOperation, FixedRotateRightOperation, XorOperation};
+use crate::operations::{AddOperation, AndOperation, XorOperation};
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -198,42 +199,7 @@ impl ShaCompressChip {
             local.ch,
             local.is_compression,
         );
-
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            2,
-            local.a_rr_2,
-            local.is_compression,
-        );
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            13,
-            local.a_rr_13,
-            local.is_compression,
-        );
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            22,
-            local.a_rr_22,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.a_rr_2.value,
-            local.a_rr_13.value,
-            local.s0_intermediate,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.s0_intermediate.value,
-            local.a_rr_22.value,
-            local.s0,
-            local.is_compression,
-        );
+        S0Operation::<AB::F>::eval(builder, local.a, local.s0, local.is_compression);
 
         AndOperation::<AB::F>::eval(
             builder,
@@ -273,7 +239,7 @@ impl ShaCompressChip {
 
         AddOperation::<AB::F>::eval(
             builder,
-            local.s0.value,
+            local.s0.s0.value,
             local.maj.value,
             local.temp2,
             local.is_compression,

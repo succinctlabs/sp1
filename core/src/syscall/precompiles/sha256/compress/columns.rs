@@ -9,10 +9,10 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::Add5Operation;
 use crate::operations::AddOperation;
 use crate::operations::AndOperation;
-use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
 
 use super::ch::ChOperation;
+use super::s0::S0Operation;
 use super::s1::S1Operation;
 
 pub const NUM_SHA_COMPRESS_COLS: usize = size_of::<ShaCompressCols<u8>>();
@@ -53,11 +53,7 @@ pub struct ShaCompressCols<T> {
 
     pub temp1: Add5Operation<T>,
 
-    pub a_rr_2: FixedRotateRightOperation<T>,
-    pub a_rr_13: FixedRotateRightOperation<T>,
-    pub a_rr_22: FixedRotateRightOperation<T>,
-    pub s0_intermediate: XorOperation<T>,
-    pub s0: XorOperation<T>,
+    pub s0: S0Operation<T>,
 
     pub a_and_b: AndOperation<T>,
     pub a_and_c: AndOperation<T>,
