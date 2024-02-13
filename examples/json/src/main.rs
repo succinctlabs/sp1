@@ -1,5 +1,4 @@
 //! A simple script to generate and verify the proof of a given program.
-
 use curta_core::{utils, CurtaProver, CurtaStdin, CurtaVerifier};
 
 const JSON_ELF: &[u8] = include_bytes!("../../../programs/demo/json/elf/riscv32im-curta-zkvm-elf");
@@ -11,7 +10,7 @@ fn main() {
     // Generate proof.
     let mut stdin = CurtaStdin::new();
 
-    // Sample data.
+    // Sample JSON as a string input.
     let data_str = r#"
             {
                 "name": "Jane Doe",
@@ -21,7 +20,6 @@ fn main() {
     .to_string();
     let key = "net_worth".to_string();
 
-    // write in simple JSON string and key.
     stdin.write(&data_str);
     stdin.write(&key);
 
@@ -29,7 +27,7 @@ fn main() {
 
     // Read output.
     let val = proof.stdout.read::<String>();
-    println!("value of {} is {}", key, val);
+    println!("Value of {} is {}", key, val);
 
     // Verify proof.
     CurtaVerifier::verify(JSON_ELF, &proof).expect("verification failed");
