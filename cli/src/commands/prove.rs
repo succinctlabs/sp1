@@ -10,15 +10,43 @@ use std::{
     io::Read,
     path::PathBuf,
     process::Command,
+    str::FromStr,
 };
 
 use crate::CommandExecutor;
 
+#[derive(Debug, Clone)]
+enum Input {
+    FilePath(PathBuf),
+    HexBytes(Vec<u8>),
+}
+
+impl FromStr for Input {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if PathBuf::from(s).exists() {
+            Ok(Input::FilePath(PathBuf::from(s)))
+        } else if s.len() % 2 == 0 && s.chars().all(|c| c.is_ascii_hexdigit()) {
+            // Remove 0x prefix if present
+            let s = if s.starts_with("0x") {
+                s.strip_prefix("0x").unwrap()
+            } else {
+                s
+            };
+            let bytes = hex::decode(s).map_err(|e| e.to_string())?;
+            Ok(Input::HexBytes(bytes))
+        } else {
+            Err("Input must be a valid file path or hex string.".to_string())
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "prove", about = "Build and prove a program")]
 pub struct ProveCmd {
-    #[clap(short, long, value_parser, num_args = 1.., value_delimiter = ' ')]
-    input: Vec<u32>,
+    #[clap(value_parser)]
+    input: Input,
 
     #[clap(long, action)]
     output: Option<PathBuf>,
@@ -85,8 +113,16 @@ impl ProveCmd {
             .expect("failed to read from input file");
 
         let mut stdin = CurtaStdin::new();
-        for input in self.input.clone() {
-            stdin.write(&input);
+        match self.input {
+            Input::FilePath(ref path) => {
+                let mut file = File::open(path).expect("failed to open input file");
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes)?;
+                stdin.write_slice(&bytes);
+            }
+            Input::HexBytes(ref bytes) => {
+                stdin.write_slice(bytes);
+            }
         }
         let proof = CurtaProver::prove(&elf, stdin).unwrap();
 

@@ -504,6 +504,7 @@ dependencies = [
  "downloader",
  "flate2",
  "futures-util",
+ "hex",
  "indicatif",
  "rand",
  "reqwest",
