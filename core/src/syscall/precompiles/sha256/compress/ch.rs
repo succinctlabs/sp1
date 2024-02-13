@@ -11,9 +11,9 @@ use crate::operations::NotOperation;
 use crate::operations::XorOperation;
 use crate::runtime::ExecutionRecord;
 
+/// `ch := (e and f) xor ((not e) and g)`.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-/// `ch := (e and f) xor ((not e) and g)`.
 pub struct ChOperation<T> {
     pub e_and_f: AndOperation<T>,
     pub e_not: NotOperation<T>,
