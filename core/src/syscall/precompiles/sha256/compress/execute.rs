@@ -1,5 +1,4 @@
 use crate::{
-    cpu::MemoryReadRecord,
     runtime::{Register, Syscall},
     syscall::precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
@@ -11,7 +10,7 @@ use super::ShaCompressChip;
 
 impl Syscall for ShaCompressChip {
     fn num_extra_cycles(&self) -> u32 {
-        64 * 4 + 4
+        8
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
@@ -62,8 +61,6 @@ impl Syscall for ShaCompressChip {
             c = b;
             b = a;
             a = temp1.wrapping_add(temp2);
-
-            rt.clk += 4;
         }
 
         // Execute the "finalize" phase.
@@ -73,8 +70,9 @@ impl Syscall for ShaCompressChip {
                 .zip(hx.iter())
                 .map(|(x, y)| *x + *y)
                 .collect::<Vec<u32>>();
-            rt.mw_slice(w_ptr.wrapping_add(H_START_IDX.wrapping_mul(4)), &values)
+            rt.mw_slice(h_address, &values)
         };
+        rt.clk += 4;
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
