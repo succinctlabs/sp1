@@ -6,7 +6,7 @@ use sp1_cli::commands::{
 };
 
 const VERSION_MESSAGE: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
+    "sp1",
     " (",
     env!("VERGEN_GIT_SHA"),
     " ",
