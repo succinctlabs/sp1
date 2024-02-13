@@ -1,4 +1,5 @@
 use crate::{
+    cpu::MemoryReadRecord,
     runtime::{Register, Syscall},
     syscall::precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
@@ -10,7 +11,7 @@ use super::ShaCompressChip;
 
 impl Syscall for ShaCompressChip {
     fn num_extra_cycles(&self) -> u32 {
-        8 * 4 + 64 * 4
+        64 * 4 + 4
     }
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
@@ -20,18 +21,13 @@ impl Syscall for ShaCompressChip {
         // Set the clock back to the original value and begin executing the precompile.
         let saved_clk = rt.clk;
         let saved_w_ptr = w_ptr;
-        let mut h_read_records = Vec::new();
         let mut w_i_read_records = Vec::new();
 
         // Execute the "initialize" phase.
         const H_START_IDX: u32 = 64;
-        let mut hx = [0u32; 8];
-        for i in 0..8 {
-            let (record, value) = rt.mr(w_ptr + (H_START_IDX + i as u32) * 4);
-            h_read_records.push(record);
-            hx[i] = value;
-            rt.clk += 4;
-        }
+        let h_address = H_START_IDX.wrapping_mul(4).wrapping_add(w_ptr);
+        let (h_read_records, hx) = rt.mr_slice(h_address, 8);
+        rt.clk += 4;
 
         let mut original_w = Vec::new();
         // Execute the "compress" phase.
@@ -87,7 +83,7 @@ impl Syscall for ShaCompressChip {
             clk: saved_clk,
             w_and_h_ptr: saved_w_ptr,
             w: original_w.try_into().unwrap(),
-            h: hx,
+            h: hx.try_into().unwrap(),
             h_read_records: h_read_records.try_into().unwrap(),
             w_i_read_records: w_i_read_records.try_into().unwrap(),
             h_write_records: h_write_records.try_into().unwrap(),
