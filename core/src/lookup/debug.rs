@@ -5,8 +5,8 @@ use p3_field::AbstractField;
 use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
-use crate::air::{ExecutionAir, MachineAir};
-use crate::runtime::{EmptyHost, ExecutionRecord};
+use crate::air::MachineAir;
+use crate::runtime::ExecutionRecord;
 use crate::stark::{ChipRef, StarkGenericConfig};
 
 use super::InteractionKind;
@@ -54,7 +54,7 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
-    let trace = chip.generate_trace(record, &mut EmptyHost::default());
+    let trace = chip.generate_trace(record, &mut ExecutionRecord::default());
     let mut main = trace.clone();
     let height = trace.clone().height();
 

@@ -1,13 +1,13 @@
 use crate::air::CurtaAirBuilder;
-use crate::air::ExecutionAir;
+
 use crate::air::MachineAir;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
+use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
-use crate::runtime::{ExecutionRecord, Host};
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
@@ -162,29 +162,18 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
     }
-}
 
-impl<
-        F: PrimeField32,
-        E: EllipticCurve + WeierstrassParameters,
-        H: Host<Record = ExecutionRecord>,
-    > ExecutionAir<F, H> for WeierstrassDoubleAssignChip<E>
-{
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.weierstrass_double_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..record.weierstrass_double_events.len() {
-            let event = record.weierstrass_double_events[i];
+        for i in 0..input.weierstrass_double_events.len() {
+            let event = input.weierstrass_double_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -208,7 +197,7 @@ impl<
 
             rows.push(row);
         }
-        host.add_field_events(&new_field_events);
+        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];

@@ -58,26 +58,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         // Compute the permutation trace values in parallel.
 
         let mut parallel = match preprocessed {
-            Some(prep) => main
-                .par_row_chunks(chunk_rate)
-                .zip(prep.par_row_chunks(chunk_rate))
-                .flat_map(|(main_rows_chunk, prep_rows_chunk)| {
-                    main_rows_chunk
-                        .rows()
-                        .zip(prep_rows_chunk.rows())
-                        .flat_map(|(main_row, prep_row)| {
-                            compute_permutation_row(
-                                main_row,
-                                prep_row,
-                                sends,
-                                receives,
-                                &alphas,
-                                betas.clone(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>(),
+            Some(_) => unimplemented!(),
             None => main
                 .par_row_chunks(chunk_rate)
                 .flat_map(|main_rows_chunk| {

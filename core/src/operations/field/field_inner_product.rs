@@ -119,10 +119,9 @@ mod tests {
     use p3_field::{Field, PrimeField32};
 
     use super::{FieldInnerProductCols, Limbs};
-    use crate::air::ExecutionAir;
+
     use crate::air::MachineAir;
-    use crate::runtime::EmptyHost;
-    use crate::runtime::Host;
+
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
@@ -163,18 +162,12 @@ mod tests {
         fn name(&self) -> String {
             "FieldInnerProduct".to_string()
         }
-    }
 
-    impl<F: PrimeField32, P: FieldParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
-        for FieldIpChip<P>
-    {
-        fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
-
-        fn include(&self, record: &ExecutionRecord) -> bool {
-            !record.field_events.is_empty()
-        }
-
-        fn generate_trace(&self, _: &ExecutionRecord, _: &mut H) -> RowMajorMatrix<F> {
+        fn generate_trace(
+            &self,
+            _: &ExecutionRecord,
+            _: &mut ExecutionRecord,
+        ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<(Vec<BigUint>, Vec<BigUint>)> = (0..num_rows - 4)
@@ -243,7 +236,7 @@ mod tests {
         let shard = ExecutionRecord::default();
         let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -256,7 +249,7 @@ mod tests {
 
         let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

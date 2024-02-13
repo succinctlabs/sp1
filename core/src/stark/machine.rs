@@ -1,4 +1,5 @@
-use crate::air::ExecutionAir;
+use std::marker::PhantomData;
+
 use crate::air::MachineAir;
 use crate::alu::AddChip;
 use crate::alu::BitwiseChip;
@@ -16,6 +17,7 @@ use crate::memory::MemoryGlobalChip;
 use crate::program::ProgramChip;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
+use crate::runtime::ShardingConfig;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
@@ -30,36 +32,28 @@ use crate::utils::ec::edwards::EdwardsCurve;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
 use crate::utils::ec::weierstrass::SWCurve;
 use p3_challenger::CanObserve;
-use p3_commit::Pcs;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Dimensions;
-use p3_matrix::Matrix;
 
 use super::Chip;
 use super::ChipRef;
-use super::Com;
-use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
+#[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
-    pub data: PcsProverData<SC>,
-    pub byte_trace: RowMajorMatrix<SC::Val>,
-    // TODO:
-    // program_trace: RowMajorMatrix<SC::Val>,
+    //TODO
+    marker: std::marker::PhantomData<SC>,
 }
 
+#[derive(Debug, Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
-    pub commit: Com<SC>,
-    pub byte_dimensions: Dimensions,
     // TODO:
-    // program_dimensions: Dimensions,
+    marker: std::marker::PhantomData<SC>,
 }
 
 pub struct RiscvStark<SC: StarkGenericConfig> {
@@ -184,24 +178,116 @@ where
         ]
     }
 
+    pub fn shard_chips(&self, shard: &ExecutionRecord) -> Vec<ChipRef<SC>> {
+        let mut chips = Vec::new();
+
+        chips.push(self.program.as_ref());
+        chips.push(self.cpu.as_ref());
+
+        if !shard.sha_extend_events.is_empty() {
+            chips.push(self.sha_extend.as_ref());
+        }
+
+        if !shard.sha_compress_events.is_empty() {
+            chips.push(self.sha_compress.as_ref());
+        }
+
+        if !shard.ed_add_events.is_empty() {
+            chips.push(self.ed_add_assign.as_ref());
+        }
+
+        if !shard.ed_decompress_events.is_empty() {
+            chips.push(self.ed_decompress.as_ref());
+        }
+
+        if !shard.k256_decompress_events.is_empty() {
+            chips.push(self.k256_decompress.as_ref());
+        }
+
+        if !shard.weierstrass_add_events.is_empty() {
+            chips.push(self.weierstrass_add_assign.as_ref());
+        }
+
+        if !shard.weierstrass_double_events.is_empty() {
+            chips.push(self.weierstrass_double_assign.as_ref());
+        }
+
+        if !shard.keccak_permute_events.is_empty() {
+            chips.push(self.keccak_permute.as_ref());
+        }
+
+        if !shard.blake3_compress_inner_events.is_empty() {
+            chips.push(self.blake3_compress_inner.as_ref());
+        }
+
+        if !shard.add_events.is_empty() {
+            chips.push(self.add.as_ref());
+        }
+
+        if !shard.sub_events.is_empty() {
+            chips.push(self.sub.as_ref());
+        }
+
+        if !shard.bitwise_events.is_empty() {
+            chips.push(self.bitwise.as_ref());
+        }
+
+        if !shard.divrem_events.is_empty() {
+            chips.push(self.div_rem.as_ref());
+        }
+
+        if !shard.mul_events.is_empty() {
+            chips.push(self.mul.as_ref());
+        }
+
+        if !shard.shift_right_events.is_empty() {
+            chips.push(self.shift_right.as_ref());
+        }
+
+        if !shard.shift_left_events.is_empty() {
+            chips.push(self.shift_left.as_ref());
+        }
+
+        if !shard.lt_events.is_empty() {
+            chips.push(self.lt.as_ref());
+        }
+
+        if !shard.field_events.is_empty() {
+            chips.push(self.field_ltu.as_ref());
+        }
+
+        if !shard.byte_lookups.is_empty() {
+            chips.push(self.byte.as_ref());
+        }
+
+        if !shard.first_memory_record.is_empty() {
+            chips.push(self.memory_init.as_ref());
+        }
+
+        if !shard.last_memory_record.is_empty() {
+            chips.push(self.memory_finalize.as_ref());
+        }
+
+        if !shard.program_memory_record.is_empty() {
+            chips.push(self.program_memory_init.as_ref());
+        }
+
+        chips
+    }
+
     /// The setup preprocessing phase.
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
-        let byte_trace = self.byte.generate_preprocessed_trace(program).unwrap();
-
-        let (commit, data) = self.config.pcs().commit_batches(vec![byte_trace.clone()]);
-
-        // TODO: commit to the program trace as well.
-
-        let verifying_key = VerifyingKey {
-            commit,
-            byte_dimensions: byte_trace.dimensions(),
-        };
-        let proving_key = ProvingKey { data, byte_trace };
-
-        (proving_key, verifying_key)
+    pub fn setup(&self, _program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+        (
+            ProvingKey {
+                marker: PhantomData,
+            },
+            VerifyingKey {
+                marker: PhantomData,
+            },
+        )
     }
 
     pub fn shard(&self, record: &mut ExecutionRecord) -> Vec<ExecutionRecord> {
@@ -229,16 +315,8 @@ where
         tracing::info!("Sharding execution record by chip.");
 
         // For each chip, shard the events into segments.
-        let mut shards: Vec<ExecutionRecord> = Vec::new();
-        chips.iter().for_each(|chip| {
-            <ChipRef<SC> as ExecutionAir<SC::Val, ExecutionRecord>>::shard(
-                chip,
-                record,
-                &mut shards,
-            );
-        });
 
-        shards
+        record.shard(&ShardingConfig::default())
     }
 
     /// Prove the execution record is valid.
@@ -252,10 +330,10 @@ where
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
         tracing::info!("Sharding the execution record.");
-        let mut shards = self.shard(record);
+        let shards = self.shard(record);
 
         tracing::info!("Generating the shard proofs.");
-        P::prove_shards(self, pk, &mut shards, challenger)
+        P::prove_shards(self, pk, &shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {

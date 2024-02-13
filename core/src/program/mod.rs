@@ -8,11 +8,10 @@ use std::collections::HashMap;
 
 use curta_derive::AlignedBorrow;
 
-use crate::air::ExecutionAir;
 use crate::air::{CurtaAirBuilder, MachineAir};
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, Host};
+use crate::runtime::ExecutionRecord;
 use crate::utils::pad_to_power_of_two;
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
@@ -41,22 +40,18 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     fn name(&self) -> String {
         "Program".to_string()
     }
-}
 
-impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for ProgramChip {
-    fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.cpu_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &ExecutionRecord, _host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.
         let mut instruction_counts = HashMap::new();
-        record.cpu_events.iter().for_each(|event| {
+        input.cpu_events.iter().for_each(|event| {
             let pc = event.pc;
             instruction_counts
                 .entry(pc)
@@ -64,14 +59,14 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for Pr
                 .or_insert(1);
         });
 
-        let rows = record
+        let rows = input
             .program
             .instructions
             .clone()
             .into_iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = record.program.pc_base + (i as u32 * 4);
+                let pc = input.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_COLS];
                 let cols: &mut ProgramCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
@@ -136,9 +131,9 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        air::ExecutionAir,
+        air::MachineAir,
         program::ProgramChip,
-        runtime::{EmptyHost, ExecutionRecord, Instruction, Opcode, Program},
+        runtime::{ExecutionRecord, Instruction, Opcode, Program},
     };
 
     #[test]
@@ -163,7 +158,7 @@ mod tests {
         };
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 }

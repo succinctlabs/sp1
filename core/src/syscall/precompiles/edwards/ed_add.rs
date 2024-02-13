@@ -1,5 +1,5 @@
 use crate::air::CurtaAirBuilder;
-use crate::air::ExecutionAir;
+
 use crate::air::MachineAir;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
@@ -11,8 +11,8 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
+use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
-use crate::runtime::{ExecutionRecord, Host};
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::edwards::EdwardsParameters;
@@ -126,23 +126,15 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
-}
-
-impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters, H: Host<Record = ExecutionRecord>>
-    ExecutionAir<F, H> for EdAddAssignChip<E>
-{
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].ed_add_events = input.ed_add_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.ed_add_events.is_empty()
-    }
 
     #[instrument(name = "generate Ed Add trace", skip_all)]
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let (mut rows, new_field_events_list): (Vec<[F; NUM_ED_ADD_COLS]>, Vec<Vec<FieldEvent>>) =
-            record
+            input
                 .ed_add_events
                 .par_iter()
                 .map(|event| {
@@ -182,7 +174,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters, H: Host<Record = Exe
                 .unzip();
 
         for new_field_events in new_field_events_list {
-            host.add_field_events(&new_field_events);
+            output.add_field_events(&new_field_events);
         }
 
         pad_rows(&mut rows, || {

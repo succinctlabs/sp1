@@ -40,11 +40,11 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use tracing::instrument;
 
+use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
-use crate::air::{ExecutionAir, MachineAir};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Host, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -94,28 +94,16 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     fn name(&self) -> String {
         "ShiftLeft".to_string()
     }
-}
-
-impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for ShiftLeft {
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .shift_left_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].shift_left_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.shift_left_events.is_empty()
-    }
 
     #[instrument(name = "generate sll trace", skip_all)]
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
-        let shift_left_events = record.shift_left_events.clone();
+        let shift_left_events = input.shift_left_events.clone();
         for event in shift_left_events.iter() {
             let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
             let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
@@ -160,8 +148,8 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for Sh
 
             // Range checks.
             {
-                host.add_u8_range_checks(&bit_shift_result);
-                host.add_u8_range_checks(&bit_shift_result_carry);
+                output.add_u8_range_checks(&bit_shift_result);
+                output.add_u8_range_checks(&bit_shift_result_carry);
             }
 
             // Sanity check.
@@ -195,7 +183,7 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for Sh
             row
         };
         debug_assert!(padded_row_template.len() == NUM_SHIFT_LEFT_COLS);
-        for i in record.shift_left_events.len() * NUM_SHIFT_LEFT_COLS..trace.values.len() {
+        for i in input.shift_left_events.len() * NUM_SHIFT_LEFT_COLS..trace.values.len() {
             trace.values[i] = padded_row_template[i % NUM_SHIFT_LEFT_COLS];
         }
 
@@ -348,9 +336,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::air::ExecutionAir;
+
     use crate::{
-        runtime::EmptyHost,
+        air::MachineAir,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -370,7 +358,7 @@ mod tests {
         shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -414,7 +402,7 @@ mod tests {
         shard.shift_left_events = shift_events;
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

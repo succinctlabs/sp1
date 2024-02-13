@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 
 use crate::cpu::MemoryRecordEnum;
-use crate::runtime::{ExecutionRecord, Host};
+use crate::runtime::ExecutionRecord;
 use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
 use crate::utils::pad_rows;
@@ -9,7 +9,7 @@ use crate::utils::pad_rows;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::air::{ExecutionAir, MachineAir};
+use crate::air::MachineAir;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
@@ -21,26 +21,18 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()
     }
-}
 
-impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
-    for Blake3CompressInnerChip
-{
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].blake3_compress_inner_events = input.blake3_compress_inner_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.blake3_compress_inner_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..record.blake3_compress_inner_events.len() {
-            let event = record.blake3_compress_inner_events[i];
+        for i in 0..input.blake3_compress_inner_events.len() {
+            let event = input.blake3_compress_inner_events[i];
 
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
@@ -99,7 +91,7 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
                             event.message_reads[round][operation][1].value,
                         ];
 
-                        cols.g.populate(host, input);
+                        cols.g.populate(output, input);
                     }
 
                     clk += 4;
@@ -111,7 +103,7 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
             }
         }
 
-        host.add_field_events(&new_field_events);
+        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];

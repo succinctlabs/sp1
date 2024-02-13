@@ -3,7 +3,7 @@ use super::columns::{
     NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
 };
 use super::{CpuChip, CpuEvent};
-use crate::air::{ExecutionAir, MachineAir};
+use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::{CpuCols, MemoryColumns};
@@ -11,8 +11,7 @@ use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
-use crate::runtime::{ExecutionRecord, Host, Opcode};
-use crate::utils::env;
+use crate::runtime::{ExecutionRecord, Opcode};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
@@ -25,37 +24,19 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     fn name(&self) -> String {
         "CPU".to_string()
     }
-}
-
-impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for CpuChip {
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .cpu_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            if i >= outputs.len() {
-                let mut shard = ExecutionRecord::default();
-                shard.index = (i + 1) as u32;
-                shard.program = input.program.clone();
-                outputs.push(shard);
-            }
-            outputs[i].cpu_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, _: &ExecutionRecord) -> bool {
-        true
-    }
 
     #[instrument(name = "generate CPU trace", skip_all)]
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
         let mut new_field_events: Vec<FieldEvent> = Vec::new();
 
         // Generate the trace rows for each event.
-        let rows_with_events = record
+        let rows_with_events = input
             .cpu_events
             .par_iter()
             .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
@@ -78,9 +59,9 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for Cp
         });
 
         // Add the dependency events to the shard.
-        host.add_alu_events(new_alu_events);
-        host.add_byte_lookup_events(new_blu_events);
-        host.add_field_events(&new_field_events);
+        output.add_alu_events(new_alu_events);
+        output.add_byte_lookup_events(new_blu_events);
+        output.add_field_events(&new_field_events);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(rows, NUM_CPU_COLS);
@@ -488,7 +469,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
-    use crate::runtime::EmptyHost;
+
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, ExecutionRecord, Instruction, Runtime},
@@ -521,7 +502,7 @@ mod tests {
         }];
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
     }
 
@@ -532,7 +513,7 @@ mod tests {
         runtime.run();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut EmptyHost::default());
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         for cpu_event in runtime.record.cpu_events {
             println!("{:?}", cpu_event);
         }
@@ -549,7 +530,7 @@ mod tests {
         runtime.run();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut EmptyHost::default());
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);

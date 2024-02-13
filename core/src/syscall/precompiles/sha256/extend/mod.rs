@@ -45,9 +45,9 @@ pub mod extend_tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        air::ExecutionAir,
+        air::MachineAir,
         alu::AluEvent,
-        runtime::{EmptyHost, ExecutionRecord, Instruction, Opcode, Program, Runtime},
+        runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
         stark::{LocalProver, RiscvStark},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
@@ -77,7 +77,7 @@ pub mod extend_tests {
         shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut EmptyHost::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
