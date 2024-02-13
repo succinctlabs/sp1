@@ -3,11 +3,11 @@ pub mod event;
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use core::mem::size_of;
+use curta_derive::AlignedBorrow;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::FieldAirBuilder;

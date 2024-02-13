@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
+use curta_derive::AlignedBorrow;
 use std::mem::size_of;
-use valida_derive::AlignedBorrow;
 
 use crate::{air::Word, memory::MemoryReadWriteCols};
 
