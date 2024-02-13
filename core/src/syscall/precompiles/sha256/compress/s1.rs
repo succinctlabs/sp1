@@ -10,6 +10,7 @@ use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
 use crate::runtime::ExecutionRecord;
 
+/// `S1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25)`.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct S1Operation<T> {
@@ -36,6 +37,7 @@ impl<F: Field> S1Operation<F> {
         cols: S1Operation<AB::Var>,
         is_real: AB::Var,
     ) {
+        // S1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25).
         FixedRotateRightOperation::<AB::F>::eval(builder, e, 6, cols.e_rr_6, is_real);
         FixedRotateRightOperation::<AB::F>::eval(builder, e, 11, cols.e_rr_11, is_real);
         FixedRotateRightOperation::<AB::F>::eval(builder, e, 25, cols.e_rr_25, is_real);
