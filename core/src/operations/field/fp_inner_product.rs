@@ -7,13 +7,13 @@ use crate::air::Polynomial;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use curta_derive::AlignedBorrow;
 use num::BigUint;
 use num::Zero;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::Field;
 use std::fmt::Debug;
-use valida_derive::AlignedBorrow;
 
 /// A set of columns to compute `FpInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
@@ -138,13 +138,13 @@ mod tests {
     use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
+    use curta_derive::AlignedBorrow;
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use valida_derive::AlignedBorrow;
 
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {

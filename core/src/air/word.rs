@@ -3,10 +3,10 @@ use std::mem::size_of;
 use std::ops::{Index, IndexMut};
 
 use core::borrow::{Borrow, BorrowMut};
+use curta_derive::AlignedBorrow;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
-use valida_derive::AlignedBorrow;
 
 use super::CurtaAirBuilder;
 

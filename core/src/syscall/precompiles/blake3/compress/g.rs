@@ -2,8 +2,8 @@ use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_field::Field;
 
+use curta_derive::AlignedBorrow;
 use std::mem::size_of;
-use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::Word;

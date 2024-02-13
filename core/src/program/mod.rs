@@ -6,7 +6,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use std::collections::HashMap;
 
-use valida_derive::AlignedBorrow;
+use curta_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;

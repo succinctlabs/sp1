@@ -4,10 +4,10 @@ use crate::air::CurtaAirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use curta_derive::AlignedBorrow;
 use num::BigUint;
 use p3_field::Field;
 use std::fmt::Debug;
-use valida_derive::AlignedBorrow;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
 /// limb lives.
@@ -90,13 +90,13 @@ mod tests {
     use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
+    use curta_derive::AlignedBorrow;
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use valida_derive::AlignedBorrow;
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,

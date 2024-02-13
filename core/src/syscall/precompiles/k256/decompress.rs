@@ -39,9 +39,9 @@ use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
 use std::str::FromStr;
 
+use curta_derive::AlignedBorrow;
 use p3_matrix::dense::RowMajorMatrix;
 use std::fmt::Debug;
-use valida_derive::AlignedBorrow;
 
 #[derive(Debug, Clone, Copy)]
 pub struct K256DecompressEvent {
