@@ -50,13 +50,13 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for Pr
         !record.cpu_events.is_empty()
     }
 
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, _host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.
         let mut instruction_counts = HashMap::new();
-        record.cpu_events.clone().into_iter().for_each(|event| {
+        record.cpu_events.iter().for_each(|event| {
             let pc = event.pc;
             instruction_counts
                 .entry(pc)
@@ -152,7 +152,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 30, 0, 37, false, true),
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
-        let mut shard = ExecutionRecord {
+        let shard = ExecutionRecord {
             program: Arc::new(Program {
                 instructions,
                 pc_start: 0,

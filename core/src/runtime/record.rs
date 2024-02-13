@@ -179,8 +179,8 @@ impl ExecutionRecord {
 
         self.cpu_events.append(&mut other.cpu_events);
         self.add_events.append(&mut other.add_events);
-        self.mul_events.append(&mut other.mul_events);
         self.sub_events.append(&mut other.sub_events);
+        self.mul_events.append(&mut other.mul_events);
         self.bitwise_events.append(&mut other.bitwise_events);
         self.shift_left_events.append(&mut other.shift_left_events);
         self.shift_right_events
@@ -204,7 +204,14 @@ impl ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
-        self.byte_lookups.append(&mut other.byte_lookups);
+
+        for (event, mult) in other.byte_lookups.iter_mut() {
+            self.byte_lookups
+                .entry(*event)
+                .and_modify(|i| *i += *mult)
+                .or_insert(*mult);
+        }
+
         self.first_memory_record
             .append(&mut other.first_memory_record);
         self.last_memory_record
