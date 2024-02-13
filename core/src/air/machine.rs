@@ -11,13 +11,14 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
 
     /// Generate the trace for a given execution record.
     ///
-    /// The mutable borrow of `record` allows a `MachineAir` to store additional information in the
-    /// record, such as inserting events for other AIRs to process.
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F>;
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>);
-
-    fn include(&self, record: &ExecutionRecord) -> bool;
+    /// - `input` is the execution record containing the events to be written to the trace.
+    /// - `output` is the execution record containing events that the `MachineAir` can add to
+    ///    the record such as byte lookup requests.
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F>;
 
     /// The number of preprocessed columns in the trace.
     fn preprocessed_width(&self) -> usize {
@@ -25,7 +26,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     }
 
     #[allow(unused_variables)]
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
         None
     }
 }

@@ -21,13 +21,13 @@ pub struct NotOperation<T> {
 }
 
 impl<F: Field> NotOperation<F> {
-    pub fn populate(&mut self, shard: &mut ExecutionRecord, x: u32) -> u32 {
+    pub fn populate(&mut self, record: &mut ExecutionRecord, x: u32) -> u32 {
         let expected = !x;
         let x_bytes = x.to_le_bytes();
         for i in 0..WORD_SIZE {
             self.value[i] = F::from_canonical_u8(!x_bytes[i]);
         }
-        shard.add_u8_range_checks(&x_bytes);
+        record.add_u8_range_checks(&x_bytes);
         expected
     }
 

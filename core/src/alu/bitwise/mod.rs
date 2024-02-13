@@ -11,7 +11,7 @@ use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -47,24 +47,14 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         "Bitwise".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .bitwise_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].bitwise_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.bitwise_events.is_empty()
-    }
-
     #[instrument(name = "generate bitwise trace", skip_all)]
-    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = shard
+        let rows = input
             .bitwise_events
             .iter()
             .map(|event| {
@@ -90,11 +80,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                         b: b_b as u32,
                         c: b_c as u32,
                     };
-                    shard
-                        .byte_lookups
-                        .entry(byte_event)
-                        .and_modify(|i| *i += 1)
-                        .or_insert(1);
+                    output.add_byte_lookup_event(byte_event);
                 }
 
                 row
@@ -175,7 +161,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -192,7 +179,8 @@ mod tests {
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
