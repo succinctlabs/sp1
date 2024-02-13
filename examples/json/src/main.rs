@@ -14,8 +14,8 @@ fn main() {
     // Sample data.
     let data_str = r#"
             {
-                "name": "John George",
-                "age": "43",
+                "name": "Jane Doe",
+                "age": "25",
                 "net_worth" : "$1000000"
             }"#
     .to_string();
