@@ -190,16 +190,30 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
-        S1Operation::<AB::F>::eval(builder, local.e, local.s1, local.is_compression);
-        ChOperation::<AB::F>::eval(
-            builder,
-            local.e,
-            local.f,
-            local.g,
-            local.ch,
-            local.is_compression,
-        );
-        S0Operation::<AB::F>::eval(builder, local.a, local.s0, local.is_compression);
+        // Calculate S1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25).
+        let _s1 = {
+            S1Operation::<AB::F>::eval(builder, local.e, local.s1, local.is_compression);
+            local.s1.s1.value
+        };
+
+        // Calculate ch := (e and f) xor ((not e) and g).
+        let _ch = {
+            ChOperation::<AB::F>::eval(
+                builder,
+                local.e,
+                local.f,
+                local.g,
+                local.ch,
+                local.is_compression,
+            );
+            local.ch.ch.value
+        };
+
+        // Calculate S0 := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22).
+        let _s0 = {
+            S0Operation::<AB::F>::eval(builder, local.a, local.s0, local.is_compression);
+            local.s0.s0.value
+        };
 
         AndOperation::<AB::F>::eval(
             builder,
