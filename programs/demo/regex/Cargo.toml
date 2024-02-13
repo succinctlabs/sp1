@@ -1,0 +1,9 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "regex-demo"
+edition = "2021"
+
+[dependencies]
+curta-zkvm = { path = "../../../zkvm" }
+regex = "1.10.3"

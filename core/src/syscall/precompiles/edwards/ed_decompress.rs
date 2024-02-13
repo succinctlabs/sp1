@@ -6,9 +6,9 @@ use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::fp_op::FpOpCols;
-use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::fp_sqrt::FpSqrtCols;
+use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOperation;
+use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
@@ -32,7 +32,7 @@ use num::One;
 use num::Zero;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::marker::PhantomData;
 
@@ -68,16 +68,16 @@ pub struct EdDecompressCols<T> {
     pub ptr: T,
     pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) yy: FpOpCols<T>,
-    pub(crate) u: FpOpCols<T>,
-    pub(crate) dyy: FpOpCols<T>,
-    pub(crate) v: FpOpCols<T>,
-    pub(crate) u_div_v: FpOpCols<T>,
-    pub(crate) x: FpSqrtCols<T>,
-    pub(crate) neg_x: FpOpCols<T>,
+    pub(crate) yy: FieldOpCols<T>,
+    pub(crate) u: FieldOpCols<T>,
+    pub(crate) dyy: FieldOpCols<T>,
+    pub(crate) v: FieldOpCols<T>,
+    pub(crate) u_div_v: FieldOpCols<T>,
+    pub(crate) x: FieldSqrtCols<T>,
+    pub(crate) neg_x: FieldOpCols<T>,
 }
 
-impl<F: Field> EdDecompressCols<F> {
+impl<F: PrimeField32> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
@@ -94,23 +94,23 @@ impl<F: Field> EdDecompressCols<F> {
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_fp_ops::<P, E>(y);
+        self.populate_field_ops::<P, E>(y);
 
         shard.field_events.append(&mut new_field_events);
     }
 
-    fn populate_fp_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
+    fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
         let one = BigUint::one();
-        let yy = self.yy.populate::<P>(y, y, FpOperation::Mul);
-        let u = self.u.populate::<P>(&yy, &one, FpOperation::Sub);
+        let yy = self.yy.populate::<P>(y, y, FieldOperation::Mul);
+        let u = self.u.populate::<P>(&yy, &one, FieldOperation::Sub);
         let dyy = self
             .dyy
-            .populate::<P>(&E::d_biguint(), &yy, FpOperation::Mul);
-        let v = self.v.populate::<P>(&one, &dyy, FpOperation::Add);
-        let u_div_v = self.u_div_v.populate::<P>(&u, &v, FpOperation::Div);
+            .populate::<P>(&E::d_biguint(), &yy, FieldOperation::Mul);
+        let v = self.v.populate::<P>(&one, &dyy, FieldOperation::Add);
+        let u_div_v = self.u_div_v.populate::<P>(&u, &v, FieldOperation::Div);
         let x = self.x.populate::<P>(&u_div_v, ed25519_sqrt);
         self.neg_x
-            .populate::<P>(&BigUint::zero(), &x, FpOperation::Sub);
+            .populate::<P>(&BigUint::zero(), &x, FieldOperation::Sub);
     }
 }
 
@@ -128,31 +128,35 @@ impl<V: Copy> EdDecompressCols<V> {
 
         let y = limbs_from_prev_access(&self.y_access);
         self.yy
-            .eval::<AB, P, _, _>(builder, &y, &y, FpOperation::Mul);
+            .eval::<AB, P, _, _>(builder, &y, &y, FieldOperation::Mul);
         self.u.eval::<AB, P, _, _>(
             builder,
             &self.yy.result,
             &[AB::Expr::one()].iter(),
-            FpOperation::Sub,
+            FieldOperation::Sub,
         );
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
         self.dyy
-            .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FpOperation::Mul);
+            .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
         self.v.eval::<AB, P, _, _>(
             builder,
             &[AB::Expr::one()].iter(),
             &self.dyy.result,
-            FpOperation::Add,
+            FieldOperation::Add,
         );
-        self.u_div_v
-            .eval::<AB, P, _, _>(builder, &self.u.result, &self.v.result, FpOperation::Div);
+        self.u_div_v.eval::<AB, P, _, _>(
+            builder,
+            &self.u.result,
+            &self.v.result,
+            FieldOperation::Div,
+        );
         self.x.eval::<AB, P>(builder, &self.u_div_v.result);
         self.neg_x.eval::<AB, P, _, _>(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.x.multiplication.result,
-            FpOperation::Sub,
+            FieldOperation::Sub,
         );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
@@ -267,7 +271,7 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
     }
 }
 
-impl<F: Field, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
+impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }
@@ -296,7 +300,7 @@ impl<F: Field, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            cols.populate_fp_ops::<E::BaseField, E>(&zero);
+            cols.populate_field_ops::<E::BaseField, E>(&zero);
             row
         });
 
