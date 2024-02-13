@@ -1,19 +1,19 @@
 # Installation
 
-SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through SP1up or
+SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
 build the toolchain and CLI from source.
 
 Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
-SP1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
+sp1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
 ```bash
 curl -L https://sp1.succinct.xyz | bash
 ```
 
-This will install SP1up, then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
+This will install sp1up, then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
 
 After following the instructions, you can run `sp1up` to install the toolchain:
 
