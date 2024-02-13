@@ -1,6 +1,7 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
 mod air;
+mod ch;
 mod columns;
 mod execute;
 mod s1;

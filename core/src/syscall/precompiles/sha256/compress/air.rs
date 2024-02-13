@@ -1,14 +1,13 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 
+use super::ch::ChOperation;
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::s1::S1Operation;
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::{
-    AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
-};
+use crate::operations::{AddOperation, AndOperation, FixedRotateRightOperation, XorOperation};
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -191,25 +190,11 @@ impl ShaCompressChip {
         local: &ShaCompressCols<AB::Var>,
     ) {
         S1Operation::<AB::F>::eval(builder, local.e, local.s1, local.is_compression);
-        AndOperation::<AB::F>::eval(
+        ChOperation::<AB::F>::eval(
             builder,
             local.e,
             local.f,
-            local.e_and_f,
-            local.is_compression,
-        );
-        NotOperation::<AB::F>::eval(builder, local.e, local.e_not, local.is_compression);
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.e_not.value,
             local.g,
-            local.e_not_and_g,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.e_and_f.value,
-            local.e_not_and_g.value,
             local.ch,
             local.is_compression,
         );
