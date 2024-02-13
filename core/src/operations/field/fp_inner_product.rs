@@ -130,7 +130,8 @@ mod tests {
     use p3_field::Field;
 
     use super::{FpInnerProductCols, Limbs};
-    use crate::air::MachineAir;
+    use crate::air::{ExecutionAir, MachineAir};
+    use crate::runtime::{EmptyHost, Host};
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
@@ -171,14 +172,18 @@ mod tests {
         fn name(&self) -> String {
             "FpInnerProduct".to_string()
         }
+    }
 
+    impl<F: Field, P: FieldParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
+        for FpIpChip<P>
+    {
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
         fn include(&self, record: &ExecutionRecord) -> bool {
             !record.field_events.is_empty()
         }
 
-        fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+        fn generate_trace(&self, _: &ExecutionRecord, _: &mut H) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<(Vec<BigUint>, Vec<BigUint>)> = (0..num_rows - 4)
@@ -246,7 +251,8 @@ mod tests {
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
         let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
     }
 
@@ -255,10 +261,11 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
 
         let chip: FpIpChip<Ed25519BaseField> = FpIpChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

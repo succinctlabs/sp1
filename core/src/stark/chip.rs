@@ -4,9 +4,9 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{CurtaAirBuilder, MachineAir, MultiTableAirBuilder},
+    air::{CurtaAirBuilder, ExecutionAir, MachineAir, MultiTableAirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::{ExecutionRecord, Program},
+    runtime::{EmptyHost, ExecutionRecord, Host, Program},
 };
 
 use super::{
@@ -26,7 +26,7 @@ pub struct Chip<F: Field, A> {
 }
 
 pub struct ChipRef<'a, SC: StarkGenericConfig> {
-    air: &'a dyn StarkAirDyn<SC>,
+    air: &'a dyn StarkAir<SC>,
     sends: &'a [Interaction<SC::Val>],
     receives: &'a [Interaction<SC::Val>],
     log_quotient_degree: usize,
@@ -67,6 +67,8 @@ impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
 /// `AB: CurtaAirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
+    + ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>
+    + ExecutionAir<SC::Val, ExecutionRecord>
     + Air<InteractionBuilder<SC::Val>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
@@ -76,79 +78,13 @@ pub trait StarkAir<SC: StarkGenericConfig>:
 
 impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
     T: MachineAir<SC::Val>
+        + ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>
+        + ExecutionAir<SC::Val, ExecutionRecord>
         + Air<InteractionBuilder<SC::Val>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
-}
-
-/// A variant of `StarkAir` which is compatible with dynamic trait objects.
-///
-/// **Warning**: This trait is automatically implemented and should not be implemented by the user.
-///
-/// The methods of `StarkAirDyn` includes all the necessary implementations from `StarkAir` that
-/// are needed to generate and evaluate constraints for a STARK proof and does not include the
-/// execution methods.
-pub trait StarkAirDyn<SC: StarkGenericConfig>:
-    for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
-{
-    /// A unique identifier for this AIR as part of a machine.
-    fn name(&self) -> String;
-
-    /// Generate the trace for a given execution record.
-    ///
-    /// The mutable borrow of `record` allows a `MachineAir` to store additional information in the
-    /// record, such as inserting events for other AIRs to process.
-    fn generate_trace(&self, record: &ExecutionRecord) -> RowMajorMatrix<SC::Val>;
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>);
-
-    fn include(&self, record: &ExecutionRecord) -> bool;
-
-    /// The number of preprocessed columns in the trace.
-    fn preprocessed_width(&self) -> usize {
-        0
-    }
-
-    #[allow(unused_variables)]
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
-        None
-    }
-}
-
-impl<SC: StarkGenericConfig, T: StarkAir<SC>> StarkAirDyn<SC> for T {
-    /// A unique identifier for this AIR as part of a machine.
-    fn name(&self) -> String {
-        self.name()
-    }
-
-    /// Generate the trace for a given execution record.
-    ///
-    /// The mutable borrow of `record` allows a `MachineAir` to store additional information in the
-    /// record, such as inserting events for other AIRs to process.
-    fn generate_trace(&self, record: &ExecutionRecord) -> RowMajorMatrix<SC::Val> {
-        self.generate_trace(record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        self.shard(input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        self.include(record)
-    }
-
-    /// The number of preprocessed columns in the trace.
-    fn preprocessed_width(&self) -> usize {
-        self.preprocessed_width()
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
-        <T as MachineAir<SC::Val>>::preprocessed_trace(self, program)
-    }
 }
 
 impl<F, A> Chip<F, A>
@@ -212,25 +148,31 @@ where
     fn name(&self) -> String {
         self.air.name()
     }
-
-    fn generate_trace(&self, record: &ExecutionRecord) -> RowMajorMatrix<F> {
-        self.air.generate_trace(record)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+    fn preprocessed_width(&self) -> usize {
+        self.air.preprocessed_width()
+    }
+}
+
+impl<F, H, A> ExecutionAir<F, H> for Chip<F, A>
+where
+    F: Field,
+    A: ExecutionAir<F, H>,
+    H: Host,
+{
+    fn generate_trace(&self, record: &H::Record, host: &mut H) -> RowMajorMatrix<F> {
+        self.air.generate_trace(record, host)
+    }
+
+    fn shard(&self, input: &H::Record, outputs: &mut Vec<H::Record>) {
         self.air.shard(input, outputs);
     }
 
     fn include(&self, record: &ExecutionRecord) -> bool {
         self.air.include(record)
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
-        <A as MachineAir<F>>::preprocessed_trace(&self.air, program)
-    }
-
-    fn preprocessed_width(&self) -> usize {
-        self.air.preprocessed_width()
     }
 }
 
@@ -253,49 +195,87 @@ where
 
 impl<'a, SC: StarkGenericConfig> BaseAir<SC::Val> for ChipRef<'a, SC> {
     fn width(&self) -> usize {
-        <dyn StarkAirDyn<SC> as BaseAir<SC::Val>>::width(self.air)
+        <dyn StarkAir<SC> as BaseAir<SC::Val>>::width(self.air)
     }
 
     fn preprocessed_trace(&self) -> Option<RowMajorMatrix<SC::Val>> {
-        <dyn StarkAirDyn<SC> as BaseAir<SC::Val>>::preprocessed_trace(self.air)
+        <dyn StarkAir<SC> as BaseAir<SC::Val>>::preprocessed_trace(self.air)
     }
 }
 
-impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
+impl<'a, SC: StarkGenericConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
     fn name(&self) -> String {
-        <dyn StarkAirDyn<SC> as StarkAirDyn<SC>>::name(self.air)
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::name(self.air)
     }
 
-    fn generate_trace(&self, record: &ExecutionRecord) -> RowMajorMatrix<SC::Val> {
-        <dyn StarkAirDyn<SC> as StarkAirDyn<SC>>::generate_trace(self.air, record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        <dyn StarkAirDyn<SC> as StarkAirDyn<SC>>::shard(self.air, input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        <dyn StarkAirDyn<SC> as StarkAirDyn<SC>>::include(self.air, record)
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
-        <dyn StarkAirDyn<SC> as StarkAirDyn<SC>>::preprocessed_trace(self.air, program)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_preprocessed_trace(self.air, program)
     }
 
     fn preprocessed_width(&self) -> usize {
-        <dyn StarkAirDyn<SC> as StarkAirDyn<SC>>::preprocessed_width(self.air)
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_width(self.air)
+    }
+}
+
+impl<'a, SC: StarkGenericConfig> ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>
+    for ChipRef<'a, SC>
+{
+    fn generate_trace(
+        &self,
+        record: &ExecutionRecord,
+        host: &mut EmptyHost<ExecutionRecord>,
+    ) -> RowMajorMatrix<SC::Val> {
+        <dyn StarkAir<SC> as ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>>::generate_trace(
+            self.air, record, host,
+        )
+    }
+
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+        <dyn StarkAir<SC> as ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>>::shard(
+            self.air, input, outputs,
+        );
+    }
+
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        <dyn StarkAir<SC> as ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>>::include(
+            self.air, record,
+        )
+    }
+}
+
+impl<'a, SC: StarkGenericConfig> ExecutionAir<SC::Val, ExecutionRecord> for ChipRef<'a, SC> {
+    fn generate_trace(
+        &self,
+        record: &ExecutionRecord,
+        host: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<SC::Val> {
+        <dyn StarkAir<SC> as ExecutionAir<SC::Val, ExecutionRecord>>::generate_trace(
+            self.air, record, host,
+        )
+    }
+
+    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
+        <dyn StarkAir<SC> as ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>>::shard(
+            self.air, input, outputs,
+        );
+    }
+
+    fn include(&self, record: &ExecutionRecord) -> bool {
+        <dyn StarkAir<SC> as ExecutionAir<SC::Val, EmptyHost<ExecutionRecord>>>::include(
+            self.air, record,
+        )
     }
 }
 
 impl<'a, 'b, SC: StarkGenericConfig> Air<ProverConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut ProverConstraintFolder<'b, SC>) {
-        <dyn StarkAirDyn<SC> as Air<ProverConstraintFolder<'b, SC>>>::eval(self.air, builder);
+        <dyn StarkAir<SC> as Air<ProverConstraintFolder<'b, SC>>>::eval(self.air, builder);
     }
 }
 
 impl<'a, 'b, SC: StarkGenericConfig> Air<VerifierConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
     fn eval(&self, builder: &mut VerifierConstraintFolder<'b, SC>) {
-        <dyn StarkAirDyn<SC> as Air<VerifierConstraintFolder<'b, SC>>>::eval(self.air, builder);
+        <dyn StarkAir<SC> as Air<VerifierConstraintFolder<'b, SC>>>::eval(self.air, builder);
     }
 }
 
@@ -303,7 +283,7 @@ impl<'a, 'b, SC: StarkGenericConfig> Air<DebugConstraintBuilder<'b, SC::Val, SC:
     for ChipRef<'a, SC>
 {
     fn eval(&self, builder: &mut DebugConstraintBuilder<'b, SC::Val, SC::Challenge>) {
-        <dyn StarkAirDyn<SC> as Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>>::eval(
+        <dyn StarkAir<SC> as Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>>::eval(
             self.air, builder,
         );
     }

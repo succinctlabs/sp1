@@ -7,10 +7,10 @@ use p3_matrix::MatrixRowSlices;
 use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{ExecutionAir, MachineAir};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Host, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `BitwiseChip`.
@@ -46,7 +46,9 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for BitwiseChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .bitwise_events
@@ -62,9 +64,9 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     }
 
     #[instrument(name = "generate bitwise trace", skip_all)]
-    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = shard
+        let rows = record
             .bitwise_events
             .iter()
             .map(|event| {
@@ -90,11 +92,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                         b: b_b as u32,
                         c: b_c as u32,
                     };
-                    shard
-                        .byte_lookups
-                        .entry(byte_event)
-                        .and_modify(|i| *i += 1)
-                        .or_insert(1);
+                    host.add_byte_lookup_event(byte_event);
                 }
 
                 row
@@ -162,7 +160,8 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::air::MachineAir;
+    use crate::air::ExecutionAir;
+    use crate::runtime::EmptyHost;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     use super::BitwiseChip;
@@ -175,7 +174,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&mut shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
     }
 
@@ -192,7 +192,8 @@ mod tests {
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&mut shard, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

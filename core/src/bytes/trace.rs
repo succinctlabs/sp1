@@ -3,8 +3,8 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use super::{air::BYTE_MULT_INDICES, ByteChip};
 use crate::{
-    air::MachineAir,
-    runtime::{ExecutionRecord, Program},
+    air::{ExecutionAir, MachineAir},
+    runtime::{ExecutionRecord, Host, Program},
 };
 
 pub const NUM_ROWS: usize = 1 << 16;
@@ -14,6 +14,20 @@ impl<F: Field> MachineAir<F> for ByteChip {
         "Byte".to_string()
     }
 
+    fn preprocessed_width(&self) -> usize {
+        10
+    }
+
+    fn generate_preprocessed_trace(&self, _program: &Program) -> Option<RowMajorMatrix<F>> {
+        let values = (0..10 * NUM_ROWS)
+            .map(|i| F::from_canonical_usize(i))
+            .collect();
+
+        Some(RowMajorMatrix::new(values, 10))
+    }
+}
+
+impl<F: Field, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for ByteChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].byte_lookups = input.byte_lookups.clone();
     }
@@ -22,7 +36,7 @@ impl<F: Field> MachineAir<F> for ByteChip {
         !record.byte_lookups.is_empty()
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         let (mut trace, event_map) = ByteChip::trace_and_map::<F>();
 
         for (lookup, mult) in record.byte_lookups.iter() {
@@ -35,17 +49,5 @@ impl<F: Field> MachineAir<F> for ByteChip {
         }
 
         trace
-    }
-
-    fn preprocessed_width(&self) -> usize {
-        10
-    }
-
-    fn preprocessed_trace(&self, _program: &Program) -> Option<RowMajorMatrix<F>> {
-        let values = (0..10 * NUM_ROWS)
-            .map(|i| F::from_canonical_usize(i))
-            .collect();
-
-        Some(RowMajorMatrix::new(values, 10))
     }
 }

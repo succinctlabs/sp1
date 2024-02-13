@@ -1,10 +1,10 @@
-use crate::air::MachineAir;
 use crate::air::{AirInteraction, CurtaAirBuilder, Word};
+use crate::air::{ExecutionAir, MachineAir};
 use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, Host};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::Air;
@@ -45,7 +45,9 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
             MemoryChipKind::Program => "MemoryProgram".to_string(),
         }
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for MemoryGlobalChip {
     fn shard(&self, input: &ExecutionRecord, output: &mut Vec<ExecutionRecord>) {
         let last = output.last_mut().unwrap();
         match self.kind {
@@ -69,7 +71,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         }
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, _host: &mut H) -> RowMajorMatrix<F> {
         let memory_record = match self.kind {
             MemoryChipKind::Init => &record.first_memory_record,
             MemoryChipKind::Finalize => &record.last_memory_record,
@@ -170,7 +172,7 @@ mod tests {
 
     use super::*;
     use crate::runtime::tests::simple_program;
-    use crate::runtime::Runtime;
+    use crate::runtime::{EmptyHost, Runtime};
     use crate::utils::{setup_logger, BabyBearPoseidon2, StarkUtils};
 
     #[test]
@@ -178,15 +180,17 @@ mod tests {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let mut shard = runtime.record.clone();
+        let shard = runtime.record.clone();
 
         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values);
 
         let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values);
 
         for (addr, record, _) in shard.last_memory_record {
@@ -205,7 +209,8 @@ mod tests {
 
         let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

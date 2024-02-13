@@ -35,12 +35,12 @@ use p3_matrix::MatrixRowSlices;
 use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{ExecutionAir, MachineAir};
 use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Host, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `MulChip`.
@@ -111,7 +111,9 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     fn name(&self) -> String {
         "Mul".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for MulChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .mul_events
@@ -127,7 +129,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     }
 
     #[instrument(name = "generate mul trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
         let mul_events = record.mul_events.clone();
@@ -180,7 +182,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             c: 0,
                         });
                     }
-                    record.add_byte_lookup_events(blu_events);
+                    host.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -218,8 +220,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
             // Range check.
             {
-                record.add_u16_range_checks(&carry);
-                record.add_u8_range_checks(&product.map(|x| x as u8));
+                host.add_u16_range_checks(&carry);
+                host.add_u8_range_checks(&product.map(|x| x as u8));
             }
 
             rows.push(row);
@@ -397,9 +399,9 @@ where
 
 #[cfg(test)]
 mod tests {
-
+    use crate::air::ExecutionAir;
     use crate::{
-        air::MachineAir,
+        runtime::EmptyHost,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -424,7 +426,8 @@ mod tests {
             0xffff8000,
         )];
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
     }
 
@@ -499,7 +502,8 @@ mod tests {
 
         shard.mul_events = mul_events;
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

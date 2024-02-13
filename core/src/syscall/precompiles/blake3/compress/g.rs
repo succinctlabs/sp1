@@ -11,7 +11,7 @@ use crate::air::WORD_SIZE;
 use crate::operations::AddOperation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::Host;
 
 use super::g_func;
 /// A set of columns needed to compute the `g` of the input state.
@@ -49,7 +49,7 @@ pub struct GOperation<T> {
 }
 
 impl<F: Field> GOperation<F> {
-    pub fn populate(&mut self, segment: &mut ExecutionRecord, input: [u32; 6]) -> [u32; 4] {
+    pub fn populate<H: Host>(&mut self, host: &mut H, input: [u32; 6]) -> [u32; 4] {
         let mut a = input[0];
         let mut b = input[1];
         let mut c = input[2];
@@ -60,37 +60,37 @@ impl<F: Field> GOperation<F> {
         // First 4 steps.
         {
             // a = a + b + x.
-            a = self.a_plus_b.populate(segment, a, b);
-            a = self.a_plus_b_plus_x.populate(segment, a, x);
+            a = self.a_plus_b.populate(host, a, b);
+            a = self.a_plus_b_plus_x.populate(host, a, x);
 
             // d = (d ^ a).rotate_right(16).
-            d = self.d_xor_a.populate(segment, d, a);
+            d = self.d_xor_a.populate(host, d, a);
             d = d.rotate_right(16);
 
             // c = c + d.
-            c = self.c_plus_d.populate(segment, c, d);
+            c = self.c_plus_d.populate(host, c, d);
 
             // b = (b ^ c).rotate_right(12).
-            b = self.b_xor_c.populate(segment, b, c);
-            b = self.b_xor_c_rotate_right_12.populate(segment, b, 12);
+            b = self.b_xor_c.populate(host, b, c);
+            b = self.b_xor_c_rotate_right_12.populate(host, b, 12);
         }
 
         // Second 4 steps.
         {
             // a = a + b + y.
-            a = self.a_plus_b_2.populate(segment, a, b);
-            a = self.a_plus_b_2_add_y.populate(segment, a, y);
+            a = self.a_plus_b_2.populate(host, a, b);
+            a = self.a_plus_b_2_add_y.populate(host, a, y);
 
             // d = (d ^ a).rotate_right(8).
-            d = self.d_xor_a_2.populate(segment, d, a);
+            d = self.d_xor_a_2.populate(host, d, a);
             d = d.rotate_right(8);
 
             // c = c + d.
-            c = self.c_plus_d_2.populate(segment, c, d);
+            c = self.c_plus_d_2.populate(host, c, d);
 
             // b = (b ^ c).rotate_right(7).
-            b = self.b_xor_c_2.populate(segment, b, c);
-            b = self.b_xor_c_2_rotate_right_7.populate(segment, b, 7);
+            b = self.b_xor_c_2.populate(host, b, c);
+            b = self.b_xor_c_2_rotate_right_7.populate(host, b, 7);
         }
 
         let result = [a, b, c, d];

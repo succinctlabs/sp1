@@ -10,9 +10,9 @@ use p3_maybe_rayon::prelude::*;
 use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::air::{ExecutionAir, MachineAir};
+use crate::runtime::{ExecutionRecord, Host, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
 
 /// The number of main trace columns for `SubChip`.
@@ -45,7 +45,9 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
     fn name(&self) -> String {
         "Sub".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for SubChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .sub_events
@@ -61,7 +63,7 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
     }
 
     #[instrument(name = "generate sub trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record
             .sub_events
@@ -173,7 +175,8 @@ where
 mod tests {
 
     use crate::{
-        air::MachineAir,
+        air::ExecutionAir,
+        runtime::EmptyHost,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -192,7 +195,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
     }
 
@@ -213,7 +217,8 @@ mod tests {
                 .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
         }
         let chip = SubChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

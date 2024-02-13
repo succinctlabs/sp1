@@ -7,13 +7,11 @@ use p3_matrix::MatrixRowSlices;
 use tracing::instrument;
 use valida_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{ExecutionAir, MachineAir};
 use crate::operations::AddOperation;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Host, Opcode};
 use crate::utils::{env, pad_to_power_of_two};
-
-use super::AluEvent;
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
@@ -40,12 +38,12 @@ pub struct AddCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for AddChip {
-    type Event = AluEvent;
-
     fn name(&self) -> String {
         "Add".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for AddChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .add_events
@@ -61,14 +59,14 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
     }
 
     #[instrument(name = "generate add trace", skip_all)]
-    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
-        for i in 0..shard.add_events.len() {
+        for i in 0..record.add_events.len() {
             let mut row = [F::zero(); NUM_ADD_COLS];
             let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
-            let event = shard.add_events[i];
-            cols.add_operation.populate(shard, event.b, event.c);
+            let event = record.add_events[i];
+            cols.add_operation.populate(host, event.b, event.c);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
             cols.is_real = F::one();
@@ -131,12 +129,13 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        air::MachineAir,
+        runtime::EmptyHost,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use rand::{thread_rng, Rng};
 
     use super::AddChip;
+    use crate::air::ExecutionAir;
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
@@ -148,7 +147,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
     }
 
@@ -168,7 +168,8 @@ mod tests {
         }
 
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

@@ -11,7 +11,7 @@ use crate::air::CurtaAirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
 use crate::bytes::ByteOpcode;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::Host;
 
 /// A set of columns needed to compute the add of four words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -37,9 +37,9 @@ pub struct Add4Operation<T> {
 }
 
 impl<F: Field> Add4Operation<F> {
-    pub fn populate(
+    pub fn populate<H: Host>(
         &mut self,
-        shard: &mut ExecutionRecord,
+        host: &mut H,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -74,11 +74,11 @@ impl<F: Field> Add4Operation<F> {
 
         // Range check.
         {
-            shard.add_u8_range_checks(&a);
-            shard.add_u8_range_checks(&b);
-            shard.add_u8_range_checks(&c);
-            shard.add_u8_range_checks(&d);
-            shard.add_u8_range_checks(&expected.to_le_bytes());
+            host.add_u8_range_checks(&a);
+            host.add_u8_range_checks(&b);
+            host.add_u8_range_checks(&c);
+            host.add_u8_range_checks(&d);
+            host.add_u8_range_checks(&expected.to_le_bytes());
         }
         expected
     }

@@ -1,12 +1,13 @@
 use crate::air::CurtaAirBuilder;
+use crate::air::ExecutionAir;
 use crate::air::MachineAir;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::params::NUM_LIMBS;
-use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::{ExecutionRecord, Host};
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
@@ -158,7 +159,11 @@ impl<F: Field, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
     }
+}
 
+impl<F: Field, E: EllipticCurve + WeierstrassParameters, H: Host<Record = ExecutionRecord>>
+    ExecutionAir<F, H> for WeierstrassDoubleAssignChip<E>
+{
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
     }
@@ -167,7 +172,7 @@ impl<F: Field, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         !record.weierstrass_double_events.is_empty()
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
@@ -197,7 +202,7 @@ impl<F: Field, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
-        record.field_events.extend(new_field_events);
+        host.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];

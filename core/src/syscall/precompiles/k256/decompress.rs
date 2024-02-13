@@ -1,5 +1,6 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
+use crate::air::ExecutionAir;
 use crate::air::MachineAir;
 use crate::air::Word;
 use crate::cpu::MemoryReadRecord;
@@ -9,8 +10,8 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::{ExecutionRecord, Host};
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::field::FieldParameters;
@@ -153,7 +154,7 @@ pub struct K256DecompressCols<T> {
 }
 
 impl<F: Field> K256DecompressCols<F> {
-    pub fn populate(&mut self, event: K256DecompressEvent, shard: &mut ExecutionRecord) {
+    pub fn populate<H: Host>(&mut self, event: K256DecompressEvent, host: &mut H) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
@@ -167,7 +168,7 @@ impl<F: Field> K256DecompressCols<F> {
         let x = &BigUint::from_bytes_le(&event.x_bytes);
         self.populate_fp_ops(x);
 
-        shard.field_events.append(&mut new_field_events);
+        host.add_field_events(&new_field_events);
     }
 
     fn populate_fp_ops(&mut self, x: &BigUint) {
@@ -289,7 +290,9 @@ impl<F: Field> MachineAir<F> for K256DecompressChip {
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }
+}
 
+impl<F: Field, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for K256DecompressChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].k256_decompress_events = input.k256_decompress_events.clone();
     }
@@ -298,14 +301,14 @@ impl<F: Field> MachineAir<F> for K256DecompressChip {
         !record.k256_decompress_events.is_empty()
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         for i in 0..record.k256_decompress_events.len() {
             let event = record.k256_decompress_events[i];
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate(event, record);
+            cols.populate(event, host);
 
             rows.push(row);
         }

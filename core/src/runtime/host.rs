@@ -3,16 +3,28 @@ use std::collections::HashMap;
 use crate::{
     alu::AluEvent,
     bytes::{ByteLookupEvent, ByteOpcode},
+    field::event::FieldEvent,
 };
 
 use super::Opcode;
 
-pub trait Execute<H> {
-    fn execute(&self, host: &mut H);
-}
-
 pub trait Host {
+    /// The execution record associated with the host.
+    type Record;
+
     fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>);
+
+    fn add_field_event(&mut self, field_event: FieldEvent);
+
+    fn add_mul_event(&mut self, mul_event: AluEvent);
+
+    fn add_lt_event(&mut self, lt_event: AluEvent);
+
+    fn add_field_events(&mut self, field_events: &[FieldEvent]) {
+        for field_event in field_events.iter() {
+            self.add_field_event(*field_event);
+        }
+    }
 
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
 
@@ -72,4 +84,21 @@ pub trait Host {
             c: c as u32,
         });
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct EmptyHost<T>(std::marker::PhantomData<T>);
+
+impl<T> Host for EmptyHost<T> {
+    type Record = T;
+
+    fn add_field_event(&mut self, _field_event: FieldEvent) {}
+
+    fn add_lt_event(&mut self, _lt_event: AluEvent) {}
+
+    fn add_mul_event(&mut self, _mul_event: AluEvent) {}
+
+    fn add_alu_events(&mut self, _alu_events: HashMap<Opcode, Vec<AluEvent>>) {}
+
+    fn add_byte_lookup_event(&mut self, _blu_event: ByteLookupEvent) {}
 }

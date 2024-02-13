@@ -7,8 +7,8 @@ use p3_keccak_air::{generate_trace_rows, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
-    air::MachineAir,
-    runtime::ExecutionRecord,
+    air::{ExecutionAir, MachineAir},
+    runtime::{ExecutionRecord, Host},
     syscall::precompiles::keccak256::{
         columns::{KeccakCols, NUM_KECCAK_COLS},
         STATE_SIZE,
@@ -21,7 +21,9 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     fn name(&self) -> String {
         "KeccakPermute".to_string()
     }
+}
 
+impl<F: PrimeField32, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for KeccakPermuteChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].keccak_permute_events = input.keccak_permute_events.clone();
     }
@@ -30,7 +32,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         !record.keccak_permute_events.is_empty()
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Figure out number of total rows.
         let mut num_rows = (record.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
         if num_rows < 4 {
@@ -115,7 +117,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             }
         }
 
-        record.field_events.extend(new_field_events);
+        host.add_field_events(&new_field_events);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

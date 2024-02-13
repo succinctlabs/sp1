@@ -10,7 +10,7 @@ use crate::air::Word;
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::Host;
 
 /// A set of columns needed to compute the xor of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -21,7 +21,7 @@ pub struct XorOperation<T> {
 }
 
 impl<F: Field> XorOperation<F> {
-    pub fn populate(&mut self, shard: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
+    pub fn populate<H: Host>(&mut self, host: &mut H, x: u32, y: u32) -> u32 {
         let expected = x ^ y;
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
@@ -37,11 +37,7 @@ impl<F: Field> XorOperation<F> {
                 b: x_bytes[i] as u32,
                 c: y_bytes[i] as u32,
             };
-            shard
-                .byte_lookups
-                .entry(byte_event)
-                .and_modify(|j| *j += 1)
-                .or_insert(1);
+            host.add_byte_lookup_event(byte_event);
         }
         expected
     }

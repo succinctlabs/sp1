@@ -1,5 +1,6 @@
 use crate::air::BaseAirBuilder;
 use crate::air::CurtaAirBuilder;
+use crate::air::ExecutionAir;
 use crate::air::MachineAir;
 use crate::air::WORD_SIZE;
 use crate::cpu::MemoryReadRecord;
@@ -9,8 +10,8 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::fp_op::FpOpCols;
 use crate::operations::field::fp_op::FpOperation;
 use crate::operations::field::fp_sqrt::FpSqrtCols;
-use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::{ExecutionRecord, Host};
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
@@ -78,10 +79,10 @@ pub struct EdDecompressCols<T> {
 }
 
 impl<F: Field> EdDecompressCols<F> {
-    pub fn populate<P: FieldParameters, E: EdwardsParameters>(
+    pub fn populate<P: FieldParameters, E: EdwardsParameters, H: Host>(
         &mut self,
         event: EdDecompressEvent,
-        shard: &mut ExecutionRecord,
+        host: &mut H,
     ) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
@@ -96,7 +97,7 @@ impl<F: Field> EdDecompressCols<F> {
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_fp_ops::<P, E>(y);
 
-        shard.field_events.append(&mut new_field_events);
+        host.add_field_events(&new_field_events);
     }
 
     fn populate_fp_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
@@ -271,7 +272,11 @@ impl<F: Field, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }
+}
 
+impl<F: Field, E: EdwardsParameters, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H>
+    for EdDecompressChip<E>
+{
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
     }
@@ -280,14 +285,14 @@ impl<F: Field, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
         !record.ed_decompress_events.is_empty()
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         for i in 0..record.ed_decompress_events.len() {
             let event = record.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event, record);
+            cols.populate::<E::BaseField, E, _>(event, host);
 
             rows.push(row);
         }

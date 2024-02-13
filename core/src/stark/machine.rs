@@ -1,3 +1,4 @@
+use crate::air::ExecutionAir;
 use crate::air::MachineAir;
 use crate::alu::AddChip;
 use crate::alu::BitwiseChip;
@@ -188,7 +189,7 @@ where
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
     pub fn setup(&self, program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
-        let byte_trace = self.byte.preprocessed_trace(program).unwrap();
+        let byte_trace = self.byte.generate_preprocessed_trace(program).unwrap();
 
         let (commit, data) = self.config.pcs().commit_batches(vec![byte_trace.clone()]);
 
@@ -217,7 +218,9 @@ where
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
-            chip.generate_trace(record);
+            let mut output = ExecutionRecord::default();
+            chip.generate_trace(record, &mut output);
+            record.append(&mut output);
         });
 
         // Display the statistics about the workload after generate_trace.
@@ -227,7 +230,11 @@ where
         // For each chip, shard the events into segments.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
         chips.iter().for_each(|chip| {
-            chip.shard(record, &mut shards);
+            <ChipRef<SC> as ExecutionAir<SC::Val, ExecutionRecord>>::shard(
+                chip,
+                record,
+                &mut shards,
+            );
         });
 
         shards

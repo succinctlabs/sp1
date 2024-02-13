@@ -20,8 +20,8 @@ use std::marker::PhantomData;
 
 use super::util::decompose_and_flatten;
 use super::{types::*, ChipRef, StarkGenericConfig};
-use crate::air::MachineAir;
-use crate::runtime::ExecutionRecord;
+use crate::air::{ExecutionAir, MachineAir};
+use crate::runtime::{EmptyHost, ExecutionRecord};
 use crate::stark::permutation::generate_permutation_trace;
 use crate::utils::env;
 
@@ -101,7 +101,7 @@ where
     fn commit_main(
         config: &SC,
         chips: &[ChipRef<SC>],
-        shard: &mut ExecutionRecord,
+        shard: &ExecutionRecord,
         index: usize,
     ) -> ShardMainData<SC>
     where
@@ -110,13 +110,15 @@ where
         // Filter the chips based on what is used.
         let filtered_chips = chips
             .iter()
-            .filter(|chip| chip.include(shard))
+            .filter(|chip| {
+                <ChipRef<SC> as ExecutionAir<SC::Val, ExecutionRecord>>::include(chip, shard)
+            })
             .collect::<Vec<_>>();
 
         // For each chip, generate the trace.
         let traces = filtered_chips
-            .iter()
-            .map(|chip| chip.generate_trace(&mut shard.clone()))
+            .par_iter()
+            .map(|chip| chip.generate_trace(shard, &mut EmptyHost::default()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.

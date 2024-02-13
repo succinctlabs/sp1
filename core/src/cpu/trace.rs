@@ -3,7 +3,7 @@ use super::columns::{
     NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
 };
 use super::{CpuChip, CpuEvent};
-use crate::air::MachineAir;
+use crate::air::{ExecutionAir, MachineAir};
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::{CpuCols, MemoryColumns};
@@ -11,7 +11,7 @@ use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Host, Opcode};
 use crate::utils::env;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -25,7 +25,9 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     fn name(&self) -> String {
         "CPU".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for CpuChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .cpu_events
@@ -47,7 +49,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     }
 
     #[instrument(name = "generate CPU trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
         let mut new_field_events: Vec<FieldEvent> = Vec::new();
@@ -76,9 +78,9 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         });
 
         // Add the dependency events to the shard.
-        record.add_alu_events(new_alu_events);
-        record.add_byte_lookup_events(new_blu_events);
-        record.field_events.extend(new_field_events);
+        host.add_alu_events(new_alu_events);
+        host.add_byte_lookup_events(new_blu_events);
+        host.add_field_events(&new_field_events);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(rows, NUM_CPU_COLS);
@@ -486,6 +488,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
+    use crate::runtime::EmptyHost;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, ExecutionRecord, Instruction, Runtime},
@@ -517,7 +520,8 @@ mod tests {
             memory_record: None,
         }];
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values);
     }
 
@@ -527,7 +531,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut EmptyHost::default());
         for cpu_event in runtime.record.cpu_events {
             println!("{:?}", cpu_event);
         }
@@ -543,7 +548,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut EmptyHost::default());
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);

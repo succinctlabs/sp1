@@ -10,9 +10,11 @@ use p3_matrix::MatrixRowSlices;
 use valida_derive::AlignedBorrow;
 
 use crate::air::CurtaAirBuilder;
+use crate::air::ExecutionAir;
 use crate::air::FieldAirBuilder;
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Host;
 use crate::utils::env;
 use crate::utils::pad_to_power_of_two;
 
@@ -50,7 +52,9 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for FieldLTUChip {
     fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
         let shards = input
             .field_events
@@ -66,7 +70,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     }
 
     #[instrument(name = "generate FieldLTU trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record
             .field_events

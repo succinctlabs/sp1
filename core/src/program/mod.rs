@@ -8,11 +8,11 @@ use std::collections::HashMap;
 
 use valida_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
-use crate::air::MachineAir;
+use crate::air::ExecutionAir;
+use crate::air::{CurtaAirBuilder, MachineAir};
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, Host};
 use crate::utils::pad_to_power_of_two;
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
@@ -41,14 +41,16 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     fn name(&self) -> String {
         "Program".to_string()
     }
+}
 
+impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for ProgramChip {
     fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
 
     fn include(&self, record: &ExecutionRecord) -> bool {
         !record.cpu_events.is_empty()
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
         // Collect the number of times each instruction is called from the cpu events.
@@ -134,9 +136,9 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        air::MachineAir,
+        air::ExecutionAir,
         program::ProgramChip,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program},
+        runtime::{EmptyHost, ExecutionRecord, Instruction, Opcode, Program},
     };
 
     #[test]
@@ -160,7 +162,8 @@ mod tests {
             ..Default::default()
         };
         let chip = ProgramChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut EmptyHost::default());
         println!("{:?}", trace.values)
     }
 }
