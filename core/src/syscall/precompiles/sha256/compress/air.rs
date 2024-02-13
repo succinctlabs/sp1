@@ -2,6 +2,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
+use super::s1::S1Operation;
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
@@ -189,42 +190,7 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            local.e,
-            6,
-            local.e_rr_6,
-            local.is_compression,
-        );
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            local.e,
-            11,
-            local.e_rr_11,
-            local.is_compression,
-        );
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            local.e,
-            25,
-            local.e_rr_25,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.e_rr_6.value,
-            local.e_rr_11.value,
-            local.s1_intermediate,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.s1_intermediate.value,
-            local.e_rr_25.value,
-            local.s1,
-            local.is_compression,
-        );
-
+        S1Operation::<AB::F>::eval(builder, local.e, local.s1, local.is_compression);
         AndOperation::<AB::F>::eval(
             builder,
             local.e,

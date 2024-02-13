@@ -3,6 +3,7 @@ use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 mod air;
 mod columns;
 mod execute;
+mod s1;
 mod trace;
 
 pub const SHA_COMPRESS_K: [u32; 64] = [

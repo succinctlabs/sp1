@@ -123,11 +123,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 cols.g = Word::from(g);
                 cols.h = Word::from(h);
 
-                let e_rr_6 = cols.e_rr_6.populate(output, e, 6);
-                let e_rr_11 = cols.e_rr_11.populate(output, e, 11);
-                let e_rr_25 = cols.e_rr_25.populate(output, e, 25);
-                let s1_intermeddiate = cols.s1_intermediate.populate(output, e_rr_6, e_rr_11);
-                let s1 = cols.s1.populate(output, s1_intermeddiate, e_rr_25);
+                let s1 = cols.s1.populate(output, e);
 
                 let e_and_f = cols.e_and_f.populate(output, e, f);
                 let e_not = cols.e_not.populate(output, e);

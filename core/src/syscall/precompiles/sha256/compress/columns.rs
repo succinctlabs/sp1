@@ -13,6 +13,8 @@ use crate::operations::FixedRotateRightOperation;
 use crate::operations::NotOperation;
 use crate::operations::XorOperation;
 
+use super::s1::S1Operation;
+
 pub const NUM_SHA_COMPRESS_COLS: usize = size_of::<ShaCompressCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -45,11 +47,7 @@ pub struct ShaCompressCols<T> {
     pub g: Word<T>,
     pub h: Word<T>,
 
-    pub e_rr_6: FixedRotateRightOperation<T>,
-    pub e_rr_11: FixedRotateRightOperation<T>,
-    pub e_rr_25: FixedRotateRightOperation<T>,
-    pub s1_intermediate: XorOperation<T>,
-    pub s1: XorOperation<T>,
+    pub s1: S1Operation<T>,
 
     pub e_and_f: AndOperation<T>,
     pub e_not: NotOperation<T>,
