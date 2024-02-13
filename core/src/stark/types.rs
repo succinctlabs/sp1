@@ -129,6 +129,10 @@ pub struct ShardOpenedValues<T: Serialize> {
 
 #[cfg(feature = "perf")]
 #[derive(Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "SC: StarkGenericConfig",
+    deserialize = "SC: StarkGenericConfig"
+))]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
     pub commitment: ShardCommitment<Com<SC>>,

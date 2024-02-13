@@ -50,8 +50,9 @@ pub struct CurtaVerifier;
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize)]
-pub struct CurtaProofWithIO<SC: StarkGenericConfig + Serialize> {
+pub struct CurtaProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
     #[serde(serialize_with = "serialize_proof")]
+    #[serde(deserialize_with = "deserialize_proof")]
     pub proof: Proof<SC>,
     pub stdin: CurtaStdin,
     pub stdout: CurtaStdout,
@@ -91,7 +92,7 @@ impl CurtaProver {
         config: SC,
     ) -> Result<CurtaProofWithIO<SC>>
     where
-        SC: StarkUtils + Send + Sync + Serialize + Clone,
+        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
@@ -134,7 +135,7 @@ impl CurtaVerifier {
         config: SC,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC: StarkUtils + Send + Sync + Serialize,
+        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
@@ -150,7 +151,7 @@ impl CurtaVerifier {
     }
 }
 
-impl<SC: StarkGenericConfig + Serialize> CurtaProofWithIO<SC> {
+impl<SC: StarkGenericConfig + Serialize + DeserializeOwned> CurtaProofWithIO<SC> {
     /// Saves the proof as a JSON to the given path.
     pub fn save(&self, path: &str) -> Result<()> {
         let data = serde_json::to_string(self).unwrap();

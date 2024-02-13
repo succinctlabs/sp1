@@ -1,4 +1,4 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 
 use crate::stark::StarkGenericConfig;
 use crate::utils::Buffer;
@@ -98,4 +98,23 @@ where
     let bytes = bincode::serialize(proof).unwrap();
     let hex_bytes = hex::encode(bytes);
     serializer.serialize_str(&hex_bytes)
+}
+
+// Define your custom deserialization function.
+pub fn deserialize_proof<'de, D, SC: StarkGenericConfig + DeserializeOwned>(
+    deserializer: D,
+) -> Result<Proof<SC>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer).unwrap();
+    let bytes = hex::decode(s).unwrap();
+    let deserialize_result = bincode::deserialize::<Proof<SC>>(&bytes);
+    match deserialize_result {
+        Ok(proof) => Ok(proof),
+        Err(err) => Err(serde::de::Error::custom(format!(
+            "Failed to deserialize proof: {}",
+            err
+        ))),
+    }
 }

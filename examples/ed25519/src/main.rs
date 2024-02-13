@@ -17,5 +17,10 @@ fn main() {
         .save("proof-with-pis.json")
         .expect("saving proof failed");
 
-    println!("succesfully generated and verified proof for the program!")
+    println!("succesfully generated and verified proof for the program!");
+
+    // let proof_str = include_str!("proof-with-pis.json");
+    // let new_proof: CurtaProofWithIO<BabyBearBlake3> =
+    //     serde_json::from_str(new_proof).expect("loading proof failed");
+    // CurtaVerifier::verify(ED25519_ELF, &new_proof).expect("verification failed");
 }

@@ -414,7 +414,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
@@ -451,6 +451,15 @@ pub(super) mod baby_bear_blake3 {
             S: serde::Serializer,
         {
             serializer.serialize_none()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for BabyBearBlake3 {
+        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Ok(Self::new())
         }
     }
 
