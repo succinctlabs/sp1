@@ -7,7 +7,7 @@ Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
-SP1up is the SP1 zkVM toolchain installer. Open your terminal and run the following command and follow the instructions:
+SP1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
 ```bash
 curl -L https://sp1.succinct.xyz | bash

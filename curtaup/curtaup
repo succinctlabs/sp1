@@ -212,7 +212,7 @@ EOF
 
 usage() {
   cat 1>&2 <<EOF
-The installer for the SP1 zkVM.
+The installer for the SP1.
 
 Update or revert to a specific sp1 version with ease.
 

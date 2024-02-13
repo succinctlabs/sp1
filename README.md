@@ -81,6 +81,6 @@ Note that if you use `cargo prove new` inside a monorepo, you will need to add t
 
 We would like to acknowledge the projects below whose previous work has been instrumental in making this project a reality.
 
-- [Plonky3](https://github.com/Plonky3/Plonky3): The SP1 zkVM's prover is powered by the Plonky3 toolkit.
-- [Valida](https://github.com/valida-xyz/valida): The SP1 zkVM cross-table lookups, prover, borrow macro, and chip design, including constraints, are inspired by Valida.
-- [RISC0](https://github.com/risc0/risc0): The SP1 zkVM rust toolchain, install/build scripts, and our RISCV runtime borrow code from RISC0.
+- [Plonky3](https://github.com/Plonky3/Plonky3): The SP1's prover is powered by the Plonky3 toolkit.
+- [Valida](https://github.com/valida-xyz/valida): The SP1 cross-table lookups, prover, borrow macro, and chip design, including constraints, are inspired by Valida.
+- [RISC0](https://github.com/risc0/risc0): The SP1 rust toolchain, install/build scripts, and our RISCV runtime borrow code from RISC0.

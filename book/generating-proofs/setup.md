@@ -1,6 +1,6 @@
 # Generating Proofs: Setup
 
-In this section, we will teach you how to setup a self-contained crate which can run ELFs that have been compiled with the sp1 toolchain inside the SP1 zkVM.
+In this section, we will teach you how to setup a self-contained crate which can run ELFs that have been compiled with the sp1 toolchain inside the SP1.
 
 ## CLI (Recommended)
 
