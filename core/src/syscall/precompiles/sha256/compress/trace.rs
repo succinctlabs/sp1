@@ -133,11 +133,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
                 let s0 = cols.s0.populate(output, a);
 
-                let a_and_b = cols.a_and_b.populate(output, a, b);
-                let a_and_c = cols.a_and_c.populate(output, a, c);
-                let b_and_c = cols.b_and_c.populate(output, b, c);
-                let maj_intermediate = cols.maj_intermediate.populate(output, a_and_b, a_and_c);
-                let maj = cols.maj.populate(output, maj_intermediate, b_and_c);
+                let maj = cols.maj.populate(output, a, b, c);
 
                 let temp2 = cols.temp2.populate(output, s0, maj);
 

@@ -3,12 +3,13 @@ use p3_field::AbstractField;
 
 use super::ch::ChOperation;
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
+use super::maj::MajOperation;
 use super::s0::S0Operation;
 use super::s1::S1Operation;
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::{AddOperation, AndOperation, XorOperation};
+use crate::operations::AddOperation;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -210,56 +211,28 @@ impl ShaCompressChip {
         };
 
         // Calculate S0 := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22).
-        let _s0 = {
+        let s0 = {
             S0Operation::<AB::F>::eval(builder, local.a, local.s0, local.is_compression);
             local.s0.s0.value
         };
 
         // TODO: We need to constrain temp1.
 
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            local.b,
-            local.a_and_b,
-            local.is_compression,
-        );
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            local.c,
-            local.a_and_c,
-            local.is_compression,
-        );
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.b,
-            local.c,
-            local.b_and_c,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.a_and_b.value,
-            local.a_and_c.value,
-            local.maj_intermediate,
-            local.is_compression,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.maj_intermediate.value,
-            local.b_and_c.value,
-            local.maj,
-            local.is_compression,
-        );
+        // Calculate maj := (a and b) xor (a and c) xor (b and c).
 
-        AddOperation::<AB::F>::eval(
-            builder,
-            local.s0.s0.value,
-            local.maj.value,
-            local.temp2,
-            local.is_compression,
-        );
+        let maj = {
+            MajOperation::<AB::F>::eval(
+                builder,
+                local.a,
+                local.b,
+                local.c,
+                local.maj,
+                local.is_compression,
+            );
+            local.maj.maj.value
+        };
+
+        AddOperation::<AB::F>::eval(builder, s0, maj, local.temp2, local.is_compression);
 
         AddOperation::<AB::F>::eval(
             builder,

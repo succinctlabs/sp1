@@ -4,6 +4,7 @@ mod air;
 mod ch;
 mod columns;
 mod execute;
+mod maj;
 mod s0;
 mod s1;
 mod trace;

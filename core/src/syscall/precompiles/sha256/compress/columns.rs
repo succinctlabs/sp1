@@ -8,10 +8,9 @@ use crate::air::Word;
 use crate::memory::MemoryReadWriteCols;
 use crate::operations::Add5Operation;
 use crate::operations::AddOperation;
-use crate::operations::AndOperation;
-use crate::operations::XorOperation;
 
 use super::ch::ChOperation;
+use super::maj::MajOperation;
 use super::s0::S0Operation;
 use super::s1::S1Operation;
 
@@ -55,11 +54,7 @@ pub struct ShaCompressCols<T> {
 
     pub s0: S0Operation<T>,
 
-    pub a_and_b: AndOperation<T>,
-    pub a_and_c: AndOperation<T>,
-    pub b_and_c: AndOperation<T>,
-    pub maj_intermediate: XorOperation<T>,
-    pub maj: XorOperation<T>,
+    pub maj: MajOperation<T>,
 
     pub temp2: AddOperation<T>,
 
