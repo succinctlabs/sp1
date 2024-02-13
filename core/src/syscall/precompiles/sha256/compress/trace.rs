@@ -7,6 +7,7 @@ use crate::{
     air::{MachineAir, Word},
     memory::MemoryCols,
     runtime::ExecutionRecord,
+    utils::pad_rows,
 };
 
 use super::{
@@ -209,16 +210,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
         output.add_field_events(&new_field_events);
 
-        let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-
-        for _ in nb_rows..padded_nb_rows {
-            let row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-            rows.push(row);
-        }
+        pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
