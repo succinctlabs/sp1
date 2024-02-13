@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, MainData, OpeningProof},
+    stark::{LocalProver, OpeningProof, ShardMainData},
     stark::{RiscvStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
@@ -46,6 +46,38 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     prove_core(config, &mut runtime)
 }
 
+#[cfg(test)]
+pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+    let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        runtime
+    });
+    let config = BabyBearBlake3::new();
+
+    let machine = RiscvStark::new(config);
+    let (pk, vk) = machine.setup(runtime.program.as_ref());
+    let mut challenger = machine.config().challenger();
+
+    let start = Instant::now();
+    let proof = tracing::info_span!("runtime.prove(...)")
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
+    let cycles = runtime.state.global_clk;
+    let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    tracing::info!(
+        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger)
+}
+
 pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     let program = Program::from(elf);
     prove(program)
@@ -60,23 +92,23 @@ where
     OpeningProof<SC>: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-    MainData<SC>: Serialize + DeserializeOwned,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     let mut challenger = config.challenger();
 
     let start = Instant::now();
 
-    let (machine, prover_data) = RiscvStark::init(config.clone());
+    let machine = RiscvStark::new(config);
+    let (pk, _) = machine.setup(runtime.program.as_ref());
 
     // Because proving modifies the shard, clone beforehand if we debug interactions.
     #[cfg(not(feature = "perf"))]
     let shard = runtime.record.clone();
 
     // Prove the program.
-    let proof = tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger)
-    });
+    let proof = tracing::info_span!("runtime.prove(...)")
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

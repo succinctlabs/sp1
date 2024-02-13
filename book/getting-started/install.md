@@ -5,7 +5,7 @@ build the toolchain and CLI from source.
 
 Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
-## Prebuilt Binaries (Recommended)
+## Option 1: Prebuilt Binaries (Recommended)
 
 Curtaup is the Curta zkVM toolchain installer. Open your terminal and run the following command and follow the instructions:
 
@@ -21,7 +21,7 @@ After following the instructions, you can run `curtaup` to install the toolchain
 curtaup
 ```
 
-This will install support for the `riscv32im-succinct-zkvm-elf` compilation target within your Rust compiler
+This will install support for the `riscv32im-curta-zkvm-elf` compilation target within your Rust compiler
 and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness. 
 
 You can verify the installation by running `cargo prove --version`:
@@ -32,7 +32,7 @@ cargo prove --version
 
 If this works, go to the [next section](./quickstart.md) to compile and prove a simple zkVM program.
 
-## Building from Source
+## Option 2: Building from Source
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 

@@ -9,7 +9,7 @@ Instead, you should have your script only execute the program with the RISC-V ru
 use curta_core::{CurtaProver, CurtaStdin, CurtaVerifier};
 
 // The ELF file with the RISC-V bytecode of the program from above.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
     let mut stdin = CurtaStdin::new(); 

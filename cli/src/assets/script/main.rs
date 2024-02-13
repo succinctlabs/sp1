@@ -2,7 +2,7 @@
 
 use curta_core::{CurtaProver, CurtaStdin, CurtaVerifier};
 
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
     // Generate proof.
@@ -21,7 +21,7 @@ fn main() {
 
     // Save proof.
     proof
-        .save("proof-with-pis.json")
+        .save("proof-with-io.json")
         .expect("saving proof failed");
 
     println!("succesfully generated and verified proof for the program!")
