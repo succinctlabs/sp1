@@ -1,12 +1,11 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 
 use super::s0::S0Operation;
+use super::s1::S1Operation;
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::air::{BaseAirBuilder, SP1AirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::{
-    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
-};
+use crate::operations::Add4Operation;
 use core::borrow::Borrow;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
@@ -95,41 +94,15 @@ where
         };
 
         // Compute `s1`.
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            *local.w_i_minus_2.value(),
-            17,
-            local.w_i_minus_2_rr_17,
-            local.is_real,
-        );
-        FixedRotateRightOperation::<AB::F>::eval(
-            builder,
-            *local.w_i_minus_2.value(),
-            19,
-            local.w_i_minus_2_rr_19,
-            local.is_real,
-        );
-        FixedShiftRightOperation::<AB::F>::eval(
-            builder,
-            *local.w_i_minus_2.value(),
-            10,
-            local.w_i_minus_2_rs_10,
-            local.is_real,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.w_i_minus_2_rr_17.value,
-            local.w_i_minus_2_rr_19.value,
-            local.s1_intermediate,
-            local.is_real,
-        );
-        XorOperation::<AB::F>::eval(
-            builder,
-            local.s1_intermediate.value,
-            local.w_i_minus_2_rs_10.value,
-            local.s1,
-            local.is_real,
-        );
+        let s1 = {
+            S1Operation::<AB::F>::eval(
+                builder,
+                local.w_i_minus_2.access.value,
+                local.s1,
+                local.is_real,
+            );
+            local.s1.s1.value
+        };
 
         // Compute `s2`.
         Add4Operation::<AB::F>::eval(
@@ -137,7 +110,7 @@ where
             *local.w_i_minus_16.value(),
             s0,
             *local.w_i_minus_7.value(),
-            local.s1.value,
+            s1,
             local.is_real,
             local.s2,
         );

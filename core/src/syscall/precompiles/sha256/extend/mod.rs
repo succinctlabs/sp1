@@ -3,6 +3,7 @@ mod columns;
 mod execute;
 mod flags;
 mod s0;
+mod s1;
 mod trace;
 
 pub use columns::*;
