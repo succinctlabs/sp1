@@ -5,9 +5,9 @@
 set -eo pipefail
 
 BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
-CURTA_DIR=${CURTA_DIR:-"$BASE_DIR/.sp1"}
-CURTA_BIN_DIR="$CURTA_DIR/bin"
-mkdir -p $CURTA_BIN_DIR
+SP1_DIR=${SP1_DIR:-"$BASE_DIR/.sp1"}
+SP1_BIN_DIR="$SP1_DIR/bin"
+mkdir -p $SP1_BIN_DIR
 
 BINS=(cargo-prove)
 
@@ -21,14 +21,14 @@ main() {
     case $1 in
       --)               shift; break;;
 
-      -r|--repo)        shift; CURTAUP_REPO=$1;;
-      -b|--branch)      shift; CURTAUP_BRANCH=$1;;
-      -v|--version)     shift; CURTAUP_VERSION=$1;;
-      -p|--path)        shift; CURTAUP_LOCAL_REPO=$1;;
-      -P|--pr)          shift; CURTAUP_PR=$1;;
-      -C|--commit)      shift; CURTAUP_COMMIT=$1;;
-      --arch)           shift; CURTAUP_ARCH=$1;;
-      --platform)       shift; CURTAUP_PLATFORM=$1;;
+      -r|--repo)        shift; SP1UP_REPO=$1;;
+      -b|--branch)      shift; SP1UP_BRANCH=$1;;
+      -v|--version)     shift; SP1UP_VERSION=$1;;
+      -p|--path)        shift; SP1UP_LOCAL_REPO=$1;;
+      -P|--pr)          shift; SP1UP_PR=$1;;
+      -C|--commit)      shift; SP1UP_COMMIT=$1;;
+      --arch)           shift; SP1UP_ARCH=$1;;
+      --platform)       shift; SP1UP_PLATFORM=$1;;
       -h|--help)
         usage
         exit 0
@@ -43,59 +43,59 @@ main() {
   # Print the banner after successfully parsing args
   banner
 
-  if [ -n "$CURTAUP_PR" ]; then
-    if [ -z "$CURTAUP_BRANCH" ]; then
-      CURTAUP_BRANCH="refs/pull/$CURTAUP_PR/head"
+  if [ -n "$SP1UP_PR" ]; then
+    if [ -z "$SP1UP_BRANCH" ]; then
+      SP1UP_BRANCH="refs/pull/$SP1UP_PR/head"
     else
       err "can't use --pr and --branch at the same time"
     fi
   fi
 
   # Installs sp1 from a local repository if --path parameter is provided
-  if [[ -n "$CURTAUP_LOCAL_REPO" ]]; then
+  if [[ -n "$SP1UP_LOCAL_REPO" ]]; then
     need_cmd cargo
 
     # Ignore branches/versions as we do not want to modify local git state
-    if [ -n "$CURTAUP_REPO" ] || [ -n "$CURTAUP_BRANCH" ] || [ -n "$CURTAUP_VERSION" ]; then
+    if [ -n "$SP1UP_REPO" ] || [ -n "$SP1UP_BRANCH" ] || [ -n "$SP1UP_VERSION" ]; then
       warn "--branch, --version, and --repo arguments are ignored during local install"
     fi
 
     # Enter local repo and build
-    say "installing from $CURTAUP_LOCAL_REPO"
-    cd "$CURTAUP_LOCAL_REPO"
+    say "installing from $SP1UP_LOCAL_REPO"
+    cd "$SP1UP_LOCAL_REPO"
     ensure cargo build --bins --release # need 4 speed
 
     for bin in "${BINS[@]}"; do
       # Remove prior installations if they exist
-      rm -f "$CURTA_BIN_DIR/$bin"
+      rm -f "$SP1_BIN_DIR/$bin"
       # Symlink from local repo binaries to bin dir
-      ensure ln -s "$PWD/target/release/$bin" "$CURTA_BIN_DIR/$bin"
+      ensure ln -s "$PWD/target/release/$bin" "$SP1_BIN_DIR/$bin"
     done
 
     say "done"
     exit 0
   fi
 
-  CURTAUP_REPO=${CURTAUP_REPO:-succinctlabs/sp1}
+  SP1UP_REPO=${SP1UP_REPO:-succinctlabs/sp1}
 
   # Install by downloading binaries
-  if [[ "$CURTAUP_REPO" == "succinctlabs/sp1" && -z "$CURTAUP_BRANCH" && -z "$CURTAUP_COMMIT" ]]; then
-    CURTAUP_VERSION=${CURTAUP_VERSION:-nightly}
-    CURTAUP_TAG=$CURTAUP_VERSION
+  if [[ "$SP1UP_REPO" == "succinctlabs/sp1" && -z "$SP1UP_BRANCH" && -z "$SP1UP_COMMIT" ]]; then
+    SP1UP_VERSION=${SP1UP_VERSION:-nightly}
+    SP1UP_TAG=$SP1UP_VERSION
 
     # Normalize versions (handle channels, versions without v prefix
-    if [[ "$CURTAUP_VERSION" =~ ^nightly ]]; then
-      CURTAUP_VERSION="nightly"
-    elif [[ "$CURTAUP_VERSION" == [[:digit:]]* ]]; then
+    if [[ "$SP1UP_VERSION" =~ ^nightly ]]; then
+      SP1UP_VERSION="nightly"
+    elif [[ "$SP1UP_VERSION" == [[:digit:]]* ]]; then
       # Add v prefix
-      CURTAUP_VERSION="v${CURTAUP_VERSION}"
-      CURTAUP_TAG="${CURTAUP_VERSION}"
+      SP1UP_VERSION="v${SP1UP_VERSION}"
+      SP1UP_TAG="${SP1UP_VERSION}"
     fi
 
-    say "installing sp1 (version ${CURTAUP_VERSION}, tag ${CURTAUP_TAG})"
+    say "installing sp1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
 
     uname_s=$(uname -s)
-    PLATFORM=$(tolower "${CURTAUP_PLATFORM:-$uname_s}")
+    PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
     EXT="tar.gz"
     case $PLATFORM in
       linux) ;;
@@ -112,7 +112,7 @@ main() {
     esac
 
     uname_m=$(uname -m)
-    ARCHITECTURE=$(tolower "${CURTAUP_ARCH:-$uname_m}")
+    ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
     if [ "${ARCHITECTURE}" = "x86_64" ]; then
       # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
       if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
@@ -127,29 +127,29 @@ main() {
     fi
 
     # Compute the URL of the release tarball in the sp1 repository.
-    RELEASE_URL="https://github.com/${CURTAUP_REPO}/releases/download/${CURTAUP_TAG}/"
+    RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
     RELEASE_URL="https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/"
-    BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${CURTAUP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
-    MAN_TARBALL_URL="${RELEASE_URL}cargo_prove_man_${CURTAUP_VERSION}.tar.gz"
+    BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${SP1UP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
+    MAN_TARBALL_URL="${RELEASE_URL}cargo_prove_man_${SP1UP_VERSION}.tar.gz"
 
     # Download and extract the binaries archive
     say "downloading latest cargo-prove"
     if [ "$PLATFORM" = "win32" ]; then
       tmp="$(mktemp -d 2>/dev/null || echo ".")/cargo-prove.zip"
       ensure download "$BIN_ARCHIVE_URL" "$tmp"
-      ensure unzip "$tmp" -d "$CURTA_BIN_DIR"
+      ensure unzip "$tmp" -d "$SP1_BIN_DIR"
       rm -f "$tmp"
     else
-      ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$CURTA_BIN_DIR"
+      ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
     fi
 
     for bin in "${BINS[@]}"; do
-      bin_path="$CURTA_BIN_DIR/$bin"
+      bin_path="$SP1_BIN_DIR/$bin"
 
       # Print installed msg
       say "installed - $(ensure "$bin_path" prove --version)"
 
-      # Check if the default path of the binary is not in CURTA_BIN_DIR
+      # Check if the default path of the binary is not in SP1_BIN_DIR
       which_path="$(command -v "$bin" || true)"
       if [ -n "$which_path" ] && [ "$which_path" != "$bin_path" ]; then
         warn ""
@@ -157,7 +157,7 @@ main() {
 There are multiple binaries with the name '$bin' present in your 'PATH'.
 This may be the result of installing '$bin' using another method,
 like Cargo or other package managers.
-You may need to run 'rm $which_path' or move '$CURTA_BIN_DIR'
+You may need to run 'rm $which_path' or move '$SP1_BIN_DIR'
 in your 'PATH' to allow the newly installed version to take precedence!
 
 EOF
@@ -173,26 +173,26 @@ EOF
   # Install by cloning the repo with the provided branch/tag
   else
     need_cmd cargo
-    CURTAUP_BRANCH=${CURTAUP_BRANCH:-master}
-    REPO_PATH="$CURTA_DIR/$CURTAUP_REPO"
+    SP1UP_BRANCH=${SP1UP_BRANCH:-master}
+    REPO_PATH="$SP1_DIR/$SP1UP_REPO"
 
     # If repo path does not exist, grab the author from the repo, make a directory in .foundry, cd to it and clone.
     if [ ! -d "$REPO_PATH" ]; then
-      AUTHOR="$(echo "$CURTAUP_REPO" | cut -d'/' -f1 -)"
-      ensure mkdir -p "$CURTA_DIR/$AUTHOR"
-      cd "$CURTA_DIR/$AUTHOR"
-      ensure git clone "https://github.com/$CURTAUP_REPO"
+      AUTHOR="$(echo "$SP1UP_REPO" | cut -d'/' -f1 -)"
+      ensure mkdir -p "$SP1_DIR/$AUTHOR"
+      cd "$SP1_DIR/$AUTHOR"
+      ensure git clone "https://github.com/$SP1UP_REPO"
     fi
 
     # Force checkout, discarding any local changes
     cd "$REPO_PATH"
-    ensure git fetch origin "${CURTAUP_BRANCH}:remotes/origin/${CURTAUP_BRANCH}"
-    ensure git checkout "origin/${CURTAUP_BRANCH}"
+    ensure git fetch origin "${SP1UP_BRANCH}:remotes/origin/${SP1UP_BRANCH}"
+    ensure git checkout "origin/${SP1UP_BRANCH}"
 
     # If set, checkout specific commit from branch
-    if [ -n "$CURTAUP_COMMIT" ]; then
-      say "installing at commit $CURTAUP_COMMIT"
-      ensure git checkout "$CURTAUP_COMMIT"
+    if [ -n "$SP1UP_COMMIT" ]; then
+      say "installing at commit $SP1UP_COMMIT"
+      ensure git checkout "$SP1UP_COMMIT"
     fi
 
     # Build the repo and install the binaries locally to the .sp1 bin directory.
@@ -200,8 +200,8 @@ EOF
     for bin in "${BINS[@]}"; do
       for try_path in target/release/$bin target/release/$bin.exe; do
         if [ -f "$try_path" ]; then
-          [ -e "$CURTA_BIN_DIR/$bin" ] && warn "overwriting existing $bin in $CURTA_BIN_DIR"
-          mv -f "$try_path" "$CURTA_BIN_DIR"
+          [ -e "$SP1_BIN_DIR/$bin" ] && warn "overwriting existing $bin in $SP1_BIN_DIR"
+          mv -f "$try_path" "$SP1_BIN_DIR"
         fi
       done
     done

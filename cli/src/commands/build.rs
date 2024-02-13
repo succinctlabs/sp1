@@ -31,7 +31,7 @@ impl BuildCmd {
         Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "sp1")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-            .env("CURTA_BUILD_IGNORE", "1")
+            .env("SP1_BUILD_IGNORE", "1")
             .args(["build", "--release", "--target", build_target, "--locked"])
             .run()
             .unwrap();
