@@ -1,5 +1,5 @@
+use super::params::Limbs;
 use super::params::NUM_WITNESS_LIMBS;
-use super::params::{convert_polynomial, convert_vec, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::CurtaAirBuilder;
@@ -9,25 +9,24 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
-use p3_baby_bear::BabyBear;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use std::fmt::Debug;
 use valida_derive::AlignedBorrow;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub enum FpOperation {
+pub enum FieldOperation {
     Add,
     Mul,
     Sub,
     Div, // We don't constrain that the divisor is non-zero.
 }
 
-/// A set of columns to compute `FpOperation(a, b)` where a, b are field elements.
+/// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FpOpCols<T> {
+pub struct FieldOpCols<T> {
     /// The result of `a op b`, where a, b are field elements
     pub result: Limbs<T>,
     pub(crate) carry: Limbs<T>,
@@ -35,19 +34,14 @@ pub struct FpOpCols<T> {
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: Field> FpOpCols<F> {
+impl<F: PrimeField32> FieldOpCols<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
-        op: FpOperation,
+        op: FieldOperation,
     ) -> BigUint {
-        /// TODO: This operation relies on `F` being a PrimeField32, but our traits do not
-        /// support that. This is a hack, since we always use BabyBear, to get around that, but
-        /// all operations using "PF" should use "F" in the future.
-        type PF = BabyBear;
-
-        if b == &BigUint::zero() && op == FpOperation::Div {
+        if b == &BigUint::zero() && op == FieldOperation::Div {
             // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
             assert_eq!(
                 *a,
@@ -59,21 +53,20 @@ impl<F: Field> FpOpCols<F> {
         let modulus = P::modulus();
 
         // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
-        if op == FpOperation::Sub {
+        if op == FieldOperation::Sub {
             let result = (modulus.clone() + a - b) % &modulus;
             // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
             // But we populate `result` with the actual result of the subtraction because those columns are expected
             // to contain the result by the user.
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
-            self.populate::<P>(&result, b, FpOperation::Add);
-            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-            self.result = convert_polynomial(p_result);
+            self.populate::<P>(&result, b, FieldOperation::Add);
+            self.result = P::to_limbs_field::<F>(&result);
             return result;
         }
 
         // a / b = result is equivalent to a = result * b.
-        if op == FpOperation::Div {
+        if op == FieldOperation::Div {
             // As modulus is prime, we can use Fermat's little theorem to compute the
             // inverse.
             let result =
@@ -84,42 +77,41 @@ impl<F: Field> FpOpCols<F> {
             // multiplication because those columns are expected to contain the result by the user.
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
-            self.populate::<P>(&result, b, FpOperation::Mul);
-            let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-            self.result = convert_polynomial(p_result);
+            self.populate::<P>(&result, b, FieldOperation::Mul);
+            self.result = P::to_limbs_field::<F>(&result);
             return result;
         }
 
-        let p_a: Polynomial<PF> = P::to_limbs_field::<PF>(a).into();
-        let p_b: Polynomial<PF> = P::to_limbs_field::<PF>(b).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
 
         // Compute field addition in the integers.
         let modulus = &P::modulus();
         let (result, carry) = match op {
-            FpOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
-            FpOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
-            FpOperation::Sub | FpOperation::Div => unreachable!(),
+            FieldOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
+            FieldOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
+            FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
         debug_assert!(&result < modulus);
         debug_assert!(&carry < modulus);
         match op {
-            FpOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
-            FpOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
-            FpOperation::Sub | FpOperation::Div => unreachable!(),
+            FieldOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
+            FieldOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
+            FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         }
 
         // Make little endian polynomial limbs.
-        let p_modulus: Polynomial<PF> = P::to_limbs_field::<PF>(modulus).into();
-        let p_result: Polynomial<PF> = P::to_limbs_field::<PF>(&result).into();
-        let p_carry: Polynomial<PF> = P::to_limbs_field::<PF>(&carry).into();
+        let p_modulus: Polynomial<F> = P::to_limbs_field::<F>(modulus).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
 
         // Compute the vanishing polynomial.
         let p_op = match op {
-            FpOperation::Add => &p_a + &p_b,
-            FpOperation::Mul => &p_a * &p_b,
-            FpOperation::Sub | FpOperation::Div => unreachable!(),
+            FieldOperation::Add => &p_a + &p_b,
+            FieldOperation::Mul => &p_a * &p_b,
+            FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
-        let p_vanishing: Polynomial<PF> = &p_op - &p_result - &p_carry * &p_modulus;
+        let p_vanishing: Polynomial<F> = &p_op - &p_result - &p_carry * &p_modulus;
         debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
         let p_witness = compute_root_quotient_and_shift(
@@ -129,16 +121,16 @@ impl<F: Field> FpOpCols<F> {
         );
         let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
-        self.result = convert_polynomial(p_result);
-        self.carry = convert_polynomial(p_carry);
-        self.witness_low = convert_vec(p_witness_low).try_into().unwrap();
-        self.witness_high = convert_vec(p_witness_high).try_into().unwrap();
+        self.result = p_result.into();
+        self.carry = p_carry.into();
+        self.witness_low = p_witness_low.try_into().unwrap();
+        self.witness_high = p_witness_high.try_into().unwrap();
 
         result
     }
 }
 
-impl<V: Copy> FpOpCols<V> {
+impl<V: Copy> FieldOpCols<V> {
     #[allow(unused_variables)]
     pub fn eval<
         AB: CurtaAirBuilder<Var = V>,
@@ -150,7 +142,7 @@ impl<V: Copy> FpOpCols<V> {
         builder: &mut AB,
         a: &A,
         b: &B,
-        op: FpOperation,
+        op: FieldOperation,
     ) where
         V: Into<AB::Expr>,
     {
@@ -158,13 +150,13 @@ impl<V: Copy> FpOpCols<V> {
         let p_b: Polynomial<AB::Expr> = (*b).clone().into();
 
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
-            FpOperation::Add | FpOperation::Mul => (p_a_param, self.result.into()),
-            FpOperation::Sub | FpOperation::Div => (self.result.into(), p_a_param),
+            FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
+            FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
         };
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
         let p_op = match op {
-            FpOperation::Add | FpOperation::Sub => p_a + p_b,
-            FpOperation::Mul | FpOperation::Div => p_a * p_b,
+            FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
+            FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
         };
         let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
@@ -179,9 +171,9 @@ impl<V: Copy> FpOpCols<V> {
 mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
-    use p3_field::Field;
+    use p3_field::{Field, PrimeField32};
 
-    use super::{FpOpCols, FpOperation, Limbs};
+    use super::{FieldOpCols, FieldOperation, Limbs};
     use crate::air::MachineAir;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
@@ -202,18 +194,18 @@ mod tests {
     pub struct TestCols<T> {
         pub a: Limbs<T>,
         pub b: Limbs<T>,
-        pub a_op_b: FpOpCols<T>,
+        pub a_op_b: FieldOpCols<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
-    struct FpOpChip<P: FieldParameters> {
-        pub operation: FpOperation,
+    struct FieldOpChip<P: FieldParameters> {
+        pub operation: FieldOperation,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FpOpChip<P> {
-        pub fn new(operation: FpOperation) -> Self {
+    impl<P: FieldParameters> FieldOpChip<P> {
+        pub fn new(operation: FieldOperation) -> Self {
             Self {
                 operation,
                 _phantom: std::marker::PhantomData,
@@ -221,9 +213,9 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> MachineAir<F> for FpOpChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldOpChip<P> {
         fn name(&self) -> String {
-            format!("FpOp{:?}", self.operation)
+            format!("FieldOp{:?}", self.operation)
         }
 
         fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
@@ -277,13 +269,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FpOpChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldOpChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FpOpChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FieldOpChip<P>
     where
         AB: CurtaAirBuilder,
     {
@@ -303,9 +295,15 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        for op in [FpOperation::Add, FpOperation::Mul, FpOperation::Sub].iter() {
+        for op in [
+            FieldOperation::Add,
+            FieldOperation::Mul,
+            FieldOperation::Sub,
+        ]
+        .iter()
+        {
             println!("op: {:?}", op);
-            let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(*op);
+            let chip: FieldOpChip<Ed25519BaseField> = FieldOpChip::new(*op);
             let mut shard = ExecutionRecord::default();
             let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
             // println!("{:?}", trace.values)
@@ -317,10 +315,10 @@ mod tests {
         let config = BabyBearPoseidon2::new();
 
         for op in [
-            FpOperation::Add,
-            FpOperation::Sub,
-            FpOperation::Mul,
-            FpOperation::Div,
+            FieldOperation::Add,
+            FieldOperation::Sub,
+            FieldOperation::Mul,
+            FieldOperation::Div,
         ]
         .iter()
         {
@@ -328,7 +326,7 @@ mod tests {
 
             let mut challenger = config.challenger();
 
-            let chip: FpOpChip<Ed25519BaseField> = FpOpChip::new(*op);
+            let chip: FieldOpChip<Ed25519BaseField> = FieldOpChip::new(*op);
             let mut shard = ExecutionRecord::default();
             let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
             let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
