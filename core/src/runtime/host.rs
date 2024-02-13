@@ -8,6 +8,7 @@ use crate::{
 
 use super::Opcode;
 
+/// An arithmetization context for executing RISC-V instructions in a circuit.
 pub trait Host {
     /// The execution record associated with the host.
     type Record;

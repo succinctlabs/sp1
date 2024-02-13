@@ -70,7 +70,7 @@ impl<F: PrimeField, H: Host<Record = ExecutionRecord>> ExecutionAir<F, H> for Fi
     }
 
     #[instrument(name = "generate FieldLTU trace", skip_all)]
-    fn generate_trace(&self, record: &ExecutionRecord, host: &mut H) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, record: &ExecutionRecord, _host: &mut H) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let rows = record
             .field_events
