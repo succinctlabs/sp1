@@ -86,7 +86,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 rows.push(row);
             }
 
-            // Peforms the compress operation.
+            // Performs the compress operation.
             for j in 0..64 {
                 if j % 8 == 0 {
                     octet_num_idx += 1;

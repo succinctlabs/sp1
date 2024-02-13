@@ -215,6 +215,8 @@ impl ShaCompressChip {
             local.s0.s0.value
         };
 
+        // TODO: We need to constrain temp1.
+
         AndOperation::<AB::F>::eval(
             builder,
             local.a,
