@@ -81,7 +81,7 @@ jobs:
                       svm_target_platform: linux-amd64
                       platform: linux
                       arch: amd64
-                    - runner: warp-ubuntu-latest-arm64-4x
+                    - runner: buildjet-4vcpu-ubuntu-2204-arm
                       target: aarch64-unknown-linux-gnu
                       svm_target_platform: linux-aarch64
                       platform: linux
