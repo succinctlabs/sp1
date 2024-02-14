@@ -2440,7 +2440,6 @@ dependencies = [
  "serial_test",
  "size",
  "sp1-derive",
- "tempfile",
  "tracing",
  "tracing-forest",
  "tracing-log",
