@@ -37,7 +37,7 @@ cargo update -p ed25519-consensus
 If you want to patch with a private repo, you have to use the following adjustment in your `Cargo.toml`:
 
 ```toml
-ed25519-consensus = { git = "ssh://git@github.com/succinctlabs/ed25519-consensus-private.git" }
+ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git" }
 ```
 and use the following command to apply the patch (assuming you have your ssh keys setup properly with Github):
 ```
