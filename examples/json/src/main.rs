@@ -1,7 +1,8 @@
 //! A simple script to generate and verify the proof of a given program.
 use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
-const JSON_ELF: &[u8] = include_bytes!("../../../programs/demo/json/elf/riscv32im-succinct-zkvm-elf");
+const JSON_ELF: &[u8] =
+    include_bytes!("../../../programs/demo/json/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // setup tracer for logging.
