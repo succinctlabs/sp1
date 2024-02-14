@@ -16,7 +16,8 @@ for d in "$DIR"/*/ ; do
     mkdir elf
     
     # Run cargo build
-    cargo build
+    cargo clean
+    cargo prove build
     
     # Go back to the original directory
     cd ..
