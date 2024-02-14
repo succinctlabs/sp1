@@ -1,5 +1,5 @@
 #![no_main]
-curta_zkvm::entrypoint!(main);
+sp1_zkvm::entrypoint!(main);
 
 use serde::{Deserialize, Serialize};
 
@@ -17,10 +17,10 @@ struct MyPointUnaligned {
 }
 
 pub fn main() {
-    let p1 = curta_zkvm::io::read::<MyPointUnaligned>();
+    let p1 = sp1_zkvm::io::read::<MyPointUnaligned>();
     println!("Read point: {:?}", p1);
 
-    let p2 = curta_zkvm::io::read::<MyPointUnaligned>();
+    let p2 = sp1_zkvm::io::read::<MyPointUnaligned>();
     println!("Read point: {:?}", p2);
 
     let p3: MyPointUnaligned = MyPointUnaligned {
@@ -29,5 +29,5 @@ pub fn main() {
         b: p1.b && p2.b,
     };
     println!("Addition of 2 points: {:?}", p3);
-    curta_zkvm::io::write(&p3);
+    sp1_zkvm::io::write(&p3);
 }

@@ -3,7 +3,7 @@ use core::borrow::Borrow;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols, NUM_MEMORY_COLUMNS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
@@ -11,7 +11,7 @@ use crate::runtime::Opcode;
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
-    pub(crate) fn is_memory_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_memory_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -26,7 +26,7 @@ impl CpuChip {
     }
 
     /// Computes whether the opcode is a load instruction.
-    pub(crate) fn is_load_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_load_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -38,7 +38,7 @@ impl CpuChip {
     }
 
     /// Computes whether the opcode is a store instruction.
-    pub(crate) fn is_store_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_store_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -46,7 +46,7 @@ impl CpuChip {
     }
 
     /// Evaluates constraints related to loading from memory.
-    pub(crate) fn eval_memory_load<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_memory_load<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -102,7 +102,7 @@ impl CpuChip {
     }
 
     /// Evaluates constraints related to storing to memory.
-    pub(crate) fn eval_memory_store<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_memory_store<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -161,7 +161,7 @@ impl CpuChip {
             .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
-    pub(crate) fn eval_unsigned_mem_value<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_unsigned_mem_value<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -211,7 +211,7 @@ impl CpuChip {
     }
 
     /// Evaluates the decomposition of the most significant byte of the memory value.
-    pub(crate) fn eval_most_sig_byte_bit_decomp<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_most_sig_byte_bit_decomp<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,
@@ -233,7 +233,7 @@ impl CpuChip {
     }
 
     /// Evaluates the offset value flags.
-    pub(crate) fn eval_offset_value_flags<AB: CurtaAirBuilder>(
+    pub(crate) fn eval_offset_value_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         memory_columns: &MemoryColumns<AB::Var>,

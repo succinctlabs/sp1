@@ -1,6 +1,6 @@
 use crate::air::BaseAirBuilder;
-use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::air::WORD_SIZE;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
@@ -36,8 +36,8 @@ use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::marker::PhantomData;
 
-use curta_derive::AlignedBorrow;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy)]
@@ -81,7 +81,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
-        shard: &mut ExecutionRecord,
+        record: &mut ExecutionRecord,
     ) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
@@ -96,7 +96,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_field_ops::<P, E>(y);
 
-        shard.field_events.append(&mut new_field_events);
+        record.add_field_events(&new_field_events);
     }
 
     fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
@@ -115,7 +115,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
 }
 
 impl<V: Copy> EdDecompressCols<V> {
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
         &self,
         builder: &mut AB,
     ) where
@@ -276,22 +276,18 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         "EdDecompress".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.ed_decompress_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for i in 0..record.ed_decompress_events.len() {
-            let event = record.ed_decompress_events[i];
+        for i in 0..input.ed_decompress_events.len() {
+            let event = input.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event, record);
+            cols.populate::<E::BaseField, E>(event, output);
 
             rows.push(row);
         }
@@ -319,7 +315,7 @@ impl<F, E: EdwardsParameters> BaseAir<F> for EdDecompressChip<E> {
 
 impl<AB, E: EdwardsParameters> Air<AB> for EdDecompressChip<E>
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -332,12 +328,12 @@ where
 pub mod tests {
     use crate::{
         utils::{self, tests::ED_DECOMPRESS_ELF},
-        CurtaProver, CurtaStdin,
+        SP1Prover, SP1Stdin,
     };
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        CurtaProver::prove(ED_DECOMPRESS_ELF, CurtaStdin::new()).unwrap();
+        SP1Prover::prove(ED_DECOMPRESS_ELF, SP1Stdin::new()).unwrap();
     }
 }

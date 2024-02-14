@@ -3,13 +3,13 @@ use core::borrow::Borrow;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{BranchCols, CpuCols, OpcodeSelectorCols, NUM_BRANCH_COLS};
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a branch instruction.
-    pub(crate) fn is_branch_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_branch_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -29,7 +29,7 @@ impl CpuChip {
     /// 2. It verifies the correct value of branching based on the helper bool columns (a_eq_b,
     ///    a_gt_b, a_lt_b).
     /// 3. It verifier the correct values of the helper bool columns based on op_a and op_b.
-    pub(crate) fn branch_ops_eval<AB: CurtaAirBuilder>(
+    pub(crate) fn branch_ops_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         is_branch_instruction: AB::Expr,

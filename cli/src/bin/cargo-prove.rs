@@ -1,12 +1,12 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use curta_cli::commands::{
+use sp1_cli::commands::{
     build::BuildCmd, build_toolchain::BuildToolchainCmd, install_toolchain::InstallToolchainCmd,
     new::NewCmd, prove::ProveCmd,
 };
 
 const VERSION_MESSAGE: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
+    "sp1",
     " (",
     env!("VERGEN_GIT_SHA"),
     " ",

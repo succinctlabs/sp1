@@ -4,7 +4,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{CurtaAirBuilder, MachineAir, MultiTableAirBuilder},
+    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
     runtime::{ExecutionRecord, Program},
 };
@@ -64,7 +64,7 @@ impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
 ///
 /// This trait is for specifying a trait bound for explicit types of builders used in the stark
 /// proving system. It is automatically implemented on any type that implements `Air<AB>` with
-/// `AB: CurtaAirBuilder`. Users should not need to implement this trait manually.
+/// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
     + Air<InteractionBuilder<SC::Val>>
@@ -144,25 +144,20 @@ where
     fn name(&self) -> String {
         self.air.name()
     }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
-        self.air.generate_trace(record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        self.air.shard(input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        self.air.include(record)
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
-        <A as MachineAir<F>>::preprocessed_trace(&self.air, program)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
     fn preprocessed_width(&self) -> usize {
         self.air.preprocessed_width()
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        self.air.generate_trace(input, output)
     }
 }
 
@@ -171,7 +166,7 @@ impl<F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
     A: Air<AB>,
-    AB: CurtaAirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
+    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.
@@ -198,24 +193,20 @@ impl<'a, SC: StarkGenericConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
         <dyn StarkAir<SC> as MachineAir<SC::Val>>::name(self.air)
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<SC::Val> {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_trace(self.air, record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::shard(self.air, input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::include(self.air, record)
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_trace(self.air, program)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_preprocessed_trace(self.air, program)
     }
 
     fn preprocessed_width(&self) -> usize {
         <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_width(self.air)
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<SC::Val> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_trace(self.air, input, output)
     }
 }
 

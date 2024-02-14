@@ -10,10 +10,7 @@ const SCRIPT_MAIN_RS: &str = include_str!("../assets/script/main.rs");
 const SCRIPT_RUST_TOOLCHAIN: &str = include_str!("../assets/script/rust-toolchain");
 
 #[derive(Parser)]
-#[command(
-    name = "new",
-    about = "Setup a new project that runs inside the Curta zkVM."
-)]
+#[command(name = "new", about = "Setup a new project that runs inside the SP1.")]
 pub struct NewCmd {
     name: String,
 }
