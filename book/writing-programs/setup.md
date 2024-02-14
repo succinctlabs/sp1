@@ -19,7 +19,7 @@ To build the program, simply run:
 cargo prove build
 ```
 
-This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-sp1-zkvm-elf`.
+This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`.
 
 
 ## Manual
@@ -46,10 +46,10 @@ edition = "2021"
 sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
 ```
 
-The `sp1-zkvm` crate includes necessary utilities to ensure succesful program execution, handling inputs and outputs,
+The `sp1-zkvm` crate includes necessary utilities for your program, including handling inputs and outputs,
 precompiles, patches, and more.
 
-#### Main.rs
+#### main.rs
 
 Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that the crate
 properly compiles.
@@ -59,7 +59,7 @@ properly compiles.
 sp1_zkvm::entrypoint!(main);
 ```
 
-These two lines of code wrap your main function with some additional logic to ensure that your program executes correctly.
+These two lines of code wrap your main function with some additional logic to ensure that your program compiles correctly with the RISCV target.
 
 
 #### Build
@@ -70,4 +70,4 @@ To build the program, simply run:
 cargo prove build
 ```
 
-This will compile the ELF that can be executed in the zkVM and put the executable in `elf/riscv32im-sp1-zkvm-elf`.
+This will compile the ELF (RISCV binary) that can be executed in the zkVM and put the executable in `elf/riscv32im-succinct-zkvm-elf`.
