@@ -1,6 +1,6 @@
 # Generating Proofs: Setup
 
-In this section, we will teach you how to setup a self-contained crate which can run ELFs that have been compiled with the curta toolchain inside the Curta zkVM.
+In this section, we will teach you how to setup a self-contained crate which can generate proofs of programs that have been compiled with the SP1 toolchain inside the SP1 zkVM.
 
 ## CLI (Recommended)
 
@@ -23,7 +23,7 @@ cd script
 
 #### Cargo Manifest
 
-Inside this crate, add the `curta-core` crate as a dependency. Your `Cargo.toml` should look like as follows:
+Inside this crate, add the `sp1-core` crate as a dependency. Your `Cargo.toml` should look like as follows:
 
 ```rust,noplayground
 [workspace]
@@ -33,7 +33,7 @@ name = "script"
 edition = "2021"
 
 [dependencies]
-curta-core = { git = "https://github.com/succinctlabs/curta.git" }
+sp1-core = { git = "https://github.com/succinctlabs/sp1.git" }
 ```
 
-The `curta-core` crate includes necessary utilities to generate, save, and verify proofs.
+The `sp1-core` crate includes necessary utilities to generate, save, and verify proofs.

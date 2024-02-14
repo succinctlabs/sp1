@@ -1,14 +1,13 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use curta_derive::AlignedBorrow;
 use p3_air::AirBuilder;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 
-use crate::bytes::ByteOpcode;
 use crate::runtime::ExecutionRecord;
 use p3_field::AbstractField;
 
@@ -59,7 +58,7 @@ impl<F: Field> AddOperation<F> {
         expected
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,
@@ -100,22 +99,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check each byte.
         {
-            let bytes =
-                a.0.iter()
-                    .chain(b.0.iter())
-                    .chain(cols.value.0.iter())
-                    .copied()
-                    .collect::<Vec<_>>();
-            for i in (0..bytes.len()).step_by(2) {
-                builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
-                    AB::F::zero(),
-                    AB::F::zero(),
-                    bytes[i],
-                    bytes[i + 1],
-                    is_real,
-                );
-            }
+            builder.slice_range_check_u8(&a.0, is_real);
+            builder.slice_range_check_u8(&b.0, is_real);
+            builder.slice_range_check_u8(&cols.value.0, is_real);
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

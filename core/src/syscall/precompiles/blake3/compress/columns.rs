@@ -2,7 +2,7 @@ use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use std::mem::size_of;
 
-use curta_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;

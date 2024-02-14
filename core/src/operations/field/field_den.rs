@@ -2,14 +2,14 @@ use super::params::Limbs;
 use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
-use crate::air::CurtaAirBuilder;
 use crate::air::Polynomial;
+use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use num::BigUint;
 use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
@@ -87,7 +87,7 @@ impl<F: PrimeField32> FieldDenCols<F> {
 
 impl<V: Copy> FieldDenCols<V> {
     #[allow(unused_variables)]
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var>,
@@ -138,16 +138,16 @@ mod tests {
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::utils::{BabyBearPoseidon2, StarkUtils};
-    use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
+    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
-    use curta_derive::AlignedBorrow;
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
+    use sp1_derive::AlignedBorrow;
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
@@ -231,7 +231,7 @@ mod tests {
 
     impl<AB, P: FieldParameters> Air<AB> for FieldDenChip<P>
     where
-        AB: CurtaAirBuilder,
+        AB: SP1AirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();

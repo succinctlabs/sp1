@@ -1,15 +1,16 @@
-use curta_core::utils::BabyBearBlake3;
-use curta_core::{CurtaProofWithIO, CurtaVerifier};
+use sp1_core::utils::BabyBearBlake3;
+use sp1_core::{SP1ProofWithIO, SP1Verifier};
 
-const FIBONACCI_ELF: &[u8] = include_bytes!("../../fibonacci/elf/riscv32im-curta-zkvm-elf");
+const FIBONACCI_ELF: &[u8] =
+    include_bytes!("../../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
 pub fn main() {
     let proof_str = include_str!("../../../../examples/fibonacci/proof-with-pis.json");
-    let proof: CurtaProofWithIO<BabyBearBlake3> =
+    let proof: SP1ProofWithIO<BabyBearBlake3> =
         serde_json::from_str(proof_str).expect("loading proof failed");
 
     // Verify proof.
-    CurtaVerifier::verify(FIBONACCI_ELF, &proof).expect("verification failed");
+    SP1Verifier::verify(FIBONACCI_ELF, &proof).expect("verification failed");
 
     println!("verification succeeded");
 }

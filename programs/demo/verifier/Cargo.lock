@@ -305,77 +305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "clap",
- "curta-derive",
- "curve25519-dalek",
- "elf",
- "elliptic-curve",
- "flate2",
- "hex",
- "itertools",
- "k256",
- "lazy_static",
- "log",
- "nohash-hasher",
- "num",
- "p3-air",
- "p3-baby-bear",
- "p3-blake3",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-keccak",
- "p3-keccak-air",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-mds",
- "p3-merkle-tree",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "rrs-lib",
- "serde",
- "serde_json",
- "serial_test",
- "size",
- "tracing",
- "tracing-forest",
- "tracing-log",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "curta-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "curta-zkvm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1497,6 +1426,77 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 
 [[package]]
+name = "sp1-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap",
+ "curve25519-dalek",
+ "elf",
+ "elliptic-curve",
+ "flate2",
+ "hex",
+ "itertools",
+ "k256",
+ "lazy_static",
+ "log",
+ "nohash-hasher",
+ "num",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-blake3",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-keccak",
+ "p3-keccak-air",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-mds",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "p3-util",
+ "rrs-lib",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "size",
+ "sp1-derive",
+ "tracing",
+ "tracing-forest",
+ "tracing-log",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "sp1-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "sp1-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1704,9 +1704,9 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 name = "verifier-program"
 version = "0.1.0"
 dependencies = [
- "curta-core",
- "curta-zkvm",
  "serde_json",
+ "sp1-core",
+ "sp1-zkvm",
 ]
 
 [[package]]

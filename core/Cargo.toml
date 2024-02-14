@@ -1,5 +1,5 @@
 [package]
-name = "curta-core"
+name = "sp1-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,7 +11,7 @@ p3-air = { workspace = true }
 p3-matrix = { workspace = true }
 p3-baby-bear = { workspace = true }
 elf = "0.7.4"
-curta-derive = { path = "../derive" }
+sp1-derive = { path = "../derive" }
 p3-commit = { workspace = true }
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
