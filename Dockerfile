@@ -4,7 +4,8 @@ RUN apt-get update
 RUN apt-get install -y --no-install-recommends ca-certificates clang curl libssl-dev pkg-config git
 RUN curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL 'https://sh.rustup.rs' | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN curl -L https://curta.succinct.xyz | bash && ~/.curta/bin/curtaup
+# RUN curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
+COPY . /root/sp1
 
 WORKDIR /root
 
