@@ -58,7 +58,7 @@ impl FromStr for Input {
 }
 
 #[derive(Parser)]
-#[command(name = "prove", about = "Build and prove a program")]
+#[command(name = "prove", about = "(default) Build and prove a program")]
 pub struct ProveCmd {
     #[clap(long, value_parser)]
     input: Option<Input>,
@@ -93,7 +93,6 @@ impl ProveCmd {
         Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "curta")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-            .env("SUCCINCT_BUILD_IGNORE", "1")
             .args(["build", "--release", "--target", build_target, "--locked"])
             .run()
             .unwrap();

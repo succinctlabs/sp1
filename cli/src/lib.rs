@@ -1,3 +1,4 @@
+mod build;
 pub mod commands;
 
 use anyhow::Result;
