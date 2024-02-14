@@ -607,7 +607,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "is_prime-script"
+name = "is-prime-script"
 version = "0.1.0"
 dependencies = [
  "sp1-core",
