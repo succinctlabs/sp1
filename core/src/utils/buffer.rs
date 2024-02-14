@@ -43,7 +43,7 @@ impl Buffer {
     }
 
     /// Write the serializable object from the buffer.
-    pub fn write<T: Serialize + DeserializeOwned>(&mut self, data: &T) {
+    pub fn write<T: Serialize>(&mut self, data: &T) {
         let mut tmp = Vec::new();
         bincode::serialize_into(&mut tmp, data).expect("serialization failed");
         self.data.extend(tmp);

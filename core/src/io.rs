@@ -42,7 +42,7 @@ impl SP1Stdin {
     }
 
     /// Write a value to the buffer.
-    pub fn write<T: Serialize + DeserializeOwned>(&mut self, data: &T) {
+    pub fn write<T: Serialize>(&mut self, data: &T) {
         self.buffer.write(data);
     }
 
