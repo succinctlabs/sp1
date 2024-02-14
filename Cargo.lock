@@ -209,7 +209,7 @@ dependencies = [
 name = "btree-example"
 version = "0.1.0"
 dependencies = [
- "curta-core 0.1.0 (git+https://github.com/succinctlabs/curta.git)",
+ "curta-core",
 ]
 
 [[package]]
@@ -506,7 +506,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap",
- "curta-core 0.1.0",
+ "curta-core",
  "dirs",
  "downloader",
  "flate2",
@@ -786,7 +786,7 @@ dependencies = [
 name = "ed25519-example"
 version = "0.1.0"
 dependencies = [
- "curta-core 0.1.0",
+ "curta-core",
 ]
 
 [[package]]
@@ -879,7 +879,7 @@ checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 name = "fibonacci-io-example"
 version = "0.1.0"
 dependencies = [
- "curta-core 0.1.0",
+ "curta-core",
 ]
 
 [[package]]
@@ -2175,7 +2175,7 @@ dependencies = [
 name = "regex-example"
 version = "0.1.0"
 dependencies = [
- "curta-core 0.1.0",
+ "curta-core",
 ]
 
 [[package]]
@@ -2579,7 +2579,7 @@ dependencies = [
 name = "ssz"
 version = "0.1.0"
 dependencies = [
- "curta-core 0.1.0",
+ "curta-core",
 ]
 
 [[package]]
@@ -2676,7 +2676,7 @@ dependencies = [
 name = "tendermint-example"
 version = "0.1.0"
 dependencies = [
- "curta-core 0.1.0",
+ "curta-core",
 ]
 
 [[package]]
