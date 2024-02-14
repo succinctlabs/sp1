@@ -1,12 +1,12 @@
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use num::BigUint;
 use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
@@ -50,7 +50,7 @@ impl<F: PrimeField32> FieldSqrtCols<F> {
 
 impl<V: Copy> FieldSqrtCols<V> {
     /// Calculates the square root of `a`.
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var>,
@@ -81,21 +81,23 @@ mod tests {
     use p3_field::{Field, PrimeField32};
 
     use super::{FieldSqrtCols, Limbs};
+
     use crate::air::MachineAir;
+
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
+    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
-    use curta_derive::AlignedBorrow;
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
+    use sp1_derive::AlignedBorrow;
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
         pub a: Limbs<T>,
@@ -121,13 +123,11 @@ mod tests {
             "EdSqrtChip".to_string()
         }
 
-        fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
-
-        fn include(&self, record: &ExecutionRecord) -> bool {
-            !record.bitwise_events.is_empty()
-        }
-
-        fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+        fn generate_trace(
+            &self,
+            _: &ExecutionRecord,
+            _: &mut ExecutionRecord,
+        ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<BigUint> = (0..num_rows - 2)
@@ -174,7 +174,7 @@ mod tests {
 
     impl<AB, P: FieldParameters> Air<AB> for EdSqrtChip<P>
     where
-        AB: CurtaAirBuilder,
+        AB: SP1AirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
@@ -193,8 +193,9 @@ mod tests {
     #[test]
     fn generate_trace() {
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
-        let mut shard = ExecutionRecord::default();
-        let _: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let shard = ExecutionRecord::default();
+        let _: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         // println!("{:?}", trace.values)
     }
 
@@ -204,8 +205,9 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip: EdSqrtChip<Ed25519BaseField> = EdSqrtChip::new();
-        let mut shard = ExecutionRecord::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let shard = ExecutionRecord::default();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

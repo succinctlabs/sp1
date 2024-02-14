@@ -10,7 +10,7 @@ use super::columns::ByteCols;
 use super::columns::NUM_BYTE_COLS;
 use super::NUM_BYTE_OPS;
 use super::{ByteChip, ByteOpcode};
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 
 /// Makes the column map for the byte chip.
 const fn make_col_map() -> ByteCols<usize> {
@@ -30,7 +30,7 @@ impl<F: Field> BaseAir<F> for ByteChip {
     }
 }
 
-impl<AB: CurtaAirBuilder> Air<AB> for ByteChip {
+impl<AB: SP1AirBuilder> Air<AB> for ByteChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();

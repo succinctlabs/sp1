@@ -1,7 +1,7 @@
 changelog-seen = 2
 
 [build]
-target = ["riscv32im-curta-zkvm-elf"]
+target = ["riscv32im-succinct-zkvm-elf"]
 extended = true
 tools = ["cargo", "cargo-clippy", "clippy", "rustfmt"]
 configure-args = []

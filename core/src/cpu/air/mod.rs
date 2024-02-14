@@ -9,7 +9,7 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
-use crate::air::{CurtaAirBuilder, WordAirBuilder};
+use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
@@ -18,7 +18,7 @@ use crate::runtime::{AccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
@@ -160,7 +160,7 @@ where
 
 impl CpuChip {
     /// Whether the instruction is a memory instruction.
-    pub(crate) fn is_alu_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -168,7 +168,7 @@ impl CpuChip {
     }
 
     /// Constraints related to jump operations.
-    pub(crate) fn jump_ops_eval<AB: CurtaAirBuilder>(
+    pub(crate) fn jump_ops_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -217,11 +217,7 @@ impl CpuChip {
     }
 
     /// Constraints related to the AUIPC opcode.
-    pub(crate) fn auipc_eval<AB: CurtaAirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-    ) {
+    pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         // Get the auipc specific columns.
         let auipc_columns: AUIPCCols<AB::Var> =
             *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();

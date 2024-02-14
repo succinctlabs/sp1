@@ -6,7 +6,7 @@ use p3_keccak_air::{KeccakAir, U64_LIMBS};
 use p3_matrix::MatrixRowSlices;
 
 use crate::{
-    air::{CurtaAirBuilder, SubAirBuilder},
+    air::{SP1AirBuilder, SubAirBuilder},
     memory::MemoryCols,
 };
 
@@ -23,7 +23,7 @@ impl<F> BaseAir<F> for KeccakPermuteChip {
 
 impl<AB> Air<AB> for KeccakPermuteChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

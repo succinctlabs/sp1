@@ -1,27 +1,27 @@
 # Installation
 
-Curta currently runs on Linux and macOS. You can either use prebuilt binaries through Curtaup or
+SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
 build the toolchain and CLI from source.
 
-Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
+Make sure you have [Rust](https://www.rust-lang.org/tools/install) and OpenSSL 1.1 (`brew install openssl@1.1` or use this [guide](https://askubuntu.com/questions/1102803/how-to-upgrade-openssl-1-1-0-to-1-1-1-in-ubuntu-18-04)) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
-Curtaup is the Curta zkVM toolchain installer. Open your terminal and run the following command and follow the instructions:
+sp1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
 ```bash
-curl -L https://curta.succinct.xyz | bash
+curl -L https://sp1.succinct.xyz | bash
 ```
 
-This will install Curtaup, then simply follow the instructions on-screen, which will make the `curtaup` command available in your CLI.
+This will install sp1up, then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
 
-After following the instructions, you can run `curtaup` to install the toolchain:
+After following the instructions, you can run `sp1up` to install the toolchain:
 
 ```bash
-curtaup
+sp1up
 ```
 
-This will install support for the `riscv32im-curta-zkvm-elf` compilation target within your Rust compiler
+This will install support for the `riscv32im-succinct-zkvm-elf` compilation target within your Rust compiler
 and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness. 
 
 You can verify the installation by running `cargo prove --version`:
@@ -36,17 +36,20 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 
-Clone the `curta` repository and navigate to the root directory. 
+Clone the `sp1` repository and navigate to the root directory. 
 
 ```bash
-git clone git@github.com:succinctlabs/curta.git
-cd vm
+git clone git@github.com:succinctlabs/sp1.git
+cd sp1
 cd cli
 cargo install --locked --path .
 cargo prove build-toolchain
 ```
 
-Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine.
+Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine. If you're on a machine that we have prebuilt binaries for (ARM Mac or x86 or ARM Linux), you can use the following to download a prebuilt version.
+```bash
+cargo prove install-toolchain
+```
 
 To verify the installation of the tooolchain, run and make sure you see `succinct`:
 

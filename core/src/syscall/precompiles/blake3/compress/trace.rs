@@ -22,21 +22,17 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
         "Blake3CompressInner".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].blake3_compress_inner_events = input.blake3_compress_inner_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.blake3_compress_inner_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..record.blake3_compress_inner_events.len() {
-            let event = record.blake3_compress_inner_events[i];
+        for i in 0..input.blake3_compress_inner_events.len() {
+            let event = input.blake3_compress_inner_events[i];
 
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
@@ -95,7 +91,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                             event.message_reads[round][operation][1].value,
                         ];
 
-                        cols.g.populate(record, input);
+                        cols.g.populate(output, input);
                     }
 
                     clk += 4;
@@ -107,7 +103,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
             }
         }
 
-        record.field_events.extend(new_field_events);
+        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];

@@ -1,8 +1,8 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{offset_of, size_of};
 
-use curta_derive::AlignedBorrow;
 use p3_keccak_air::KeccakCols as P3KeccakCols;
+use sp1_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadWriteCols;
 

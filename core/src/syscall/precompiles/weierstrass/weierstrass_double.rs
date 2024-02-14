@@ -1,5 +1,5 @@
-use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
@@ -19,7 +19,6 @@ use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use num::BigUint;
 use num::Zero;
 use p3_air::AirBuilder;
@@ -28,6 +27,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -162,21 +162,17 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         "WeierstrassDoubleAssign".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.weierstrass_double_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..record.weierstrass_double_events.len() {
-            let event = record.weierstrass_double_events[i];
+        for i in 0..input.weierstrass_double_events.len() {
+            let event = input.weierstrass_double_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -200,7 +196,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
-        record.field_events.extend(new_field_events);
+        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
@@ -226,7 +222,7 @@ impl<F, E: EllipticCurve + WeierstrassParameters> BaseAir<F> for WeierstrassDoub
 
 impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassDoubleAssignChip<E>
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

@@ -1,11 +1,11 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use curta_derive::AlignedBorrow;
 use p3_field::AbstractField;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
@@ -21,7 +21,7 @@ pub struct AndOperation<T> {
 }
 
 impl<F: Field> AndOperation<F> {
-    pub fn populate(&mut self, shard: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
+    pub fn populate(&mut self, record: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
         let expected = x & y;
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
@@ -36,17 +36,13 @@ impl<F: Field> AndOperation<F> {
                 b: x_bytes[i] as u32,
                 c: y_bytes[i] as u32,
             };
-            shard
-                .byte_lookups
-                .entry(byte_event)
-                .and_modify(|j| *j += 1)
-                .or_insert(1);
+            record.add_byte_lookup_event(byte_event);
         }
         expected
     }
 
     #[allow(unused_variables)]
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,

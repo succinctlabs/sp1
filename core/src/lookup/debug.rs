@@ -45,7 +45,7 @@ fn babybear_to_int(n: BabyBear) -> i32 {
 
 pub fn debug_interactions<SC: StarkGenericConfig>(
     chip: &ChipRef<SC>,
-    segment: &mut ExecutionRecord,
+    record: &ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
     BTreeMap<String, Vec<InteractionData<SC::Val>>>,
@@ -54,7 +54,7 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
-    let trace = chip.generate_trace(segment);
+    let trace = chip.generate_trace(record, &mut ExecutionRecord::default());
     let mut main = trace.clone();
     let height = trace.clone().height();
 
@@ -116,10 +116,8 @@ pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>
 ) -> bool {
     let mut final_map = BTreeMap::new();
 
-    let mut segment = segment.clone();
-
     for chip in chips.iter() {
-        let (_, count) = debug_interactions(chip, &mut segment, interaction_kinds.clone());
+        let (_, count) = debug_interactions(chip, segment, interaction_kinds.clone());
 
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {

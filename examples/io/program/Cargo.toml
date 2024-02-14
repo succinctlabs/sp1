@@ -1,0 +1,9 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "io-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../../zkvm" }
+serde = { version = "1.0.195", features = ["derive"] }

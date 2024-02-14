@@ -10,7 +10,7 @@ use std::fs::File as SyncFile;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-pub const RUSTUP_TOOLCHAIN_NAME: &str = "curta";
+pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
 trait CommandExecutor {
     fn run(&mut self) -> Result<()>;
@@ -88,13 +88,13 @@ pub fn get_target() -> &'static str {
 #[allow(unreachable_code)]
 pub fn get_toolchain_download_url() -> &'static str {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-    return "https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz";
+    return "https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz";
 
     #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-    return "https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/rust-toolchain-aarch64-unknown-linux-gnu.tar.gz";
+    return "https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/rust-toolchain-aarch64-unknown-linux-gnu.tar.gz";
 
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-    return "https://pub-f7c772c7ed31435ca5ee55a4e49d31b7.r2.dev/rust-toolchain-aarch64-apple-darwin.tar.gz";
+    return "https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/rust-toolchain-aarch64-apple-darwin.tar.gz";
 
     panic!("Unsupported architecture. Please build the toolchain from source.")
 }

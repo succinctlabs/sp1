@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
-use curta_core::{
+use sp1_core::{
     utils::{self},
-    CurtaProver, CurtaStdin,
+    SP1Prover, SP1Stdin,
 };
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
 
@@ -90,7 +90,7 @@ impl ProveCmd {
             .read_to_end(&mut elf)
             .expect("failed to read from input file");
 
-        let mut stdin = CurtaStdin::new();
+        let mut stdin = SP1Stdin::new();
         if let Some(ref input) = self.input {
             match input {
                 Input::FilePath(ref path) => {
@@ -104,7 +104,7 @@ impl ProveCmd {
                 }
             }
         }
-        let proof = CurtaProver::prove(&elf, stdin).unwrap();
+        let proof = SP1Prover::prove(&elf, stdin).unwrap();
 
         if let Some(ref path) = self.output {
             proof

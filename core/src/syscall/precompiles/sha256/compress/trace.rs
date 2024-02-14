@@ -3,7 +3,11 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::MachineAir, air::Word, memory::MemoryCols, runtime::ExecutionRecord};
+use crate::{
+    air::{MachineAir, Word},
+    memory::MemoryCols,
+    runtime::ExecutionRecord,
+};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -15,20 +19,16 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
         "ShaCompress".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].sha_compress_events = input.sha_compress_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.sha_compress_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
-        for i in 0..record.sha_compress_events.len() {
-            let mut event = record.sha_compress_events[i];
+        for i in 0..input.sha_compress_events.len() {
+            let mut event = input.sha_compress_events[i];
 
             let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);
@@ -123,37 +123,37 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 cols.g = Word::from(g);
                 cols.h = Word::from(h);
 
-                let e_rr_6 = cols.e_rr_6.populate(record, e, 6);
-                let e_rr_11 = cols.e_rr_11.populate(record, e, 11);
-                let e_rr_25 = cols.e_rr_25.populate(record, e, 25);
-                let s1_intermeddiate = cols.s1_intermediate.populate(record, e_rr_6, e_rr_11);
-                let s1 = cols.s1.populate(record, s1_intermeddiate, e_rr_25);
+                let e_rr_6 = cols.e_rr_6.populate(output, e, 6);
+                let e_rr_11 = cols.e_rr_11.populate(output, e, 11);
+                let e_rr_25 = cols.e_rr_25.populate(output, e, 25);
+                let s1_intermeddiate = cols.s1_intermediate.populate(output, e_rr_6, e_rr_11);
+                let s1 = cols.s1.populate(output, s1_intermeddiate, e_rr_25);
 
-                let e_and_f = cols.e_and_f.populate(record, e, f);
-                let e_not = cols.e_not.populate(record, e);
-                let e_not_and_g = cols.e_not_and_g.populate(record, e_not, g);
-                let ch = cols.ch.populate(record, e_and_f, e_not_and_g);
+                let e_and_f = cols.e_and_f.populate(output, e, f);
+                let e_not = cols.e_not.populate(output, e);
+                let e_not_and_g = cols.e_not_and_g.populate(output, e_not, g);
+                let ch = cols.ch.populate(output, e_and_f, e_not_and_g);
 
                 let temp1 = cols
                     .temp1
-                    .populate(h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                    .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
 
-                let a_rr_2 = cols.a_rr_2.populate(record, a, 2);
-                let a_rr_13 = cols.a_rr_13.populate(record, a, 13);
-                let a_rr_22 = cols.a_rr_22.populate(record, a, 22);
-                let s0_intermediate = cols.s0_intermediate.populate(record, a_rr_2, a_rr_13);
-                let s0 = cols.s0.populate(record, s0_intermediate, a_rr_22);
+                let a_rr_2 = cols.a_rr_2.populate(output, a, 2);
+                let a_rr_13 = cols.a_rr_13.populate(output, a, 13);
+                let a_rr_22 = cols.a_rr_22.populate(output, a, 22);
+                let s0_intermediate = cols.s0_intermediate.populate(output, a_rr_2, a_rr_13);
+                let s0 = cols.s0.populate(output, s0_intermediate, a_rr_22);
 
-                let a_and_b = cols.a_and_b.populate(record, a, b);
-                let a_and_c = cols.a_and_c.populate(record, a, c);
-                let b_and_c = cols.b_and_c.populate(record, b, c);
-                let maj_intermediate = cols.maj_intermediate.populate(record, a_and_b, a_and_c);
-                let maj = cols.maj.populate(record, maj_intermediate, b_and_c);
+                let a_and_b = cols.a_and_b.populate(output, a, b);
+                let a_and_c = cols.a_and_c.populate(output, a, c);
+                let b_and_c = cols.b_and_c.populate(output, b, c);
+                let maj_intermediate = cols.maj_intermediate.populate(output, a_and_b, a_and_c);
+                let maj = cols.maj.populate(output, maj_intermediate, b_and_c);
 
-                let temp2 = cols.temp2.populate(record, s0, maj);
+                let temp2 = cols.temp2.populate(output, s0, maj);
 
-                let d_add_temp1 = cols.d_add_temp1.populate(record, d, temp1);
-                let temp1_add_temp2 = cols.temp1_add_temp2.populate(record, temp1, temp2);
+                let d_add_temp1 = cols.d_add_temp1.populate(output, d, temp1);
+                let temp1_add_temp2 = cols.temp1_add_temp2.populate(output, temp1, temp2);
 
                 event.h[7] = g;
                 event.h[6] = f;
@@ -189,7 +189,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
-                cols.finalize_add.populate(record, og_h[j], event.h[j]);
+                cols.finalize_add.populate(output, og_h[j], event.h[j]);
                 cols.mem
                     .populate_write(event.h_write_records[j], &mut new_field_events);
                 cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
@@ -222,7 +222,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
             }
         }
 
-        record.field_events.extend(new_field_events);
+        output.add_field_events(&new_field_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();

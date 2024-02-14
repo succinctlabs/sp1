@@ -45,6 +45,9 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+    #[cfg(not(feature = "perf"))]
+    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+
     let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -59,6 +62,13 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let start = Instant::now();
     let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
+
+    #[cfg(not(feature = "perf"))]
+    assert!(debug_interactions_with_all_chips(
+        &machine.chips(),
+        &runtime.record,
+        InteractionKind::all_kinds(),
+    ));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -165,7 +175,7 @@ pub(super) mod baby_bear_poseidon2 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
@@ -191,17 +201,26 @@ pub(super) mod baby_bear_poseidon2 {
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
     pub struct BabyBearPoseidon2 {
         perm: Perm,
         pcs: Pcs,
     }
 
+    /// Implement serialization manually instead of using serde to avoid cloing the config.
     impl Serialize for BabyBearPoseidon2 {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            serializer.serialize_none()
+            std::marker::PhantomData::<BabyBearPoseidon2>.serialize(serializer)
+        }
+    }
+
+    impl From<std::marker::PhantomData<BabyBearPoseidon2>> for BabyBearPoseidon2 {
+        fn from(_: std::marker::PhantomData<BabyBearPoseidon2>) -> Self {
+            Self::new()
         }
     }
 
@@ -289,7 +308,7 @@ pub(super) mod baby_bear_keccak {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
@@ -315,17 +334,25 @@ pub(super) mod baby_bear_keccak {
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearKeccak>")]
     pub struct BabyBearKeccak {
         perm: Perm,
         pcs: Pcs,
     }
-
+    // Implement serialization manually instead of using serde(into) to avoid cloing the config
     impl Serialize for BabyBearKeccak {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            serializer.serialize_none()
+            std::marker::PhantomData::<BabyBearKeccak>.serialize(serializer)
+        }
+    }
+
+    impl From<std::marker::PhantomData<BabyBearKeccak>> for BabyBearKeccak {
+        fn from(_: std::marker::PhantomData<BabyBearKeccak>) -> Self {
+            Self::new()
         }
     }
 
@@ -414,7 +441,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
@@ -440,17 +467,26 @@ pub(super) mod baby_bear_blake3 {
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearBlake3>")]
     pub struct BabyBearBlake3 {
         perm: Perm,
         pcs: Pcs,
     }
 
+    // Implement serialization manually instead of using serde(into) to avoid cloing the config
     impl Serialize for BabyBearBlake3 {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            serializer.serialize_none()
+            std::marker::PhantomData::<Self>.serialize(serializer)
+        }
+    }
+
+    impl From<std::marker::PhantomData<BabyBearBlake3>> for BabyBearBlake3 {
+        fn from(_: std::marker::PhantomData<BabyBearBlake3>) -> Self {
+            Self::new()
         }
     }
 
