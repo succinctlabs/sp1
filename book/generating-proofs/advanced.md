@@ -55,7 +55,7 @@ SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --re
 Otherwise, make sure to include the "neon" feature when importing `sp1-zkvm` in your `Cargo.toml`:
 
 ```toml,noplayground
-sp1-core = { git = "ssh://git@github.com/succinctlabs/sp1.git", features = [ "neon" ] }
+sp1-core = { git = "https://github.com/succinctlabs/sp1.git", features = [ "neon" ] }
 ```
 
 ## Logging and Tracing Information
