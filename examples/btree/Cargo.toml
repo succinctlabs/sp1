@@ -5,4 +5,4 @@ name = "btree-example"
 edition = "2021"
 
 [dependencies]
-curta-core = { git = "https://github.com/succinctlabs/curta.git" }
+curta-core = { path = "../../core" }
