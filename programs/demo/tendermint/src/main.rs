@@ -1,5 +1,5 @@
 #![no_main]
-curta_zkvm::entrypoint!(main);
+sp1_zkvm::entrypoint!(main);
 
 use core::time::Duration;
 use serde::Deserialize;

@@ -38,7 +38,7 @@ pub enum AccessPosition {
     A = 3,
 }
 
-/// An implementation of a runtime for the Curta VM.
+/// An implementation of a runtime for the SP1 VM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
 /// during execution (i.e., memory reads, alu operations, etc).

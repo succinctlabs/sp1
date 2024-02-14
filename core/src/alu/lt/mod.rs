@@ -1,15 +1,16 @@
+use crate::air::MachineAir;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
+use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
-use crate::air::{CurtaAirBuilder, MachineAir, Word};
+use crate::air::{SP1AirBuilder, Word};
 
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::pad_to_power_of_two;
@@ -176,7 +177,7 @@ impl<F> BaseAir<F> for LtChip {
 
 impl<AB> Air<AB> for LtChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

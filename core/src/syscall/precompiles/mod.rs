@@ -7,7 +7,7 @@ pub mod weierstrass;
 
 use num::BigUint;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::operations::field::params::Limbs;
 use crate::runtime::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
@@ -119,7 +119,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
 
 pub fn limbs_from_biguint<AB, F: FieldParameters>(value: &BigUint) -> Limbs<AB::Expr>
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     let a_const = F::to_limbs_field::<AB::F>(value);
     Limbs::<AB::Expr>(a_const.0.map(|x| x.into()))

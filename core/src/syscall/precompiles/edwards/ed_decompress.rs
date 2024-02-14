@@ -1,7 +1,6 @@
 use crate::air::BaseAirBuilder;
-use crate::air::CurtaAirBuilder;
-
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::air::WORD_SIZE;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
@@ -37,8 +36,8 @@ use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::marker::PhantomData;
 
-use curta_derive::AlignedBorrow;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy)]
@@ -116,7 +115,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
 }
 
 impl<V: Copy> EdDecompressCols<V> {
-    pub fn eval<AB: CurtaAirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
         &self,
         builder: &mut AB,
     ) where
@@ -316,7 +315,7 @@ impl<F, E: EdwardsParameters> BaseAir<F> for EdDecompressChip<E> {
 
 impl<AB, E: EdwardsParameters> Air<AB> for EdDecompressChip<E>
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -329,12 +328,12 @@ where
 pub mod tests {
     use crate::{
         utils::{self, tests::ED_DECOMPRESS_ELF},
-        CurtaProver, CurtaStdin,
+        SP1Prover, SP1Stdin,
     };
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        CurtaProver::prove(ED_DECOMPRESS_ELF, CurtaStdin::new()).unwrap();
+        SP1Prover::prove(ED_DECOMPRESS_ELF, SP1Stdin::new()).unwrap();
     }
 }

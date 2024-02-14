@@ -27,7 +27,7 @@ impl InstallToolchainCmd {
         let client = Client::builder().user_agent("Mozilla/5.0").build()?;
 
         // Setup variables.
-        let root_dir = home_dir().unwrap().join(".curta");
+        let root_dir = home_dir().unwrap().join(".sp1");
         match fs::read_dir(&root_dir) {
             Ok(entries) =>
             {
@@ -47,12 +47,12 @@ impl InstallToolchainCmd {
                     }
                 }
             }
-            Err(_) => println!("No existing ~/.curta directory to remove."),
+            Err(_) => println!("No existing ~/.sp1 directory to remove."),
         }
-        println!("Succesfully cleaned up ~/.curta directory.");
+        println!("Succesfully cleaned up ~/.sp1 directory.");
         match fs::create_dir_all(&root_dir) {
-            Ok(_) => println!("Succesfully created ~/.curta directory."),
-            Err(err) => println!("Failed to create ~/.curta directory: {}", err),
+            Ok(_) => println!("Succesfully created ~/.sp1 directory."),
+            Err(err) => println!("Failed to create ~/.sp1 directory: {}", err),
         };
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
