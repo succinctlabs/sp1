@@ -12,4 +12,6 @@ pub fn main() {
         b = sum;
     }
     println!("b: {}", b);
+    sp1_zkvm::io::write(&a);
+    sp1_zkvm::io::write(&b);
 }
