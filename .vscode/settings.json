@@ -52,7 +52,7 @@
         "tests/secp256k1-decompress/Cargo.toml",
         "tests/secp256k1-double/Cargo.toml",
         "tests/sha-compress/Cargo.toml",
-        "tests/sha-expand/Cargo.toml",
+        "tests/sha-extend/Cargo.toml",
         "tests/sha2/Cargo.toml",
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
