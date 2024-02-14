@@ -1,0 +1,9 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "json-decoder-program"
+edition = "2021"
+
+[dependencies]
+curta-zkvm = { git = "https://github.com/succinctlabs/curta.git" }
+serde_json = "1.0.113"

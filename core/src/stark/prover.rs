@@ -31,7 +31,7 @@ pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &mut Vec<ExecutionRecord>,
+        shards: &[ExecutionRecord],
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>;
 }
@@ -49,14 +49,12 @@ where
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &mut Vec<ExecutionRecord>,
+        shards: &[ExecutionRecord],
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
-        let config = machine.config();
-        let all_chips = machine.chips();
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(config, shards, &all_chips);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, shards);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {
@@ -67,15 +65,14 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
+        let config = machine.config();
         let shard_proofs = shard_data
             .into_par_iter()
-            .map(|data| {
+            .zip(shards.par_iter())
+            .map(|(data, shard)| {
                 let data = tracing::info_span!("materializing data")
                     .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = all_chips
-                    .iter()
-                    .filter(|chip| data.chip_ids.contains(&chip.name()))
-                    .collect::<Vec<_>>();
+                let chips = machine.shard_chips(shard);
                 tracing::info_span!("proving shard").in_scope(|| {
                     Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
                 })
@@ -99,23 +96,20 @@ where
 {
     fn commit_main(
         config: &SC,
-        chips: &[ChipRef<SC>],
-        shard: &mut ExecutionRecord,
+        machine: &RiscvStark<SC>,
+        shard: &ExecutionRecord,
         index: usize,
     ) -> ShardMainData<SC>
     where
         SC::Val: PrimeField32,
     {
         // Filter the chips based on what is used.
-        let filtered_chips = chips
-            .iter()
-            .filter(|chip| chip.include(shard))
-            .collect::<Vec<_>>();
+        let filtered_chips = machine.shard_chips(shard);
 
         // For each chip, generate the trace.
         let traces = filtered_chips
-            .iter()
-            .map(|chip| chip.generate_trace(&mut shard.clone()))
+            .par_iter()
+            .map(|chip| chip.generate_trace(shard, &mut ExecutionRecord::default()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
@@ -140,7 +134,7 @@ where
     fn prove_shard(
         config: &SC,
         _pk: &ProvingKey<SC>,
-        chips: &[&ChipRef<SC>],
+        chips: &[ChipRef<SC>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
@@ -256,7 +250,7 @@ where
                 .map(|i| {
                     quotient_values(
                         config,
-                        chips[i],
+                        &chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
                         &main_ldes[i],
@@ -418,9 +412,8 @@ where
     }
 
     fn commit_shards<F, EF>(
-        config: &SC,
-        shards: &mut Vec<ExecutionRecord>,
-        chips: &[ChipRef<SC>],
+        machine: &RiscvStark<SC>,
+        shards: &[ExecutionRecord],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<ShardMainDataWrapper<SC>>,
@@ -434,6 +427,7 @@ where
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
     {
+        let config = machine.config();
         let num_shards = shards.len();
         tracing::info!("num_shards={}", num_shards);
         // Get the number of shards that is the threshold for saving shards to disk instead of
@@ -445,7 +439,7 @@ where
                     .enumerate()
                     .map(|(i, shard)| {
                         let data = tracing::info_span!("shard commit main", shard = shard.index)
-                            .in_scope(|| Self::commit_main(config, chips, shard, i));
+                            .in_scope(|| Self::commit_main(config, machine, shard, i));
                         let commitment = data.main_commit.clone();
                         let data = data.to_in_memory();
                         (commitment, data)

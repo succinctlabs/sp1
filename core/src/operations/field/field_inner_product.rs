@@ -119,7 +119,9 @@ mod tests {
     use p3_field::{Field, PrimeField32};
 
     use super::{FieldInnerProductCols, Limbs};
+
     use crate::air::MachineAir;
+
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
@@ -161,13 +163,11 @@ mod tests {
             "FieldInnerProduct".to_string()
         }
 
-        fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
-
-        fn include(&self, record: &ExecutionRecord) -> bool {
-            !record.field_events.is_empty()
-        }
-
-        fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+        fn generate_trace(
+            &self,
+            _: &ExecutionRecord,
+            _: &mut ExecutionRecord,
+        ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<(Vec<BigUint>, Vec<BigUint>)> = (0..num_rows - 4)
@@ -233,9 +233,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
         let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -244,10 +245,11 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
 
         let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

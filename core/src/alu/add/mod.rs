@@ -11,7 +11,7 @@ use crate::air::MachineAir;
 use crate::air::{CurtaAirBuilder, Word};
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
@@ -42,29 +42,19 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         "Add".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .add_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].add_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.add_events.is_empty()
-    }
-
     #[instrument(name = "generate add trace", skip_all)]
-    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
-        for i in 0..shard.add_events.len() {
+        for i in 0..input.add_events.len() {
             let mut row = [F::zero(); NUM_ADD_COLS];
             let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
-            let event = shard.add_events[i];
-            cols.add_operation.populate(shard, event.b, event.c);
+            let event = input.add_events[i];
+            cols.add_operation.populate(output, event.b, event.c);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
             cols.is_real = F::one();
@@ -144,7 +134,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -164,7 +155,8 @@ mod tests {
         }
 
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

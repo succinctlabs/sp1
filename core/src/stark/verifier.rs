@@ -1,4 +1,3 @@
-use crate::air::MachineAir;
 use itertools::izip;
 use p3_air::Air;
 use p3_air::BaseAir;
@@ -34,6 +33,8 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
+        use crate::air::MachineAir;
+
         let ShardProof {
             commitment,
             opened_values,

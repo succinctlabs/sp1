@@ -10,10 +10,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 
 use crate::air::CurtaAirBuilder;
+
 use crate::air::FieldAirBuilder;
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
-use crate::utils::env;
 use crate::utils::pad_to_power_of_two;
 
 use tracing::instrument;
@@ -51,24 +51,14 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         "FieldLTU".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .field_events
-            .chunks(env::shard_size() * 4)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].field_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.field_events.is_empty()
-    }
-
     #[instrument(name = "generate FieldLTU trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = record
+        let rows = input
             .field_events
             .iter()
             .map(|event| {

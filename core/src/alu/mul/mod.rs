@@ -41,7 +41,7 @@ use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -112,25 +112,15 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         "Mul".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .mul_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].mul_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.mul_events.is_empty()
-    }
-
     #[instrument(name = "generate mul trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
-        let mul_events = record.mul_events.clone();
+        let mul_events = input.mul_events.clone();
         for event in mul_events.iter() {
             assert!(
                 event.opcode == Opcode::MUL
@@ -180,7 +170,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             c: 0,
                         });
                     }
-                    record.add_byte_lookup_events(blu_events);
+                    output.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -218,8 +208,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
             // Range check.
             {
-                record.add_u16_range_checks(&carry);
-                record.add_u8_range_checks(&product.map(|x| x as u8));
+                output.add_u16_range_checks(&carry);
+                output.add_u8_range_checks(&product.map(|x| x as u8));
             }
 
             rows.push(row);
@@ -424,7 +414,8 @@ mod tests {
             0xffff8000,
         )];
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -499,7 +490,8 @@ mod tests {
 
         shard.mul_events = mul_events;
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
