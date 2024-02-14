@@ -6,8 +6,8 @@ edition = "2021"
 
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-curta-zkvm = { path = "../../zkvm" }
-curta-core = { path = "../../core" }
+curta-zkvm = { path = "../../../zkvm" }
+curta-core = { path = "../../../core" }
 
 [[bin]]
 name = "verifier"

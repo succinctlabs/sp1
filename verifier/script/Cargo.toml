@@ -1,8 +1,0 @@
-[workspace]
-[package]
-version = "0.1.0"
-name = "test_core-script"
-edition = "2021"
-
-[dependencies]
-curta-core = { git = "https://github.com/succinctlabs/curta.git" }
