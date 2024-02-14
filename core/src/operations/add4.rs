@@ -10,7 +10,6 @@ use std::mem::size_of;
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
-use crate::bytes::ByteOpcode;
 use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute the add of four words.
@@ -94,29 +93,11 @@ impl<F: Field> Add4Operation<F> {
     ) {
         // Range check each byte.
         {
-            let bytes: Vec<AB::Var> =
-                a.0.iter()
-                    .chain(b.0.iter())
-                    .chain(c.0.iter())
-                    .chain(d.0.iter())
-                    .chain(cols.value.0.iter())
-                    .copied()
-                    .collect();
-
-            // The byte length is always even since each word has 4 bytes.
-            assert_eq!(bytes.len() % 2, 0);
-
-            // Pass two bytes to range check at a time.
-            for i in (0..bytes.len()).step_by(2) {
-                builder.send_byte_pair(
-                    AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
-                    AB::F::zero(),
-                    AB::F::zero(),
-                    bytes[i],
-                    bytes[i + 1],
-                    is_real,
-                );
-            }
+            builder.slice_range_check_u8(&a.0, is_real);
+            builder.slice_range_check_u8(&b.0, is_real);
+            builder.slice_range_check_u8(&c.0, is_real);
+            builder.slice_range_check_u8(&d.0, is_real);
+            builder.slice_range_check_u8(&cols.value.0, is_real);
         }
 
         builder.assert_bool(is_real);
