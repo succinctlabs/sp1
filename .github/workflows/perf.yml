@@ -19,6 +19,10 @@ jobs:
         with:
           path: vm
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' 
+
       - name: Set up git private repo access
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
