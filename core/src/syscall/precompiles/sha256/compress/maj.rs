@@ -1,10 +1,10 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use curta_derive::AlignedBorrow;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::operations::AndOperation;
 use crate::operations::XorOperation;
@@ -31,7 +31,7 @@ impl<F: Field> MajOperation<F> {
         self.maj.populate(record, maj_intermediate, b_and_c)
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,

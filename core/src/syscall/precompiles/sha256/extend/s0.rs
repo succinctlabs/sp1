@@ -1,10 +1,10 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
-use curta_derive::AlignedBorrow;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::memory::MemoryReadCols;
 use crate::operations::FixedRotateRightOperation;
@@ -35,7 +35,7 @@ impl<F: Field> S0Operation<F> {
         self.s0.populate(record, s0_intermediate, w_i_minus_15_rs_3)
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         w_i_minus_15: Word<AB::Var>,
         cols: S0Operation<AB::Var>,

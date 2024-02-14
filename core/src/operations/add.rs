@@ -74,7 +74,7 @@ impl<F: Field> AddOperation<F> {
         );
     }
 
-    pub fn eval_expr<AB: CurtaAirBuilder>(
+    pub fn eval_expr<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Expr>,
         b: Word<AB::Expr>,
