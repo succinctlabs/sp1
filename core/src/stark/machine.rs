@@ -40,6 +40,7 @@ use super::Chip;
 use super::ChipRef;
 use super::Proof;
 use super::Prover;
+use super::RiscvAir;
 use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
@@ -59,32 +60,33 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
 pub struct RiscvStark<SC: StarkGenericConfig> {
     config: SC,
 
-    program: Chip<SC::Val, ProgramChip>,
-    cpu: Chip<SC::Val, CpuChip>,
-    sha_extend: Chip<SC::Val, ShaExtendChip>,
-    sha_compress: Chip<SC::Val, ShaCompressChip>,
-    ed_add_assign: Chip<SC::Val, EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>>,
-    ed_decompress: Chip<SC::Val, EdDecompressChip<Ed25519Parameters>>,
-    k256_decompress: Chip<SC::Val, K256DecompressChip>,
-    weierstrass_add_assign: Chip<SC::Val, WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>>>,
-    weierstrass_double_assign:
-        Chip<SC::Val, WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>>,
-    keccak_permute: Chip<SC::Val, KeccakPermuteChip>,
-    blake3_compress_inner: Chip<SC::Val, Blake3CompressInnerChip>,
-    add: Chip<SC::Val, AddChip>,
-    sub: Chip<SC::Val, SubChip>,
-    bitwise: Chip<SC::Val, BitwiseChip>,
-    div_rem: Chip<SC::Val, DivRemChip>,
-    mul: Chip<SC::Val, MulChip>,
-    shift_right: Chip<SC::Val, ShiftRightChip>,
-    shift_left: Chip<SC::Val, ShiftLeft>,
-    lt: Chip<SC::Val, LtChip>,
-    field_ltu: Chip<SC::Val, FieldLTUChip>,
-    byte: Chip<SC::Val, ByteChip>,
+    chips: Vec<Chip<SC::Val, RiscvAir>>,
+    // program: Chip<SC::Val, ProgramChip>,
+    // cpu: Chip<SC::Val, CpuChip>,
+    // sha_extend: Chip<SC::Val, ShaExtendChip>,
+    // sha_compress: Chip<SC::Val, ShaCompressChip>,
+    // ed_add_assign: Chip<SC::Val, EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>>,
+    // ed_decompress: Chip<SC::Val, EdDecompressChip<Ed25519Parameters>>,
+    // k256_decompress: Chip<SC::Val, K256DecompressChip>,
+    // weierstrass_add_assign: Chip<SC::Val, WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>>>,
+    // weierstrass_double_assign:
+    //     Chip<SC::Val, WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>>,
+    // keccak_permute: Chip<SC::Val, KeccakPermuteChip>,
+    // blake3_compress_inner: Chip<SC::Val, Blake3CompressInnerChip>,
+    // add: Chip<SC::Val, AddChip>,
+    // sub: Chip<SC::Val, SubChip>,
+    // bitwise: Chip<SC::Val, BitwiseChip>,
+    // div_rem: Chip<SC::Val, DivRemChip>,
+    // mul: Chip<SC::Val, MulChip>,
+    // shift_right: Chip<SC::Val, ShiftRightChip>,
+    // shift_left: Chip<SC::Val, ShiftLeft>,
+    // lt: Chip<SC::Val, LtChip>,
+    // field_ltu: Chip<SC::Val, FieldLTUChip>,
+    // byte: Chip<SC::Val, ByteChip>,
 
-    memory_init: Chip<SC::Val, MemoryGlobalChip>,
-    memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
-    program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
+    // memory_init: Chip<SC::Val, MemoryGlobalChip>,
+    // memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
+    // program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
 }
 
 impl<SC: StarkGenericConfig> RiscvStark<SC>
@@ -92,90 +94,93 @@ where
     SC::Val: PrimeField32,
 {
     pub fn new(config: SC) -> Self {
-        let program = Chip::new(ProgramChip::default());
-        let cpu = Chip::new(CpuChip::default());
-        let sha_extend = Chip::new(ShaExtendChip::default());
-        let sha_compress = Chip::new(ShaCompressChip::default());
-        let ed_add_assign = Chip::new(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new());
-        let ed_decompress = Chip::new(EdDecompressChip::<Ed25519Parameters>::default());
-        let k256_decompress = Chip::new(K256DecompressChip::default());
+        let mut chips = vec![];
+        let program = ProgramChip::default();
+        chips.push(Chip::new(RiscvAir::Program(program)));
+        let cpu = CpuChip::default();
+        chips.push(Chip::new(RiscvAir::Cpu(cpu)));
+        let sha_extend = ShaExtendChip::default();
+        chips.push(Chip::new(RiscvAir::ShaExtend(sha_extend)));
+        let sha_compress = ShaCompressChip::default();
+        chips.push(Chip::new(RiscvAir::ShaCompress(sha_compress)));
+        let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
+        chips.push(Chip::new(RiscvAir::Ed25519Add(ed_add_assign)));
+        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
+        chips.push(Chip::new(RiscvAir::Ed25519Decompress(ed_decompress)));
+        let k256_decompress = K256DecompressChip::default();
+        chips.push(Chip::new(RiscvAir::K256Decompress(k256_decompress)));
         let weierstrass_add_assign =
-            Chip::new(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new());
+            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+        chips.push(Chip::new(RiscvAir::Secp256k1Add(weierstrass_add_assign)));
         let weierstrass_double_assign =
-            Chip::new(WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new());
-        let keccak_permute = Chip::new(KeccakPermuteChip::new());
-        let blake3_compress_inner = Chip::new(Blake3CompressInnerChip::new());
-        let add = Chip::new(AddChip::default());
-        let sub = Chip::new(SubChip::default());
-        let bitwise = Chip::new(BitwiseChip::default());
-        let div_rem = Chip::new(DivRemChip::default());
-        let mul = Chip::new(MulChip::default());
-        let shift_right = Chip::new(ShiftRightChip::default());
-        let shift_left = Chip::new(ShiftLeft::default());
-        let lt = Chip::new(LtChip::default());
-        let field_ltu = Chip::new(FieldLTUChip::default());
-        let byte = Chip::new(ByteChip::default());
-        let memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Init));
-        let memory_finalize = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Finalize));
-        let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
-
-        Self {
-            config,
-            program,
-            cpu,
-            sha_extend,
-            sha_compress,
-            ed_add_assign,
-            ed_decompress,
-            k256_decompress,
-            weierstrass_add_assign,
+            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+        chips.push(Chip::new(RiscvAir::Secp256k1Double(
             weierstrass_double_assign,
-            keccak_permute,
-            blake3_compress_inner,
-            add,
-            sub,
-            bitwise,
-            div_rem,
-            mul,
-            shift_right,
-            shift_left,
-            lt,
-            field_ltu,
-            byte,
-            memory_init,
-            memory_finalize,
-            program_memory_init,
-        }
+        )));
+        let keccak_permute = KeccakPermuteChip::new();
+        chips.push(Chip::new(RiscvAir::KeccakP(keccak_permute)));
+        let blake3_compress_inner = Blake3CompressInnerChip::new();
+        chips.push(Chip::new(RiscvAir::Blake3Compress(blake3_compress_inner)));
+        let add = AddChip::default();
+        chips.push(Chip::new(RiscvAir::Add(add)));
+        let sub = SubChip::default();
+        chips.push(Chip::new(RiscvAir::Sub(sub)));
+        let bitwise = BitwiseChip::default();
+        chips.push(Chip::new(RiscvAir::Bitwise(bitwise)));
+        let div_rem = DivRemChip::default();
+        chips.push(Chip::new(RiscvAir::DivRem(div_rem)));
+        let mul = MulChip::default();
+        chips.push(Chip::new(RiscvAir::Mul(mul)));
+        let shift_right = ShiftRightChip::default();
+        chips.push(Chip::new(RiscvAir::ShiftRight(shift_right)));
+        let shift_left = ShiftLeft::default();
+        chips.push(Chip::new(RiscvAir::ShiftLeft(shift_left)));
+        let lt = LtChip::default();
+        chips.push(Chip::new(RiscvAir::Lt(lt)));
+        let field_ltu = FieldLTUChip::default();
+        chips.push(Chip::new(RiscvAir::FieldLTU(field_ltu)));
+        let byte = ByteChip::default();
+        chips.push(Chip::new(RiscvAir::ByteLookup(byte)));
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        chips.push(Chip::new(RiscvAir::MemoryInit(memory_init)));
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        chips.push(Chip::new(RiscvAir::MemoryFinal(memory_finalize)));
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        chips.push(Chip::new(RiscvAir::ProgramMemory(program_memory_init)));
+
+        Self { config, chips }
     }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> [ChipRef<SC>; 24] {
-        [
-            self.program.as_ref(),
-            self.cpu.as_ref(),
-            self.sha_extend.as_ref(),
-            self.sha_compress.as_ref(),
-            self.ed_add_assign.as_ref(),
-            self.ed_decompress.as_ref(),
-            self.k256_decompress.as_ref(),
-            self.weierstrass_add_assign.as_ref(),
-            self.weierstrass_double_assign.as_ref(),
-            self.keccak_permute.as_ref(),
-            self.blake3_compress_inner.as_ref(),
-            self.add.as_ref(),
-            self.sub.as_ref(),
-            self.bitwise.as_ref(),
-            self.div_rem.as_ref(),
-            self.mul.as_ref(),
-            self.shift_right.as_ref(),
-            self.shift_left.as_ref(),
-            self.lt.as_ref(),
-            self.field_ltu.as_ref(),
-            self.byte.as_ref(),
-            self.memory_init.as_ref(),
-            self.memory_finalize.as_ref(),
-            self.program_memory_init.as_ref(),
-        ]
+    pub fn chips(&self) -> Vec<ChipRef<SC>> {
+        self.chips.iter().map(|chip| chip.as_ref()).collect()
+
+        // [
+        //     self.program.as_ref(),
+        //     self.cpu.as_ref(),
+        //     self.sha_extend.as_ref(),
+        //     self.sha_compress.as_ref(),
+        //     self.ed_add_assign.as_ref(),
+        //     self.ed_decompress.as_ref(),
+        //     self.k256_decompress.as_ref(),
+        //     self.weierstrass_add_assign.as_ref(),
+        //     self.weierstrass_double_assign.as_ref(),
+        //     self.keccak_permute.as_ref(),
+        //     self.blake3_compress_inner.as_ref(),
+        //     self.add.as_ref(),
+        //     self.sub.as_ref(),
+        //     self.bitwise.as_ref(),
+        //     self.div_rem.as_ref(),
+        //     self.mul.as_ref(),
+        //     self.shift_right.as_ref(),
+        //     self.shift_left.as_ref(),
+        //     self.lt.as_ref(),
+        //     self.field_ltu.as_ref(),
+        //     self.byte.as_ref(),
+        //     self.memory_init.as_ref(),
+        //     self.memory_finalize.as_ref(),
+        //     self.program_memory_init.as_ref(),
+        // ]
     }
 
     pub fn shard_chips(&self, shard: &ExecutionRecord) -> Vec<ChipRef<SC>> {
@@ -290,7 +295,11 @@ where
         )
     }
 
-    pub fn shard(&self, record: &mut ExecutionRecord) -> Vec<ExecutionRecord> {
+    pub fn shard(
+        &self,
+        record: &mut ExecutionRecord,
+        shard_config: &ShardingConfig<SC::Val>,
+    ) -> Vec<ExecutionRecord> {
         // Get the local and global chips.
         let chips = self.chips();
 
