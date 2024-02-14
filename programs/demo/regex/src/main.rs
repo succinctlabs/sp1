@@ -1,5 +1,7 @@
 //! A simple program that takes a regex pattern and a string and returns whether the string
 //! matches the pattern.
+#![no_main]
+sp1_zkvm::entrypoint!(main);
 
 use regex::Regex;
 
@@ -7,8 +9,6 @@ use regex::Regex;
 //
 // Under the hood, we wrap your main function with some extra code so that it behaves properly
 // inside the zkVM.
-#![no_main]
-sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     // Read two inputs from the prover: a regex pattern and a target string.
