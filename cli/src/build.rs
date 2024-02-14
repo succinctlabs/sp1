@@ -1,8 +1,9 @@
 use crate::CommandExecutor;
 use anyhow::Result;
+use cargo_metadata::camino::Utf8PathBuf;
 use std::{fs, process::Command};
 
-pub fn build_program() -> Result<()> {
+pub fn build_program() -> Result<Utf8PathBuf> {
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
     let root_package = metadata.root_package();
@@ -32,7 +33,8 @@ pub fn build_program() -> Result<()> {
         .join(root_package_name.unwrap());
     let elf_dir = metadata.target_directory.parent().unwrap().join("elf");
     fs::create_dir_all(&elf_dir)?;
-    fs::copy(elf_path, elf_dir.join("riscv32im-curta-zkvm-elf"))?;
+    let result_elf_path = elf_dir.join("riscv32im-curta-zkvm-elf");
+    fs::copy(elf_path, &result_elf_path)?;
 
-    Ok(())
+    Ok(result_elf_path)
 }

@@ -11,6 +11,8 @@ pub struct BuildCmd {
 
 impl BuildCmd {
     pub fn run(&self) -> Result<()> {
-        build_program()
+        build_program()?;
+
+        Ok(())
     }
 }

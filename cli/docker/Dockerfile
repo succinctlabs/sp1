@@ -6,4 +6,6 @@ RUN curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL 'https:
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN curl -L https://curta.succinct.xyz | bash && ~/.curta/bin/curtaup
 
+WORKDIR /root
+
 ENTRYPOINT [ "/bin/bash" ]
