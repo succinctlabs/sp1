@@ -7,11 +7,11 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
-use curta_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
 use crate::air::MachineAir;
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{SP1AirBuilder, Word};
 use crate::runtime::{ExecutionRecord, Opcode};
 use crate::utils::pad_to_power_of_two;
 
@@ -106,7 +106,7 @@ impl<F> BaseAir<F> for SubChip {
 
 impl<AB> Air<AB> for SubChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

@@ -1,7 +1,6 @@
 use crate::air::BaseAirBuilder;
-use crate::air::CurtaAirBuilder;
-
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::cpu::MemoryReadRecord;
 use crate::cpu::MemoryWriteRecord;
@@ -40,8 +39,8 @@ use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::str::FromStr;
 
-use curta_derive::AlignedBorrow;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy)]
@@ -199,7 +198,7 @@ impl<F: PrimeField32> K256DecompressCols<F> {
 }
 
 impl<V: Copy> K256DecompressCols<V> {
-    pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB)
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(&self, builder: &mut AB)
     where
         V: Into<AB::Expr>,
     {
@@ -347,7 +346,7 @@ impl<F> BaseAir<F> for K256DecompressChip {
 
 impl<AB> Air<AB> for K256DecompressChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -365,7 +364,7 @@ pub mod tests {
 
     use crate::utils::setup_logger;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
-    use crate::{CurtaProver, CurtaStdin, CurtaVerifier};
+    use crate::{SP1Prover, SP1Stdin, SP1Verifier};
 
     #[test]
     fn test_k256_decompress() {
@@ -379,14 +378,14 @@ pub mod tests {
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
 
-            let inputs = CurtaStdin::from(&compressed);
+            let inputs = SP1Stdin::from(&compressed);
 
-            let mut proof = CurtaProver::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
+            let mut proof = SP1Prover::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
 
-            CurtaVerifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
+            SP1Verifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
         }
     }
 }

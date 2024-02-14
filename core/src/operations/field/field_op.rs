@@ -2,15 +2,15 @@ use super::params::Limbs;
 use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
-use crate::air::CurtaAirBuilder;
 use crate::air::Polynomial;
+use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -133,7 +133,7 @@ impl<F: PrimeField32> FieldOpCols<F> {
 impl<V: Copy> FieldOpCols<V> {
     #[allow(unused_variables)]
     pub fn eval<
-        AB: CurtaAirBuilder<Var = V>,
+        AB: SP1AirBuilder<Var = V>,
         P: FieldParameters,
         A: Into<Polynomial<AB::Expr>> + Clone,
         B: Into<Polynomial<AB::Expr>> + Clone,
@@ -181,16 +181,16 @@ mod tests {
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{air::CurtaAirBuilder, runtime::ExecutionRecord};
+    use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use core::mem::size_of;
-    use curta_derive::AlignedBorrow;
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
+    use sp1_derive::AlignedBorrow;
 
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
@@ -277,7 +277,7 @@ mod tests {
 
     impl<AB, P: FieldParameters> Air<AB> for FieldOpChip<P>
     where
-        AB: CurtaAirBuilder,
+        AB: SP1AirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();

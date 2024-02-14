@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
-use curta_derive::AlignedBorrow;
 use p3_field::PrimeField;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 use std::{iter::once, vec::IntoIter};
 

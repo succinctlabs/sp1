@@ -12,16 +12,16 @@ impl BuildToolchainCmd {
     pub fn run(&self) -> Result<()> {
         // Get enviroment variables.
         let github_access_token = std::env::var("GITHUB_ACCESS_TOKEN");
-        let build_dir = std::env::var("CURTA_BUILD_DIR");
+        let build_dir = std::env::var("SP1_BUILD_DIR");
 
         // Clone our rust fork, if necessary.
         let rust_dir = match build_dir {
             Ok(build_dir) => {
-                println!("Detected CURTA_BUILD_DIR, skipping cloning rust.");
+                println!("Detected SP1_BUILD_DIR, skipping cloning rust.");
                 PathBuf::from(build_dir).join("rust")
             }
             Err(_) => {
-                println!("No CURTA_BUILD_DIR detected, cloning rust.");
+                println!("No SP1_BUILD_DIR detected, cloning rust.");
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
                         println!("Detected GITHUB_ACCESS_TOKEN, using it to clone rust.");
@@ -59,7 +59,7 @@ impl BuildToolchainCmd {
         // Build the toolchain (stage 1).
         Command::new("python3")
             .env(
-                "CARGO_TARGET_RISCV32IM_CURTA_ZKVM_ELF_RUSTFLAGS",
+                "CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS",
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build"])
@@ -69,7 +69,7 @@ impl BuildToolchainCmd {
         // Build the toolchain (stage 2).
         Command::new("python3")
             .env(
-                "CARGO_TARGET_RISCV32IM_CURTA_ZKVM_ELF_RUSTFLAGS",
+                "CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS",
                 "-Cpasses=loweratomic",
             )
             .args(["x.py", "build", "--stage", "2"])

@@ -5,7 +5,7 @@ name = "rsa-zkvm"
 edition = "2021"
 
 [dependencies]
-curta-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm" }
 digest = "0.10.7"
 rand = "0.8.5"
 rsa = "0.6" # Check for the latest version

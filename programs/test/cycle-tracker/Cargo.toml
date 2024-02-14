@@ -5,5 +5,5 @@ name = "cycle-tracker-zkvm"
 edition = "2021"
 
 [dependencies]
-curta-zkvm = { path = "../../../zkvm" }
-curta-derive = { path = "../../../derive" }
+sp1-zkvm = { path = "../../../zkvm" }
+sp1-derive = { path = "../../../derive" }

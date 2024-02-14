@@ -1,5 +1,5 @@
 [package]
-name = "curta-zkvm"
+name = "sp1-zkvm"
 version = "0.1.0"
 edition = "2021"
 
