@@ -13,7 +13,7 @@ SP1 is a performant, 100% open-source, contributor-friendly zero-knowledge virtu
 
 **The future of ZK is writing normal code.**  Zero-knowledge proofs (ZKPs) are a powerful primitive that will enable a new generation of more secure, scalable and innovative blockchain architectures that rely on truth not trust. But ZKP adoption has been held back because it is “moon math”, requiring specialized knowledge in obscure ZKP frameworks and hard to maintain one-off deployments. 
 
-General-purpose zkVMs, like SP1, will obsolete the current paradigm of specialized teams hand rolling their own custom ZK stack and create a future where all blockchain infrastructure, including rollups, bridges, coprocessors, and more, utilize ZKPs via **maintainable software** written in Rust (or other LLVM-compiled languages).
+Performant, general-purpose zkVMs, like SP1, will obsolete the current paradigm of specialized teams hand rolling their own custom ZK stack and create a future where all blockchain infrastructure, including rollups, bridges, coprocessors, and more, utilize ZKPs via **maintainable software** written in Rust (or other LLVM-compiled languages).
 
 ## Built from day one to be customizable and maintained by a diverse ecosystem of contributors
 

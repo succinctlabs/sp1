@@ -9,7 +9,7 @@ Instead, you should have your script only execute the program with the RISC-V ru
 use sp1_core::{SP1Prover, SP1Stdin, SP1Verifier};
 
 // The ELF file with the RISC-V bytecode of the program from above.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-sp1-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     let mut stdin = SP1Stdin::new(); 
