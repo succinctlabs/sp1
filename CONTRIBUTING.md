@@ -3,7 +3,7 @@
 Thanks for your interest in improving SP1!
 
 There are multiple opportunities to contribute at any level. It doesn't matter if you are just getting started with Rust
-or are the most weathered expert, we can use your help.
+or an expert, we can use your help.
 
 **No contribution is too small and all contributions are valued.**
 
@@ -20,8 +20,7 @@ license.
 The SP1 project adheres to the [Rust Code of Conduct][rust-coc]. This code of conduct describes the _minimum_ behavior
 expected from all contributors.
 
-Instances of violations of the Code of Conduct can be reported by contacting the team
-at [john@paradigm.xyz](mailto:john@paradigm.xyz).
+Instances of violations of the Code of Conduct can be reported by contacting the team.
 
 ### Ways to contribute
 
@@ -45,11 +44,6 @@ At this time, we will not be accepting contributions that only fix spelling or g
 elsewhere.
 
 ### Asking for help
-
-<!-- If you have reviewed existing documentation and still have questions, or you are having problems, you can get help in the following ways: -->
-
-<!-- -   **Asking in the support Telegram:** The [Foundry Support Telegram][support-tg] is a fast and easy way to ask questions. -->
-<!-- -   **Opening a discussion:** This repository comes with a discussions board where you can also ask for help. Click the "Discussions" tab at the top. -->
 
 If you have reviewed existing documentation and still have questions, or you are having problems, you can get help by *
 *opening a discussion**. This repository comes with a discussions board where you can also ask for help. Click the "
@@ -104,15 +98,6 @@ Types of tests include:
   integration tests should be added. The best way to add a new integration test is to look at existing ones and follow
   the style.
 
-#### Running Individual tests
-
-By default, `cargo test` does not select any packages, in order to run individual tests by name (
-e.g. `cargo test mytest`) navigate to the directory of that file (e.g. `reth/crates/rpc/rpc/`) or use
-the `-p <package-name>` option to run specific tests of a crate from anywhere in the
-workspace (`cargo test -p reth-rpc mytest`).
-
-See also [cargo-test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) for more information on running tests.
-
 #### Commits
 
 It is a recommended best practice to keep your changes as logically grouped as possible within individual commits. There
@@ -154,39 +139,6 @@ the [Code of Conduct][coc-header].
 When reviewing a pull request, the primary goals are for the codebase to improve and for the person submitting the
 request to succeed. **Even if a pull request is not merged, the submitter should come away from the experience feeling
 like their effort was not unappreciated**. Every PR from a new contributor is an opportunity to grow the community.
-
-##### Review a bit at a time
-
-Do not overwhelm new contributors.
-
-It is tempting to micro-optimize and make everything about relative performance, perfect grammar, or exact style
-matches. Do not succumb to that temptation.
-
-Focus first on the most significant aspects of the change:
-
-1. Does this change make sense for SP1?
-2. Does this change make SP1 better, even if only incrementally?
-3. Are there clear bugs or larger scale issues that need attending?
-4. Are the commit messages readable and correct? If it contains a breaking change, is it clear enough?
-
-Note that only **incremental** improvement is needed to land a PR. This means that the PR does not need to be perfect,
-only better than the status quo. Follow-up PRs may be opened to continue iterating.
-
-When changes are necessary, _request_ them, do not _demand_ them, and **do not assume that the submitter already knows
-how to add a test or run a benchmark**.
-
-Specific performance optimization techniques, coding styles and conventions change over time. The first impression you
-give to a new contributor never does.
-
-Nits (requests for small changes that are not essential) are fine, but try to avoid stalling the pull request. Most nits
-can typically be fixed by the SP1 maintainers merging the pull request, but they can also be an opportunity for the
-contributor to learn a bit more about the project.
-
-It is always good to clearly indicate nits when you comment,
-e.g.: `Nit: change foo() to bar(). But this is not blocking`.
-
-If your comments were addressed but were not folded after new commits, or if they proved to be mistaken,
-please, [hide them][hiding-a-comment] with the appropriate reason to keep the conversation flow concise and relevant.
 
 ##### Be aware of the person behind the code
 
