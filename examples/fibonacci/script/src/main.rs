@@ -11,13 +11,7 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     // Generate the proof for the given program.
-    let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
-
-    // Read the output.
-    let a = proof.stdout.read::<u32>();
-    let b = proof.stdout.read::<u32>();
-    println!("a: {}", a);
-    println!("b: {}", b);
+    let proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
     // Verify proof.
     SP1Verifier::verify(ELF, &proof).expect("verification failed");

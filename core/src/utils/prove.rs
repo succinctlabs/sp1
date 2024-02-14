@@ -208,7 +208,7 @@ pub(super) mod baby_bear_poseidon2 {
         pcs: Pcs,
     }
 
-    // Implement serialization manually instead of using serde(into) to avoid cloing the config.
+    /// Implement serialization manually instead of using serde to avoid cloing the config.
     impl Serialize for BabyBearPoseidon2 {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
