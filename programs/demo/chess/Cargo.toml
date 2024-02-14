@@ -6,4 +6,4 @@ edition = "2021"
 
 [dependencies]
 chess = "3.2.0"
-curta-zkvm = { git = "https://github.com/succinctlabs/curta.git" }
+sp1-zkvm = { path = "../../../zkvm" }

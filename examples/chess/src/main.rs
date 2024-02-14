@@ -1,6 +1,6 @@
 use curta_core::{CurtaProver, CurtaStdin, CurtaVerifier};
 
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-curta-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     let mut stdin = CurtaStdin::new();
@@ -12,7 +12,7 @@ fn main() {
 
     stdin.write(&fen);
     stdin.write(&san);
-    
+
     let mut proof = CurtaProver::prove(ELF, stdin).expect("proving failed");
 
     // Read output.
