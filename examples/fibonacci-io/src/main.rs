@@ -2,7 +2,7 @@ use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 /// The ELF we want to execute inside the zkVM.
 const FIBONACCI_IO_ELF: &[u8] =
-    include_bytes!("../../../programs/demo/rsa/elf/riscv32im-succinct-zkvm-elf");
+    include_bytes!("../../../programs/demo/fibonacci-io/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // Setup a tracer for logging.
