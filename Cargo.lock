@@ -1252,6 +1252,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "json-decoder-script"
+version = "0.1.0"
+dependencies = [
+ "curta-core",
+]
+
+[[package]]
 name = "k256"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
