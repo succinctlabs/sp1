@@ -2,7 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
-    let n = 500;
+    let n = 50000;
     let mut a = 0;
     let mut b = 1;
     let mut sum;
