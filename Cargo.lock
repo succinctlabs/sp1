@@ -531,7 +531,6 @@ dependencies = [
  "bincode",
  "clap",
  "criterion",
- "curta-derive 0.1.0",
  "curve25519-dalek",
  "elf",
  "elliptic-curve",
@@ -576,69 +575,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta-core"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#027f41ce4de0507c3b2471b11a702ac8c781f123"
-dependencies = [
- "anyhow",
- "bincode",
- "clap",
- "curta-derive 0.1.0 (git+https://github.com/succinctlabs/curta.git)",
- "curve25519-dalek",
- "elf",
- "elliptic-curve",
- "flate2",
- "hex",
- "itertools 0.12.1",
- "k256",
- "lazy_static",
- "log",
- "nohash-hasher",
- "num",
- "p3-air",
- "p3-baby-bear",
- "p3-blake3",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-keccak",
- "p3-keccak-air",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-mds",
- "p3-merkle-tree",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "rrs-lib",
- "serde",
- "serde_json",
- "serial_test",
- "size",
- "tempfile",
- "tracing",
- "tracing-forest",
- "tracing-log",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "curta-derive"
 version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "curta-derive"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#027f41ce4de0507c3b2471b11a702ac8c781f123"
 dependencies = [
  "proc-macro2",
  "quote",
