@@ -3,7 +3,7 @@
 [![Telegram Chat][tg-badge]][tg-url]
 
 
-![](./assets/sp1.svg)
+![](./assets/sp1.png)
 
 SP1 is a performant, 100% open-source, contributor-friendly zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs. SP1 democratizes access to ZKPs by allowing developers to use programmable truth with popular programming languages.
 
