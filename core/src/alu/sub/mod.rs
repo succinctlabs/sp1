@@ -52,46 +52,43 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = input
-            .sub_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_SUB_COLS];
-                let cols: &mut SubCols<F> = row.as_mut_slice().borrow_mut();
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+        let mut rows: Vec<[F; NUM_SUB_COLS]> = vec![];
+        for event in input.sub_events.iter() {
+            let mut row = [F::zero(); NUM_SUB_COLS];
+            let cols: &mut SubCols<F> = row.as_mut_slice().borrow_mut();
+            let a = event.a.to_le_bytes();
+            let b = event.b.to_le_bytes();
+            let c = event.c.to_le_bytes();
 
-                let mut carry = [0u8, 0u8, 0u8];
-                if b[0] < c[0] {
-                    carry[0] = 1;
-                    cols.carry[0] = F::one();
-                }
+            let mut carry = [0u8, 0u8, 0u8];
+            if b[0] < c[0] {
+                carry[0] = 1;
+                cols.carry[0] = F::one();
+            }
 
-                if (b[1] as u16) < c[1] as u16 + carry[0] as u16 {
-                    carry[1] = 1;
-                    cols.carry[1] = F::one();
-                }
+            if (b[1] as u16) < c[1] as u16 + carry[0] as u16 {
+                carry[1] = 1;
+                cols.carry[1] = F::one();
+            }
 
-                if (b[2] as u16) < c[2] as u16 + carry[1] as u16 {
-                    carry[2] = 1;
-                    cols.carry[2] = F::one();
-                }
+            if (b[2] as u16) < c[2] as u16 + carry[1] as u16 {
+                carry[2] = 1;
+                cols.carry[2] = F::one();
+            }
 
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
-                cols.is_real = F::one();
+            cols.a = Word(a.map(F::from_canonical_u8));
+            cols.b = Word(b.map(F::from_canonical_u8));
+            cols.c = Word(c.map(F::from_canonical_u8));
+            cols.is_real = F::one();
 
-                // Range check
-                {
-                    output.add_u8_range_checks(&a);
-                    output.add_u8_range_checks(&b);
-                    output.add_u8_range_checks(&c);
-                }
-                row
-            })
-            .collect::<Vec<_>>();
+            // Range check
+            {
+                output.add_u8_range_checks(&a);
+                output.add_u8_range_checks(&b);
+                output.add_u8_range_checks(&c);
+            }
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
