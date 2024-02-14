@@ -1,6 +1,5 @@
-use crate::air::CurtaAirBuilder;
-
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
@@ -23,7 +22,6 @@ use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use curta_derive::AlignedBorrow;
 use num::BigUint;
 use num::Zero;
 use p3_air::AirBuilder;
@@ -34,6 +32,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
@@ -201,7 +200,7 @@ impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> 
 
 impl<AB, E: EllipticCurve + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -296,18 +295,18 @@ mod tests {
             self,
             tests::{ED25519_ELF, ED_ADD_ELF},
         },
-        CurtaProver, CurtaStdin,
+        SP1Prover, SP1Stdin,
     };
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        CurtaProver::prove(ED_ADD_ELF, CurtaStdin::new()).unwrap();
+        SP1Prover::prove(ED_ADD_ELF, SP1Stdin::new()).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        CurtaProver::prove(ED25519_ELF, CurtaStdin::new()).unwrap();
+        SP1Prover::prove(ED25519_ELF, SP1Stdin::new()).unwrap();
     }
 }

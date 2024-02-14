@@ -1,7 +1,7 @@
 use p3_air::{Air, AirBuilder, BaseAir};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
-use crate::air::{BaseAirBuilder, CurtaAirBuilder};
+use crate::air::{BaseAirBuilder, SP1AirBuilder};
 use crate::memory::MemoryCols;
 use crate::operations::{
     Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
@@ -18,7 +18,7 @@ impl<F> BaseAir<F> for ShaExtendChip {
 
 impl<AB> Air<AB> for ShaExtendChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Initialize columns.

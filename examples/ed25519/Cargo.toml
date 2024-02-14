@@ -4,4 +4,4 @@ name = "ed25519-example"
 edition = "2021"
 
 [dependencies]
-curta-core = { path = "../../core" }
+sp1-core = { path = "../../core" }

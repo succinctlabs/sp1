@@ -1,9 +1,9 @@
 #![no_main]
-curta_zkvm::entrypoint!(main);
+sp1_zkvm::entrypoint!(main);
 
-use curta_zkvm::precompiles::io;
-use curta_zkvm::precompiles::secp256k1::ecrecover;
 use hex_literal::hex;
+use sp1_zkvm::precompiles::io;
+use sp1_zkvm::precompiles::secp256k1::ecrecover;
 
 pub fn main() {
     // recovery param: 1

@@ -1,5 +1,5 @@
 use core::borrow::{Borrow, BorrowMut};
-use curta_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
 use crate::{air::Word, memory::MemoryReadWriteCols};

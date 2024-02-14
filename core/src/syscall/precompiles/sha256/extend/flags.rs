@@ -8,7 +8,7 @@ use p3_field::TwoAdicField;
 
 use p3_matrix::MatrixRowSlices;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 
 use super::ShaExtendChip;
 use super::ShaExtendCols;
@@ -49,7 +49,7 @@ impl<F: Field> ShaExtendCols<F> {
 }
 
 impl ShaExtendChip {
-    pub fn eval_flags<AB: CurtaAirBuilder>(&self, builder: &mut AB) {
+    pub fn eval_flags<AB: SP1AirBuilder>(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ShaExtendCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();

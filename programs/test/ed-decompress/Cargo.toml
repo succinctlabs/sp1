@@ -5,5 +5,5 @@ name = "ed-decompress-zkvm"
 edition = "2021"
 
 [dependencies]
-curta-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm" }
 hex-literal = "0.4.1"

@@ -4,7 +4,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{CurtaAirBuilder, MachineAir, MultiTableAirBuilder},
+    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
     runtime::{ExecutionRecord, Program},
 };
@@ -64,7 +64,7 @@ impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
 ///
 /// This trait is for specifying a trait bound for explicit types of builders used in the stark
 /// proving system. It is automatically implemented on any type that implements `Air<AB>` with
-/// `AB: CurtaAirBuilder`. Users should not need to implement this trait manually.
+/// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
     + Air<InteractionBuilder<SC::Val>>
@@ -166,7 +166,7 @@ impl<F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
     A: Air<AB>,
-    AB: CurtaAirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
+    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.

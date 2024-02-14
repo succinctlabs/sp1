@@ -2,10 +2,10 @@ use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_field::Field;
 
-use curta_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
 use crate::operations::AddOperation;
@@ -99,7 +99,7 @@ impl<F: Field> GOperation<F> {
         result
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         input: [Word<AB::Var>; 6],
         cols: GOperation<AB::Var>,

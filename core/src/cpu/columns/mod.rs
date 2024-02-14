@@ -13,8 +13,8 @@ pub use memory::*;
 pub use opcode::*;
 
 use core::borrow::{Borrow, BorrowMut};
-use curta_derive::AlignedBorrow;
 use p3_util::indices_arr;
+use sp1_derive::AlignedBorrow;
 use std::mem::{size_of, transmute};
 
 use crate::{

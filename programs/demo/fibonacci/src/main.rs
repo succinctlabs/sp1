@@ -1,5 +1,5 @@
 #![no_main]
-curta_zkvm::entrypoint!(main);
+sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     let n = 50000;

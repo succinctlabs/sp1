@@ -1,18 +1,18 @@
-use curta_core::{utils, CurtaProver, CurtaStdin, CurtaVerifier};
+use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 const ELF: &[u8] =
-    include_bytes!("../../../programs/demo/ssz-withdrawals/elf/riscv32im-curta-zkvm-elf");
+    include_bytes!("../../../programs/demo/ssz-withdrawals/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // Generate proof.
     // utils::setup_tracer();
     utils::setup_logger();
 
-    let stdin = CurtaStdin::new();
-    let proof = CurtaProver::prove(ELF, stdin).expect("proving failed");
+    let stdin = SP1Stdin::new();
+    let proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    CurtaVerifier::verify(ELF, &proof).expect("verification failed");
+    SP1Verifier::verify(ELF, &proof).expect("verification failed");
 
     // Save proof.
     proof

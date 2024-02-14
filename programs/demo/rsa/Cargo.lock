@@ -131,19 +131,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta-zkvm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
-
-[[package]]
 name = "der"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -507,11 +494,11 @@ dependencies = [
 name = "rsa-zkvm"
 version = "0.1.0"
 dependencies = [
- "curta-zkvm",
  "digest 0.10.7",
  "rand",
  "rsa",
  "sha2 0.9.8",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -586,6 +573,19 @@ name = "smallvec"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
+
+[[package]]
+name = "sp1-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "rand",
+ "serde",
+]
 
 [[package]]
 name = "spin"

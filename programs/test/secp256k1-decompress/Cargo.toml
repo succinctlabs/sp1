@@ -5,4 +5,4 @@ name = "secp256k1-decompress-zkvm"
 edition = "2021"
 
 [dependencies]
-curta-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm" }
