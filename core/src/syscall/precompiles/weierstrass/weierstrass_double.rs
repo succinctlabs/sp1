@@ -162,21 +162,17 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         "WeierstrassDoubleAssign".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].weierstrass_double_events = input.weierstrass_double_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.weierstrass_double_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..record.weierstrass_double_events.len() {
-            let event = record.weierstrass_double_events[i];
+        for i in 0..input.weierstrass_double_events.len() {
+            let event = input.weierstrass_double_events[i];
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -200,7 +196,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
-        record.field_events.extend(new_field_events);
+        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];

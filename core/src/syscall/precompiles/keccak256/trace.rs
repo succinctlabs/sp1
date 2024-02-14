@@ -22,17 +22,13 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         "KeccakPermute".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].keccak_permute_events = input.keccak_permute_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.keccak_permute_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Figure out number of total rows.
-        let mut num_rows = (record.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
+        let mut num_rows = (input.keccak_permute_events.len() * NUM_ROUNDS).next_power_of_two();
         if num_rows < 4 {
             num_rows = 4;
         }
@@ -40,7 +36,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         if num_rows % NUM_ROUNDS != 0 {
             num_total_permutations += 1;
         }
-        let num_real_permutations = record.keccak_permute_events.len();
+        let num_real_permutations = input.keccak_permute_events.len();
         if num_total_permutations == 0 {
             num_total_permutations = 1;
         }
@@ -52,7 +48,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             let is_real_permutation = permutation_num < num_real_permutations;
 
             let event = if is_real_permutation {
-                Some(&record.keccak_permute_events[permutation_num])
+                Some(&input.keccak_permute_events[permutation_num])
             } else {
                 None
             };
@@ -115,7 +111,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             }
         }
 
-        record.field_events.extend(new_field_events);
+        output.add_field_events(&new_field_events);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

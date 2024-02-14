@@ -81,7 +81,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
     pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
-        shard: &mut ExecutionRecord,
+        record: &mut ExecutionRecord,
     ) {
         let mut new_field_events = Vec::new();
         self.is_real = F::from_bool(true);
@@ -96,7 +96,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_field_ops::<P, E>(y);
 
-        shard.field_events.append(&mut new_field_events);
+        record.add_field_events(&new_field_events);
     }
 
     fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
@@ -276,22 +276,18 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         "EdDecompress".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].ed_decompress_events = input.ed_decompress_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.ed_decompress_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for i in 0..record.ed_decompress_events.len() {
-            let event = record.ed_decompress_events[i];
+        for i in 0..input.ed_decompress_events.len() {
+            let event = input.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event, record);
+            cols.populate::<E::BaseField, E>(event, output);
 
             rows.push(row);
         }

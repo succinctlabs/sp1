@@ -144,25 +144,20 @@ where
     fn name(&self) -> String {
         self.air.name()
     }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
-        self.air.generate_trace(record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        self.air.shard(input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        self.air.include(record)
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
-        <A as MachineAir<F>>::preprocessed_trace(&self.air, program)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
     fn preprocessed_width(&self) -> usize {
         self.air.preprocessed_width()
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        self.air.generate_trace(input, output)
     }
 }
 
@@ -198,24 +193,20 @@ impl<'a, SC: StarkGenericConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
         <dyn StarkAir<SC> as MachineAir<SC::Val>>::name(self.air)
     }
 
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<SC::Val> {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_trace(self.air, record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::shard(self.air, input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::include(self.air, record)
-    }
-
-    fn preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_trace(self.air, program)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<SC::Val>> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_preprocessed_trace(self.air, program)
     }
 
     fn preprocessed_width(&self) -> usize {
         <dyn StarkAir<SC> as MachineAir<SC::Val>>::preprocessed_width(self.air)
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<SC::Val> {
+        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_trace(self.air, input, output)
     }
 }
 

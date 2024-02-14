@@ -1,3 +1,4 @@
+use crate::air::MachineAir;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -11,9 +12,8 @@ use tracing::instrument;
 
 use crate::air::{SP1AirBuilder, Word};
 
-use crate::air::MachineAir;
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -78,24 +78,14 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         "Lt".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .lt_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].lt_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.lt_events.is_empty()
-    }
-
     #[instrument(name = "generate lt trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = record
+        let rows = input
             .lt_events
             .par_iter()
             .map(|event| {
@@ -323,7 +313,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -332,7 +323,8 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
