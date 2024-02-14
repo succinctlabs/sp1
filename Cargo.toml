@@ -1,6 +1,6 @@
 [workspace]
-members = ["core", "cli", "derive", "examples/*", "zkvm"]
-exclude = ["examples/target"]
+members = ["core", "cli", "derive", "zkvm"]
+exclude = ["examples/*"]
 resolver = "2"
 
 [profile.release]

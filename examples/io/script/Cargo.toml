@@ -1,0 +1,10 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "io-script"
+edition = "2021"
+
+[dependencies]
+curta-core = { path = "../../../core" }
+serde = { version = "1.0.195", features = ["derive"] }
+bincode = "1.3.3"

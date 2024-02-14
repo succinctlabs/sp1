@@ -1,7 +1,0 @@
-[package]
-version = "0.1.0"
-name = "json-decoder-script"
-edition = "2021"
-
-[dependencies]
-curta-core = { path = "../../core" }
