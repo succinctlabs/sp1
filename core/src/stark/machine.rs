@@ -149,17 +149,17 @@ where
     }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> [ChipRef<SC>; 24] {
+    pub fn chips(&self) -> [ChipRef<SC>; 19] {
         [
             self.program.as_ref(),
             self.cpu.as_ref(),
             self.sha_extend.as_ref(),
             self.sha_compress.as_ref(),
-            self.ed_add_assign.as_ref(),
-            self.ed_decompress.as_ref(),
-            self.k256_decompress.as_ref(),
-            self.weierstrass_add_assign.as_ref(),
-            self.weierstrass_double_assign.as_ref(),
+            // self.ed_add_assign.as_ref(),
+            // self.ed_decompress.as_ref(),
+            // self.k256_decompress.as_ref(),
+            // self.weierstrass_add_assign.as_ref(),
+            // self.weierstrass_double_assign.as_ref(),
             self.keccak_permute.as_ref(),
             self.blake3_compress_inner.as_ref(),
             self.add.as_ref(),
@@ -367,6 +367,7 @@ where
                     .into_iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
+
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;

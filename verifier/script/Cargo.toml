@@ -1,8 +1,8 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "verifier-script"
+name = "test_core-script"
 edition = "2021"
 
 [dependencies]
-succinct-core = { git = "https://github.com/succinctlabs/vm.git" }
+curta-core = { git = "https://github.com/succinctlabs/curta.git" }

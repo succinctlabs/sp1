@@ -1,6 +1,3 @@
-#![no_main]
-curta_zkvm::entrypoint!(main);
-
 use curta_core::utils::BabyBearBlake3;
 use curta_core::{CurtaProofWithIO, CurtaVerifier};
 
@@ -14,4 +11,6 @@ pub fn main() {
 
     // Verify proof.
     CurtaVerifier::verify(FIBONACCI_ELF, &proof).expect("verification failed");
+
+    println!("verification succeeded");
 }

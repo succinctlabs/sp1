@@ -1,0 +1,7 @@
+[package]
+version = "0.1.0"
+name = "fibonacci-io-example"
+edition = "2021"
+
+[dependencies]
+curta-core = { path = "../../core" }
