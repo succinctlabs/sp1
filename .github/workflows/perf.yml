@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   benchmark:
-    runs-on: benchmarker-linux-x64-1
+    runs-on: ubuntu-latest
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
