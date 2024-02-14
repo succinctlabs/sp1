@@ -46,7 +46,10 @@ cargo install --locked --path .
 cargo prove build-toolchain
 ```
 
-Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine.
+Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine. If you're on a machine that we have prebuilt binaries for (ARM Mac or x86 or ARM Linux), you can use the following to download a prebuilt version.
+```bash
+cargo prove install-toolchain
+```
 
 To verify the installation of the tooolchain, run and make sure you see `succinct`:
 

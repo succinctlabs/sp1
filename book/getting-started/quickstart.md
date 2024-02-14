@@ -32,6 +32,9 @@ There are 2 directories (each a crate) in the project:
 - `program`: the source code that will be proven inside the zkVM.
 - `script`: code that contains proof generation and verification code.
 
+We recommend you install the [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) extension.
+Note that if you use `cargo prove new` inside a monorepo, you will need to add the manifest file to `rust-analyzer.linkedProjects` to get full IDE support.
+
 ## Build Program
 
 Before we can run the program inside the zkVM, we must compile it to a RISCV executable using the `succinct` Rust toolchain. The `cargo prove` CLI tool exposes a `build` command which you can run at the root of the `program` directory to do this. 
