@@ -60,12 +60,6 @@ current best-effort attempt at keeping up-to-date information.
 
 ### Submitting a bug report
 
-When filing a new bug report in the issue tracker, you will be presented with a basic form to fill out.
-
-If you believe that you have uncovered a bug, please fill out the form to the best of your ability. Do not worry if you
-cannot answer every detail, just fill in what you can. Contributors will ask follow-up questions if something is
-unclear.
-
 The most important pieces of information we need in a bug report are:
 
 - The SP1 version you are on (and that it is up to date)
@@ -79,8 +73,6 @@ possible. It is better if you can reproduce the bug with a small snippet as oppo
 See [this guide][mcve] on how to create a minimal, complete, and verifiable example.
 
 ### Submitting a feature request
-
-When adding a feature request in the issue tracker, you will be presented with a basic form to fill out.
 
 Please include as detailed of an explanation as possible of the feature you would like, adding additional context if
 necessary.
