@@ -1,7 +1,7 @@
 use curta_core::{CurtaProver, CurtaStdin, CurtaVerifier};
 use std::collections::BTreeMap;
 
-const BST_ELF: &[u8] = include_bytes!("../../../programs/demo/btree/elf/riscv32im-curta-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../../programs/demo/btree/elf/riscv32im-curta-zkvm-elf");
 
 fn main() {
     let mut stdin = CurtaStdin::new();
@@ -17,7 +17,7 @@ fn main() {
     stdin.write(&value);
 
     // Generate proof.
-    let mut proof = CurtaProver::prove(BST_ELF, stdin).expect("proving failed");
+    let mut proof = CurtaProver::prove(ELF, stdin).expect("proving failed");
 
     // Read output.
     let result = proof.stdout.read::<BTreeMap<String, String>>();
@@ -25,7 +25,7 @@ fn main() {
     println!("Insertion successful: {}", insert_successful);
 
     // Verify proof.
-    CurtaVerifier::verify(BST_ELF, &proof).expect("verification failed");
+    CurtaVerifier::verify(ELF, &proof).expect("verification failed");
 
     // Save proof.
     proof

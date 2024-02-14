@@ -51,7 +51,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bst-demo"
+name = "btree-demo"
 version = "0.1.0"
 dependencies = [
  "curta-zkvm",

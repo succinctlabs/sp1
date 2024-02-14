@@ -155,7 +155,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bst-example"
+name = "btree-example"
 version = "0.1.0"
 dependencies = [
  "curta-core",
