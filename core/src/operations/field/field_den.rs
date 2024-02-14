@@ -131,7 +131,9 @@ mod tests {
     use p3_field::{Field, PrimeField32};
 
     use super::{FieldDenCols, Limbs};
+
     use crate::air::MachineAir;
+
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
@@ -174,13 +176,11 @@ mod tests {
             "FieldDen".to_string()
         }
 
-        fn shard(&self, _: &ExecutionRecord, _: &mut Vec<ExecutionRecord>) {}
-
-        fn include(&self, record: &ExecutionRecord) -> bool {
-            !record.field_events.is_empty()
-        }
-
-        fn generate_trace(&self, _: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+        fn generate_trace(
+            &self,
+            _: &ExecutionRecord,
+            _: &mut ExecutionRecord,
+        ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
             let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
@@ -249,9 +249,10 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
         let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -260,10 +261,11 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut shard = ExecutionRecord::default();
+        let shard = ExecutionRecord::default();
 
         let chip: FieldDenChip<Ed25519BaseField> = FieldDenChip::new(true);
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         // This it to test that the proof DOESN'T work if messed up.
         // let row = trace.row_mut(0);
         // row[0] = BabyBear::from_canonical_u8(0);

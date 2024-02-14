@@ -1,4 +1,5 @@
 use crate::air::CurtaAirBuilder;
+
 use crate::air::MachineAir;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
@@ -126,18 +127,14 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         "EdAddAssign".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].ed_add_events = input.ed_add_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.ed_add_events.is_empty()
-    }
-
     #[instrument(name = "generate Ed Add trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let (mut rows, new_field_events_list): (Vec<[F; NUM_ED_ADD_COLS]>, Vec<Vec<FieldEvent>>) =
-            record
+            input
                 .ed_add_events
                 .par_iter()
                 .map(|event| {
@@ -177,7 +174,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 .unzip();
 
         for new_field_events in new_field_events_list {
-            record.field_events.extend(new_field_events);
+            output.add_field_events(&new_field_events);
         }
 
         pad_rows(&mut rows, || {
