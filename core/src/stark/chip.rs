@@ -1,5 +1,5 @@
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::Field;
+use p3_field::{Field, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    eval_permutation_constraints, DebugConstraintBuilder, ProverConstraintFolder,
+    eval_permutation_constraints, DebugConstraintBuilder, ProverConstraintFolder, RiscvAir,
     StarkGenericConfig, VerifierConstraintFolder,
 };
 
@@ -43,6 +43,12 @@ impl<F: Field, A> Chip<F, A> {
 
     pub const fn log_quotient_degree(&self) -> usize {
         self.log_quotient_degree
+    }
+}
+
+impl<F: PrimeField32> Chip<F, RiscvAir> {
+    pub fn included(&self, shard: &ExecutionRecord) -> bool {
+        self.air.included(shard)
     }
 }
 

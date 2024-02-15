@@ -1,16 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
-use std::marker::PhantomData;
 use std::sync::Arc;
-
-use crate::stark::riscv_chips::*;
-use clap::builder::Str;
-use k256::sha2::digest::Mac;
-use p3_field::PrimeField32;
 
 use super::program::Program;
 use super::Opcode;
-use crate::air::MachineAir;
-use crate::alu::{AddChip, AluEvent};
+use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::{CpuEvent, MemoryRecordEnum};
 use crate::field::event::FieldEvent;
@@ -22,35 +15,6 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
-use std::collections::hash_map::Entry;
-
-#[derive(Clone, Debug)]
-pub enum Record {
-    Program(HashMap<u32, usize>),
-    Cpu(Vec<CpuEvent>),
-    Add(Vec<AluEvent>),
-    Sub(Vec<AluEvent>),
-    Mul(Vec<AluEvent>),
-    Bitwise(Vec<AluEvent>),
-    ShiftLeft(Vec<AluEvent>),
-    ShiftRight(Vec<AluEvent>),
-    DivRem(Vec<AluEvent>),
-    Lt(Vec<AluEvent>),
-    FieldLtu(Vec<FieldEvent>),
-    ShaExtend(Vec<ShaExtendEvent>),
-    ShaCompress(Vec<ShaCompressEvent>),
-    KeccakPermute(Vec<KeccakPermuteEvent>),
-    Ed5519Add(Vec<ECAddEvent>),
-    Ed25519Decompress(Vec<EdDecompressEvent>),
-    Secp256k1Add(Vec<ECAddEvent>),
-    Secp256k1Double(Vec<ECDoubleEvent>),
-    K256Decompress(Vec<K256DecompressEvent>),
-    Blake3CompressInner(Vec<Blake3CompressInnerEvent>),
-    ByteLookup(BTreeMap<ByteLookupEvent, usize>),
-    MemoryInit(Vec<(u32, MemoryRecord, u32)>),
-    MemoryLast(Vec<(u32, MemoryRecord, u32)>),
-    MemoryProgram(Vec<(u32, MemoryRecord, u32)>),
-}
 
 /// A record of the execution of a program. Contains event data for everything that happened during
 /// the execution of the shard.
@@ -59,154 +23,104 @@ pub struct ExecutionRecord {
     /// The index of the shard.
     pub index: u32,
 
-    pub event_map: HashMap<String, Record>,
-    // /// The program.
-    // pub program: Arc<Program>,
+    /// The program.
+    pub program: Arc<Program>,
 
-    // /// A trace of the CPU events which get emitted during execution.
-    // pub cpu_events: Vec<CpuEvent>,
+    /// A trace of the CPU events which get emitted during execution.
+    pub cpu_events: Vec<CpuEvent>,
 
-    // /// Multiplicity counts for each instruction in the program.
-    // pub instruction_counts: HashMap<u32, usize>,
+    /// Multiplicity counts for each instruction in the program.
+    pub instruction_counts: HashMap<u32, usize>,
 
-    // /// A trace of the ADD, and ADDI events.
-    // pub add_events: Vec<AluEvent>,
+    /// A trace of the ADD, and ADDI events.
+    pub add_events: Vec<AluEvent>,
 
-    // /// A trace of the MUL events.
-    // pub mul_events: Vec<AluEvent>,
+    /// A trace of the MUL events.
+    pub mul_events: Vec<AluEvent>,
 
-    // /// A trace of the SUB events.
-    // pub sub_events: Vec<AluEvent>,
+    /// A trace of the SUB events.
+    pub sub_events: Vec<AluEvent>,
 
-    // /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
-    // pub bitwise_events: Vec<AluEvent>,
+    /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
+    pub bitwise_events: Vec<AluEvent>,
 
-    // /// A trace of the SLL and SLLI events.
-    // pub shift_left_events: Vec<AluEvent>,
+    /// A trace of the SLL and SLLI events.
+    pub shift_left_events: Vec<AluEvent>,
 
-    // /// A trace of the SRL, SRLI, SRA, and SRAI events.
-    // pub shift_right_events: Vec<AluEvent>,
+    /// A trace of the SRL, SRLI, SRA, and SRAI events.
+    pub shift_right_events: Vec<AluEvent>,
 
-    // /// A trace of the DIV, DIVU, REM, and REMU events.
-    // pub divrem_events: Vec<AluEvent>,
+    /// A trace of the DIV, DIVU, REM, and REMU events.
+    pub divrem_events: Vec<AluEvent>,
 
-    // /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
-    // pub lt_events: Vec<AluEvent>,
+    /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
+    pub lt_events: Vec<AluEvent>,
 
-    // /// A trace of the byte lookups needed.
-    // pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+    /// A trace of the byte lookups needed.
+    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 
-    // /// A trace of field LTU events.
-    // pub field_events: Vec<FieldEvent>,
+    /// A trace of field LTU events.
+    pub field_events: Vec<FieldEvent>,
 
-    // pub sha_extend_events: Vec<ShaExtendEvent>,
+    pub sha_extend_events: Vec<ShaExtendEvent>,
 
-    // pub sha_compress_events: Vec<ShaCompressEvent>,
+    pub sha_compress_events: Vec<ShaCompressEvent>,
 
-    // pub keccak_permute_events: Vec<KeccakPermuteEvent>,
+    pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
-    // pub ed_add_events: Vec<ECAddEvent>,
+    pub ed_add_events: Vec<ECAddEvent>,
 
-    // pub ed_decompress_events: Vec<EdDecompressEvent>,
+    pub ed_decompress_events: Vec<EdDecompressEvent>,
 
-    // pub weierstrass_add_events: Vec<ECAddEvent>,
+    pub weierstrass_add_events: Vec<ECAddEvent>,
 
-    // pub weierstrass_double_events: Vec<ECDoubleEvent>,
+    pub weierstrass_double_events: Vec<ECDoubleEvent>,
 
-    // pub k256_decompress_events: Vec<K256DecompressEvent>,
+    pub k256_decompress_events: Vec<K256DecompressEvent>,
 
-    // pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+    pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
-    // /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
-    // /// we keep this information in this struct for now.
-    // pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    // pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    // pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
+    /// we keep this information in this struct for now.
+    pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 }
 
-impl ExecutionRecord {
-    fn get_record<F: PrimeField32>(&self, chip: &impl MachineAir<F>) -> &Record {
-        self.event_map
-            .get(&chip.name())
-            .expect("Record not found for chip")
-    }
-
-    fn get_record_mut<F: PrimeField32>(&mut self, chip: &impl MachineAir<F>) -> &mut Record {
-        self.event_map.get_mut(&chip.name()).unwrap()
-    }
-
-    fn entry<F: PrimeField32>(&mut self, chip: &impl MachineAir<F>) -> Entry<String, Record> {
-        self.event_map.entry(chip.name())
-    }
-
-    fn insert<F: PrimeField32>(&mut self, chip: &impl MachineAir<F>, record: Record) {
-        self.event_map.insert(chip.name(), record);
-    }
+pub struct ShardingConfig {
+    pub shard_size: usize,
+    pub add_len: usize,
+    pub mul_len: usize,
+    pub sub_len: usize,
+    pub bitwise_len: usize,
+    pub shift_left_len: usize,
+    pub shift_right_len: usize,
+    pub divrem_len: usize,
+    pub lt_len: usize,
+    pub field_len: usize,
 }
 
-/// A configuration for sharding a program's execution record to improve prover performence.
-///
-/// Sharding of an execution trace can be done at any shard length for any chip. If no shard size
-/// is set for a chip, the chip will have a single AIR table.
-pub struct ShardingConfig<F> {
-    // shard_size: usize,
-    // pub add_len: usize,
-    // pub mul_len: usize,
-    // pub sub_len: usize,
-    // pub bitwise_len: usize,
-    // pub shift_left_len: usize,
-    // pub shift_right_len: usize,
-    // pub divrem_len: usize,
-    // pub lt_len: usize,
-    // pub field_len: usize,
-    size_map: BTreeMap<String, usize>,
-    _marker: PhantomData<F>,
-}
-
-impl<F: PrimeField32> ShardingConfig<F> {
-    /// Sets the shard size for a specific chip.
-    ///
-    /// If the configuration already has a shard size for the chip, the old value is returned,
-    /// otherwise `None` is returned.
-    pub fn set_size(&mut self, chip: &impl MachineAir<F>, size: usize) -> Option<usize> {
-        let log_size = size.next_power_of_two().trailing_zeros() as usize;
-        assert_eq!(size, 1 << log_size, "Shard size must be a power of 2");
-        self.size_map.insert(chip.name(), size)
-    }
-
-    /// Returns the shard size for a specific chip.
-    ///
-    /// If the configuration does not have a shard size for the chip, `None` is returned.
-    pub fn get_size(&self, chip: &impl MachineAir<F>) -> Option<usize> {
-        self.size_map.get(&chip.name()).copied()
-    }
-
-    /// Returns an empty configuration without any shard sizes set.
-    pub fn empty() -> Self {
-        Self {
-            size_map: BTreeMap::new(),
-            _marker: PhantomData,
-        }
+impl ShardingConfig {
+    pub const fn shard_size(&self) -> usize {
+        self.shard_size
     }
 }
 
-impl<F: PrimeField32> Default for ShardingConfig<F> {
+impl Default for ShardingConfig {
     fn default() -> Self {
         let shard_size = env::shard_size();
-        let mut config = Self::empty();
-
-        config.set_size(&CpuChip::default(), shard_size);
-        config.set_size(&AddChip::default(), shard_size);
-        config.set_size(&MulChip::default(), shard_size);
-        config.set_size(&SubChip::default(), shard_size);
-        config.set_size(&BitwiseChip::default(), shard_size);
-        config.set_size(&ShiftLeft::default(), shard_size);
-        config.set_size(&ShiftRightChip::default(), shard_size);
-        config.set_size(&DivRemChip::default(), shard_size);
-        config.set_size(&LtChip::default(), shard_size);
-        config.set_size(&FieldLTUChip::default(), shard_size * 4);
-
-        config
+        Self {
+            shard_size,
+            add_len: shard_size,
+            sub_len: shard_size,
+            bitwise_len: shard_size,
+            shift_left_len: shard_size,
+            divrem_len: shard_size,
+            lt_len: shard_size,
+            mul_len: shard_size,
+            shift_right_len: shard_size,
+            field_len: shard_size * 4,
+        }
     }
 }
 
@@ -241,7 +155,7 @@ impl ExecutionRecord {
         }
     }
 
-    pub fn shard<F: PrimeField32>(&self, config: &ShardingConfig<F>) -> Vec<Self> {
+    pub fn shard(&self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
         let mut shards = self
             .cpu_events
