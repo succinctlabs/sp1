@@ -307,7 +307,7 @@ pub(super) mod baby_bear_keccak {
     use p3_keccak::Keccak256Hash;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
@@ -322,7 +322,7 @@ pub(super) mod baby_bear_keccak {
     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     type MyHash = SerializingHasher32<Keccak256Hash>;
 
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
 
     pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
@@ -363,7 +363,7 @@ pub(super) mod baby_bear_keccak {
 
             let hash = MyHash::new(Keccak256Hash {});
 
-            let compress = MyCompress::new(perm.clone());
+            let compress = MyCompress::new(hash);
 
             let val_mmcs = ValMmcs::new(hash, compress);
 
@@ -440,7 +440,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
@@ -455,7 +455,7 @@ pub(super) mod baby_bear_blake3 {
     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     type MyHash = SerializingHasher32<Blake3>;
 
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
 
     pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
@@ -499,7 +499,7 @@ pub(super) mod baby_bear_blake3 {
         fn from_perm(perm: Perm) -> Self {
             let hash = MyHash::new(Blake3 {});
 
-            let compress = MyCompress::new(perm.clone());
+            let compress = MyCompress::new(hash);
 
             let val_mmcs = ValMmcs::new(hash, compress);
 
