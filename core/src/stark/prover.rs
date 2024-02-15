@@ -73,10 +73,7 @@ where
             .map(|(data, shard)| {
                 let data = tracing::info_span!("materializing data")
                     .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = machine
-                    .shard_chips(shard)
-                    .map(|x| x.as_ref())
-                    .collect::<Vec<_>>();
+                let chips = machine.shard_chips(shard).collect::<Vec<_>>();
                 tracing::info_span!("proving shard").in_scope(|| {
                     Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
                 })

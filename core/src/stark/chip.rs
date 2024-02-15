@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{Field, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -46,7 +48,7 @@ impl<F: Field, A> Chip<F, A> {
     }
 }
 
-impl<F: PrimeField32> Chip<F, RiscvAir> {
+impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
     pub fn included(&self, shard: &ExecutionRecord) -> bool {
         self.air.included(shard)
     }
@@ -179,6 +181,28 @@ where
         self.air.eval(builder);
         // Evaluate permutation constraints.
         eval_permutation_constraints(&self.sends, &self.receives, builder);
+    }
+}
+
+impl<F, A> PartialEq for Chip<F, A>
+where
+    F: Field,
+    A: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.air == other.air
+    }
+}
+
+impl<F: Field, A: Eq> Eq for Chip<F, A> where F: Field + Eq {}
+
+impl<F, A> Hash for Chip<F, A>
+where
+    F: Field,
+    A: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.air.hash(state);
     }
 }
 
