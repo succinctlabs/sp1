@@ -18,6 +18,14 @@ use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
+/// A STARK for proving RISC-V execution.
+pub struct RiscvStark<SC: StarkGenericConfig> {
+    /// The STARK settings for the RISC-V STARK.
+    config: SC,
+    /// The chips that make up the RISC-V STARK machine, in order of their execution.
+    chips: Vec<Chip<SC::Val, RiscvAir>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
     //TODO
@@ -30,16 +38,11 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-pub struct RiscvStark<SC: StarkGenericConfig> {
-    config: SC,
-
-    chips: Vec<Chip<SC::Val, RiscvAir>>,
-}
-
 impl<SC: StarkGenericConfig> RiscvStark<SC>
 where
     SC::Val: PrimeField32,
 {
+    /// Create a new RISC-V STARK machine.
     pub fn new(config: SC) -> Self {
         let chips = RiscvAir::get_all().into_iter().map(Chip::new).collect();
 
