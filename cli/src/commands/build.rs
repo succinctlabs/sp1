@@ -1,4 +1,4 @@
-use crate::build::build_program;
+use crate::build::{build_program, BuildArgs};
 use anyhow::Result;
 use clap::Parser;
 
@@ -8,18 +8,13 @@ pub struct BuildCmd {
     #[clap(long, action)]
     verbose: bool,
 
-    #[clap(
-        long,
-        action,
-        help = "Use docker for reproducible builds.",
-        env = "SP1_DOCKER"
-    )]
-    docker: bool,
+    #[clap(flatten)]
+    build_args: BuildArgs,
 }
 
 impl BuildCmd {
     pub fn run(&self) -> Result<()> {
-        build_program(self.docker)?;
+        build_program(&self.build_args)?;
 
         Ok(())
     }

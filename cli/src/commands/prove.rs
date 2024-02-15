@@ -9,7 +9,7 @@ use std::time::Instant;
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
 
 use crate::{
-    build::build_program,
+    build::{build_program, BuildArgs},
     util::{elapsed, write_status},
 };
 
@@ -70,18 +70,13 @@ pub struct ProveCmd {
     #[clap(long, action)]
     verbose: bool,
 
-    #[clap(
-        long,
-        action,
-        help = "Use docker for reproducible builds.",
-        env = "SP1_DOCKER"
-    )]
-    docker: bool,
+    #[clap(flatten)]
+    build_args: BuildArgs,
 }
 
 impl ProveCmd {
     pub fn run(&self) -> Result<()> {
-        let elf_path = build_program(self.docker)?;
+        let elf_path = build_program(&self.build_args)?;
 
         if !self.profile {
             match env::var("RUST_LOG") {

@@ -1,35 +1,52 @@
-use crate::CommandExecutor;
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
+use clap::Parser;
 use std::{
     fs,
     io::{BufRead, BufReader},
-    process::{Command, Stdio},
+    process::{exit, Command, Stdio},
     thread,
 };
 
-pub fn build_program(docker: bool) -> Result<Utf8PathBuf> {
+fn get_docker_image() -> String {
+    // Get the docker image name from the environment variable
+    std::env::var("SP1_DOCKER_IMAGE").unwrap_or_else(|_| "succinctlabs/sp1:latest".to_string())
+}
+
+#[derive(Parser)]
+pub(crate) struct BuildArgs {
+    #[clap(
+        long,
+        action,
+        help = "Use docker for reproducible builds.",
+        env = "SP1_DOCKER"
+    )]
+    pub(crate) docker: bool,
+}
+
+pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
     let metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.exec().unwrap();
     let root_package = metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
     let build_target = "riscv32im-succinct-zkvm-elf";
-    if docker {
+    if args.docker {
+        let image = get_docker_image();
         let mut child = Command::new("docker")
             .args([
                 "run",
                 "--rm",
                 "-v",
                 format!("{}:/root/program", metadata.workspace_root).as_str(),
-                "sp1-build",
+                image.as_str(),
                 "prove",
                 "build",
             ])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .context("Failed to run docker.")?;
+            .context("failed to spawn command")?;
 
         let stdout = BufReader::new(child.stdout.take().unwrap());
         let stderr = BufReader::new(child.stderr.take().unwrap());
@@ -48,7 +65,8 @@ pub fn build_program(docker: bool) -> Result<Utf8PathBuf> {
 
         let result = child.wait()?;
         if !result.success() {
-            return Err(anyhow::anyhow!("Failed to build program."));
+            // Error message is already printed by cargo
+            exit(result.code().unwrap_or(1))
         }
     } else {
         let rust_flags = [
@@ -60,12 +78,17 @@ pub fn build_program(docker: bool) -> Result<Utf8PathBuf> {
             "panic=abort",
         ];
 
-        Command::new("cargo")
+        let result = Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
             .args(["build", "--release", "--target", build_target, "--locked"])
-            .run()
+            .status()
             .context("Failed to run cargo command.")?;
+
+        if !result.success() {
+            // Error message is already printed by cargo
+            exit(result.code().unwrap_or(1))
+        }
     }
 
     let elf_path = metadata
