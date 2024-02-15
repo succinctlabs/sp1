@@ -139,6 +139,13 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 // index, which is definitely feasible but we haven't gotten to yet. If we call
                 // Add5Operation::populate, it creates interactions, and without the matching eval
                 // call, it will cause a panic. We plan to fix this really soon.
+                //
+                // This is how we should call populate here.
+                //
+                // let temp1 = cols
+                // .temp1
+                // .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                //
                 let temp1 = h
                     .wrapping_add(s1)
                     .wrapping_add(ch)
