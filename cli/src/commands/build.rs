@@ -7,11 +7,19 @@ use clap::Parser;
 pub struct BuildCmd {
     #[clap(long, action)]
     verbose: bool,
+
+    #[clap(
+        long,
+        action,
+        help = "Use docker for reproducible builds.",
+        env = "SP1_DOCKER"
+    )]
+    docker: bool,
 }
 
 impl BuildCmd {
     pub fn run(&self) -> Result<()> {
-        build_program()?;
+        build_program(self.docker)?;
 
         Ok(())
     }

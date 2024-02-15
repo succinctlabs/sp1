@@ -1,5 +1,6 @@
 mod build;
 pub mod commands;
+mod util;
 
 use anyhow::Result;
 use futures_util::StreamExt;
@@ -61,6 +62,7 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn locate_project() -> Result<String> {
     let output = Command::new("cargo")
         .args(["locate-project", "--message-format", "json"])

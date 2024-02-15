@@ -11,7 +11,7 @@ vergen = { version = "8", default-features = false, features = ["build", "git", 
 [dependencies]
 anyhow = { version = "1.0.79", features = ["backtrace"] }
 cargo_metadata = "0.18.1"
-clap = { version = "4.4.15", features = ["derive"] }
+clap = { version = "4.4.15", features = ["derive", "env"] }
 sp1-core = { path = "../core", features = ["perf"] }
 reqwest = { version = "0.11.3", features = ["stream", "json", "rustls-tls"], default-features = false }
 futures-util = "0.3.14"
@@ -26,3 +26,4 @@ downloader = { version = "0.2", default-features = false, features = ["rustls-tl
 serde_json = "1.0.113"
 yansi = "0.5.1"
 hex = "0.4.3"
+anstyle = "1.0.6"

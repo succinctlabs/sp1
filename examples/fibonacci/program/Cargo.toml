@@ -5,4 +5,4 @@ name = "fibonacci-program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1" }
