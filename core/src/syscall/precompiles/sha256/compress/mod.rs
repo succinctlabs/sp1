@@ -44,7 +44,7 @@ pub mod compress_tests {
         lookup::{debug_interactions_with_all_chips, InteractionKind},
         runtime::{Instruction, Opcode, Program, Runtime},
         stark::{LocalProver, RiscvStark},
-        utils::{setup_logger, BabyBearPoseidon2, StarkUtils},
+        utils::{run_test, setup_logger, BabyBearPoseidon2, StarkUtils},
     };
 
     pub fn sha_compress_program() -> Program {
@@ -71,6 +71,7 @@ pub mod compress_tests {
         let mut challenger = config.challenger();
 
         let program = sha_compress_program();
+        run_test(program.clone()).unwrap();
         let mut runtime = Runtime::new(program);
         runtime.run();
 
