@@ -256,7 +256,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         self.send(AirInteraction::new(
             values,
             multiplicity.into(),
-            InteractionKind::Alu,
+            InteractionKind::Coprocessor,
         ));
     }
 
@@ -284,7 +284,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         self.receive(AirInteraction::new(
             values,
             multiplicity.into(),
-            InteractionKind::Alu,
+            InteractionKind::Coprocessor,
         ));
     }
 }

@@ -22,8 +22,8 @@ pub enum InteractionKind {
     /// Interaction with instruction oracle.
     Instruction = 3,
 
-    /// Interaction with the ALU operations
-    Alu = 4,
+    /// Interaction with the Coprocessing operations including ALU and precompiles.
+    Coprocessor = 4,
 
     /// Interaction with the byte lookup table for byte operations.
     Byte = 5,
@@ -41,7 +41,7 @@ impl InteractionKind {
             InteractionKind::Memory,
             InteractionKind::Program,
             InteractionKind::Instruction,
-            InteractionKind::Alu,
+            InteractionKind::Coprocessor,
             InteractionKind::Byte,
             InteractionKind::Range,
             InteractionKind::Field,
@@ -84,7 +84,7 @@ impl Display for InteractionKind {
             InteractionKind::Memory => write!(f, "Memory"),
             InteractionKind::Program => write!(f, "Program"),
             InteractionKind::Instruction => write!(f, "Instruction"),
-            InteractionKind::Alu => write!(f, "Alu"),
+            InteractionKind::Coprocessor => write!(f, "Coprocessor"),
             InteractionKind::Byte => write!(f, "Byte"),
             InteractionKind::Range => write!(f, "Range"),
             InteractionKind::Field => write!(f, "Field"),
