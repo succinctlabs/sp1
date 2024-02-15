@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::marker::PhantomData;
 
 use crate::air::MachineAir;
+use crate::lookup::InteractionKind;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::ShardingConfig;
@@ -8,6 +11,9 @@ use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
+use petgraph::algo::toposort;
+use petgraph::prelude::GraphMap;
+use petgraph::Directed;
 
 use super::Chip;
 use super::ChipRef;
@@ -18,12 +24,15 @@ use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
+pub type RiscvChip<SC> =
+    Chip<<SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
+
 /// A STARK for proving RISC-V execution.
 pub struct RiscvStark<SC: StarkGenericConfig> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    chips: Vec<Chip<SC::Val, RiscvAir>>,
+    chips: Vec<RiscvChip<SC>>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,24 +53,91 @@ where
 {
     /// Create a new RISC-V STARK machine.
     pub fn new(config: SC) -> Self {
-        let chips = RiscvAir::get_all().into_iter().map(Chip::new).collect();
+        // The machine consists of a config (input) and a set of chips. The chip vector should
+        // contain the chips in the order they are executed. Each chip's air is able to add events
+        // to another chip's record (depending on interactions), so we order the chips by keeping
+        // track of which chips receive events from which other chips.
+
+        // First, get all the chips associated with this machine.
+        let mut chips = RiscvAir::get_all()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+
+        let mut node_map: HashMap<String, usize> = HashMap::new();
+        for (i, chip) in chips.iter().enumerate() {
+            node_map.insert(chip.name(), i);
+        }
+
+        // Create a map of interactions to chips that receive them.
+        let mut interaction_receive_map = HashMap::new();
+        for kind in InteractionKind::all_kinds() {
+            interaction_receive_map.insert(kind, HashSet::new());
+        }
+
+        for (i, chip) in chips.iter().enumerate() {
+            for rec in chip.receives().iter() {
+                interaction_receive_map
+                    .get_mut(&rec.kind)
+                    .unwrap()
+                    .insert(i);
+            }
+        }
+
+        println!("interaction_receive_map: {:#?}", interaction_receive_map);
+
+        // Create a directed graph of chip dependencies.
+        let mut deps = GraphMap::<usize, usize, Directed>::new();
+        // Add a node for each chip.
+        for (i, chip) in chips.iter().enumerate() {
+            deps.add_node(i);
+            // For each interaction being sent, add an edge to the chips that receive it.
+            for send in chip.sends().iter() {
+                for other in interaction_receive_map
+                    .get(&send.kind)
+                    .expect("No chips receives this interaction")
+                {
+                    deps.add_edge(i, *other, 1);
+                }
+            }
+        }
+
+        // Remove self loops.
+        for i in 0..chips.len() {
+            deps.remove_edge(i, i);
+        }
+
+        // Get a topological sorting of the graph, throwing a panic if there are cycles.
+        let sorted_indices = toposort(&deps, None).expect("Cycle in chip dependencies");
+
+        let sorting_key =
+            |index: &usize| -> usize { sorted_indices.iter().position(|x| x == index).unwrap() };
+
+        chips.sort_by_key(|chip| sorting_key(&node_map[&chip.name()]));
 
         Self { config, chips }
     }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> Vec<ChipRef<SC>> {
+    pub fn chips(&self) -> &[RiscvChip<SC>] {
+        &self.chips
+    }
+
+    pub fn dyn_chips(&self) -> Vec<ChipRef<SC>> {
         self.chips.iter().map(|chip| chip.as_ref()).collect()
     }
 
     pub fn shard_chips<'a, 'b>(
         &'a self,
         shard: &'b ExecutionRecord,
-    ) -> impl Iterator<Item = &'b Chip<SC::Val, RiscvAir>>
+    ) -> impl Iterator<Item = ChipRef<'b, SC>>
     where
         'a: 'b,
     {
-        self.chips.iter().filter(|chip| chip.included(shard))
+        self.chips
+            .iter()
+            .filter(|chip| chip.included(shard))
+            .map(|chip| chip.as_ref())
     }
 
     /// The setup preprocessing phase.
@@ -157,8 +233,9 @@ where
             tracing::info_span!("verifying segment", segment = i).in_scope(|| {
                 let chips = self
                     .chips()
-                    .into_iter()
+                    .iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
+                    .map(|chip| chip.as_ref())
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
