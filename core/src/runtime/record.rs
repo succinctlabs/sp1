@@ -144,6 +144,7 @@ pub struct ShardStats {
     pub nb_weierstrass_add_events: usize,
     pub nb_weierstrass_double_events: usize,
     pub nb_k256_decompress_events: usize,
+    pub nb_blake3_compress_inner_events: usize,
 }
 
 impl ExecutionRecord {
@@ -450,6 +451,7 @@ impl ExecutionRecord {
             nb_weierstrass_add_events: self.weierstrass_add_events.len(),
             nb_weierstrass_double_events: self.weierstrass_double_events.len(),
             nb_k256_decompress_events: self.k256_decompress_events.len(),
+            nb_blake3_compress_inner_events: self.blake3_compress_inner_events.len(),
         }
     }
 

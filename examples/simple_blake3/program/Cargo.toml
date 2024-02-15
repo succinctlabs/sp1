@@ -1,0 +1,9 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "simple_blake3-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
+blake3 = { git = "https://github.com/succinctlabs/BLAKE3.git", branch="kevjue/more_cycle_tracking" }
