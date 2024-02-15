@@ -24,6 +24,7 @@ pub use quotient::*;
 pub use types::*;
 pub use verifier::*;
 
+#[allow(unused_imports)]
 pub(crate) use air::riscv_chips;
 
 #[cfg(test)]

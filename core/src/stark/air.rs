@@ -1,5 +1,7 @@
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
+use crate::memory::MemoryChipKind;
+use crate::runtime::ExecutionRecord;
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
@@ -80,6 +82,93 @@ pub enum RiscvAir {
     KeccakP(KeccakPermuteChip),
 
     Blake3Compress(Blake3CompressInnerChip),
+}
+
+impl RiscvAir {
+    pub fn included(&self, shard: &ExecutionRecord) -> bool {
+        match self {
+            RiscvAir::Program(_) => true,
+            RiscvAir::Cpu(_) => true,
+            RiscvAir::Add(_) => !shard.add_events.is_empty(),
+            RiscvAir::Sub(_) => !shard.sub_events.is_empty(),
+            RiscvAir::Bitwise(_) => !shard.bitwise_events.is_empty(),
+            RiscvAir::Mul(_) => !shard.mul_events.is_empty(),
+            RiscvAir::DivRem(_) => !shard.divrem_events.is_empty(),
+            RiscvAir::Lt(_) => !shard.lt_events.is_empty(),
+            RiscvAir::ShiftLeft(_) => !shard.shift_left_events.is_empty(),
+            RiscvAir::ShiftRight(_) => !shard.shift_right_events.is_empty(),
+            RiscvAir::ByteLookup(_) => !shard.byte_lookups.is_empty(),
+            RiscvAir::FieldLTU(_) => !shard.field_events.is_empty(),
+            RiscvAir::MemoryInit(_) => !shard.first_memory_record.is_empty(),
+            RiscvAir::MemoryFinal(_) => !shard.last_memory_record.is_empty(),
+            RiscvAir::ProgramMemory(_) => !shard.program_memory_record.is_empty(),
+            RiscvAir::ShaExtend(_) => !shard.sha_extend_events.is_empty(),
+            RiscvAir::ShaCompress(_) => !shard.sha_compress_events.is_empty(),
+            RiscvAir::Ed25519Add(_) => !shard.ed_add_events.is_empty(),
+            RiscvAir::Ed25519Decompress(_) => !shard.ed_decompress_events.is_empty(),
+            RiscvAir::K256Decompress(_) => !shard.k256_decompress_events.is_empty(),
+            RiscvAir::Secp256k1Add(_) => !shard.weierstrass_add_events.is_empty(),
+            RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
+            RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
+            RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
+        }
+    }
+
+    pub fn get_all() -> Vec<RiscvAir> {
+        let mut chips = vec![];
+        let program = ProgramChip::default();
+        chips.push(RiscvAir::Program(program));
+        let cpu = CpuChip::default();
+        chips.push(RiscvAir::Cpu(cpu));
+        let sha_extend = ShaExtendChip::default();
+        chips.push(RiscvAir::ShaExtend(sha_extend));
+        let sha_compress = ShaCompressChip::default();
+        chips.push(RiscvAir::ShaCompress(sha_compress));
+        let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
+        chips.push(RiscvAir::Ed25519Add(ed_add_assign));
+        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
+        chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
+        let k256_decompress = K256DecompressChip::default();
+        chips.push(RiscvAir::K256Decompress(k256_decompress));
+        let weierstrass_add_assign =
+            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Add(weierstrass_add_assign));
+        let weierstrass_double_assign =
+            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
+        let keccak_permute = KeccakPermuteChip::new();
+        chips.push(RiscvAir::KeccakP(keccak_permute));
+        let blake3_compress_inner = Blake3CompressInnerChip::new();
+        chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
+        let add = AddChip::default();
+        chips.push(RiscvAir::Add(add));
+        let sub = SubChip::default();
+        chips.push(RiscvAir::Sub(sub));
+        let bitwise = BitwiseChip::default();
+        chips.push(RiscvAir::Bitwise(bitwise));
+        let div_rem = DivRemChip::default();
+        chips.push(RiscvAir::DivRem(div_rem));
+        let mul = MulChip::default();
+        chips.push(RiscvAir::Mul(mul));
+        let shift_right = ShiftRightChip::default();
+        chips.push(RiscvAir::ShiftRight(shift_right));
+        let shift_left = ShiftLeft::default();
+        chips.push(RiscvAir::ShiftLeft(shift_left));
+        let lt = LtChip::default();
+        chips.push(RiscvAir::Lt(lt));
+        let field_ltu = FieldLTUChip::default();
+        chips.push(RiscvAir::FieldLTU(field_ltu));
+        let byte = ByteChip::default();
+        chips.push(RiscvAir::ByteLookup(byte));
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        chips.push(RiscvAir::MemoryInit(memory_init));
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        chips.push(RiscvAir::MemoryFinal(memory_finalize));
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        chips.push(RiscvAir::ProgramMemory(program_memory_init));
+
+        chips
+    }
 }
 
 impl<F: PrimeField32> BaseAir<F> for RiscvAir {

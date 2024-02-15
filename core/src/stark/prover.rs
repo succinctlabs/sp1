@@ -73,7 +73,10 @@ where
             .map(|(data, shard)| {
                 let data = tracing::info_span!("materializing data")
                     .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = machine.shard_chips(shard);
+                let chips = machine
+                    .shard_chips(shard)
+                    .map(|x| x.as_ref())
+                    .collect::<Vec<_>>();
                 tracing::info_span!("proving shard").in_scope(|| {
                     Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
                 })
@@ -105,7 +108,7 @@ where
         SC::Val: PrimeField32,
     {
         // Filter the chips based on what is used.
-        let filtered_chips = machine.shard_chips(shard);
+        let filtered_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
         let traces = filtered_chips
