@@ -631,7 +631,11 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
+                let a1: Register = Register::X11;
                 let syscall_id = self.register(t0);
+                a = self.register(Register::X5);
+                b = self.register(Register::X10);
+                c = self.register(Register::X11);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 let init_clk = self.state.clk;
@@ -639,7 +643,7 @@ impl Runtime {
                 let mut precompile_rt = SyscallContext::new(self);
 
                 if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt, 0, 0).unwrap_or(0);
+                    syscall_impl.execute(&mut precompile_rt, 0, 0).unwrap_or(0);
                     next_pc = precompile_rt.next_pc;
                     self.state.clk = precompile_rt.clk;
                     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
@@ -650,8 +654,9 @@ impl Runtime {
                 // We have to do this AFTER the precompile execution because the CPU event
                 // gets emitted at the end of this loop with the incremented clock.
                 // TODO: fix this.
-                self.rw(a0, a);
-                (b, c) = (self.rr(t0, AccessPosition::B), 0);
+                self.rr(Register::X11, AccessPosition::C);
+                self.rr(Register::X10, AccessPosition::B);
+                self.rw(Register::X5, a);
             }
 
             Opcode::EBREAK => {
