@@ -433,6 +433,7 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.cpu_record = CpuRecord::default();
 
+        println!("instruction = {:#?}", instruction);
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
@@ -633,9 +634,9 @@ impl Runtime {
                 let a0 = Register::X10;
                 let a1: Register = Register::X11;
                 let syscall_id = self.register(t0);
-                a = self.register(Register::X5);
                 b = self.register(Register::X10);
                 c = self.register(Register::X11);
+                println!("syscall_id, b, c = {:?}, {:?}, {:?}", syscall_id, b, c);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 let init_clk = self.state.clk;
@@ -643,7 +644,12 @@ impl Runtime {
                 let mut precompile_rt = SyscallContext::new(self);
 
                 if let Some(syscall_impl) = syscall_impl {
-                    syscall_impl.execute(&mut precompile_rt, 0, 0).unwrap_or(0);
+                    let res = syscall_impl.execute(&mut precompile_rt, 0, 0);
+                    if let Some(val) = res {
+                        a = val;
+                    } else {
+                        a = syscall_id;
+                    }
                     next_pc = precompile_rt.next_pc;
                     self.state.clk = precompile_rt.clk;
                     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
