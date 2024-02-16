@@ -11,7 +11,7 @@ use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, SyscallCode};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
@@ -110,6 +110,13 @@ impl CpuChip {
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
             cols.op_c_access.populate(record, &mut new_field_events)
+        }
+
+        if event.instruction.opcode == Opcode::ECALL
+            && event.a == SyscallCode::BLAKE3_COMPRESS_INNER as u32
+        {
+            // TODO: Obviously, this needs to be done for other precompiles.
+            cols.is_blake3_compress = F::one();
         }
 
         // Populate memory accesses for reading from memory.
