@@ -91,8 +91,6 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "panic=abort",
         ];
 
-        let cargo_manifest = metadata.workspace_root.join("Cargo.toml");
-
         let result = Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
