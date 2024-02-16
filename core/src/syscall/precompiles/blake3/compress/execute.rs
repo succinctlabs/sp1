@@ -1,5 +1,4 @@
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
-use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::blake3::{
     g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, MSG_SCHEDULE,
@@ -14,7 +13,6 @@ impl Syscall for Blake3CompressInnerChip {
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         println!("Blake3CompressInnerChip::execute({}, {})", arg1, arg2);
-        // TODO: These pointers have to be constrained.
         let state_ptr = arg1;
         let message_ptr = arg2;
 
