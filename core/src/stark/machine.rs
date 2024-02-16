@@ -77,14 +77,18 @@ where
 
         for (i, chip) in chips.iter().enumerate() {
             for rec in chip.receives().iter() {
+                // Don't add memory interactions to the map, since the memory table is completely
+                // virtual and doesn't correspond to any chip.
+                if rec.kind == InteractionKind::Memory {
+                    continue;
+                }
+                // Add the chip to the set of chips that receive this interaction.
                 interaction_receive_map
                     .get_mut(&rec.kind)
                     .unwrap()
                     .insert(i);
             }
         }
-
-        println!("interaction_receive_map: {:#?}", interaction_receive_map);
 
         // Create a directed graph of chip dependencies.
         let mut deps = GraphMap::<usize, usize, Directed>::new();

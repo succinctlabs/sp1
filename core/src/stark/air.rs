@@ -121,10 +121,42 @@ impl<F: PrimeField32> RiscvAir<F> {
 
     pub fn get_all() -> Vec<Self> {
         let mut chips = vec![];
-        let program = ProgramChip::default();
-        chips.push(RiscvAir::Program(program));
+
         let cpu = CpuChip::default();
         chips.push(RiscvAir::Cpu(cpu));
+
+        let program = ProgramChip::default();
+        chips.push(RiscvAir::Program(program));
+
+        let add = AddChip::default();
+        chips.push(RiscvAir::Add(add));
+        let sub = SubChip::default();
+        chips.push(RiscvAir::Sub(sub));
+        let bitwise = BitwiseChip::default();
+        chips.push(RiscvAir::Bitwise(bitwise));
+        let div_rem = DivRemChip::default();
+        chips.push(RiscvAir::DivRem(div_rem));
+        let mul = MulChip::default();
+        chips.push(RiscvAir::Mul(mul));
+        let shift_right = ShiftRightChip::default();
+        chips.push(RiscvAir::ShiftRight(shift_right));
+        let shift_left = ShiftLeft::default();
+        chips.push(RiscvAir::ShiftLeft(shift_left));
+        let lt = LtChip::default();
+        chips.push(RiscvAir::Lt(lt));
+
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        chips.push(RiscvAir::MemoryInit(memory_init));
+        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        chips.push(RiscvAir::MemoryFinal(memory_finalize));
+        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        chips.push(RiscvAir::ProgramMemory(program_memory_init));
+
+        let field_ltu = FieldLTUChip::default();
+        chips.push(RiscvAir::FieldLTU(field_ltu));
+        let byte = ByteChip::default();
+        chips.push(RiscvAir::ByteLookup(byte));
+
         let sha_extend = ShaExtendChip::default();
         chips.push(RiscvAir::ShaExtend(sha_extend));
         let sha_compress = ShaCompressChip::default();
@@ -145,32 +177,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let add = AddChip::default();
-        chips.push(RiscvAir::Add(add));
-        let sub = SubChip::default();
-        chips.push(RiscvAir::Sub(sub));
-        let bitwise = BitwiseChip::default();
-        chips.push(RiscvAir::Bitwise(bitwise));
-        let div_rem = DivRemChip::default();
-        chips.push(RiscvAir::DivRem(div_rem));
-        let mul = MulChip::default();
-        chips.push(RiscvAir::Mul(mul));
-        let shift_right = ShiftRightChip::default();
-        chips.push(RiscvAir::ShiftRight(shift_right));
-        let shift_left = ShiftLeft::default();
-        chips.push(RiscvAir::ShiftLeft(shift_left));
-        let lt = LtChip::default();
-        chips.push(RiscvAir::Lt(lt));
-        let field_ltu = FieldLTUChip::default();
-        chips.push(RiscvAir::FieldLTU(field_ltu));
-        let byte = ByteChip::default();
-        chips.push(RiscvAir::ByteLookup(byte));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
-        chips.push(RiscvAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        chips.push(RiscvAir::MemoryFinal(memory_finalize));
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        chips.push(RiscvAir::ProgramMemory(program_memory_init));
 
         chips
     }
