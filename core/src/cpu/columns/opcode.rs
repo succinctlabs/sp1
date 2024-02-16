@@ -60,6 +60,7 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
         if instruction.is_alu_instruction() {
             self.is_alu = F::one();
         } else if instruction.is_precompile_instruction() {
+            println!("Found a precompile instruction: {:?}", instruction);
             self.is_precompile = F::one();
         } else if instruction.is_memory_instruction() {
             match instruction.opcode {
