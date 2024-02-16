@@ -644,7 +644,7 @@ impl Runtime {
                 let mut precompile_rt = SyscallContext::new(self);
 
                 if let Some(syscall_impl) = syscall_impl {
-                    let res = syscall_impl.execute(&mut precompile_rt, 0, 0);
+                    let res = syscall_impl.execute(&mut precompile_rt, b, c);
                     if let Some(val) = res {
                         a = val;
                     } else {

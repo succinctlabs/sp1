@@ -53,7 +53,13 @@ impl Instruction {
     /// Returns if the instruction is a precompile instruction.
     pub fn is_precompile_instruction(&self) -> bool {
         if self.opcode == Opcode::ECALL {
-            println!("Found an ECALL instruction: {:?}", self);
+            println!("Found an ECALL instruction: {:#?}", self);
+            println!("opcode: {}", self.opcode);
+            println!("op_a: {}", self.op_a);
+            println!("op_b: {}", self.op_b);
+            println!("op_c: {}", self.op_c);
+            println!("imm_b: {}", self.imm_b);
+            println!("imm_c: {}", self.imm_c);
             if (self.opcode == Opcode::ECALL)
                 && (self.op_a == SyscallCode::BLAKE3_COMPRESS_INNER as u32)
             {

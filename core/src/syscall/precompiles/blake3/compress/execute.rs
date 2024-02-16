@@ -13,9 +13,10 @@ impl Syscall for Blake3CompressInnerChip {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        println!("Blake3CompressInnerChip::execute({}, {})", arg1, arg2);
         // TODO: These pointers have to be constrained.
-        let state_ptr = rt.register_unsafe(Register::X10);
-        let message_ptr = rt.register_unsafe(Register::X11);
+        let state_ptr = arg1;
+        let message_ptr = arg2;
 
         let saved_clk = rt.clk;
         let mut message_reads =

@@ -134,7 +134,13 @@ where
         // AUIPC instruction.
         self.auipc_eval(builder, local);
 
-        // ALU instructions.
+        // ALU instructions + precompiles.
+        //
+        // Oh i'm noticing that we can't tell whether this is a precompile or system instruction
+        // within `instruction`. but we might be able to tell that from `local.`
+        //
+        // like i don't think i can do "is_precompile(local.instruction)" but i can do
+        // local.is_precompile
         builder.send_coprocessor(
             local.instruction.opcode,
             local.op_a_val(),
