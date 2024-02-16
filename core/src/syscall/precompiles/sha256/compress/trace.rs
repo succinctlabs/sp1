@@ -134,9 +134,24 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 let e_not_and_g = cols.e_not_and_g.populate(output, e_not, g);
                 let ch = cols.ch.populate(output, e_and_f, e_not_and_g);
 
-                let temp1 = cols
-                    .temp1
-                    .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                // TODO: This is a hack to avoid calling Add5Operation::populate. We currently don't
+                // call Add5Operation::eval due to the complexity of getting the inputs at the right
+                // index, which is definitely feasible but we haven't gotten to yet. If we call
+                // Add5Operation::populate, it creates interactions, and without the matching eval
+                // call, it will cause a panic. We plan to fix this really soon.
+                //
+                // This is how we should call populate here.
+                //
+                // let temp1 = cols
+                // .temp1
+                // .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                //
+                let temp1 = h
+                    .wrapping_add(s1)
+                    .wrapping_add(ch)
+                    .wrapping_add(event.w[j])
+                    .wrapping_add(SHA_COMPRESS_K[j]);
+                cols.temp1.value = Word::from(temp1);
 
                 let a_rr_2 = cols.a_rr_2.populate(output, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(output, a, 13);
