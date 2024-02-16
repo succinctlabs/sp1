@@ -57,7 +57,7 @@ pub mod compress_tests {
         instructions.extend(vec![
             Instruction::new(Opcode::ADD, 5, 0, 103, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
         Program::new(instructions, 0, 0)
     }
