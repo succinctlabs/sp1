@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use super::Opcode;
+use super::{Opcode, SyscallCode};
 
 /// An instruction specifies an operation to execute and the operands.
 #[derive(Clone, Copy)]
@@ -48,6 +48,13 @@ impl Instruction {
                 | Opcode::REM
                 | Opcode::REMU
         )
+    }
+
+    /// Returns if the instruction is a precompile instruction.
+    pub fn is_precompile_instruction(&self) -> bool {
+        // TODO: Obviously, I have to add other precompiles here. But for now, I'll use Blake3 as an
+        // example.
+        (self.opcode == Opcode::ECALL) && (self.op_a == SyscallCode::BLAKE3_COMPRESS_INNER as u32)
     }
 
     /// Returns if the instruction is a memory instruction.

@@ -30,6 +30,9 @@ where
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
+        let is_precompile_instruction: AB::Expr =
+            self.is_precompile_instruction::<AB>(&local.selectors);
+        let is_coprocessor_instruction: AB::Expr = is_alu_instruction + is_precompile_instruction;
 
         // Clock constraints.
         // TODO: Handle dynamic clock jumps based on precompiles.
@@ -110,7 +113,7 @@ where
         builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
 
         // Send to the ALU table to verify correct calculation of addr_word.
-        builder.send_alu(
+        builder.send_coprocessor(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             memory_columns.addr_word,
             local.op_b_val(),
@@ -132,12 +135,12 @@ where
         self.auipc_eval(builder, local);
 
         // ALU instructions.
-        builder.send_alu(
+        builder.send_coprocessor(
             local.instruction.opcode,
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
-            is_alu_instruction,
+            is_coprocessor_instruction,
         );
 
         // ECALL instructions.
@@ -159,12 +162,20 @@ where
 }
 
 impl CpuChip {
-    /// Whether the instruction is a memory instruction.
+    /// Whether the instruction is an ALU instruction.
     pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
+    }
+
+    /// Whether the instruction is a precompile instruction.
+    pub(crate) fn is_precompile_instruction<AB: SP1AirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_precompile.into()
     }
 
     /// Constraints related to jump operations.
@@ -198,7 +209,7 @@ impl CpuChip {
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
-        builder.send_alu(
+        builder.send_coprocessor(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
@@ -207,7 +218,7 @@ impl CpuChip {
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
-        builder.send_alu(
+        builder.send_coprocessor(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             local.op_b_val(),
@@ -228,7 +239,7 @@ impl CpuChip {
             .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that op_a == pc + op_b.
-        builder.send_alu(
+        builder.send_coprocessor(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
             auipc_columns.pc,

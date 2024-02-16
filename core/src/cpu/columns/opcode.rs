@@ -21,6 +21,9 @@ pub struct OpcodeSelectorCols<T> {
     /// Table selectors for opcodes.
     pub is_alu: T,
 
+    /// Table selectors for opcodes.
+    pub is_precompile: T,
+
     /// Memory Instructions.
     pub is_lb: T,
     pub is_lbu: T,
@@ -56,6 +59,8 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
 
         if instruction.is_alu_instruction() {
             self.is_alu = F::one();
+        } else if instruction.is_precompile_instruction() {
+            self.is_precompile = F::one();
         } else if instruction.is_memory_instruction() {
             match instruction.opcode {
                 Opcode::LB => self.is_lb = F::one(),

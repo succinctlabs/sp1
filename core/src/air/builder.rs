@@ -230,10 +230,10 @@ pub trait WordAirBuilder: ByteAirBuilder {
     }
 }
 
-/// A trait which contains methods related to ALU interactions in an AIR.
-pub trait AluAirBuilder: BaseAirBuilder {
-    /// Sends an ALU operation to be processed.
-    fn send_alu<EOp, Ea, Eb, Ec, EMult>(
+/// A trait which contains methods related to coprocessor interactions in an AIR.
+pub trait CoprocessorAirBuilder: BaseAirBuilder {
+    /// Sends a coprocessor operation to be processed.
+    fn send_coprocessor<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,
@@ -473,7 +473,7 @@ pub trait SP1AirBuilder:
     BaseAirBuilder
     + ByteAirBuilder
     + WordAirBuilder
-    + AluAirBuilder
+    + CoprocessorAirBuilder
     + MemoryAirBuilder
     + ProgramAirBuilder
 {
@@ -493,7 +493,7 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder f
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CoprocessorAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}

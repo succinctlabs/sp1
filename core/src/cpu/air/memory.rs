@@ -86,7 +86,7 @@ impl CpuChip {
             AB::Expr::one() * local.selectors.is_lh,
             AB::Expr::zero(),
         ]);
-        builder.send_alu(
+        builder.send_coprocessor(
             Opcode::SUB.as_field::<AB::F>(),
             local.op_a_val(),
             local.unsigned_mem_val,
