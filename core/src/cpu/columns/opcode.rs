@@ -115,6 +115,7 @@ impl<T> IntoIterator for OpcodeSelectorCols<T> {
             self.imm_b,
             self.imm_c,
             self.is_alu,
+            self.is_precompile,
             self.is_lb,
             self.is_lbu,
             self.is_lh,
