@@ -50,8 +50,8 @@ pub struct SP1Verifier;
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize)]
-pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize> {
-    #[serde(serialize_with = "serialize_proof")]
+pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
+    #[serde(with = "proof_serde")]
     pub proof: Proof<SC>,
     pub stdin: SP1Stdin,
     pub stdout: SP1Stdout,
@@ -91,7 +91,7 @@ impl SP1Prover {
         config: SC,
     ) -> Result<SP1ProofWithIO<SC>>
     where
-        SC: StarkUtils + Send + Sync + Serialize + Clone,
+        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
@@ -134,7 +134,7 @@ impl SP1Verifier {
         config: SC,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC: StarkUtils + Send + Sync + Serialize,
+        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
@@ -150,7 +150,7 @@ impl SP1Verifier {
     }
 }
 
-impl<SC: StarkGenericConfig + Serialize> SP1ProofWithIO<SC> {
+impl<SC: StarkGenericConfig + Serialize + DeserializeOwned> SP1ProofWithIO<SC> {
     /// Saves the proof as a JSON to the given path.
     pub fn save(&self, path: &str) -> Result<()> {
         let data = serde_json::to_string(self).unwrap();
