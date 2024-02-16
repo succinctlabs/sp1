@@ -9,11 +9,14 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
+use crate::air::Word;
+use crate::air::WORD_SIZE;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
+use crate::runtime::SyscallCode;
 use crate::runtime::{AccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
@@ -33,6 +36,19 @@ where
         // Each call to the Blake3 precompile leads to 56 rows.
         let is_coprocessor_instruction: AB::Expr =
             is_alu_instruction + local.is_blake3_compress * AB::F::from_canonical_u32(56);
+
+        {
+            let blake3_opcode = Word::<AB::F>::from(SyscallCode::BLAKE3_COMPRESS_INNER as u32);
+
+            for i in 0..WORD_SIZE {
+                builder
+                    .when(local.is_blake3_compress)
+                    .assert_eq(local.op_a_val()[i], blake3_opcode[i]);
+            }
+
+            // TODO: I think I should have EqualWordOperation to check if the opcode is ECALL.
+            // TODO: I should do builder.when(is_ecall).assert_one(is_blake3 + ...).
+        }
 
         // Clock constraints.
         // TODO: Handle dynamic clock jumps based on precompiles.
