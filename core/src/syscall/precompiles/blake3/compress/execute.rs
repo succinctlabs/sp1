@@ -12,7 +12,7 @@ impl Syscall for Blake3CompressInnerChip {
         (4 * ROUND_COUNT * OPERATION_COUNT) as u32
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         // TODO: These pointers have to be constrained.
         let state_ptr = rt.register_unsafe(Register::X10);
         let message_ptr = rt.register_unsafe(Register::X11);
@@ -71,6 +71,6 @@ impl Syscall for Blake3CompressInnerChip {
                 message_ptr,
             });
 
-        state_ptr
+        None
     }
 }

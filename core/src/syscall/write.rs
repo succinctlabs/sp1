@@ -12,7 +12,7 @@ impl SyscallWrite {
 }
 
 impl Syscall for SyscallWrite {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let a0 = Register::X10;
         let a1 = Register::X11;
         let a2 = Register::X12;
@@ -69,6 +69,6 @@ impl Syscall for SyscallWrite {
                 unreachable!()
             }
         }
-        0
+        Some(0)
     }
 }

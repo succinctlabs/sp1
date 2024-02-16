@@ -10,7 +10,7 @@ impl Syscall for ShaExtendChip {
         48 * 20
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         // Initialize the registers.
         let a0 = Register::X10;
 
@@ -78,6 +78,6 @@ impl Syscall for ShaExtendChip {
             w_i_writes: w_i_writes.try_into().unwrap(),
         });
 
-        w_ptr
+        None
     }
 }

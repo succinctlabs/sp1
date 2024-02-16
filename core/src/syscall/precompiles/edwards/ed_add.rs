@@ -114,10 +114,10 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
         8
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_add_event::<E>(rt);
         rt.record_mut().ed_add_events.push(event);
-        event.p_ptr + 1
+        None
     }
 }
 

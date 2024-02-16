@@ -9,8 +9,8 @@ impl SyscallHalt {
 }
 
 impl Syscall for SyscallHalt {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
         ctx.set_next_pc(0);
-        ctx.register_unsafe(Register::X10)
+        Some(ctx.register_unsafe(Register::X10))
     }
 }

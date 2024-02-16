@@ -13,7 +13,7 @@ impl Syscall for ShaCompressChip {
         8 * 4 + 64 * 4 + 8 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         // Read `w_ptr` from register a0.
         let w_ptr = rt.register_unsafe(Register::X10);
 
@@ -96,6 +96,6 @@ impl Syscall for ShaCompressChip {
             h_write_records: h_write_records.try_into().unwrap(),
         });
 
-        w_ptr
+        None
     }
 }

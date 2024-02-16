@@ -66,10 +66,10 @@ pub struct WeierstrassAddAssignChip<E> {
 }
 
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_add_event::<E>(rt);
         rt.record_mut().weierstrass_add_events.push(event);
-        event.p_ptr + 1
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {

@@ -196,7 +196,7 @@ pub struct EdDecompressChip<E> {
 }
 
 impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;
@@ -255,7 +255,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
 
         rt.clk += 4;
 
-        slice_ptr
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {

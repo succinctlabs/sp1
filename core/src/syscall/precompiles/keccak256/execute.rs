@@ -20,7 +20,7 @@ impl Syscall for KeccakPermuteChip {
         NUM_ROUNDS as u32 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         // Read `state_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
 
@@ -108,6 +108,6 @@ impl Syscall for KeccakPermuteChip {
                 state_addr: state_ptr,
             });
 
-        state_ptr
+        None
     }
 }

@@ -88,7 +88,7 @@ impl SyscallCode {
 
 pub trait Syscall {
     /// Execute the syscall and return the resulting value of register a0.
-    fn execute(&self, ctx: &mut SyscallContext) -> u32;
+    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32>;
 
     /// The number of extra cycles that the syscall takes to execute. Unless this syscall is complex
     /// and requires many cycles, this should be zero.

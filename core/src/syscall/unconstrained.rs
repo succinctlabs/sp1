@@ -11,7 +11,7 @@ impl SyscallEnterUnconstrained {
 }
 
 impl Syscall for SyscallEnterUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         if ctx.rt.unconstrained {
             panic!("Unconstrained block is already active.");
         }
@@ -24,7 +24,7 @@ impl Syscall for SyscallEnterUnconstrained {
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.cpu_record),
         };
-        1
+        Some(1)
     }
 }
 
@@ -37,7 +37,7 @@ impl SyscallExitUnconstrained {
 }
 
 impl Syscall for SyscallExitUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         // Reset the state of the runtime.
         if ctx.rt.unconstrained {
             ctx.rt.state.global_clk = ctx.rt.unconstrained_state.global_clk;
@@ -59,6 +59,6 @@ impl Syscall for SyscallExitUnconstrained {
             ctx.rt.unconstrained = false;
         }
         ctx.rt.unconstrained_state = ForkState::default();
-        0
+        Some(0)
     }
 }

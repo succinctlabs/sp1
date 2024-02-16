@@ -639,7 +639,7 @@ impl Runtime {
                 let mut precompile_rt = SyscallContext::new(self);
 
                 if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
+                    a = syscall_impl.execute(&mut precompile_rt, 0, 0).unwrap_or(0);
                     next_pc = precompile_rt.next_pc;
                     self.state.clk = precompile_rt.clk;
                     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);

@@ -11,7 +11,7 @@ impl SyscallLWA {
 }
 
 impl Syscall for SyscallLWA {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         // TODO: in the future this will be used for private vs. public inputs.
         let a0 = Register::X10;
         let a1 = Register::X11;
@@ -28,6 +28,6 @@ impl Syscall for SyscallLWA {
             read_bytes[i] = ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
             ctx.rt.state.input_stream_ptr += 1;
         }
-        u32::from_le_bytes(read_bytes)
+        Some(u32::from_le_bytes(read_bytes))
     }
 }
