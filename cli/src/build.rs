@@ -33,6 +33,19 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
     let build_target = "riscv32im-succinct-zkvm-elf";
     if args.docker {
         let image = get_docker_image();
+
+        let docker_check = Command::new("docker")
+            .args(["info"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .context("failed to run docker command")?;
+
+        if !docker_check.success() {
+            eprintln!("Docker is not installed or not running.");
+            exit(1);
+        }
+
         let mut child = Command::new("docker")
             .args([
                 "run",
@@ -77,6 +90,8 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "-C",
             "panic=abort",
         ];
+
+        let cargo_manifest = metadata.workspace_root.join("Cargo.toml");
 
         let result = Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
