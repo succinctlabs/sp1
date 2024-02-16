@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::Syscall,
     syscall::precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
         SyscallContext,
@@ -13,9 +13,8 @@ impl Syscall for ShaCompressChip {
         8 * 4 + 64 * 4 + 8 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        // Read `w_ptr` from register a0.
-        let w_ptr = rt.register_unsafe(Register::X10);
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, _: u32) -> Option<u32> {
+        let w_ptr = arg1;
 
         // Set the clock back to the original value and begin executing the
         // precompile.
