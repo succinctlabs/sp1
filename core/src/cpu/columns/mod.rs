@@ -20,6 +20,7 @@ use std::mem::{size_of, transmute};
 use crate::{
     air::Word,
     memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols},
+    operations::IsEqualWordOperation,
 };
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -57,6 +58,8 @@ pub struct CpuCols<T> {
     /// TODO: Obviously I need to expand it to cover all precompiles and some abstraction like
     /// OpcodeSelectorCols would be nice, but I'm trying to make this work just with Blake3.
     pub is_blake3_compress: T,
+
+    pub is_ecall: IsEqualWordOperation<T>,
 
     /// This is transmuted to MemoryColumns, BranchColumns, JumpColumns, or AUIPCColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],

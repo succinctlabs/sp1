@@ -16,6 +16,7 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
+use crate::operations::IsEqualWordOperation;
 use crate::runtime::SyscallCode;
 use crate::runtime::{AccessPosition, Opcode};
 
@@ -35,19 +36,32 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
         // Each call to the Blake3 precompile leads to 56 rows.
         let is_coprocessor_instruction: AB::Expr =
-            is_alu_instruction + local.is_blake3_compress * AB::F::from_canonical_u32(56);
+            is_alu_instruction + self.precompile_multiplicity::<AB>(local);
 
         {
+            let is_ecall = {
+                IsEqualWordOperation::<AB::F>::eval(
+                    builder,
+                    local.op_a_val().map(|x| x.into()),
+                    Word::<AB::F>::from(Opcode::ECALL as u32).map(|x| x.into()),
+                    local.is_ecall,
+                    local.is_real.into(),
+                );
+                local.is_ecall.is_diff_zero.result
+            };
+
             let blake3_opcode = Word::<AB::F>::from(SyscallCode::BLAKE3_COMPRESS_INNER as u32);
+
+            // TODO: Add all precompiles here.
+            let is_precompile = local.is_blake3_compress;
+
+            builder.when(is_ecall).assert_one(is_precompile);
 
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.is_blake3_compress)
                     .assert_eq(local.op_a_val()[i], blake3_opcode[i]);
             }
-
-            // TODO: I think I should have EqualWordOperation to check if the opcode is ECALL.
-            // TODO: I should do builder.when(is_ecall).assert_one(is_blake3 + ...).
         }
 
         // Clock constraints.
@@ -192,12 +206,13 @@ impl CpuChip {
         opcode_selectors.is_alu.into()
     }
 
-    /// Whether the instruction is a precompile instruction.
-    pub(crate) fn is_precompile_instruction<AB: SP1AirBuilder>(
+    /// Get the multiplicity of the precompile if this instruction is a precompile `ECALL`. 0
+    /// otherwise.
+    pub(crate) fn precompile_multiplicity<AB: SP1AirBuilder>(
         &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+        local: &CpuCols<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.is_precompile.into()
+        local.is_blake3_compress.clone() * AB::F::from_canonical_u32(56)
     }
 
     /// Constraints related to jump operations.
