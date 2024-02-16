@@ -453,6 +453,7 @@ checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 name = "fibonacci-io-script"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "sp1-core",
 ]
 
