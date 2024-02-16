@@ -128,6 +128,27 @@ impl<F: PrimeField32> RiscvAir<F> {
         let program = ProgramChip::default();
         chips.push(RiscvAir::Program(program));
 
+        let sha_extend = ShaExtendChip::default();
+        chips.push(RiscvAir::ShaExtend(sha_extend));
+        let sha_compress = ShaCompressChip::default();
+        chips.push(RiscvAir::ShaCompress(sha_compress));
+        let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
+        chips.push(RiscvAir::Ed25519Add(ed_add_assign));
+        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
+        chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
+        let k256_decompress = K256DecompressChip::default();
+        chips.push(RiscvAir::K256Decompress(k256_decompress));
+        let weierstrass_add_assign =
+            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Add(weierstrass_add_assign));
+        let weierstrass_double_assign =
+            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
+        let keccak_permute = KeccakPermuteChip::new();
+        chips.push(RiscvAir::KeccakP(keccak_permute));
+        let blake3_compress_inner = Blake3CompressInnerChip::new();
+        chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
+
         let add = AddChip::default();
         chips.push(RiscvAir::Add(add));
         let sub = SubChip::default();
@@ -156,27 +177,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::FieldLTU(field_ltu));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
-
-        let sha_extend = ShaExtendChip::default();
-        chips.push(RiscvAir::ShaExtend(sha_extend));
-        let sha_compress = ShaCompressChip::default();
-        chips.push(RiscvAir::ShaCompress(sha_compress));
-        let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
-        chips.push(RiscvAir::Ed25519Add(ed_add_assign));
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
-        chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
-        let k256_decompress = K256DecompressChip::default();
-        chips.push(RiscvAir::K256Decompress(k256_decompress));
-        let weierstrass_add_assign =
-            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Add(weierstrass_add_assign));
-        let weierstrass_double_assign =
-            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
-        let keccak_permute = KeccakPermuteChip::new();
-        chips.push(RiscvAir::KeccakP(keccak_permute));
-        let blake3_compress_inner = Blake3CompressInnerChip::new();
-        chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
 
         chips
     }
