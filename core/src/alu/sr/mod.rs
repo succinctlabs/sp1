@@ -447,7 +447,7 @@ where
         );
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_coprocessor(
             local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
                 + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
             local.a,

@@ -733,7 +733,7 @@ where
                     + local.is_rem * rem
             };
 
-            builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+            builder.receive_coprocessor(opcode, local.a, local.b, local.c, local.is_real);
         }
 
         // A dummy constraint to keep the degree 3.

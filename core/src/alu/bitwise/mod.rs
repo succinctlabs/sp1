@@ -126,7 +126,7 @@ where
         }
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_coprocessor(
             local.is_xor * Opcode::XOR.as_field::<AB::F>()
                 + local.is_or * Opcode::OR.as_field::<AB::F>()
                 + local.is_and * Opcode::AND.as_field::<AB::F>(),

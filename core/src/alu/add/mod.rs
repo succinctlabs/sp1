@@ -96,7 +96,7 @@ where
         );
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_coprocessor(
             Opcode::ADD.as_field::<AB::F>(),
             local.add_operation.value,
             local.b,

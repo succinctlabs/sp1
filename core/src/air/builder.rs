@@ -260,8 +260,8 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
         ));
     }
 
-    /// Receives an ALU operation to be processed.
-    fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
+    /// Receives a coprocessor operation to be processed.
+    fn receive_coprocessor<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,

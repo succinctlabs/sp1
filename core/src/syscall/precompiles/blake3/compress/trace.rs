@@ -9,7 +9,7 @@ use crate::utils::pad_rows;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::air::MachineAir;
+use crate::air::{MachineAir, Word};
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
@@ -64,6 +64,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                     // Memory columns.
                     {
                         cols.message_ptr = F::from_canonical_u32(event.message_ptr);
+                        cols.message_ptr_word = Word::from(event.message_ptr);
                         for i in 0..NUM_MSG_WORDS_PER_CALL {
                             cols.message_reads[i].populate(
                                 event.message_reads[round][operation][i],
@@ -72,6 +73,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                         }
 
                         cols.state_ptr = F::from_canonical_u32(event.state_ptr);
+                        cols.state_ptr_word = Word::from(event.state_ptr);
                         for i in 0..NUM_STATE_WORDS_PER_CALL {
                             cols.state_reads_writes[i].populate(
                                 MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
@@ -114,6 +116,11 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
 
             row
         });
+
+        for row in &mut rows {
+            let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
+            println!("{:?}", cols);
+        }
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

@@ -159,7 +159,7 @@ where
         );
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_coprocessor(
             AB::F::from_canonical_u32(Opcode::SUB as u32),
             local.a,
             local.b,

@@ -7,7 +7,8 @@ use super::{
     Blake3CompressInnerChip, G_INDEX, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
 };
-use crate::air::{SP1AirBuilder, WORD_SIZE};
+use crate::air::{SP1AirBuilder, Word, WORD_SIZE};
+use crate::runtime::{Opcode, SyscallCode};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -32,6 +33,21 @@ where
         self.constrain_memory(builder, local);
 
         self.constraint_g_operation(builder, local);
+        let zero: AB::Expr = AB::F::zero().into();
+        let syscall_code: Word<AB::Expr> = Word([
+            AB::Expr::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER as u32),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ]);
+
+        builder.receive_coprocessor(
+            Opcode::ECALL.as_field::<AB::F>(),
+            syscall_code,
+            local.state_ptr_word,
+            local.message_ptr_word,
+            local.is_real,
+        );
     }
 }
 

@@ -4,6 +4,7 @@ use std::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
 
+use crate::air::Word;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
 
@@ -26,6 +27,14 @@ pub struct Blake3CompressInnerCols<T> {
 
     /// The pointer to the message.
     pub message_ptr: T,
+
+    /// The pointer to the state.
+    /// TODO: I don't think we need both this and `state_ptr`.
+    pub state_ptr_word: Word<T>,
+
+    /// The pointer to the message.
+    /// TODO: I don't think we need both this and `message_ptr`.
+    pub message_ptr_word: Word<T>,
 
     /// Reads and writes a part of the state.
     pub state_reads_writes: [MemoryReadWriteCols<T>; NUM_STATE_WORDS_PER_CALL],
