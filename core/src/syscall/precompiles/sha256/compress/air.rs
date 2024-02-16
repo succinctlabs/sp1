@@ -8,6 +8,7 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
+use crate::runtime::{Opcode, SyscallCode};
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -33,6 +34,22 @@ where
         self.constrain_compression_ops(builder, local);
 
         self.constrain_finalize_ops(builder, local);
+
+        let zero: AB::Expr = AB::F::zero().into();
+        let syscall_code: Word<AB::Expr> = Word([
+            AB::Expr::from_canonical_u32(SyscallCode::SHA_COMPRESS as u32),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ]);
+
+        builder.receive_coprocessor(
+            Opcode::ECALL.as_field::<AB::F>(),
+            syscall_code,
+            local.w_and_h_ptr_word,
+            Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+            local.is_real,
+        );
     }
 }
 

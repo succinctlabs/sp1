@@ -58,6 +58,7 @@ pub struct CpuCols<T> {
     /// TODO: Obviously I need to expand it to cover all precompiles and some abstraction like
     /// OpcodeSelectorCols would be nice, but I'm trying to make this work just with Blake3.
     pub is_blake3_compress: T,
+    pub is_sha_compress: T,
 
     pub is_ecall: IsEqualWordOperation<T>,
 

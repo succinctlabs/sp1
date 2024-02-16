@@ -212,7 +212,8 @@ impl CpuChip {
         &self,
         local: &CpuCols<AB::Var>,
     ) -> AB::Expr {
-        local.is_blake3_compress.clone() * AB::F::from_canonical_u32(56)
+        local.is_blake3_compress * AB::F::from_canonical_u32(56)
+            + local.is_sha_compress * AB::F::from_canonical_u32(80)
     }
 
     /// Constraints related to jump operations.

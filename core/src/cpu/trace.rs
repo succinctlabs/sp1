@@ -112,12 +112,16 @@ impl CpuChip {
             cols.op_c_access.populate(record, &mut new_field_events)
         }
 
-        if event.instruction.opcode == Opcode::ECALL
-            && event.a == SyscallCode::BLAKE3_COMPRESS_INNER as u32
-        {
-            println!("setting is_blake3_compress to 1");
-            // TODO: Obviously, this needs to be done for other precompiles.
-            cols.is_blake3_compress = F::one();
+        if event.instruction.opcode == Opcode::ECALL {
+            if event.a == SyscallCode::BLAKE3_COMPRESS_INNER as u32 {
+                println!("setting is_blake3_compress to 1");
+                // TODO: Obviously, this needs to be done for other precompiles.
+                cols.is_blake3_compress = F::one();
+            }
+            if event.a == SyscallCode::SHA_COMPRESS as u32 {
+                println!("setting is_sha_compress to 1");
+                cols.is_sha_compress = F::one();
+            }
         }
         cols.is_ecall.populate(event.a, Opcode::ECALL as u32);
 
