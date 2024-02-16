@@ -116,6 +116,8 @@ pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>
 ) -> bool {
     let mut final_map = BTreeMap::new();
 
+    let mut total = BabyBear::zero();
+
     for chip in chips.iter() {
         let (_, count) = debug_interactions(chip, segment, interaction_kinds.clone());
 
@@ -125,6 +127,7 @@ pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>
                 .entry(key.clone())
                 .or_insert((SC::Val::zero(), BTreeMap::new()));
             entry.0 += *value;
+            total += *value;
             *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
         }
     }
@@ -157,6 +160,19 @@ pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>
     } else {
         tracing::debug!("Positive values mean sent more than received.");
         tracing::debug!("Negative values mean received more than sent.");
+        if total != BabyBear::zero() {
+            tracing::debug!("Total send-receive discrepancy: {}", babybear_to_int(total));
+            if babybear_to_int(total) > 0 {
+                tracing::debug!("you're sending more than you are receiving");
+            } else {
+                tracing::debug!("you're receiving more than you are sending");
+            }
+        } else {
+            tracing::debug!(
+                "the total number of sends and receives match, but the keys don't match"
+            );
+            tracing::debug!("check the arguments");
+        }
     }
 
     !any_nonzero

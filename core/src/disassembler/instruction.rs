@@ -314,15 +314,13 @@ impl InstructionProcessor for InstructionTranspiler {
     }
 
     fn process_ecall(&mut self) -> Self::InstructionResult {
-        // TODO: I think I need to update this later. I prob should pass X5, X10, X11 and also imm_c
-        // should be false.
         Instruction::new(
             Opcode::ECALL,
-            Register::X10 as u32,
             Register::X5 as u32,
-            0,
+            Register::X10 as u32,
+            Register::X11 as u32,
             false,
-            true,
+            false,
         )
     }
 
