@@ -30,9 +30,7 @@ where
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
-        let is_precompile_instruction: AB::Expr =
-            self.is_precompile_instruction::<AB>(&local.selectors);
-        let is_coprocessor_instruction: AB::Expr = is_alu_instruction + is_precompile_instruction;
+        let is_coprocessor_instruction: AB::Expr = is_alu_instruction + local.is_blake3_compress;
 
         // Clock constraints.
         // TODO: Handle dynamic clock jumps based on precompiles.

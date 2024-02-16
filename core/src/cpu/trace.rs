@@ -115,6 +115,7 @@ impl CpuChip {
         if event.instruction.opcode == Opcode::ECALL
             && event.a == SyscallCode::BLAKE3_COMPRESS_INNER as u32
         {
+            println!("setting is_blake3_compress to 1");
             // TODO: Obviously, this needs to be done for other precompiles.
             cols.is_blake3_compress = F::one();
         }
