@@ -117,7 +117,7 @@ where
         let sorting_key =
             |index: &usize| -> usize { sorted_indices.iter().position(|x| x == index).unwrap() };
 
-        chips.sort_by_key(|chip| sorting_key(&node_map[&chip.name()]));
+        // chips.sort_by_key(|chip| sorting_key(&node_map[&chip.name()]));
 
         Self { config, chips }
     }
