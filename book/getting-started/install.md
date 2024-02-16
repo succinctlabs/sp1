@@ -43,6 +43,7 @@ git clone git@github.com:succinctlabs/sp1.git
 cd sp1
 cd cli
 cargo install --locked --path .
+cd ~
 cargo prove build-toolchain
 ```
 
