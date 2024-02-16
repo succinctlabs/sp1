@@ -35,8 +35,7 @@ where
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
         // Each call to the Blake3 precompile leads to 56 rows.
-        let is_coprocessor_instruction: AB::Expr =
-            is_alu_instruction + self.precompile_multiplicity::<AB>(local);
+        let precompile_multiplicity: AB::Expr = self.precompile_multiplicity::<AB>(local);
 
         {
             let is_ecall = {
@@ -176,7 +175,15 @@ where
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
-            is_coprocessor_instruction,
+            is_alu_instruction,
+        );
+
+        builder.send_precompile(
+            local.instruction.opcode,
+            local.op_a_val(),
+            local.op_b_val(),
+            local.op_c_val(),
+            precompile_multiplicity,
         );
 
         // ECALL instructions.

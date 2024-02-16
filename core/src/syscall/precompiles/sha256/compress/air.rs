@@ -35,19 +35,19 @@ where
 
         self.constrain_finalize_ops(builder, local);
 
-        let zero: AB::Expr = AB::F::zero().into();
-        let syscall_code: Word<AB::Expr> = Word([
-            AB::Expr::from_canonical_u32(SyscallCode::SHA_COMPRESS as u32),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ]);
+        // builder.receive_coprocessor(
+        //     Opcode::ECALL.as_field::<AB::F>(),
+        //     syscall_code,
+        //     local.w_and_h_ptr_word,
+        //     Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+        //     local.is_real,
+        // );
 
-        builder.receive_coprocessor(
+        builder.receive_precompile(
             Opcode::ECALL.as_field::<AB::F>(),
-            syscall_code,
-            local.w_and_h_ptr_word,
-            Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+            AB::Expr::from_canonical_u32(SyscallCode::SHA_COMPRESS as u32),
+            local.w_and_h_ptr,
+            AB::Expr::zero(),
             local.is_real,
         );
     }
