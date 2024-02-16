@@ -62,17 +62,6 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
     Ok(())
 }
 
-#[allow(dead_code)]
-pub(crate) fn locate_project() -> Result<String> {
-    let output = Command::new("cargo")
-        .args(["locate-project", "--message-format", "json"])
-        .output()
-        .unwrap();
-    let json = std::str::from_utf8(&output.stdout).unwrap();
-    let project: serde_json::Value = serde_json::from_str(json).unwrap();
-    Ok(project["root"].as_str().unwrap().to_string())
-}
-
 #[allow(unreachable_code)]
 pub fn get_target() -> &'static str {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]

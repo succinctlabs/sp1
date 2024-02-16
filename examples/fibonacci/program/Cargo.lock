@@ -379,7 +379,6 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1#e8e6c0aab2d83baee91720546bc68b781fa7cdd3"
 dependencies = [
  "anyhow",
  "bincode",
