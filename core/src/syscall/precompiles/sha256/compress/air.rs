@@ -26,7 +26,7 @@ where
         let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
 
-        self.contrain_control_flow_flags(builder, local, next);
+        self.constrain_control_flow_flags(builder, local, next);
 
         self.constrain_memory(builder, local);
 
@@ -37,7 +37,7 @@ where
 }
 
 impl ShaCompressChip {
-    fn contrain_control_flow_flags<AB: SP1AirBuilder>(
+    fn constrain_control_flow_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,

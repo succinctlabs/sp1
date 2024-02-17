@@ -1,4 +1,5 @@
 mod builder;
+mod extension;
 mod interaction;
 mod machine;
 mod polynomial;
