@@ -69,11 +69,11 @@ The output should show
     Compiling fibonacci-script v0.1.0 (/Users/umaroy/Documents/fibonacci/script)
     Finished release [optimized] target(s) in 26.14s
     Running `target/release/fibonacci-script`
-a: 3867074829
-b: 2448710421
+a: 205697230343233228174223751303346572685
+b: 332825110087067562321196029789634457848
 succesfully generated and verified proof for the program!
 ```
 
-The program by default is quite small, so proof generation will only take a few seconds locally. After it completes, the proof will be saved in the `proof-with-pis.json` file and also be verified for correctness.
+The program by default is quite small, so proof generation will only take a few seconds locally. After it completes, the proof will be saved in the `proof-with-io.json` file and also be verified for correctness.
 
-You can play around with how many rounds of Fibonacci are executed by playing around with `n` (by default set to `500`) in the file `script/src/main.rs`.
+You can play around with how many rounds of Fibonacci are executed by playing around with `n` (by default set to `186`) in the file `script/src/main.rs`. Integer overflow will cause larger `n` to result in non-fibonacci output, although the proof will still be generated and verified.

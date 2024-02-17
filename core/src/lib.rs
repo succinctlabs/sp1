@@ -51,8 +51,7 @@ pub struct SP1Verifier;
 /// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize)]
 pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
-    #[serde(serialize_with = "serialize_proof")]
-    #[serde(deserialize_with = "deserialize_proof")]
+    #[serde(with = "proof_serde")]
     pub proof: Proof<SC>,
     pub stdin: SP1Stdin,
     pub stdout: SP1Stdout,
