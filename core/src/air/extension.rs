@@ -33,14 +33,28 @@ impl<V> Extension<V> {
     // Adds an extension field element
     pub fn add<AB: SP1AirBuilder<Var = V>>(self, rhs: &Self) -> Extension<AB::Expr>
     where
-        V: Add<V, Output = AB::Expr>,
+        V: Add<V, Output = AB::Expr> + Copy,
     {
         let mut elements = Vec::new();
 
-        for (e1, e2) in self.0.iter().zip_eq(rhs.0.iter()) {
-            elements.push(*e1 + *e2);
+        for (e1, e2) in self.0.into_iter().zip_eq(rhs.0.into_iter()) {
+            elements.push(e1 + e2);
         }
 
-        Extension(elements.into())
+        Extension(elements.try_into().unwrap())
+    }
+
+    // Multiplies an extension field element
+    pub fn mul<AB: SP1AirBuilder<Var = V>>(self, rhs: &Self) -> Extension<AB::Expr>
+    where
+        V: Mul<V, Output = AB::Expr> + Copy,
+    {
+        let mut elements = Vec::new();
+
+        for (e1, e2) in self.0.into_iter().zip_eq(rhs.0.into_iter()) {
+            elements.push(e1 * e2);
+        }
+
+        Extension(elements.try_into().unwrap())
     }
 }
