@@ -1,0 +1,8 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "merkle-tree-script"
+edition = "2021"
+
+[dependencies]
+sp1-core = { git = "https://github.com/succinctlabs/sp1.git" }
