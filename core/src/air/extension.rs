@@ -5,24 +5,34 @@ use std::{
 
 use core::borrow::{Borrow, BorrowMut};
 use itertools::Itertools;
-use p3_field::AbstractField;
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    field_to_array, AbstractExtensionField, AbstractField, Field,
+};
 use sp1_derive::AlignedBorrow;
 
 use super::SP1AirBuilder;
 
 #[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
-pub struct Extension<T>(pub [T; 4]); // Extension 4 is hard coded for now.  TODO:  Change to a const generic
+pub struct Extension<T>(pub [T; 4]); // Degree 4 is hard coded for now.  TODO:  Change to a const generic
 
 impl<V> Extension<V> {
+    // Returns the one element of the extension field
+    pub fn one<AB: SP1AirBuilder<Var = V>>() -> Extension<AB::Expr>
+    where
+        AB::Expr: AbstractField,
+    {
+        let one = AB::Expr::one();
+        Extension(field_to_array(one))
+    }
+
     // Converts a field element to extension element
     pub fn from<AB: SP1AirBuilder<Var = V>>(x: V) -> Extension<AB::Expr>
     where
         AB::Expr: From<V>,
     {
-        let zero = AB::Expr::zero();
-        let x_expr = x.into();
-        Extension([zero.clone(), zero.clone(), zero, x_expr])
+        Extension(field_to_array(x.into()))
     }
 
     // Negates an extension field Element
@@ -56,5 +66,17 @@ impl<V> Extension<V> {
         }
 
         Extension(elements.try_into().unwrap())
+    }
+}
+
+impl<F> From<BinomialExtensionField<F, 4>> for Extension<F>
+where
+    F: Field,
+    F::F: BinomiallyExtendable<4>,
+{
+    fn from(value: BinomialExtensionField<F, 4>) -> Self {
+        let base_slice = value.as_base_slice();
+
+        Self(base_slice.try_into().unwrap())
     }
 }

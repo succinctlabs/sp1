@@ -8,6 +8,7 @@ mod add;
 mod add4;
 mod add5;
 mod and;
+mod div_extension;
 pub mod field;
 mod fixed_rotate_right;
 mod fixed_shift_right;

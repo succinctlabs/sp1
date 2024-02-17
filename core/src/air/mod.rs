@@ -7,6 +7,7 @@ mod sub_builder;
 mod word;
 
 pub use builder::*;
+pub use extension::*;
 pub use interaction::*;
 pub use machine::*;
 pub use polynomial::*;
