@@ -6,6 +6,8 @@
 
 - [Install](./getting-started/install.md)
 
+- [Install OpenSSL](./getting-started/openssl.md)
+
 - [Quickstart](./getting-started/quickstart.md)
 
 # Writing Programs
