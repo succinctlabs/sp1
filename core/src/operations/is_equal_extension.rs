@@ -36,11 +36,13 @@ impl<F: BinomiallyExtendable<DEGREE>> IsEqualExtOperation<F> {
         b: Extension<AB::Expr>,
         cols: IsEqualExtOperation<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB::F: BinomiallyExtendable<DEGREE>,
+    {
         builder.assert_bool(is_real.clone());
 
         // Calculate differences.
-        let diff = a.sub(b);
+        let diff = a.sub::<AB>(&b);
 
         // Check if the difference is 0.
         IsZeroExtOperation::<AB::F>::eval(builder, diff, cols.is_diff_zero, is_real.clone());
