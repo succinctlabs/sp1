@@ -41,9 +41,8 @@ impl ShaCompressChip {
 pub mod compress_tests {
 
     use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        runtime::{Instruction, Opcode, Program},
+        utils::{run_test, setup_logger},
     };
 
     pub fn sha_compress_program() -> Program {
@@ -65,16 +64,8 @@ pub mod compress_tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
+        setup_logger();
         let program = sha_compress_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let machine = RiscvStark::new(config);
-
-        let (pk, _) = machine.setup(runtime.program.as_ref());
-        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
+        run_test(program).unwrap();
     }
 }

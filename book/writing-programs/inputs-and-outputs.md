@@ -9,7 +9,7 @@ In this section, we cover how you pass inputs and outputs to the zkVM and create
 
 ## Reading Data
 
-For most usecases, use the `sp1_zkvm::io::read::<T>` method:
+For most use cases, use the `sp1_zkvm::io::read::<T>` method:
 
 ```rust,noplayground
 let a = sp1_zkvm::io::read::<u32>();
@@ -17,7 +17,12 @@ let b = sp1_zkvm::io::read::<u64>();
 let c = sp1_zkvm::io::read::<String>();
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to read bytes directly, you can also use `sp1_zkvm::io::read_slice`.
+Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` trait. If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_slice` method.
+
+```rust,noplayground
+let mut my_slice = [0_u8; 32];
+sp1_zkvm::io::read_slice(&mut my_slice);
+```
 
 ## Writing Data
 
@@ -29,7 +34,12 @@ sp1_zkvm::io::write::<u64>(&b);
 sp1_zkvm::io::write::<String>(&c);
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice`.
+Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
+
+```rust,noplayground
+let mut my_slice = [0_u8; 32];
+sp1_zkvm::io::write_slice(&my_slice);
+```
 
 ## Creating Serializable Types
 
@@ -52,5 +62,5 @@ For more complex usecases, refer to the [Serde docs](https://serde.rs/).
 Here is a basic example of using inputs and outputs with more complex types.
 
 ```rust,noplayground
-{{#include ../../programs/demo/io/src/main.rs}}
+{{#include ../../examples/io/program/src/main.rs}}
 ```

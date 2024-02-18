@@ -76,7 +76,7 @@ impl InstallToolchainCmd {
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .run()
         {
-            Ok(_) => println!("Succesfully uninstalled existing toolchain."),
+            Ok(_) => println!("Successfully uninstalled existing toolchain."),
             Err(_) => println!("No existing toolchain to uninstall."),
         }
 

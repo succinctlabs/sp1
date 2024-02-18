@@ -1,7 +1,0 @@
-[package]
-version = "0.1.0"
-name = "ed25519-example"
-edition = "2021"
-
-[dependencies]
-sp1-core = { path = "../../core" }

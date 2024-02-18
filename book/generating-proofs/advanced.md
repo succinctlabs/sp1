@@ -9,7 +9,7 @@ Instead, you should have your script only execute the program with the RISC-V ru
 use sp1_core::{SP1Prover, SP1Stdin, SP1Verifier};
 
 // The ELF file with the RISC-V bytecode of the program from above.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-sp1-zkvm-elf");
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     let mut stdin = SP1Stdin::new(); 
@@ -55,7 +55,7 @@ SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --re
 Otherwise, make sure to include the "neon" feature when importing `sp1-zkvm` in your `Cargo.toml`:
 
 ```toml,noplayground
-sp1-core = { git = "ssh://git@github.com/succinctlabs/sp1.git", features = [ "neon" ] }
+sp1-core = { git = "https://github.com/succinctlabs/sp1.git", features = [ "neon" ] }
 ```
 
 ## Logging and Tracing Information
