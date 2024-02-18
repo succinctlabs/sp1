@@ -29,3 +29,7 @@
 - [Basics](./generating-proofs/basics.md)
 
 - [Advanced](./generating-proofs/advanced.md)
+
+# FAQ
+
+- [Installing OpenSSL](./faq/installing-openssl.md)

@@ -3,8 +3,7 @@
 SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
 build the toolchain and CLI from source.
 
-Make sure you have [Rust](https://www.rust-lang.org/tools/install), OpenSSL 1.1 **and** OpenSSL 3 installed. 
-Go to [this section](./openssl.md) for more details on getting two OpenSSL versions.
+To install SP1, you will need [Rust](https://www.rust-lang.org/tools/install), [OpenSSL 1.1](../faq/installing-openssl.md), and [OpenSSL 3](../faq/installing-openssl.md).
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
