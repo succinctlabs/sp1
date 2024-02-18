@@ -52,7 +52,7 @@ Building the toolchain can take a while, ranging from 30 mins to an hour dependi
 cargo prove install-toolchain
 ```
 
-To verify the installation of the tooolchain, run and make sure you see `succinct`:
+To verify the installation of the toolchain, run and make sure you see `succinct`:
 
 ```bash
 rustup toolchain list
