@@ -13,9 +13,11 @@ use sp1_derive::AlignedBorrow;
 
 use super::SP1AirBuilder;
 
+pub const DEGREE: usize = 4;
+
 #[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
-pub struct Extension<T>(pub [T; 4]); // Degree 4 is hard coded for now.  TODO:  Change to a const generic
+pub struct Extension<T>(pub [T; DEGREE]); // Degree 4 is hard coded for now.  TODO:  Change to a const generic
 
 impl<V> Extension<V> {
     // Returns the one element of the extension field
@@ -66,6 +68,10 @@ impl<V> Extension<V> {
         }
 
         Extension(elements.try_into().unwrap())
+    }
+
+    pub fn as_base_slice(&self) -> &[V] {
+        &self.0
     }
 }
 
