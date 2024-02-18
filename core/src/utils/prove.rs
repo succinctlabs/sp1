@@ -467,6 +467,8 @@ pub(super) mod baby_bear_blake3 {
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearBlake3>")]
     pub struct BabyBearBlake3 {
         perm: Perm,
         pcs: Pcs,
@@ -485,15 +487,6 @@ pub(super) mod baby_bear_blake3 {
     impl From<std::marker::PhantomData<BabyBearBlake3>> for BabyBearBlake3 {
         fn from(_: std::marker::PhantomData<BabyBearBlake3>) -> Self {
             Self::new()
-        }
-    }
-
-    impl<'de> Deserialize<'de> for BabyBearBlake3 {
-        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            Ok(Self::new())
         }
     }
 
