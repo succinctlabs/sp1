@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies]
 sp1-core = { path = "../../../core" }
+rsa = "0.6"
