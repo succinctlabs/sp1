@@ -5,6 +5,7 @@ use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
+use crate::syscall::precompiles::fri_fold::FriFoldChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
@@ -60,6 +61,9 @@ pub enum SyscallCode {
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 112,
 
+    /// Executes fri fold precompile.
+    FRI_FOLD = 113,
+
     WRITE = 999,
 }
 
@@ -80,6 +84,7 @@ impl SyscallCode {
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
+            113 => SyscallCode::FRI_FOLD,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -216,6 +221,10 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     syscall_map.insert(
         SyscallCode::BLAKE3_COMPRESS_INNER,
         Rc::new(Blake3CompressInnerChip::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::BLAKE3_COMPRESS_INNER,
+        Rc::new(FriFoldChip::new()),
     );
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,

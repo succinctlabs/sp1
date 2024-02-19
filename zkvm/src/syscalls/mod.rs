@@ -49,6 +49,7 @@ extern "C" {
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_keccak_permute(state: *mut u64);
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
+    pub fn syscall_fri_fold(input_mem_ptr: *mut u32, output_mem_ptr: *mut u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
@@ -95,6 +96,9 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
+
+/// Executes fri fold operation.
+pub const FRI_FOLD: u32 = 113;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
