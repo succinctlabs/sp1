@@ -70,6 +70,9 @@ pub fn get_target() -> &'static str {
     #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
     return "aarch64-unknown-linux-gnu";
 
+    #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
+    return "x86_64-apple-darwin";
+
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
     return "aarch64-apple-darwin";
 
