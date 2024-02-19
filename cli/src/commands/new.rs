@@ -8,6 +8,7 @@ const PROGRAM_MAIN_RS: &str = include_str!("../assets/program/main.rs");
 const SCRIPT_CARGO_TOML: &str = include_str!("../assets/script/Cargo.toml");
 const SCRIPT_MAIN_RS: &str = include_str!("../assets/script/main.rs");
 const SCRIPT_RUST_TOOLCHAIN: &str = include_str!("../assets/script/rust-toolchain");
+const GIT_IGNORE: &str = include_str!("../assets/.gitignore");
 
 #[derive(Parser)]
 #[command(name = "new", about = "Setup a new project that runs inside the SP1.")]
@@ -43,6 +44,9 @@ impl NewCmd {
         )?;
         fs::write(script_root.join("src").join("main.rs"), SCRIPT_MAIN_RS)?;
         fs::write(script_root.join("rust-toolchain"), SCRIPT_RUST_TOOLCHAIN)?;
+
+        // Add .gitignore file to root.
+        fs::write(root.join(".gitignore"), GIT_IGNORE)?;
 
         println!(
             "    \x1b[1m{}\x1b[0m {} ({})",
