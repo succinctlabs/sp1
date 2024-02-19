@@ -6,7 +6,7 @@ use core::arch::asm;
 /// The result is written to the addresses in the output mem entries.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_fri_fold(input_mem_ptr: *mut u32, output_mem_ptr: *mut u32) {
+pub extern "C" fn syscall_fri_fold(input_mem_ptr: *const u32, output_mem_ptr: *const *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(

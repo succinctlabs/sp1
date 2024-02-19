@@ -222,10 +222,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::BLAKE3_COMPRESS_INNER,
         Rc::new(Blake3CompressInnerChip::new()),
     );
-    syscall_map.insert(
-        SyscallCode::BLAKE3_COMPRESS_INNER,
-        Rc::new(FriFoldChip::new()),
-    );
+    syscall_map.insert(SyscallCode::FRI_FOLD, Rc::new(FriFoldChip::new()));
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),

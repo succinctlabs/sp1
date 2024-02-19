@@ -3,6 +3,8 @@ mod blake3_compress;
 #[cfg(not(feature = "interface"))]
 mod ed25519;
 #[cfg(not(feature = "interface"))]
+mod fri_fold;
+#[cfg(not(feature = "interface"))]
 mod halt;
 #[cfg(not(feature = "interface"))]
 mod io;
@@ -24,6 +26,7 @@ mod unconstrained;
 #[cfg(not(feature = "interface"))]
 mod syscall_def {
     pub use super::ed25519::*;
+    pub use super::fri_fold::*;
     pub use super::halt::*;
     pub use super::io::*;
     pub use super::keccak_permute::*;
