@@ -9,6 +9,7 @@ use tendermint_light_client_verifier::{
     types::{LightBlock, SignedHeader, ValidatorSet},
     ProdVerifier, Verdict, Verifier,
 };
+mod utils;
 
 #[derive(Debug, Deserialize)]
 pub struct CommitResponse {
