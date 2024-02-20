@@ -1,5 +1,6 @@
 mod blake3_compress;
 mod ed25519;
+mod fri_fold;
 mod halt;
 mod io;
 mod keccak_permute;
@@ -11,6 +12,7 @@ mod sys;
 mod unconstrained;
 
 pub use ed25519::*;
+pub use fri_fold::*;
 pub use halt::*;
 pub use io::*;
 pub use keccak_permute::*;
