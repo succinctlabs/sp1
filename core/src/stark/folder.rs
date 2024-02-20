@@ -1,27 +1,27 @@
-use super::StarkGenericConfig;
+use super::{PackedChallenge, PackedVal, StarkGenericConfig};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::AbstractField;
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
-    pub preprocessed: TwoRowMatrixView<'a, SC::PackedVal>,
-    pub main: TwoRowMatrixView<'a, SC::PackedVal>,
-    pub perm: TwoRowMatrixView<'a, SC::PackedChallenge>,
+    pub preprocessed: TwoRowMatrixView<'a, PackedVal<SC>>,
+    pub main: TwoRowMatrixView<'a, PackedVal<SC>>,
+    pub perm: TwoRowMatrixView<'a, PackedChallenge<SC>>,
     pub perm_challenges: &'a [SC::Challenge],
     pub cumulative_sum: SC::Challenge,
-    pub is_first_row: SC::PackedVal,
-    pub is_last_row: SC::PackedVal,
-    pub is_transition: SC::PackedVal,
+    pub is_first_row: PackedVal<SC>,
+    pub is_last_row: PackedVal<SC>,
+    pub is_transition: PackedVal<SC>,
     pub alpha: SC::Challenge,
-    pub accumulator: SC::PackedChallenge,
+    pub accumulator: PackedChallenge<SC>,
 }
 
 impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     type F = SC::Val;
-    type Expr = SC::PackedVal;
-    type Var = SC::PackedVal;
-    type M = TwoRowMatrixView<'a, SC::PackedVal>;
+    type Expr = PackedVal<SC>;
+    type Var = PackedVal<SC>;
+    type M = TwoRowMatrixView<'a, PackedVal<SC>>;
 
     fn main(&self) -> Self::M {
         self.main
@@ -44,8 +44,8 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let x: SC::PackedVal = x.into();
-        self.accumulator *= SC::PackedChallenge::from_f(self.alpha);
+        let x: PackedVal<SC> = x.into();
+        self.accumulator *= PackedChallenge::<SC>::from_f(self.alpha);
         self.accumulator += x;
     }
 }
@@ -53,22 +53,22 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
 impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a, SC> {
     type EF = SC::Challenge;
 
-    type ExprEF = SC::PackedChallenge;
+    type ExprEF = PackedChallenge<SC>;
 
-    type VarEF = SC::PackedChallenge;
+    type VarEF = PackedChallenge<SC>;
 
     fn assert_zero_ext<I>(&mut self, x: I)
     where
         I: Into<Self::ExprEF>,
     {
-        let x: SC::PackedChallenge = x.into();
-        self.accumulator *= SC::PackedChallenge::from_f(self.alpha);
+        let x: PackedChallenge<SC> = x.into();
+        self.accumulator *= PackedChallenge::<SC>::from_f(self.alpha);
         self.accumulator += x;
     }
 }
 
 impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
-    type MP = TwoRowMatrixView<'a, SC::PackedChallenge>;
+    type MP = TwoRowMatrixView<'a, PackedChallenge<SC>>;
 
     fn permutation(&self) -> Self::MP {
         self.perm
@@ -80,10 +80,10 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
 }
 
 impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
-    type Sum = SC::PackedChallenge;
+    type Sum = PackedChallenge<SC>;
 
     fn cumulative_sum(&self) -> Self::Sum {
-        SC::PackedChallenge::from_f(self.cumulative_sum)
+        PackedChallenge::<SC>::from_f(self.cumulative_sum)
     }
 }
 

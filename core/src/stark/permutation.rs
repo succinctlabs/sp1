@@ -2,7 +2,6 @@ use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
-use std::ops::{Add, Mul};
 
 use super::util::batch_multiplicative_inverse_inplace;
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
@@ -143,8 +142,7 @@ pub fn eval_permutation_constraints<F, AB>(
 ) where
     F: Field,
     AB::EF: ExtensionField<F>,
-    AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
-    AB: MultiTableAirBuilder + PairBuilder,
+    AB: MultiTableAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);

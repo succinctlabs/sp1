@@ -1,6 +1,6 @@
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcsWithLde};
-use p3_field::{AbstractExtensionField, ExtensionField, PackedField, TwoAdicField};
+use p3_field::{ExtensionField, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use serde::Serialize;
 
@@ -9,14 +9,8 @@ pub trait StarkGenericConfig {
     /// The field over which trace data is encoded.
     type Val: TwoAdicField;
 
-    /// The packed version of `Val` to accelerate vector-friendly computations.
-    type PackedVal: PackedField<Scalar = Self::Val>;
-
     /// The field from which random challenges are drawn.
     type Challenge: ExtensionField<Self::Val> + TwoAdicField + Serialize;
-
-    /// The packed version of `Challenge` to accelerate vector-friendly computations.
-    type PackedChallenge: AbstractExtensionField<Self::PackedVal, F = Self::Challenge> + Copy;
 
     /// The PCS used to commit to trace polynomials.
     type Pcs: UnivariatePcsWithLde<

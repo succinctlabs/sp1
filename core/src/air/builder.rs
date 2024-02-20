@@ -9,7 +9,7 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
-use p3_uni_stark::check_constraints::DebugConstraintBuilder;
+
 use p3_uni_stark::StarkGenericConfig;
 use std::iter::once;
 
@@ -501,4 +501,5 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder fo
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
-impl<'a, F: Field> EmptyMessageBuilder for DebugConstraintBuilder<'a, F> {}
+
+impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}

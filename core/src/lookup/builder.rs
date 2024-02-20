@@ -249,7 +249,7 @@ mod tests {
                     &[],
                     main.row_mut(0),
                 );
-                print!("{}, ", expr);
+                print!("{:?}, ", expr);
             }
 
             let multiplicity = interaction
@@ -259,7 +259,7 @@ mod tests {
                     main.row_mut(0),
                 );
 
-            println!(", multiplicity: {}", multiplicity);
+            println!(", multiplicity: {:?}", multiplicity);
         }
 
         for interaction in sends {
@@ -269,7 +269,7 @@ mod tests {
                     &[],
                     main.row_mut(0),
                 );
-                print!("{}, ", expr);
+                print!("{:?}, ", expr);
             }
 
             let multiplicity = interaction
@@ -279,7 +279,7 @@ mod tests {
                     main.row_mut(0),
                 );
 
-            println!(", multiplicity: {}", multiplicity);
+            println!(", multiplicity: {:?}", multiplicity);
         }
     }
 }
