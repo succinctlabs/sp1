@@ -5,5 +5,5 @@ name = "regex-program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 regex = "1.10.3"

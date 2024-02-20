@@ -1,12 +1,10 @@
 #![allow(unused_unsafe)]
+use crate::{syscall_read, syscall_write};
 use bincode;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::io::Read;
 use std::io::Write;
-
-use crate::syscalls::syscall_read;
-use crate::syscalls::syscall_write;
 
 const FD_IO: u32 = 3;
 const FD_HINT: u32 = 4;

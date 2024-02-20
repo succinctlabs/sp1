@@ -9,7 +9,7 @@
 #[macro_export]
 macro_rules! unconstrained {
     (  $($block:tt)* ) => {
-        use $crate::syscalls::{syscall_enter_unconstrained, syscall_exit_unconstrained};
+        use $crate::{syscall_enter_unconstrained, syscall_exit_unconstrained};
 
         let continue_unconstrained: bool;
         unsafe {
