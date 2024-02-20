@@ -1,9 +1,5 @@
 use p3_baby_bear::BabyBear;
-use p3_baby_bear::{from_monty, to_monty};
-use p3_field::{
-    extension::BinomialExtensionField, AbstractExtensionField, AbstractField, PrimeField32,
-    TwoAdicField,
-};
+use p3_field::{extension::BinomialExtensionField, AbstractExtensionField};
 
 use crate::{
     runtime::{Register, Syscall},
@@ -34,29 +30,29 @@ impl Syscall for FriFoldChip {
 
         let (input_read_records, input_values) = rt.mr_slice(input_mem_ptr, 14);
 
-        let x = BabyBear::from_value(input_values[0]);
+        let x = BabyBear::from_monty(input_values[0]);
         let alpha = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             input_values[1..5]
                 .iter()
-                .map(|x| BabyBear::from_value(*x))
+                .map(|x| BabyBear::from_monty(*x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
         let z = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             input_values[5..9]
                 .iter()
-                .map(|x| BabyBear::from_value(*x))
+                .map(|x| BabyBear::from_monty(*x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
         let p_at_z = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             input_values[9..13]
                 .iter()
-                .map(|x| BabyBear::from_value(*x))
+                .map(|x| BabyBear::from_monty(*x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
-        let p_at_x = BabyBear::from_value(input_values[13]);
+        let p_at_x = BabyBear::from_monty(input_values[13]);
 
         // Read ro[log_height] and alpha_pow[log_height] address
         let (output_read_records, output_addresses) = rt.mr_slice(output_mem_ptr, 2);
@@ -68,7 +64,7 @@ impl Syscall for FriFoldChip {
         let ro_input = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             ro_values
                 .iter()
-                .map(|&x| BabyBear::from_canonical_u32(from_monty(x)))
+                .map(|&x| BabyBear::from_monty(x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
@@ -77,7 +73,7 @@ impl Syscall for FriFoldChip {
         let alpha_pow_input = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             alpha_values
                 .iter()
-                .map(|&x| BabyBear::from_canonical_u32(from_monty(x)))
+                .map(|&x| BabyBear::from_monty(x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
@@ -94,7 +90,7 @@ impl Syscall for FriFoldChip {
             ro_output
                 .as_base_slice()
                 .iter()
-                .map(|x: &BabyBear| to_monty(x.as_canonical_u32()))
+                .map(|x: &BabyBear| x.as_monty())
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
@@ -103,7 +99,7 @@ impl Syscall for FriFoldChip {
             alpha_pow_output
                 .as_base_slice()
                 .iter()
-                .map(|x: &BabyBear| to_monty(x.as_canonical_u32()))
+                .map(|x: &BabyBear| x.as_monty())
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
