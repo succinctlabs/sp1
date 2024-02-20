@@ -1,12 +1,14 @@
 pub mod heap;
-pub mod precompiles;
 pub mod syscalls;
-
-pub use precompiles::io;
+pub mod io {
+    pub use sp1_zkvm_precompiles::io::*;
+}
+pub mod precompiles {
+    pub use sp1_zkvm_precompiles::*;
+}
 
 extern crate alloc;
 
-#[cfg(not(feature = "interface"))]
 #[macro_export]
 macro_rules! entrypoint {
     ($path:path) => {
@@ -27,7 +29,7 @@ macro_rules! entrypoint {
     };
 }
 
-#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
+#[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
     use getrandom::{register_custom_getrandom, Error};
@@ -81,6 +83,3 @@ mod zkvm {
 
     register_custom_getrandom!(zkvm_getrandom);
 }
-
-#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
-pub use zkvm::*;

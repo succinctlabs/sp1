@@ -5,7 +5,7 @@ name = "ed25519-program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 ed25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek.git", rev = "0b45e00", version = "2.1.0" }
 hex-literal = "0.4.1"
 
