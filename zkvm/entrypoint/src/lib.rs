@@ -1,10 +1,10 @@
 pub mod heap;
 pub mod syscalls;
 pub mod io {
-    pub use sp1_zkvm_precompiles::io::*;
+    pub use sp1_precompiles::io::*;
 }
 pub mod precompiles {
-    pub use sp1_zkvm_precompiles::*;
+    pub use sp1_precompiles::*;
 }
 
 extern crate alloc;
