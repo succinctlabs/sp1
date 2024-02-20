@@ -27,7 +27,7 @@ macro_rules! entrypoint {
     };
 }
 
-#[cfg(not(feature = "interface"))]
+#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
 mod zkvm {
     use crate::syscalls::syscall_halt;
     use getrandom::{register_custom_getrandom, Error};
@@ -82,5 +82,5 @@ mod zkvm {
     register_custom_getrandom!(zkvm_getrandom);
 }
 
-#[cfg(not(feature = "interface"))]
+#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
 pub use zkvm::*;
