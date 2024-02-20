@@ -6,6 +6,7 @@ pub use precompiles::io;
 
 extern crate alloc;
 
+#[cfg(not(feature = "interface"))]
 #[macro_export]
 macro_rules! entrypoint {
     ($path:path) => {
