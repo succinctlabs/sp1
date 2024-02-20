@@ -6,6 +6,7 @@ pub use precompiles::io;
 
 extern crate alloc;
 
+#[cfg(not(feature = "interface"))]
 #[macro_export]
 macro_rules! entrypoint {
     ($path:path) => {
@@ -26,7 +27,7 @@ macro_rules! entrypoint {
     };
 }
 
-#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
+#[cfg(not(feature = "interface"))]
 mod zkvm {
     use crate::syscalls::syscall_halt;
     use getrandom::{register_custom_getrandom, Error};
@@ -81,5 +82,5 @@ mod zkvm {
     register_custom_getrandom!(zkvm_getrandom);
 }
 
-#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
+#[cfg(not(feature = "interface"))]
 pub use zkvm::*;
