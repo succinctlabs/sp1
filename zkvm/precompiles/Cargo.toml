@@ -1,5 +1,5 @@
 [package]
-name = "sp1-zkvm-precompiles"
+name = "sp1-precompiles"
 version = "0.1.0"
 edition = "2021"
 
