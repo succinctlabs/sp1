@@ -5,7 +5,7 @@ name = "tendermint-program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 tendermint = { version = "0.34.0", default-features = false }
