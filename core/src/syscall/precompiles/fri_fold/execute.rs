@@ -2,6 +2,7 @@ use p3_baby_bear::BabyBear;
 use p3_baby_bear::{from_monty, to_monty};
 use p3_field::{
     extension::BinomialExtensionField, AbstractExtensionField, AbstractField, PrimeField32,
+    TwoAdicField,
 };
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
     syscall::precompiles::SyscallContext,
 };
 
-use super::FriFoldChip;
+use super::{FriFoldChip, FriFoldEvent};
 
 impl Syscall for FriFoldChip {
     fn num_extra_cycles(&self) -> u32 {
@@ -28,40 +29,43 @@ impl Syscall for FriFoldChip {
         if output_mem_ptr % 4 != 0 {
             panic!();
         }
+
+        let saved_clk = rt.clk;
+
         let (input_read_records, input_values) = rt.mr_slice(input_mem_ptr, 14);
 
-        let x = BabyBear::from_canonical_u32(input_values[0]);
+        let x = BabyBear::from_value(input_values[0]);
         let alpha = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             input_values[1..5]
                 .iter()
-                .map(|x| BabyBear::from_canonical_u32(*x))
+                .map(|x| BabyBear::from_value(*x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
         let z = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             input_values[5..9]
                 .iter()
-                .map(|x| BabyBear::from_canonical_u32(*x))
+                .map(|x| BabyBear::from_value(*x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
         let p_at_z = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             input_values[9..13]
                 .iter()
-                .map(|x| BabyBear::from_canonical_u32(*x))
+                .map(|x| BabyBear::from_value(*x))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
-        let p_at_x = BabyBear::from_canonical_u32(input_values[13]);
+        let p_at_x = BabyBear::from_value(input_values[13]);
 
         // Read ro[log_height] and alpha_pow[log_height] address
         let (output_read_records, output_addresses) = rt.mr_slice(output_mem_ptr, 2);
-        let ro_address = output_addresses[0];
-        let alpha_pow_address = output_addresses[1];
+        let ro_addr = output_addresses[0];
+        let alpha_pow_addr = output_addresses[1];
 
-        let (ro_read_records, ro_values) = rt.mr_slice(ro_address, 4);
+        let (ro_read_records, ro_values) = rt.mr_slice(ro_addr, 4);
 
-        let mut ro = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
+        let ro_input = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             ro_values
                 .iter()
                 .map(|&x| BabyBear::from_canonical_u32(from_monty(x)))
@@ -69,8 +73,8 @@ impl Syscall for FriFoldChip {
                 .as_slice(),
         );
 
-        let (alpha_read_records, alpha_values) = rt.mr_slice(alpha_pow_address, 4);
-        let mut alpha_pow = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
+        let (alpha_pow_read_records, alpha_values) = rt.mr_slice(alpha_pow_addr, 4);
+        let alpha_pow_input = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
             alpha_values
                 .iter()
                 .map(|&x| BabyBear::from_canonical_u32(from_monty(x)))
@@ -81,20 +85,22 @@ impl Syscall for FriFoldChip {
         rt.clk += 4;
 
         let quotient = (-p_at_z + p_at_x) / (-z + x);
-        ro += alpha_pow * quotient;
-        alpha_pow *= alpha;
+
+        let ro_output = ro_input + (alpha_pow_input * quotient);
+        let alpha_pow_output = alpha_pow_input * alpha;
 
         let ro_write_records = rt.mw_slice(
-            ro_address,
-            ro.as_base_slice()
+            ro_addr,
+            ro_output
+                .as_base_slice()
                 .iter()
                 .map(|x: &BabyBear| to_monty(x.as_canonical_u32()))
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
         let alpha_pow_write_records = rt.mw_slice(
-            alpha_pow_address,
-            alpha_pow
+            alpha_pow_addr,
+            alpha_pow_output
                 .as_base_slice()
                 .iter()
                 .map(|x: &BabyBear| to_monty(x.as_canonical_u32()))
@@ -104,7 +110,32 @@ impl Syscall for FriFoldChip {
 
         rt.clk += 4;
 
-        // TODO. Push the fri fold event.
+        let shard = rt.current_shard();
+
+        // Push the fri fold event.
+        rt.record_mut().fri_fold_events.push(FriFoldEvent {
+            clk: saved_clk,
+            shard,
+            x,
+            alpha,
+            z,
+            p_at_z,
+            p_at_x,
+            ro_input,
+            alpha_pow_input,
+            ro_output,
+            alpha_pow_output,
+            input_read_records,
+            input_mem_ptr,
+            output_read_records,
+            output_mem_ptr,
+            ro_read_records,
+            ro_write_records,
+            ro_addr,
+            alpha_pow_read_records,
+            alpha_pow_write_records,
+            alpha_pow_addr,
+        });
 
         input_mem_ptr
     }

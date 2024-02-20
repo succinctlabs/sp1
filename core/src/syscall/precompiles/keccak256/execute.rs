@@ -96,11 +96,14 @@ impl Syscall for KeccakPermuteChip {
 
         rt.clk += 4;
 
+        let shard = rt.current_shard();
+
         // Push the Keccak permute event.
         rt.record_mut()
             .keccak_permute_events
             .push(KeccakPermuteEvent {
                 clk: saved_clk,
+                shard,
                 pre_state: saved_state.as_slice().try_into().unwrap(),
                 post_state: state.as_slice().try_into().unwrap(),
                 state_read_records: state_read_records.as_slice().try_into().unwrap(),
