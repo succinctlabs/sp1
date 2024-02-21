@@ -37,7 +37,6 @@ where
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
-            println!("i: {}", i);
             builder.constraint_memory_access(
                 local.shard,
                 local.clk,
@@ -98,14 +97,11 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        syscall::precompiles::keccak256,
         utils::{setup_logger, tests::KECCAK256_ELF},
         SP1Prover, SP1Verifier,
     };
 
-    use super::*;
     use crate::SP1Stdin;
-    use num::traits::ToBytes;
     use rand::Rng;
     use rand::SeedableRng;
     use tiny_keccak::Hasher;
