@@ -16,9 +16,9 @@ pub fn setup_tracer() {
         .with_default_directive("log::=off".parse().unwrap())
         .from_env_lossy();
     if tracer_config == "info" {
-        env_filter = env_filter.add_directive("succinct_core=info".parse().unwrap());
+        env_filter = env_filter.add_directive("sp1_core=info".parse().unwrap());
     } else if tracer_config == "debug" {
-        env_filter = env_filter.add_directive("succinct_core=debug".parse().unwrap());
+        env_filter = env_filter.add_directive("sp1_core=debug".parse().unwrap());
     }
     Registry::default()
         .with(env_filter)

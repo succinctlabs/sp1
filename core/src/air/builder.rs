@@ -1,7 +1,7 @@
+use p3_air::PermutationAirBuilder;
 use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
-use super::bool::Bool;
 use super::interaction::AirInteraction;
 use super::word::Word;
 use crate::cpu::columns::InstructionCols;
@@ -9,7 +9,7 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
-use p3_uni_stark::check_constraints::DebugConstraintBuilder;
+
 use p3_uni_stark::StarkGenericConfig;
 use std::iter::once;
 
@@ -52,13 +52,6 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         for (left, right) in left.into_iter().zip(right) {
             self.assert_eq(left, right);
         }
-    }
-}
-
-/// A trait which contains methods related to boolean methods in an AIR.
-pub trait BoolAirBuilder: BaseAirBuilder {
-    fn assert_is_bool<I: Into<Self::Expr>>(&mut self, value: Bool<I>) {
-        self.assert_bool(value.0);
     }
 }
 
@@ -299,15 +292,15 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
-    fn constraint_memory_access<EClk, ESegment, Ea, Eb, EVerify, M>(
+    fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
         &mut self,
-        segment: ESegment,
+        shard: EShard,
         clk: EClk,
         addr: Ea,
         memory_access: &M,
         verify_memory_access: EVerify,
     ) where
-        ESegment: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr> + Clone,
@@ -320,10 +313,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let access = memory_access.access();
 
         //// Check that this memory access occurs after the previous one.
-        // First check if we need to compare between the segment or the clk.
+        // First check if we need to compare between the shard or the clk.
         let use_clk_comparison_expr: Self::Expr = access.use_clk_comparison.clone().into();
-        let current_segment_expr: Self::Expr = segment.into();
-        let prev_segment_expr: Self::Expr = access.prev_segment.clone().into();
+        let current_shard_expr: Self::Expr = shard.into();
+        let prev_shard_expr: Self::Expr = access.prev_shard.clone().into();
         let current_clk_expr: Self::Expr = clk.into();
         let prev_clk_expr: Self::Expr = access.prev_clk.clone().into();
 
@@ -331,15 +324,15 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .assert_bool(use_clk_comparison_expr.clone());
         self.when(verify_memory_access_expr.clone())
             .when(use_clk_comparison_expr.clone())
-            .assert_eq(current_segment_expr.clone(), prev_segment_expr.clone());
+            .assert_eq(current_shard_expr.clone(), prev_shard_expr.clone());
 
         // Verify the previous and current time value that should be used for comparison.
         let one = Self::Expr::one();
         let calculated_prev_time_value = use_clk_comparison_expr.clone() * prev_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * prev_segment_expr.clone();
+            + (one.clone() - use_clk_comparison_expr.clone()) * prev_shard_expr.clone();
         let calculated_current_time_value = use_clk_comparison_expr.clone()
             * current_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * current_segment_expr.clone();
+            + (one.clone() - use_clk_comparison_expr.clone()) * current_shard_expr.clone();
 
         let prev_time_value_expr: Self::Expr = access.prev_time_value.clone().into();
         let current_time_value_expr: Self::Expr = access.current_time_value.clone().into();
@@ -361,12 +354,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
         //// Check the previous and current memory access via a lookup to the memory table.
         let addr_expr = addr.into();
-        let prev_values = once(prev_segment_expr)
+        let prev_values = once(prev_shard_expr)
             .chain(once(prev_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.prev_value().clone().map(Into::into))
             .collect();
-        let current_values = once(current_segment_expr)
+        let current_values = once(current_shard_expr)
             .chain(once(current_clk_expr))
             .chain(once(addr_expr.clone()))
             .chain(memory_access.value().clone().map(Into::into))
@@ -388,15 +381,15 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
-    fn constraint_memory_access_slice<ESegment, Ea, Eb, EVerify, M>(
+    fn constraint_memory_access_slice<EShard, Ea, Eb, EVerify, M>(
         &mut self,
-        segment: ESegment,
+        shard: EShard,
         clk: Self::Expr,
         initial_addr: Ea,
         memory_access_slice: &[M],
         verify_memory_access: EVerify,
     ) where
-        ESegment: Into<Self::Expr> + std::marker::Copy,
+        EShard: Into<Self::Expr> + std::marker::Copy,
         Ea: Into<Self::Expr> + std::marker::Copy,
         Eb: Into<Self::Expr> + std::marker::Copy,
         EVerify: Into<Self::Expr> + std::marker::Copy,
@@ -404,7 +397,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     {
         for i in 0..memory_access_slice.len() {
             self.constraint_memory_access(
-                segment,
+                shard,
                 clk.clone(),
                 initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
                 &memory_access_slice[i],
@@ -469,10 +462,15 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     }
 }
 
+pub trait MultiTableAirBuilder: PermutationAirBuilder {
+    type Sum: Into<Self::ExprEF>;
+
+    fn cumulative_sum(&self) -> Self::Sum;
+}
+
 /// A trait which contains all helper methods for building an AIR.
-pub trait CurtaAirBuilder:
+pub trait SP1AirBuilder:
     BaseAirBuilder
-    + BoolAirBuilder
     + ByteAirBuilder
     + WordAirBuilder
     + AluAirBuilder
@@ -480,16 +478,6 @@ pub trait CurtaAirBuilder:
     + ProgramAirBuilder
 {
 }
-
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BoolAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CurtaAirBuilder for AB {}
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
     fn send(&mut self, message: M) {
@@ -501,10 +489,17 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
     }
 }
 
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
+
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
-
 impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
-
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
 
-impl<'a, F: Field> EmptyMessageBuilder for DebugConstraintBuilder<'a, F> {}
+impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}

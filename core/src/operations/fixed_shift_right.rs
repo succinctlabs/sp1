@@ -1,16 +1,16 @@
 use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
-use valida_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::bytes::utils::shr_carry;
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::Segment;
+use crate::runtime::ExecutionRecord;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute `>>` of a word with a fixed offset R.
@@ -43,7 +43,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(&mut self, segment: &mut Segment, input: u32, rotation: usize) -> u32 {
+    pub fn populate(&mut self, record: &mut ExecutionRecord, input: u32, rotation: usize) -> u32 {
         let input_bytes = input.to_le_bytes().map(F::from_canonical_u8);
         let expected = input >> rotation;
 
@@ -76,11 +76,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
                 b: b as u32,
                 c: c as u32,
             };
-            segment
-                .byte_lookups
-                .entry(byte_event)
-                .and_modify(|j| *j += 1)
-                .or_insert(1);
+            record.add_byte_lookup_event(byte_event);
 
             self.shift[i] = F::from_canonical_u8(shift);
             self.carry[i] = F::from_canonical_u8(carry);
@@ -103,7 +99,7 @@ impl<F: Field> FixedShiftRightOperation<F> {
         expected
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         input: Word<AB::Var>,
         rotation: usize,

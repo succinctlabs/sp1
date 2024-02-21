@@ -27,12 +27,33 @@ impl InstallToolchainCmd {
         let client = Client::builder().user_agent("Mozilla/5.0").build()?;
 
         // Setup variables.
-        let root_dir = home_dir().unwrap().join(".cargo-prove");
-        match fs::remove_dir_all(&root_dir) {
-            Ok(_) => println!("Succesfully removed existing ~/.cargo-prove directory.."),
-            Err(_) => println!("No existing ~/.cargo-prove directory to remove."),
+        let root_dir = home_dir().unwrap().join(".sp1");
+        match fs::read_dir(&root_dir) {
+            Ok(entries) =>
+            {
+                #[allow(clippy::manual_flatten)]
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let entry_path = entry.path();
+                        if entry_path.is_dir() && entry_path.file_name().unwrap() != "bin" {
+                            if let Err(err) = fs::remove_dir_all(&entry_path) {
+                                println!("Failed to remove directory {:?}: {}", entry_path, err);
+                            }
+                        } else if entry_path.is_file() && entry_path.file_name().unwrap() != "bin" {
+                            if let Err(err) = fs::remove_file(&entry_path) {
+                                println!("Failed to remove file {:?}: {}", entry_path, err);
+                            }
+                        }
+                    }
+                }
+            }
+            Err(_) => println!("No existing ~/.sp1 directory to remove."),
         }
-        fs::create_dir_all(&root_dir)?;
+        println!("Succesfully cleaned up ~/.sp1 directory.");
+        match fs::create_dir_all(&root_dir) {
+            Ok(_) => println!("Succesfully created ~/.sp1 directory."),
+            Err(err) => println!("Failed to create ~/.sp1 directory: {}", err),
+        };
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
@@ -55,7 +76,7 @@ impl InstallToolchainCmd {
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .run()
         {
-            Ok(_) => println!("Succesfully uninstalled existing toolchain."),
+            Ok(_) => println!("Successfully uninstalled existing toolchain."),
             Err(_) => println!("No existing toolchain to uninstall."),
         }
 

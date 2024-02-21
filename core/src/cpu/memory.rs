@@ -7,7 +7,7 @@ pub enum MemoryRecordEnum {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct MemoryRecord {
     pub value: u32,
-    pub segment: u32,
+    pub shard: u32,
     pub timestamp: u32,
 }
 
@@ -15,9 +15,9 @@ pub struct MemoryRecord {
 #[non_exhaustive]
 pub struct MemoryReadRecord {
     pub value: u32,
-    pub segment: u32,
+    pub shard: u32,
     pub timestamp: u32,
-    pub prev_segment: u32,
+    pub prev_shard: u32,
     pub prev_timestamp: u32,
 }
 
@@ -25,10 +25,10 @@ pub struct MemoryReadRecord {
 #[non_exhaustive]
 pub struct MemoryWriteRecord {
     pub value: u32,
-    pub segment: u32,
+    pub shard: u32,
     pub timestamp: u32,
     pub prev_value: u32,
-    pub prev_segment: u32,
+    pub prev_shard: u32,
     pub prev_timestamp: u32,
 }
 
@@ -56,19 +56,17 @@ impl From<MemoryWriteRecord> for MemoryRecordEnum {
 impl MemoryReadRecord {
     pub fn new(
         value: u32,
-        segment: u32,
+        shard: u32,
         timestamp: u32,
-        prev_segment: u32,
+        prev_shard: u32,
         prev_timestamp: u32,
     ) -> Self {
-        assert!(
-            segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp))
-        );
+        assert!(shard > prev_shard || ((shard == prev_shard) && (timestamp > prev_timestamp)));
         Self {
             value,
-            segment,
+            shard,
             timestamp,
-            prev_segment,
+            prev_shard,
             prev_timestamp,
         }
     }
@@ -77,21 +75,19 @@ impl MemoryReadRecord {
 impl MemoryWriteRecord {
     pub fn new(
         value: u32,
-        segment: u32,
+        shard: u32,
         timestamp: u32,
         prev_value: u32,
-        prev_segment: u32,
+        prev_shard: u32,
         prev_timestamp: u32,
     ) -> Self {
-        assert!(
-            segment > prev_segment || ((segment == prev_segment) && (timestamp > prev_timestamp)),
-        );
+        assert!(shard > prev_shard || ((shard == prev_shard) && (timestamp > prev_timestamp)),);
         Self {
             value,
-            segment,
+            shard,
             timestamp,
             prev_value,
-            prev_segment,
+            prev_shard,
             prev_timestamp,
         }
     }

@@ -14,8 +14,8 @@ pub use opcode::*;
 
 use core::borrow::{Borrow, BorrowMut};
 use p3_util::indices_arr;
+use sp1_derive::AlignedBorrow;
 use std::mem::{size_of, transmute};
-use valida_derive::AlignedBorrow;
 
 use crate::{
     air::Word,
@@ -32,8 +32,8 @@ pub const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = size_of_opcode_specific_columns(
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CpuCols<T> {
-    /// The current segment.
-    pub segment: T,
+    /// The current shard.
+    pub shard: T,
 
     /// The clock cycle value.
     pub clk: T,

@@ -166,7 +166,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        air::CurtaAirBuilder,
+        air::SP1AirBuilder,
         lookup::{InteractionBuilder, InteractionKind},
     };
 
@@ -203,7 +203,7 @@ mod tests {
         }
     }
 
-    impl<AB: CurtaAirBuilder> Air<AB> for LookupTestAir {
+    impl<AB: SP1AirBuilder> Air<AB> for LookupTestAir {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local = main.row_slice(0);
@@ -249,7 +249,7 @@ mod tests {
                     &[],
                     main.row_mut(0),
                 );
-                print!("{}, ", expr);
+                print!("{:?}, ", expr);
             }
 
             let multiplicity = interaction
@@ -259,7 +259,7 @@ mod tests {
                     main.row_mut(0),
                 );
 
-            println!(", multiplicity: {}", multiplicity);
+            println!(", multiplicity: {:?}", multiplicity);
         }
 
         for interaction in sends {
@@ -269,7 +269,7 @@ mod tests {
                     &[],
                     main.row_mut(0),
                 );
-                print!("{}, ", expr);
+                print!("{:?}, ", expr);
             }
 
             let multiplicity = interaction
@@ -279,7 +279,7 @@ mod tests {
                     main.row_mut(0),
                 );
 
-            println!(", multiplicity: {}", multiplicity);
+            println!(", multiplicity: {:?}", multiplicity);
         }
     }
 }

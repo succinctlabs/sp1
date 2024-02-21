@@ -9,7 +9,7 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
-use crate::air::{CurtaAirBuilder, WordAirBuilder};
+use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
@@ -18,8 +18,9 @@ use crate::runtime::{AccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
+    #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
@@ -31,8 +32,6 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Clock constraints.
-        builder.when_first_row().assert_one(local.clk);
-
         // TODO: Handle dynamic clock jumps based on precompiles.
         // builder
         //     .when_transition()
@@ -51,7 +50,7 @@ where
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
@@ -62,7 +61,7 @@ where
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
@@ -75,7 +74,7 @@ where
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
@@ -92,7 +91,7 @@ where
         let memory_columns: MemoryColumns<AB::Var> =
             *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
         builder.constraint_memory_access(
-            local.segment,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
@@ -161,7 +160,7 @@ where
 
 impl CpuChip {
     /// Whether the instruction is a memory instruction.
-    pub(crate) fn is_alu_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -169,7 +168,7 @@ impl CpuChip {
     }
 
     /// Constraints related to jump operations.
-    pub(crate) fn jump_ops_eval<AB: CurtaAirBuilder>(
+    pub(crate) fn jump_ops_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -194,6 +193,7 @@ impl CpuChip {
 
         // Verify that the word form of next.pc is correct for both jump instructions.
         builder
+            .when_transition()
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
@@ -217,11 +217,7 @@ impl CpuChip {
     }
 
     /// Constraints related to the AUIPC opcode.
-    pub(crate) fn auipc_eval<AB: CurtaAirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-    ) {
+    pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         // Get the auipc specific columns.
         let auipc_columns: AUIPCCols<AB::Var> =
             *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();

@@ -1,0 +1,30 @@
+[book]
+authors = ["SP1 Contributors"]
+language = "en"
+multilingual = false
+src = "book"
+title = "SP1 Book"
+description = "A book on all things Reth"
+
+[output.html]
+theme = "book/theme"
+git-repository-url = "https://github.com/succinctlabs/sp1"
+default-theme = "ayu"
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.playground]
+runnable = false
+
+[build]
+build-dir = "target/book"
+
+[preprocessor.template]
+before = ["links"]
+
+[preprocessor.index]
+
+[preprocessor.links]

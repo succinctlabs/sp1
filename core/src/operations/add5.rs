@@ -2,12 +2,13 @@ use core::borrow::Borrow;
 use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
 use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
-use valida_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
+use crate::runtime::ExecutionRecord;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute the sum of five words.
@@ -39,7 +40,15 @@ pub struct Add5Operation<T> {
 }
 
 impl<F: Field> Add5Operation<F> {
-    pub fn populate(&mut self, a_u32: u32, b_u32: u32, c_u32: u32, d_u32: u32, e_u32: u32) -> u32 {
+    pub fn populate(
+        &mut self,
+        shard: &mut ExecutionRecord,
+        a_u32: u32,
+        b_u32: u32,
+        c_u32: u32,
+        d_u32: u32,
+        e_u32: u32,
+    ) -> u32 {
         let expected = a_u32
             .wrapping_add(b_u32)
             .wrapping_add(c_u32)
@@ -72,16 +81,33 @@ impl<F: Field> Add5Operation<F> {
             debug_assert_eq!(self.value[i], F::from_canonical_u32(res % base));
         }
 
+        // Range check.
+        {
+            shard.add_u8_range_checks(&a);
+            shard.add_u8_range_checks(&b);
+            shard.add_u8_range_checks(&c);
+            shard.add_u8_range_checks(&d);
+            shard.add_u8_range_checks(&e);
+            shard.add_u8_range_checks(&expected.to_le_bytes());
+        }
+
         expected
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         words: &[Word<AB::Var>; 5],
         is_real: AB::Var,
         cols: Add5Operation<AB::Var>,
     ) {
         builder.assert_bool(is_real);
+        // Range check each byte.
+        {
+            words
+                .iter()
+                .for_each(|word| builder.slice_range_check_u8(&word.0, is_real));
+            builder.slice_range_check_u8(&cols.value.0, is_real);
+        }
         let mut builder_is_real = builder.when(is_real);
 
         // Each value in is_carry_{0,1,2,3,4} is 0 or 1, and exactly one of them is 1 per digit.

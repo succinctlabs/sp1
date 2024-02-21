@@ -12,16 +12,16 @@ impl BuildToolchainCmd {
     pub fn run(&self) -> Result<()> {
         // Get enviroment variables.
         let github_access_token = std::env::var("GITHUB_ACCESS_TOKEN");
-        let build_dir = std::env::var("SUCCINCT_BUILD_DIR");
+        let build_dir = std::env::var("SP1_BUILD_DIR");
 
         // Clone our rust fork, if necessary.
         let rust_dir = match build_dir {
             Ok(build_dir) => {
-                println!("Detected SUCCINCT_BUILD_DIR, skipping cloning rust.");
+                println!("Detected SP1_BUILD_DIR, skipping cloning rust.");
                 PathBuf::from(build_dir).join("rust")
             }
             Err(_) => {
-                println!("No SUCCINCT_BUILD_DIR detected, cloning rust.");
+                println!("No SP1_BUILD_DIR detected, cloning rust.");
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
                         println!("Detected GITHUB_ACCESS_TOKEN, using it to clone rust.");
@@ -37,7 +37,7 @@ impl BuildToolchainCmd {
                 };
                 Command::new("git").args(["clone", &repo_url]).run()?;
                 Command::new("git")
-                    .args(["checkout", "rustc-17.0"])
+                    .args(["checkout", "rustc-1.75"])
                     .current_dir("rust")
                     .run()?;
                 Command::new("git")
@@ -122,18 +122,15 @@ impl BuildToolchainCmd {
         let tar_gz_path = format!("rust-toolchain-{}.tar.gz", target);
         Command::new("tar")
             .args([
+                "--exclude",
+                "lib/rustlib/src",
+                "--exclude",
+                "lib/rustlib/rustc-src",
                 "-hczvf",
                 &tar_gz_path,
                 "-C",
                 toolchain_dir.to_str().unwrap(),
                 ".",
-                "--exclude",
-                toolchain_dir.join("lib/rustlib/src").to_str().unwrap(),
-                "--exclude",
-                toolchain_dir
-                    .join("lib/rustlib/rustc-src")
-                    .to_str()
-                    .unwrap(),
             ])
             .run()?;
         println!("Succesfully compressed the toolchain to {}.", tar_gz_path);

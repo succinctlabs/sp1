@@ -1,22 +1,22 @@
-use p3_air::{Air, ExtensionBuilder, PairBuilder, PermutationAirBuilder};
+use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
-use std::ops::{Add, Mul};
-
-use crate::{lookup::Interaction, utils::Chip};
 
 use super::util::batch_multiplicative_inverse_inplace;
+use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
 pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>>(
-    interactions: &[Interaction<F>],
+    sends: &[Interaction<F>],
+    receives: &[Interaction<F>],
     random_element: EF,
 ) -> Vec<EF> {
-    let n = interactions
+    let n = sends
         .iter()
+        .chain(receives.iter())
         .map(|interaction| interaction.argument_index())
         .max()
         .unwrap_or(0)
@@ -29,15 +29,14 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
 /// the chip.
 pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
-    chip: &dyn Chip<F>,
+    sends: &[Interaction<F>],
+    receives: &[Interaction<F>],
+    preprocessed: &Option<RowMajorMatrix<F>>,
     main: &RowMajorMatrix<F>,
     random_elements: &[EF],
 ) -> RowMajorMatrix<EF> {
-    // Get all the interactions related to this chip.
-    let all_interactions = chip.all_interactions();
-
     // Generate the RLC elements to uniquely identify each interaction.
-    let alphas = generate_interaction_rlc_elements(&all_interactions, random_elements[0]);
+    let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0]);
 
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
@@ -53,26 +52,31 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // where f_{i, c_k} is the value at row i for column c_k. The computed value is essentially a
     // fingerprint for the interaction.
     let chunk_rate = 1 << 8;
-    let permutation_trace_width = all_interactions.len() + 1;
+    let permutation_trace_width = sends.len() + receives.len() + 1;
     let mut permutation_trace_values = {
         // Compute the permutation trace values in parallel.
-        let mut parallel = main
-            .par_row_chunks(chunk_rate)
-            .flat_map(|rows_chunk| {
-                rows_chunk
-                    .rows()
-                    .flat_map(|main_row| {
-                        compute_permutation_row(
-                            main_row,
-                            &[],
-                            &all_interactions,
-                            &alphas,
-                            betas.clone(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+
+        let mut parallel = match preprocessed {
+            Some(_) => unimplemented!(),
+            None => main
+                .par_row_chunks(chunk_rate)
+                .flat_map(|main_rows_chunk| {
+                    main_rows_chunk
+                        .rows()
+                        .flat_map(|main_row| {
+                            compute_permutation_row(
+                                main_row,
+                                &[],
+                                sends,
+                                receives,
+                                &alphas,
+                                betas.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>(),
+        };
 
         // Compute the permutation trace values for the remainder.
         let remainder = main.height() % chunk_rate;
@@ -80,7 +84,8 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
             let perm_row = compute_permutation_row(
                 main.row_slice(main.height() - remainder + i),
                 &[],
-                &all_interactions,
+                sends,
+                receives,
                 &alphas,
                 betas.clone(),
             );
@@ -99,8 +104,7 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     // Weight each row of the permutation trace by the respective multiplicities.
     let mut phi = vec![EF::zero(); permutation_trace.height()];
-    let nb_send_iteractions = chip.sends().len();
-
+    let nb_sends = sends.len();
     for (i, (main_row, permutation_row)) in main
         .rows()
         .zip(permutation_trace.as_view_mut().rows_mut())
@@ -109,13 +113,15 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         if i > 0 {
             phi[i] = phi[i - 1];
         }
-        for (j, interaction) in all_interactions.iter().enumerate() {
-            let mult = interaction.multiplicity.apply::<F, F>(&[], main_row);
-            if j < nb_send_iteractions {
-                phi[i] += EF::from_base(mult) * permutation_row[j];
-            } else {
-                phi[i] -= EF::from_base(mult) * permutation_row[j];
-            }
+        // All all sends
+        for (j, send) in sends.iter().enumerate() {
+            let mult = send.multiplicity.apply::<F, F>(&[], main_row);
+            phi[i] += EF::from_base(mult) * permutation_row[j];
+        }
+        // Subtract all receives
+        for (j, rec) in receives.iter().enumerate() {
+            let mult = rec.multiplicity.apply::<F, F>(&[], main_row);
+            phi[i] -= EF::from_base(mult) * permutation_row[nb_sends + j];
         }
         *permutation_row.last_mut().unwrap() = phi[i];
     }
@@ -129,13 +135,14 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 ///     - The running sum column starts at zero.
 ///     - That the RLC per interaction is computed correctly.
 ///     - The running sum column ends at the (currently) given cumalitive sum.
-pub fn eval_permutation_constraints<F, C, AB>(chip: &C, builder: &mut AB, cumulative_sum: AB::EF)
-where
+pub fn eval_permutation_constraints<F, AB>(
+    sends: &[Interaction<F>],
+    receives: &[Interaction<F>],
+    builder: &mut AB,
+) where
     F: Field,
-    C: Chip<F> + Air<AB> + ?Sized,
     AB::EF: ExtensionField<F>,
-    AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
-    AB: PermutationAirBuilder + PairBuilder,
+    AB: MultiTableAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);
@@ -156,17 +163,15 @@ where
     let phi_local = perm_local[perm_width - 1];
     let phi_next = perm_next[perm_width - 1];
 
-    let all_interactions = chip.all_interactions();
-
-    let alphas = generate_interaction_rlc_elements(&all_interactions, alpha);
+    let alphas = generate_interaction_rlc_elements(sends, receives, alpha);
     let betas = beta.powers();
 
     let lhs: AB::ExprEF = phi_next.into() - phi_local.into();
     let mut rhs = AB::ExprEF::zero();
     let mut phi_0 = AB::ExprEF::zero();
 
-    let nb_send_iteractions = chip.sends().len();
-    for (m, interaction) in all_interactions.iter().enumerate() {
+    let nb_sends = sends.len();
+    for (m, interaction) in sends.iter().chain(receives.iter()).enumerate() {
         // Ensure that the recipricals of the RLC's were properly calculated.
         let mut rlc = AB::ExprEF::zero();
         for (field, beta) in interaction.values.iter().zip(betas.clone()) {
@@ -184,7 +189,7 @@ where
             .apply::<AB::Expr, AB::Var>(preprocessed_next, main_next);
 
         // Ensure that the running sum is computed correctly.
-        if m < nb_send_iteractions {
+        if m < nb_sends {
             phi_0 += perm_local[m].into() * mult_local;
             rhs += perm_next[m].into() * mult_next;
         } else {
@@ -198,23 +203,25 @@ where
     builder
         .when_first_row()
         .assert_eq_ext(*perm_local.last().unwrap(), phi_0);
-    builder.when_last_row().assert_eq_ext(
-        *perm_local.last().unwrap(),
-        AB::ExprEF::from_f(cumulative_sum),
-    );
+
+    let cumulative_sum = builder.cumulative_sum();
+    builder
+        .when_last_row()
+        .assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum);
 }
 
 /// Computes the permutation fingerprint of a row.
 pub fn compute_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     main_row: &[F],
     preprocessed_row: &[F],
-    interactions: &[Interaction<F>],
+    sends: &[Interaction<F>],
+    receives: &[Interaction<F>],
     alphas: &[EF],
     betas: Powers<EF>,
 ) -> Vec<EF> {
-    let width = interactions.len() + 1;
+    let width = sends.len() + receives.len() + 1;
     let mut row = vec![EF::zero(); width];
-    for (i, interaction) in interactions.iter().enumerate() {
+    for (i, interaction) in sends.iter().chain(receives.iter()).enumerate() {
         let alpha = alphas[interaction.argument_index()];
         row[i] = alpha;
         for (columns, beta) in interaction.values.iter().zip(betas.clone()) {

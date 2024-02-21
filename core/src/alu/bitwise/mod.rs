@@ -4,12 +4,14 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
+use tracing::instrument;
 
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::MachineAir;
+use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -40,24 +42,19 @@ pub struct BitwiseCols<T> {
     pub is_and: T,
 }
 
-impl<F: PrimeField> Chip<F> for BitwiseChip {
+impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
-        let shards = input
-            .bitwise_events
-            .chunks(NB_ROWS_PER_SHARD)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].bitwise_events = shards[i].to_vec();
-        }
-    }
-
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate bitwise trace", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
+        let rows = input
             .bitwise_events
             .iter()
             .map(|event| {
@@ -83,11 +80,7 @@ impl<F: PrimeField> Chip<F> for BitwiseChip {
                         b: b_b as u32,
                         c: b_c as u32,
                     };
-                    segment
-                        .byte_lookups
-                        .entry(byte_event)
-                        .and_modify(|i| *i += 1)
-                        .or_insert(1);
+                    output.add_byte_lookup_event(byte_event);
                 }
 
                 row
@@ -115,7 +108,7 @@ impl<F> BaseAir<F> for BitwiseChip {
 
 impl<AB> Air<AB> for BitwiseChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -155,37 +148,39 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
+    use crate::air::MachineAir;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use rand::thread_rng;
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
-    use crate::runtime::{Opcode, Segment};
-    use crate::utils::{BabyBearPoseidon2, Chip, StarkUtils};
+    use crate::runtime::{ExecutionRecord, Opcode};
+    use crate::utils::{BabyBearPoseidon2, StarkUtils};
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
-        segment.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        let mut shard = ExecutionRecord::default();
+        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
-        segment.bitwise_events = [
+        let mut shard = ExecutionRecord::default();
+        shard.bitwise_events = [
             AluEvent::new(0, Opcode::XOR, 25, 10, 19),
             AluEvent::new(0, Opcode::OR, 27, 10, 19),
             AluEvent::new(0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

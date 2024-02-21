@@ -1,7 +1,7 @@
-pub mod fp_den;
-pub mod fp_inner_product;
-pub mod fp_op;
-pub mod fp_sqrt;
+pub mod field_den;
+pub mod field_inner_product;
+pub mod field_op;
+pub mod field_sqrt;
 pub mod params;
 pub mod util;
 pub mod util_air;

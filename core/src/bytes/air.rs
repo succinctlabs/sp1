@@ -1,8 +1,8 @@
 use core::borrow::Borrow;
 use core::mem::transmute;
 use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
 use p3_field::Field;
-use p3_field::{AbstractField, ExtensionField};
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 
@@ -10,7 +10,7 @@ use super::columns::ByteCols;
 use super::columns::NUM_BYTE_COLS;
 use super::NUM_BYTE_OPS;
 use super::{ByteChip, ByteOpcode};
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 
 /// Makes the column map for the byte chip.
 const fn make_col_map() -> ByteCols<usize> {
@@ -24,16 +24,13 @@ pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
 /// The multiplicity indices for each byte operation.
 pub(crate) const BYTE_MULT_INDICES: [usize; NUM_BYTE_OPS] = BYTE_COL_MAP.multiplicities;
 
-impl<EF: ExtensionField<F>, F: Field> BaseAir<EF> for ByteChip<F> {
+impl<F: Field> BaseAir<F> for ByteChip {
     fn width(&self) -> usize {
         NUM_BYTE_COLS
     }
 }
 
-impl<AB: CurtaAirBuilder, F: Field> Air<AB> for ByteChip<F>
-where
-    AB::F: ExtensionField<F>,
-{
+impl<AB: SP1AirBuilder> Air<AB> for ByteChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();

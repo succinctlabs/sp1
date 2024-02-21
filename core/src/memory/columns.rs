@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
-use valida_derive::AlignedBorrow;
 
 use crate::air::Word;
 
@@ -32,20 +32,20 @@ pub struct MemoryReadWriteCols<T> {
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
 
-    // The previous segment and timestamp that this memory access is being read from.
-    pub prev_segment: T,
+    // The previous shard and timestamp that this memory access is being read from.
+    pub prev_shard: T,
     pub prev_clk: T,
 
     // The three columns below are helper/materialized columns used to verify that this memory access is
     // after the last one.  Specifically, it verifies that the current clk value > timestsamp (if
-    // this access's segment == prev_access's segment) or that the current segment > segment.
+    // this access's shard == prev_access's shard) or that the current shard > shard.
     // These columns will need to be verified in the air.
 
-    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_segment
+    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_shard
     pub prev_time_value: T,
-    // This will be true if the current segment == prev_access's segment, else false.
+    // This will be true if the current shard == prev_access's shard, else false.
     pub use_clk_comparison: T,
-    // This materialized column is equal to use_clk_comparison ? current_clk : current_segment
+    // This materialized column is equal to use_clk_comparison ? current_clk : current_shard
     pub current_time_value: T,
 }
 

@@ -41,6 +41,31 @@ pub trait WeierstrassParameters: EllipticCurveParameters {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SWCurve<E>(pub E);
 
+impl<E: WeierstrassParameters> WeierstrassParameters for SWCurve<E> {
+    const A: [u16; MAX_NB_LIMBS] = E::A;
+    const B: [u16; MAX_NB_LIMBS] = E::B;
+
+    fn a_int() -> BigUint {
+        E::a_int()
+    }
+
+    fn b_int() -> BigUint {
+        E::b_int()
+    }
+
+    fn generator() -> (BigUint, BigUint) {
+        E::generator()
+    }
+
+    fn nb_scalar_bits() -> usize {
+        E::nb_scalar_bits()
+    }
+
+    fn prime_group_order() -> BigUint {
+        E::prime_group_order()
+    }
+}
+
 impl<E: WeierstrassParameters> EllipticCurveParameters for SWCurve<E> {
     type BaseField = E::BaseField;
 }

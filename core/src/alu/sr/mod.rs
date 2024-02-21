@@ -50,15 +50,17 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
+use tracing::instrument;
 
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::MachineAir;
+use crate::air::{SP1AirBuilder, Word};
 use crate::alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift};
 use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `ShiftRightChip`.
 pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
@@ -120,25 +122,20 @@ pub struct ShiftRightCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for ShiftRightChip {
+impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
     fn name(&self) -> String {
         "ShiftRight".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
-        let shards = input
-            .shift_right_events
-            .chunks(NB_ROWS_PER_SHARD)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].shift_right_events = shards[i].to_vec();
-        }
-    }
-
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate sr trace", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_SHIFT_RIGHT_COLS]> = Vec::new();
-        let sr_events = segment.shift_right_events.clone();
+        let sr_events = input.shift_right_events.clone();
         for event in sr_events.iter() {
             assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
             let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
@@ -162,7 +159,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
 
                 // Insert the MSB lookup event.
                 let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
-                segment.add_byte_lookup_events(vec![ByteLookupEvent {
+                output.add_byte_lookup_events(vec![ByteLookupEvent {
                     opcode: ByteOpcode::MSB,
                     a1: ((most_significant_byte >> 7) & 1) as u32,
                     a2: 0,
@@ -217,11 +214,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                         b: byte_shift_result[i] as u32,
                         c: num_bits_to_shift as u32,
                     };
-                    segment
-                        .byte_lookups
-                        .entry(byte_event)
-                        .and_modify(|j| *j += 1)
-                        .or_insert(1);
+                    output.add_byte_lookup_event(byte_event);
 
                     shr_carry_output_carry[i] = carry;
                     shr_carry_output_shifted_byte[i] = shift;
@@ -237,10 +230,10 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                segment.add_u8_range_checks(&byte_shift_result);
-                segment.add_u8_range_checks(&bit_shift_result);
-                segment.add_u8_range_checks(&shr_carry_output_carry);
-                segment.add_u8_range_checks(&shr_carry_output_shifted_byte);
+                output.add_u8_range_checks(&byte_shift_result);
+                output.add_u8_range_checks(&bit_shift_result);
+                output.add_u8_range_checks(&shr_carry_output_carry);
+                output.add_u8_range_checks(&shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
@@ -267,7 +260,7 @@ impl<F: PrimeField> Chip<F> for ShiftRightChip {
             row
         };
         debug_assert!(padded_row_template.len() == NUM_SHIFT_RIGHT_COLS);
-        for i in segment.shift_right_events.len() * NUM_SHIFT_RIGHT_COLS..trace.values.len() {
+        for i in input.shift_right_events.len() * NUM_SHIFT_RIGHT_COLS..trace.values.len() {
             trace.values[i] = padded_row_template[i % NUM_SHIFT_RIGHT_COLS];
         }
 
@@ -283,7 +276,7 @@ impl<F> BaseAir<F> for ShiftRightChip {
 
 impl<AB> Air<AB> for ShiftRightChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -467,31 +460,34 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        air::MachineAir,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
 
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        runtime::{ExecutionRecord, Opcode},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     use super::ShiftRightChip;
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
-        segment.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
+        let mut shard = ExecutionRecord::default();
+        shard.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
         let chip = ShiftRightChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
         let shifts = vec![
@@ -535,10 +531,11 @@ mod tests {
         for t in shifts.iter() {
             shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
-        let mut segment = Segment::default();
-        segment.shift_right_events = shift_events;
+        let mut shard = ExecutionRecord::default();
+        shard.shift_right_events = shift_events;
         let chip = ShiftRightChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

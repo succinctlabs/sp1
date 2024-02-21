@@ -4,13 +4,14 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_derive::AlignedBorrow;
+use tracing::instrument;
 
-use crate::air::{CurtaAirBuilder, Word};
-use valida_derive::AlignedBorrow;
-
+use crate::air::MachineAir;
+use crate::air::{SP1AirBuilder, Word};
 use crate::operations::AddOperation;
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_ADD_COLS: usize = size_of::<AddCols<u8>>();
@@ -36,29 +37,24 @@ pub struct AddCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for AddChip {
+impl<F: PrimeField> MachineAir<F> for AddChip {
     fn name(&self) -> String {
         "Add".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
-        let shards = input
-            .add_events
-            .chunks(NB_ROWS_PER_SHARD)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].add_events = shards[i].to_vec();
-        }
-    }
-
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate add trace", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
-        for i in 0..segment.add_events.len() {
+        for i in 0..input.add_events.len() {
             let mut row = [F::zero(); NUM_ADD_COLS];
             let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
-            let event = segment.add_events[i];
-            cols.add_operation.populate(segment, event.b, event.c);
+            let event = input.add_events[i];
+            cols.add_operation.populate(output, event.b, event.c);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
             cols.is_real = F::one();
@@ -84,7 +80,7 @@ impl<F> BaseAir<F> for AddChip {
 
 impl<AB> Air<AB> for AddChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -120,42 +116,47 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        air::MachineAir,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use rand::{thread_rng, Rng};
 
     use super::AddChip;
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        runtime::{ExecutionRecord, Opcode},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
-        segment.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        let mut shard = ExecutionRecord::default();
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut shard = ExecutionRecord::default();
         for _ in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
-            segment
+            shard
                 .add_events
                 .push(AluEvent::new(0, Opcode::ADD, result, operand_1, operand_2));
         }
 
         let chip = AddChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

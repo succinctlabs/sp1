@@ -5,13 +5,14 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use p3_maybe_rayon::prelude::*;
 
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
+use tracing::instrument;
 
-use crate::air::{CurtaAirBuilder, Word};
-use crate::runtime::{Opcode, Segment};
-use crate::utils::{pad_to_power_of_two, Chip, NB_ROWS_PER_SHARD};
+use crate::air::MachineAir;
+use crate::air::{SP1AirBuilder, Word};
+use crate::runtime::{ExecutionRecord, Opcode};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `SubChip`.
 pub const NUM_SUB_COLS: usize = size_of::<SubCols<u8>>();
@@ -39,56 +40,55 @@ pub struct SubCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for SubChip {
+impl<F: PrimeField> MachineAir<F> for SubChip {
     fn name(&self) -> String {
         "Sub".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
-        let shards = input
-            .sub_events
-            .chunks(NB_ROWS_PER_SHARD)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].sub_events = shards[i].to_vec();
-        }
-    }
-
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate sub trace", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
-            .sub_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_SUB_COLS];
-                let cols: &mut SubCols<F> = row.as_mut_slice().borrow_mut();
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+        let mut rows: Vec<[F; NUM_SUB_COLS]> = vec![];
+        for event in input.sub_events.iter() {
+            let mut row = [F::zero(); NUM_SUB_COLS];
+            let cols: &mut SubCols<F> = row.as_mut_slice().borrow_mut();
+            let a = event.a.to_le_bytes();
+            let b = event.b.to_le_bytes();
+            let c = event.c.to_le_bytes();
 
-                let mut carry = [0u8, 0u8, 0u8];
-                if b[0] < c[0] {
-                    carry[0] = 1;
-                    cols.carry[0] = F::one();
-                }
+            let mut carry = [0u8, 0u8, 0u8];
+            if b[0] < c[0] {
+                carry[0] = 1;
+                cols.carry[0] = F::one();
+            }
 
-                if (b[1] as u16) < c[1] as u16 + carry[0] as u16 {
-                    carry[1] = 1;
-                    cols.carry[1] = F::one();
-                }
+            if (b[1] as u16) < c[1] as u16 + carry[0] as u16 {
+                carry[1] = 1;
+                cols.carry[1] = F::one();
+            }
 
-                if (b[2] as u16) < c[2] as u16 + carry[1] as u16 {
-                    carry[2] = 1;
-                    cols.carry[2] = F::one();
-                }
+            if (b[2] as u16) < c[2] as u16 + carry[1] as u16 {
+                carry[2] = 1;
+                cols.carry[2] = F::one();
+            }
 
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
-                cols.is_real = F::one();
-                row
-            })
-            .collect::<Vec<_>>();
+            cols.a = Word(a.map(F::from_canonical_u8));
+            cols.b = Word(b.map(F::from_canonical_u8));
+            cols.c = Word(c.map(F::from_canonical_u8));
+            cols.is_real = F::one();
+
+            // Range check
+            {
+                output.add_u8_range_checks(&a);
+                output.add_u8_range_checks(&b);
+                output.add_u8_range_checks(&c);
+            }
+            rows.push(row);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -109,7 +109,7 @@ impl<F> BaseAir<F> for SubChip {
 
 impl<AB> Air<AB> for SubChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -146,6 +146,13 @@ where
         builder.assert_bool(local.carry[1]);
         builder.assert_bool(local.carry[2]);
 
+        // Range check.
+        {
+            builder.slice_range_check_u8(&local.a.0, local.is_real);
+            builder.slice_range_check_u8(&local.b.0, local.is_real);
+            builder.slice_range_check_u8(&local.c.0, local.is_real);
+        }
+
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
@@ -165,7 +172,10 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        air::MachineAir,
+        utils::{uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
@@ -173,37 +183,39 @@ mod tests {
     use super::SubChip;
     use crate::{
         alu::AluEvent,
-        runtime::{Opcode, Segment},
-        utils::{BabyBearPoseidon2, Chip, StarkUtils},
+        runtime::{ExecutionRecord, Opcode},
+        utils::{BabyBearPoseidon2, StarkUtils},
     };
 
     #[test]
     fn generate_trace() {
-        let mut segment = Segment::default();
-        segment.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
+        let mut shard = ExecutionRecord::default();
+        shard.sub_events = vec![AluEvent::new(0, Opcode::SUB, 14, 8, 6)];
         let chip = SubChip {};
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new(&mut thread_rng());
+        let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut segment = Segment::default();
+        let mut shard = ExecutionRecord::default();
 
         for _i in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
 
-            segment
+            shard
                 .sub_events
                 .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
         }
         let chip = SubChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut segment);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

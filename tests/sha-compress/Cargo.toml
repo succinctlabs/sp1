@@ -1,0 +1,8 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "sha-compress-test"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }

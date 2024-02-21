@@ -1,112 +1,167 @@
-#[cfg(not(feature = "perf"))]
-use crate::stark::debug_constraints;
-
+use super::ProvingKey;
+use super::{quotient_values, RiscvStark};
 use itertools::izip;
-
-use super::folder::ProverConstraintFolder;
-use super::permutation::eval_permutation_constraints;
-use super::util::decompose_and_flatten;
-use super::zerofier_coset::ZerofierOnCoset;
-use super::{types::*, StarkConfig};
-use crate::runtime::Segment;
-use crate::stark::permutation::generate_permutation_trace;
-use crate::utils::AirChip;
-use p3_air::TwoRowMatrixView;
+#[cfg(not(feature = "perf"))]
+use p3_air::BaseAir;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field};
-use p3_field::{ExtensionField, PackedField, PrimeField};
+use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{ExtensionField, PrimeField};
 use p3_field::{PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRows;
-use p3_matrix::{Matrix, MatrixGet, MatrixRowSlices};
+use p3_matrix::{Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::cmp::max;
 use std::marker::PhantomData;
 
-pub trait Prover<SC>
-where
-    SC: StarkConfig,
-{
-    fn generate_segment_traces<F, EF>(
-        config: &SC,
-        segments: &mut Vec<Segment>,
-        chips: &[Box<dyn AirChip<SC>>],
-    ) -> (
-        Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
-    )
-    where
-        F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned;
+use super::util::decompose_and_flatten;
+use super::{types::*, ChipRef, StarkGenericConfig};
+use crate::air::MachineAir;
+use crate::runtime::ExecutionRecord;
+use crate::stark::permutation::generate_permutation_trace;
+use crate::utils::env;
 
+#[cfg(not(feature = "perf"))]
+use crate::stark::debug_constraints;
+
+pub trait Prover<SC: StarkGenericConfig> {
+    fn prove_shards(
+        machine: &RiscvStark<SC>,
+        pk: &ProvingKey<SC>,
+        shards: &[ExecutionRecord],
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC>;
+}
+
+impl<SC> Prover<SC> for LocalProver<SC>
+where
+    SC::Val: PrimeField32 + TwoAdicField + Send + Sync,
+    SC: StarkGenericConfig + Send + Sync,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    PcsProof<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
+    fn prove_shards(
+        machine: &RiscvStark<SC>,
+        pk: &ProvingKey<SC>,
+        shards: &[ExecutionRecord],
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC> {
+        tracing::info!("Generating and commiting traces for each shard.");
+        // Generate and commit the traces for each segment.
+        let (shard_commits, shard_data) = Self::commit_shards(machine, shards);
+
+        // Observe the challenges for each segment.
+        tracing::info_span!("observing all challenges").in_scope(|| {
+            shard_commits.into_iter().for_each(|commitment| {
+                challenger.observe(commitment);
+            });
+        });
+
+        // Generate a proof for each segment. Note that we clone the challenger so we can observe
+        // identical global challenges across the segments.
+        let config = machine.config();
+        let shard_proofs = shard_data
+            .into_par_iter()
+            .zip(shards.par_iter())
+            .map(|(data, shard)| {
+                let data = tracing::info_span!("materializing data")
+                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
+                let chips = machine.shard_chips(shard);
+                tracing::info_span!("proving shard").in_scope(|| {
+                    Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Proof { shard_proofs }
+    }
+}
+
+pub struct LocalProver<SC>(PhantomData<SC>);
+
+impl<SC> LocalProver<SC>
+where
+    SC::Val: PrimeField + TwoAdicField + PrimeField32,
+    SC: StarkGenericConfig + Send + Sync,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
     fn commit_main(
         config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
-        segment: &mut Segment,
-    ) -> MainData<SC>
+        machine: &RiscvStark<SC>,
+        shard: &ExecutionRecord,
+        index: usize,
+    ) -> ShardMainData<SC>
     where
         SC::Val: PrimeField32,
     {
+        // Filter the chips based on what is used.
+        let filtered_chips = machine.shard_chips(shard);
+
         // For each chip, generate the trace.
-        let traces = chips
-            .iter()
-            .map(|chip| chip.generate_trace(&mut segment.clone()))
+        let traces = filtered_chips
+            .par_iter()
+            .map(|chip| chip.generate_trace(shard, &mut ExecutionRecord::default()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
         let (main_commit, main_data) = config.pcs().commit_batches(traces.to_vec());
-        println!("finished commit main for segment {}", segment.index);
 
-        MainData {
+        // Get the filtered chip ids.
+        let chip_ids = filtered_chips
+            .iter()
+            .map(|chip| chip.name())
+            .collect::<Vec<_>>();
+
+        ShardMainData {
             traces,
             main_commit,
             main_data,
+            chip_ids,
+            index,
         }
     }
 
-    /// Prove the program for the given segment and given a commitment to the main data.
-    fn prove(
+    /// Prove the program for the given shard and given a commitment to the main data.
+    fn prove_shard(
         config: &SC,
+        _pk: &ProvingKey<SC>,
+        chips: &[ChipRef<SC>],
+        shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
-        chips: &[Box<dyn AirChip<SC>>],
-        wrapped_main_data: MainDataWrapper<SC>,
-    ) -> SegmentProof<SC>
+    ) -> ShardProof<SC>
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
-        MainData<SC>: DeserializeOwned,
+        ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let main_data = wrapped_main_data
-            .materialize()
-            .expect("failed to load segment main data");
-        let traces = main_data.traces;
+        let traces = shard_data.traces;
 
-        // For each trace, compute the degree.
-        let degrees = traces
+        let log_degrees = traces
             .iter()
-            .map(|trace| trace.height())
+            .map(|trace| log2_strict_usize(trace.height()))
             .collect::<Vec<_>>();
-        let log_degrees = degrees
-            .iter()
-            .map(|d| log2_strict_usize(*d))
-            .collect::<Vec<_>>();
+        // TODO: read dynamically from Chip.
         let max_constraint_degree = 3;
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
         let g_subgroups = log_degrees
             .iter()
             .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
             .collect::<Vec<_>>();
+
+        // Compute the interactions for all chips
+        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
+        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
 
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
@@ -117,15 +172,21 @@ where
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::debug_span!("generate permutation traces").in_scope(|| {
-            chips
+        tracing::info_span!("generate permutation traces").in_scope(|| {
+            sends
                 .par_iter()
+                .zip(receives.par_iter())
                 .zip(traces.par_iter())
-                .map(|(chip, trace)| {
-                    let perm_trace =
-                        generate_permutation_trace(chip.as_chip(), trace, &permutation_challenges);
+                .map(|((send, rec), main_trace)| {
+                    let perm_trace = generate_permutation_trace(
+                        send,
+                        rec,
+                        &None,
+                        main_trace,
+                        &permutation_challenges,
+                    );
                     let cumulative_sum = perm_trace
-                        .row_slice(trace.height() - 1)
+                        .row_slice(main_trace.height() - 1)
                         .last()
                         .copied()
                         .unwrap();
@@ -151,7 +212,7 @@ where
         }
 
         // Commit to the permutation traces.
-        let flattened_permutation_traces = tracing::debug_span!("flatten permutation traces")
+        let flattened_permutation_traces = tracing::info_span!("flatten permutation traces")
             .in_scope(|| {
                 permutation_traces
                     .par_iter()
@@ -159,21 +220,21 @@ where
                     .collect::<Vec<_>>()
             });
         let (permutation_commit, permutation_data) =
-            tracing::debug_span!("commit permutation traces")
+            tracing::info_span!("commit permutation traces")
                 .in_scope(|| config.pcs().commit_batches(flattened_permutation_traces));
         challenger.observe(permutation_commit.clone());
 
         // For each chip, compute the quotient polynomial.
         let log_stride_for_quotient = config.pcs().log_blowup() - log_quotient_degree;
-        let main_ldes = tracing::debug_span!("get main ldes").in_scope(|| {
+        let main_ldes = tracing::info_span!("get main ldes").in_scope(|| {
             config
                 .pcs()
-                .get_ldes(&main_data.main_data)
+                .get_ldes(&shard_data.main_data)
                 .into_iter()
                 .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
                 .collect::<Vec<_>>()
         });
-        let permutation_ldes = tracing::debug_span!("get perm ldes").in_scope(|| {
+        let permutation_ldes = tracing::info_span!("get perm ldes").in_scope(|| {
             config
                 .pcs()
                 .get_ldes(&permutation_data)
@@ -184,16 +245,15 @@ where
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
-        let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
+        let quotient_values = tracing::info_span!("compute quotient values").in_scope(|| {
             (0..chips.len())
                 .into_par_iter()
                 .map(|i| {
-                    Self::quotient_values(
+                    quotient_values(
                         config,
-                        &*chips[i],
+                        &chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
-                        log_quotient_degree,
                         &main_ldes[i],
                         &permutation_ldes[i],
                         &permutation_challenges,
@@ -204,7 +264,7 @@ where
         });
 
         // Compute the quotient chunks.
-        let quotient_chunks = tracing::debug_span!("decompose and flatten").in_scope(|| {
+        let quotient_chunks = tracing::info_span!("decompose and flatten").in_scope(|| {
             quotient_values
                 .into_iter()
                 .map(|values| {
@@ -225,14 +285,14 @@ where
         }
 
         let num_quotient_chunks = quotient_chunks.len();
-        let coset_shifts = tracing::debug_span!("coset shift").in_scope(|| {
+        let coset_shifts = tracing::info_span!("coset shift").in_scope(|| {
             let shift = config
                 .pcs()
                 .coset_shift()
                 .exp_power_of_2(log_quotient_degree);
             vec![shift; chips.len()]
         });
-        let (quotient_commit, quotient_data) = tracing::debug_span!("commit shifted batches")
+        let (quotient_commit, quotient_data) = tracing::info_span!("commit shifted batches")
             .in_scope(|| {
                 config
                     .pcs()
@@ -246,7 +306,7 @@ where
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
         let trace_opening_points =
-            tracing::debug_span!("compute trace opening points").in_scope(|| {
+            tracing::info_span!("compute trace opening points").in_scope(|| {
                 g_subgroups
                     .iter()
                     .map(|g| vec![zeta, zeta * *g])
@@ -258,51 +318,16 @@ where
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
-        let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
+        let (openings, opening_proof) = tracing::info_span!("open multi batches").in_scope(|| {
             config.pcs().open_multi_batches(
                 &[
-                    (&main_data.main_data, &trace_opening_points),
+                    (&shard_data.main_data, &trace_opening_points),
                     (&permutation_data, &trace_opening_points),
                     (&quotient_data, &quotient_opening_points),
                 ],
                 challenger,
             )
         });
-
-        // Checking the shapes of openings match our expectations.
-        //
-        // This is a sanity check to make sure we are using the API correctly. We should remove this
-        // once everything is stable.
-
-        #[cfg(not(feature = "perf"))]
-        {
-            // Check for the correct number of opening collections.
-            assert_eq!(openings.len(), 3);
-
-            // Check the shape of the main trace openings.
-            assert_eq!(openings[0].len(), chips.len());
-            for (chip, opening) in chips.iter().zip(openings[0].iter()) {
-                let width = chip.air_width();
-                assert_eq!(opening.len(), 2);
-                assert_eq!(opening[0].len(), width);
-                assert_eq!(opening[1].len(), width);
-            }
-            // Check the shape of the permutation trace openings.
-            assert_eq!(openings[1].len(), chips.len());
-            for (perm, opening) in permutation_traces.iter().zip(openings[1].iter()) {
-                let width = perm.width() * SC::Challenge::D;
-                assert_eq!(opening.len(), 2);
-                assert_eq!(opening[0].len(), width);
-                assert_eq!(opening[1].len(), width);
-            }
-            // Check the shape of the quotient openings.
-            assert_eq!(openings[2].len(), chips.len());
-            for opening in openings[2].iter() {
-                let width = SC::Challenge::D << log_quotient_degree;
-                assert_eq!(opening.len(), 1);
-                assert_eq!(opening[0].len(), width);
-            }
-        }
 
         #[cfg(feature = "perf")]
         {
@@ -349,16 +374,18 @@ where
             )
             .collect::<Vec<_>>();
 
-            SegmentProof::<SC> {
-                commitment: SegmentCommitment {
-                    main_commit: main_data.main_commit.clone(),
+            ShardProof::<SC> {
+                index: shard_data.index,
+                commitment: ShardCommitment {
+                    main_commit: shard_data.main_commit.clone(),
                     permutation_commit,
                     quotient_commit,
                 },
-                opened_values: SegmentOpenedValues {
+                opened_values: ShardOpenedValues {
                     chips: opened_values,
                 },
                 opening_proof,
+                chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
             }
         }
 
@@ -367,7 +394,8 @@ where
         tracing::info_span!("debug constraints").in_scope(|| {
             for i in 0..chips.len() {
                 debug_constraints(
-                    &*chips[i],
+                    &chips[i],
+                    None,
                     &traces[i],
                     &permutation_traces[i],
                     &permutation_challenges,
@@ -376,203 +404,54 @@ where
         });
 
         #[cfg(not(feature = "perf"))]
-        return SegmentProof {
-            main_commit: main_data.main_commit.clone(),
+        return ShardProof {
+            main_commit: shard_data.main_commit.clone(),
             traces,
             permutation_traces,
+            chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
         };
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn quotient_values<C, MainLde, PermLde>(
-        config: &SC,
-        chip: &C,
-        cumulative_sum: SC::Challenge,
-        degree_bits: usize,
-        quotient_degree_bits: usize,
-        main_lde: &MainLde,
-        permutation_lde: &PermLde,
-        perm_challenges: &[SC::Challenge],
-        alpha: SC::Challenge,
-    ) -> Vec<SC::Challenge>
-    where
-        SC: StarkConfig,
-        C: AirChip<SC> + ?Sized,
-        MainLde: MatrixGet<SC::Val> + Sync,
-        PermLde: MatrixGet<SC::Val> + Sync,
-    {
-        let degree = 1 << degree_bits;
-        let quotient_size_bits = degree_bits + quotient_degree_bits;
-        let quotient_size = 1 << quotient_size_bits;
-        let g_subgroup = SC::Val::two_adic_generator(degree_bits);
-        let g_extended = SC::Val::two_adic_generator(quotient_size_bits);
-        let subgroup_last = g_subgroup.inverse();
-        let coset_shift = config.pcs().coset_shift();
-        let next_step = 1 << quotient_degree_bits;
-
-        let coset: Vec<_> =
-            cyclic_subgroup_coset_known_order(g_extended, coset_shift, quotient_size).collect();
-
-        let zerofier_on_coset =
-            ZerofierOnCoset::new(degree_bits, quotient_degree_bits, coset_shift);
-
-        // Evaluations of L_first(x) = Z_H(x) / (x - 1) on our coset s H.
-        let lagrange_first_evals = zerofier_on_coset.lagrange_basis_unnormalized(0);
-        let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
-
-        let ext_degree = SC::Challenge::D;
-
-        (0..quotient_size)
-            .into_par_iter()
-            .step_by(SC::PackedVal::WIDTH)
-            .flat_map_iter(|i_local_start| {
-                let wrap = |i| i % quotient_size;
-                let i_next_start = wrap(i_local_start + next_step);
-                let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
-
-                let x = *SC::PackedVal::from_slice(&coset[i_range.clone()]);
-                let is_transition = x - subgroup_last;
-                let is_first_row =
-                    *SC::PackedVal::from_slice(&lagrange_first_evals[i_range.clone()]);
-                let is_last_row = *SC::PackedVal::from_slice(&lagrange_last_evals[i_range]);
-
-                let local: Vec<_> = (0..main_lde.width())
-                    .map(|col| {
-                        SC::PackedVal::from_fn(|offset| {
-                            let row = wrap(i_local_start + offset);
-                            main_lde.get(row, col)
-                        })
-                    })
-                    .collect();
-                let next: Vec<_> = (0..main_lde.width())
-                    .map(|col| {
-                        SC::PackedVal::from_fn(|offset| {
-                            let row = wrap(i_next_start + offset);
-                            main_lde.get(row, col)
-                        })
-                    })
-                    .collect();
-
-                let perm_local: Vec<_> = (0..permutation_lde.width())
-                    .step_by(ext_degree)
-                    .map(|col| {
-                        SC::PackedChallenge::from_base_fn(|i| {
-                            SC::PackedVal::from_fn(|offset| {
-                                let row = wrap(i_local_start + offset);
-                                permutation_lde.get(row, col + i)
-                            })
-                        })
-                    })
-                    .collect();
-
-                let perm_next: Vec<_> = (0..permutation_lde.width())
-                    .step_by(ext_degree)
-                    .map(|col| {
-                        SC::PackedChallenge::from_base_fn(|i| {
-                            SC::PackedVal::from_fn(|offset| {
-                                let row = wrap(i_next_start + offset);
-                                permutation_lde.get(row, col + i)
-                            })
-                        })
-                    })
-                    .collect();
-
-                let accumulator = SC::PackedChallenge::zero();
-                let mut folder = ProverConstraintFolder {
-                    preprocessed: TwoRowMatrixView {
-                        local: &[],
-                        next: &[],
-                    },
-                    main: TwoRowMatrixView {
-                        local: &local,
-                        next: &next,
-                    },
-                    perm: TwoRowMatrixView {
-                        local: &perm_local,
-                        next: &perm_next,
-                    },
-                    perm_challenges,
-                    is_first_row,
-                    is_last_row,
-                    is_transition,
-                    alpha,
-                    accumulator,
-                };
-                chip.eval(&mut folder);
-                eval_permutation_constraints(chip, &mut folder, cumulative_sum);
-
-                // quotient(x) = constraints(x) / Z_H(x)
-                let zerofier_inv: SC::PackedVal =
-                    zerofier_on_coset.eval_inverse_packed(i_local_start);
-                let quotient = folder.accumulator * zerofier_inv;
-
-                // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
-                (0..SC::PackedVal::WIDTH).map(move |idx_in_packing| {
-                    let quotient_value = (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
-                        .map(|coeff_idx| {
-                            quotient.as_base_slice()[coeff_idx].as_slice()[idx_in_packing]
-                        })
-                        .collect::<Vec<_>>();
-                    SC::Challenge::from_base_slice(&quotient_value)
-                })
-            })
-            .collect()
-    }
-}
-
-pub struct LocalProver<SC>(PhantomData<SC>);
-
-impl<SC> Prover<SC> for LocalProver<SC>
-where
-    SC: StarkConfig,
-{
-    fn generate_segment_traces<F, EF>(
-        config: &SC,
-        segments: &mut Vec<Segment>,
-        chips: &[Box<dyn AirChip<SC>>],
+    fn commit_shards<F, EF>(
+        machine: &RiscvStark<SC>,
+        shards: &[ExecutionRecord],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
-        Vec<MainDataWrapper<SC>>,
+        Vec<ShardMainDataWrapper<SC>>,
     )
     where
         F: PrimeField + TwoAdicField + PrimeField32,
         EF: ExtensionField<F>,
-        SC: StarkConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC: StarkGenericConfig<Val = F, Challenge = EF> + Send + Sync,
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
     {
-        let num_segments = segments.len();
-        // Batch into at most 16 chunks (and at least 1) to limit parallelism.
-        let chunk_size = max(segments.len() / 16, 1);
-        let (commitments, segment_main_data): (Vec<_>, Vec<_>) =
-            tracing::info_span!("commit main for all segments").in_scope(|| {
-                segments
-                    .chunks_mut(chunk_size)
-                    .par_bridge()
-                    .flat_map(|segments| {
-                        segments
-                            .iter_mut()
-                            .map(|segment| {
-                                let data = tracing::debug_span!(
-                                    "segment commit main",
-                                    segment = segment.index
-                                )
-                                .in_scope(|| Self::commit_main(config, chips, segment));
-                                let commitment = data.main_commit.clone();
-                                let file = tempfile::tempfile().unwrap();
-                                // TODO: make this logic configurable?
-                                // At around 64 segments * 1 GB per segment, saving to disk starts
-                                // to become necessary.
-                                let data = if num_segments > 64 {
-                                    data.save(file).expect("failed to save segment main data")
-                                } else {
-                                    data.to_in_memory()
-                                };
-                                (commitment, data)
+        let config = machine.config();
+        let num_shards = shards.len();
+        tracing::info!("num_shards={}", num_shards);
+        // Get the number of shards that is the threshold for saving shards to disk instead of
+        // keeping all the shards in memory.
+        let save_disk_threshold = env::save_disk_threshold();
+        let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
+            tracing::info_span!("commit main for all shards").in_scope(|| {
+                shards
+                    .into_par_iter()
+                    .enumerate()
+                    .map(|(i, shard)| {
+                        let data = tracing::info_span!("shard commit main", shard = shard.index)
+                            .in_scope(|| Self::commit_main(config, machine, shard, i));
+                        let commitment = data.main_commit.clone();
+                        let file = tempfile::tempfile().unwrap();
+                        let data = if num_shards > save_disk_threshold {
+                            tracing::info_span!("saving trace to disk").in_scope(|| {
+                                data.save(file).expect("failed to save shard main data")
                             })
-                            .collect::<Vec<_>>()
+                        } else {
+                            data.to_in_memory()
+                        };
+                        (commitment, data)
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
@@ -581,11 +460,11 @@ where
 
         #[cfg(not(feature = "perf"))]
         {
-            let bytes_written = segment_main_data
+            let bytes_written = shard_main_data
                 .iter()
                 .map(|data| match data {
-                    MainDataWrapper::InMemory(_) => 0,
-                    MainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                    ShardMainDataWrapper::InMemory(_) => 0,
+                    ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
                 })
                 .sum::<u64>();
             if bytes_written > 0 {
@@ -596,6 +475,6 @@ where
             }
         }
 
-        (commitments, segment_main_data)
+        (commitments, shard_main_data)
     }
 }

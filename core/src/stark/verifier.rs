@@ -1,5 +1,6 @@
-use crate::utils::AirChip;
 use itertools::izip;
+use p3_air::Air;
+use p3_air::BaseAir;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
 use p3_commit::UnivariatePcs;
@@ -9,80 +10,69 @@ use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 
-use p3_util::log2_ceil_usize;
 use p3_util::reverse_slice_index_bits;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
-use super::permutation::eval_permutation_constraints;
 use super::types::*;
-use super::StarkConfig;
+use super::StarkGenericConfig;
 
 use core::fmt::Display;
 
+use super::ChipRef;
+
 pub struct Verifier<SC>(PhantomData<SC>);
 
-impl<SC: StarkConfig> Verifier<SC> {
+impl<SC: StarkGenericConfig> Verifier<SC> {
     /// Verify a proof for a collection of air chips.
     #[cfg(feature = "perf")]
-    pub fn verify(
+    pub fn verify_shard(
         config: &SC,
-        chips: &[Box<dyn AirChip<SC>>],
+        chips: &[ChipRef<SC>],
         challenger: &mut SC::Challenger,
-        proof: &SegmentProof<SC>,
+        proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
-        let max_constraint_degree = 3;
-        let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
+        use crate::air::MachineAir;
 
-        let chips_interactions = chips
-            .iter()
-            .map(|chip| chip.all_interactions())
-            .collect::<Vec<_>>();
-
-        let SegmentProof {
+        let ShardProof {
             commitment,
             opened_values,
             opening_proof,
+            ..
         } = proof;
 
-        // Verify the proof shapes.
-        for ((chip, interactions), opened_vals) in chips
-            .iter()
-            .zip(chips_interactions.iter())
-            .zip(opened_values.chips.iter())
-        {
-            Self::verify_proof_shape(
-                chip.as_ref(),
-                interactions.len(),
-                opened_vals,
-                log_quotient_degree,
-            )
-            .map_err(|err| VerificationError::InvalidProofShape(err, chip.name()))?;
-        }
+        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
+        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
 
-        let quotient_width = SC::Challenge::D << log_quotient_degree;
+        let num_interactions = sends
+            .iter()
+            .zip(receives.iter())
+            .map(|(s, r)| s.len() + r.len())
+            .collect::<Vec<usize>>();
+
         let dims = &[
             chips
                 .iter()
                 .zip(opened_values.chips.iter())
                 .map(|(chip, val)| Dimensions {
-                    width: chip.air_width(),
+                    width: chip.width(),
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
-            chips_interactions
+            num_interactions
                 .iter()
                 .zip(opened_values.chips.iter())
-                .map(|(interactions, val)| Dimensions {
-                    width: (interactions.len() + 1) * SC::Challenge::D,
+                .map(|(n_int, val)| Dimensions {
+                    width: (*n_int + 1) * SC::Challenge::D,
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
-            (0..chips.len())
+            chips
+                .iter()
                 .zip(opened_values.chips.iter())
-                .map(|(_, val)| Dimensions {
-                    width: quotient_width,
+                .map(|(chip, val)| Dimensions {
+                    width: SC::Challenge::D << chip.log_quotient_degree(),
                     height: 1 << val.log_degree,
                 })
                 .collect::<Vec<_>>(),
@@ -94,7 +84,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|val| SC::Val::two_adic_generator(val.log_degree))
             .collect::<Vec<_>>();
 
-        let SegmentCommitment {
+        let ShardCommitment {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -120,9 +110,9 @@ impl<SC: StarkConfig> Verifier<SC> {
             .map(|g| vec![zeta, zeta * *g])
             .collect::<Vec<_>>();
 
-        let zeta_quot_pow = zeta.exp_power_of_2(log_quotient_degree);
-        let quotient_opening_points = (0..chips.len())
-            .map(|_| vec![zeta_quot_pow])
+        let quotient_opening_points = chips
+            .iter()
+            .map(|chip| vec![zeta.exp_power_of_2(chip.log_quotient_degree())])
             .collect::<Vec<_>>();
 
         config
@@ -145,7 +135,7 @@ impl<SC: StarkConfig> Verifier<SC> {
         for (chip, values, g) in izip!(chips.iter(), opened_values.chips.iter(), g_subgroups.iter())
         {
             Self::verify_constraints(
-                chip.as_ref(),
+                chip,
                 values.clone(),
                 *g,
                 zeta,
@@ -159,72 +149,24 @@ impl<SC: StarkConfig> Verifier<SC> {
     }
 
     #[cfg(not(feature = "perf"))]
-    pub fn verify(
+    pub fn verify_shard(
         _config: &SC,
-        _chips: &[Box<dyn AirChip<SC>>],
+        _chips: &[ChipRef<SC>],
         _challenger: &mut SC::Challenger,
-        _proof: &SegmentProof<SC>,
+        _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
         Ok(())
     }
 
-    /// Verify the shape of opening arguments and permutation challenges.
-    ///
-    /// This function checks that the preprocessed_opening, main opening, permutation opening,
-    /// quotient opening have the expected dimensions.
-    fn verify_proof_shape<C>(
-        chip: &C,
-        num_interactions: usize,
-        opened_values: &ChipOpenedValues<SC::Challenge>,
-        log_quotient_degree: usize,
-    ) -> Result<(), ProofShapeError>
-    where
-        C: AirChip<SC> + ?Sized,
-    {
-        // Todo : check preprocessed shape.
-        let preprocesses_width = 0;
-        if opened_values.preprocessed.local.len() != preprocesses_width
-            || opened_values.preprocessed.next.len() != preprocesses_width
-        {
-            return Err(ProofShapeError::Preprocessed);
-        }
-
-        // Check that the main opening rows have lengths that match the chip width.
-        let main_width = chip.air_width();
-        if opened_values.main.local.len() != main_width
-            || opened_values.main.next.len() != main_width
-        {
-            return Err(ProofShapeError::MainTrace);
-        }
-
-        // Check that the permutation openninps have lengths that match the number of interactions.
-        let perm_width = SC::Challenge::D * (num_interactions + 1);
-        if opened_values.permutation.local.len() != perm_width
-            || opened_values.permutation.next.len() != perm_width
-        {
-            return Err(ProofShapeError::Permuation);
-        }
-
-        // Check that the quotient opening has the expected length for the given degree.
-        let quotient_width = SC::Challenge::D << log_quotient_degree;
-        if opened_values.quotient.len() != quotient_width {
-            return Err(ProofShapeError::Quotient);
-        }
-
-        Ok(())
-    }
-
-    fn verify_constraints<C>(
-        chip: &C,
+    #[cfg(feature = "perf")]
+    fn verify_constraints(
+        chip: &ChipRef<SC>,
         opening: ChipOpenedValues<SC::Challenge>,
         g: SC::Val,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-    ) -> Result<(), OodEvaluationMismatch>
-    where
-        C: AirChip<SC> + ?Sized,
-    {
+    ) -> Result<(), OodEvaluationMismatch> {
         let z_h = zeta.exp_power_of_2(opening.log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
         let is_last_row = z_h / (zeta - g.inverse());
@@ -276,6 +218,7 @@ impl<SC: StarkConfig> Verifier<SC> {
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
+            cumulative_sum: opening.cumulative_sum,
             is_first_row,
             is_last_row,
             is_transition,
@@ -283,7 +226,6 @@ impl<SC: StarkConfig> Verifier<SC> {
             accumulator: SC::Challenge::zero(),
         };
         chip.eval(&mut folder);
-        eval_permutation_constraints(chip, &mut folder, opening.cumulative_sum);
 
         let folded_constraints = folder.accumulator;
 
@@ -294,20 +236,10 @@ impl<SC: StarkConfig> Verifier<SC> {
     }
 }
 
-#[derive(Debug)]
-pub enum ProofShapeError {
-    Preprocessed,
-    MainTrace,
-    Permuation,
-    Quotient,
-}
-
 pub struct OodEvaluationMismatch;
 
 #[derive(Debug)]
 pub enum VerificationError {
-    /// The shape of openings does not match the chip shapes.
-    InvalidProofShape(ProofShapeError, String),
     /// opening proof is invalid.
     InvalidopeningArgument,
     /// Out-of-domain evaluation mismatch.
@@ -319,9 +251,6 @@ pub enum VerificationError {
 impl Display for VerificationError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            VerificationError::InvalidProofShape(err, chip) => {
-                write!(f, "Invalid proof shape for chip {}: {:?}", chip, err)
-            }
             VerificationError::InvalidopeningArgument => {
                 write!(f, "Invalid opening argument")
             }

@@ -1,0 +1,16 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "ed25519-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+ed25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek.git", rev = "0b45e00", version = "2.1.0" }
+hex-literal = "0.4.1"
+
+[patch.crates-io]
+# Patch sha2 so we can use sha precompiles
+sha2-v0-10-6 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", package = "sha2", branch = "main" }
+
+

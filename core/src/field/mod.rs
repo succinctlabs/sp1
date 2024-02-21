@@ -7,14 +7,15 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
 use crate::air::FieldAirBuilder;
-use crate::runtime::Segment;
+use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
+use crate::runtime::ExecutionRecord;
 use crate::utils::pad_to_power_of_two;
-use crate::utils::Chip;
-use crate::utils::NB_ROWS_PER_SHARD;
+
+use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
@@ -44,24 +45,19 @@ pub struct FieldLTUCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> Chip<F> for FieldLTUChip {
+impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
 
-    fn shard(&self, input: &Segment, outputs: &mut Vec<Segment>) {
-        let shards = input
-            .field_events
-            .chunks(NB_ROWS_PER_SHARD * 4)
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].field_events = shards[i].to_vec();
-        }
-    }
-
-    fn generate_trace(&self, segment: &mut Segment) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate FieldLTU trace", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = segment
+        let rows = input
             .field_events
             .iter()
             .map(|event| {
@@ -92,7 +88,7 @@ impl<F: PrimeField> Chip<F> for FieldLTUChip {
     }
 }
 
-pub const LTU_NB_BITS: usize = 22;
+pub const LTU_NB_BITS: usize = 25;
 
 impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {
@@ -100,7 +96,7 @@ impl<F: Field> BaseAir<F> for FieldLTUChip {
     }
 }
 
-impl<AB: CurtaAirBuilder> Air<AB> for FieldLTUChip {
+impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &FieldLTUCols<AB::Var> = main.row_slice(0).borrow();

@@ -1,5 +1,5 @@
 [package]
-name = "succinct-core"
+name = "sp1-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,10 +9,9 @@ serde = { version = "1.0", features = ["derive"] }
 p3-field = { workspace = true }
 p3-air = { workspace = true }
 p3-matrix = { workspace = true }
-valida-derive = { workspace = true }
 p3-baby-bear = { workspace = true }
 elf = "0.7.4"
-
+sp1-derive = { path = "../derive" }
 p3-commit = { workspace = true }
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
@@ -27,16 +26,13 @@ p3-blake3 = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-uni-stark = { workspace = true }
 p3-maybe-rayon = { workspace = true }
-rand = "0.8.5"
 p3-util = { workspace = true }
 itertools = "0.12.0"
 rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 log = "0.4.20"
-env_logger = "0.10.1"
-num = { version = "0.4.1", features = ["rand"] }
+num = { version = "0.4.1" }
 nohash-hasher = "0.2.0"
-
-succinct-k12 = { path = "../k12" }
+lazy_static = "1.4"
 
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
@@ -53,14 +49,20 @@ serde_json = { version = "1.0.113", default-features = false, features = [
 ] }
 k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
+anyhow = "1.0.79"
+serial_test = "3.0.0"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [dev-dependencies]
 criterion = "0.5.1"
+num = { version = "0.4.1", features = ["rand"] }
+rand = "0.8.5"
+
 
 [features]
 perf = ["parallel"]
-parallel = ["p3-maybe-rayon/parallel"]
-default = ["parallel", "perf"]
+parallel = ["p3-maybe-rayon/parallel", "p3-blake3/parallel"]
+default = ["perf"]
 debug = ["parallel"]
 debug-proof = ["parallel", "perf"]
 serial = []
