@@ -18,6 +18,7 @@ const STATE_NUM_WORDS: usize = 25 * 2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct KeccakPermuteEvent {
+    pub shard: u32,
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],
@@ -45,11 +46,10 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod permute_tests {
+    use crate::utils::run_test;
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
-        SP1Prover, SP1Stdin,
+        utils::{self, tests::KECCAK_PERMUTE_ELF},
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -78,23 +78,17 @@ pub mod permute_tests {
     }
 
     #[test]
-    fn prove_babybear() {
+    fn test_keccak_permute_prove_babybear() {
         utils::setup_logger();
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
 
         let program = keccak_permute_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let machine = RiscvStark::new(config);
-        let (pk, _) = machine.setup(runtime.program.as_ref());
-        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
-        SP1Prover::prove(KECCAK_PERMUTE_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(KECCAK_PERMUTE_ELF);
+        run_test(program).unwrap();
     }
 }

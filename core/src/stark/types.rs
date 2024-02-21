@@ -144,7 +144,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
 }
 
 #[cfg(not(feature = "perf"))]
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub traces: Vec<ValMat<SC>>,

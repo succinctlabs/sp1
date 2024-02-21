@@ -1501,6 +1501,7 @@ dependencies = [
  "size",
  "sp1-derive",
  "tempfile",
+ "tiny-keccak",
  "tracing",
  "tracing-forest",
  "tracing-log",

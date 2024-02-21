@@ -1264,13 +1264,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "regex-script"
-version = "0.1.0"
-dependencies = [
- "sp1-core",
-]
-
-[[package]]
 name = "regex-syntax"
 version = "0.6.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1300,6 +1293,13 @@ dependencies = [
  "downcast-rs",
  "num_enum",
  "paste",
+]
+
+[[package]]
+name = "rsa-script"
+version = "0.1.0"
+dependencies = [
+ "sp1-core",
 ]
 
 [[package]]
@@ -1508,6 +1508,7 @@ dependencies = [
  "size",
  "sp1-derive",
  "tempfile",
+ "tiny-keccak",
  "tracing",
  "tracing-forest",
  "tracing-log",
