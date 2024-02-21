@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
@@ -39,7 +37,7 @@ pub(crate) mod riscv_chips {
 }
 
 #[derive(sp1_derive::MachineAir)]
-pub enum RiscvAir<F : PrimeField32> {
+pub enum RiscvAir<F: PrimeField32> {
     /// An AIR that containts a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
@@ -61,7 +59,7 @@ pub enum RiscvAir<F : PrimeField32> {
     /// An AIR for RISC-V SRL and SRA instruction.
     ShiftRight(ShiftRightChip),
     /// A lookup table for byte operations.
-    ByteLookup(ByteChip),
+    ByteLookup(ByteChip<F>),
     /// An table for `less than` operation on field elements.
     FieldLTU(FieldLTUChip),
     /// A table for initializing the memory state.
@@ -84,8 +82,6 @@ pub enum RiscvAir<F : PrimeField32> {
     KeccakP(KeccakPermuteChip),
 
     Blake3Compress(Blake3CompressInnerChip),
-
-    _Unreachable(PhantomData<F>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -115,7 +111,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
             RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
             RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
         }
     }
 
@@ -285,7 +280,6 @@ impl<F: PrimeField32> MachineAir<F> for RiscvAir<F> {
             RiscvAir::Secp256k1Double(d) => MachineAir::<F>::name(d),
             RiscvAir::KeccakP(p) => MachineAir::<F>::name(p),
             RiscvAir::Blake3Compress(c) => MachineAir::<F>::name(c),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
         }
     }
 
@@ -319,7 +313,6 @@ impl<F: PrimeField32> MachineAir<F> for RiscvAir<F> {
             RiscvAir::Secp256k1Double(d) => d.generate_trace(input, output),
             RiscvAir::KeccakP(p) => p.generate_trace(input, output),
             RiscvAir::Blake3Compress(c) => c.generate_trace(input, output),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
         }
     }
 
@@ -349,7 +342,6 @@ impl<F: PrimeField32> MachineAir<F> for RiscvAir<F> {
             RiscvAir::Secp256k1Double(d) => MachineAir::<F>::preprocessed_width(d),
             RiscvAir::KeccakP(p) => MachineAir::<F>::preprocessed_width(p),
             RiscvAir::Blake3Compress(c) => MachineAir::<F>::preprocessed_width(c),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
         }
     }
 
@@ -382,7 +374,6 @@ impl<F: PrimeField32> MachineAir<F> for RiscvAir<F> {
             RiscvAir::Secp256k1Double(d) => d.generate_preprocessed_trace(program),
             RiscvAir::KeccakP(p) => p.generate_preprocessed_trace(program),
             RiscvAir::Blake3Compress(c) => c.generate_preprocessed_trace(program),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
         }
     }
 }
@@ -417,7 +408,6 @@ where
             RiscvAir::Secp256k1Double(d) => d.eval(builder),
             RiscvAir::KeccakP(p) => p.eval(builder),
             RiscvAir::Blake3Compress(c) => c.eval(builder),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
         }
     }
 }
