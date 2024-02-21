@@ -25,6 +25,7 @@ pub use add::*;
 pub use add4::*;
 pub use add5::*;
 pub use and::*;
+pub use div_extension::*;
 pub use fixed_rotate_right::*;
 pub use fixed_shift_right::*;
 pub use is_equal_extension::*;

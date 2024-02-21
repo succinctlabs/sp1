@@ -37,16 +37,16 @@ impl<F: BinomiallyExtendable<DEGREE>> DivExtOperation<F> {
 
         result
     }
+}
 
+impl<T> DivExtOperation<T> {
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Extension<AB::Expr>,
         b: Extension<AB::Expr>,
         cols: DivExtOperation<AB::Var>,
         is_real: AB::Expr,
-    ) where
-        AB::F: BinomiallyExtendable<DEGREE>,
-    {
+    ) {
         builder.assert_bool(is_real.clone());
 
         let product = b.mul::<AB>(&cols.result.from_var::<AB>());

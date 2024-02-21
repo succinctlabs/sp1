@@ -3,6 +3,8 @@ use p3_field::extension::BinomialExtensionField;
 
 use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
 
+mod air;
+mod columns;
 mod execute;
 
 #[derive(Debug, Clone)]

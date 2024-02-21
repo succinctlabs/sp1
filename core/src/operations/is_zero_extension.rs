@@ -50,7 +50,9 @@ impl<F: BinomiallyExtendable<DEGREE>> IsZeroExtOperation<F> {
         self.result = F::from_bool(is_zero);
         is_zero as u32
     }
+}
 
+impl<T> IsZeroExtOperation<T> {
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Extension<AB::Expr>,
