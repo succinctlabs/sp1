@@ -22,11 +22,11 @@ pub type RiscvChip<SC> =
     Chip<<SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
 
 /// A STARK for proving RISC-V execution.
-pub struct RiscvStark<SC: StarkGenericConfig> {
+pub struct RiscvStark<SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    chips: Vec<RiscvChip<SC>>,
+    chips: Vec<Chip<SC::Val, A>>,
 }
 
 #[derive(Debug, Clone)]
