@@ -772,7 +772,9 @@ impl Runtime {
             let instruction = self.fetch();
 
             if let Some(ref mut buf) = self.trace_buf {
-                writeln!(buf, "{:x?}", self.state.pc).unwrap();
+                if !self.unconstrained {
+                    buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+                }
             }
 
             let width = 12;
@@ -823,7 +825,6 @@ impl Runtime {
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
         tracing::info_span!("postprocess").in_scope(|| self.postprocess());
-        println!("global_clk: {}", self.state.global_clk);
     }
 
     fn postprocess(&mut self) {
