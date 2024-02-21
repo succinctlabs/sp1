@@ -6,6 +6,8 @@ use std::{
 use bincode::{deserialize_from, Error};
 use p3_air::TwoRowMatrixView;
 use p3_commit::{OpenedValues, Pcs};
+use p3_field::ExtensionField;
+use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
@@ -15,6 +17,10 @@ use tracing::trace;
 use super::StarkGenericConfig;
 
 pub type Val<SC> = <SC as StarkGenericConfig>::Val;
+pub type PackedVal<SC> = <<SC as StarkGenericConfig>::Val as Field>::Packing;
+pub type PackedChallenge<SC> = <<SC as StarkGenericConfig>::Challenge as ExtensionField<
+    <SC as StarkGenericConfig>::Val,
+>>::ExtensionPacking;
 pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
