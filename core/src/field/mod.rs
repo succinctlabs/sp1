@@ -92,7 +92,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     }
 }
 
-pub const LTU_NB_BITS: usize = 25;
+pub const LTU_NB_BITS: usize = 29;
 
 impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {
