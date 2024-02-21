@@ -37,6 +37,7 @@ where
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
+            println!("i: {}", i);
             builder.constraint_memory_access(
                 local.shard,
                 local.clk,
@@ -91,5 +92,80 @@ where
 
         // Eval the plonky3 keccak air
         self.p3_keccak.eval(&mut sub_builder);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        syscall::precompiles::keccak256,
+        utils::{setup_logger, tests::KECCAK256_ELF},
+        SP1Prover, SP1Verifier,
+    };
+
+    use super::*;
+    use crate::SP1Stdin;
+    use num::traits::ToBytes;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use tiny_keccak::Hasher;
+
+    const NUM_TEST_CASES: usize = 45;
+
+    #[test]
+    fn test_keccak_random() {
+        setup_logger();
+        // Hash random bytes and compare with the reference implementation.
+        //rng from seed
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+        // let mut rng = rand::thread_rng();
+        let mut inputs = Vec::<Vec<u8>>::new();
+        let mut outputs = Vec::<[u8; 32]>::new();
+        for len in 0..NUM_TEST_CASES {
+            let bytes = (0..len * 71).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+            // println!("len: {}, bytes {:?}", len, bytes);
+            inputs.push(bytes.clone());
+
+            let mut keccak = tiny_keccak::Keccak::v256();
+            keccak.update(&bytes);
+            let mut hash = [0u8; 32];
+            keccak.finalize(&mut hash);
+            outputs.push(hash);
+        }
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&NUM_TEST_CASES);
+        for input in inputs.iter() {
+            stdin.write(&input);
+        }
+
+        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin).unwrap();
+        SP1Verifier::verify(KECCAK256_ELF, &proof).unwrap();
+
+        for i in 0..NUM_TEST_CASES {
+            let expected = outputs.get(i).unwrap();
+            let actual = proof.stdout.read::<[u8; 32]>();
+            assert_eq!(expected, &actual);
+        }
+
+        // // Compress the point. The first 255 bits of a compressed point is the y-coordinate. The
+        // // high bit of the 32nd byte gives the "sign" of x, which is the parity.
+        // let compressed_point = {
+        //     let x = point.x.to_le_bytes();
+        //     let y = point.y.to_le_bytes();
+        //     let mut compressed = [0u8; 32];
+
+        //     // Copy y into compressed.
+        //     compressed[..y.len()].copy_from_slice(&y);
+
+        //     // Set the sign bit.
+        //     compressed[31] |= (x[0] & 1) << 7;
+
+        //     CompressedEdwardsY(compressed)
+        // };
+        // assert_eq!(point, decompress(&compressed_point));
+
+        // // Double the point to create a "random" point for the next iteration.
+        // point = point.clone() + point.clone();
     }
 }
