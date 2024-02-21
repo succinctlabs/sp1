@@ -20,7 +20,6 @@ const STATE_NUM_WORDS: usize = 25 * 2;
 pub struct KeccakPermuteEvent {
     pub shard: u32,
     pub clk: u32,
-    pub shard: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],
     pub state_read_records: [MemoryReadRecord; STATE_NUM_WORDS],
