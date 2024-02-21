@@ -48,6 +48,7 @@
         "tests/ed-add/Cargo.toml",
         "tests/ed-decompress/Cargo.toml",
         "tests/keccak-permute/Cargo.toml",
+        "tests/keccak256/Cargo.toml",
         "tests/secp256k1-add/Cargo.toml",
         "tests/secp256k1-decompress/Cargo.toml",
         "tests/secp256k1-double/Cargo.toml",

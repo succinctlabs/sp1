@@ -93,3 +93,51 @@ where
         self.p3_keccak.eval(&mut sub_builder);
     }
 }
+
+#[cfg(feature = "keccak")]
+#[cfg(test)]
+mod test {
+    use crate::SP1Stdin;
+    use crate::{
+        utils::{setup_logger, tests::KECCAK256_ELF},
+        SP1Prover, SP1Verifier,
+    };
+    use rand::Rng;
+    use rand::SeedableRng;
+    use tiny_keccak::Hasher;
+
+    const NUM_TEST_CASES: usize = 45;
+
+    #[test]
+    fn test_keccak_random() {
+        setup_logger();
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+        let mut inputs = Vec::<Vec<u8>>::new();
+        let mut outputs = Vec::<[u8; 32]>::new();
+        for len in 0..NUM_TEST_CASES {
+            let bytes = (0..len * 71).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+            inputs.push(bytes.clone());
+
+            let mut keccak = tiny_keccak::Keccak::v256();
+            keccak.update(&bytes);
+            let mut hash = [0u8; 32];
+            keccak.finalize(&mut hash);
+            outputs.push(hash);
+        }
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&NUM_TEST_CASES);
+        for input in inputs.iter() {
+            stdin.write(&input);
+        }
+
+        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin).unwrap();
+        SP1Verifier::verify(KECCAK256_ELF, &proof).unwrap();
+
+        for i in 0..NUM_TEST_CASES {
+            let expected = outputs.get(i).unwrap();
+            let actual = proof.stdout.read::<[u8; 32]>();
+            assert_eq!(expected, &actual);
+        }
+    }
+}
