@@ -18,19 +18,19 @@ impl Syscall for FriFoldChip {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         // TODO: these will have to be be constrained, but can do it later.
         // Read `input_mem_ptr` from register a0.
-        let input_mem_ptr = rt.register_unsafe(Register::X10);
-        if input_mem_ptr % 4 != 0 {
+        let input_slice_ptr = rt.register_unsafe(Register::X10);
+        if input_slice_ptr % 4 != 0 {
             panic!();
         }
         // Read `output_mem_ptr` from register a1.
-        let output_mem_ptr = rt.register_unsafe(Register::X11);
-        if output_mem_ptr % 4 != 0 {
+        let output_slice_ptr = rt.register_unsafe(Register::X11);
+        if output_slice_ptr % 4 != 0 {
             panic!();
         }
 
         let saved_clk = rt.clk;
 
-        let (input_read_records, input_values) = rt.mr_slice(input_mem_ptr, 14);
+        let (input_slice_read_records, input_values) = rt.mr_slice(input_slice_ptr, 14);
 
         let x = BabyBear::from_canonical_u32(input_values[0]);
         let alpha = BinomialExtensionField::<BabyBear, 4>::from_base_slice(
@@ -57,7 +57,7 @@ impl Syscall for FriFoldChip {
         let p_at_x = BabyBear::from_canonical_u32(input_values[13]);
 
         // Read ro[log_height] and alpha_pow[log_height] address
-        let (output_read_records, output_addresses) = rt.mr_slice(output_mem_ptr, 2);
+        let (output_slice_read_records, output_addresses) = rt.mr_slice(output_slice_ptr, 2);
         let ro_addr = output_addresses[0];
         let alpha_pow_addr = output_addresses[1];
 
@@ -114,27 +114,16 @@ impl Syscall for FriFoldChip {
         rt.record_mut().fri_fold_events.push(FriFoldEvent {
             clk: saved_clk,
             shard,
-            x,
-            alpha,
-            z,
-            p_at_z,
-            p_at_x,
-            ro_input,
-            alpha_pow_input,
-            ro_output,
-            alpha_pow_output,
-            input_read_records,
-            input_mem_ptr,
-            output_read_records,
-            output_mem_ptr,
+            input_slice_ptr,
+            input_slice_read_records,
+            output_slice_ptr,
+            output_slice_read_records,
             ro_read_records,
             ro_write_records,
-            ro_addr,
             alpha_pow_read_records,
             alpha_pow_write_records,
-            alpha_pow_addr,
         });
 
-        input_mem_ptr
+        input_slice_ptr
     }
 }
