@@ -108,13 +108,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                 col.is_real = F::from_bool(is_real_permutation);
 
-                if start_clk + i as u32 * 4 == 2276 {
-                    println!(
-                        "BOOM {:?}, {:?}, {:?}, {:?}",
-                        col.state_mem, col.clk, col.shard, col.state_addr
-                    );
-                }
-
                 rows.push(row);
 
                 if rows.len() == num_rows {

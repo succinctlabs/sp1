@@ -143,25 +143,5 @@ mod test {
             let actual = proof.stdout.read::<[u8; 32]>();
             assert_eq!(expected, &actual);
         }
-
-        // // Compress the point. The first 255 bits of a compressed point is the y-coordinate. The
-        // // high bit of the 32nd byte gives the "sign" of x, which is the parity.
-        // let compressed_point = {
-        //     let x = point.x.to_le_bytes();
-        //     let y = point.y.to_le_bytes();
-        //     let mut compressed = [0u8; 32];
-
-        //     // Copy y into compressed.
-        //     compressed[..y.len()].copy_from_slice(&y);
-
-        //     // Set the sign bit.
-        //     compressed[31] |= (x[0] & 1) << 7;
-
-        //     CompressedEdwardsY(compressed)
-        // };
-        // assert_eq!(point, decompress(&compressed_point));
-
-        // // Double the point to create a "random" point for the next iteration.
-        // point = point.clone() + point.clone();
     }
 }
