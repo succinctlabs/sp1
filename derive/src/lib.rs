@@ -30,8 +30,6 @@ use syn::parse_macro_input;
 use syn::Data;
 use syn::ItemFn;
 
-mod air;
-
 #[proc_macro_derive(AlignedBorrow)]
 pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
@@ -74,33 +72,135 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     match &ast.data {
         Data::Struct(_) => unimplemented!("Structs are not supported yet"),
         Data::Enum(e) => {
-            let variants = e.variants.iter().map(|variant| {
-                let variant_name = &variant.ident;
+            let variants = e
+                .variants
+                .iter()
+                .map(|variant| {
+                    let variant_name = &variant.ident;
 
-                let mut fields = variant.fields.iter();
-                let field = fields.next().unwrap();
-                assert!(fields.next().is_none(), "Only one field is supported");
-                (variant_name, field)
-            });
+                    let mut fields = variant.fields.iter();
+                    let field = fields.next().unwrap();
+                    assert!(fields.next().is_none(), "Only one field is supported");
+                    (variant_name, field)
+                })
+                .collect::<Vec<_>>();
 
-            let width_arms = variants.map(|(variant_name, field)| {
+            let width_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
                     #name::#variant_name(x) => <#field_ty as p3_air::BaseAir<F>>::width(x)
                 }
-            }); 
+            });
 
-            let result = quote! {
+            let base_air = quote! {
                 impl #impl_generics p3_air::BaseAir<F> for #name #ty_generics #where_clause {
                     fn width(&self) -> usize {
                         match self {
                             #(#width_arms,)*
                         }
                     }
+
+                    fn preprocessed_trace(&self) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
+                        unreachable!("A machine air should use the preprocessed trace from the `MachineAir` trait")
+                    }
                 }
             };
 
-            result.into()
+            let name_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as crate::air::MachineAir<F>>::name(x)
+                }
+            });
+
+            let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as crate::air::MachineAir<F>>::preprocessed_width(x)
+                }
+            });
+
+            let generate_preprocessed_trace_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as crate::air::MachineAir<F>>::generate_preprocessed_trace(x, program)
+                }
+            });
+
+            let generate_trace_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as crate::air::MachineAir<F>>::generate_trace(x, input, output)
+                }
+            });
+
+            let machine_air = quote! {
+                impl #impl_generics crate::air::MachineAir<F> for #name #ty_generics #where_clause {
+                    fn name(&self) -> String {
+                        match self {
+                            #(#name_arms,)*
+                        }
+                    }
+
+                    fn preprocessed_width(&self) -> usize {
+                        match self {
+                            #(#preprocessed_width_arms,)*
+                        }
+                    }
+
+                    fn generate_preprocessed_trace(
+                        &self,
+                        program: &crate::runtime::Program,
+                    ) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
+                        match self {
+                            #(#generate_preprocessed_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_trace(
+                        &self,
+                        input: &crate::runtime::ExecutionRecord,
+                        output: &mut crate::runtime::ExecutionRecord,
+                    ) -> p3_matrix::dense::RowMajorMatrix<F> {
+                        match self {
+                            #(#generate_trace_arms,)*
+                        }
+                    }
+                }
+            };
+
+            let eval_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as p3_air::Air<AB>>::eval(x, builder)
+                }
+            });
+
+            // Attach an extra generic AB : crate::air::SP1AirBuilder to the generics of the enum
+            let generics = &ast.generics;
+            let mut new_generics = generics.clone();
+            new_generics.params.push(syn::parse_quote! { AB: crate::air::SP1AirBuilder<F = F> });
+
+            let (air_impl_generics, _, _) = new_generics.split_for_impl(); 
+
+            let air = quote! {
+                impl #air_impl_generics p3_air::Air<AB> for #name #ty_generics #where_clause {
+                    fn eval(&self, builder: &mut AB) {
+                        match self {
+                            #(#eval_arms,)*
+                        }
+                    }
+                }
+            };
+
+            quote! {
+                #base_air
+
+                #machine_air
+
+                #air
+            }
+            .into()
         }
         Data::Union(_) => unimplemented!("Unions are not supported"),
     }
