@@ -16,11 +16,10 @@ use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
+use super::RiscvChip;
 use super::StarkGenericConfig;
 
 use core::fmt::Display;
-
-use super::ChipRef;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
@@ -29,7 +28,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
     #[cfg(feature = "perf")]
     pub fn verify_shard(
         config: &SC,
-        chips: &[ChipRef<SC>],
+        chips: &[&RiscvChip<SC>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
@@ -151,7 +150,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
     #[cfg(not(feature = "perf"))]
     pub fn verify_shard(
         _config: &SC,
-        _chips: &[ChipRef<SC>],
+        _chips: &[&RiscvChip<SC>],
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
@@ -160,7 +159,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
 
     #[cfg(feature = "perf")]
     fn verify_constraints(
-        chip: &ChipRef<SC>,
+        chip: &RiscvChip<SC>,
         opening: ChipOpenedValues<SC::Challenge>,
         g: SC::Val,
         zeta: SC::Challenge,
@@ -213,7 +212,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let mut folder = VerifierConstraintFolder {
+        let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
