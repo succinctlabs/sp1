@@ -1,4 +1,6 @@
 use super::folder::ProverConstraintFolder;
+use super::PackedChallenge;
+use super::PackedVal;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
 use p3_commit::UnivariatePcsWithLde;
@@ -51,20 +53,20 @@ where
 
     (0..quotient_size)
         .into_par_iter()
-        .step_by(SC::PackedVal::WIDTH)
+        .step_by(PackedVal::<SC>::WIDTH)
         .flat_map_iter(|i_local_start| {
             let wrap = |i| i % quotient_size;
             let i_next_start = wrap(i_local_start + next_step);
-            let i_range = i_local_start..i_local_start + SC::PackedVal::WIDTH;
+            let i_range = i_local_start..i_local_start + PackedVal::<SC>::WIDTH;
 
-            let x = *SC::PackedVal::from_slice(&coset[i_range.clone()]);
+            let x = *PackedVal::<SC>::from_slice(&coset[i_range.clone()]);
             let is_transition = x - subgroup_last;
-            let is_first_row = *SC::PackedVal::from_slice(&lagrange_first_evals[i_range.clone()]);
-            let is_last_row = *SC::PackedVal::from_slice(&lagrange_last_evals[i_range]);
+            let is_first_row = *PackedVal::<SC>::from_slice(&lagrange_first_evals[i_range.clone()]);
+            let is_last_row = *PackedVal::<SC>::from_slice(&lagrange_last_evals[i_range]);
 
             let local: Vec<_> = (0..main_lde.width())
                 .map(|col| {
-                    SC::PackedVal::from_fn(|offset| {
+                    PackedVal::<SC>::from_fn(|offset| {
                         let row = wrap(i_local_start + offset);
                         main_lde.get(row, col)
                     })
@@ -72,7 +74,7 @@ where
                 .collect();
             let next: Vec<_> = (0..main_lde.width())
                 .map(|col| {
-                    SC::PackedVal::from_fn(|offset| {
+                    PackedVal::<SC>::from_fn(|offset| {
                         let row = wrap(i_next_start + offset);
                         main_lde.get(row, col)
                     })
@@ -82,8 +84,8 @@ where
             let perm_local: Vec<_> = (0..permutation_lde.width())
                 .step_by(ext_degree)
                 .map(|col| {
-                    SC::PackedChallenge::from_base_fn(|i| {
-                        SC::PackedVal::from_fn(|offset| {
+                    PackedChallenge::<SC>::from_base_fn(|i| {
+                        PackedVal::<SC>::from_fn(|offset| {
                             let row = wrap(i_local_start + offset);
                             permutation_lde.get(row, col + i)
                         })
@@ -94,8 +96,8 @@ where
             let perm_next: Vec<_> = (0..permutation_lde.width())
                 .step_by(ext_degree)
                 .map(|col| {
-                    SC::PackedChallenge::from_base_fn(|i| {
-                        SC::PackedVal::from_fn(|offset| {
+                    PackedChallenge::<SC>::from_base_fn(|i| {
+                        PackedVal::<SC>::from_fn(|offset| {
                             let row = wrap(i_next_start + offset);
                             permutation_lde.get(row, col + i)
                         })
@@ -103,7 +105,7 @@ where
                 })
                 .collect();
 
-            let accumulator = SC::PackedChallenge::zero();
+            let accumulator = PackedChallenge::<SC>::zero();
             let mut folder = ProverConstraintFolder {
                 preprocessed: TwoRowMatrixView {
                     local: &[],
@@ -128,11 +130,11 @@ where
             chip.eval(&mut folder);
 
             // quotient(x) = constraints(x) / Z_H(x)
-            let zerofier_inv: SC::PackedVal = zerofier_on_coset.eval_inverse_packed(i_local_start);
+            let zerofier_inv: PackedVal<SC> = zerofier_on_coset.eval_inverse_packed(i_local_start);
             let quotient = folder.accumulator * zerofier_inv;
 
             // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
-            (0..SC::PackedVal::WIDTH).map(move |idx_in_packing| {
+            (0..PackedVal::<SC>::WIDTH).map(move |idx_in_packing| {
                 let quotient_value = (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
                     .map(|coeff_idx| quotient.as_base_slice()[coeff_idx].as_slice()[idx_in_packing])
                     .collect::<Vec<_>>();
