@@ -41,7 +41,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             num_total_permutations = 1;
         }
 
-        const SEGMENT_NUM: u32 = 1;
         let mut new_field_events = Vec::new();
         let mut rows = Vec::new();
         for permutation_num in 0..num_total_permutations {
@@ -77,7 +76,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .copy_from_slice(p3_keccak_row);
 
                 let col: &mut KeccakCols<F> = row.as_mut_slice().borrow_mut();
-                col.shard = F::from_canonical_u32(SEGMENT_NUM);
+                col.shard = F::from_canonical_u32(event.unwrap().shard);
                 col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
 
                 // if this is the first row, then populate read memory accesses
