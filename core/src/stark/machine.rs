@@ -10,7 +10,6 @@ use p3_field::Field;
 use p3_field::PrimeField32;
 
 use super::Chip;
-use super::ChipRef;
 use super::Proof;
 use super::Prover;
 use super::RiscvAir;
@@ -66,21 +65,14 @@ where
         &self.chips
     }
 
-    pub fn dyn_chips(&self) -> Vec<ChipRef<SC>> {
-        self.chips.iter().map(|chip| chip.as_ref()).collect()
-    }
-
     pub fn shard_chips<'a, 'b>(
         &'a self,
         shard: &'b ExecutionRecord,
-    ) -> impl Iterator<Item = ChipRef<'b, SC>>
+    ) -> impl Iterator<Item = &'b RiscvChip<SC>>
     where
         'a: 'b,
     {
-        self.chips
-            .iter()
-            .filter(|chip| chip.included(shard))
-            .map(|chip| chip.as_ref())
+        self.chips.iter().filter(|chip| chip.included(shard))
     }
 
     /// The setup preprocessing phase.
@@ -178,7 +170,6 @@ where
                     .chips()
                     .iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
-                    .map(|chip| chip.as_ref())
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
