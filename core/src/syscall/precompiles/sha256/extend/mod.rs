@@ -47,9 +47,8 @@ pub mod extend_tests {
     use crate::{
         air::MachineAir,
         alu::AluEvent,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        runtime::{ExecutionRecord, Instruction, Opcode, Program},
+        utils::run_test,
     };
 
     use super::ShaExtendChip;
@@ -82,17 +81,8 @@ pub mod extend_tests {
     }
 
     #[test]
-    fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
+    fn test_sha_prove() {
         let program = sha_extend_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let machine = RiscvStark::new(config);
-
-        let (pk, _) = machine.setup(runtime.program.as_ref());
-        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
+        run_test(program).unwrap();
     }
 }

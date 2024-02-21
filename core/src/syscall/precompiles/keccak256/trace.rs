@@ -64,6 +64,12 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                 0
             };
 
+            let shard = if is_real_permutation {
+                event.unwrap().shard
+            } else {
+                0
+            };
+
             // First get the trace for the plonky3 keccak air.
             let p3_keccak_trace = generate_trace_rows::<F>(vec![perm_input]);
 
@@ -76,7 +82,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .copy_from_slice(p3_keccak_row);
 
                 let col: &mut KeccakCols<F> = row.as_mut_slice().borrow_mut();
-                col.shard = F::from_canonical_u32(event.unwrap().shard);
+                col.shard = F::from_canonical_u32(shard);
                 col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
 
                 // if this is the first row, then populate read memory accesses
