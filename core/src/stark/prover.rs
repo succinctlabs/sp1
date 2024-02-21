@@ -33,14 +33,12 @@ pub trait Prover<SC: StarkGenericConfig> {
         pk: &ProvingKey<SC>,
         shards: &[ExecutionRecord],
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC>
-    where
-        SC::Val: PrimeField32;
+    ) -> Proof<SC>;
 }
 
 impl<SC> Prover<SC> for LocalProver<SC>
 where
-    SC::Val: PrimeField32 + TwoAdicField + Send + Sync,
+    SC::Val: Send + Sync,
     SC: StarkGenericConfig + Send + Sync,
     SC::Challenger: Clone,
     Com<SC>: Send + Sync,
@@ -89,7 +87,7 @@ pub struct LocalProver<SC>(PhantomData<SC>);
 
 impl<SC> LocalProver<SC>
 where
-    SC::Val: PrimeField + TwoAdicField + PrimeField32,
+    SC::Val: TwoAdicField,
     SC: StarkGenericConfig + Send + Sync,
     SC::Challenger: Clone,
     Com<SC>: Send + Sync,

@@ -7,7 +7,6 @@ use crate::runtime::ShardingConfig;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_field::PrimeField32;
 
 use super::Chip;
 use super::Proof;
@@ -40,10 +39,7 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-impl<SC: StarkGenericConfig> RiscvStark<SC>
-where
-    SC::Val: PrimeField32,
-{
+impl<SC: StarkGenericConfig> RiscvStark<SC> {
     /// Create a new RISC-V STARK machine.
     pub fn new(config: SC) -> Self {
         // The machine consists of a config (input) and a set of chips. The chip vector should
@@ -151,7 +147,6 @@ where
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC::Val: PrimeField32,
         SC::Challenger: Clone,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction

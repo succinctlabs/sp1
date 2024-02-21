@@ -7,7 +7,6 @@ use p3_commit::UnivariatePcs;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 
@@ -24,10 +23,7 @@ use core::fmt::Display;
 
 pub struct Verifier<SC>(PhantomData<SC>);
 
-impl<SC: StarkGenericConfig> Verifier<SC>
-where
-    SC::Val: PrimeField32,
-{
+impl<SC: StarkGenericConfig> Verifier<SC> {
     /// Verify a proof for a collection of air chips.
     #[cfg(feature = "perf")]
     pub fn verify_shard(
