@@ -773,7 +773,7 @@ impl Runtime {
 
             let width = 12;
             if let Some(ref mut buf) = self.trace_buf {
-                writeln!(buf, "{:x?}", self.pc).unwrap();
+                writeln!(buf, "{:x?}", self.state.pc).unwrap();
             }
 
             log::trace!(
