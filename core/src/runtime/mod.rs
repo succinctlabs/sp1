@@ -771,11 +771,11 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
-            let width = 12;
             if let Some(ref mut buf) = self.trace_buf {
                 writeln!(buf, "{:x?}", self.state.pc).unwrap();
             }
 
+            let width = 12;
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
                 self.state.global_clk,
@@ -823,6 +823,7 @@ impl Runtime {
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
         tracing::info_span!("postprocess").in_scope(|| self.postprocess());
+        println!("global_clk: {}", self.state.global_clk);
     }
 
     fn postprocess(&mut self) {
