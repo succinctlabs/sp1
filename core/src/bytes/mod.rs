@@ -13,6 +13,7 @@ pub use event::ByteLookupEvent;
 use itertools::Itertools;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
+use std::marker::PhantomData;
 
 use self::columns::{ByteCols, NUM_BYTE_COLS};
 use self::utils::shr_carry;
@@ -26,17 +27,16 @@ pub const NUM_BYTE_OPS: usize = 9;
 /// The chip contains a preprocessed table of all possible byte operations. Other chips can then
 /// use lookups into this table to compute their own operations.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ByteChip;
+pub struct ByteChip<F>(PhantomData<F>);
 
-impl ByteChip {
+impl<F: Field> ByteChip<F> {
     /// Creates the preprocessed byte trace and event map.
     ///
     /// This function returns a pair `(trace, map)`, where:
     ///  - `trace` is a matrix containing all possible byte operations.
     /// - `map` is a map map from a byte lookup to the corresponding row it appears in the table and
     /// the index of the result in the array of multiplicities.
-    pub fn trace_and_map<F: Field>(
-    ) -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
+    pub fn trace_and_map() -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
         let mut event_map = BTreeMap::new();

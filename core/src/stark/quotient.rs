@@ -1,6 +1,8 @@
 use super::folder::ProverConstraintFolder;
+use super::Chip;
 use super::PackedChallenge;
 use super::PackedVal;
+use super::StarkAir;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
 use p3_commit::UnivariatePcsWithLde;
@@ -11,12 +13,12 @@ use p3_field::{cyclic_subgroup_coset_known_order, Field, TwoAdicField};
 use p3_matrix::MatrixGet;
 use p3_maybe_rayon::prelude::*;
 
-use super::{zerofier_coset::ZerofierOnCoset, ChipRef, StarkGenericConfig};
+use super::{zerofier_coset::ZerofierOnCoset, StarkGenericConfig};
 
 #[allow(clippy::too_many_arguments)]
-pub fn quotient_values<SC, MainLde, PermLde>(
+pub fn quotient_values<SC, A, MainLde, PermLde>(
     config: &SC,
-    chip: &ChipRef<SC>,
+    chip: &Chip<SC::Val, A>,
     cumulative_sum: SC::Challenge,
     degree_bits: usize,
     main_lde: &MainLde,
@@ -25,6 +27,7 @@ pub fn quotient_values<SC, MainLde, PermLde>(
     alpha: SC::Challenge,
 ) -> Vec<SC::Challenge>
 where
+    A: StarkAir<SC>,
     SC: StarkGenericConfig,
     SC::Val: TwoAdicField,
     MainLde: MatrixGet<SC::Val> + Sync,

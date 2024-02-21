@@ -1,13 +1,13 @@
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcsWithLde};
-use p3_field::{ExtensionField, TwoAdicField};
+use p3_field::{ExtensionField, PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use serde::Serialize;
 
 /// A configuration for a STARK.
 pub trait StarkGenericConfig {
     /// The field over which trace data is encoded.
-    type Val: TwoAdicField;
+    type Val: TwoAdicField + PrimeField32;
 
     /// The field from which random challenges are drawn.
     type Challenge: ExtensionField<Self::Val> + TwoAdicField + Serialize;
