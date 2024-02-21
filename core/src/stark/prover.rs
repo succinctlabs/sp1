@@ -69,14 +69,20 @@ where
         let config = machine.config();
         let shard_proofs = shard_data
             .into_par_iter()
-            .zip(shards.par_iter())
-            .map(|(data, shard)| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = machine.shard_chips(shard);
-                tracing::info_span!("proving shard").in_scope(|| {
-                    Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
-                })
+            .chunks(1)
+            .zip(shards.par_chunks(1))
+            .flat_map(|(datas, shards)| {
+                datas
+                    .iter()
+                    .zip(shards.iter())
+                    .map(|(data, shard)| {
+                        let data = data.clone();
+                        let chips = machine.shard_chips(shard);
+                        tracing::info_span!("proving shard").in_scope(|| {
+                            Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
+                        })
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 
