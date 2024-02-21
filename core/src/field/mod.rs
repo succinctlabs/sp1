@@ -70,7 +70,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
                     cols.diff_bits[i] = F::from_canonical_u32((diff >> i) & 1);
                 }
                 let max = 1 << LTU_NB_BITS;
-                if diff <= max {
+                if diff >= max {
                     panic!("diff overflow");
                 }
                 cols.lt = F::from_bool(event.ltu);
