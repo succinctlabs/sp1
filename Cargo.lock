@@ -257,11 +257,10 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.0.83"
+version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
+checksum = "7f9fa1897e4325be0d68d48df6aa1a71ac2ed4d27723887e7754192705350730"
 dependencies = [
- "jobserver",
  "libc",
 ]
 
@@ -1094,15 +1093,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
 
 [[package]]
-name = "jobserver"
-version = "0.1.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab46a6e9526ddef3ae7f787c06f0f2600639ba80ea3eade3d8e670a2230f51d6"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "js-sys"
 version = "0.3.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1410,7 +1400,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1419,7 +1409,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "rand",
@@ -1429,7 +1419,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -1438,7 +1428,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1449,7 +1439,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1460,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1471,7 +1461,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -1482,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1500,7 +1490,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1511,7 +1501,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1521,7 +1511,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1530,7 +1520,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1542,7 +1532,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1554,7 +1544,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "rayon",
 ]
@@ -1562,7 +1552,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1578,7 +1568,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -1594,7 +1584,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -1609,7 +1599,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1623,7 +1613,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1632,7 +1622,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -1650,7 +1640,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/update#0993f00ccfc7fc42c4dae0853e78aed7ecb7766d"
+source = "git+https://github.com/succinctlabs/plonky3.git#b6f8bb0b6e7034090af3cea816bfd4e95f7f34a2"
 dependencies = [
  "serde",
 ]
@@ -2488,9 +2478,9 @@ dependencies = [
 
 [[package]]
 name = "thread_local"
-version = "1.1.7"
+version = "1.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdd6f064ccff2d6567adcb3873ca630700f00b5ad3f060c25b5dcfd9a4ce152"
+checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
 dependencies = [
  "cfg-if",
  "once_cell",
