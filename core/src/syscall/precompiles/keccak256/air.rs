@@ -94,14 +94,14 @@ where
     }
 }
 
+#[cfg(feature = "keccak")]
 #[cfg(test)]
 mod test {
+    use crate::SP1Stdin;
     use crate::{
         utils::{setup_logger, tests::KECCAK256_ELF},
         SP1Prover, SP1Verifier,
     };
-
-    use crate::SP1Stdin;
     use rand::Rng;
     use rand::SeedableRng;
     use tiny_keccak::Hasher;
