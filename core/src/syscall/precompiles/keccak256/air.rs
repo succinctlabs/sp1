@@ -111,15 +111,11 @@ mod test {
     #[test]
     fn test_keccak_random() {
         setup_logger();
-        // Hash random bytes and compare with the reference implementation.
-        //rng from seed
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
-        // let mut rng = rand::thread_rng();
         let mut inputs = Vec::<Vec<u8>>::new();
         let mut outputs = Vec::<[u8; 32]>::new();
         for len in 0..NUM_TEST_CASES {
             let bytes = (0..len * 71).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
-            // println!("len: {}, bytes {:?}", len, bytes);
             inputs.push(bytes.clone());
 
             let mut keccak = tiny_keccak::Keccak::v256();
