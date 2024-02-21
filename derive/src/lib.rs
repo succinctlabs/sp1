@@ -27,7 +27,10 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
+use syn::Data;
 use syn::ItemFn;
+
+mod air;
 
 #[proc_macro_derive(AlignedBorrow)]
 pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
@@ -57,6 +60,50 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
         }
     };
     methods.into()
+}
+
+#[proc_macro_derive(MachineAir)]
+pub fn machine_air_derive(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+
+    let name = &ast.ident;
+    let generics = &ast.generics;
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    match &ast.data {
+        Data::Struct(_) => unimplemented!("Structs are not supported yet"),
+        Data::Enum(e) => {
+            let variants = e.variants.iter().map(|variant| {
+                let variant_name = &variant.ident;
+
+                let mut fields = variant.fields.iter();
+                let field = fields.next().unwrap();
+                assert!(fields.next().is_none(), "Only one field is supported");
+                (variant_name, field)
+            });
+
+            let width_arms = variants.map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as p3_air::BaseAir<F>>::width(x)
+                }
+            }); 
+
+            let result = quote! {
+                impl #impl_generics p3_air::BaseAir<F> for #name #ty_generics #where_clause {
+                    fn width(&self) -> usize {
+                        match self {
+                            #(#width_arms,)*
+                        }
+                    }
+                }
+            };
+
+            result.into()
+        }
+        Data::Union(_) => unimplemented!("Unions are not supported"),
+    }
 }
 
 #[proc_macro_attribute]

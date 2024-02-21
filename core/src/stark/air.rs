@@ -5,7 +5,6 @@ pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
 use crate::runtime::ExecutionRecord;
 use p3_air::Air;
-use p3_air::BaseAir;
 use p3_field::PrimeField32;
 
 pub use riscv_chips::*;
@@ -39,7 +38,8 @@ pub(crate) mod riscv_chips {
     pub use crate::utils::ec::weierstrass::SWCurve;
 }
 
-pub enum RiscvAir<F> {
+#[derive(sp1_derive::MachineAir)]
+pub enum RiscvAir<F : PrimeField32> {
     /// An AIR that containts a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
@@ -196,67 +196,67 @@ impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
     }
 }
 
-impl<F: PrimeField32> BaseAir<F> for RiscvAir<F> {
-    fn width(&self) -> usize {
-        match self {
-            RiscvAir::Program(p) => BaseAir::<F>::width(p),
-            RiscvAir::Cpu(c) => BaseAir::<F>::width(c),
-            RiscvAir::Add(a) => BaseAir::<F>::width(a),
-            RiscvAir::Sub(s) => BaseAir::<F>::width(s),
-            RiscvAir::Bitwise(b) => BaseAir::<F>::width(b),
-            RiscvAir::Mul(m) => BaseAir::<F>::width(m),
-            RiscvAir::DivRem(d) => BaseAir::<F>::width(d),
-            RiscvAir::Lt(l) => BaseAir::<F>::width(l),
-            RiscvAir::ShiftLeft(sl) => BaseAir::<F>::width(sl),
-            RiscvAir::ShiftRight(sr) => BaseAir::<F>::width(sr),
-            RiscvAir::ByteLookup(b) => BaseAir::<F>::width(b),
-            RiscvAir::FieldLTU(f) => BaseAir::<F>::width(f),
-            RiscvAir::MemoryInit(m) => BaseAir::<F>::width(m),
-            RiscvAir::MemoryFinal(m) => BaseAir::<F>::width(m),
-            RiscvAir::ProgramMemory(m) => BaseAir::<F>::width(m),
-            RiscvAir::ShaExtend(s) => BaseAir::<F>::width(s),
-            RiscvAir::ShaCompress(s) => BaseAir::<F>::width(s),
-            RiscvAir::Ed25519Add(a) => BaseAir::<F>::width(a),
-            RiscvAir::Ed25519Decompress(d) => BaseAir::<F>::width(d),
-            RiscvAir::K256Decompress(d) => BaseAir::<F>::width(d),
-            RiscvAir::Secp256k1Add(a) => BaseAir::<F>::width(a),
-            RiscvAir::Secp256k1Double(d) => BaseAir::<F>::width(d),
-            RiscvAir::KeccakP(p) => BaseAir::<F>::width(p),
-            RiscvAir::Blake3Compress(c) => BaseAir::<F>::width(c),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
-        }
-    }
+// impl<F: PrimeField32> BaseAir<F> for RiscvAir<F> {
+//     fn width(&self) -> usize {
+//         match self {
+//             RiscvAir::Program(p) => BaseAir::<F>::width(p),
+//             RiscvAir::Cpu(c) => BaseAir::<F>::width(c),
+//             RiscvAir::Add(a) => BaseAir::<F>::width(a),
+//             RiscvAir::Sub(s) => BaseAir::<F>::width(s),
+//             RiscvAir::Bitwise(b) => BaseAir::<F>::width(b),
+//             RiscvAir::Mul(m) => BaseAir::<F>::width(m),
+//             RiscvAir::DivRem(d) => BaseAir::<F>::width(d),
+//             RiscvAir::Lt(l) => BaseAir::<F>::width(l),
+//             RiscvAir::ShiftLeft(sl) => BaseAir::<F>::width(sl),
+//             RiscvAir::ShiftRight(sr) => BaseAir::<F>::width(sr),
+//             RiscvAir::ByteLookup(b) => BaseAir::<F>::width(b),
+//             RiscvAir::FieldLTU(f) => BaseAir::<F>::width(f),
+//             RiscvAir::MemoryInit(m) => BaseAir::<F>::width(m),
+//             RiscvAir::MemoryFinal(m) => BaseAir::<F>::width(m),
+//             RiscvAir::ProgramMemory(m) => BaseAir::<F>::width(m),
+//             RiscvAir::ShaExtend(s) => BaseAir::<F>::width(s),
+//             RiscvAir::ShaCompress(s) => BaseAir::<F>::width(s),
+//             RiscvAir::Ed25519Add(a) => BaseAir::<F>::width(a),
+//             RiscvAir::Ed25519Decompress(d) => BaseAir::<F>::width(d),
+//             RiscvAir::K256Decompress(d) => BaseAir::<F>::width(d),
+//             RiscvAir::Secp256k1Add(a) => BaseAir::<F>::width(a),
+//             RiscvAir::Secp256k1Double(d) => BaseAir::<F>::width(d),
+//             RiscvAir::KeccakP(p) => BaseAir::<F>::width(p),
+//             RiscvAir::Blake3Compress(c) => BaseAir::<F>::width(c),
+//             RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
+//         }
+//     }
 
-    fn preprocessed_trace(&self) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
-        match self {
-            RiscvAir::Program(p) => p.preprocessed_trace(),
-            RiscvAir::Cpu(c) => c.preprocessed_trace(),
-            RiscvAir::Add(a) => a.preprocessed_trace(),
-            RiscvAir::Sub(s) => s.preprocessed_trace(),
-            RiscvAir::Bitwise(b) => b.preprocessed_trace(),
-            RiscvAir::Mul(m) => m.preprocessed_trace(),
-            RiscvAir::DivRem(d) => d.preprocessed_trace(),
-            RiscvAir::Lt(l) => l.preprocessed_trace(),
-            RiscvAir::ShiftLeft(sl) => sl.preprocessed_trace(),
-            RiscvAir::ShiftRight(sr) => sr.preprocessed_trace(),
-            RiscvAir::ByteLookup(b) => b.preprocessed_trace(),
-            RiscvAir::FieldLTU(f) => f.preprocessed_trace(),
-            RiscvAir::MemoryInit(m) => m.preprocessed_trace(),
-            RiscvAir::MemoryFinal(m) => m.preprocessed_trace(),
-            RiscvAir::ProgramMemory(m) => m.preprocessed_trace(),
-            RiscvAir::ShaExtend(s) => s.preprocessed_trace(),
-            RiscvAir::ShaCompress(s) => s.preprocessed_trace(),
-            RiscvAir::Ed25519Add(a) => a.preprocessed_trace(),
-            RiscvAir::Ed25519Decompress(d) => d.preprocessed_trace(),
-            RiscvAir::K256Decompress(d) => d.preprocessed_trace(),
-            RiscvAir::Secp256k1Add(a) => a.preprocessed_trace(),
-            RiscvAir::Secp256k1Double(d) => d.preprocessed_trace(),
-            RiscvAir::KeccakP(p) => p.preprocessed_trace(),
-            RiscvAir::Blake3Compress(c) => c.preprocessed_trace(),
-            RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
-        }
-    }
-}
+//     fn preprocessed_trace(&self) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
+//         match self {
+//             RiscvAir::Program(p) => p.preprocessed_trace(),
+//             RiscvAir::Cpu(c) => c.preprocessed_trace(),
+//             RiscvAir::Add(a) => a.preprocessed_trace(),
+//             RiscvAir::Sub(s) => s.preprocessed_trace(),
+//             RiscvAir::Bitwise(b) => b.preprocessed_trace(),
+//             RiscvAir::Mul(m) => m.preprocessed_trace(),
+//             RiscvAir::DivRem(d) => d.preprocessed_trace(),
+//             RiscvAir::Lt(l) => l.preprocessed_trace(),
+//             RiscvAir::ShiftLeft(sl) => sl.preprocessed_trace(),
+//             RiscvAir::ShiftRight(sr) => sr.preprocessed_trace(),
+//             RiscvAir::ByteLookup(b) => b.preprocessed_trace(),
+//             RiscvAir::FieldLTU(f) => f.preprocessed_trace(),
+//             RiscvAir::MemoryInit(m) => m.preprocessed_trace(),
+//             RiscvAir::MemoryFinal(m) => m.preprocessed_trace(),
+//             RiscvAir::ProgramMemory(m) => m.preprocessed_trace(),
+//             RiscvAir::ShaExtend(s) => s.preprocessed_trace(),
+//             RiscvAir::ShaCompress(s) => s.preprocessed_trace(),
+//             RiscvAir::Ed25519Add(a) => a.preprocessed_trace(),
+//             RiscvAir::Ed25519Decompress(d) => d.preprocessed_trace(),
+//             RiscvAir::K256Decompress(d) => d.preprocessed_trace(),
+//             RiscvAir::Secp256k1Add(a) => a.preprocessed_trace(),
+//             RiscvAir::Secp256k1Double(d) => d.preprocessed_trace(),
+//             RiscvAir::KeccakP(p) => p.preprocessed_trace(),
+//             RiscvAir::Blake3Compress(c) => c.preprocessed_trace(),
+//             RiscvAir::_Unreachable(_) => unreachable!("Unreachable"),
+//         }
+//     }
+// }
 
 impl<F: PrimeField32> MachineAir<F> for RiscvAir<F> {
     fn name(&self) -> String {

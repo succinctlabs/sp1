@@ -34,7 +34,8 @@ pub trait Prover<SC: StarkGenericConfig> {
         pk: &ProvingKey<SC>,
         shards: &[ExecutionRecord],
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC>;
+    ) -> Proof<SC>
+    where SC::Val: PrimeField32;
 }
 
 impl<SC> Prover<SC> for LocalProver<SC>
