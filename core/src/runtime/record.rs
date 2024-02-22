@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap};
+use hashbrown::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::program::Program;
