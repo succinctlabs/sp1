@@ -88,8 +88,8 @@ impl Syscall for SimplePrecompileChip {
             p_read[6],
             p_read[7],
         ];
-        rt.clk += 4;
         let p_records = rt.mw_slice(p_ptr, &p_final);
+        rt.clk += 4;
 
         let event = SimplePrecompileEvent {
             shard: rt.current_shard(),
@@ -100,7 +100,7 @@ impl Syscall for SimplePrecompileChip {
         };
 
         rt.record_mut().simple_precompile_events.push(event);
-        event.p_ptr + 1
+        0 // TODO: we're going to remove this return value
     }
 }
 
@@ -204,6 +204,7 @@ where
             row.p_6_xor_p_7,
             row.is_real,
         );
+
         for i in 0..8 {
             builder.constraint_memory_access(
                 row.shard,
@@ -218,13 +219,27 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use p3_baby_bear::BabyBear;
+
+    use crate::runtime::{ExecutionRecord, Runtime};
     use crate::utils::run_test;
+    use crate::utils::{self, tests::SIMPLE_PRECOMPILE_ELF};
     use crate::Program;
 
-    use crate::{
-        utils::{self, tests::SIMPLE_PRECOMPILE_ELF},
-        SP1Prover, SP1Stdin,
-    };
+    #[test]
+    fn generate_trace() {
+        let program = Program::from(SIMPLE_PRECOMPILE_ELF);
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        println!("{:?}", runtime.record.simple_precompile_events);
+
+        let chip = SimplePrecompileChip::default();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
+        println!("{:?}", trace.values)
+    }
 
     #[test]
     fn test_simple_precompile() {
