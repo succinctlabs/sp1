@@ -33,12 +33,17 @@ impl FriFoldChip {
 #[cfg(test)]
 pub mod fri_fold_tests {
     use crate::air::DEGREE;
+    use crate::lookup::debug_interactions_with_all_chips;
+    use crate::lookup::InteractionKind;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Register;
+    use crate::runtime::Runtime;
     use crate::runtime::SyscallCode;
+    use crate::stark::RiscvStark;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
+    use crate::utils::BabyBearBlake3;
     use crate::Program;
 
     use super::columns::P_AT_X_IDX;
@@ -211,6 +216,18 @@ pub mod fri_fold_tests {
     fn prove_babybear() {
         setup_logger();
         let program = fri_fold_internal_program();
+        // let mut runtime = Runtime::new(program.clone());
+        // println!("going to run the rt");
+        // runtime.run();
+        // println!("ran the rt");
+
+        // let machine = RiscvStark::new(BabyBearBlake3::new());
+        // debug_interactions_with_all_chips::<BabyBearBlake3>(
+        //     machine.chips(),
+        //     &runtime.record,
+        //     vec![InteractionKind::Memory, InteractionKind::Field],
+        // );
+
         run_test(program).unwrap();
     }
 

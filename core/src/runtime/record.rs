@@ -303,6 +303,11 @@ impl ExecutionRecord {
             .blake3_compress_inner_events
             .extend_from_slice(&self.blake3_compress_inner_events);
 
+        // Fri fold compress events .
+        first
+            .fri_fold_events
+            .extend_from_slice(&self.fri_fold_events);
+
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups.extend(&self.byte_lookups);
 

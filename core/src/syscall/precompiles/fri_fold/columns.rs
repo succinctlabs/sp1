@@ -42,7 +42,9 @@ pub(crate) struct FriFoldCols<T> {
     pub output_slice_ptr: T,
 
     pub ro_rw_records: [MemoryReadWriteCols<T>; DEGREE],
+    pub ro_addr: T,
     pub alpha_pow_rw_records: [MemoryReadWriteCols<T>; DEGREE],
+    pub alpha_pow_addr: T,
 
     pub(crate) div_ext_op: DivExtOperation<T>,
 

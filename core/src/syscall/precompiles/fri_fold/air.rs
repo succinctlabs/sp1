@@ -92,13 +92,25 @@ where
         let alpha_pow_addr: AB::Expr = local.output_slice_read_records[ALPHA_POW_ADDR_IDX]
             .value()
             .reduce::<AB>();
+        builder
+            .when(local.is_input)
+            .assert_eq(ro_addr.clone(), local.ro_addr);
+        builder
+            .when(local.is_input)
+            .assert_eq(ro_addr.clone(), next.ro_addr);
+        builder
+            .when(local.is_input)
+            .assert_eq(alpha_pow_addr.clone(), local.alpha_pow_addr);
+        builder
+            .when(local.is_input)
+            .assert_eq(alpha_pow_addr.clone(), next.alpha_pow_addr);
 
         // Constrain ro and alpha_pow
         for i in 0..DEGREE {
             builder.constraint_memory_access(
                 local.shard,
                 local.clk,
-                ro_addr.clone() + AB::Expr::from_canonical_usize(i * 4),
+                local.ro_addr + AB::Expr::from_canonical_usize(i * 4),
                 &local.ro_rw_records[i],
                 local.is_real,
             );
@@ -106,7 +118,7 @@ where
             builder.constraint_memory_access(
                 local.shard,
                 local.clk,
-                alpha_pow_addr.clone() + AB::Expr::from_canonical_usize(i * 4),
+                local.alpha_pow_addr + AB::Expr::from_canonical_usize(i * 4),
                 &local.alpha_pow_rw_records[i],
                 local.is_real,
             );
@@ -152,11 +164,11 @@ where
         // Verify that the calculated ro and alpha_pow are equal to their memory values in the
         // next row
         for i in 0..DEGREE {
-            builder.when_transition().when(next.is_real).assert_eq(
+            builder.when_transition().when(next.is_input).assert_eq(
                 ro_output.0[i].clone(),
                 next.ro_rw_records[i].value().reduce::<AB>(),
             );
-            builder.when_transition().when(next.is_real).assert_eq(
+            builder.when_transition().when(next.is_input).assert_eq(
                 alpha_pow_output.0[i].clone(),
                 next.alpha_pow_rw_records[i].value().reduce::<AB>(),
             );

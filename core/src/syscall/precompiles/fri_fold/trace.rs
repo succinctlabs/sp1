@@ -9,13 +9,17 @@ use tracing::instrument;
 
 use crate::{
     air::{MachineAir, DEGREE},
+    cpu::MemoryRecordEnum,
     field::event::FieldEvent,
     runtime::ExecutionRecord,
     utils::pad_rows,
 };
 
 use super::{
-    columns::{FriFoldCols, NUM_FRI_FOLD_COLS, NUM_INPUT_ELMS, NUM_OUTPUT_ELMS},
+    columns::{
+        FriFoldCols, ALPHA_POW_ADDR_IDX, NUM_FRI_FOLD_COLS, NUM_INPUT_ELMS, NUM_OUTPUT_ELMS,
+        RO_ADDR_IDX,
+    },
     FriFoldChip,
 };
 
@@ -41,6 +45,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
 
                     // Populate basic columns.
                     input_cols.is_real = F::one();
+                    input_cols.is_input = F::one();
                     input_cols.shard = F::from_canonical_u32(event.shard);
                     input_cols.clk = F::from_canonical_u32(event.clk);
                     input_cols.input_slice_ptr = F::from_canonical_u32(event.input_slice_ptr);
@@ -61,11 +66,19 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                         );
                     }
 
+                    input_cols.ro_addr =
+                        F::from_canonical_u32(event.output_slice_read_records[RO_ADDR_IDX].value);
+                    input_cols.alpha_pow_addr = F::from_canonical_u32(
+                        event.output_slice_read_records[ALPHA_POW_ADDR_IDX].value,
+                    );
+
                     for i in 0..DEGREE {
-                        input_cols.ro_rw_records[i]
-                            .populate_read(event.ro_read_records[i], &mut input_new_field_events);
-                        input_cols.alpha_pow_rw_records[i].populate_read(
-                            event.alpha_pow_read_records[i],
+                        input_cols.ro_rw_records[i].populate(
+                            MemoryRecordEnum::Read(event.ro_read_records[i]),
+                            &mut input_new_field_events,
+                        );
+                        input_cols.alpha_pow_rw_records[i].populate(
+                            MemoryRecordEnum::Read(event.alpha_pow_read_records[i]),
                             &mut input_new_field_events,
                         );
                     }
@@ -73,17 +86,20 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                     let mut output_row = [F::zero(); NUM_FRI_FOLD_COLS];
                     let output_cols: &mut FriFoldCols<F> = output_row.as_mut_slice().borrow_mut();
                     output_cols.is_real = F::one();
+                    output_cols.is_input = F::zero();
                     output_cols.shard = F::from_canonical_u32(event.shard);
                     output_cols.clk = F::from_canonical_u32(event.clk + 4);
+                    output_cols.ro_addr = input_cols.ro_addr;
+                    output_cols.alpha_pow_addr = input_cols.alpha_pow_addr;
 
                     let mut output_new_field_events = Vec::new();
                     for i in 0..DEGREE {
-                        output_cols.ro_rw_records[i].populate_write(
-                            event.ro_write_records[i],
+                        output_cols.ro_rw_records[i].populate(
+                            MemoryRecordEnum::Write(event.ro_write_records[i]),
                             &mut output_new_field_events,
                         );
-                        output_cols.alpha_pow_rw_records[i].populate_write(
-                            event.alpha_pow_write_records[i],
+                        output_cols.alpha_pow_rw_records[i].populate(
+                            MemoryRecordEnum::Write(event.alpha_pow_write_records[i]),
                             &mut output_new_field_events,
                         );
                     }
