@@ -10,8 +10,6 @@ fn main() {
     // Create an input stream.
     let stdin = SP1Stdin::new();
 
-    println!("hi from whatever");
-
     // Generate the proof for the given program.
     let proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
