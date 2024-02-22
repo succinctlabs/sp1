@@ -104,6 +104,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
+            println!("{}", chip.name());
             let mut output = ExecutionRecord::default();
             output.index = record.index;
             chip.generate_dependencies(record, &mut output);
