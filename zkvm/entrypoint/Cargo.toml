@@ -12,3 +12,8 @@ getrandom = { version = "0.2.12", features = ["custom"] }
 k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
 rand = "0.8.5"
 serde = { version = "1.0.196", features = ["derive"] }
+libm = { version = "0.2.8", optional = true }
+
+[features]
+default = ["libm"]
+libm = ["dep:libm"]

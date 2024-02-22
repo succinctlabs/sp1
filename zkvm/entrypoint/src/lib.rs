@@ -29,6 +29,9 @@ macro_rules! entrypoint {
     };
 }
 
+#[cfg(all(target_os = "zkvm", feature = "libm"))]
+mod libm;
+
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;

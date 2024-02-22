@@ -1337,6 +1337,7 @@ dependencies = [
  "cfg-if",
  "getrandom",
  "k256",
+ "libm",
  "rand",
  "serde",
  "sp1-precompiles",
