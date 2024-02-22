@@ -1,15 +1,25 @@
 use anyhow::Context;
-use std::process::Command;
+use std::{
+    io::{BufRead, BufReader},
+    process::{Command, Stdio},
+    thread,
+};
 
-// Checks that the succinct toolchain and native toolchain use the same rustc version
-fn main() -> Result<(), anyhow::Error> {
-    // TODO: Get compiler versions in sync. Then, enable this check
-    // check_compiler_versions()?;
+pub use anyhow::Error as BuildError;
 
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("`CARGO_MANIFEST_DIR` is always set by cargo during builds");
-    let manifest_dir = std::path::Path::new(&manifest_dir);
-    let program_dir = manifest_dir.parent().unwrap().join("program");
+pub fn build_program(path: &str) -> Result<(), anyhow::Error> {
+    let program_dir = std::path::Path::new(path);
+
+    // Tell cargo to rerun if program/{src, Cargo.toml, Cargo.lock} changes
+    // Ref: https://doc.rust-lang.org/nightly/cargo/reference/build-scripts.html#rerun-if-changed
+    let dirs = vec![
+        program_dir.join("src"),
+        program_dir.join("Cargo.toml"),
+        program_dir.join("Cargo.lock"),
+    ];
+    for dir in dirs {
+        println!("cargo:rerun-if-changed={}", dir.display());
+    }
 
     let err = anyhow::anyhow!(
         "Failed to build the program located in `{}`.",
@@ -23,7 +33,9 @@ fn main() -> Result<(), anyhow::Error> {
                 });
             }
         }
-        Err(e) => return Err(err.context(e)),
+        Err(e) => {
+            return Err(err.context(e));
+        }
     }
     Ok(())
 }
@@ -32,58 +44,33 @@ fn main() -> Result<(), anyhow::Error> {
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
-    Command::new("cargo")
-        .current_dir(program_dir)
-        .args(&["prove", "build"])
-        .spawn()? // Use .spawn().wait() instead of .output() so that the output is streamed to the console
-        .wait()
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(program_dir)
+        .args(["prove", "build"])
+        .env("CARGO_MANIFEST_DIR", program_dir.as_ref())
+        .env_remove("RUSTC")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn()?;
+
+    let stdout = BufReader::new(child.stdout.take().unwrap());
+    let stderr = BufReader::new(child.stderr.take().unwrap());
+
+    // Pipe stdout and stderr to the parent process with [sp1] prefix
+    let stdout_handle = thread::spawn(move || {
+        stdout.lines().for_each(|line| {
+            println!("[sp1] {}", line.unwrap());
+        });
+    });
+    stderr.lines().for_each(|line| {
+        eprintln!("[sp1] {}", line.unwrap());
+    });
+
+    stdout_handle.join().unwrap();
+
+    child.wait()
 }
 
-/// Parses a string formatted like: "rustc 1.75.0-dev" into "1.75.0"
-fn parse_version_string(string: &str) -> Result<String, anyhow::Error> {
-    let version = string
-        .split_whitespace()
-        .nth(1)
-        .ok_or_else(|| anyhow::anyhow!("Failed to parse version string"))?
-        .split("-")
-        .next()
-        .unwrap();
-    Ok(version.to_string())
-}
-
-/// Checks
-fn check_compiler_versions() -> Result<(), anyhow::Error> {
-    // Outputs a string formatted like: rustc 1.75.0-dev
-    let succinct_cmd_output = Command::new("cargo")
-        .env("RUSTUP_TOOLCHAIN", "succinct")
-        .arg("version")
-        .output()
-        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-
-    if !succinct_cmd_output.status.success() {
-        anyhow::bail!("Failed to get succinct rustc version. Is succinct installed? If not you can install it with the `cargo-prove` tool. Try running `cargo prove install-toolchain`");
-    }
-
-    // Outputs a string formatted like: cargo 1.75.0
-    let native_version_cmd = Command::new("cargo")
-        .arg("version")
-        .output()
-        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    if !native_version_cmd.status.success() {
-        anyhow::bail!("Failed to get native cargo version!");
-    }
-
-    let succinct_rustc_version =
-        parse_version_string(&String::from_utf8_lossy(&succinct_cmd_output.stdout))?;
-    let native_rustc_version =
-        parse_version_string(&String::from_utf8_lossy(&native_version_cmd.stdout))?;
-
-    if succinct_rustc_version != native_rustc_version {
-        anyhow::bail!(
-		 "succinct rustc version {} does not match native rustc version {}. Please update your succinct toolchain or use a rust-toolchain.toml file to force your native compiler to the correct version.",
-		 succinct_rustc_version,
-		 native_rustc_version
-	 );
-    }
-    Ok(())
+fn main() -> Result<(), BuildError> {
+    build_program("../program")
 }
