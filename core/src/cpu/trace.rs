@@ -17,6 +17,7 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -81,13 +82,19 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
         // Generate the trace rows for each event.
         println!("Generating the trace rows for each event...");
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
-            .par_iter()
-            .map(|op: &CpuEvent| {
-                let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
-                (alu_events, blu_events, field_events)
+            .par_chunks(chunk_size)
+            .map(|ops: &[CpuEvent]| {
+                ops.iter()
+                    .map(|op| {
+                        let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
+                        (alu_events, blu_events, field_events)
+                    })
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect::<Vec<_>>();
         println!("Finished generating the trace rows for each event.");
 
