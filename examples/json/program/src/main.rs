@@ -11,10 +11,6 @@ fn main() {
 
     // read custom struct example inputs.
     let mut old_account_state = sp1_zkvm::io::read::<Account>();
-    println!(
-        "account: {}",
-        serde_json::to_string(&old_account_state).unwrap()
-    );
     let txs = sp1_zkvm::io::read::<Vec<Transaction>>();
 
     // do stuff with generic JSON.
@@ -31,7 +27,6 @@ fn main() {
             new_account_state.balance += tx.amount;
         }
     }
-    let account_str = serde_json::to_string(&new_account_state).unwrap();
     sp1_zkvm::io::write(&val);
-    sp1_zkvm::io::write(&account_str);
+    sp1_zkvm::io::write(&new_account_state);
 }

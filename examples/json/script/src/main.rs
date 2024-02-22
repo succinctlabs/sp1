@@ -12,7 +12,7 @@ fn main() {
     // Generate proof.
     let mut stdin = SP1Stdin::new();
 
-    // Generic sample JSON as a string input.
+    // Generic sample JSON (as a string input).
     let data_str = r#"
             {
                 "name": "Jane Doe",
@@ -25,9 +25,9 @@ fn main() {
     // Custom struct example.
     let initial_account_state = Account {
         account_name: "John".to_string(),
-        balance: 50,
+        balance: 200,
     };
-    let transactions = [
+    let transactions = vec![
         Transaction {
             from: "John".to_string(),
             to: "Uma".to_string(),
@@ -40,13 +40,10 @@ fn main() {
         },
     ];
 
-    let account_str = serde_json::to_string(&initial_account_state).unwrap();
-    let txs_str = serde_json::to_string(&transactions).unwrap();
-
     stdin.write(&data_str);
     stdin.write(&key);
-    stdin.write(&account_str);
-    stdin.write(&txs_str);
+    stdin.write(&initial_account_state);
+    stdin.write(&transactions);
 
     let mut proof = SP1Prover::prove(JSON_ELF, stdin).expect("proving failed");
 
