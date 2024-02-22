@@ -3,18 +3,19 @@ sp1_zkvm::entrypoint!(main);
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Clone, Copy)]
+#[repr(C)]
 struct MyPointUnaligned {
-    pub x: usize,
-    pub y: usize,
+    pub x: u32,
+    pub y: u32,
     pub b: bool,
 }
 
 pub fn main() {
-    let p1 = sp1_zkvm::io::read::<MyPointUnaligned>();
+    let p1 = sp1_zkvm::io::read_magic::<MyPointUnaligned>();
     println!("Read point: {:?}", p1);
 
-    let p2 = sp1_zkvm::io::read::<MyPointUnaligned>();
+    let p2 = sp1_zkvm::io::read_magic::<MyPointUnaligned>();
     println!("Read point: {:?}", p2);
 
     let p3: MyPointUnaligned = MyPointUnaligned {

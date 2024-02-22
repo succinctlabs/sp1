@@ -1,4 +1,5 @@
 #![allow(unused_unsafe)]
+use crate::syscall_magic_read;
 use crate::{syscall_read, syscall_write};
 use bincode;
 use serde::de::DeserializeOwned;
@@ -21,7 +22,6 @@ impl std::io::Read for SyscallReader {
         Ok(len)
     }
 }
-
 pub struct SyscallWriter {
     fd: u32,
 }
@@ -70,4 +70,23 @@ pub fn hint<T: Serialize>(value: &T) {
 pub fn hint_slice(buf: &[u8]) {
     let mut my_reader = SyscallWriter { fd: FD_HINT };
     my_reader.write_all(buf).unwrap();
+}
+
+pub fn read_magic<T: Copy>() -> &'static T {
+    unsafe {
+        let result = syscall_magic_read();
+        // std::slice::from_raw_parts(result.ptr, result.len / std::mem::size_of::<T>()).as_ptr()
+        assert_eq!(result.len, std::mem::size_of::<T>());
+        // return casted pointer
+        // result.ptr as &'static T
+        // let static_ref: &'static T = unsafe { std::mem::transmute(result.ptr) };
+        // static_ref
+        &*(result.ptr as *const T)
+
+        // &std::mem::transmute::<&[u8], T>(std::slice::from_raw_parts(
+        //     result.ptr,
+        //     result.len / std::mem::size_of::<T>(),
+        // ))
+    }
+    // todo!()
 }

@@ -22,6 +22,35 @@ impl Runtime {
         self.state.input_stream.extend(input);
     }
 
+    pub fn write_magic<T: Copy>(&mut self, input: T) {
+        let ptr = self.state.magic_input_ptr;
+        let len = std::mem::size_of::<T>();
+        let slice = unsafe { std::slice::from_raw_parts(&input as *const T as *const u8, len) };
+        println!("write_magic: ptr: {}, len: {}, data: {:?}", ptr, len, slice);
+        // Write slice to memory, 4 bytes at a time (words)
+        for i in 0..len / 4 {
+            let word = u32::from_le_bytes([
+                slice[i * 4],
+                slice[i * 4 + 1],
+                slice[i * 4 + 2],
+                slice[i * 4 + 3],
+            ]);
+            // self.state.memory[&(ptr + (i as u32) * 4)] = (word, 0, 0);
+            self.state.memory.insert(ptr + (i as u32) * 4, (word, 0, 0));
+        }
+        let last_byte_ptr = ptr + len as u32 / 4 * 4;
+        if len % 4 != 0 {
+            let mut word = 0;
+            for i in 0..len % 4 {
+                word |= (slice[(len / 4) * 4 + i] as u32) << (i * 8);
+            }
+            // self.state.memory[&(ptr + len as u32 / 4 * 4)] = (word, 0, 0);
+            self.state.memory.insert(last_byte_ptr, (word, 0, 0));
+        }
+        self.state.magic_input_ptr = last_byte_ptr + 4;
+        self.state.magic_input_ptrs.push((ptr, len));
+    }
+
     pub fn read_stdout<T: DeserializeOwned>(&mut self) -> T {
         let result = bincode::deserialize_from::<_, T>(self);
         result.unwrap()

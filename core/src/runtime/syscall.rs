@@ -11,7 +11,8 @@ use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
-    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
+    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallMagicRead,
+    SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
@@ -60,6 +61,9 @@ pub enum SyscallCode {
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 112,
 
+    /// Magic read.
+    MAGIC_READ = 113,
+
     WRITE = 999,
 }
 
@@ -80,6 +84,7 @@ impl SyscallCode {
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
+            113 => SyscallCode::MAGIC_READ,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -225,6 +230,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::EXIT_UNCONSTRAINED,
         Rc::new(SyscallExitUnconstrained::new()),
     );
+    syscall_map.insert(SyscallCode::MAGIC_READ, Rc::new(SyscallMagicRead::new()));
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
 
     syscall_map

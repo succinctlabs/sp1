@@ -60,5 +60,8 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
 
+/// Magic read.
+pub const MAGIC_READ: u32 = 113;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;

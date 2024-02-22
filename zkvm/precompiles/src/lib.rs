@@ -2,6 +2,12 @@ pub mod io;
 pub mod secp256k1;
 pub mod unconstrained;
 
+#[repr(C)]
+pub struct MagicReadResult {
+    ptr: *const u8,
+    len: usize,
+}
+
 extern "C" {
     pub fn syscall_halt() -> !;
     pub fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize);
@@ -17,5 +23,6 @@ extern "C" {
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
+    pub fn syscall_magic_read() -> MagicReadResult;
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 }

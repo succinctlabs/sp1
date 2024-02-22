@@ -73,3 +73,29 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
+
+#[repr(C)]
+pub struct MagicReadResult {
+    ptr: *const u8,
+    len: usize,
+}
+
+#[no_mangle]
+pub extern "C" fn syscall_magic_read() -> MagicReadResult {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        let ptr;
+        let len;
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::MAGIC_READ,
+            lateout("a0") ptr,
+            lateout("a1") len,
+        );
+
+        MagicReadResult { ptr, len }
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
