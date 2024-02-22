@@ -2326,6 +2326,7 @@ dependencies = [
  "log",
  "nohash-hasher",
  "num",
+ "num_cpus",
  "p3-air",
  "p3-baby-bear",
  "p3-blake3",

@@ -87,6 +87,26 @@ pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
 }
 
 impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
+    pub fn materialize_inplace(&mut self) -> Result<&ShardMainData<SC>, Error>
+    where
+        ShardMainData<SC>: DeserializeOwned,
+    {
+        match self {
+            Self::InMemory(data) => {}
+            Self::TempFile(file, _) => {
+                let mut buffer = BufReader::new(file);
+                buffer.seek(std::io::SeekFrom::Start(0))?;
+                let data = deserialize_from(&mut buffer)?;
+                *self = Self::InMemory(data);
+            }
+        };
+
+        match self {
+            Self::InMemory(data) => Ok(data),
+            _ => unreachable!(),
+        }
+    }
+
     pub fn materialize(self) -> Result<ShardMainData<SC>, Error>
     where
         ShardMainData<SC>: DeserializeOwned,

@@ -4,6 +4,8 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
@@ -49,16 +51,32 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
+        let chunk_size = input.add_events.len() / num_cpus::get();
+        let rows_and_records = input
+            .add_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut record = ExecutionRecord::default();
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_ADD_COLS];
+                        let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
+                        cols.add_operation.populate(&mut record, event.b, event.c);
+                        cols.b = Word::from(event.b);
+                        cols.c = Word::from(event.c);
+                        cols.is_real = F::one();
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                (rows, record)
+            })
+            .collect::<Vec<_>>();
+
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
-        for i in 0..input.add_events.len() {
-            let mut row = [F::zero(); NUM_ADD_COLS];
-            let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
-            let event = input.add_events[i];
-            cols.add_operation.populate(output, event.b, event.c);
-            cols.b = Word::from(event.b);
-            cols.c = Word::from(event.c);
-            cols.is_real = F::one();
-            rows.push(row);
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
         }
 
         // Convert the trace to a row major matrix.

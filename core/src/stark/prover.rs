@@ -54,7 +54,7 @@ where
     ) -> Proof<SC> {
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(machine, shards);
+        let (shard_commits, mut shard_data) = Self::commit_shards(machine, shards);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {
@@ -65,18 +65,26 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
+        let chunk_size = shards.len() / num_cpus::get();
         let config = machine.config();
         let shard_proofs = shard_data
-            .into_par_iter()
-            .zip(shards.par_iter())
-            .map(|(data, shard)| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = machine.shard_chips(shard).collect::<Vec<_>>();
-                tracing::info_span!("proving shard").in_scope(|| {
-                    Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
-                })
+            .par_chunks_mut(chunk_size)
+            .zip(shards.par_chunks(chunk_size))
+            .map(|(datas, shards)| {
+                datas
+                    .iter_mut()
+                    .zip(shards.iter())
+                    .map(|(data, shard)| {
+                        let data = tracing::info_span!("materializing data").in_scope(|| {
+                            data.materialize_inplace()
+                                .expect("failed to load shard main data")
+                        });
+                        let chips = machine.shard_chips(shard).collect::<Vec<_>>();
+                        Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
+                    })
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect::<Vec<_>>();
 
         Proof { shard_proofs }
@@ -135,7 +143,7 @@ where
         config: &SC,
         _pk: &ProvingKey<SC>,
         chips: &[&RiscvChip<SC>],
-        shard_data: ShardMainData<SC>,
+        shard_data: &ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
     where
@@ -144,7 +152,7 @@ where
         ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let traces = shard_data.traces;
+        let traces = &shard_data.traces;
 
         let log_degrees = traces
             .iter()
