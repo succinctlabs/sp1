@@ -11,10 +11,10 @@ use super::STATE_NUM_WORDS;
 #[derive(AlignedBorrow)]
 #[repr(C)]
 pub(crate) struct KeccakCols<T> {
-    pub p3_keccak_cols: P3KeccakCols<T>,
-
     pub shard: T,
     pub clk: T,
+
+    pub p3_keccak_cols: P3KeccakCols<T>,
 
     pub state_mem: [MemoryReadWriteCols<T>; STATE_NUM_WORDS],
     pub state_addr: T,

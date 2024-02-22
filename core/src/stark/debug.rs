@@ -3,29 +3,33 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use p3_air::{
     Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
 };
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::{EmptyMessageBuilder, MachineAir};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
-use super::{ChipRef, StarkGenericConfig};
+use super::{RiscvChip, StarkGenericConfig};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
 pub fn debug_constraints<SC: StarkGenericConfig>(
-    chip: &ChipRef<SC>,
+    chip: &RiscvChip<SC>,
     preprocessed: Option<&RowMajorMatrix<SC::Val>>,
     main: &RowMajorMatrix<SC::Val>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
-) {
+) where
+    SC::Val: PrimeField32,
+{
     assert_eq!(main.height(), perm.height());
     let height = main.height();
     if height == 0 {
         return;
     }
+
+    let cumulative_sum = perm.row_slice(perm.height() - 1).last().copied().unwrap();
 
     // Check that constraints are satisfied.
     (0..height).for_each(|i| {
@@ -60,6 +64,7 @@ pub fn debug_constraints<SC: StarkGenericConfig>(
                 next: perm_next,
             },
             perm_challenges,
+            cumulative_sum,
             is_first_row: SC::Val::zero(),
             is_last_row: SC::Val::zero(),
             is_transition: SC::Val::one(),
@@ -98,6 +103,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: TwoRowMatrixView<'a, F>,
     pub(crate) main: TwoRowMatrixView<'a, F>,
     pub(crate) perm: TwoRowMatrixView<'a, EF>,
+    pub(crate) cumulative_sum: EF,
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
@@ -183,6 +189,18 @@ where
             let backtrace = std::backtrace::Backtrace::force_capture();
             panic!("constraint failed: {}", backtrace);
         }
+    }
+}
+
+impl<'a, F, EF> MultiTableAirBuilder for DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    type Sum = EF;
+
+    fn cumulative_sum(&self) -> Self::Sum {
+        self.cumulative_sum
     }
 }
 

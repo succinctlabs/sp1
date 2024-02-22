@@ -1,8 +1,11 @@
 pub mod heap;
-pub mod precompiles;
 pub mod syscalls;
-
-pub use precompiles::io;
+pub mod io {
+    pub use sp1_precompiles::io::*;
+}
+pub mod precompiles {
+    pub use sp1_precompiles::*;
+}
 
 extern crate alloc;
 
@@ -26,7 +29,10 @@ macro_rules! entrypoint {
     };
 }
 
-#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
+#[cfg(all(target_os = "zkvm", feature = "libm"))]
+mod libm;
+
+#[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
     use getrandom::{register_custom_getrandom, Error};
@@ -45,6 +51,9 @@ mod zkvm {
     }
 
     static STACK_TOP: u32 = 0x0020_0400;
+
+    core::arch::global_asm!(include_str!("memset.s"));
+    core::arch::global_asm!(include_str!("memcpy.s"));
 
     core::arch::global_asm!(
         r#"
@@ -80,6 +89,3 @@ mod zkvm {
 
     register_custom_getrandom!(zkvm_getrandom);
 }
-
-#[cfg(all(target_os = "zkvm", not(feature = "interface")))]
-pub use zkvm::*;

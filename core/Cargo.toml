@@ -51,6 +51,8 @@ k256 = { version = "0.13.3", features = ["expose-field"] }
 elliptic-curve = "0.13.8"
 anyhow = "1.0.79"
 serial_test = "3.0.0"
+petgraph = "0.6.4"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [dev-dependencies]
 criterion = "0.5.1"

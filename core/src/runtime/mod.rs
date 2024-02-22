@@ -19,6 +19,9 @@ pub use register::*;
 pub use state::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 pub use syscall::*;
@@ -64,6 +67,9 @@ pub struct Runtime {
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
 
+    /// A buffer for writing trace events to a file.
+    pub trace_buf: Option<BufWriter<File>>,
+
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
     /// the unconstrained block. The only thing preserved is writes to the input stream.
@@ -82,6 +88,13 @@ impl Runtime {
             program: program_arc.clone(),
             ..Default::default()
         };
+        // Write pc trace to file if TRACE_FILE is set
+        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
+            let file = File::create(trace_file).unwrap();
+            Some(BufWriter::new(file))
+        } else {
+            None
+        };
 
         Self {
             record,
@@ -90,6 +103,7 @@ impl Runtime {
             cpu_record: CpuRecord::default(),
             shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
+            trace_buf,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map: default_syscall_map(),
@@ -757,6 +771,12 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
+            if let Some(ref mut buf) = self.trace_buf {
+                if !self.unconstrained {
+                    buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+                }
+            }
+
             let width = 12;
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
@@ -797,6 +817,9 @@ impl Runtime {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
             }
+        }
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory
