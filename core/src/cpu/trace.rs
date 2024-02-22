@@ -74,7 +74,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
     #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        let mut new_alu_events = HashMap::new();
+        let mut new_alu_events = HashMap::with_capacity(input.cpu_events.len());
         let mut new_blu_events = Vec::with_capacity(input.cpu_events.len());
         let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
 
