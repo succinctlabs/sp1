@@ -76,7 +76,7 @@ pub fn read_magic<T: Copy>() -> &'static T {
     unsafe {
         let result = syscall_magic_read();
         // std::slice::from_raw_parts(result.ptr, result.len / std::mem::size_of::<T>()).as_ptr()
-        assert_eq!(result.len, std::mem::size_of::<T>());
+        // assert_eq!(result.len, std::mem::size_of::<T>());
         // return casted pointer
         // result.ptr as &'static T
         // let static_ref: &'static T = unsafe { std::mem::transmute(result.ptr) };

@@ -7,12 +7,13 @@ use sp1_core::{
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 #[repr(C)]
 struct MyPointUnaligned {
     pub x: u32,
     pub y: u32,
     pub b: bool,
+    pub test: [u8; 1200],
 }
 
 fn main() {
@@ -25,11 +26,13 @@ fn main() {
         x: 1,
         y: 2,
         b: true,
+        test: [2; 1200],
     };
     let q = MyPointUnaligned {
         x: 3,
         y: 4,
         b: false,
+        test: [1; 1200],
     };
 
     let program = Program::from(ELF);
