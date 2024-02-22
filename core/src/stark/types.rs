@@ -18,9 +18,7 @@ use super::StarkGenericConfig;
 
 pub type Val<SC> = <SC as StarkGenericConfig>::Val;
 pub type PackedVal<SC> = <<SC as StarkGenericConfig>::Val as Field>::Packing;
-pub type PackedChallenge<SC> = <<SC as StarkGenericConfig>::Challenge as ExtensionField<
-    <SC as StarkGenericConfig>::Val,
->>::ExtensionPacking;
+pub type PackedChallenge<SC> = <Challenge<SC> as ExtensionField<Val<SC>>>::ExtensionPacking;
 pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;

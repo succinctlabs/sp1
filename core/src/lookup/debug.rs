@@ -7,7 +7,7 @@ use p3_matrix::Matrix;
 
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
-use crate::stark::{ChipRef, StarkGenericConfig};
+use crate::stark::{RiscvChip, StarkGenericConfig};
 
 use super::InteractionKind;
 
@@ -44,7 +44,7 @@ fn babybear_to_int(n: BabyBear) -> i32 {
 }
 
 pub fn debug_interactions<SC: StarkGenericConfig>(
-    chip: &ChipRef<SC>,
+    chip: &RiscvChip<SC>,
     record: &ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
@@ -110,14 +110,14 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>(
-    chips: &[ChipRef<SC>],
+    chips: &[RiscvChip<SC>],
     segment: &ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
     let mut final_map = BTreeMap::new();
 
     for chip in chips.iter() {
-        let (_, count) = debug_interactions(chip, segment, interaction_kinds.clone());
+        let (_, count) = debug_interactions::<SC>(chip, segment, interaction_kinds.clone());
 
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {

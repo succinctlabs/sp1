@@ -69,6 +69,10 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
                 for i in 0..cols.diff_bits.len() {
                     cols.diff_bits[i] = F::from_canonical_u32((diff >> i) & 1);
                 }
+                let max = 1 << LTU_NB_BITS;
+                if diff >= max {
+                    panic!("diff overflow");
+                }
                 cols.lt = F::from_bool(event.ltu);
                 cols.is_real = F::one();
                 row
@@ -88,7 +92,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     }
 }
 
-pub const LTU_NB_BITS: usize = 25;
+pub const LTU_NB_BITS: usize = 29;
 
 impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {
