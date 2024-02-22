@@ -88,7 +88,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
 
     pub fn shard(
         &self,
-        record: &mut ExecutionRecord,
+        mut record: ExecutionRecord,
         shard_config: &ShardingConfig,
     ) -> Vec<ExecutionRecord> {
         // Get the local and global chips.
@@ -108,7 +108,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
             println!("{}", chip.name());
             let mut output = ExecutionRecord::default();
             output.index = record.index;
-            chip.generate_dependencies(record, &mut output);
+            chip.generate_dependencies(&record, &mut output);
             record.append(&mut output);
         });
 
@@ -128,7 +128,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     pub fn prove<P: Prover<SC>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: &mut ExecutionRecord,
+        record: ExecutionRecord,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
         tracing::info!("Sharding the execution record.");

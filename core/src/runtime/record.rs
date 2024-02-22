@@ -156,7 +156,7 @@ impl ExecutionRecord {
         }
     }
 
-    pub fn shard(&self, config: &ShardingConfig) -> Vec<Self> {
+    pub fn shard(self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
         let mut shards = self
             .cpu_events
