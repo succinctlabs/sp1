@@ -13,6 +13,7 @@ use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::simple::SimplePrecompileEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
 
@@ -80,6 +81,8 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
+    pub simple_precompile_events: Vec<SimplePrecompileEvent>,
+
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
@@ -144,6 +147,7 @@ pub struct ShardStats {
     pub nb_weierstrass_add_events: usize,
     pub nb_weierstrass_double_events: usize,
     pub nb_k256_decompress_events: usize,
+    pub nb_simple_precompile_events: usize,
 }
 
 impl ExecutionRecord {
@@ -293,10 +297,15 @@ impl ExecutionRecord {
             .k256_decompress_events
             .extend_from_slice(&self.k256_decompress_events);
 
-        // Blake3 compress events .
+        // Blake3 compress events.
         first
             .blake3_compress_inner_events
             .extend_from_slice(&self.blake3_compress_inner_events);
+
+        // Simple precompiel events.
+        first
+            .simple_precompile_events
+            .extend_from_slice(&self.simple_precompile_events);
 
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups.extend(&self.byte_lookups);
@@ -450,6 +459,7 @@ impl ExecutionRecord {
             nb_weierstrass_add_events: self.weierstrass_add_events.len(),
             nb_weierstrass_double_events: self.weierstrass_double_events.len(),
             nb_k256_decompress_events: self.k256_decompress_events.len(),
+            nb_simple_precompile_events: self.simple_precompile_events.len(),
         }
     }
 
@@ -484,6 +494,8 @@ impl ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.simple_precompile_events
+            .append(&mut other.simple_precompile_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
