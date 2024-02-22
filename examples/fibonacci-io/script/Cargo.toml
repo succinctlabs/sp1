@@ -8,4 +8,4 @@ edition = "2021"
 sp1-core = { path = "../../../core" }
 
 [build-dependencies]
-anyhow = "1"
+sp1-helper = { path = "../../../helper" }

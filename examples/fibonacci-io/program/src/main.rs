@@ -25,8 +25,6 @@ pub fn main() {
         b = sum;
     }
 
-    println!("{}", b);
-
     // Write the output of the program.
     //
     // Behind the scenes, this also compiles down to a custom system call which handles writing
