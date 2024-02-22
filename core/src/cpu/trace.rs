@@ -31,6 +31,8 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        println!("wait yo what?");
+
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
         let mut new_field_events: Vec<FieldEvent> = Vec::new();
@@ -72,7 +74,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         trace
     }
 
-    #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let mut new_alu_events = HashMap::with_capacity(input.cpu_events.len());
         let mut new_blu_events = Vec::with_capacity(input.cpu_events.len());
