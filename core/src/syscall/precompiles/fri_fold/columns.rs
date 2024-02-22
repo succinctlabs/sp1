@@ -13,8 +13,9 @@ pub(crate) const ALPHA_START_IDX: usize = X_IDX + 1;
 pub(crate) const ALPHA_END_IDX: usize = ALPHA_START_IDX + DEGREE - 1;
 pub(crate) const Z_START_IDX: usize = ALPHA_END_IDX + 1;
 pub(crate) const Z_END_IDX: usize = Z_START_IDX + DEGREE - 1;
-pub(crate) const P_AT_Z_IDX: usize = Z_END_IDX + 1;
-pub(crate) const P_AT_X_IDX: usize = P_AT_Z_IDX + 1;
+pub(crate) const P_AT_Z_START_IDX: usize = Z_END_IDX + 1;
+pub(crate) const P_AT_Z_END_IDX: usize = P_AT_Z_START_IDX + DEGREE - 1;
+pub(crate) const P_AT_X_IDX: usize = P_AT_Z_END_IDX + 1;
 pub(crate) const NUM_INPUT_ELMS: usize = P_AT_X_IDX + 1;
 
 pub(crate) const RO_ADDR_IDX: usize = 0;

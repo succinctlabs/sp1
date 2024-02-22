@@ -13,8 +13,8 @@ use crate::{
 use super::{
     columns::{
         FriFoldCols, ALPHA_END_IDX, ALPHA_POW_ADDR_IDX, ALPHA_START_IDX, NUM_FRI_FOLD_COLS,
-        NUM_INPUT_ELMS, NUM_OUTPUT_ELMS, P_AT_X_IDX, P_AT_Z_IDX, RO_ADDR_IDX, X_IDX, Z_END_IDX,
-        Z_START_IDX,
+        NUM_INPUT_ELMS, NUM_OUTPUT_ELMS, P_AT_X_IDX, P_AT_Z_END_IDX, P_AT_Z_START_IDX, RO_ADDR_IDX,
+        X_IDX, Z_END_IDX, Z_START_IDX,
     },
     FriFoldChip,
 };
@@ -63,9 +63,14 @@ where
                 .try_into()
                 .unwrap(),
         );
-        let p_at_z: AB::Expr = local.input_slice_read_records[P_AT_Z_IDX]
-            .value()
-            .reduce::<AB>();
+        let p_at_z = Extension(
+            local.input_slice_read_records[P_AT_Z_START_IDX..P_AT_Z_END_IDX + 1]
+                .iter()
+                .map(|record| record.value().reduce::<AB>())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        );
         let p_at_x: AB::Expr = local.input_slice_read_records[P_AT_X_IDX]
             .value()
             .reduce::<AB>();
@@ -127,7 +132,7 @@ where
         // let quotient = (-p_at_z + p_at_x) / (-z + x);
         // ro[log_height] += alpha_pow[log_height] * quotient;
         // alpha_pow[log_height] *= alpha;
-        let num = p_at_z - p_at_x;
+        let num = p_at_z.sub::<AB>(&Extension::from::<AB>(p_at_x));
         let den = z.neg::<AB>().add::<AB>(&Extension::from::<AB>(x));
         let ro_output = ro_input.add::<AB>(
             &alpha_pow_input
@@ -138,7 +143,7 @@ where
 
         DivExtOperation::<AB::F>::eval(
             &mut builder.when(local.is_input),
-            Extension::from::<AB>(num),
+            num,
             den,
             local.div_ext_op,
             local.is_real.into(),
