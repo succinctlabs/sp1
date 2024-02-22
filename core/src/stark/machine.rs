@@ -21,6 +21,7 @@ use crate::runtime::ShardingConfig;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
+use crate::syscall::precompiles::fri_fold::FriFoldChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::ShaCompressChip;
@@ -71,6 +72,7 @@ pub struct RiscvStark<SC: StarkGenericConfig> {
         Chip<SC::Val, WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>>,
     keccak_permute: Chip<SC::Val, KeccakPermuteChip>,
     blake3_compress_inner: Chip<SC::Val, Blake3CompressInnerChip>,
+    fri_fold: Chip<SC::Val, FriFoldChip>,
     add: Chip<SC::Val, AddChip>,
     sub: Chip<SC::Val, SubChip>,
     bitwise: Chip<SC::Val, BitwiseChip>,
@@ -105,6 +107,7 @@ where
             Chip::new(WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new());
         let keccak_permute = Chip::new(KeccakPermuteChip::new());
         let blake3_compress_inner = Chip::new(Blake3CompressInnerChip::new());
+        let fri_fold = Chip::new(FriFoldChip::new());
         let add = Chip::new(AddChip::default());
         let sub = Chip::new(SubChip::default());
         let bitwise = Chip::new(BitwiseChip::default());
@@ -132,6 +135,7 @@ where
             weierstrass_double_assign,
             keccak_permute,
             blake3_compress_inner,
+            fri_fold,
             add,
             sub,
             bitwise,
@@ -149,19 +153,20 @@ where
     }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> [ChipRef<SC>; 19] {
+    pub fn chips(&self) -> [ChipRef<SC>; 25] {
         [
             self.program.as_ref(),
             self.cpu.as_ref(),
             self.sha_extend.as_ref(),
             self.sha_compress.as_ref(),
-            // self.ed_add_assign.as_ref(),
-            // self.ed_decompress.as_ref(),
-            // self.k256_decompress.as_ref(),
-            // self.weierstrass_add_assign.as_ref(),
-            // self.weierstrass_double_assign.as_ref(),
+            self.ed_add_assign.as_ref(),
+            self.ed_decompress.as_ref(),
+            self.k256_decompress.as_ref(),
+            self.weierstrass_add_assign.as_ref(),
+            self.weierstrass_double_assign.as_ref(),
             self.keccak_permute.as_ref(),
             self.blake3_compress_inner.as_ref(),
+            self.fri_fold.as_ref(),
             self.add.as_ref(),
             self.sub.as_ref(),
             self.bitwise.as_ref(),

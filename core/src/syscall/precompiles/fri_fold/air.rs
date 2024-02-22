@@ -41,7 +41,7 @@ where
                 local.clk,
                 local.input_slice_ptr + AB::Expr::from_canonical_u32(i * 4),
                 &local.input_slice_read_records[i as usize],
-                local.is_input * local.is_real,
+                local.is_input,
             );
         }
 
@@ -82,7 +82,7 @@ where
                 local.clk,
                 local.output_slice_ptr + AB::Expr::from_canonical_u32(i * 4),
                 &local.output_slice_read_records[i as usize],
-                local.is_real * local.is_input,
+                local.is_input,
             );
         }
 

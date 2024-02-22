@@ -1442,6 +1442,7 @@ dependencies = [
  "serial_test",
  "size",
  "sp1-derive",
+ "tiny-keccak",
  "tracing",
  "tracing-forest",
  "tracing-log",
