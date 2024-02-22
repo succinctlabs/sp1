@@ -75,10 +75,11 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let mut new_alu_events = HashMap::new();
-        let mut new_blu_events = Vec::new();
-        let mut new_field_events: Vec<FieldEvent> = Vec::new();
+        let mut new_blu_events = Vec::with_capacity(input.cpu_events.len());
+        let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
 
         // Generate the trace rows for each event.
+        tracing::info!("Generating the trace rows for each event...");
         let events = input
             .cpu_events
             .par_iter()
@@ -87,7 +88,9 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
                 (alu_events, blu_events, field_events)
             })
             .collect::<Vec<_>>();
+        tracing::info!("Finished generating the trace rows for each event.");
 
+        tracing::info!("Aggregating the events...");
         events.into_iter().for_each(|e| {
             let (alu_events, blu_events, field_events) = e;
             for (key, value) in alu_events {
@@ -101,6 +104,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
             new_blu_events.extend(blu_events);
             new_field_events.extend(field_events);
         });
+        tracing::info!("Finished aggregating the events.");
 
         // Add the dependency events to the shard.
         output.add_alu_events(new_alu_events);
