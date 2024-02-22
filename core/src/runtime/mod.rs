@@ -357,7 +357,7 @@ impl Runtime {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
-    #[inline]
+    #[inline(always)]
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
