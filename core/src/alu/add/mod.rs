@@ -51,7 +51,7 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
-        let chunk_size = input.add_events.len() / num_cpus::get();
+        let chunk_size = std::cmp::max(input.add_events.len() / num_cpus::get(), 1);
         let rows_and_records = input
             .add_events
             .par_chunks(chunk_size)

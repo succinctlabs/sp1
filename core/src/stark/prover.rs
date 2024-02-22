@@ -65,7 +65,7 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
-        let chunk_size = shards.len() / num_cpus::get();
+        let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let config = machine.config();
         let shard_proofs = shard_data
             .par_chunks_mut(chunk_size)
@@ -433,23 +433,32 @@ where
         let save_disk_threshold = env::save_disk_threshold();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
+                let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
-                    .into_par_iter()
+                    .par_chunks(chunk_size)
                     .enumerate()
-                    .map(|(i, shard)| {
-                        let data = tracing::info_span!("shard commit main", shard = shard.index)
-                            .in_scope(|| Self::commit_main(config, machine, shard, i));
-                        let commitment = data.main_commit.clone();
-                        let file = tempfile::tempfile().unwrap();
-                        let data = if num_shards > save_disk_threshold {
-                            tracing::info_span!("saving trace to disk").in_scope(|| {
-                                data.save(file).expect("failed to save shard main data")
+                    .map(|(i, shard_batch)| {
+                        shard_batch
+                            .iter()
+                            .enumerate()
+                            .map(|(j, shard)| {
+                                let index = i * chunk_size + j;
+                                let data = tracing::info_span!("shard commit main", shard = index)
+                                    .in_scope(|| Self::commit_main(config, machine, shard, index));
+                                let commitment = data.main_commit.clone();
+                                let file = tempfile::tempfile().unwrap();
+                                let data = if num_shards > save_disk_threshold {
+                                    tracing::info_span!("saving trace to disk").in_scope(|| {
+                                        data.save(file).expect("failed to save shard main data")
+                                    })
+                                } else {
+                                    data.to_in_memory()
+                                };
+                                (commitment, data)
                             })
-                        } else {
-                            data.to_in_memory()
-                        };
-                        (commitment, data)
+                            .collect::<Vec<_>>()
                     })
+                    .flatten()
                     .collect::<Vec<_>>()
                     .into_iter()
                     .unzip()

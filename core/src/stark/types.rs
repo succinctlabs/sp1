@@ -92,7 +92,7 @@ impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
         ShardMainData<SC>: DeserializeOwned,
     {
         match self {
-            Self::InMemory(data) => {}
+            Self::InMemory(_) => {}
             Self::TempFile(file, _) => {
                 let mut buffer = BufReader::new(file);
                 buffer.seek(std::io::SeekFrom::Start(0))?;

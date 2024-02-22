@@ -25,7 +25,6 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 pub use syscall::*;
-use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
