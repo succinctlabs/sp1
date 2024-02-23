@@ -29,10 +29,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
-use tracing::instrument;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use tracing::instrument;
 
 pub const NUM_WEIERSTRASS_DOUBLE_COLS: usize = size_of::<WeierstrassDoubleAssignCols<u8>>();
 
@@ -384,7 +384,7 @@ pub mod tests {
         let mut shard = ExecutionRecord::default();
         shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = WeierstrassDoubleAssignChip::<Secp256k1>::new();
-        let trace: RowMajorMatrix<BabyBear> =
+        let _trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 
