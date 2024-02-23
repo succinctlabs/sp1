@@ -64,7 +64,7 @@ where
     ) -> Proof<SC> {
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, mut shard_data) = Self::commit_shards(machine, &shards);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {
@@ -445,7 +445,7 @@ where
         let save_disk_threshold = env::save_disk_threshold();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
-                let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
+                let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
                 shards
                     .par_chunks(chunk_size)
                     .enumerate()
