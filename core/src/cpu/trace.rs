@@ -32,8 +32,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        println!("wait yo what?");
-
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
         let mut new_field_events: Vec<FieldEvent> = Vec::new();

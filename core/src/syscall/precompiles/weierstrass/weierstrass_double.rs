@@ -27,6 +27,8 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -167,44 +169,60 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
 
-        let mut new_field_events = Vec::new();
+        let rows_and_records = input
+            .weierstrass_double_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut record = ExecutionRecord::default();
+                let mut new_field_events = Vec::new();
+                let mut rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
+                        let cols: &mut WeierstrassDoubleAssignCols<F> =
+                            row.as_mut_slice().borrow_mut();
 
-        for i in 0..input.weierstrass_double_events.len() {
-            let event = input.weierstrass_double_events[i];
-            let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
+                        // Decode affine points.
+                        let p = &event.p;
+                        let p = AffinePoint::<E>::from_words_le(p);
+                        let (p_x, p_y) = (p.x, p.y);
 
-            // Decode affine points.
-            let p = &event.p;
-            let p = AffinePoint::<E>::from_words_le(p);
-            let (p_x, p_y) = (p.x, p.y);
+                        // Populate basic columns.
+                        cols.is_real = F::one();
+                        cols.shard = F::from_canonical_u32(event.shard);
+                        cols.clk = F::from_canonical_u32(event.clk);
+                        cols.p_ptr = F::from_canonical_u32(event.p_ptr);
 
-            // Populate basic columns.
-            cols.is_real = F::one();
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+                        Self::populate_field_ops(cols, p_x, p_y);
 
-            Self::populate_field_ops(cols, p_x, p_y);
+                        // Populate the memory access columns.
+                        for i in 0..NUM_WORDS_EC_POINT {
+                            cols.p_access[i]
+                                .populate(event.p_memory_records[i], &mut new_field_events);
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                record.add_field_events(&new_field_events);
+                pad_rows(&mut rows, || {
+                    let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
+                    let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
+                    let zero = BigUint::zero();
+                    Self::populate_field_ops(cols, zero.clone(), zero.clone());
+                    row
+                });
+                (rows, record)
+            })
+            .collect::<Vec<_>>();
 
-            // Populate the memory access columns.
-            for i in 0..NUM_WORDS_EC_POINT {
-                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
-            }
-
-            rows.push(row);
+        // Generate the trace rows for each event.
+        let mut rows: Vec<[F; NUM_WEIERSTRASS_DOUBLE_COLS]> = vec![];
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
         }
-        output.add_field_events(&new_field_events);
-
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(cols, zero.clone(), zero.clone());
-            row
-        });
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
