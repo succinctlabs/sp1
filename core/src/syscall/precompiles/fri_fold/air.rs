@@ -1,7 +1,7 @@
 use core::borrow::Borrow;
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
+use p3_field::{extension::BinomiallyExtendable, AbstractField};
 use p3_matrix::MatrixRowSlices;
 
 use crate::{
@@ -28,6 +28,7 @@ impl<F> BaseAir<F> for FriFoldChip {
 impl<AB> Air<AB> for FriFoldChip
 where
     AB: SP1AirBuilder,
+    AB::F: BinomiallyExtendable<4>,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -141,11 +142,25 @@ where
                 .unwrap(),
         );
 
-        // let quotient = (-p_at_z + p_at_x) / (-z + x);
-        // ro[log_height] += alpha_pow[log_height] * quotient;
-        // alpha_pow[log_height] *= alpha;
-        let num = p_at_z.sub::<AB>(&Extension::from::<AB>(p_at_x));
-        let den = z.neg::<AB>().add::<AB>(&Extension::from::<AB>(x));
+        // // let quotient = (-p_at_z + p_at_x) / (-z + x);
+        // // ro[log_height] += alpha_pow[log_height] * quotient;
+        // // alpha_pow[log_height] *= alpha;
+
+        builder
+            .when(local.is_input)
+            .assert_eq(p_at_x.clone(), AB::Expr::from_canonical_u32(777132171));
+
+        builder.when(local.is_input).assert_eq(
+            p_at_z.as_base_slice()[0].clone(),
+            AB::Expr::from_canonical_u32(1257978304),
+        );
+
+        let num = p_at_z.neg::<AB>().add::<AB>(&Extension::from::<AB>(p_at_x));
+        let den = z
+            .clone()
+            .neg::<AB>()
+            .add::<AB>(&Extension::from::<AB>(x.clone()));
+
         let ro_output = ro_input.add::<AB>(
             &alpha_pow_input
                 .clone()
@@ -153,13 +168,7 @@ where
         );
         let alpha_pow_output = alpha_pow_input.mul::<AB>(&alpha);
 
-        DivExtOperation::<AB::F>::eval(
-            &mut builder.when(local.is_input),
-            num,
-            den,
-            local.div_ext_op,
-            local.is_real.into(),
-        );
+        DivExtOperation::<AB::F>::eval(builder, num, den, local.div_ext_op, local.is_input.into());
 
         // Verify that the calculated ro and alpha_pow are equal to their memory values in the
         // next row

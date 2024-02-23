@@ -5,6 +5,7 @@ use itertools::izip;
 use p3_air::BaseAir;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::{AbstractExtensionField, AbstractField};
 use p3_field::{ExtensionField, PrimeField};
 use p3_field::{PrimeField32, TwoAdicField};
@@ -22,7 +23,6 @@ use super::util::decompose_and_flatten;
 use super::{types::*, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
-use crate::utils::env;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
@@ -401,7 +401,7 @@ where
         };
     }
 
-    fn commit_shards<F, EF>(
+    fn commit_shards<F: BinomiallyExtendable<4>, EF>(
         machine: &RiscvStark<SC>,
         shards: &[ExecutionRecord],
     ) -> (

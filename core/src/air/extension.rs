@@ -71,14 +71,32 @@ impl<E: AbstractField> Extension<E> {
     pub fn mul<AB: SP1AirBuilder<Expr = E>>(self, rhs: &Self) -> Extension<AB::Expr>
     where
         E: Mul<E, Output = AB::Expr>,
+        E: From<AB::F>,
+        AB::F: BinomiallyExtendable<DEGREE>,
     {
-        let mut elements = Vec::new();
+        let mut base_slice = [
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ];
 
-        for (e1, e2) in self.0.into_iter().zip_eq(rhs.0.clone().into_iter()) {
-            elements.push(e1 * e2);
+        let self_base_slice = self.as_base_slice();
+        let rhs_base_slice = rhs.as_base_slice();
+        let w = AB::Expr::from(AB::F::w());
+
+        for i in 0..DEGREE {
+            for j in 0..DEGREE {
+                if i + j >= DEGREE {
+                    base_slice[i + j - DEGREE] +=
+                        self_base_slice[i].clone() * w.clone() * rhs_base_slice[j].clone();
+                } else {
+                    base_slice[i + j] += self_base_slice[i].clone() * rhs_base_slice[j].clone();
+                }
+            }
         }
 
-        Extension(elements.try_into().unwrap())
+        Extension(base_slice.try_into().unwrap())
     }
 
     pub fn as_base_slice(&self) -> &[E] {
@@ -102,6 +120,14 @@ where
     F::F: BinomiallyExtendable<4>,
 {
     fn from(value: BinomialExtensionField<F, 4>) -> Self {
+        let base_slice = value.as_base_slice();
+
+        Self(base_slice.try_into().unwrap())
+    }
+}
+
+impl<F: BinomiallyExtendable<4>> From<F> for Extension<F> {
+    fn from(value: F) -> Self {
         let base_slice = value.as_base_slice();
 
         Self(base_slice.try_into().unwrap())

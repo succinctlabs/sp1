@@ -496,6 +496,7 @@ impl ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.fri_fold_events.append(&mut other.fri_fold_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups

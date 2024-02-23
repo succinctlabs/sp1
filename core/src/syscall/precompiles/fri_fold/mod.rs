@@ -1,4 +1,10 @@
-use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
+use p3_baby_bear::BabyBear;
+use p3_field::extension::BinomialExtensionField;
+
+use crate::{
+    air::DEGREE,
+    syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord},
+};
 
 mod air;
 mod columns;
@@ -9,6 +15,9 @@ mod trace;
 pub struct FriFoldEvent {
     pub clk: u32,
     pub shard: u32,
+
+    pub num: [u32; 4],
+    pub denom: [u32; 4],
 
     pub input_slice_read_records: Vec<MemoryReadRecord>,
     pub input_slice_ptr: u32,

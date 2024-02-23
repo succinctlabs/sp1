@@ -3,6 +3,7 @@ pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
 use crate::runtime::ExecutionRecord;
 use crate::syscall::precompiles::fri_fold::{self, FriFoldChip};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 
@@ -42,7 +43,7 @@ pub(crate) mod riscv_chips {
 /// a different AIR that is used to encode a different part of the RISC-V execution, and the
 /// different AIR variants have a joint lookup argument.
 #[derive(MachineAir)]
-pub enum RiscvAir<F: PrimeField32> {
+pub enum RiscvAir<F: PrimeField32 + BinomiallyExtendable<4>> {
     /// An AIR that containts a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
@@ -95,7 +96,7 @@ pub enum RiscvAir<F: PrimeField32> {
     FriFold(FriFoldChip),
 }
 
-impl<F: PrimeField32> RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> RiscvAir<F> {
     /// Get all the different RISC-V AIRs.
     pub fn get_all() -> Vec<Self> {
         // The order of the chips is important, as it is used to determine the order of trace
@@ -189,15 +190,15 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 }
 
-impl<F: PrimeField32> PartialEq for RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> PartialEq for RiscvAir<F> {
     fn eq(&self, other: &Self) -> bool {
         self.name() == other.name()
     }
 }
 
-impl<F: PrimeField32> Eq for RiscvAir<F> {}
+impl<F: PrimeField32 + BinomiallyExtendable<4>> Eq for RiscvAir<F> {}
 
-impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> core::hash::Hash for RiscvAir<F> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.name().hash(state);
     }

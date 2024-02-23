@@ -7,6 +7,7 @@ use p3_field::extension::BinomiallyExtendable;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
+use crate::air::ExtAirBuilder;
 use crate::air::Extension;
 use crate::air::SP1AirBuilder;
 use crate::air::DEGREE;
@@ -18,6 +19,8 @@ use super::IsEqualExtOperation;
 #[repr(C)]
 pub struct DivExtOperation<T> {
     pub is_equal: IsEqualExtOperation<T>,
+
+    pub product: Extension<T>,
 
     /// Result is the quotient
     pub result: Extension<T>,
@@ -33,6 +36,7 @@ impl<F: BinomiallyExtendable<DEGREE>> DivExtOperation<F> {
         self.result = result.into();
 
         let product = b * result;
+        self.product = product.into();
         self.is_equal.populate(a, product);
 
         result
@@ -46,10 +50,27 @@ impl<T> DivExtOperation<T> {
         b: Extension<AB::Expr>,
         cols: DivExtOperation<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB::F: BinomiallyExtendable<4>,
+    {
         builder.assert_bool(is_real.clone());
 
         let product = b.mul::<AB>(&cols.result.from_var::<AB>());
-        IsEqualExtOperation::<AB::F>::eval(builder, a, product, cols.is_equal, is_real.clone());
+        builder
+            .when(is_real.clone())
+            .assert_ext_eq(product.clone(), Extension::from_var::<AB>(cols.product));
+
+        IsEqualExtOperation::<AB::F>::eval(
+            builder,
+            a,
+            Extension::from_var::<AB>(cols.product),
+            cols.is_equal,
+            is_real.clone(),
+        );
+
+        builder.assert_zero(
+            is_real.clone() * is_real.clone() * is_real.clone()
+                - is_real.clone() * is_real.clone() * is_real.clone(),
+        );
     }
 }

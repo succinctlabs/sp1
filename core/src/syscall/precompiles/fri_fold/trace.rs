@@ -2,7 +2,11 @@ use std::borrow::BorrowMut;
 
 use alloc::vec::Vec;
 
-use p3_field::PrimeField32;
+use itertools::Itertools;
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    AbstractExtensionField, PrimeField32,
+};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tracing::instrument;
@@ -23,7 +27,7 @@ use super::{
     FriFoldChip,
 };
 
-impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> MachineAir<F> for FriFoldChip {
     fn name(&self) -> String {
         "FriFold".to_string()
     }
@@ -51,6 +55,22 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                     input_cols.input_slice_ptr = F::from_canonical_u32(event.input_slice_ptr);
                     input_cols.output_slice_ptr = F::from_canonical_u32(event.output_slice_ptr);
 
+                    println!(
+                        "input_slice is {:?}",
+                        event
+                            .input_slice_read_records
+                            .iter()
+                            .map(|x| x.value)
+                            .collect_vec()
+                    );
+
+                    let num_base_elms = event.num.map(F::from_canonical_u32);
+                    let num = BinomialExtensionField::from_base_slice(&num_base_elms);
+                    let denom_base_elms = event.denom.map(F::from_canonical_u32);
+                    let denom = BinomialExtensionField::from_base_slice(&denom_base_elms);
+
+                    input_cols.div_ext_op.populate(num, denom);
+
                     // Populate the memory access columns.
                     let mut input_new_field_events = Vec::new();
                     for i in 0..NUM_INPUT_ELMS {
@@ -72,6 +92,34 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                         event.output_slice_read_records[ALPHA_POW_ADDR_IDX].value,
                     );
 
+                    println!(
+                        "ro_read is {:?}",
+                        event.ro_read_records.iter().map(|x| x.value).collect_vec()
+                    );
+
+                    println!(
+                        "alpha_pow_read is {:?}",
+                        event
+                            .alpha_pow_read_records
+                            .iter()
+                            .map(|x| x.value)
+                            .collect_vec()
+                    );
+
+                    println!(
+                        "ro_write is {:?}",
+                        event.ro_write_records.iter().map(|x| x.value).collect_vec()
+                    );
+
+                    println!(
+                        "alpha_pow_write is {:?}",
+                        event
+                            .alpha_pow_write_records
+                            .iter()
+                            .map(|x| x.value)
+                            .collect_vec()
+                    );
+
                     for i in 0..DEGREE {
                         input_cols.ro_rw_records[i].populate(
                             MemoryRecordEnum::Read(event.ro_read_records[i]),
@@ -88,7 +136,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                     output_cols.is_real = F::one();
                     output_cols.is_input = F::zero();
                     output_cols.shard = F::from_canonical_u32(event.shard);
-                    output_cols.clk = F::from_canonical_u32(event.clk + 4);
+                    output_cols.clk = F::from_wrapped_u32(event.clk) + F::from_wrapped_u32(4);
                     output_cols.ro_addr = input_cols.ro_addr;
                     output_cols.alpha_pow_addr = input_cols.alpha_pow_addr;
 

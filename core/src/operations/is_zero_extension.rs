@@ -8,6 +8,7 @@ use p3_air::AirBuilder;
 use p3_field::extension::BinomialExtensionField;
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractExtensionField;
+use p3_field::AbstractField;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
@@ -90,6 +91,12 @@ impl<T> IsZeroExtOperation<T> {
         builder_is_real.assert_eq(
             cols.result,
             cols.is_lower_half_zero * cols.is_upper_half_zero,
+        );
+
+        // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(
+            is_real.clone() * is_real.clone() * is_real.clone()
+                - is_real.clone() * is_real.clone() * is_real.clone(),
         );
     }
 }

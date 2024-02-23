@@ -82,7 +82,12 @@ impl Syscall for FriFoldChip {
 
         rt.clk += 4;
 
-        let quotient = (-p_at_z + p_at_x) / (-z + x);
+        let num = -p_at_z + p_at_x;
+        let denom = -z + x;
+        let quotient = num / denom;
+
+        println!("num is {:?}", num);
+        println!("denom is {:?}", denom);
 
         let ro_output = ro_input + (alpha_pow_input * quotient);
         let alpha_pow_output = alpha_pow_input * alpha;
@@ -114,6 +119,22 @@ impl Syscall for FriFoldChip {
         rt.record_mut().fri_fold_events.push(FriFoldEvent {
             clk: saved_clk,
             shard,
+            num: num
+                .as_base_slice()
+                .iter()
+                .map(|x: &BabyBear| x.as_canonical_u32())
+                .collect::<Vec<_>>()
+                .as_slice()
+                .try_into()
+                .unwrap(),
+            denom: denom
+                .as_base_slice()
+                .iter()
+                .map(|x: &BabyBear| x.as_canonical_u32())
+                .collect::<Vec<_>>()
+                .as_slice()
+                .try_into()
+                .unwrap(),
             input_slice_ptr,
             input_slice_read_records,
             output_slice_ptr,

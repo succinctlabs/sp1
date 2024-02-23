@@ -4,6 +4,7 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 
 use super::interaction::AirInteraction;
 use super::word::Word;
+use super::Extension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
@@ -227,6 +228,16 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 mult.clone(),
             );
         });
+    }
+}
+
+/// A trait which contains methods related to field extensions in an AIR.
+pub trait ExtAirBuilder: BaseAirBuilder {
+    /// Asserts that the two field extensions are equal.
+    fn assert_ext_eq<I: Into<Self::Expr>>(&mut self, left: Extension<I>, right: Extension<I>) {
+        for (left, right) in left.0.into_iter().zip(right.0) {
+            self.assert_eq(left, right);
+        }
     }
 }
 
@@ -497,6 +508,7 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder fo
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtAirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
