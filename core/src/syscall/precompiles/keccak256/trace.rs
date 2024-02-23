@@ -5,6 +5,8 @@ use alloc::vec::Vec;
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 
 use crate::{
     air::MachineAir,
@@ -41,82 +43,111 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             num_total_permutations = 1;
         }
 
-        let mut new_field_events = Vec::new();
-        let mut rows = Vec::new();
-        for permutation_num in 0..num_total_permutations {
-            let is_real_permutation = permutation_num < num_real_permutations;
+        let chunk_size = std::cmp::max(num_total_permutations / num_cpus::get(), 1);
 
-            let event = if is_real_permutation {
-                Some(&input.keccak_permute_events[permutation_num])
-            } else {
-                None
-            };
+        let rows_and_records = (0..num_total_permutations)
+            .collect::<Vec<_>>()
+            .par_chunks(chunk_size)
+            .map(|chunk_indices| {
+                let mut record = ExecutionRecord::default();
+                let mut new_field_events = Vec::new();
+                let mut chunk_rows = Vec::new();
 
-            let perm_input: [u64; STATE_SIZE] = if is_real_permutation {
-                event.unwrap().pre_state
-            } else {
-                [0; STATE_SIZE]
-            };
+                chunk_indices.iter().for_each(|permutation_num| {
+                    let is_real_permutation = *permutation_num < num_real_permutations;
 
-            let start_clk = if is_real_permutation {
-                event.unwrap().clk
-            } else {
-                0
-            };
+                    let event = if is_real_permutation {
+                        Some(&input.keccak_permute_events[*permutation_num])
+                    } else {
+                        None
+                    };
 
-            let shard = if is_real_permutation {
-                event.unwrap().shard
-            } else {
-                0
-            };
+                    let perm_input: [u64; STATE_SIZE] = if is_real_permutation {
+                        event.unwrap().pre_state
+                    } else {
+                        [0; STATE_SIZE]
+                    };
 
-            // First get the trace for the plonky3 keccak air.
-            let p3_keccak_trace = generate_trace_rows::<F>(vec![perm_input]);
+                    let start_clk = if is_real_permutation {
+                        event.unwrap().clk
+                    } else {
+                        0
+                    };
 
-            // Create all the rows for the permutation.
-            for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
-                let mut row = [F::zero(); NUM_KECCAK_COLS];
+                    let shard = if is_real_permutation {
+                        event.unwrap().shard
+                    } else {
+                        0
+                    };
 
-                // copy over the p3_keccak_row to the row
-                row[self.p3_keccak_col_range.start..self.p3_keccak_col_range.end]
-                    .copy_from_slice(p3_keccak_row);
+                    // First get the trace for the plonky3 keccak air.
+                    let p3_keccak_trace = generate_trace_rows::<F>(vec![perm_input]);
 
-                let col: &mut KeccakCols<F> = row.as_mut_slice().borrow_mut();
-                col.shard = F::from_canonical_u32(shard);
-                col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
+                    let mut rows = Vec::new();
 
-                // if this is the first row, then populate read memory accesses
-                if i == 0 && is_real_permutation {
-                    for (j, read_record) in event.unwrap().state_read_records.iter().enumerate() {
-                        col.state_mem[j].populate_read(*read_record, &mut new_field_events);
+                    // Create all the rows for the permutation.
+                    for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
+                        // TODO: Is p3_keccak_trace_rows always 24 long? If so, we can just enumerate it.
+                        let row_num = permutation_num * NUM_ROUNDS + i;
+                        if row_num == num_rows {
+                            break;
+                        }
+
+                        let mut row = [F::zero(); NUM_KECCAK_COLS];
+
+                        // copy over the p3_keccak_row to the row
+                        row[self.p3_keccak_col_range.start..self.p3_keccak_col_range.end]
+                            .copy_from_slice(p3_keccak_row);
+
+                        let col: &mut KeccakCols<F> = row.as_mut_slice().borrow_mut();
+                        col.shard = F::from_canonical_u32(shard);
+                        col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
+
+                        // if this is the first row, then populate read memory accesses
+                        if i == 0 && is_real_permutation {
+                            for (j, read_record) in
+                                event.unwrap().state_read_records.iter().enumerate()
+                            {
+                                col.state_mem[j].populate_read(*read_record, &mut new_field_events);
+                            }
+
+                            col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
+                            col.do_memory_check = F::one();
+                        }
+
+                        // if this is the last row, then populate write memory accesses
+                        // if this is the last row, then populate write memory accesses
+                        let last_row_num = NUM_ROUNDS - 1;
+                        if i == last_row_num && is_real_permutation {
+                            for (j, write_record) in
+                                event.unwrap().state_write_records.iter().enumerate()
+                            {
+                                col.state_mem[j]
+                                    .populate_write(*write_record, &mut new_field_events);
+                            }
+
+                            col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
+                            col.do_memory_check = F::one();
+                        }
+
+                        col.is_real = F::from_bool(is_real_permutation);
+
+                        rows.push(row);
                     }
+                    chunk_rows.extend(rows);
+                });
+                record.add_field_events(&new_field_events);
 
-                    col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
-                    col.do_memory_check = F::one();
-                }
+                (chunk_rows, record)
+            })
+            .collect::<Vec<_>>();
 
-                // if this is the last row, then populate write memory accesses
-                let last_row_num = NUM_ROUNDS - 1;
-                if i == last_row_num && is_real_permutation {
-                    for (j, write_record) in event.unwrap().state_write_records.iter().enumerate() {
-                        col.state_mem[j].populate_write(*write_record, &mut new_field_events);
-                    }
-
-                    col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
-                    col.do_memory_check = F::one();
-                }
-
-                col.is_real = F::from_bool(is_real_permutation);
-
-                rows.push(row);
-
-                if rows.len() == num_rows {
-                    break;
-                }
-            }
+        // Generate the trace rows for each event.
+        let mut rows: Vec<[F; NUM_KECCAK_COLS]> = vec![];
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
         }
-
-        output.add_field_events(&new_field_events);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
@@ -125,3 +156,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {}
