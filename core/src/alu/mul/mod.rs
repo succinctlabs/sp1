@@ -429,17 +429,22 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.mul_events = vec![AluEvent::new(
-            0,
-            Opcode::MULHSU,
-            0x80004000,
-            0x80000000,
-            0xffff8000,
-        )];
+
+        // Fill mul_events with 1000000 MULHSU events.
+        let mut mul_events: Vec<AluEvent> = Vec::new();
+        for _ in 0..1000000 {
+            mul_events.push(AluEvent::new(
+                0,
+                Opcode::MULHSU,
+                0x80004000,
+                0x80000000,
+                0xffff8000,
+            ));
+        }
+        shard.mul_events = mul_events;
         let chip = MulChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
     }
 
     #[test]
