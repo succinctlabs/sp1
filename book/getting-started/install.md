@@ -32,6 +32,15 @@ cargo prove --version
 
 If this works, go to the [next section](./quickstart.md) to compile and prove a simple zkVM program.
 
+### Troubleshooting
+
+If you have installed `cargo-prove` from source, it may conflict with sp1up's `cargo-prove` installation or vice versa. You can remove either one with the following:
+
+```bash
+rm ~/.cargo/bin/cargo-prove
+rm ~/.sp1/bin/cargo-prove
+```
+
 ## Option 2: Building from Source
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
