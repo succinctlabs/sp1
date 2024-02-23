@@ -120,11 +120,12 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the rows for the trace.
-        let chunk_size = std::cmp::max(input.mul_events.len() / num_cpus::get(), 1);
+        let mul_events = input.mul_events.clone();
 
-        let rows_and_records = input
-            .mul_events
+        // Generate the rows for the trace.
+        let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
+
+        let rows_and_records = mul_events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
@@ -139,7 +140,6 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         );
                         let mut row = [F::zero(); NUM_MUL_COLS];
                         let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
-                        cols.mul_operation.populate(&mut record, event.b, event.c);
 
                         let a_word = event.a.to_le_bytes();
                         let b_word = event.b.to_le_bytes();
@@ -183,7 +183,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                                         c: 0,
                                     });
                                 }
-                                output.add_byte_lookup_events(blu_events);
+                                record.add_byte_lookup_events(blu_events);
                             }
                         }
 
@@ -221,8 +221,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
                         // Range check.
                         {
-                            output.add_u16_range_checks(&carry);
-                            output.add_u8_range_checks(&product.map(|x| x as u8));
+                            record.add_u16_range_checks(&carry);
+                            record.add_u8_range_checks(&product.map(|x| x as u8));
                         }
                         row
                     })
