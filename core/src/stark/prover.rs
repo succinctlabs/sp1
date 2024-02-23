@@ -179,6 +179,7 @@ where
                         .last()
                         .copied()
                         .unwrap();
+
                     (perm_trace, cumulative_sum)
                 })
                 .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);

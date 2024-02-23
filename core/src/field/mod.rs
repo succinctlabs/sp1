@@ -19,7 +19,7 @@ use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
-const WIDTH:usize = 2;
+const WIDTH:usize = 4;
 /// A chip that implements less than within the field.
 #[derive(Default)]
 pub struct FieldLTUChip;
@@ -44,6 +44,11 @@ pub struct FieldLTUCols<T> {
     // pub multiplicities: T,
     pub is_real: T,
 }
+#[derive(Debug, Clone, AlignedBorrow)]
+#[repr(C)]
+pub struct PackedFieldLTUCols<T>{
+    packed_chips: [FieldLTUCols<T>;WIDTH]
+}
 
 impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     fn name(&self) -> String {
@@ -61,10 +66,10 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
             .field_events
             .chunks(WIDTH)
             .map(|events| {
-		let mut packed_row = Vec::new();
-		for event in events{
-                    let mut row = [F::zero(); NUM_FIELD_COLS];
-                    let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
+                let mut row = [F::zero(); NUM_FIELD_COLS * WIDTH];
+                let packed_cols: &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
+		for (i,event) in events.iter().enumerate(){
+		    let mut cols = packed_cols.packed_chips[i];
                     let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
                     cols.b = F::from_canonical_u32(event.b);
                     cols.c = F::from_canonical_u32(event.c);
@@ -77,9 +82,8 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
                     }
                     cols.lt = F::from_bool(event.ltu);
                     cols.is_real = F::one();
-		    packed_row.push(row);
 		}
-		packed_row.iter().flatten().map(|x| *x).collect::<Vec<F>>()
+		row
             })
             .collect::<Vec<_>>();
 
@@ -90,7 +94,8 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_FIELD_COLS, F>(&mut trace.values);
+	const width : usize = NUM_FIELD_COLS*WIDTH;
+        pad_to_power_of_two::<width, F>(&mut trace.values);
 
         trace
     }
@@ -100,42 +105,43 @@ pub const LTU_NB_BITS: usize = 29;
 
 impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {
-        NUM_FIELD_COLS
+        NUM_FIELD_COLS*WIDTH
     }
 }
 
 impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &FieldLTUCols<AB::Var> = main.row_slice(0).borrow();
+        let local_packed: &PackedFieldLTUCols<AB::Var> = main.row_slice(0).borrow();
+	for local in &local_packed.packed_chips{
+            // Dummy constraint for normalizing to degree 3.
+            builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);
 
-        // Dummy constraint for normalizing to degree 3.
-        builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);
+            // Verify that lt is a boolean.
+            builder.assert_bool(local.lt);
 
-        // Verify that lt is a boolean.
-        builder.assert_bool(local.lt);
+            // Verify that the diff bits are boolean.
+            for i in 0..local.diff_bits.len() {
+		builder.assert_bool(local.diff_bits[i]);
+            }
 
-        // Verify that the diff bits are boolean.
-        for i in 0..local.diff_bits.len() {
-            builder.assert_bool(local.diff_bits[i]);
-        }
+            // Verify the decomposition of b - c.
+            let mut diff = AB::Expr::zero();
+            for i in 0..local.diff_bits.len() {
+		diff += local.diff_bits[i] * AB::F::from_canonical_u32(1 << i);
+            }
+            builder.when(local.is_real).assert_eq(
+		local.b - local.c + AB::F::from_canonical_u32(1 << LTU_NB_BITS),
+		diff,
+            );
 
-        // Verify the decomposition of b - c.
-        let mut diff = AB::Expr::zero();
-        for i in 0..local.diff_bits.len() {
-            diff += local.diff_bits[i] * AB::F::from_canonical_u32(1 << i);
-        }
-        builder.when(local.is_real).assert_eq(
-            local.b - local.c + AB::F::from_canonical_u32(1 << LTU_NB_BITS),
-            diff,
-        );
+            // Assert that the output is correct.
+            builder
+		.when(local.is_real)
+		.assert_eq(local.lt, AB::Expr::one() - local.diff_bits[LTU_NB_BITS]);
 
-        // Assert that the output is correct.
-        builder
-            .when(local.is_real)
-            .assert_eq(local.lt, AB::Expr::one() - local.diff_bits[LTU_NB_BITS]);
-
-        // Receive the field operation.
-        builder.receive_field_op(local.lt, local.b, local.c, local.is_real);
+            // Receive the field operation.
+            builder.receive_field_op(local.lt, local.b, local.c, local.is_real);
+	}
     }
 }

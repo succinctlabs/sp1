@@ -130,6 +130,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
         tracing::info!("Sharding the execution record.");
+
         let shards = self.shard(record, &ShardingConfig::default());
 
         tracing::info!("Generating the shard proofs.");
