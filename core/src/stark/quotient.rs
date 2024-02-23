@@ -8,7 +8,7 @@ use p3_air::TwoRowMatrixView;
 use p3_commit::UnivariatePcsWithLde;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use p3_field::PackedField;
+use p3_field::PackedValue;
 use p3_field::{cyclic_subgroup_coset_known_order, Field, TwoAdicField};
 use p3_matrix::MatrixGet;
 use p3_maybe_rayon::prelude::*;
