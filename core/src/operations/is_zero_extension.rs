@@ -8,7 +8,6 @@ use p3_air::AirBuilder;
 use p3_field::extension::BinomialExtensionField;
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
