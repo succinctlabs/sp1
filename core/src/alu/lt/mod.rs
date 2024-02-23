@@ -311,11 +311,15 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        // Fill lt_events with 10^6 SLT events.
+        let mut lt_events: Vec<AluEvent> = Vec::new();
+        for _ in 0..10i32.pow(6) {
+            lt_events.push(AluEvent::new(0, Opcode::SLT, 0, 3, 2));
+        }
+        shard.lt_events = lt_events;
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
+        let _trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
     }
 
     fn prove_babybear_template(shard: &mut ExecutionRecord) {
