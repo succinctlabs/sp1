@@ -27,11 +27,21 @@ use crate::runtime::ExecutionRecord;
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
 
+fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
+    let mut result = Vec::new();
+    while !vec.is_empty() {
+        let current_chunk_size = std::cmp::min(chunk_size, vec.len());
+        let current_chunk = vec.drain(..current_chunk_size).collect::<Vec<T>>();
+        result.push(current_chunk);
+    }
+    result
+}
+
 pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &[ExecutionRecord],
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>;
 }
@@ -49,12 +59,12 @@ where
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &[ExecutionRecord],
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(machine, shards);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {
@@ -65,18 +75,28 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
+        let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let config = machine.config();
-        let shard_proofs = shard_data
+
+        let shard_data_chunks = chunk_vec(shard_data, chunk_size);
+        let shard_chunks = chunk_vec(shards, chunk_size);
+        let shard_proofs = shard_data_chunks
             .into_par_iter()
-            .zip(shards.par_iter())
-            .map(|(data, shard)| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = machine.shard_chips(shard).collect::<Vec<_>>();
-                tracing::info_span!("proving shard").in_scope(|| {
-                    Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
-                })
+            .zip(shard_chunks.into_par_iter())
+            .map(|(datas, shards)| {
+                datas
+                    .into_iter()
+                    .zip(shards)
+                    .map(|(data, shard)| {
+                        let data = data
+                            .materialize()
+                            .expect("failed to materialize shard main data");
+                        let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                        Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
+                    })
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect::<Vec<_>>();
 
         Proof { shard_proofs }
@@ -144,7 +164,7 @@ where
         ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let traces = shard_data.traces;
+        let traces = &shard_data.traces;
 
         let log_degrees = traces
             .iter()
@@ -425,24 +445,33 @@ where
         // let save_disk_threshold = env::save_disk_threshold();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
+                let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
                 shards
-                    .into_par_iter()
+                    .par_chunks(chunk_size)
                     .enumerate()
-                    .map(|(i, shard)| {
-                        let data = tracing::info_span!("shard commit main", shard = shard.index)
-                            .in_scope(|| Self::commit_main(config, machine, shard, i));
-                        let commitment = data.main_commit.clone();
-                        // let file = tempfile::tempfile().unwrap();
-                        // let data = if num_shards > save_disk_threshold {
-                        //     tracing::info_span!("saving trace to disk").in_scope(|| {
-                        //         data.save(file).expect("failed to save shard main data")
-                        //     })
-                        // } else {
-                        //     data.to_in_memory()
-                        // };
-                        let data = data.to_in_memory();
-                        (commitment, data)
+                    .map(|(i, shard_batch)| {
+                        shard_batch
+                            .iter()
+                            .enumerate()
+                            .map(|(j, shard)| {
+                                let index = i * chunk_size + j;
+                                let data = tracing::info_span!("shard commit main", shard = index)
+                                    .in_scope(|| Self::commit_main(config, machine, shard, index));
+                                let commitment = data.main_commit.clone();
+                                // let file = tempfile::tempfile().unwrap();
+                                // let data = if num_shards > save_disk_threshold {
+                                //     tracing::info_span!("saving trace to disk").in_scope(|| {
+                                //         data.save(file).expect("failed to save shard main data")
+                                //     })
+                                // } else {
+                                //     data.to_in_memory()
+                                // };
+                                let data = data.to_in_memory();
+                                (commitment, data)
+                            })
+                            .collect::<Vec<_>>()
                     })
+                    .flatten()
                     .collect::<Vec<_>>()
                     .into_iter()
                     .unzip()

@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap};
+use hashbrown::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::program::Program;
@@ -101,6 +102,9 @@ pub struct ShardingConfig {
     pub divrem_len: usize,
     pub lt_len: usize,
     pub field_len: usize,
+    pub keccak_len: usize,
+    pub weierstrass_add_len: usize,
+    pub weierstrass_double_len: usize,
 }
 
 impl ShardingConfig {
@@ -123,6 +127,9 @@ impl Default for ShardingConfig {
             mul_len: shard_size,
             shift_right_len: shard_size,
             field_len: shard_size * 4,
+            keccak_len: shard_size,
+            weierstrass_add_len: shard_size,
+            weierstrass_double_len: shard_size,
         }
     }
 }
@@ -160,7 +167,7 @@ impl ExecutionRecord {
         }
     }
 
-    pub fn shard(&self, config: &ShardingConfig) -> Vec<Self> {
+    pub fn shard(self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
         let mut shards = self
             .cpu_events
@@ -257,6 +264,37 @@ impl ExecutionRecord {
             shard.field_events.extend_from_slice(field_chunk);
         }
 
+        // Keccak-256 permute events.
+        for (keccak_chunk, shard) in self
+            .keccak_permute_events
+            .chunks(config.keccak_len)
+            .zip(shards.iter_mut())
+        {
+            shard.keccak_permute_events.extend_from_slice(keccak_chunk);
+        }
+
+        // Weierstrass curve add events.
+        for (weierstrass_add_chunk, shard) in self
+            .weierstrass_add_events
+            .chunks(config.weierstrass_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .weierstrass_add_events
+                .extend_from_slice(weierstrass_add_chunk);
+        }
+
+        // Weierstrass curve double events.
+        for (weierstrass_double_chunk, shard) in self
+            .weierstrass_double_events
+            .chunks(config.weierstrass_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .weierstrass_double_events
+                .extend_from_slice(weierstrass_double_chunk);
+        }
+
         // Put the precompile events in the first shard.
         let first = shards.first_mut().unwrap();
 
@@ -270,11 +308,6 @@ impl ExecutionRecord {
             .sha_compress_events
             .extend_from_slice(&self.sha_compress_events);
 
-        // Keccak-256 permute events.
-        first
-            .keccak_permute_events
-            .extend_from_slice(&self.keccak_permute_events);
-
         // Edwards curve add events.
         first.ed_add_events.extend_from_slice(&self.ed_add_events);
 
@@ -282,16 +315,6 @@ impl ExecutionRecord {
         first
             .ed_decompress_events
             .extend_from_slice(&self.ed_decompress_events);
-
-        // Weierstrass curve add events.
-        first
-            .weierstrass_add_events
-            .extend_from_slice(&self.weierstrass_add_events);
-
-        // Weierstrass curve double events.
-        first
-            .weierstrass_double_events
-            .extend_from_slice(&self.weierstrass_double_events);
 
         // K256 curve decompress events.
         first
