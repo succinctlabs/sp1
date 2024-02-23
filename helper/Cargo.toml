@@ -6,6 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.80"
 cargo_metadata = "0.18.1"
 chrono = { version = "0.4.34", default-features = false, features = ["clock"] }

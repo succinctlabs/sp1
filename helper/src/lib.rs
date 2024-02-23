@@ -1,4 +1,3 @@
-use anyhow::Context;
 use chrono::Local;
 use std::{
     io::{BufRead, BufReader},
@@ -11,9 +10,7 @@ fn current_datetime() -> String {
     now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-pub use anyhow::Error as BuildError;
-
-pub fn build_program(path: &str) -> Result<(), BuildError> {
+pub fn build_program(path: &str) {
     let program_dir = std::path::Path::new(path);
 
     // Tell cargo to rerun the script only if program/{src, Cargo.toml, Cargo.lock} changes
@@ -43,23 +40,8 @@ pub fn build_program(path: &str) -> Result<(), BuildError> {
         current_datetime()
     );
 
-    let err = anyhow::anyhow!(
-        "Failed to build the program located in `{}`.",
-        program_dir.display(),
-    );
-    match execute_build_cmd(&program_dir) {
-        Ok(status) => {
-            if !status.success() {
-                return Err(err).with_context(|| {
-                    format!("Build process returned non-zero exit code {}", status)
-                });
-            }
-        }
-        Err(e) => {
-            return Err(err.context(e));
-        }
-    }
-    Ok(())
+    execute_build_cmd(&program_dir)
+        .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
 }
 
 /// Executes the `cargo prove build` command in the program directory
