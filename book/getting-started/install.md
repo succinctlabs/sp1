@@ -34,10 +34,15 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 ### Troubleshooting
 
-If you have installed `cargo-prove` from source, it may conflict with sp1up's `cargo-prove` installation or vice versa. You can remove either one with the following:
+If you have installed `cargo-prove` from source, it may conflict with sp1up's `cargo-prove` installation or vice versa. You can remove the `cargo-prove` that was installed from source with the following command:
 
 ```bash
 rm ~/.cargo/bin/cargo-prove
+```
+
+Or, you can remove the `cargo-prove` that was installed through `sp1up`:
+
+```bash
 rm ~/.sp1/bin/cargo-prove
 ```
 
