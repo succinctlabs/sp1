@@ -135,7 +135,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
         let shards = self.shard(record, &ShardingConfig::default());
 
         tracing::info!("Generating the shard proofs.");
-        P::prove_shards(self, pk, &shards, challenger)
+        P::prove_shards(self, pk, shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {
