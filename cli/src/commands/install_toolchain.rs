@@ -57,7 +57,7 @@ impl InstallToolchainCmd {
         let target = get_target();
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
-        let toolchain_dir = root_dir.join(target);
+        let toolchain_dir = root_dir.join(&target);
         let toolchain_download_url = get_toolchain_download_url();
 
         // Download the toolchain.
@@ -84,7 +84,7 @@ impl InstallToolchainCmd {
         fs::create_dir_all(toolchain_dir)?;
         Command::new("tar")
             .current_dir(&root_dir)
-            .args(["-xzf", &toolchain_asset_name, "-C", target])
+            .args(["-xzf", &toolchain_asset_name, "-C", &target])
             .run()?;
 
         // Move the toolchain to a random directory (avoid rustup bugs).
@@ -95,7 +95,7 @@ impl InstallToolchainCmd {
             .collect();
         Command::new("mv")
             .current_dir(&root_dir)
-            .args([target, &random_string])
+            .args([&target, &random_string])
             .run()?;
 
         // Link the toolchain to rustup.
