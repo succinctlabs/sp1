@@ -1,0 +1,8 @@
+[workspace]
+[package]
+name = "fri-fold-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
