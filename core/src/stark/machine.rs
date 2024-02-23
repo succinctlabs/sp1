@@ -151,12 +151,14 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
+        println!("cycle-tracker-start: observe challenges for all segments");
         #[cfg(feature = "perf")]
         tracing::info_span!("observe challenges for all segments").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
+        println!("cycle-tracker-end: observe challenges for all segments");
 
         // Verify the segment proofs.
         for (i, proof) in proof.shard_proofs.iter().enumerate() {

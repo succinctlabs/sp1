@@ -13,7 +13,5 @@ pub fn main() {
         serde_json::from_str(proof_str).expect("loading proof failed");
 
     // Verify proof.
-    println!("cycle-tracker-start: verify");
     SP1Verifier::verify(FIBONACCI_ELF, &proof).expect("verification failed");
-    println!("cycle-tracker-end: verify");
 }

@@ -146,7 +146,10 @@ impl SP1Verifier {
         let machine = RiscvStark::new(config);
 
         let (_, vk) = machine.setup(&Program::from(elf));
-        machine.verify(&vk, &proof.proof, &mut challenger)
+        println!("cycle-tracker-start: machine verify");
+        let ret = machine.verify(&vk, &proof.proof, &mut challenger);
+        println!("cycle-tracker-end: machine verify");
+        ret
     }
 }
 

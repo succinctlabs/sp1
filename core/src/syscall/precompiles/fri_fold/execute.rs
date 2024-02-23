@@ -86,9 +86,6 @@ impl Syscall for FriFoldChip {
         let denom = -z + x;
         let quotient = num / denom;
 
-        println!("num is {:?}", num);
-        println!("denom is {:?}", denom);
-
         let ro_output = ro_input + (alpha_pow_input * quotient);
         let alpha_pow_output = alpha_pow_input * alpha;
 

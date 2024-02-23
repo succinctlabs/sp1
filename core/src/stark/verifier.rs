@@ -77,6 +77,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             quotient_commit,
         } = commitment;
 
+        println!("cycle-tracker-start: permutation and fri challenges");
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext_element::<SC::Challenge>())
             .collect::<Vec<_>>();
@@ -101,7 +102,9 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             .iter()
             .map(|chip| vec![zeta.exp_power_of_2(chip.log_quotient_degree())])
             .collect::<Vec<_>>();
+        println!("cycle-tracker-end: permutation and fri challenges");
 
+        println!("cycle-tracker-start: verify multi batches");
         config
             .pcs()
             .verify_multi_batches(
@@ -116,9 +119,11 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
                 challenger,
             )
             .map_err(|_| VerificationError::InvalidopeningArgument)?;
+        println!("cycle-tracker-end: verify multi batches");
 
         // Verify the constrtaint evaluations.
 
+        println!("cycle-tracker-start: verify constraints");
         for (chip, values, g) in izip!(chips.iter(), opened_values.chips.iter(), g_subgroups.iter())
         {
             Self::verify_constraints(
@@ -131,6 +136,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
+        println!("cycle-tracker-end: verify constraints");
 
         Ok(())
     }
