@@ -6,8 +6,8 @@ edition = "2021"
 
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-sp1-zkvm = { path = "../../../zkvm/entrypoint" }
-sp1-core = { path = "../../../core" }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", branch = "kevjue/recursive_verifier_take_two" }
+sp1-core = { git = "https://github.com/succinctlabs/sp1.git", branch = "kevjue/recursive_verifier_take_two" }
 
 [[bin]]
 name = "verifier"

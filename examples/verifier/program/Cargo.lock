@@ -905,7 +905,7 @@ dependencies = [
  "p3-maybe-rayon",
  "p3-util",
  "serde",
- "sp1-zkvm 0.1.0 (git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two)",
+ "sp1-zkvm",
  "tracing",
 ]
 
@@ -1448,6 +1448,7 @@ checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 [[package]]
 name = "sp1-core"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#6bd503b81236f6db4dd7dbb0b083fb3c52ecdf63"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1499,6 +1500,7 @@ dependencies = [
 [[package]]
 name = "sp1-derive"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#6bd503b81236f6db4dd7dbb0b083fb3c52ecdf63"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1508,20 +1510,7 @@ dependencies = [
 [[package]]
 name = "sp1-precompiles"
 version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "sp1-precompiles"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#31962365cef0edaa78228494b9f52f0627f43634"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#6bd503b81236f6db4dd7dbb0b083fb3c52ecdf63"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1535,6 +1524,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#6bd503b81236f6db4dd7dbb0b083fb3c52ecdf63"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1544,23 +1534,7 @@ dependencies = [
  "libm",
  "rand",
  "serde",
- "sp1-precompiles 0.1.0",
-]
-
-[[package]]
-name = "sp1-zkvm"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#31962365cef0edaa78228494b9f52f0627f43634"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "libm",
- "rand",
- "serde",
- "sp1-precompiles 0.1.0 (git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two)",
+ "sp1-precompiles",
 ]
 
 [[package]]
@@ -1773,7 +1747,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "sp1-core",
- "sp1-zkvm 0.1.0",
+ "sp1-zkvm",
 ]
 
 [[package]]
