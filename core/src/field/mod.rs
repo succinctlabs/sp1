@@ -7,6 +7,8 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
 
 use crate::air::FieldAirBuilder;
@@ -59,7 +61,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         // Generate the trace rows for each event.
         let rows = input
             .field_events
-            .iter()
+            .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
                 let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
