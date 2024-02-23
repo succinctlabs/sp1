@@ -86,7 +86,7 @@ where
             .map(|(datas, shards)| {
                 datas
                     .into_iter()
-                    .zip(shards.into_iter())
+                    .zip(shards)
                     .map(|(data, shard)| {
                         let data = data
                             .materialize()
