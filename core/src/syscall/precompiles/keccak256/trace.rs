@@ -50,7 +50,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             .keccak_permute_events
             .iter()
             .enumerate()
-            .filter(|(i, _)| *i < num_total_permutations)
             .collect::<Vec<_>>();
 
         let rows_and_records = enumerated_keccak_permute_events
@@ -58,7 +57,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             .map(|events| {
                 let mut record = ExecutionRecord::default();
                 let mut new_field_events = Vec::new();
-                let mut rows = Vec::new();
+                let mut chunk_rows = Vec::new();
 
                 events.iter().for_each(|enumerated_event| {
                     let permutation_num = enumerated_event.0;
@@ -92,6 +91,8 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                     // First get the trace for the plonky3 keccak air.
                     let p3_keccak_trace = generate_trace_rows::<F>(vec![perm_input]);
+
+                    let mut rows = Vec::new();
 
                     // Create all the rows for the permutation.
                     for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
@@ -141,10 +142,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                         rows.push(row);
                     }
+                    chunk_rows.extend(rows);
                 });
                 record.add_field_events(&new_field_events);
 
-                (rows, record)
+                (chunk_rows, record)
             })
             .collect::<Vec<_>>();
 
