@@ -362,10 +362,29 @@ where
 #[cfg(test)]
 pub mod tests {
 
+    use p3_baby_bear::BabyBear;
+    use p3_matrix::dense::RowMajorMatrix;
+
     use crate::{
-        runtime::Program,
-        utils::{run_test, setup_logger, tests::SECP256K1_DOUBLE_ELF},
+        air::MachineAir,
+        alu::AluEvent,
+        runtime::{ExecutionRecord, Opcode, Program},
+        utils::{
+            ec::weierstrass::secp256k1::Secp256k1, run_test, setup_logger,
+            tests::SECP256K1_DOUBLE_ELF,
+        },
     };
+
+    use super::WeierstrassDoubleAssignChip;
+
+    #[test]
+    fn generate_trace() {
+        let mut shard = ExecutionRecord::default();
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        let chip = WeierstrassDoubleAssignChip::<Secp256k1>::new();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+    }
 
     #[test]
     fn test_secp256k1_double_simple() {

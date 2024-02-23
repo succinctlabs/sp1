@@ -87,6 +87,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                     // Create all the rows for the permutation.
                     for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
+                        // TODO: Is p3_keccak_trace_rows always 24 long? If so, we can just enumerate it.
                         let row_num = permutation_num * NUM_ROUNDS + i;
                         if row_num == num_rows {
                             break;
@@ -153,5 +154,28 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_KECCAK_COLS,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_baby_bear::BabyBear;
+    use p3_matrix::dense::RowMajorMatrix;
+
+    use crate::{
+        air::MachineAir,
+        alu::AluEvent,
+        runtime::{ExecutionRecord, Opcode},
+        stark::KeccakPermuteChip,
+        syscall::precompiles::keccak256::KeccakPermuteEvent,
+    };
+
+    #[test]
+    fn generate_trace() {
+        let mut shard = ExecutionRecord::default();
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        let chip = KeccakPermuteChip::new();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 }
