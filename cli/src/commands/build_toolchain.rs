@@ -21,6 +21,12 @@ impl BuildToolchainCmd {
                 PathBuf::from(build_dir).join("rust")
             }
             Err(_) => {
+                let temp_dir = std::env::temp_dir();
+                let dir = temp_dir.join("sp1-rust");
+                if dir.exists() {
+                    std::fs::remove_dir_all(&dir)?;
+                }
+
                 println!("No SP1_BUILD_DIR detected, cloning rust.");
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
@@ -35,20 +41,26 @@ impl BuildToolchainCmd {
                         "ssh://git@github.com/succinctlabs/rust".to_string()
                     }
                 };
-                Command::new("git").args(["clone", &repo_url]).run()?;
                 Command::new("git")
-                    .args(["checkout", "rustc-1.75"])
-                    .current_dir("rust")
+                    .args([
+                        "clone",
+                        &repo_url,
+                        "--depth=1",
+                        "--single-branch",
+                        "--branch=succinct",
+                        "sp1-rust",
+                    ])
+                    .current_dir(&temp_dir)
                     .run()?;
                 Command::new("git")
                     .args(["reset", "--hard"])
-                    .current_dir("rust")
+                    .current_dir(&dir)
                     .run()?;
                 Command::new("git")
                     .args(["submodule", "update", "--init", "--recursive", "--progress"])
-                    .current_dir("rust")
+                    .current_dir(&dir)
                     .run()?;
-                PathBuf::from("rust")
+                dir
             }
         };
 
