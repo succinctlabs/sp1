@@ -28,7 +28,11 @@ impl CommandExecutor for Command {
     }
 }
 
-#[allow(clippy::useless_format)]
+pub async fn url_exists(client: &Client, url: &str) -> bool {
+    let res = client.head(url).send().await;
+    res.is_ok()
+}
+
 pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(), String> {
     let res = client
         .get(url)
@@ -50,9 +54,9 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
     let mut stream = res.bytes_stream();
 
     while let Some(item) = stream.next().await {
-        let chunk = item.or(Err(format!("Error while downloading file")))?;
+        let chunk = item.or(Err("Error while downloading file"))?;
         file.write_all(&chunk)
-            .or(Err(format!("Error while writing to file")))?;
+            .or(Err("Error while writing to file"))?;
         let new = min(downloaded + (chunk.len() as u64), total_size);
         downloaded = new;
         pb.set_position(new);
@@ -76,16 +80,23 @@ pub fn get_target() -> &'static str {
     panic!("Unsupported architecture. Please build the toolchain from source.")
 }
 
-#[allow(unreachable_code)]
-pub fn get_toolchain_download_url() -> &'static str {
-    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-    return "https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz";
+pub async fn get_toolchain_download_url(client: &Client, target: String) -> String {
+    // Get latest tag from https://api.github.com/repos/succinctlabs/rust/releases/latest
+    // and use it to construct the download URL.
+    let json = client
+        .get("https://api.github.com/repos/succinctlabs/rust/releases/latest")
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let tag = json["tag_name"].as_str().unwrap();
 
-    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-    return "https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/rust-toolchain-aarch64-unknown-linux-gnu.tar.gz";
+    let url = format!(
+        "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",
+        tag, target
+    );
 
-    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-    return "https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/rust-toolchain-aarch64-apple-darwin.tar.gz";
-
-    panic!("Unsupported architecture. Please build the toolchain from source.")
+    url
 }
