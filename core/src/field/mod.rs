@@ -19,7 +19,7 @@ use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
-
+const WIDTH:usize = 2;
 /// A chip that implements less than within the field.
 #[derive(Default)]
 pub struct FieldLTUChip;
@@ -59,30 +59,34 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         // Generate the trace rows for each event.
         let rows = input
             .field_events
-            .iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_FIELD_COLS];
-                let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
-                let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
-                cols.b = F::from_canonical_u32(event.b);
-                cols.c = F::from_canonical_u32(event.c);
-                for i in 0..cols.diff_bits.len() {
-                    cols.diff_bits[i] = F::from_canonical_u32((diff >> i) & 1);
-                }
-                let max = 1 << LTU_NB_BITS;
-                if diff >= max {
-                    panic!("diff overflow");
-                }
-                cols.lt = F::from_bool(event.ltu);
-                cols.is_real = F::one();
-                row
+            .chunks(WIDTH)
+            .map(|events| {
+		let mut packed_row = Vec::new();
+		for event in events{
+                    let mut row = [F::zero(); NUM_FIELD_COLS];
+                    let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
+                    let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
+                    cols.b = F::from_canonical_u32(event.b);
+                    cols.c = F::from_canonical_u32(event.c);
+                    for i in 0..cols.diff_bits.len() {
+			cols.diff_bits[i] = F::from_canonical_u32((diff >> i) & 1);
+                    }
+                    let max = 1 << LTU_NB_BITS;
+                    if diff >= max {
+			panic!("diff overflow");
+                    }
+                    cols.lt = F::from_bool(event.ltu);
+                    cols.is_real = F::one();
+		    packed_row.push(row);
+		}
+		packed_row.iter().flatten().map(|x| *x).collect::<Vec<F>>()
             })
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_FIELD_COLS,
+            NUM_FIELD_COLS*WIDTH,
         );
 
         // Pad the trace to a power of two.
