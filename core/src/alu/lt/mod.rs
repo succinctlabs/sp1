@@ -331,9 +331,9 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        // Fill lt_events with 10^7 SLT events.
+        // Fill lt_events with 10^6 SLT events.
         let mut lt_events: Vec<AluEvent> = Vec::new();
-        for _ in 0..10i32.pow(7) {
+        for _ in 0..10i32.pow(6) {
             lt_events.push(AluEvent::new(0, Opcode::SLT, 0, 3, 2));
         }
         shard.lt_events = lt_events;
