@@ -22,6 +22,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F>;
 
+    /// Generate the dependencies for a given execution record.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        self.generate_trace(input, output);
+    }
+
     /// The number of preprocessed columns in the trace.
     fn preprocessed_width(&self) -> usize {
         0

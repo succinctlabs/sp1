@@ -134,6 +134,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let generate_dependencies_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as crate::air::MachineAir<F>>::generate_dependencies(x, input, output)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics crate::air::MachineAir<F> for #name #ty_generics #where_clause {
                     fn name(&self) -> String {
@@ -164,6 +171,16 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     ) -> p3_matrix::dense::RowMajorMatrix<F> {
                         match self {
                             #(#generate_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_dependencies(
+                        &self,
+                        input: &crate::runtime::ExecutionRecord,
+                        output: &mut crate::runtime::ExecutionRecord,
+                    ) {
+                        match self {
+                            #(#generate_dependencies_arms,)*
                         }
                     }
                 }
