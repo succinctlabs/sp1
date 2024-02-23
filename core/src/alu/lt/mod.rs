@@ -6,7 +6,8 @@ use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use p3_maybe_rayon::prelude::*;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
@@ -84,79 +85,98 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let rows = input
+        // Generate the rows for the trace.
+        let chunk_size = std::cmp::max(input.lt_events.len() / num_cpus::get(), 1);
+
+        let rows_and_records = input
             .lt_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_LT_COLS];
-                let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
-                let a = event.a.to_le_bytes();
-                let b = event.b.to_le_bytes();
-                let c = event.c.to_le_bytes();
+            .par_chunks(chunk_size)
+            .map(|events| {
+                // Note: No lookups are currently used in this trace, so this is not mutated.
+                let record = ExecutionRecord::default();
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_LT_COLS];
+                        let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
+                        let a = event.a.to_le_bytes();
+                        let b = event.b.to_le_bytes();
+                        let c = event.c.to_le_bytes();
 
-                cols.a = Word(a.map(F::from_canonical_u8));
-                cols.b = Word(b.map(F::from_canonical_u8));
-                cols.c = Word(c.map(F::from_canonical_u8));
+                        cols.a = Word(a.map(F::from_canonical_u8));
+                        cols.b = Word(b.map(F::from_canonical_u8));
+                        cols.c = Word(c.map(F::from_canonical_u8));
 
-                // If this is SLT, mask the MSB of b & c before computing cols.bits.
-                let mut masked_b = b;
-                let mut masked_c = c;
-                masked_b[3] &= 0x7f;
-                masked_c[3] &= 0x7f;
+                        // If this is SLT, mask the MSB of b & c before computing cols.bits.
+                        let mut masked_b = b;
+                        let mut masked_c = c;
+                        masked_b[3] &= 0x7f;
+                        masked_c[3] &= 0x7f;
 
-                // If this is SLT, set the sign bits of b and c.
-                if event.opcode == Opcode::SLT {
-                    cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
-                    cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
-                }
+                        // If this is SLT, set the sign bits of b and c.
+                        if event.opcode == Opcode::SLT {
+                            cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
+                            cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
+                        }
 
-                cols.sign_xor = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
-                    + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
+                        cols.sign_xor = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
+                            + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
 
-                // Starting from the largest byte, find the first byte pair, index i that differs.
-                let equal_bytes = b == c;
-                // Defaults to the first byte in BE if the bytes are equal.
-                let mut idx_to_check = 3;
-                // Find the first byte pair that differs in BE.
-                for i in (0..4).rev() {
-                    if b[i] != c[i] {
-                        idx_to_check = i;
-                        break;
-                    }
-                }
+                        // Starting from the largest byte, find the first byte pair, index i that differs.
+                        let equal_bytes = b == c;
+                        // Defaults to the first byte in BE if the bytes are equal.
+                        let mut idx_to_check = 3;
+                        // Find the first byte pair that differs in BE.
+                        for i in (0..4).rev() {
+                            if b[i] != c[i] {
+                                idx_to_check = i;
+                                break;
+                            }
+                        }
 
-                // If this is SLT, masked_b and masked_c are used for cols.bits instead of b
-                // and c.
-                if event.opcode == Opcode::SLT {
-                    let z = 256u16 + masked_b[idx_to_check] as u16 - masked_c[idx_to_check] as u16;
-                    for j in 0..10 {
-                        cols.bits[j] = F::from_canonical_u16(z >> j & 1);
-                    }
-                } else {
-                    let z = 256u16 + b[idx_to_check] as u16 - c[idx_to_check] as u16;
-                    for j in 0..10 {
-                        cols.bits[j] = F::from_canonical_u16(z >> j & 1);
-                    }
-                }
-                // byte_flag marks the byte which cols.bits is computed from.
-                cols.byte_flag[idx_to_check] = F::one();
+                        // If this is SLT, masked_b and masked_c are used for cols.bits instead of b
+                        // and c.
+                        if event.opcode == Opcode::SLT {
+                            let z = 256u16 + masked_b[idx_to_check] as u16
+                                - masked_c[idx_to_check] as u16;
+                            for j in 0..10 {
+                                cols.bits[j] = F::from_canonical_u16(z >> j & 1);
+                            }
+                        } else {
+                            let z = 256u16 + b[idx_to_check] as u16 - c[idx_to_check] as u16;
+                            for j in 0..10 {
+                                cols.bits[j] = F::from_canonical_u16(z >> j & 1);
+                            }
+                        }
+                        // byte_flag marks the byte which cols.bits is computed from.
+                        cols.byte_flag[idx_to_check] = F::one();
 
-                // byte_equality_check marks the bytes that should be checked for equality (i.e.
-                // all bytes after the first byte pair that differs in BE).
-                // Note: If b and c are equal, set byte_equality_check to true for all bytes.
-                for i in 0..4 {
-                    if i > idx_to_check || equal_bytes {
-                        cols.byte_equality_check[i] = F::one();
-                    }
-                }
+                        // byte_equality_check marks the bytes that should be checked for equality (i.e.
+                        // all bytes after the first byte pair that differs in BE).
+                        // Note: If b and c are equal, set byte_equality_check to true for all bytes.
+                        for i in 0..4 {
+                            if i > idx_to_check || equal_bytes {
+                                cols.byte_equality_check[i] = F::one();
+                            }
+                        }
 
-                cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
-                cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
+                        cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
+                        cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
 
-                row
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                (rows, record)
             })
             .collect::<Vec<_>>();
+
+        // Generate the trace rows for each event.
+        let mut rows: Vec<[F; NUM_LT_COLS]> = vec![];
+        for row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            // Lookups are currently unused in this trace.
+            // output.append(&mut row_and_record.1);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -311,11 +331,15 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        // Fill lt_events with 10^7 SLT events.
+        let mut lt_events: Vec<AluEvent> = Vec::new();
+        for _ in 0..10i32.pow(7) {
+            lt_events.push(AluEvent::new(0, Opcode::SLT, 0, 3, 2));
+        }
+        shard.lt_events = lt_events;
         let chip = LtChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
+        let _trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
     }
 
     fn prove_babybear_template(shard: &mut ExecutionRecord) {
