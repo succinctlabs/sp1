@@ -32,8 +32,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        println!("wait yo what?");
-
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
         let mut new_field_events: Vec<FieldEvent> = Vec::new();
@@ -82,7 +80,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
 
         // Generate the trace rows for each event.
-        println!("Generating the trace rows for each event...");
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
@@ -97,9 +94,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
             })
             .flatten()
             .collect::<Vec<_>>();
-        println!("Finished generating the trace rows for each event.");
 
-        println!("Aggregating the events...");
         events.into_iter().for_each(|e| {
             let (alu_events, blu_events, field_events) = e;
             for (key, value) in alu_events {
@@ -113,7 +108,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
             new_blu_events.extend(blu_events);
             new_field_events.extend(field_events);
         });
-        println!("Finished aggregating the events.");
 
         // Add the dependency events to the shard.
         output.add_alu_events(new_alu_events);
