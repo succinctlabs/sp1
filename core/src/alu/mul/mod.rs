@@ -430,9 +430,9 @@ mod tests {
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
 
-        // Fill mul_events with 1000000 MULHSU events.
+        // Fill mul_events with 10^6 MULHSU events.
         let mut mul_events: Vec<AluEvent> = Vec::new();
-        for _ in 0..1000000 {
+        for _ in 0..10i32.pow(6) {
             mul_events.push(AluEvent::new(
                 0,
                 Opcode::MULHSU,
