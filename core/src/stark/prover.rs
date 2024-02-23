@@ -27,11 +27,21 @@ use crate::utils::env;
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
 
+fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
+    let mut result = Vec::new();
+    while !vec.is_empty() {
+        let current_chunk_size = std::cmp::min(chunk_size, vec.len());
+        let current_chunk = vec.drain(..current_chunk_size).collect::<Vec<T>>();
+        result.push(current_chunk);
+    }
+    result
+}
+
 pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &[ExecutionRecord],
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>;
 }
@@ -49,12 +59,12 @@ where
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &[ExecutionRecord],
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, mut shard_data) = Self::commit_shards(machine, shards);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {
@@ -67,19 +77,21 @@ where
         // identical global challenges across the segments.
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let config = machine.config();
-        let shard_proofs = shard_data
-            .par_chunks_mut(chunk_size)
-            .zip(shards.par_chunks(chunk_size))
+
+        let shard_data_chunks = chunk_vec(shard_data, chunk_size);
+        let shard_chunks = chunk_vec(shards, chunk_size);
+        let shard_proofs = shard_data_chunks
+            .into_par_iter()
+            .zip(shard_chunks.into_par_iter())
             .map(|(datas, shards)| {
                 datas
-                    .iter_mut()
-                    .zip(shards.iter())
+                    .into_iter()
+                    .zip(shards)
                     .map(|(data, shard)| {
-                        let data = tracing::info_span!("materializing data").in_scope(|| {
-                            data.materialize_inplace()
-                                .expect("failed to load shard main data")
-                        });
-                        let chips = machine.shard_chips(shard).collect::<Vec<_>>();
+                        let data = data
+                            .materialize()
+                            .expect("failed to materialize shard main data");
+                        let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
                         Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
                     })
                     .collect::<Vec<_>>()
@@ -143,7 +155,7 @@ where
         config: &SC,
         _pk: &ProvingKey<SC>,
         chips: &[&RiscvChip<SC>],
-        shard_data: &ShardMainData<SC>,
+        shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
     where
@@ -433,7 +445,7 @@ where
         let save_disk_threshold = env::save_disk_threshold();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
-                let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
+                let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
                 shards
                     .par_chunks(chunk_size)
                     .enumerate()
