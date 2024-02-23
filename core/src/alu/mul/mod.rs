@@ -139,6 +139,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         );
                         let mut row = [F::zero(); NUM_MUL_COLS];
                         let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
+                        cols.mul_operation.populate(&mut record, event.b, event.c);
+
                         let a_word = event.a.to_le_bytes();
                         let b_word = event.b.to_le_bytes();
                         let c_word = event.c.to_le_bytes();
@@ -232,8 +234,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
         for mut row_and_record in rows_and_records {
-            // TODO: Is this correct?
-            rows.append(&mut row_and_record.0);
+            rows.extend(row_and_record.0);
             output.append(&mut row_and_record.1);
         }
 
