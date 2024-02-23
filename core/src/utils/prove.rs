@@ -32,13 +32,13 @@ pub fn get_cycles(program: Program) -> u64 {
 }
 
 pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
-    let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
     let config = BabyBearBlake3::new();
-    prove_core(config, &mut runtime)
+    prove_core(config, runtime)
 }
 
 #[cfg(test)]
@@ -46,7 +46,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
-    let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
@@ -59,7 +59,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
 
     let start = Instant::now();
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
     assert!(debug_interactions_with_all_chips(
@@ -90,7 +90,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
-    runtime: &mut Runtime,
+    runtime: Runtime,
 ) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
@@ -108,9 +108,9 @@ where
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
     // Prove the program.
-    let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger));
     let cycles = runtime.state.global_clk;
+    let proof = tracing::info_span!("runtime.prove(...)")
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 

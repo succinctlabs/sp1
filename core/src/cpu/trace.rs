@@ -12,12 +12,13 @@ use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode};
+use hashbrown::HashMap;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
-use std::collections::HashMap;
 use tracing::instrument;
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {
@@ -70,6 +71,48 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         Self::pad_to_power_of_two::<F>(&mut trace.values);
 
         trace
+    }
+
+    #[instrument(name = "generate CPU dependencies", skip_all)]
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let mut new_alu_events = HashMap::with_capacity(input.cpu_events.len());
+        let mut new_blu_events = Vec::with_capacity(input.cpu_events.len());
+        let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
+
+        // Generate the trace rows for each event.
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+        let events = input
+            .cpu_events
+            .par_chunks(chunk_size)
+            .map(|ops: &[CpuEvent]| {
+                ops.iter()
+                    .map(|op| {
+                        let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
+                        (alu_events, blu_events, field_events)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        events.into_iter().for_each(|e| {
+            let (alu_events, blu_events, field_events) = e;
+            for (key, value) in alu_events {
+                new_alu_events
+                    .entry(key)
+                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
+                        op_new_events.extend(value.clone())
+                    })
+                    .or_insert(value);
+            }
+            new_blu_events.extend(blu_events);
+            new_field_events.extend(field_events);
+        });
+
+        // Add the dependency events to the shard.
+        output.add_alu_events(new_alu_events);
+        output.add_byte_lookup_events(new_blu_events);
+        output.add_field_events(&new_field_events);
     }
 }
 
