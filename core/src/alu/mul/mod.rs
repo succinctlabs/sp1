@@ -443,7 +443,7 @@ mod tests {
         }
         shard.mul_events = mul_events;
         let chip = MulChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
+        let _trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 
