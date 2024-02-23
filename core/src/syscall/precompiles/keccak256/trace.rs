@@ -45,28 +45,19 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
         let chunk_size = std::cmp::max(num_total_permutations / num_cpus::get(), 1);
 
-        // Discard all events with an index less than num_total_permutations.
-        let enumerated_keccak_permute_events = input
-            .keccak_permute_events
-            .iter()
-            .enumerate()
-            .collect::<Vec<_>>();
-
-        let rows_and_records = enumerated_keccak_permute_events
+        let rows_and_records = (0..num_total_permutations)
+            .collect::<Vec<_>>()
             .par_chunks(chunk_size)
-            .map(|events| {
+            .map(|chunk_indices| {
                 let mut record = ExecutionRecord::default();
                 let mut new_field_events = Vec::new();
                 let mut chunk_rows = Vec::new();
 
-                events.iter().for_each(|enumerated_event| {
-                    let permutation_num = enumerated_event.0;
-                    let event = enumerated_event.1;
-
-                    let is_real_permutation = permutation_num < num_real_permutations;
+                chunk_indices.iter().for_each(|permutation_num| {
+                    let is_real_permutation = *permutation_num < num_real_permutations;
 
                     let event = if is_real_permutation {
-                        Some(&event)
+                        Some(&input.keccak_permute_events[*permutation_num])
                     } else {
                         None
                     };
@@ -97,8 +88,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     // Create all the rows for the permutation.
                     for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
                         let row_num = permutation_num * NUM_ROUNDS + i;
-
-                        if row_num > num_rows {
+                        if row_num == num_rows {
                             break;
                         }
 
@@ -124,6 +114,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                             col.do_memory_check = F::one();
                         }
 
+                        // if this is the last row, then populate write memory accesses
                         // if this is the last row, then populate write memory accesses
                         let last_row_num = NUM_ROUNDS - 1;
                         if i == last_row_num && is_real_permutation {
