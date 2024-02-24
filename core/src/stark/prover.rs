@@ -23,6 +23,7 @@ use super::util::decompose_and_flatten;
 use super::{types::*, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
+use crate::utils::env;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
@@ -442,7 +443,7 @@ where
         tracing::info!("num_shards={}", num_shards);
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
-        // let save_disk_threshold = env::save_disk_threshold();
+        let save_disk_threshold = env::save_disk_threshold();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
                 let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
@@ -458,15 +459,15 @@ where
                                 let data = tracing::info_span!("shard commit main", shard = index)
                                     .in_scope(|| Self::commit_main(config, machine, shard, index));
                                 let commitment = data.main_commit.clone();
-                                // let file = tempfile::tempfile().unwrap();
-                                // let data = if num_shards > save_disk_threshold {
-                                //     tracing::info_span!("saving trace to disk").in_scope(|| {
-                                //         data.save(file).expect("failed to save shard main data")
-                                //     })
-                                // } else {
-                                //     data.to_in_memory()
-                                // };
-                                let data = data.to_in_memory();
+                                let file = tempfile::tempfile().unwrap();
+                                let data = if num_shards > save_disk_threshold {
+                                    tracing::info_span!("saving trace to disk").in_scope(|| {
+                                        data.save(file).expect("failed to save shard main data")
+                                    })
+                                } else {
+                                    data.to_in_memory()
+                                };
+                                // let data = data.to_in_memory();
                                 (commitment, data)
                             })
                             .collect::<Vec<_>>()
