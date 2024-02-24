@@ -4,14 +4,15 @@ use dirs::home_dir;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use std::fs::{self};
+use std::io::Read;
 use std::process::Command;
-use std::time::Duration;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
-    download_file, get_target, get_toolchain_download_url, CommandExecutor, RUSTUP_TOOLCHAIN_NAME,
+    download_file, get_target, get_toolchain_download_url, url_exists, CommandExecutor,
+    RUSTUP_TOOLCHAIN_NAME,
 };
 
 #[derive(Parser)]
@@ -58,28 +59,45 @@ impl InstallToolchainCmd {
         let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(&target);
-        let toolchain_download_url = get_toolchain_download_url();
+        let rt = tokio::runtime::Runtime::new()?;
+
+        let toolchain_download_url =
+            rt.block_on(get_toolchain_download_url(&client, target.to_string()));
+
+        let artifact_exists = rt.block_on(url_exists(&client, toolchain_download_url.as_str()));
+        if !artifact_exists {
+            return Err(anyhow::anyhow!(
+                "Unsupported architecture. Please build the toolchain from source."
+            ));
+        }
 
         // Download the toolchain.
-        let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(download_file(
             &client,
-            toolchain_download_url,
+            toolchain_download_url.as_str(),
             toolchain_archive_path.to_str().unwrap(),
         ))
         .unwrap();
-        std::thread::sleep(Duration::from_secs(3));
 
         // Remove the existing toolchain from rustup, if it exists.
-        match Command::new("rustup")
+        let mut child = Command::new("rustup")
             .current_dir(&root_dir)
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
-            .run()
-        {
-            Ok(_) => println!("Successfully uninstalled existing toolchain."),
-            Err(_) => println!("No existing toolchain to uninstall."),
+            .stdout(std::process::Stdio::piped())
+            .spawn()?;
+        let res = child.wait();
+        match res {
+            Ok(_) => {
+                let mut stdout = child.stdout.take().unwrap();
+                let mut content = String::new();
+                stdout.read_to_string(&mut content).unwrap();
+                if !content.contains("no toolchain installed") {
+                    println!("Succesfully removed existing toolchain.");
+                }
+            }
+            Err(_) => println!("Failed to remove existing toolchain."),
         }
-
+        
         // Unpack the toolchain.
         fs::create_dir_all(toolchain_dir)?;
         Command::new("tar")
