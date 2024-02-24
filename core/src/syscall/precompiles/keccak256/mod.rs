@@ -1,10 +1,8 @@
-use std::ops::Range;
-
 use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
 
-use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS as P3_NUM_KECCAK_COLS};
+use p3_keccak_air::KeccakAir;
 
-use self::columns::P3_KECCAK_COLS_OFFSET;
+// use self::columns::P3_KECCAK_COLS_OFFSET;
 
 mod air;
 pub mod columns;
@@ -29,7 +27,6 @@ pub struct KeccakPermuteEvent {
 
 pub struct KeccakPermuteChip {
     p3_keccak: KeccakAir,
-    p3_keccak_col_range: Range<usize>,
 }
 
 impl KeccakPermuteChip {
@@ -38,8 +35,6 @@ impl KeccakPermuteChip {
         let p3_keccak_air = KeccakAir {};
         Self {
             p3_keccak: p3_keccak_air,
-            p3_keccak_col_range: P3_KECCAK_COLS_OFFSET
-                ..(P3_KECCAK_COLS_OFFSET + P3_NUM_KECCAK_COLS),
         }
     }
 }

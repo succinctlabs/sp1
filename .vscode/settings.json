@@ -28,7 +28,7 @@
         "examples/fibonacci/program/Cargo.toml",
         "examples/fibonacci/script/Cargo.toml",
         "examples/fibonacci-io/program/Cargo.toml",
-        "examples/fibonacci-io/script/Cargo.toml", 
+        "examples/fibonacci-io/script/Cargo.toml",
         "examples/io/program/Cargo.toml",
         "examples/io/script/Cargo.toml",
         "examples/json/program/Cargo.toml",
@@ -55,6 +55,9 @@
         "tests/sha-compress/Cargo.toml",
         "tests/sha-extend/Cargo.toml",
         "tests/sha2/Cargo.toml",
+        // Recursion
+        "recursion/verifier/program/cargo.toml",
+        "recursion/verifier/script/cargo.toml",
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }
