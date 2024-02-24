@@ -65,7 +65,12 @@ impl BuildToolchainCmd {
         };
 
         // Install our config.toml.
-        let config_toml = include_str!("config.toml");
+        let ci = std::env::var("CI").unwrap_or("false".to_string()) == "true";
+        let config_toml = if ci {
+            include_str!("config-ci.toml")
+        } else {
+            include_str!("config.toml")
+        };
         std::fs::write(rust_dir.join("config.toml"), config_toml)?;
 
         // Build the toolchain (stage 1).
