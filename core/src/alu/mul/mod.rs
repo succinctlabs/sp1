@@ -120,11 +120,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
         let mul_events = input.mul_events.clone();
-        // Generate the rows for the trace.
+        // Compute the chunk size based on the number of events and the number of CPUs.
         let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
 
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows_and_records = mul_events
             .par_chunks(chunk_size)
             .map(|events| {
@@ -132,6 +132,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                 let rows = events
                     .iter()
                     .map(|event| {
+                        // Ensure that the opcode is MUL, MULHU, MULH, or MULHSU.
                         assert!(
                             event.opcode == Opcode::MUL
                                 || event.opcode == Opcode::MULHU
