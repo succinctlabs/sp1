@@ -121,7 +121,6 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
         let mul_events = input.mul_events.clone();
         // Generate the rows for the trace.
         let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
@@ -431,7 +430,7 @@ mod tests {
     fn generate_trace_mul() {
         let mut shard = ExecutionRecord::default();
 
-        // Fill mul_events with 10^6 MULHSU events.
+        // Fill mul_events with 10^7 MULHSU events.
         let mut mul_events: Vec<AluEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
             mul_events.push(AluEvent::new(
