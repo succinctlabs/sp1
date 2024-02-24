@@ -4,7 +4,7 @@
 pub fn shard_size() -> usize {
     let value = match std::env::var("SHARD_SIZE") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 1 << 20,
+        Err(_) => 1 << 19,
     };
     assert!(value != 0 && (value & (value - 1)) == 0);
     value

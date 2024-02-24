@@ -29,6 +29,9 @@ macro_rules! entrypoint {
     };
 }
 
+#[cfg(all(target_os = "zkvm", feature = "libm"))]
+mod libm;
+
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
@@ -48,6 +51,9 @@ mod zkvm {
     }
 
     static STACK_TOP: u32 = 0x0020_0400;
+
+    core::arch::global_asm!(include_str!("memset.s"));
+    core::arch::global_asm!(include_str!("memcpy.s"));
 
     core::arch::global_asm!(
         r#"

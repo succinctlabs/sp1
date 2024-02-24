@@ -2,7 +2,6 @@ use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 use p3_maybe_rayon::prelude::*;
-use std::ops::{Add, Mul};
 
 use super::util::batch_multiplicative_inverse_inplace;
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
@@ -29,7 +28,7 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 ///
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
 /// the chip.
-pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
+pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
     preprocessed: &Option<RowMajorMatrix<F>>,
@@ -143,8 +142,7 @@ pub fn eval_permutation_constraints<F, AB>(
 ) where
     F: Field,
     AB::EF: ExtensionField<F>,
-    AB::Expr: Mul<F, Output = AB::Expr> + Add<F, Output = AB::Expr>,
-    AB: MultiTableAirBuilder + PairBuilder,
+    AB: MultiTableAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
     let (alpha, beta) = (random_elements[0], random_elements[1]);

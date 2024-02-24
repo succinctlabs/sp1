@@ -4,6 +4,8 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::runtime::{ExecutionRecord, Program};
 
+pub use sp1_derive::MachineAir;
+
 /// An AIR that is part of a Risc-V AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
     /// A unique identifier for this AIR as part of a machine.
@@ -19,6 +21,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F>;
+
+    /// Generate the dependencies for a given execution record.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        self.generate_trace(input, output);
+    }
 
     /// The number of preprocessed columns in the trace.
     fn preprocessed_width(&self) -> usize {
