@@ -25,7 +25,7 @@ sha2-v0-9-8 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", pa
 sha2-v0-10-6 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", package = "sha2", branch = "main" }
 time = { git = "https://github.com/time-rs/time.git", rev = "v0.3.28" }
 ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git" }
-ed25519-consensus = { git = "git@github.com:succinctlabs/tiny-keccak-private.git" }
+tiny-keccak = { git = "https://github.com/succinctlabs/tiny-keccak-private.git" }
 ```
 
 You may also need to update your `Cargo.lock` file. For example:

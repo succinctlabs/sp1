@@ -7,6 +7,8 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
 
 use crate::air::FieldAirBuilder;
@@ -59,7 +61,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         // Generate the trace rows for each event.
         let rows = input
             .field_events
-            .iter()
+            .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
                 let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
@@ -68,6 +70,10 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
                 cols.c = F::from_canonical_u32(event.c);
                 for i in 0..cols.diff_bits.len() {
                     cols.diff_bits[i] = F::from_canonical_u32((diff >> i) & 1);
+                }
+                let max = 1 << LTU_NB_BITS;
+                if diff >= max {
+                    panic!("diff overflow");
                 }
                 cols.lt = F::from_bool(event.ltu);
                 cols.is_real = F::one();
@@ -88,7 +94,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
     }
 }
 
-pub const LTU_NB_BITS: usize = 25;
+pub const LTU_NB_BITS: usize = 29;
 
 impl<F: Field> BaseAir<F> for FieldLTUChip {
     fn width(&self) -> usize {

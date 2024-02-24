@@ -1,5 +1,5 @@
-use super::ProvingKey;
 use super::{quotient_values, RiscvStark};
+use super::{ProvingKey, RiscvChip};
 use itertools::izip;
 #[cfg(not(feature = "perf"))]
 use p3_air::BaseAir;
@@ -19,27 +19,36 @@ use serde::Serialize;
 use std::marker::PhantomData;
 
 use super::util::decompose_and_flatten;
-use super::{types::*, ChipRef, StarkGenericConfig};
+use super::{types::*, StarkGenericConfig};
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
-use crate::stark::permutation::generate_permutation_trace;
 use crate::utils::env;
 
 #[cfg(not(feature = "perf"))]
 use crate::stark::debug_constraints;
 
+fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
+    let mut result = Vec::new();
+    while !vec.is_empty() {
+        let current_chunk_size = std::cmp::min(chunk_size, vec.len());
+        let current_chunk = vec.drain(..current_chunk_size).collect::<Vec<T>>();
+        result.push(current_chunk);
+    }
+    result
+}
+
 pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &[ExecutionRecord],
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>;
 }
 
 impl<SC> Prover<SC> for LocalProver<SC>
 where
-    SC::Val: PrimeField32 + TwoAdicField + Send + Sync,
+    SC::Val: Send + Sync,
     SC: StarkGenericConfig + Send + Sync,
     SC::Challenger: Clone,
     Com<SC>: Send + Sync,
@@ -50,12 +59,12 @@ where
     fn prove_shards(
         machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
-        shards: &[ExecutionRecord],
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(machine, shards);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
         tracing::info_span!("observing all challenges").in_scope(|| {
@@ -66,18 +75,28 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
+        let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let config = machine.config();
-        let shard_proofs = shard_data
+
+        let shard_data_chunks = chunk_vec(shard_data, chunk_size);
+        let shard_chunks = chunk_vec(shards, chunk_size);
+        let shard_proofs = shard_data_chunks
             .into_par_iter()
-            .zip(shards.par_iter())
-            .map(|(data, shard)| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = machine.shard_chips(shard);
-                tracing::info_span!("proving shard").in_scope(|| {
-                    Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
-                })
+            .zip(shard_chunks.into_par_iter())
+            .map(|(datas, shards)| {
+                datas
+                    .into_iter()
+                    .zip(shards)
+                    .map(|(data, shard)| {
+                        let data = data
+                            .materialize()
+                            .expect("failed to materialize shard main data");
+                        let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                        Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
+                    })
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect::<Vec<_>>();
 
         Proof { shard_proofs }
@@ -88,7 +107,7 @@ pub struct LocalProver<SC>(PhantomData<SC>);
 
 impl<SC> LocalProver<SC>
 where
-    SC::Val: PrimeField + TwoAdicField + PrimeField32,
+    SC::Val: TwoAdicField,
     SC: StarkGenericConfig + Send + Sync,
     SC::Challenger: Clone,
     Com<SC>: Send + Sync,
@@ -105,7 +124,7 @@ where
         SC::Val: PrimeField32,
     {
         // Filter the chips based on what is used.
-        let filtered_chips = machine.shard_chips(shard);
+        let filtered_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
         let traces = filtered_chips
@@ -135,7 +154,7 @@ where
     fn prove_shard(
         config: &SC,
         _pk: &ProvingKey<SC>,
-        chips: &[ChipRef<SC>],
+        chips: &[&RiscvChip<SC>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
@@ -145,7 +164,7 @@ where
         ShardMainData<SC>: DeserializeOwned,
     {
         // Get the traces.
-        let traces = shard_data.traces;
+        let traces = &shard_data.traces;
 
         let log_degrees = traces
             .iter()
@@ -159,10 +178,6 @@ where
             .map(|log_deg| SC::Val::two_adic_generator(*log_deg))
             .collect::<Vec<_>>();
 
-        // Compute the interactions for all chips
-        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
-        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
-
         // Obtain the challenges used for the permutation argument.
         let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
@@ -173,18 +188,12 @@ where
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
         tracing::info_span!("generate permutation traces").in_scope(|| {
-            sends
+            chips
                 .par_iter()
-                .zip(receives.par_iter())
                 .zip(traces.par_iter())
-                .map(|((send, rec), main_trace)| {
-                    let perm_trace = generate_permutation_trace(
-                        send,
-                        rec,
-                        &None,
-                        main_trace,
-                        &permutation_challenges,
-                    );
+                .map(|(chip, main_trace)| {
+                    let perm_trace =
+                        chip.generate_permutation_trace(&None, main_trace, &permutation_challenges);
                     let cumulative_sum = perm_trace
                         .row_slice(main_trace.height() - 1)
                         .last()
@@ -251,7 +260,7 @@ where
                 .map(|i| {
                     quotient_values(
                         config,
-                        &chips[i],
+                        chips[i],
                         cumulative_sums[i],
                         log_degrees[i],
                         &main_ldes[i],
@@ -436,30 +445,35 @@ where
         let save_disk_threshold = env::save_disk_threshold();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
+                let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
                 shards
-                    .into_par_iter()
+                    .par_chunks(chunk_size)
                     .enumerate()
-                    .map(|(i, shard)| {
-                        let data = tracing::info_span!("shard commit main", shard = shard.index)
-                            .in_scope(|| Self::commit_main(config, machine, shard, i));
-                        let commitment = data.main_commit.clone();
-
-                        #[cfg(target_arch = "wasm32")]
-                        let data = data.to_in_memory();
-                        #[cfg(not(target_arch = "wasm32"))]
-                        let data = {
-                            let file = tempfile::tempfile().unwrap();
-                            if num_shards > save_disk_threshold {
-                                tracing::info_span!("saving trace to disk").in_scope(|| {
-                                    data.save(file).expect("failed to save shard main data")
-                                })
-                            } else {
-                                data.to_in_memory()
-                            }
-                        };
-
-                        (commitment, data)
+                    .map(|(i, shard_batch)| {
+                        shard_batch
+                            .iter()
+                            .enumerate()
+                            .map(|(j, shard)| {
+                                let index = i * chunk_size + j;
+                                let data = tracing::info_span!("shard commit main", shard = index)
+                                    .in_scope(|| Self::commit_main(config, machine, shard, index));
+                                let commitment = data.main_commit.clone();
+                                let file = tempfile::tempfile().unwrap();
+                                #[cfg(target_arch = "wasm32")]
+                                let data = data.to_in_memory();
+                                #[cfg(not(target_arch = "wasm32"))]
+                                let data = if num_shards > save_disk_threshold {
+                                    tracing::info_span!("saving trace to disk").in_scope(|| {
+                                        data.save(file).expect("failed to save shard main data")
+                                    })
+                                } else {
+                                    data.to_in_memory()
+                                };
+                                (commitment, data)
+                            })
+                            .collect::<Vec<_>>()
                     })
+                    .flatten()
                     .collect::<Vec<_>>()
                     .into_iter()
                     .unzip()

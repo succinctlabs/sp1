@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::{syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double};
 use anyhow::Context;
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
@@ -12,10 +13,7 @@ use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
 use k256::{PublicKey, Scalar, Secp256k1};
 
-use crate::precompiles::io;
-use crate::syscalls::{
-    syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double,
-};
+use crate::io;
 use crate::unconstrained;
 
 /// Decompresses a compressed public key using secp256k1_decompress precompile.

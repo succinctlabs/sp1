@@ -204,8 +204,8 @@ mod tests {
         runtime.run();
 
         let machine = RiscvStark::new(BabyBearPoseidon2::new());
-        debug_interactions_with_all_chips(
-            &machine.chips(),
+        debug_interactions_with_all_chips::<BabyBearPoseidon2>(
+            machine.chips(),
             &runtime.record,
             vec![InteractionKind::Memory],
         );
@@ -219,8 +219,8 @@ mod tests {
         runtime.run();
 
         let machine = RiscvStark::new(BabyBearPoseidon2::new());
-        debug_interactions_with_all_chips(
-            &machine.chips(),
+        debug_interactions_with_all_chips::<BabyBearPoseidon2>(
+            machine.chips(),
             &runtime.record,
             vec![InteractionKind::Byte],
         );

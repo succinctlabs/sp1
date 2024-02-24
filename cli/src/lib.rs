@@ -1,4 +1,6 @@
+mod build;
 pub mod commands;
+mod util;
 
 use anyhow::Result;
 use futures_util::StreamExt;
@@ -8,6 +10,7 @@ use std::cmp::min;
 use std::fs::File as SyncFile;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use target_lexicon;
 
 pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
@@ -60,18 +63,8 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
     Ok(())
 }
 
-#[allow(unreachable_code)]
-pub fn get_target() -> &'static str {
-    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-    return "x86_64-unknown-linux-gnu";
-
-    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-    return "aarch64-unknown-linux-gnu";
-
-    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-    return "aarch64-apple-darwin";
-
-    panic!("Unsupported architecture. Please build the toolchain from source.")
+pub fn get_target() -> String {
+    target_lexicon::HOST.to_string()
 }
 
 #[allow(unreachable_code)]

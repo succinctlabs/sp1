@@ -10,6 +10,7 @@ mod syscall;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
+use hashbrown::hash_map::Entry;
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
@@ -17,8 +18,10 @@ pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use state::*;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 pub use syscall::*;
@@ -64,6 +67,9 @@ pub struct Runtime {
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
 
+    /// A buffer for writing trace events to a file.
+    pub trace_buf: Option<BufWriter<File>>,
+
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
     /// the unconstrained block. The only thing preserved is writes to the input stream.
@@ -82,6 +88,13 @@ impl Runtime {
             program: program_arc.clone(),
             ..Default::default()
         };
+        // Write pc trace to file if TRACE_FILE is set
+        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
+            let file = File::create(trace_file).unwrap();
+            Some(BufWriter::new(file))
+        } else {
+            None
+        };
 
         Self {
             record,
@@ -90,6 +103,7 @@ impl Runtime {
             cpu_record: CpuRecord::default(),
             shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
+            trace_buf,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map: default_syscall_map(),
@@ -343,7 +357,7 @@ impl Runtime {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
-    #[inline]
+    #[inline(always)]
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
@@ -366,14 +380,14 @@ impl Runtime {
     }
 
     /// Set the destination register with the result and emit an ALU event.
-    #[inline]
+    #[inline(always)]
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
         self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
     }
 
     /// Fetch the input operand values for a load instruction.
-    #[inline]
+    #[inline(always)]
     fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, u32) {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
@@ -383,7 +397,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a store instruction.
-    #[inline]
+    #[inline(always)]
     fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
         let c = imm;
@@ -395,7 +409,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a branch instruction.
-    #[inline]
+    #[inline(always)]
     fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let c = imm;
@@ -405,6 +419,7 @@ impl Runtime {
     }
 
     /// Fetch the instruction at the current program counter.
+    #[inline(always)]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
@@ -757,6 +772,12 @@ impl Runtime {
             // Fetch the instruction at the current program counter.
             let instruction = self.fetch();
 
+            if let Some(ref mut buf) = self.trace_buf {
+                if !self.unconstrained {
+                    buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+                }
+            }
+
             let width = 12;
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
@@ -797,6 +818,9 @@ impl Runtime {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
             }
+        }
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory

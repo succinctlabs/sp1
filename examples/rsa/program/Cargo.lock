@@ -575,7 +575,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 
 [[package]]
-name = "sp1-zkvm"
+name = "sp1-precompiles"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -585,6 +585,21 @@ dependencies = [
  "k256",
  "rand",
  "serde",
+]
+
+[[package]]
+name = "sp1-zkvm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "libm",
+ "rand",
+ "serde",
+ "sp1-precompiles",
 ]
 
 [[package]]
