@@ -97,7 +97,7 @@ impl InstallToolchainCmd {
             }
             Err(_) => println!("Failed to remove existing toolchain."),
         }
-        
+
         // Unpack the toolchain.
         fs::create_dir_all(toolchain_dir)?;
         Command::new("tar")
