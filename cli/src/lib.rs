@@ -10,7 +10,6 @@ use std::cmp::min;
 use std::fs::File as SyncFile;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use target_lexicon;
 
 pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
