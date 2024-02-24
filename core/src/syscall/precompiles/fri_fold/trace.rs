@@ -55,15 +55,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<4>> MachineAir<F> for FriFoldChip {
                     input_cols.input_slice_ptr = F::from_canonical_u32(event.input_slice_ptr);
                     input_cols.output_slice_ptr = F::from_canonical_u32(event.output_slice_ptr);
 
-                    println!(
-                        "input_slice is {:?}",
-                        event
-                            .input_slice_read_records
-                            .iter()
-                            .map(|x| x.value)
-                            .collect_vec()
-                    );
-
                     let num_base_elms = event.num.map(F::from_canonical_u32);
                     let num = BinomialExtensionField::from_base_slice(&num_base_elms);
                     let denom_base_elms = event.denom.map(F::from_canonical_u32);
@@ -90,34 +81,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<4>> MachineAir<F> for FriFoldChip {
                         F::from_canonical_u32(event.output_slice_read_records[RO_ADDR_IDX].value);
                     input_cols.alpha_pow_addr = F::from_canonical_u32(
                         event.output_slice_read_records[ALPHA_POW_ADDR_IDX].value,
-                    );
-
-                    println!(
-                        "ro_read is {:?}",
-                        event.ro_read_records.iter().map(|x| x.value).collect_vec()
-                    );
-
-                    println!(
-                        "alpha_pow_read is {:?}",
-                        event
-                            .alpha_pow_read_records
-                            .iter()
-                            .map(|x| x.value)
-                            .collect_vec()
-                    );
-
-                    println!(
-                        "ro_write is {:?}",
-                        event.ro_write_records.iter().map(|x| x.value).collect_vec()
-                    );
-
-                    println!(
-                        "alpha_pow_write is {:?}",
-                        event
-                            .alpha_pow_write_records
-                            .iter()
-                            .map(|x| x.value)
-                            .collect_vec()
                     );
 
                     for i in 0..DEGREE {
