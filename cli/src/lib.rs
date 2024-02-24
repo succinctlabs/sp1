@@ -47,7 +47,7 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
     pb.set_style(ProgressStyle::default_bar()
         .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
         .progress_chars("#>-"));
-    pb.set_message(&format!("Downloading {}", url));
+    println!("Downloading {}", url);
 
     let mut file = SyncFile::create(path).or(Err(format!("Failed to create file '{}'", path)))?;
     let mut downloaded: u64 = 0;

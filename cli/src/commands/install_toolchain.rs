@@ -4,6 +4,7 @@ use dirs::home_dir;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use std::fs::{self};
+use std::io::Read;
 use std::process::Command;
 
 #[cfg(target_family = "unix")]
@@ -79,15 +80,24 @@ impl InstallToolchainCmd {
         .unwrap();
 
         // Remove the existing toolchain from rustup, if it exists.
-        match Command::new("rustup")
+        let mut child = Command::new("rustup")
             .current_dir(&root_dir)
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
-            .run()
-        {
-            Ok(_) => println!("Successfully uninstalled existing toolchain."),
-            Err(_) => println!("No existing toolchain to uninstall."),
+            .stdout(std::process::Stdio::piped())
+            .spawn()?;
+        let res = child.wait();
+        match res {
+            Ok(_) => {
+                let mut stdout = child.stdout.take().unwrap();
+                let mut content = String::new();
+                stdout.read_to_string(&mut content).unwrap();
+                if !content.contains("no toolchain installed") {
+                    println!("Succesfully removed existing toolchain.");
+                }
+            }
+            Err(_) => println!("Failed to remove existing toolchain."),
         }
-
+        
         // Unpack the toolchain.
         fs::create_dir_all(toolchain_dir)?;
         Command::new("tar")
