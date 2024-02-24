@@ -13,5 +13,7 @@ pub fn main() {
 
     type SC = sp1_recursion::utils::BabyBearBlake3;
 
-    let machine = RiscvStark::new();
+    let config = SC::new();
+
+    let machine = RiscvStark::new(config);
 }
