@@ -452,7 +452,7 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
-                let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
+                let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
                     .par_chunks(chunk_size)
                     .enumerate()
