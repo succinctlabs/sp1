@@ -245,40 +245,33 @@ impl CpuChip {
             - memory_columns.offset_is_two
             - memory_columns.offset_is_three;
 
+        let mut filtered_builder = builder.when(is_mem_op);
+
         // Assert that the value flags are boolean
-        builder
-            .when(is_mem_op.clone())
-            .assert_bool(memory_columns.offset_is_one);
-
-        builder
-            .when(is_mem_op.clone())
-            .assert_bool(memory_columns.offset_is_two);
-
-        builder
-            .when(is_mem_op.clone())
-            .assert_bool(memory_columns.offset_is_three);
+        filtered_builder.assert_bool(memory_columns.offset_is_one);
+        filtered_builder.assert_bool(memory_columns.offset_is_two);
+        filtered_builder.assert_bool(memory_columns.offset_is_three);
 
         // Assert that only one of the value flags is true
-        builder.when(is_mem_op.clone()).assert_eq(
+        filtered_builder.assert_one(
             offset_is_zero.clone()
                 + memory_columns.offset_is_one
                 + memory_columns.offset_is_two
                 + memory_columns.offset_is_three,
-            AB::Expr::one(),
         );
 
         // Assert that the correct value flag is set
-        builder
-            .when(is_mem_op.clone() * offset_is_zero)
-            .assert_eq(memory_columns.addr_offset, AB::Expr::zero());
-        builder
-            .when(is_mem_op.clone() * memory_columns.offset_is_one)
-            .assert_eq(memory_columns.addr_offset, AB::Expr::one());
-        builder
-            .when(is_mem_op.clone() * memory_columns.offset_is_two)
+        filtered_builder
+            .when(offset_is_zero)
+            .assert_zero(memory_columns.addr_offset);
+        filtered_builder
+            .when(memory_columns.offset_is_one)
+            .assert_one(memory_columns.addr_offset);
+        filtered_builder
+            .when(memory_columns.offset_is_two)
             .assert_eq(memory_columns.addr_offset, AB::Expr::two());
-        builder
-            .when(is_mem_op * memory_columns.offset_is_three)
+        filtered_builder
+            .when(memory_columns.offset_is_three)
             .assert_eq(memory_columns.addr_offset, AB::Expr::from_canonical_u8(3));
     }
 }
