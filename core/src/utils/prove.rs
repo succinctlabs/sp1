@@ -88,7 +88,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     prove(program)
 }
 
-pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize + Clone>(
+pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
     runtime: Runtime,
 ) -> crate::stark::Proof<SC>
@@ -188,7 +188,13 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<<Val as Field>::Packing, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<
+        <Val as Field>::Packing,
+        <Val as Field>::Packing,
+        MyHash,
+        MyCompress,
+        8,
+    >;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
@@ -290,16 +296,14 @@ pub(super) mod baby_bear_poseidon2 {
 
 pub(super) mod baby_bear_keccak {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
-    use p3_challenger::DuplexChallenger;
+    use p3_challenger::{HashChallenger, SerializingChallenger32};
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_keccak::Keccak256Hash;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
@@ -311,17 +315,17 @@ pub(super) mod baby_bear_keccak {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<Keccak256Hash>;
+    type ByteHash = Keccak256Hash;
+    type FieldHash = SerializingHasher32<ByteHash>;
 
-    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+    type MyCompress = CompressionFunctionFromHasher<u8, ByteHash, 2, 32>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u8, FieldHash, MyCompress, 32>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
@@ -329,7 +333,6 @@ pub(super) mod baby_bear_keccak {
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearKeccak>")]
     pub struct BabyBearKeccak {
-        perm: Perm,
         pcs: Pcs,
     }
     // Implement serialization manually instead of using serde(into) to avoid cloing the config
@@ -351,13 +354,12 @@ pub(super) mod baby_bear_keccak {
     impl BabyBearKeccak {
         #[allow(dead_code)]
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            let byte_hash = ByteHash {};
+            let field_hash = FieldHash::new(byte_hash);
 
-            let hash = MyHash::new(Keccak256Hash {});
+            let compress = MyCompress::new(byte_hash);
 
-            let compress = MyCompress::new(hash);
-
-            let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
@@ -371,7 +373,7 @@ pub(super) mod baby_bear_keccak {
             };
             let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
-            Self { pcs, perm }
+            Self { pcs }
         }
     }
 
@@ -385,7 +387,7 @@ pub(super) mod baby_bear_keccak {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
+            Challenger::from_hasher(vec![], ByteHash {})
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -418,16 +420,14 @@ pub(super) mod baby_bear_keccak {
 
 pub(super) mod baby_bear_blake3 {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
     use p3_blake3::Blake3;
-    use p3_challenger::DuplexChallenger;
+    use p3_challenger::{HashChallenger, SerializingChallenger32};
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
@@ -439,17 +439,17 @@ pub(super) mod baby_bear_blake3 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<Blake3>;
+    type ByteHash = Blake3;
+    type FieldHash = SerializingHasher32<ByteHash>;
 
-    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+    type MyCompress = CompressionFunctionFromHasher<u8, ByteHash, 2, 32>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u8, FieldHash, MyCompress, 32>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
@@ -457,7 +457,6 @@ pub(super) mod baby_bear_blake3 {
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearBlake3>")]
     pub struct BabyBearBlake3 {
-        perm: Perm,
         pcs: Pcs,
     }
 
@@ -479,16 +478,12 @@ pub(super) mod baby_bear_blake3 {
 
     impl BabyBearBlake3 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-            Self::from_perm(perm)
-        }
+            let byte_hash = ByteHash {};
+            let field_hash = FieldHash::new(byte_hash);
 
-        fn from_perm(perm: Perm) -> Self {
-            let hash = MyHash::new(Blake3 {});
+            let compress = MyCompress::new(byte_hash);
 
-            let compress = MyCompress::new(hash);
-
-            let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
@@ -502,13 +497,7 @@ pub(super) mod baby_bear_blake3 {
             };
             let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
-            Self { pcs, perm }
-        }
-    }
-
-    impl Clone for BabyBearBlake3 {
-        fn clone(&self) -> Self {
-            Self::from_perm(self.perm.clone())
+            Self { pcs }
         }
     }
 
@@ -516,7 +505,7 @@ pub(super) mod baby_bear_blake3 {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
+            Challenger::from_hasher(vec![], ByteHash {})
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
