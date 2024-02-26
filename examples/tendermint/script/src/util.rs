@@ -3,10 +3,36 @@ use std::collections::HashMap;
 use std::error::Error;
 
 use reqwest::Client;
-use tendermint::{block::signed_header::SignedHeader, node::Id, validator::Set};
+use serde::Deserialize;
+use tendermint::{
+    block::signed_header::SignedHeader,
+    node::Id,
+    validator::{Info, Set},
+};
 use tendermint_light_client_verifier::types::{LightBlock, ValidatorSet};
 
-use crate::{BlockValidatorSet, CommitResponse, ValidatorSetResponse};
+#[derive(Debug, Deserialize)]
+pub struct CommitResponse {
+    pub result: SignedHeaderWrapper,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SignedHeaderWrapper {
+    pub signed_header: SignedHeader,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ValidatorSetResponse {
+    pub result: BlockValidatorSet,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BlockValidatorSet {
+    pub block_height: String,
+    pub validators: Vec<Info>,
+    pub count: String,
+    pub total: String,
+}
 
 pub fn sort_signatures_by_validators_power_desc(
     signed_header: &mut SignedHeader,
