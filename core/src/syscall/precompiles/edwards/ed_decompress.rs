@@ -185,7 +185,7 @@ impl<V: Copy> EdDecompressCols<V> {
             .assert_all_eq(self.neg_x.result, x_limbs);
         builder
             .when(self.is_real)
-            .when(AB::Expr::one() - sign.clone())
+            .when_not(sign.clone())
             .assert_all_eq(self.x.multiplication.result, x_limbs);
     }
 }
