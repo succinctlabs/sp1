@@ -1,8 +1,14 @@
 name: Evaluate Performance
 
 on:
-  schedule:
-    - cron: "0 0 * * *" # Runs at 00:00 UTC every day
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# on:
+#   schedule:
+#     - cron: "0 0 * * *" # Runs at 00:00 UTC every day
 
 jobs:
   benchmark:
