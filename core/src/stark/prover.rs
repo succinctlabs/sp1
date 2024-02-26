@@ -77,20 +77,26 @@ where
         // identical global challenges across the segments.
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let config = machine.config();
-
+        let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
         let shard_proofs = shard_data_chunks
             .into_par_iter()
             .zip(shard_chunks.into_par_iter())
-            .map(|(datas, shards)| {
+            .enumerate()
+            .map(|(i, (datas, shards))| {
                 datas
                     .into_iter()
                     .zip(shards)
-                    .map(|(data, shard)| {
-                        let data = data
-                            .materialize()
-                            .expect("failed to materialize shard main data");
+                    .enumerate()
+                    .map(|(j, (data, shard))| {
+                        let idx = i * chunk_size + j;
+                        let data = if reconstruct_commitments {
+                            Self::commit_main(config, machine, &shard, idx)
+                        } else {
+                            data.materialize()
+                                .expect("failed to materialize shard main data")
+                        };
                         let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
                         Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
                     })
@@ -443,6 +449,7 @@ where
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
         let save_disk_threshold = env::save_disk_threshold();
+        let reconstruct_commitments = env::reconstruct_commitments();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
                 let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
@@ -459,7 +466,9 @@ where
                                     .in_scope(|| Self::commit_main(config, machine, shard, index));
                                 let commitment = data.main_commit.clone();
                                 let file = tempfile::tempfile().unwrap();
-                                let data = if num_shards > save_disk_threshold {
+                                let data = if reconstruct_commitments {
+                                    ShardMainDataWrapper::Empty()
+                                } else if num_shards > save_disk_threshold {
                                     tracing::info_span!("saving trace to disk").in_scope(|| {
                                         data.save(file).expect("failed to save shard main data")
                                     })
