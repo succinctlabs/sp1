@@ -1,12 +1,9 @@
-use super::columns::{
-    AuipcCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
-    NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
-};
+use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::columns::{CpuCols, MemoryColumns};
+use crate::cpu::columns::CpuCols;
 use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
@@ -157,8 +154,7 @@ impl CpuChip {
 
         // Populate memory accesses for reading from memory.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
-        let memory_columns: &mut MemoryColumns<F> =
-            cols.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow_mut();
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
@@ -200,8 +196,7 @@ impl CpuChip {
         }
 
         // Populate addr_word and addr_aligned columns.
-        let memory_columns: &mut MemoryColumns<F> =
-            cols.opcode_specific_columns[0..NUM_MEMORY_COLUMNS].borrow_mut();
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
         let memory_addr = event.b.wrapping_add(event.c);
         memory_columns.addr_word = memory_addr.into();
         memory_columns.addr_aligned =
@@ -308,8 +303,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_branch_instruction() {
-            let branch_columns: &mut BranchCols<F> =
-                cols.opcode_specific_columns[..NUM_BRANCH_COLS].borrow_mut();
+            let branch_columns = cols.opcode_specific_columns.branch_mut();
 
             let a_eq_b = event.a == event.b;
 
@@ -404,8 +398,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_jump_instruction() {
-            let jump_columns: &mut JumpCols<F> =
-                cols.opcode_specific_columns[..NUM_JUMP_COLS].borrow_mut();
+            let jump_columns = cols.opcode_specific_columns.jump_mut();
 
             match event.instruction.opcode {
                 Opcode::JAL => {
@@ -456,8 +449,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns: &mut AuipcCols<F> =
-                cols.opcode_specific_columns[..NUM_AUIPC_COLS].borrow_mut();
+            let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
             auipc_columns.pc = event.pc.into();
 
