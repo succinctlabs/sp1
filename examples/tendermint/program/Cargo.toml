@@ -14,6 +14,6 @@ tendermint-light-client-verifier = { version = "0.34.0", default-features = fals
 ] }
 
 [patch.crates-io]
-sha2-v0-9-8 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", package = "sha2", branch = "v0.9.8" }
-ed25519-consensus = { git = "https://github.com/succinctlabs/ed25519-consensus-private.git" }
-sha2-v0-10-8 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", package = "sha2", branch = "main" }
+sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
+sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.10.6" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }

@@ -126,7 +126,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+ssh://git@github.com/succinctlabs/dalek-ng-private.git#01f43665631d2c33385708d41d0c26dbb1baa0ea"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git#01f43665631d2c33385708d41d0c26dbb1baa0ea"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -213,7 +213,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/succinctlabs/ed25519-consensus-private.git#e9f03604509ceabedaf31f66a70c28297d7af6c2"
+source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0#59f16610526726fa5c96dd77ca792f821021b66e"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
@@ -666,7 +666,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.9.8"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -678,7 +678,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.6"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=main#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-v0.10.6#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"
 dependencies = [
  "cfg-if",
  "cpufeatures",

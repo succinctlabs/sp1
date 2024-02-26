@@ -76,11 +76,12 @@ impl SP1Prover {
             runtime.run();
         });
         let config = BabyBearBlake3::new();
-        let proof = prove_core(config, &mut runtime);
+        let stdout = SP1Stdout::from(&runtime.state.output_stream);
+        let proof = prove_core(config, runtime);
         Ok(SP1ProofWithIO {
             proof,
             stdin,
-            stdout: SP1Stdout::from(&runtime.state.output_stream),
+            stdout,
         })
     }
 
@@ -103,11 +104,12 @@ impl SP1Prover {
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
-        let proof = prove_core(config, &mut runtime);
+        let stdout = SP1Stdout::from(&runtime.state.output_stream);
+        let proof = prove_core(config, runtime);
         Ok(SP1ProofWithIO {
             proof,
             stdin,
-            stdout: SP1Stdout::from(&runtime.state.output_stream),
+            stdout,
         })
     }
 }
