@@ -1,4 +1,4 @@
-use sp1_helper::{build_program, BuildError};
+use sp1_helper::{build_program};
 
 fn main() {
     build_program("../program")
