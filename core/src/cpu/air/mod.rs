@@ -57,7 +57,7 @@ where
             AB::Expr::one() - local.selectors.imm_b,
         );
         builder
-            .when(AB::Expr::one() - local.selectors.imm_b)
+            .when_not(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.constraint_memory_access(
@@ -68,7 +68,7 @@ where
             AB::Expr::one() - local.selectors.imm_c,
         );
         builder
-            .when(AB::Expr::one() - local.selectors.imm_c)
+            .when_not(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         // Write the `a` or the result to the first register described in the instruction unless

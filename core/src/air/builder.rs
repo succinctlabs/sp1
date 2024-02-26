@@ -32,9 +32,9 @@ pub trait EmptyMessageBuilder: AirBuilder {}
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
-    /// Returns a sub-builder whose constraints are enforced only when condition is one.
+    /// Returns a sub-builder whose constraints are enforced only when `condition` is not one.
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
-        self.when(Self::Expr::from(Self::F::one()) - condition.into())
+        self.when_ne(condition, Self::F::one())
     }
 
     /// Asserts that an iterator of expressions are all equal.
