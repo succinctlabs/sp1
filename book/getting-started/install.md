@@ -7,7 +7,7 @@ Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
-Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS is older, it's possible they won't work but you can still try.
+Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
 
 sp1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
