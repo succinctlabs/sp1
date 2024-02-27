@@ -22,6 +22,6 @@ pub fn save_disk_threshold() -> usize {
 pub fn reconstruct_commitments() -> bool {
     match std::env::var("RECONSTRUCT_COMMITMENTS") {
         Ok(val) => val == "true",
-        Err(_) => false,
+        Err(_) => true,
     }
 }
