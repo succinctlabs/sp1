@@ -8,7 +8,7 @@ use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
-
+use p3_maybe_rayon::prelude::*; //{ParallelIterator, ParallelSlice,};
 use crate::air::FieldAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -44,7 +44,9 @@ pub struct FieldLTUCols<T> {
     // pub multiplicities: T,
     pub is_real: T,
 }
-#[derive(Debug, Clone, AlignedBorrow)]
+unsafe impl<T> Send for FieldLTUCols<T> {}
+unsafe impl<T> Sync for FieldLTUCols<T> {}
+#[derive(Debug, Clone, AlignedBorrow, Copy)]
 #[repr(C)]
 pub struct PackedFieldLTUCols<T>{
     packed_chips: [FieldLTUCols<T>;WIDTH]
@@ -64,7 +66,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         // Generate the trace rows for each event.
         let rows = input
             .field_events
-            .chunks(WIDTH)
+            .par_chunks_exact(WIDTH)
             .map(|events| {
                 let mut row = [F::zero(); NUM_FIELD_COLS * WIDTH];
                 let packed_cols: &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
@@ -113,7 +115,8 @@ impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local_packed: &PackedFieldLTUCols<AB::Var> = main.row_slice(0).borrow();
-	for local in &local_packed.packed_chips{
+	let local_packed_chips: Vec<FieldLTUCols<AB::Var>> = local_packed.packed_chips.to_vec();
+	local_packed_chips.iter().for_each(|local| {
             // Dummy constraint for normalizing to degree 3.
             builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);
 
@@ -142,6 +145,6 @@ impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
 
             // Receive the field operation.
             builder.receive_field_op(local.lt, local.b, local.c, local.is_real);
-	}
+	});
     }
 }
