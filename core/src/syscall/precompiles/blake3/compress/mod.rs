@@ -102,7 +102,7 @@ pub struct Blake3CompressInnerEvent {
 pub struct Blake3CompressInnerChip {}
 
 impl Blake3CompressInnerChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

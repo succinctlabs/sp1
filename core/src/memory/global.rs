@@ -26,7 +26,7 @@ pub struct MemoryGlobalChip {
 }
 
 impl MemoryGlobalChip {
-    pub fn new(kind: MemoryChipKind) -> Self {
+    pub const fn new(kind: MemoryChipKind) -> Self {
         Self { kind }
     }
 }

@@ -69,7 +69,7 @@ pub struct EdAddAssignChip<E> {
 }
 
 impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             _marker: PhantomData,
         }

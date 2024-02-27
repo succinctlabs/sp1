@@ -93,63 +93,40 @@ pub enum RiscvAir<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
+    pub const fn get_all_array() -> [Self; 24] {
+        [
+            Self::Cpu(CpuChip),
+            Self::Program(ProgramChip::new()),
+            Self::Sha256Extend(ShaExtendChip),
+            Self::Sha256Compress(ShaCompressChip),
+            Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
+            Self::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::new()),
+            Self::K256Decompress(K256DecompressChip),
+            Self::Secp256k1Add(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new()),
+            Self::Secp256k1Double(
+                WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new(),
+            ),
+            Self::KeccakP(KeccakPermuteChip::new()),
+            Self::Blake3Compress(Blake3CompressInnerChip::new()),
+            Self::Add(AddChip),
+            Self::Sub(SubChip),
+            Self::Bitwise(BitwiseChip),
+            Self::DivRem(DivRemChip),
+            Self::Mul(MulChip),
+            Self::ShiftRight(ShiftRightChip),
+            Self::ShiftLeft(ShiftLeft),
+            Self::Lt(LtChip),
+            Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
+            Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
+            Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
+            Self::FieldLTU(FieldLTUChip),
+            Self::ByteLookup(ByteChip::new()),
+        ]
+    }
+
     /// Get all the different RISC-V AIRs.
     pub fn get_all() -> Vec<Self> {
-        // The order of the chips is important, as it is used to determine the order of trace
-        // generation. In the future, we will detect that order automatically.
-        let mut chips = vec![];
-        let cpu = CpuChip::default();
-        chips.push(RiscvAir::Cpu(cpu));
-        let program = ProgramChip::default();
-        chips.push(RiscvAir::Program(program));
-        let sha_extend = ShaExtendChip::default();
-        chips.push(RiscvAir::Sha256Extend(sha_extend));
-        let sha_compress = ShaCompressChip::default();
-        chips.push(RiscvAir::Sha256Compress(sha_compress));
-        let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
-        chips.push(RiscvAir::Ed25519Add(ed_add_assign));
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
-        chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
-        let k256_decompress = K256DecompressChip::default();
-        chips.push(RiscvAir::K256Decompress(k256_decompress));
-        let weierstrass_add_assign =
-            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Add(weierstrass_add_assign));
-        let weierstrass_double_assign =
-            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
-        let keccak_permute = KeccakPermuteChip::new();
-        chips.push(RiscvAir::KeccakP(keccak_permute));
-        let blake3_compress_inner = Blake3CompressInnerChip::new();
-        chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let add = AddChip::default();
-        chips.push(RiscvAir::Add(add));
-        let sub = SubChip::default();
-        chips.push(RiscvAir::Sub(sub));
-        let bitwise = BitwiseChip::default();
-        chips.push(RiscvAir::Bitwise(bitwise));
-        let div_rem = DivRemChip::default();
-        chips.push(RiscvAir::DivRem(div_rem));
-        let mul = MulChip::default();
-        chips.push(RiscvAir::Mul(mul));
-        let shift_right = ShiftRightChip::default();
-        chips.push(RiscvAir::ShiftRight(shift_right));
-        let shift_left = ShiftLeft::default();
-        chips.push(RiscvAir::ShiftLeft(shift_left));
-        let lt = LtChip::default();
-        chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
-        chips.push(RiscvAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
-        chips.push(RiscvAir::MemoryFinal(memory_finalize));
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
-        chips.push(RiscvAir::ProgramMemory(program_memory_init));
-        let field_ltu = FieldLTUChip::default();
-        chips.push(RiscvAir::FieldLTU(field_ltu));
-        let byte = ByteChip::default();
-        chips.push(RiscvAir::ByteLookup(byte));
-
-        chips
+        Self::get_all_array().to_vec()
     }
 
     /// Returns `true` if the given `shard` includes events for this AIR.

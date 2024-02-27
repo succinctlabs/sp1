@@ -76,7 +76,7 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             _marker: PhantomData,
         }

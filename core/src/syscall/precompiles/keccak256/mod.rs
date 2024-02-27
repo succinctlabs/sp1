@@ -28,7 +28,7 @@ pub struct KeccakPermuteChip {
 }
 
 impl KeccakPermuteChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             p3_keccak: KeccakAir {},
         }

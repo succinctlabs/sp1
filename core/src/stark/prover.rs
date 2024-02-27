@@ -114,9 +114,9 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn commit_main<'a>(
+    fn commit_main(
         config: &SC,
-        machine: &'a RiscvStark<'a, SC>,
+        machine: &RiscvStark<SC>,
         shard: &ExecutionRecord,
         index: usize,
     ) -> ShardMainData<SC>
@@ -421,8 +421,8 @@ where
         };
     }
 
-    fn commit_shards<'a, F, EF>(
-        machine: &'a RiscvStark<'a, SC>,
+    fn commit_shards<F, EF>(
+        machine: &RiscvStark<SC>,
         shards: &[ExecutionRecord],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,

@@ -30,6 +30,13 @@ pub const NUM_BYTE_OPS: usize = 9;
 pub struct ByteChip<F>(PhantomData<F>);
 
 impl<F: Field> ByteChip<F> {
+    /// Creates a new byte chip.
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<F: Field> ByteChip<F> {
     /// Creates the preprocessed byte trace and event map.
     ///
     /// This function returns a pair `(trace, map)`, where:

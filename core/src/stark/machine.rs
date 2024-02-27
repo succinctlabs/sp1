@@ -5,6 +5,7 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::ShardingConfig;
 use alloc::borrow::Cow;
+use core::borrow::Borrow;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -63,20 +64,23 @@ impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
         }
     }
 
+    pub const fn from_chip_slice(config: SC, chips: &'a [RiscvChip<'a, SC>]) -> Self {
+        Self {
+            config,
+            chips: Cow::Borrowed(chips),
+        }
+    }
+
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips<'b>(&'b self) -> &'b [RiscvChip<SC>]
-    where
-        'b: 'a,
-    {
-        &self.chips
+    pub fn chips(&self) -> &[RiscvChip<'a, SC>] {
+        self.chips.borrow()
     }
 
     pub fn shard_chips<'b, 'c>(
         &'b self,
         shard: &'c ExecutionRecord,
-    ) -> impl Iterator<Item = &'c RiscvChip<SC>>
+    ) -> impl Iterator<Item = &'c RiscvChip<'a, SC>>
     where
-        'b: 'a,
         'b: 'c,
     {
         self.chips.iter().filter(|chip| chip.included(shard))

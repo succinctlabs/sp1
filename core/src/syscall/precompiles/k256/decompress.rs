@@ -65,7 +65,7 @@ pub const NUM_K256_DECOMPRESS_COLS: usize = size_of::<K256DecompressCols<u8>>();
 pub struct K256DecompressChip;
 
 impl K256DecompressChip {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
