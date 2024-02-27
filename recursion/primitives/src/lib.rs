@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+mod constants;
+
 use sp1_core::air::MachineAir;
 use sp1_core::stark::{RiscvStark, ShardProof, StarkGenericConfig, Verifier};
 

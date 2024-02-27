@@ -104,6 +104,20 @@ where
         }
     }
 
+    pub const fn from_parts(
+        air: A,
+        sends: Cow<'a, [Interaction<'a, F>]>,
+        receives: Cow<'a, [Interaction<'a, F>]>,
+        log_quotient_degree: usize,
+    ) -> Self {
+        Self {
+            air,
+            sends,
+            receives,
+            log_quotient_degree,
+        }
+    }
+
     pub fn num_interactions(&self) -> usize {
         self.sends.len() + self.receives.len()
     }

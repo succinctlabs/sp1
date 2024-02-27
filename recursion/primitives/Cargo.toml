@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 sp1-core = { path = "../../core" }
+p3-baby-bear = { workspace = true }
+p3-air = { workspace = true }

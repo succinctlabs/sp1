@@ -5,7 +5,7 @@ use p3_air::VirtualPairCol;
 use p3_field::Field;
 
 /// An interaction for a lookup or a permutation argument.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Interaction<'a, F: Field> {
     pub values: Cow<'a, [VirtualPairCol<'a, F>]>,
     pub multiplicity: VirtualPairCol<'a, F>,
@@ -68,15 +68,6 @@ impl<'a, F: Field> Interaction<'a, F> {
     /// The index of the argument in the lookup table.
     pub fn argument_index(&self) -> usize {
         self.kind as usize
-    }
-}
-
-// TODO: add debug for VirtualPairCol so that we can derive Debug for Interaction.
-impl<'a, F: Field> Debug for Interaction<'a, F> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Interaction")
-            .field("kind", &self.kind)
-            .finish()
     }
 }
 
