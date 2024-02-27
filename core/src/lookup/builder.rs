@@ -190,7 +190,7 @@ mod tests {
 
         let column_weights = column_weights.into_iter().collect::<Vec<_>>();
 
-        let z = VirtualPairCol::new(column_weights, constant);
+        let z = VirtualPairCol::new_owned(column_weights, constant);
 
         let expr: F = z.apply(&[], &[F::one(), F::one()]);
 
