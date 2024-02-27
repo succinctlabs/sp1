@@ -63,11 +63,10 @@ pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
     let sends = chip.sends();
 
     let interaction = &sends[0];
-    let mult = &interaction.multiplicity;
 
-    let mult_ident = Ident::new("MULT", proc_macro2::Span::call_site());
+    let interaction_ident = Ident::new("SEND_INTERACTION", proc_macro2::Span::call_site());
 
-    virtual_pair_col_token(mult, &mult_ident, &mut tokens);
+    interaction_token(interaction, &interaction_ident, &mut tokens);
 
     let pair_col = pair_col_token(&PairCol::Main(3));
 

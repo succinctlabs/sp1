@@ -48,14 +48,10 @@ pub fn interaction_token<F: FieldToken>(
     let kind = kind_token(&value.kind);
 
     // Finally, generate a constant for the interaction
-    let interaction_ident = Ident::new(
-        &format!("INTERACTION_{}", name),
-        proc_macro2::Span::call_site(),
-    );
     stream.extend(quote! {
-        pub const #interaction_ident : p3_air::lookup::Interaction< #field > =
-            p3_air::lookup::Interaction {
-                values: Cow::Borrowed(#values_ident),
+        pub const #name : crate::lookup::Interaction< #field > =
+            crate::lookup::Interaction {
+                values: alloc::borrow::Cow::Borrowed(#values_ident),
                 multiplicity: #mult_ident,
                 kind: #kind,
             };

@@ -4,6 +4,8 @@ mod constants;
 
 use constants::*;
 
+extern crate alloc;
+
 use sp1_core::air::MachineAir;
 use sp1_core::stark::{RiscvStark, ShardProof, StarkGenericConfig, Verifier};
 
@@ -42,13 +44,14 @@ impl<SC: StarkGenericConfig> Default for RecursiveVerifier<SC> {
 mod tests {
 
     use super::*;
-    use p3_air::{PairCol, VirtualPairCol};
-    use p3_baby_bear::BabyBear;
-    use p3_field::{AbstractField, Field};
-    use sp1_core::{
+    use crate::lookup::Interaction;
+    use crate::{
         alu::AddChip,
         stark::{Chip, RiscvAir},
     };
+    use p3_air::{PairCol, VirtualPairCol};
+    use p3_baby_bear::BabyBear;
+    use p3_field::{AbstractField, Field};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
         match (left, right) {
@@ -70,6 +73,14 @@ mod tests {
         }
     }
 
+    fn assert_interaction_eq<F: Field>(left: &Interaction<F>, right: &Interaction<F>) {
+        assert_virtual_pair_col_eq(&left.multiplicity, &right.multiplicity);
+        assert_eq!(left.kind, right.kind);
+        for (l, r) in left.values.iter().zip(right.values.iter()) {
+            assert_virtual_pair_col_eq(l, r);
+        }
+    }
+
     #[test]
     fn test_constant_gen() {
         let expected_values = [1, 2, 4, 5, 6].map(BabyBear::from_canonical_u32);
@@ -80,9 +91,8 @@ mod tests {
         let chip = Chip::<BabyBear, _>::new(RiscvAir::Add(AddChip));
 
         let sends = chip.sends();
-
         let interaction = &sends[0];
-        let mult = &interaction.multiplicity;
-        assert_virtual_pair_col_eq(mult, &VIRTUAL_COL_MULT);
+
+        assert_interaction_eq(interaction, &SEND_INTERACTION);
     }
 }

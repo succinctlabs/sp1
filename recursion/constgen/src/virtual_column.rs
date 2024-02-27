@@ -37,13 +37,8 @@ pub fn virtual_pair_col_token<F: FieldToken>(
 
     stream.extend(column_weights);
 
-    let virtual_col_ident = Ident::new(
-        &format!("VIRTUAL_COL_{}", name),
-        proc_macro2::Span::call_site(),
-    );
-
     let virtual_col = quote! {
-    pub const #virtual_col_ident : p3_air::VirtualPairCol< #field > =
+    pub const #name : p3_air::VirtualPairCol< #field > =
         p3_air::VirtualPairCol::new_borrowed(#column_weights_ident, #constant ); };
 
     stream.extend(virtual_col);
