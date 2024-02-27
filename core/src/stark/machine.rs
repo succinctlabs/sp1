@@ -4,6 +4,7 @@ use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::ShardingConfig;
+use alloc::borrow::Cow;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -20,11 +21,14 @@ pub type RiscvChip<'a, SC> =
     Chip<'a, <SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
 
 /// A STARK for proving RISC-V execution.
-pub struct RiscvStark<'a, SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
+pub struct RiscvStark<'a, SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>>
+where
+    A: Clone,
+{
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    chips: Vec<Chip<'a, SC::Val, A>>,
+    chips: Cow<'a, [Chip<'a, SC::Val, A>]>,
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +57,10 @@ impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
             .map(Chip::new)
             .collect::<Vec<_>>();
 
-        Self { config, chips }
+        Self {
+            config,
+            chips: Cow::Owned(chips),
+        }
     }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.

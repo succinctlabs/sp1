@@ -2,6 +2,7 @@ use std::hash::Hash;
 
 use alloc::borrow::Cow;
 use core::borrow::Borrow;
+use core::fmt::Debug;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -19,7 +20,7 @@ use super::{
 };
 
 /// An Air that encodes lookups based on interactions.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Chip<'a, F: Field, A> {
     /// The underlying AIR of the chip for constraint evaluation.
     air: A,
@@ -203,5 +204,16 @@ where
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.air.hash(state);
+    }
+}
+
+impl<'a, F: Field, A: MachineAir<F>> Debug for Chip<'a, F, A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Chip")
+            .field("air", &self.air.name())
+            .field("sends", &self.sends)
+            .field("receives", &self.receives)
+            .field("log_quotient_degree", &self.log_quotient_degree)
+            .finish()
     }
 }

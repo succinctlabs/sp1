@@ -196,3 +196,46 @@ impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
         self.name().hash(state);
     }
 }
+
+impl<F: PrimeField32> Clone for RiscvAir<F> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Program(_) => Self::Program(ProgramChip::default()),
+            Self::Cpu(_) => Self::Cpu(CpuChip::default()),
+            Self::Add(_) => Self::Add(AddChip::default()),
+            Self::Sub(_) => Self::Sub(SubChip::default()),
+            Self::Bitwise(_) => Self::Bitwise(BitwiseChip::default()),
+            Self::Mul(_) => Self::Mul(MulChip::default()),
+            Self::DivRem(_) => Self::DivRem(DivRemChip::default()),
+            Self::Lt(_) => Self::Lt(LtChip::default()),
+            Self::ShiftLeft(_) => Self::ShiftLeft(ShiftLeft::default()),
+            Self::ShiftRight(_) => Self::ShiftRight(ShiftRightChip::default()),
+            Self::ByteLookup(_) => Self::ByteLookup(ByteChip::default()),
+            Self::FieldLTU(_) => Self::FieldLTU(FieldLTUChip::default()),
+            Self::MemoryInit(_) => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
+            Self::MemoryFinal(_) => {
+                Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize))
+            }
+            Self::ProgramMemory(_) => {
+                Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program))
+            }
+            Self::Sha256Extend(_) => Self::Sha256Extend(ShaExtendChip::default()),
+            Self::Sha256Compress(_) => Self::Sha256Compress(ShaCompressChip::default()),
+            Self::Ed25519Add(_) => {
+                Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new())
+            }
+            Self::Ed25519Decompress(_) => {
+                Self::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::default())
+            }
+            Self::K256Decompress(_) => Self::K256Decompress(K256DecompressChip::default()),
+            Self::Secp256k1Add(_) => {
+                Self::Secp256k1Add(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new())
+            }
+            Self::Secp256k1Double(_) => Self::Secp256k1Double(WeierstrassDoubleAssignChip::<
+                SWCurve<Secp256k1Parameters>,
+            >::new()),
+            Self::KeccakP(_) => Self::KeccakP(KeccakPermuteChip::new()),
+            Self::Blake3Compress(_) => Self::Blake3Compress(Blake3CompressInnerChip::new()),
+        }
+    }
+}
