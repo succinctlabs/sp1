@@ -1,5 +1,5 @@
 use super::columns::{
-    AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
+    AuipcCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
     NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
 };
 use super::{CpuChip, CpuEvent};
@@ -456,7 +456,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns: &mut AUIPCCols<F> =
+            let auipc_columns: &mut AuipcCols<F> =
                 cols.opcode_specific_columns[..NUM_AUIPC_COLS].borrow_mut();
 
             auipc_columns.pc = event.pc.into();
