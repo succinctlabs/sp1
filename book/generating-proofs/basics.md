@@ -26,5 +26,5 @@ Make sure to also add `sp1-helper` as a build dependency in `script/Cargo.toml`:
 
 ```toml
 [build-dependencies]
-sp1-core = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-helper = { git = "https://github.com/succinctlabs/sp1.git" }
 ```
