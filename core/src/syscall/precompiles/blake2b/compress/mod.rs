@@ -29,6 +29,7 @@ pub(crate) const MSG_SIZE: usize = 16;
 
 /// Each msg word is 8 bytes and our words size is 4 bytes. So we need to double the size of the
 /// message.
+#[allow(dead_code)]
 pub(crate) const MSG_NUM_WORDS: usize = MSG_SIZE * 2;
 
 /// The number of rounds in the compress inner operation.
@@ -55,7 +56,7 @@ pub(crate) const NUM_MSG_WORDS_PER_CALL: usize = MSG_ELE_PER_CALL * 2;
 pub(crate) const MIX_INPUT_SIZE: usize = STATE_ELE_PER_CALL + MSG_ELE_PER_CALL;
 
 /// The `i`-th row of `MIX_INDEX` is the indices used for the `i`-th call to `mix` in each round.
-pub(crate) const MIX_INDEX: [[u8; STATE_ELE_PER_CALL]; OPERATION_COUNT] = [
+pub(crate) const MIX_INDEX: [[usize; STATE_ELE_PER_CALL]; OPERATION_COUNT] = [
     [0, 4, 8, 12],
     [1, 5, 9, 13],
     [2, 6, 10, 14],
@@ -70,7 +71,7 @@ pub(crate) const MIX_INDEX: [[u8; STATE_ELE_PER_CALL]; OPERATION_COUNT] = [
 /// Values at `(i, 2 * j)` and `(i, 2 * j + 1)` are the indices of the message values that `mix`
 /// should access in the `j`-th call of the `i`-th round. Note that 11th and 12th rounds values
 /// are the same as the 0th and 1st rounds.
-pub(crate) const SIGMA_PERMUTATIONS: [[u8; MSG_SIZE]; NUM_MIX_ROUNDS] = [
+pub(crate) const SIGMA_PERMUTATIONS: [[usize; MSG_SIZE]; NUM_MIX_ROUNDS] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
     [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
@@ -118,9 +119,9 @@ pub struct Blake2bCompressInnerEvent {
         [[[MemoryWriteRecord; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT]; NUM_MIX_ROUNDS],
 }
 
-pub struct Blake2bInnerCompressChip {}
+pub struct Blake2bCompressInnerChip {}
 
-impl Blake2bInnerCompressChip {
+impl Blake2bCompressInnerChip {
     pub fn new() -> Self {
         Self {}
     }

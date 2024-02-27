@@ -5,12 +5,12 @@ use crate::{
 };
 
 use super::{
-    mix, Blake2bCompressInnerEvent, Blake2bInnerCompressChip, MIX_INDEX, MSG_ELE_PER_CALL,
+    mix, Blake2bCompressInnerChip, Blake2bCompressInnerEvent, MIX_INDEX, MSG_ELE_PER_CALL,
     NUM_MIX_ROUNDS, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
     SIGMA_PERMUTATIONS,
 };
 
-impl Syscall for Blake2bInnerCompressChip {
+impl Syscall for Blake2bCompressInnerChip {
     fn num_extra_cycles(&self) -> u32 {
         (4 * NUM_MIX_ROUNDS * OPERATION_COUNT) as u32
     }
