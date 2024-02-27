@@ -325,7 +325,7 @@ pub(super) mod baby_bear_keccak {
 
     pub type Dft = Radix2DitParallel;
 
-    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
+    type Challenger = SerializingChallenger32<Val, u8, HashChallenger<u8, ByteHash, 32>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
@@ -428,7 +428,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_symmetric::{PseudoCompressionFunction, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
@@ -442,14 +442,14 @@ pub(super) mod baby_bear_blake3 {
     type ByteHash = Blake3;
     type FieldHash = SerializingHasher32<ByteHash>;
 
-    type MyCompress = CompressionFunctionFromHasher<u8, ByteHash, 2, 32>;
+    type MyCompress = OptimizedCompressionFunction;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u8, FieldHash, MyCompress, 32>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u32, FieldHash, MyCompress, 8>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
+    type Challenger = SerializingChallenger32<Val, u32, HashChallenger<u32, ByteHash, 8>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
@@ -487,7 +487,7 @@ pub(super) mod baby_bear_blake3 {
             let byte_hash = ByteHash {};
             let field_hash = FieldHash::new(byte_hash);
 
-            let compress = MyCompress::new(byte_hash);
+            let compress = MyCompress::new();
 
             let val_mmcs = ValMmcs::new(field_hash, compress);
 
@@ -540,6 +540,23 @@ pub(super) mod baby_bear_blake3 {
 
         fn pcs(&self) -> &Self::Pcs {
             &self.pcs
+        }
+    }
+    #[derive(Clone)]
+    pub struct OptimizedCompressionFunction {}
+
+    impl OptimizedCompressionFunction {
+        pub fn new() -> Self {
+            Self {}
+        }
+    }
+
+    impl PseudoCompressionFunction<[u32; 8], 2> for OptimizedCompressionFunction {
+        fn compress(&self, input: [[u32; 8]; 2]) -> [u32; 8] {
+            let mut block_words = [0u32; blake3_zkvm::BLOCK_LEN];
+            block_words[0..8].copy_from_slice(&input[0]);
+            block_words[8..].copy_from_slice(&input[1]);
+            blake3_zkvm::hash_single_block(&block_words, blake3_zkvm::BLOCK_LEN)
         }
     }
 }
