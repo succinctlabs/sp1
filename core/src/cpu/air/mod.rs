@@ -11,7 +11,7 @@ use p3_matrix::MatrixRowSlices;
 use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
+use crate::cpu::columns::{AuipcCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::runtime::{AccessPosition, Opcode};
@@ -219,7 +219,7 @@ impl CpuChip {
     /// Constraints related to the AUIPC opcode.
     pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         // Get the auipc specific columns.
-        let auipc_columns: AUIPCCols<AB::Var> =
+        let auipc_columns: AuipcCols<AB::Var> =
             *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();
 
         // Verify that the word form of local.pc is correct.
