@@ -16,15 +16,15 @@ use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
-pub type RiscvChip<SC> =
-    Chip<<SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
+pub type RiscvChip<'a, SC> =
+    Chip<'a, <SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
 
 /// A STARK for proving RISC-V execution.
-pub struct RiscvStark<SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
+pub struct RiscvStark<'a, SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    chips: Vec<Chip<SC::Val, A>>,
+    chips: Vec<Chip<'a, SC::Val, A>>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-impl<SC: StarkGenericConfig> RiscvStark<SC> {
+impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
     /// Create a new RISC-V STARK machine.
     pub fn new(config: SC) -> Self {
         // The machine consists of a config (input) and a set of chips. The chip vector should
@@ -57,16 +57,20 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> &[RiscvChip<SC>] {
+    pub fn chips<'b>(&'b self) -> &'b [RiscvChip<SC>]
+    where
+        'b: 'a,
+    {
         &self.chips
     }
 
-    pub fn shard_chips<'a, 'b>(
-        &'a self,
-        shard: &'b ExecutionRecord,
-    ) -> impl Iterator<Item = &'b RiscvChip<SC>>
+    pub fn shard_chips<'b, 'c>(
+        &'b self,
+        shard: &'c ExecutionRecord,
+    ) -> impl Iterator<Item = &'c RiscvChip<SC>>
     where
-        'a: 'b,
+        'b: 'a,
+        'b: 'c,
     {
         self.chips.iter().filter(|chip| chip.included(shard))
     }
@@ -86,8 +90,8 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
         )
     }
 
-    pub fn shard(
-        &self,
+    pub fn shard<'b: 'a>(
+        &'b self,
         mut record: ExecutionRecord,
         shard_config: &ShardingConfig,
     ) -> Vec<ExecutionRecord> {
@@ -124,8 +128,8 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC>>(
-        &self,
+    pub fn prove<'b: 'a, P: Prover<SC>>(
+        &'b self,
         pk: &ProvingKey<SC>,
         record: ExecutionRecord,
         challenger: &mut SC::Challenger,
@@ -141,8 +145,8 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
         &self.config
     }
 
-    pub fn verify(
-        &self,
+    pub fn verify<'b: 'a>(
+        &'b self,
         _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,

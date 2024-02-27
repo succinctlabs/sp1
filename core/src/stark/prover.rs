@@ -38,8 +38,8 @@ fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
 }
 
 pub trait Prover<SC: StarkGenericConfig> {
-    fn prove_shards(
-        machine: &RiscvStark<SC>,
+    fn prove_shards<'a>(
+        machine: &'a RiscvStark<'a, SC>,
         pk: &ProvingKey<SC>,
         shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
@@ -56,8 +56,8 @@ where
     PcsProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn prove_shards(
-        machine: &RiscvStark<SC>,
+    fn prove_shards<'a>(
+        machine: &'a RiscvStark<'a, SC>,
         pk: &ProvingKey<SC>,
         shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
@@ -114,9 +114,9 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn commit_main(
+    fn commit_main<'a>(
         config: &SC,
-        machine: &RiscvStark<SC>,
+        machine: &'a RiscvStark<'a, SC>,
         shard: &ExecutionRecord,
         index: usize,
     ) -> ShardMainData<SC>
@@ -421,8 +421,8 @@ where
         };
     }
 
-    fn commit_shards<F, EF>(
-        machine: &RiscvStark<SC>,
+    fn commit_shards<'a, F, EF>(
+        machine: &'a RiscvStark<'a, SC>,
         shards: &[ExecutionRecord],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,

@@ -74,7 +74,7 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
-                for value in &interaction.values {
+                for value in interaction.values.iter() {
                     let expr: SC::Val = value.apply(&[], main.row_mut(row));
                     values.push(expr);
                 }

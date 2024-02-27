@@ -1,5 +1,7 @@
 use std::hash::Hash;
 
+use alloc::borrow::Cow;
+use core::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -17,26 +19,27 @@ use super::{
 };
 
 /// An Air that encodes lookups based on interactions.
-pub struct Chip<F: Field, A> {
+#[derive(Clone, Debug)]
+pub struct Chip<'a, F: Field, A> {
     /// The underlying AIR of the chip for constraint evaluation.
     air: A,
     /// The interactions that the chip sends.
-    sends: Vec<Interaction<F>>,
+    sends: Cow<'a, [Interaction<'a, F>]>,
     /// The interactions that the chip receives.
-    receives: Vec<Interaction<F>>,
+    receives: Cow<'a, [Interaction<'a, F>]>,
     /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
     log_quotient_degree: usize,
 }
 
-impl<F: Field, A> Chip<F, A> {
+impl<'a, F: Field, A> Chip<'a, F, A> {
     /// The send interactions of the chip.
-    pub fn sends(&self) -> &[Interaction<F>] {
-        &self.sends
+    pub fn sends(&self) -> &[Interaction<'a, F>] {
+        self.sends.borrow()
     }
 
     /// The receive interactions of the chip.
-    pub fn receives(&self) -> &[Interaction<F>] {
-        &self.receives
+    pub fn receives(&self) -> &[Interaction<'a, F>] {
+        self.receives.borrow()
     }
 
     /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
@@ -45,7 +48,7 @@ impl<F: Field, A> Chip<F, A> {
     }
 }
 
-impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
+impl<'a, F: PrimeField32> Chip<'a, F, RiscvAir<F>> {
     /// Returns whether the given chip is included in the execution record of the shard.
     pub fn included(&self, shard: &ExecutionRecord) -> bool {
         self.air.included(shard)
@@ -59,7 +62,7 @@ impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
 /// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
-    + Air<InteractionBuilder<SC::Val>>
+    + for<'a> Air<InteractionBuilder<'a, SC::Val>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
     + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
@@ -68,21 +71,21 @@ pub trait StarkAir<SC: StarkGenericConfig>:
 
 impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
     T: MachineAir<SC::Val>
-        + Air<InteractionBuilder<SC::Val>>
+        + for<'a> Air<InteractionBuilder<'a, SC::Val>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
 }
 
-impl<F, A> Chip<F, A>
+impl<'a, F, A> Chip<'a, F, A>
 where
     F: Field,
 {
     /// Records the interactions and constraint degree from the air and crates a new chip.
     pub fn new(air: A) -> Self
     where
-        A: Air<InteractionBuilder<F>>,
+        A: Air<InteractionBuilder<'a, F>>,
     {
         let mut builder = InteractionBuilder::new(air.width());
         air.eval(&mut builder);
@@ -94,8 +97,8 @@ where
 
         Self {
             air,
-            sends,
-            receives,
+            sends: Cow::Owned(sends),
+            receives: Cow::Owned(receives),
             log_quotient_degree,
         }
     }
@@ -123,7 +126,7 @@ where
     }
 }
 
-impl<F, A> BaseAir<F> for Chip<F, A>
+impl<'a, F, A> BaseAir<F> for Chip<'a, F, A>
 where
     F: Field,
     A: BaseAir<F>,
@@ -137,7 +140,7 @@ where
     }
 }
 
-impl<F, A> MachineAir<F> for Chip<F, A>
+impl<'a, F, A> MachineAir<F> for Chip<'a, F, A>
 where
     F: Field,
     A: MachineAir<F>,
@@ -167,7 +170,7 @@ where
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.
-impl<F, A, AB> Air<AB> for Chip<F, A>
+impl<'a, F, A, AB> Air<AB> for Chip<'a, F, A>
 where
     F: Field,
     A: Air<AB>,
@@ -181,7 +184,7 @@ where
     }
 }
 
-impl<F, A> PartialEq for Chip<F, A>
+impl<'a, F, A> PartialEq for Chip<'a, F, A>
 where
     F: Field,
     A: PartialEq,
@@ -191,9 +194,9 @@ where
     }
 }
 
-impl<F: Field, A: Eq> Eq for Chip<F, A> where F: Field + Eq {}
+impl<'a, F: Field, A: Eq> Eq for Chip<'a, F, A> where F: Field + Eq {}
 
-impl<F, A> Hash for Chip<F, A>
+impl<'a, F, A> Hash for Chip<'a, F, A>
 where
     F: Field,
     A: Hash,

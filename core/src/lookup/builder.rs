@@ -7,13 +7,13 @@ use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
 use super::Interaction;
 
 /// A builder for the lookup table interactions.
-pub struct InteractionBuilder<F: Field> {
+pub struct InteractionBuilder<'a, F: Field> {
     main: RowMajorMatrix<SymbolicVariable<F>>,
-    sends: Vec<Interaction<F>>,
-    receives: Vec<Interaction<F>>,
+    sends: Vec<Interaction<'a, F>>,
+    receives: Vec<Interaction<'a, F>>,
 }
 
-impl<F: Field> InteractionBuilder<F> {
+impl<'a, F: Field> InteractionBuilder<'a, F> {
     /// Creates a new `InteractionBuilder` with the given width.
     pub fn new(width: usize) -> Self {
         let values = [false, true]
@@ -30,12 +30,12 @@ impl<F: Field> InteractionBuilder<F> {
     }
 
     /// Returns the sends and receives.
-    pub fn interactions(self) -> (Vec<Interaction<F>>, Vec<Interaction<F>>) {
+    pub fn interactions(self) -> (Vec<Interaction<'a, F>>, Vec<Interaction<'a, F>>) {
         (self.sends, self.receives)
     }
 }
 
-impl<F: Field> AirBuilder for InteractionBuilder<F> {
+impl<'a, F: Field> AirBuilder for InteractionBuilder<'a, F> {
     type F = F;
     type Expr = SymbolicExpression<F>;
     type Var = SymbolicVariable<F>;
@@ -64,15 +64,17 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
     fn assert_zero<I: Into<Self::Expr>>(&mut self, _x: I) {}
 }
 
-impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
+impl<'a, F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>>
+    for InteractionBuilder<'a, F>
+{
     fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
         let values = message
             .values
             .into_iter()
-            .map(|v| symbolic_to_virtual_pair(&v))
+            .map(symbolic_to_virtual_pair)
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
+        let multiplicity = symbolic_to_virtual_pair(message.multiplicity);
 
         self.sends
             .push(Interaction::new(values, multiplicity, message.kind));
@@ -82,22 +84,24 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
         let values = message
             .values
             .into_iter()
-            .map(|v| symbolic_to_virtual_pair(&v))
+            .map(symbolic_to_virtual_pair)
             .collect::<Vec<_>>();
 
-        let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
+        let multiplicity = symbolic_to_virtual_pair(message.multiplicity);
 
         self.receives
             .push(Interaction::new(values, multiplicity, message.kind));
     }
 }
 
-fn symbolic_to_virtual_pair<F: Field>(expression: &SymbolicExpression<F>) -> VirtualPairCol<F> {
+fn symbolic_to_virtual_pair<'a, F: Field>(
+    expression: SymbolicExpression<F>,
+) -> VirtualPairCol<'a, F> {
     if expression.degree_multiple() > 1 {
         panic!("degree multiple is too high");
     }
 
-    let (column_weights, constant) = eval_symbolic_to_virtual_pair(expression);
+    let (column_weights, constant) = eval_symbolic_to_virtual_pair(&expression);
 
     let column_weights = column_weights.into_iter().collect();
 
@@ -244,7 +248,7 @@ mod tests {
 
         for interaction in receives {
             print!("Receive values: ");
-            for value in interaction.values {
+            for value in interaction.values.iter() {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     main.row_mut(0),
@@ -264,7 +268,7 @@ mod tests {
 
         for interaction in sends {
             print!("Send values: ");
-            for value in interaction.values {
+            for value in interaction.values.iter() {
                 let expr = value.apply::<SymbolicExpression<BabyBear>, SymbolicVariable<BabyBear>>(
                     &[],
                     main.row_mut(0),

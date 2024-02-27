@@ -12,8 +12,8 @@ impl<SC: StarkGenericConfig> RecursiveVerifier<SC> {
         RecursiveVerifier(PhantomData)
     }
 
-    pub fn verify_shard(
-        machine: &RiscvStark<SC>,
+    pub fn verify_shard<'a, 'b: 'a>(
+        machine: &'b RiscvStark<'a, SC>,
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
     ) {

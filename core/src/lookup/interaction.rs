@@ -1,12 +1,14 @@
+use alloc::borrow::Cow;
 use core::fmt::Debug;
 use core::fmt::Display;
 use p3_air::VirtualPairCol;
 use p3_field::Field;
 
 /// An interaction for a lookup or a permutation argument.
-pub struct Interaction<F: Field> {
-    pub values: Vec<VirtualPairCol<F>>,
-    pub multiplicity: VirtualPairCol<F>,
+#[derive(Clone)]
+pub struct Interaction<'a, F: Field> {
+    pub values: Cow<'a, [VirtualPairCol<'a, F>]>,
+    pub multiplicity: VirtualPairCol<'a, F>,
     pub kind: InteractionKind,
 }
 
@@ -49,15 +51,15 @@ impl InteractionKind {
     }
 }
 
-impl<F: Field> Interaction<F> {
+impl<'a, F: Field> Interaction<'a, F> {
     /// Create a new interaction.
     pub fn new(
-        values: Vec<VirtualPairCol<F>>,
-        multiplicity: VirtualPairCol<F>,
+        values: Vec<VirtualPairCol<'a, F>>,
+        multiplicity: VirtualPairCol<'a, F>,
         kind: InteractionKind,
     ) -> Self {
         Self {
-            values,
+            values: Cow::Owned(values),
             multiplicity,
             kind,
         }
@@ -70,7 +72,7 @@ impl<F: Field> Interaction<F> {
 }
 
 // TODO: add debug for VirtualPairCol so that we can derive Debug for Interaction.
-impl<F: Field> Debug for Interaction<F> {
+impl<'a, F: Field> Debug for Interaction<'a, F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Interaction")
             .field("kind", &self.kind)
