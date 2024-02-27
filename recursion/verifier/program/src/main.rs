@@ -15,5 +15,5 @@ pub fn main() {
     let machine = RiscvStark::new(config);
 
     // Read the proof from the input
-    let proof = sp1_zkvm::io::read::<ShardProof<SC>>();
+    // let proof = sp1_zkvm::io::read::<ShardProof<SC>>();
 }
