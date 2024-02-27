@@ -476,6 +476,12 @@ pub(super) mod baby_bear_blake3 {
         }
     }
 
+    impl Clone for BabyBearBlake3 {
+        fn clone(&self) -> Self {
+            Self::new()
+        }
+    }
+
     impl BabyBearBlake3 {
         pub fn new() -> Self {
             let byte_hash = ByteHash {};
