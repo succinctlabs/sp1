@@ -186,9 +186,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.86"
+version = "1.0.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f9fa1897e4325be0d68d48df6aa1a71ac2ed4d27723887e7754192705350730"
+checksum = "02f341c093d19155a6e41631ce5971aac4e9a868262212153124c15fa22d1cdc"
 
 [[package]]
 name = "cfg-if"
@@ -227,7 +227,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]
@@ -349,7 +349,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]
@@ -628,9 +628,9 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
-version = "0.3.6"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd5256b483761cd23699d0da46cc6fd2ee3be420bbe6d020ae4a091e70b7e9fd"
+checksum = "379dada1584ad501b383485dd706b8afb7a70fcbc7f4da7d780638a5a6124a60"
 
 [[package]]
 name = "hex"
@@ -887,7 +887,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -896,7 +896,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "rand",
@@ -906,7 +906,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -915,7 +915,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -927,7 +927,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -938,7 +938,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -949,7 +949,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "itertools",
  "p3-util",
@@ -960,7 +960,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "itertools",
  "p3-challenger",
@@ -978,7 +978,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -989,7 +989,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -999,7 +999,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1008,7 +1008,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1020,7 +1020,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1032,7 +1032,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "rayon",
 ]
@@ -1040,7 +1040,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1056,7 +1056,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "itertools",
  "p3-commit",
@@ -1072,7 +1072,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "itertools",
  "p3-dft",
@@ -1087,7 +1087,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1101,7 +1101,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "itertools",
  "p3-field",
@@ -1111,7 +1111,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "itertools",
  "p3-air",
@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#37c650c6ebee1c8a104711102d0240e7909b742a"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=tamir/recursion#35df72f3eb1c1a57b1d8492fa3f5482f8072b093"
 dependencies = [
  "serde",
 ]
@@ -1435,7 +1435,7 @@ checksum = "7eb0b34b42edc17f6b7cac84a52a1c5f0e1bb2227e997ca9011ea3dd34e8610b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]
@@ -1471,7 +1471,7 @@ checksum = "b93fb4adc70021ac1b47f7d45e8cc4169baaa7ea58483bc5b721d19a26202212"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]
@@ -1605,6 +1605,8 @@ dependencies = [
 name = "sp1-recursion"
 version = "0.1.0"
 dependencies = [
+ "p3-air",
+ "p3-baby-bear",
  "sp1-core",
 ]
 
@@ -1657,9 +1659,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.50"
+version = "2.0.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74f1bdc9872430ce9b75da68329d1c1746faf50ffac5f19e02b71e37ff881ffb"
+checksum = "6ab617d94515e94ae53b8406c628598680aa0c9587474ecbe58188f7b345d66c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1674,9 +1676,9 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.10.0"
+version = "3.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a365e8cd18e44762ef95d87f284f4b5cd04107fec2ff3052bd6a3e6069669e67"
+checksum = "85b77fafb263dd9d05cbeac119526425676db3784113aa9295c88498cbf8bff1"
 dependencies = [
  "cfg-if",
  "fastrand",
@@ -1701,7 +1703,7 @@ checksum = "a953cb265bef375dae3de6663da4d3804eee9682ea80d8e2542529b73c531c81"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]
@@ -1759,7 +1761,7 @@ checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]
@@ -2038,7 +2040,7 @@ checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.51",
 ]
 
 [[package]]

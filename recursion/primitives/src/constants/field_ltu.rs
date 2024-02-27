@@ -7,21 +7,18 @@ use sp1_core::{
 };
 use std::borrow::Cow;
 
-const FIELD_LTU_RECEIVES: Cow<[Interaction<BabyBear>]> = Cow::Borrowed(&[]);
+const FIELD_LTU_RECEIVES: &[Interaction<BabyBear>] = &[];
 
-const FIELD_LTU_SENDS: Cow<[Interaction<BabyBear>]> = Cow::Borrowed(&[Interaction {
+const FIELD_LTU_SENDS: &[Interaction<BabyBear>] = &[Interaction {
     values: Cow::Borrowed(&[]),
-    multiplicity: VirtualPairCol {
-        column_weights: Cow::Borrowed(&[]),
-        constant: BabyBear::new(0),
-    },
+    multiplicity: VirtualPairCol::new_borrowed(&[], BabyBear::new(0)),
     kind: InteractionKind::Memory,
-}]);
+}];
 
 const FIELD_LTU_CHIP: Chip<BabyBear, RiscvAir<BabyBear>> = Chip::from_parts(
     RiscvAir::FieldLTU(FieldLTUChip),
-    FIELD_LTU_SENDS,
-    FIELD_LTU_RECEIVES,
+    Cow::Borrowed(FIELD_LTU_SENDS),
+    Cow::Borrowed(FIELD_LTU_RECEIVES),
     1,
 );
 
