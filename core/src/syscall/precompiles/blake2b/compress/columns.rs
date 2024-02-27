@@ -35,8 +35,8 @@ pub struct Blake2bCompressInnerCols<T> {
     pub is_operation_index_n: [T; OPERATION_COUNT],
 
     /// Indicates which call of `round` is being performed.
-    pub round_index: T,
-    pub is_round_index_n: [T; NUM_MIX_ROUNDS],
+    pub mix_round: T,
+    pub is_mix_round_index_n: [T; NUM_MIX_ROUNDS],
 
     /// The indices to pass to `mix`.
     pub state_index: [T; STATE_ELE_PER_CALL],
