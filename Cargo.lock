@@ -537,6 +537,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "csv"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac574ff4d437a7b5ad237ef331c17ccca63c46479e5b5453eb8e10bb99a759fe"
+dependencies = [
+ "csv-core",
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
+name = "csv-core"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5efa2b3d7902f4b634a20cae3c9c4e6209dc4779feb6863329607560143efa70"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "curve25519-dalek"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2425,6 +2446,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-eval"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "csv",
+ "serde",
+ "sp1-core",
+]
+
+[[package]]
 name = "sp1-helper"
 version = "0.1.0"
 dependencies = [
@@ -2443,15 +2474,6 @@ dependencies = [
  "k256",
  "rand",
  "serde",
-]
-
-[[package]]
-name = "sp1-recursion"
-version = "0.1.0"
-dependencies = [
- "p3-air",
- "p3-baby-bear",
- "sp1-core",
 ]
 
 [[package]]

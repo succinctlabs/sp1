@@ -17,7 +17,7 @@ pub(crate) mod riscv_chips {
     pub use crate::alu::SubChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::field::FieldLTUChip;
+    pub use crate::field::FieldLtuChip;
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
@@ -32,7 +32,7 @@ pub(crate) mod riscv_chips {
     pub use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     pub use crate::utils::ec::edwards::EdwardsCurve;
     pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-    pub use crate::utils::ec::weierstrass::SWCurve;
+    pub use crate::utils::ec::weierstrass::SwCurve;
 }
 
 /// An AIR for encoding RISC-V execution.
@@ -65,7 +65,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// An table for `less than` operation on field elements.
-    FieldLTU(FieldLTUChip),
+    FieldLTU(FieldLtuChip),
     /// A table for initializing the memory state.
     MemoryInit(MemoryGlobalChip),
     /// A table for finalizing the memory state.
@@ -83,9 +83,9 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A precompile for decompressing a point on the K256 curve.
     K256Decompress(K256DecompressChip),
     /// A precompile for addition on the Elliptic curve secp256k1.
-    Secp256k1Add(WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>>),
+    Secp256k1Add(WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve secp256k1.
-    Secp256k1Double(WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>),
+    Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
     /// A precompile for the Blake3 compression function.
@@ -102,9 +102,9 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
             Self::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::new()),
             Self::K256Decompress(K256DecompressChip),
-            Self::Secp256k1Add(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new()),
+            Self::Secp256k1Add(WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new()),
             Self::Secp256k1Double(
-                WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new(),
+                WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
             ),
             Self::KeccakP(KeccakPermuteChip::new()),
             Self::Blake3Compress(Blake3CompressInnerChip::new()),
@@ -119,7 +119,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
             Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
             Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
-            Self::FieldLTU(FieldLTUChip),
+            Self::FieldLTU(FieldLtuChip),
             Self::ByteLookup(ByteChip::new()),
         ]
     }
@@ -188,7 +188,7 @@ impl<F: PrimeField32> Clone for RiscvAir<F> {
             Self::ShiftLeft(_) => Self::ShiftLeft(ShiftLeft::default()),
             Self::ShiftRight(_) => Self::ShiftRight(ShiftRightChip::default()),
             Self::ByteLookup(_) => Self::ByteLookup(ByteChip::default()),
-            Self::FieldLTU(_) => Self::FieldLTU(FieldLTUChip::default()),
+            Self::FieldLTU(_) => Self::FieldLTU(FieldLtuChip::default()),
             Self::MemoryInit(_) => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
             Self::MemoryFinal(_) => {
                 Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize))
@@ -206,10 +206,10 @@ impl<F: PrimeField32> Clone for RiscvAir<F> {
             }
             Self::K256Decompress(_) => Self::K256Decompress(K256DecompressChip::default()),
             Self::Secp256k1Add(_) => {
-                Self::Secp256k1Add(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new())
+                Self::Secp256k1Add(WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new())
             }
             Self::Secp256k1Double(_) => Self::Secp256k1Double(WeierstrassDoubleAssignChip::<
-                SWCurve<Secp256k1Parameters>,
+                SwCurve<Secp256k1Parameters>,
             >::new()),
             Self::KeccakP(_) => Self::KeccakP(KeccakPermuteChip::new()),
             Self::Blake3Compress(_) => Self::Blake3Compress(Blake3CompressInnerChip::new()),

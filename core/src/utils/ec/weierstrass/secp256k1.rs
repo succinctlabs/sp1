@@ -6,7 +6,7 @@ use std::str::FromStr;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use super::{SWCurve, WeierstrassParameters};
+use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
@@ -18,7 +18,7 @@ use num::traits::ToBytes;
 /// Secp256k1 curve parameter
 pub struct Secp256k1Parameters;
 
-pub type Secp256k1 = SWCurve<Secp256k1Parameters>;
+pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 base field parameter
