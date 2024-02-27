@@ -1,6 +1,6 @@
 use p3_air::VirtualPairCol;
 use p3_baby_bear::BabyBear;
-use sp1_core::stark::FieldLTUChip;
+use sp1_core::stark::FieldLtuChip;
 use sp1_core::{
     lookup::{Interaction, InteractionKind},
     stark::{Chip, RiscvAir},
@@ -16,7 +16,7 @@ const FIELD_LTU_SENDS: &[Interaction<BabyBear>] = &[Interaction {
 }];
 
 const FIELD_LTU_CHIP: Chip<BabyBear, RiscvAir<BabyBear>> = Chip::from_parts(
-    RiscvAir::FieldLTU(FieldLTUChip),
+    RiscvAir::FieldLTU(FieldLtuChip),
     Cow::Borrowed(FIELD_LTU_SENDS),
     Cow::Borrowed(FIELD_LTU_RECEIVES),
     1,

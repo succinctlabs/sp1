@@ -58,10 +58,6 @@ impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
             .map(Chip::new)
             .collect::<Vec<_>>();
 
-        for chip in chips.iter() {
-            println!("Chip: {:?}", chip);
-        }
-
         Self {
             config,
             chips: Cow::Owned(chips),

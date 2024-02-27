@@ -1,13 +1,18 @@
 [package]
-name = "sp1-recursion"
+name = "sp1-recursion-macros"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+proc-macro = true
+
 [dependencies]
 sp1-core = { path = "../../core" }
-sp1-recursion-macros = { path = "../constgen" }
 p3-baby-bear = { workspace = true }
-p3-air = { workspace = true }
 p3-field = { workspace = true }
+p3-air = { workspace = true }
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "1.0", features = ["full"] }
