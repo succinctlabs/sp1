@@ -64,7 +64,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
     where
         ShardMainData<SC>: Serialize,
     {
-        let mut writer = BufWriter::with_capacity(1024 * 1024 * 512, &file);
+        let mut writer = BufWriter::new(&file);
         bincode::serialize_into(&mut writer, self)?;
         drop(writer);
         let metadata = file.metadata()?;
