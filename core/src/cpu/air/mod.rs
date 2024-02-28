@@ -11,7 +11,7 @@ use p3_matrix::MatrixRowSlices;
 use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
+use crate::cpu::columns::{AuipcCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::runtime::{AccessPosition, Opcode};
@@ -57,7 +57,7 @@ where
             AB::Expr::one() - local.selectors.imm_b,
         );
         builder
-            .when(AB::Expr::one() - local.selectors.imm_b)
+            .when_not(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.constraint_memory_access(
@@ -68,7 +68,7 @@ where
             AB::Expr::one() - local.selectors.imm_c,
         );
         builder
-            .when(AB::Expr::one() - local.selectors.imm_c)
+            .when_not(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         // Write the `a` or the result to the first register described in the instruction unless
@@ -219,7 +219,7 @@ impl CpuChip {
     /// Constraints related to the AUIPC opcode.
     pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         // Get the auipc specific columns.
-        let auipc_columns: AUIPCCols<AB::Var> =
+        let auipc_columns: AuipcCols<AB::Var> =
             *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();
 
         // Verify that the word form of local.pc is correct.

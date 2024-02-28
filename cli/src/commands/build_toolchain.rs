@@ -21,6 +21,12 @@ impl BuildToolchainCmd {
                 PathBuf::from(build_dir).join("rust")
             }
             Err(_) => {
+                let temp_dir = std::env::temp_dir();
+                let dir = temp_dir.join("sp1-rust");
+                if dir.exists() {
+                    std::fs::remove_dir_all(&dir)?;
+                }
+
                 println!("No SP1_BUILD_DIR detected, cloning rust.");
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
@@ -35,25 +41,36 @@ impl BuildToolchainCmd {
                         "ssh://git@github.com/succinctlabs/rust".to_string()
                     }
                 };
-                Command::new("git").args(["clone", &repo_url]).run()?;
                 Command::new("git")
-                    .args(["checkout", "rustc-1.75"])
-                    .current_dir("rust")
+                    .args([
+                        "clone",
+                        &repo_url,
+                        "--depth=1",
+                        "--single-branch",
+                        "--branch=succinct",
+                        "sp1-rust",
+                    ])
+                    .current_dir(&temp_dir)
                     .run()?;
                 Command::new("git")
                     .args(["reset", "--hard"])
-                    .current_dir("rust")
+                    .current_dir(&dir)
                     .run()?;
                 Command::new("git")
                     .args(["submodule", "update", "--init", "--recursive", "--progress"])
-                    .current_dir("rust")
+                    .current_dir(&dir)
                     .run()?;
-                PathBuf::from("rust")
+                dir
             }
         };
 
         // Install our config.toml.
-        let config_toml = include_str!("config.toml");
+        let ci = std::env::var("CI").unwrap_or("false".to_string()) == "true";
+        let config_toml = if ci {
+            include_str!("config-ci.toml")
+        } else {
+            include_str!("config.toml")
+        };
         std::fs::write(rust_dir.join("config.toml"), config_toml)?;
 
         // Build the toolchain (stage 1).

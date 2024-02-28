@@ -84,6 +84,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
 pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
     InMemory(ShardMainData<SC>),
     TempFile(File, u64),
+    Empty(),
 }
 
 impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
@@ -99,6 +100,7 @@ impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
                 let data = deserialize_from(&mut buffer)?;
                 Ok(data)
             }
+            Self::Empty() => unreachable!(),
         }
     }
 }
