@@ -16,10 +16,11 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
+use serde::{Deserialize, Serialize};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
 /// the execution of the shard.
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord {
     /// The index of the shard.
     pub index: u32,
@@ -29,9 +30,6 @@ pub struct ExecutionRecord {
 
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
-
-    /// Multiplicity counts for each instruction in the program.
-    pub instruction_counts: HashMap<u32, usize>,
 
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
@@ -171,7 +169,6 @@ impl ExecutionRecord {
             .map(|(i, chunk)| {
                 let mut shard = ExecutionRecord::default();
                 shard.index = (i + 1) as u32;
-                shard.program = self.program.clone();
                 shard.cpu_events = chunk.to_vec();
 
                 shard

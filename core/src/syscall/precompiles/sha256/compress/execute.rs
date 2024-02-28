@@ -89,10 +89,10 @@ impl Syscall for ShaCompressChip {
             shard,
             clk: saved_clk,
             w_and_h_ptr: saved_w_ptr,
-            w: original_w.try_into().unwrap(),
+            w: original_w,
             h: hx,
             h_read_records: h_read_records.try_into().unwrap(),
-            w_i_read_records: w_i_read_records.try_into().unwrap(),
+            w_i_read_records,
             h_write_records: h_write_records.try_into().unwrap(),
         });
 

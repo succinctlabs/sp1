@@ -85,7 +85,6 @@ impl Runtime {
     pub fn new(program: Program) -> Self {
         let program_arc = Arc::new(program);
         let record = ExecutionRecord {
-            program: program_arc.clone(),
             ..Default::default()
         };
         // Write pc trace to file if TRACE_FILE is set

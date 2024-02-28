@@ -66,7 +66,9 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.record_mut().weierstrass_double_events.push(event);
+        rt.record_mut()
+            .weierstrass_double_events
+            .push(event.clone());
         event.p_ptr + 1
     }
 
@@ -172,7 +174,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let mut new_field_events = Vec::new();
 
         for i in 0..input.weierstrass_double_events.len() {
-            let event = input.weierstrass_double_events[i];
+            let event = input.weierstrass_double_events[i].clone();
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
 

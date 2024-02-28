@@ -34,13 +34,15 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
+use serde::Deserialize;
+use serde::Serialize;
 use std::marker::PhantomData;
 
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
     pub shard: u32,
     pub clk: u32,
@@ -284,10 +286,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         let mut rows = Vec::new();
 
         for i in 0..input.ed_decompress_events.len() {
-            let event = input.ed_decompress_events[i];
+            let event = &input.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event, output);
+            cols.populate::<E::BaseField, E>(event.clone(), output);
 
             rows.push(row);
         }
