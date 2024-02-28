@@ -157,7 +157,7 @@ where
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
-    fn prove_shard(
+    pub fn prove_shard(
         config: &SC,
         _pk: &ProvingKey<SC>,
         chips: &[&RiscvChip<SC>],
