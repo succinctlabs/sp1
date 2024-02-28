@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
+use tracing::instrument;
 
 use crate::{
     air::MachineAir, runtime::ExecutionRecord, syscall::precompiles::keccak256::STATE_SIZE,
@@ -20,6 +21,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         "KeccakPermute".to_string()
     }
 
+    #[instrument(name = "generate keccak256 trace", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

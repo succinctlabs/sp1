@@ -2,6 +2,8 @@ use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
 use crate::runtime::ExecutionRecord;
+use crate::syscall::precompiles::fri_fold::{self, FriFoldChip};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 
@@ -41,7 +43,7 @@ pub(crate) mod riscv_chips {
 /// a different AIR that is used to encode a different part of the RISC-V execution, and the
 /// different AIR variants have a joint lookup argument.
 #[derive(MachineAir)]
-pub enum RiscvAir<F: PrimeField32> {
+pub enum RiscvAir<F: PrimeField32 + BinomiallyExtendable<4>> {
     /// An AIR that containts a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
@@ -90,9 +92,11 @@ pub enum RiscvAir<F: PrimeField32> {
     KeccakP(KeccakPermuteChip),
     /// A precompile for the Blake3 compression function.
     Blake3Compress(Blake3CompressInnerChip),
+    /// A precompile for the fri fold function.
+    FriFold(FriFoldChip),
 }
 
-impl<F: PrimeField32> RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> RiscvAir<F> {
     /// Get all the different RISC-V AIRs.
     pub fn get_all() -> Vec<Self> {
         vec![
@@ -109,6 +113,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             ),
             Self::KeccakP(KeccakPermuteChip::new()),
             Self::Blake3Compress(Blake3CompressInnerChip::new()),
+            Self::FriFold(fri_fold::FriFoldChip::new()),
             Self::Add(AddChip),
             Self::Sub(SubChip),
             Self::Bitwise(BitwiseChip),
@@ -152,6 +157,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
             RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
             RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
+            RiscvAir::FriFold(_) => !shard.fri_fold_events.is_empty(),
         }
     }
 
@@ -175,39 +181,40 @@ impl<F: PrimeField32> RiscvAir<F> {
             ),
             9 => Self::KeccakP(KeccakPermuteChip::new()),
             10 => Self::Blake3Compress(Blake3CompressInnerChip::new()),
-            11 => Self::Add(AddChip),
-            12 => Self::Sub(SubChip),
-            13 => Self::Bitwise(BitwiseChip),
-            14 => Self::DivRem(DivRemChip),
-            15 => Self::Mul(MulChip),
-            16 => Self::ShiftRight(ShiftRightChip),
-            17 => Self::ShiftLeft(ShiftLeft),
-            18 => Self::Lt(LtChip),
-            19 => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
-            20 => Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
-            21 => Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
-            22 => Self::FieldLTU(FieldLtuChip),
-            23 => Self::ByteLookup(ByteChip::new()),
-            _ => panic!("Index out of bounds"),
+            11 => Self::FriFold(fri_fold::FriFoldChip::new()),
+            12 => Self::Add(AddChip),
+            13 => Self::Sub(SubChip),
+            14 => Self::Bitwise(BitwiseChip),
+            15 => Self::DivRem(DivRemChip),
+            16 => Self::Mul(MulChip),
+            17 => Self::ShiftRight(ShiftRightChip),
+            18 => Self::ShiftLeft(ShiftLeft),
+            19 => Self::Lt(LtChip),
+            20 => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
+            21 => Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
+            22 => Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
+            23 => Self::FieldLTU(FieldLtuChip),
+            24 => Self::ByteLookup(ByteChip::new()),
+            _ => panic!("Invalid index"),
         }
     }
 }
 
-impl<F: PrimeField32> PartialEq for RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> PartialEq for RiscvAir<F> {
     fn eq(&self, other: &Self) -> bool {
         self.name() == other.name()
     }
 }
 
-impl<F: PrimeField32> Eq for RiscvAir<F> {}
+impl<F: PrimeField32 + BinomiallyExtendable<4>> Eq for RiscvAir<F> {}
 
-impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> core::hash::Hash for RiscvAir<F> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.name().hash(state);
     }
 }
 
-impl<F: PrimeField32> Clone for RiscvAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<4>> Clone for RiscvAir<F> {
     fn clone(&self) -> Self {
         match self {
             Self::Program(_) => Self::Program(ProgramChip::default()),
@@ -246,6 +253,7 @@ impl<F: PrimeField32> Clone for RiscvAir<F> {
             >::new()),
             Self::KeccakP(_) => Self::KeccakP(KeccakPermuteChip::new()),
             Self::Blake3Compress(_) => Self::Blake3Compress(Blake3CompressInnerChip::new()),
+            Self::FriFold(_) => Self::FriFold(fri_fold::FriFoldChip::new()),
         }
     }
 }

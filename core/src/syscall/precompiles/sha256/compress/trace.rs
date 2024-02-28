@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use tracing::instrument;
 
 use crate::{
     air::{MachineAir, Word},
@@ -19,6 +20,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
         "ShaCompress".to_string()
     }
 
+    #[instrument(name = "generate sha compress trace", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

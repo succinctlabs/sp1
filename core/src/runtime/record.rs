@@ -11,6 +11,7 @@ use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
+use crate::syscall::precompiles::fri_fold::FriFoldEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
@@ -80,6 +81,8 @@ pub struct ExecutionRecord {
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+
+    pub fri_fold_events: Vec<FriFoldEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
@@ -151,6 +154,8 @@ pub struct ShardStats {
     pub nb_weierstrass_add_events: usize,
     pub nb_weierstrass_double_events: usize,
     pub nb_k256_decompress_events: usize,
+    pub nb_blake3_compress_inner_events: usize,
+    pub nb_fri_fold_events: usize,
 }
 
 impl ExecutionRecord {
@@ -321,6 +326,11 @@ impl ExecutionRecord {
             .blake3_compress_inner_events
             .extend_from_slice(&self.blake3_compress_inner_events);
 
+        // Fri fold compress events .
+        first
+            .fri_fold_events
+            .extend_from_slice(&self.fri_fold_events);
+
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups.extend(&self.byte_lookups);
 
@@ -473,6 +483,8 @@ impl ExecutionRecord {
             nb_weierstrass_add_events: self.weierstrass_add_events.len(),
             nb_weierstrass_double_events: self.weierstrass_double_events.len(),
             nb_k256_decompress_events: self.k256_decompress_events.len(),
+            nb_blake3_compress_inner_events: self.blake3_compress_inner_events.len(),
+            nb_fri_fold_events: self.fri_fold_events.len(),
         }
     }
 
@@ -507,6 +519,7 @@ impl ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.fri_fold_events.append(&mut other.fri_fold_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups

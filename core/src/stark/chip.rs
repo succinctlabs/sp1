@@ -4,7 +4,7 @@ use alloc::borrow::Cow;
 use core::borrow::Borrow;
 use core::fmt::Debug;
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
+use p3_field::{extension::BinomiallyExtendable, ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
@@ -49,7 +49,7 @@ impl<'a, F: Field, A> Chip<'a, F, A> {
     }
 }
 
-impl<'a, F: PrimeField32> Chip<'a, F, RiscvAir<F>> {
+impl<'a, F: PrimeField32 + BinomiallyExtendable<4>> Chip<'a, F, RiscvAir<F>> {
     /// Returns whether the given chip is included in the execution record of the shard.
     pub fn included(&self, shard: &ExecutionRecord) -> bool {
         self.air.included(shard)

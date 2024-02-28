@@ -5,6 +5,7 @@ use itertools::izip;
 use p3_air::BaseAir;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::{AbstractExtensionField, AbstractField};
 use p3_field::{ExtensionField, PrimeField};
 use p3_field::{PrimeField32, TwoAdicField};
@@ -427,7 +428,7 @@ where
         };
     }
 
-    fn commit_shards<F, EF>(
+    fn commit_shards<F: BinomiallyExtendable<4>, EF>(
         machine: &RiscvStark<SC>,
         shards: &[ExecutionRecord],
     ) -> (
@@ -475,6 +476,7 @@ where
                                 } else {
                                     data.to_in_memory()
                                 };
+                                // let data = data.to_in_memory();
                                 (commitment, data)
                             })
                             .collect::<Vec<_>>()

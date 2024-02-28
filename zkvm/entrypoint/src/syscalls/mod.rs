@@ -1,5 +1,6 @@
 mod blake3_compress;
 mod ed25519;
+mod fri_fold;
 mod halt;
 mod io;
 mod keccak_permute;
@@ -11,6 +12,7 @@ mod sys;
 mod unconstrained;
 
 pub use ed25519::*;
+pub use fri_fold::*;
 pub use halt::*;
 pub use io::*;
 pub use keccak_permute::*;
@@ -59,6 +61,9 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
+
+/// Executes `FRI_FOLD`.
+pub const FRI_FOLD: u32 = 113;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
