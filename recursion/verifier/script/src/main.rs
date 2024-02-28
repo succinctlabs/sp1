@@ -40,9 +40,9 @@ fn main() {
     stdin.write(&proof);
 
     // Execute the recursive verifier and get the cycle counts.
-    // SP1Prover::execute(VERIFIER_ELF, stdin).expect("execution failed");
+    SP1Prover::execute(VERIFIER_ELF, stdin).expect("execution failed");
     // Generate a recursive proof.
-    let proof = SP1Prover::prove(VERIFIER_ELF, stdin).expect("proving failed");
+    // let proof = SP1Prover::prove(VERIFIER_ELF, stdin).expect("proving failed");
     // Verify the recursive proof.
-    SP1Verifier::verify(VERIFIER_ELF, &proof).expect("verification failed");
+    // SP1Verifier::verify(VERIFIER_ELF, &proof).expect("verification failed");
 }
