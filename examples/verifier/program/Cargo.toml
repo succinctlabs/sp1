@@ -1,0 +1,14 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "verifier-program"
+edition = "2021"
+
+[dependencies]
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-core = { path = "../../../core" }
+
+[[bin]]
+name = "verifier"
+path = "src/verifier.rs"
