@@ -15,22 +15,22 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-field = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-commit = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-util = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-dft = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-fri = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-blake3 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-mds = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
-p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/u32_related_hash_functions" }
+p3-air = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-field = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-commit = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-util = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-dft = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-fri = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-blake3 = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-mds = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }
+p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git" }
