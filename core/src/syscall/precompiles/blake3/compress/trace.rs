@@ -8,6 +8,7 @@ use crate::utils::pad_rows;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use tracing::instrument;
 
 use crate::air::MachineAir;
 
@@ -22,6 +23,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
         "Blake3CompressInner".to_string()
     }
 
+    #[instrument(name = "generate blake3 trace", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

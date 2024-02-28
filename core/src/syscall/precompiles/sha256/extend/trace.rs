@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use tracing::instrument;
 
 use crate::{air::MachineAir, runtime::ExecutionRecord};
 
@@ -12,6 +13,7 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
         "ShaExtend".to_string()
     }
 
+    #[instrument(name = "generate sha extend trace", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
