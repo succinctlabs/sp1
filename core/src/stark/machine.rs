@@ -209,6 +209,14 @@ pub enum ProgramVerificationError {
     NonZeroCumulativeSum,
 }
 
+impl<SC: StarkGenericConfig> VerifyingKey<SC> {
+    pub const fn empty() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {

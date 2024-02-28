@@ -1,57 +1,23 @@
-use core::marker::PhantomData;
-
-mod constants;
-
-pub use constants::*;
-
 extern crate alloc;
 
-use sp1_core::air::MachineAir;
-use sp1_core::stark::{RiscvStark, ShardProof, StarkGenericConfig, Verifier};
+mod constants;
+pub use constants::*;
 
 pub use sp1_core::*;
-
-pub struct RecursiveVerifier<SC: StarkGenericConfig>(PhantomData<SC>);
-
-impl<SC: StarkGenericConfig> RecursiveVerifier<SC> {
-    pub fn new() -> Self {
-        RecursiveVerifier(PhantomData)
-    }
-
-    pub fn verify_shard(
-        machine: &RiscvStark<SC>,
-        challenger: &mut SC::Challenger,
-        proof: &ShardProof<SC>,
-    ) {
-        let shard_chips = machine
-            .chips()
-            .iter()
-            .filter(|chip| proof.chip_ids.contains(&chip.name()))
-            .collect::<Vec<_>>();
-
-        Verifier::verify_shard(machine.config(), &shard_chips, challenger, proof)
-            .expect("verification failed")
-    }
-}
-
-impl<SC: StarkGenericConfig> Default for RecursiveVerifier<SC> {
-    fn default() -> Self {
-        RecursiveVerifier::new()
-    }
-}
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use crate::air::MachineAir;
     use crate::lookup::Interaction;
+    use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use crate::stark::{Chip, RiscvAir};
+    use crate::stark::{LocalProver, RiscvStark};
     use crate::utils::BabyBearBlake3;
+    use crate::utils::{setup_logger, StarkUtils};
     use p3_air::{PairCol, VirtualPairCol};
     use p3_field::{Field, PrimeField32};
-    use sp1_core::runtime::{Instruction, Opcode, Program, Runtime};
-    use sp1_core::stark::LocalProver;
-    use sp1_core::utils::{setup_logger, StarkUtils};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
         match (left, right) {
@@ -126,8 +92,5 @@ mod tests {
         RISCV_STARK
             .verify(&vk, &proof, &mut challenger)
             .expect("verification failed");
-
-        let mut challenger = RISCV_STARK.config().challenger();
-        RecursiveVerifier::verify_shard(&RISCV_STARK, &mut challenger, &proof.shard_proofs[0]);
     }
 }
