@@ -51,7 +51,7 @@ mod tests {
     };
     use p3_air::{PairCol, VirtualPairCol};
     use p3_baby_bear::BabyBear;
-    use p3_field::{AbstractField, Field};
+    use p3_field::{AbstractField, Field, PrimeField32};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
         match (left, right) {
@@ -81,6 +81,17 @@ mod tests {
         }
     }
 
+    fn assert_chips_eq<F: PrimeField32>(left: &Chip<F, RiscvAir<F>>, right: &Chip<F, RiscvAir<F>>) {
+        assert_eq!(left.name(), right.name());
+        assert_eq!(left.log_quotient_degree(), right.log_quotient_degree());
+        for (l, r) in left.sends().iter().zip(right.sends().iter()) {
+            assert_interaction_eq(l, r);
+        }
+        for (l, r) in left.receives().iter().zip(right.receives().iter()) {
+            assert_interaction_eq(l, r);
+        }
+    }
+
     #[test]
     fn test_constant_gen() {
         let expected_values = [1, 2, 4, 5, 6].map(BabyBear::from_canonical_u32);
@@ -94,5 +105,7 @@ mod tests {
         let interaction = &sends[0];
 
         assert_interaction_eq(interaction, &SEND_INTERACTION);
+
+        assert_chips_eq(&chip, &ADD);
     }
 }

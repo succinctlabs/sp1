@@ -483,7 +483,7 @@ pub(super) mod baby_bear_blake3 {
     }
 
     impl BabyBearBlake3 {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             let byte_hash = ByteHash {};
             let field_hash = FieldHash::new(byte_hash);
 
@@ -491,7 +491,14 @@ pub(super) mod baby_bear_blake3 {
 
             let val_mmcs = ValMmcs::new(field_hash, compress);
 
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+            let byte_hash = ByteHash {};
+            let field_hash = FieldHash::new(byte_hash);
+
+            let compress = MyCompress::new(byte_hash);
+
+            let val_mmcs_copy = ValMmcs::new(field_hash, compress);
+
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs_copy);
 
             let dft = Dft {};
 

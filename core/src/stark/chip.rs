@@ -104,6 +104,20 @@ where
         }
     }
 
+    pub const fn from_parts_borrowed(
+        air: A,
+        sends: &'a [Interaction<'a, F>],
+        receives: &'a [Interaction<'a, F>],
+        log_quotient_degree: usize,
+    ) -> Self {
+        Self::from_parts(
+            air,
+            Cow::Borrowed(sends),
+            Cow::Borrowed(receives),
+            log_quotient_degree,
+        )
+    }
+
     pub const fn from_parts(
         air: A,
         sends: Cow<'a, [Interaction<'a, F>]>,

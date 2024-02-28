@@ -1,27 +1,3 @@
-// The `aligned_borrow_derive` macro is taken from valida-xyz/valida under MIT license
-//
-// The MIT License (MIT)
-//
-// Copyright (c) 2023 The Valida Authors
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
@@ -29,14 +5,18 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 mod baby_bear;
+mod chip;
+mod config;
 mod field;
 mod interaction;
+mod riscv_air;
 mod virtual_column;
 
-use baby_bear::*;
+use chip::*;
+use config::*;
 use field::*;
 use interaction::*;
-use sp1_core::lookup::Interaction;
+use riscv_air::*;
 use virtual_column::*;
 
 use proc_macro2::Ident;
@@ -45,6 +25,7 @@ use p3_air::PairCol;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 
+use sp1_core::air::MachineAir;
 use sp1_core::alu::AddChip;
 use sp1_core::stark::{Chip, RiscvAir};
 
@@ -59,6 +40,21 @@ pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
         .collect::<Vec<_>>();
 
     let chip = Chip::<BabyBear, _>::new(RiscvAir::Add(AddChip));
+
+    let air_type = riscv_air_type::<BabyBear>();
+    let air_token = quote! { crate::stark::RiscvAir::Add(crate::stark::AddChip) };
+
+    let chip_name = chip.name().to_uppercase();
+    let chip_ident = Ident::new(&chip_name, proc_macro2::Span::call_site());
+    chip_token(
+        &chip_ident,
+        &air_token,
+        &air_type,
+        chip.sends(),
+        chip.receives(),
+        chip.log_quotient_degree(),
+        &mut tokens,
+    );
 
     let sends = chip.sends();
 
