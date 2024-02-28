@@ -17,6 +17,7 @@ mod tests {
     use crate::utils::BabyBearBlake3;
     use crate::utils::{setup_logger, StarkUtils};
     use p3_air::{PairCol, VirtualPairCol};
+    use p3_field::extension::BinomiallyExtendable;
     use p3_field::{Field, PrimeField32};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
@@ -47,7 +48,10 @@ mod tests {
         }
     }
 
-    fn assert_chips_eq<F: PrimeField32>(left: &Chip<F, RiscvAir<F>>, right: &Chip<F, RiscvAir<F>>) {
+    fn assert_chips_eq<F: PrimeField32 + BinomiallyExtendable<4>>(
+        left: &Chip<F, RiscvAir<F>>,
+        right: &Chip<F, RiscvAir<F>>,
+    ) {
         assert_eq!(left.name(), right.name());
         assert_eq!(left.log_quotient_degree(), right.log_quotient_degree());
         for (l, r) in left.sends().iter().zip(right.sends().iter()) {

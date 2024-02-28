@@ -6,7 +6,6 @@ use sp1_core::SP1ProofWithIO;
 
 pub fn get_fixture_proof() -> SP1ProofWithIO<BabyBearBlake3> {
     let proof_str = include_str!("./fixtures/fib-proof-with-pis.json");
-    println!("cycle-tracker-start: deserialize proof");
 
     serde_json::from_str(proof_str).expect("loading proof failed")
 }

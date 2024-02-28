@@ -183,7 +183,7 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -522,15 +522,17 @@ pub(super) mod baby_bear_blake3 {
             let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let byte_hash = ByteHash {};
-            let field_hash = FieldHash::new(byte_hash);
+            let field_hash: SerializingHasher32<Blake3U32> = FieldHash::new(byte_hash);
 
-            let compress = MyCompress::new(byte_hash);
+            let compress = Compress::new(byte_hash);
 
-            let val_mmcs_copy = ValMmcs::new(field_hash, compress);
+            let val_mmcs_clone = ValMmcs::new(field_hash, compress);
 
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs_copy);
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs_clone);
 
             let dft = Dft {};
+
+            let dft_clone = Dft {};
 
             let fri_config = FriConfig {
                 log_blowup: LOG_BLOWUP,
@@ -538,7 +540,7 @@ pub(super) mod baby_bear_blake3 {
                 proof_of_work_bits: PROOF_OF_WORK_BITS,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(fri_config, dft.clone(), val_mmcs);
+            let pcs = Pcs::new(fri_config, dft_clone, val_mmcs);
 
             // Create the recursive verifier PCS instance
             let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
@@ -552,8 +554,19 @@ pub(super) mod baby_bear_blake3 {
                 recursive_verifier_compress,
             );
 
+            let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
+            let recursive_verifier_field_hash: SerializingHasher32<Blake3U32Zkvm> =
+                RecursiveVerifierFieldHash::new(recursive_verifier_byte_hash);
+
+            let recursive_verifier_compress = RecursiveVerifierCompress::new();
+
+            let recursive_verifier_val_mmcs_clone = RecursiveVerifierValMmcs::new(
+                recursive_verifier_field_hash,
+                recursive_verifier_compress,
+            );
+
             let recursive_verifier_challenge_mmcs =
-                RecursiveVerifierChallengeMmcs::new(recursive_verifier_val_mmcs.clone());
+                RecursiveVerifierChallengeMmcs::new(recursive_verifier_val_mmcs_clone);
 
             let recursive_verifier_fri_config = FriConfig {
                 log_blowup: LOG_BLOWUP,
@@ -645,7 +658,7 @@ pub(super) mod baby_bear_blake3 {
     pub struct Blake3SingleBlockCompression;
 
     impl Blake3SingleBlockCompression {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self {}
         }
     }
