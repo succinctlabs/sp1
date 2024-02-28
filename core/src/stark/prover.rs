@@ -38,8 +38,8 @@ fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
 }
 
 pub trait Prover<SC: StarkGenericConfig> {
-    fn prove_shards<'a>(
-        machine: &'a RiscvStark<'a, SC>,
+    fn prove_shards(
+        machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
         shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
@@ -56,8 +56,8 @@ where
     PcsProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn prove_shards<'a>(
-        machine: &'a RiscvStark<'a, SC>,
+    fn prove_shards(
+        machine: &RiscvStark<SC>,
         pk: &ProvingKey<SC>,
         shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,

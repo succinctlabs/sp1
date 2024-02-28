@@ -101,8 +101,8 @@ impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
         )
     }
 
-    pub fn shard<'b: 'a>(
-        &'b self,
+    pub fn shard(
+        &self,
         mut record: ExecutionRecord,
         shard_config: &ShardingConfig,
     ) -> Vec<ExecutionRecord> {
@@ -139,8 +139,8 @@ impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<'b: 'a, P: Prover<SC>>(
-        &'b self,
+    pub fn prove<P: Prover<SC>>(
+        &self,
         pk: &ProvingKey<SC>,
         record: ExecutionRecord,
         challenger: &mut SC::Challenger,
@@ -156,8 +156,8 @@ impl<'a, SC: StarkGenericConfig> RiscvStark<'a, SC> {
         &self.config
     }
 
-    pub fn verify<'b: 'a>(
-        &'b self,
+    pub fn verify(
+        &self,
         _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,

@@ -49,6 +49,9 @@ mod tests {
     use crate::utils::BabyBearBlake3;
     use p3_air::{PairCol, VirtualPairCol};
     use p3_field::{Field, PrimeField32};
+    use sp1_core::runtime::{Instruction, Opcode, Program, Runtime};
+    use sp1_core::stark::LocalProver;
+    use sp1_core::utils::{setup_logger, StarkUtils};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
         match (left, right) {
@@ -97,5 +100,31 @@ mod tests {
         for (chip, const_chip) in machine.chips().iter().zip(RISCV_STARK.chips()) {
             assert_chips_eq(chip, const_chip);
         }
+    }
+
+    #[test]
+    fn test_const_add_verify() {
+        setup_logger();
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ];
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        let config = BabyBearBlake3::new();
+
+        let machine = RiscvStark::new(config);
+        let (pk, vk) = machine.setup(runtime.program.as_ref());
+        let mut challenger = machine.config().challenger();
+        let proof = machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger);
+
+        let mut challenger = machine.config().challenger();
+
+        RISCV_STARK
+            .verify(&vk, &proof, &mut challenger)
+            .expect("verification failed");
     }
 }
