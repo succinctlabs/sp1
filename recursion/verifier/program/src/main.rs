@@ -5,6 +5,7 @@ sp1_zkvm::entrypoint!(main);
 
 use sp1_recursion::stark::RiscvStark;
 use sp1_recursion::stark::ShardProof;
+use sp1_recursion::utils::StarkUtils;
 use sp1_recursion::RecursiveVerifier;
 
 use sp1_recursion::RISCV_STARK;
@@ -14,8 +15,16 @@ pub fn main() {
 
     let config = SC::new();
 
-    let machine = RISCV_STARK;
-
     // Read the proof from the input
-    // let proof = sp1_zkvm::io::read::<ShardProof<SC>>();
+    println!("cycle-tracker-start: read proof");
+    let proof = sp1_zkvm::io::read::<ShardProof<SC>>();
+    println!("cycle-tracker-end: read proof");
+
+    println!("cycle-tracker-start: get a new challenger");
+    let mut challenger = config.challenger();
+    println!("cycle-tracker-end: get a new challenger");
+
+    println!("cycle-tracker-start: verify proof");
+    RecursiveVerifier::verify_shard(&RISCV_STARK, &mut challenger, &proof);
+    println!("cycle-tracker-end: verify proof");
 }

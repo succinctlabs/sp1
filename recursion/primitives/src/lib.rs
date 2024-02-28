@@ -126,5 +126,8 @@ mod tests {
         RISCV_STARK
             .verify(&vk, &proof, &mut challenger)
             .expect("verification failed");
+
+        let mut challenger = RISCV_STARK.config().challenger();
+        RecursiveVerifier::verify_shard(&RISCV_STARK, &mut challenger, &proof.shard_proofs[0]);
     }
 }
