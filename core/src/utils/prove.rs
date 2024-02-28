@@ -183,7 +183,7 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
