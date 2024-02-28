@@ -120,7 +120,7 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn commit_main(
+    pub fn commit_main(
         config: &SC,
         machine: &RiscvStark<SC>,
         shard: &ExecutionRecord,
