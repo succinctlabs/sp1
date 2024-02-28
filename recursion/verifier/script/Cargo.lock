@@ -1671,6 +1671,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-recursion"
+version = "0.1.0"
+dependencies = [
+ "p3-air",
+ "p3-baby-bear",
+ "p3-field",
+ "sp1-core",
+ "sp1-recursion-macros",
+]
+
+[[package]]
+name = "sp1-recursion-macros"
+version = "0.1.0"
+dependencies = [
+ "p3-air",
+ "p3-baby-bear",
+ "p3-field",
+ "proc-macro2",
+ "quote",
+ "sp1-core",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1888,6 +1912,7 @@ dependencies = [
  "serde_json",
  "sp1-core",
  "sp1-helper",
+ "sp1-recursion",
  "tracing",
 ]
 
