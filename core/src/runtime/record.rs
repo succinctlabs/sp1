@@ -170,7 +170,7 @@ impl ExecutionRecord {
                 let mut shard = ExecutionRecord::default();
                 shard.index = (i + 1) as u32;
                 shard.cpu_events = chunk.to_vec();
-
+                shard.program = self.program.clone();
                 shard
             })
             .collect::<Vec<_>>();

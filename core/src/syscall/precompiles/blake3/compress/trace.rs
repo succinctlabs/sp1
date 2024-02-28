@@ -32,7 +32,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
         let mut new_field_events = Vec::new();
 
         for i in 0..input.blake3_compress_inner_events.len() {
-            let event = &input.blake3_compress_inner_events[i];
+            let event = input.blake3_compress_inner_events[i].clone();
 
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {

@@ -299,7 +299,7 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
         let mut rows = Vec::new();
 
         for i in 0..input.k256_decompress_events.len() {
-            let event = &input.k256_decompress_events[i];
+            let event = input.k256_decompress_events[i].clone();
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate(event.clone(), output);
