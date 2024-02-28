@@ -4,6 +4,7 @@ use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
 use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
 use sp1_core::{SP1ProofWithIO, SP1Stdin, SP1Stdout, SP1Verifier};
+use std::fmt;
 use std::fs::OpenOptions;
 use std::io;
 use std::{fs, time::Instant};
@@ -17,16 +18,18 @@ enum HashFnId {
     Keccak256,
 }
 
-impl HashFnId {
-    fn to_string(&self) -> String {
-        match self {
-            HashFnId::Sha256 => "sha-256".to_string(),
-            HashFnId::Poseidon => "poseidon".to_string(),
-            HashFnId::Blake3 => "blake3".to_string(),
-            HashFnId::Keccak256 => "keccak256".to_string(),
-        }
+impl fmt::Display for HashFnId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let hash_fn_str = match self {
+            HashFnId::Sha256 => "sha-256",
+            HashFnId::Poseidon => "poseidon",
+            HashFnId::Blake3 => "blake3",
+            HashFnId::Keccak256 => "keccak256",
+        };
+        write!(f, "{}", hash_fn_str)
     }
 }
+
 /// The performance report of a zkVM on a program.
 #[derive(Debug, Serialize)]
 pub struct PerformanceReport {
@@ -200,7 +203,6 @@ fn write_report(report: PerformanceReport, benchmark_path: &str) -> io::Result<(
     let write_header = fs::metadata(benchmark_path).map_or(true, |meta| meta.len() == 0);
 
     let file = OpenOptions::new()
-        .write(true)
         .create(true)
         .append(true)
         .open(benchmark_path)?;
@@ -209,7 +211,7 @@ fn write_report(report: PerformanceReport, benchmark_path: &str) -> io::Result<(
 
     // Manually write the header if needed.
     if write_header {
-        writer.write_record(&[
+        writer.write_record([
             "program",
             "hashfn",
             "shard_size",
