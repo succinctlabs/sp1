@@ -7,7 +7,7 @@ use crate::{
 use super::{
     mix, Blake2bCompressInnerChip, Blake2bCompressInnerEvent, MIX_INDEX, MSG_ELE_PER_CALL,
     NUM_MIX_ROUNDS, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
-    SIGMA_PERMUTATIONS,
+    SIGMA_PERMUTATIONS, STATE_ELE_PER_CALL,
 };
 
 impl Syscall for Blake2bCompressInnerChip {
@@ -53,11 +53,21 @@ impl Syscall for Blake2bCompressInnerChip {
                     }
                 }
 
+                // println!(
+                //     "round: {} operation: {} input: {:?}",
+                //     round, operation, input
+                // );
+
                 // Call mix.
                 let results = mix(input.try_into().unwrap());
 
+                // println!(
+                //     "round: {} operation: {} results: {:?}",
+                //     round, operation, results
+                // );
+
                 // Write the state.
-                for i in 0..NUM_STATE_WORDS_PER_CALL {
+                for i in 0..STATE_ELE_PER_CALL {
                     let lo = results[i] as u32;
                     let hi = (results[i] >> 32) as u32;
                     state_writes[round][operation][2 * i] =

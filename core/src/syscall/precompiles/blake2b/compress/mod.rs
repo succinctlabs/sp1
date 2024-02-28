@@ -78,7 +78,7 @@ pub(crate) const SIGMA_PERMUTATIONS: [[usize; MSG_SIZE]; NUM_MIX_ROUNDS] = [
     [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
     [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
     [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
-    [12, 5, 15, 10, 14, 13, 0, 11, 3, 9, 7, 6, 4, 1, 2, 8],
+    [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
     [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
     [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
     [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
@@ -124,5 +124,75 @@ pub struct Blake2bCompressInnerChip {}
 impl Blake2bCompressInnerChip {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+#[cfg(test)]
+pub mod compress_tests {
+    use crate::runtime::Instruction;
+    use crate::runtime::Opcode;
+    use crate::runtime::Register;
+    use crate::runtime::SyscallCode;
+    use crate::utils::run_test;
+    use crate::utils::setup_logger;
+    use crate::utils::tests::BLAKE2B_COMPRESS_ELF;
+    use crate::Program;
+
+    use super::MSG_NUM_WORDS;
+
+    /// The number of `Word`s in the state of the compress inner operation.
+    const NUM_STATE_WORD: usize = MSG_NUM_WORDS;
+
+    pub fn blake2b_compress_internal_program() -> Program {
+        let state_ptr = 100;
+        let msg_ptr = 500;
+        let mut instructions = vec![];
+
+        for i in 0..NUM_STATE_WORD {
+            // Store 1000 + i in memory for the i-th word of the state. 1000 + i is an arbitrary
+            // number that is easy to spot while debugging.
+            instructions.extend(vec![
+                Instruction::new(Opcode::ADD, 29, 0, 1000 + i as u32, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, state_ptr + i as u32 * 4, false, true),
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true),
+            ]);
+        }
+        for i in 0..MSG_NUM_WORDS {
+            // Store 2000 + i in memory for the i-th word of the message. 2000 + i is an arbitrary
+            // number that is easy to spot while debugging.
+            instructions.extend(vec![
+                Instruction::new(Opcode::ADD, 29, 0, 2000 + i as u32, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, msg_ptr + i as u32 * 4, false, true),
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true),
+            ]);
+        }
+        instructions.extend(vec![
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                SyscallCode::BLAKE2B_COMPRESS_INNER as u32,
+                false,
+                true,
+            ),
+            Instruction::new(Opcode::ADD, Register::X10 as u32, 0, state_ptr, false, true),
+            Instruction::new(Opcode::ADD, Register::X11 as u32, 0, msg_ptr, false, true),
+            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+        ]);
+        Program::new(instructions, 0, 0)
+    }
+
+    #[test]
+    fn prove_blake2b_compress_inner_elf() {
+        setup_logger();
+        let program = blake2b_compress_internal_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_blake2b_compress_inner_elf() {
+        setup_logger();
+        let program = Program::from(BLAKE2B_COMPRESS_ELF);
+        run_test(program).unwrap();
     }
 }

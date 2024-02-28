@@ -65,6 +65,16 @@ impl<F: Field> MixOperation<F> {
         let y_lo = input[10];
         let y_hi = input[11];
 
+        // the input in u64 later used to compare with the result of the mix function.
+        let input_u64 = [
+            (a_hi as u64) << 32 | a_lo as u64,
+            (b_hi as u64) << 32 | b_lo as u64,
+            (c_hi as u64) << 32 | c_lo as u64,
+            (d_hi as u64) << 32 | d_lo as u64,
+            (x_hi as u64) << 32 | x_lo as u64,
+            (y_hi as u64) << 32 | y_lo as u64,
+        ];
+
         // First 4 steps.
         {
             // a = a + b + x.
@@ -128,14 +138,6 @@ impl<F: Field> MixOperation<F> {
             (result[7] as u64) << 32 | result[6] as u64,
         ];
 
-        let input_u64 = [
-            (a_hi as u64) << 32 | a_lo as u64,
-            (b_hi as u64) << 32 | b_lo as u64,
-            (c_hi as u64) << 32 | c_lo as u64,
-            (d_hi as u64) << 32 | d_lo as u64,
-            (x_hi as u64) << 32 | x_lo as u64,
-            (y_hi as u64) << 32 | y_lo as u64,
-        ];
         assert_eq!(result_u64, mix(input_u64));
         self.result = result.map(Word::from);
         result
