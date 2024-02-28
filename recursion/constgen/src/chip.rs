@@ -4,10 +4,7 @@ use sp1_core::lookup::Interaction;
 
 use crate::interaction_token;
 use quote::quote;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::Chip;
 use syn::Ident;
-use syn::Path;
 
 pub fn chip_token<F: FieldToken>(
     name: &Ident,

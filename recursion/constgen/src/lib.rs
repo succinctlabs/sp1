@@ -21,60 +21,58 @@ use virtual_column::*;
 
 use proc_macro2::Ident;
 
-use p3_air::PairCol;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
 
 use sp1_core::air::MachineAir;
-use sp1_core::alu::AddChip;
 use sp1_core::stark::{Chip, RiscvAir};
+use sp1_core::utils::BabyBearBlake3;
 
 #[proc_macro]
 pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
+    type F = BabyBear;
     let mut tokens = TokenStream2::new();
 
-    let values = vec![1u32, 2, 4, 5, 6]
-        .into_iter()
-        .map(BabyBear::from_canonical_u32)
-        .map(|x| x.as_token())
-        .collect::<Vec<_>>();
+    let airs = RiscvAir::<BabyBear>::get_all();
 
-    let chip = Chip::<BabyBear, _>::new(RiscvAir::Add(AddChip));
-
+    // Add a constant for each chip, and collect tokens for putting them in a slice.
     let air_type = riscv_air_type::<BabyBear>();
-    let air_token = quote! { crate::stark::RiscvAir::Add(crate::stark::AddChip) };
+    let mut chip_tokens = vec![];
+    for (i, air) in airs.into_iter().enumerate() {
+        let air_token = quote! {crate::stark::RiscvAir::get_air_at_index(#i) };
+        let chip = Chip::<BabyBear, _>::new(air);
+        let name = chip.name().to_uppercase();
+        let chip_ident = Ident::new(&name, proc_macro2::Span::call_site());
+        chip_token(
+            &chip_ident,
+            &air_token,
+            &air_type,
+            chip.sends(),
+            chip.receives(),
+            chip.log_quotient_degree(),
+            &mut tokens,
+        );
+        chip_tokens.push(quote! { #chip_ident });
+    }
 
-    let chip_name = chip.name().to_uppercase();
-    let chip_ident = Ident::new(&chip_name, proc_macro2::Span::call_site());
-    chip_token(
-        &chip_ident,
-        &air_token,
-        &air_type,
-        chip.sends(),
-        chip.receives(),
-        chip.log_quotient_degree(),
-        &mut tokens,
-    );
+    // Generate a constant for the slice of chips
+    let chips_ident = Ident::new("RISCV_CHIPS", proc_macro2::Span::call_site());
+    let field = F::get_type();
+    tokens.extend(quote! {
+        pub const #chips_ident : &[crate::stark::Chip< #field, #air_type >] = &[#(#chip_tokens),*];
+    });
 
-    let sends = chip.sends();
+    // get the const tokens for making the config
+    type SC = BabyBearBlake3;
+    let config_type = SC::get_type();
+    let config = BabyBearBlake3::new();
+    let config_token = config.as_token();
 
-    let interaction = &sends[0];
-
-    let interaction_ident = Ident::new("SEND_INTERACTION", proc_macro2::Span::call_site());
-
-    interaction_token(interaction, &interaction_ident, &mut tokens);
-
-    let pair_col = pair_col_token(&PairCol::Main(3));
-
-    // Let's try to make a const slice from the values vector, making it general for any such
-    // vector
-    let test_consts = quote! {
-        pub const VALUES: &[p3_baby_bear::BabyBear] = &[#(#values),*];
-
-        pub const PAIR_COL : p3_air::PairCol = #pair_col;
-    };
-
-    tokens.extend(test_consts);
+    // Generate a constant machine from the config and chip slice
+    let machine_ident = Ident::new("RISCV_STARK", proc_macro2::Span::call_site());
+    tokens.extend(quote! {
+        pub const #machine_ident : crate::stark::RiscvStark< #config_type > =
+            crate::stark::RiscvStark::from_chip_slice(#config_token, #chips_ident);
+    });
 
     tokens.into()
 }

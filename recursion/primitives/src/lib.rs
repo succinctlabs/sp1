@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 mod constants;
 
-use constants::*;
+pub use constants::*;
 
 extern crate alloc;
 
@@ -45,13 +45,10 @@ mod tests {
 
     use super::*;
     use crate::lookup::Interaction;
-    use crate::{
-        alu::AddChip,
-        stark::{Chip, RiscvAir},
-    };
+    use crate::stark::{Chip, RiscvAir};
+    use crate::utils::BabyBearBlake3;
     use p3_air::{PairCol, VirtualPairCol};
-    use p3_baby_bear::BabyBear;
-    use p3_field::{AbstractField, Field, PrimeField32};
+    use p3_field::{Field, PrimeField32};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
         match (left, right) {
@@ -94,18 +91,11 @@ mod tests {
 
     #[test]
     fn test_constant_gen() {
-        let expected_values = [1, 2, 4, 5, 6].map(BabyBear::from_canonical_u32);
-        assert_eq!(VALUES, &expected_values);
+        let config = BabyBearBlake3::new();
+        let machine = RiscvStark::<BabyBearBlake3>::new(config);
 
-        assert_pair_col_eq(&PAIR_COL, &PairCol::Main(3));
-
-        let chip = Chip::<BabyBear, _>::new(RiscvAir::Add(AddChip));
-
-        let sends = chip.sends();
-        let interaction = &sends[0];
-
-        assert_interaction_eq(interaction, &SEND_INTERACTION);
-
-        assert_chips_eq(&chip, &ADD);
+        for (chip, const_chip) in machine.chips().iter().zip(RISCV_STARK.chips()) {
+            assert_chips_eq(chip, const_chip);
+        }
     }
 }

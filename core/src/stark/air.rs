@@ -93,8 +93,9 @@ pub enum RiscvAir<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
-    pub const fn get_all_array() -> [Self; 24] {
-        [
+    /// Get all the different RISC-V AIRs.
+    pub fn get_all() -> Vec<Self> {
+        vec![
             Self::Cpu(CpuChip),
             Self::Program(ProgramChip::new()),
             Self::Sha256Extend(ShaExtendChip),
@@ -124,11 +125,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    /// Get all the different RISC-V AIRs.
-    pub fn get_all() -> Vec<Self> {
-        Self::get_all_array().to_vec()
-    }
-
     /// Returns `true` if the given `shard` includes events for this AIR.
     pub fn included(&self, shard: &ExecutionRecord) -> bool {
         match self {
@@ -156,6 +152,43 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
             RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
             RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
+        }
+    }
+
+    /// Needed for recursive verifier, might change in the future.
+    ///
+    /// Note that this must match the indices returned by `get_all`.
+    pub const fn get_air_at_index(i: usize) -> Self {
+        match i {
+            0 => Self::Cpu(CpuChip),
+            1 => Self::Program(ProgramChip::new()),
+            2 => Self::Sha256Extend(ShaExtendChip),
+            3 => Self::Sha256Compress(ShaCompressChip),
+            4 => Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
+            5 => Self::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::new()),
+            6 => Self::K256Decompress(K256DecompressChip),
+            7 => {
+                Self::Secp256k1Add(WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new())
+            }
+            8 => Self::Secp256k1Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
+            ),
+            9 => Self::KeccakP(KeccakPermuteChip::new()),
+            10 => Self::Blake3Compress(Blake3CompressInnerChip::new()),
+            11 => Self::Add(AddChip),
+            12 => Self::Sub(SubChip),
+            13 => Self::Bitwise(BitwiseChip),
+            14 => Self::DivRem(DivRemChip),
+            15 => Self::Mul(MulChip),
+            16 => Self::ShiftRight(ShiftRightChip),
+            17 => Self::ShiftLeft(ShiftLeft),
+            18 => Self::Lt(LtChip),
+            19 => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
+            20 => Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
+            21 => Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
+            22 => Self::FieldLTU(FieldLtuChip),
+            23 => Self::ByteLookup(ByteChip::new()),
+            _ => panic!("Index out of bounds"),
         }
     }
 }

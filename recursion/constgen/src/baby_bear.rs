@@ -26,6 +26,6 @@ impl ConfigToken for BabyBearBlake3 {
     }
 
     fn as_token(&self) -> TokenStream {
-        quote! { p3_baby_bear::BabyBearBlake3::new() }
+        quote! { crate::utils::BabyBearBlake3::new() }
     }
 }
