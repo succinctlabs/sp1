@@ -46,3 +46,24 @@ fn main() {
     // Verify the recursive proof.
     SP1Verifier::verify(VERIFIER_ELF, &proof).expect("verification failed");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sp1_recursion::RISCV_STARK;
+
+    #[test]
+    fn test_main_execution() {
+        type SC = sp1_recursion::utils::BabyBearBlake3;
+
+        let config = SC::new();
+        let mut stdin = SP1Stdin::new();
+        let proof = get_fixture_proof().proof;
+
+        let vk = VerifyingKey::empty();
+        let mut challenger = config.challenger();
+        RISCV_STARK
+            .verify(&vk, &proof, &mut challenger)
+            .expect("proof verification failed");
+    }
+}
