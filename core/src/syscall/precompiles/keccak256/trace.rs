@@ -72,7 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             let p3_keccak_trace = generate_trace_rows::<F>(vec![perm_input]);
 
             // Create all the rows for the permutation.
-            for (i, p3_keccak_row) in (0..NUM_ROUNDS).zip(p3_keccak_trace.rows()) {
+            for (i, p3_keccak_row) in p3_keccak_trace.rows().enumerate() {
                 let mut row = [F::zero(); NUM_KECCAK_COLS + NUM_KECCAK_MEM_COLS];
 
                 // Copy the keccack row into the trace_row
