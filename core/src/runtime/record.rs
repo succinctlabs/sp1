@@ -149,6 +149,7 @@ pub struct ShardStats {
     pub nb_sha_extend_events: usize,
     pub nb_sha_compress_events: usize,
     pub nb_keccak_permute_events: usize,
+    pub nb_blake2b_compress_events: usize,
     pub nb_ed_add_events: usize,
     pub nb_ed_decompress_events: usize,
     pub nb_weierstrass_add_events: usize,
@@ -324,6 +325,11 @@ impl ExecutionRecord {
             .blake3_compress_inner_events
             .extend_from_slice(&self.blake3_compress_inner_events);
 
+        // Blake2b compress events.
+        first
+            .blake2b_compress_inner_events
+            .extend_from_slice(&self.blake2b_compress_inner_events);
+
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups.extend(&self.byte_lookups);
 
@@ -471,6 +477,7 @@ impl ExecutionRecord {
             nb_sha_extend_events: self.sha_extend_events.len(),
             nb_sha_compress_events: self.sha_compress_events.len(),
             nb_keccak_permute_events: self.keccak_permute_events.len(),
+            nb_blake2b_compress_events: self.blake2b_compress_inner_events.len(),
             nb_ed_add_events: self.ed_add_events.len(),
             nb_ed_decompress_events: self.ed_decompress_events.len(),
             nb_weierstrass_add_events: self.weierstrass_add_events.len(),
@@ -510,6 +517,8 @@ impl ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.blake2b_compress_inner_events
+            .append(&mut other.blake2b_compress_inner_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups

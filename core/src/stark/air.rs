@@ -20,6 +20,7 @@ pub(crate) mod riscv_chips {
     pub use crate::field::FieldLTUChip;
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
+    pub use crate::syscall::precompiles::blake2b::Blake2bCompressInnerChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
@@ -90,6 +91,8 @@ pub enum RiscvAir<F: PrimeField32> {
     KeccakP(KeccakPermuteChip),
     /// A precompile for the Blake3 compression function.
     Blake3Compress(Blake3CompressInnerChip),
+    /// A precompile for the Blake2b compression function.
+    Blake2bCompress(Blake2bCompressInnerChip),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -122,6 +125,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
+        let blake2b_compress_inner = Blake2bCompressInnerChip::new();
+        chips.push(RiscvAir::Blake2bCompress(blake2b_compress_inner));
         let add = AddChip::default();
         chips.push(RiscvAir::Add(add));
         let sub = SubChip::default();
@@ -179,6 +184,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
             RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
             RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
+            RiscvAir::Blake2bCompress(_) => !shard.blake2b_compress_inner_events.is_empty(),
         }
     }
 }
