@@ -19,7 +19,7 @@ use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
-const WIDTH: usize = 1;
+const WIDTH: usize = 10;
 /// A chip that implements less than within the field.
 #[derive(Default)]
 pub struct FieldLTUChip;
@@ -150,6 +150,7 @@ impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;    
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
@@ -181,35 +182,25 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
+        let mut result = true;	
         for i in 0..1000 {
-            let operand_1 = 1; //thread_rng().gen_range(0..u32::MAX);
-            let operand_2 = 2; //thread_rng().gen_range(0..u32::MAX);
-            let result = true; //operand_1 < operand_2;
-//	    println!("{:?} < {:?} = {:?}", operand_1,operand_2,result);
-
-
-            shard
-                .field_events
-                .push(FieldEvent::new(result, operand_1, operand_2));
-        }
-        for i in 0..1000 {
-            let operand_1 = 1 + i; //thread_rng().gen_range(0..u32::MAX);
-            let operand_2 = 2 + i; //thread_rng().gen_range(0..u32::MAX);
-            let result = true; //operand_1 < operand_2;
-//	    println!("{:?} < {:?} = {:?}", operand_1,operand_2,result);
-
-
-            shard
-                .field_events
-                .push(FieldEvent::new(result, operand_1, operand_2));
-        }
-
+            let operand_1 = thread_rng().gen_range(0..100);
+            let operand_2 = operand_1 + 2; 
+	    shard
+		.field_events
+                .push(FieldEvent::new(true, operand_1, operand_2));		
+	}
+    
         let chip = FieldLTUChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
+	let proof_time = Instant::now();
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
-
+	println!("proof time {:?}", proof_time.elapsed());
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+	if result == true{
+            verify(&config, &chip, &mut challenger, &proof).unwrap();
+	}
+
     }
 }
