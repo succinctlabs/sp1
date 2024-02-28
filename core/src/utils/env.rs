@@ -17,3 +17,11 @@ pub fn save_disk_threshold() -> usize {
         Err(_) => 256,
     }
 }
+
+/// Gets the flag for whether to recreate the shard commitments instead of saving them to disk.
+pub fn reconstruct_commitments() -> bool {
+    match std::env::var("RECONSTRUCT_COMMITMENTS") {
+        Ok(val) => val == "true",
+        Err(_) => true,
+    }
+}

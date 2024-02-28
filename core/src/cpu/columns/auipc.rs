@@ -4,11 +4,11 @@ use std::mem::size_of;
 
 use crate::air::Word;
 
-pub const NUM_AUIPC_COLS: usize = size_of::<AUIPCCols<u8>>();
+pub const NUM_AUIPC_COLS: usize = size_of::<AuipcCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct AUIPCCols<T> {
+pub struct AuipcCols<T> {
     /// The current program counter.
     pub pc: Word<T>,
 }
