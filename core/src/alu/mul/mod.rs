@@ -121,11 +121,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mul_events = input.mul_events.clone();
-        // Compute the chunk size based on the number of events and the number of CPUs. Allocate
-        // more chunks so the Rayon scheduler can better distribute the work.
-        const CHUNK_SPLIT_FACTOR: usize = 10;
-        let chunk_size =
-            std::cmp::max(mul_events.len() / (num_cpus::get() * CHUNK_SPLIT_FACTOR), 1);
+        // Compute the chunk size based on the number of events and the number of CPUs.
+        let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows_and_records = mul_events
