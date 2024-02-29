@@ -1,0 +1,44 @@
+name: Evaluate Performance
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Runs at 00:00 UTC every day
+
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: self-hosted
+    if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Set up git private repo access
+        run: |
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
+          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
+
+      - name: Install nightly toolchain
+        id: rustc-toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-2024-01-25
+          override: true
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          sp1up
+
+      - name: Build and Run Evaluation
+        run: |
+          ./eval.sh
+
+      - name: Upload Benchmark as Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: benchmark-results
+          path: benchmark.csv

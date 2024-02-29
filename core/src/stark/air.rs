@@ -17,7 +17,7 @@ pub(crate) mod riscv_chips {
     pub use crate::alu::SubChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::field::FieldLTUChip;
+    pub use crate::field::FieldLtuChip;
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake2b::Blake2bCompressInnerChip;
@@ -33,7 +33,7 @@ pub(crate) mod riscv_chips {
     pub use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     pub use crate::utils::ec::edwards::EdwardsCurve;
     pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-    pub use crate::utils::ec::weierstrass::SWCurve;
+    pub use crate::utils::ec::weierstrass::SwCurve;
 }
 
 /// An AIR for encoding RISC-V execution.
@@ -66,7 +66,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// An table for `less than` operation on field elements.
-    FieldLTU(FieldLTUChip),
+    FieldLTU(FieldLtuChip),
     /// A table for initializing the memory state.
     MemoryInit(MemoryGlobalChip),
     /// A table for finalizing the memory state.
@@ -84,9 +84,9 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A precompile for decompressing a point on the K256 curve.
     K256Decompress(K256DecompressChip),
     /// A precompile for addition on the Elliptic curve secp256k1.
-    Secp256k1Add(WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>>),
+    Secp256k1Add(WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve secp256k1.
-    Secp256k1Double(WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>),
+    Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
     /// A precompile for the Blake3 compression function.
@@ -116,10 +116,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         let k256_decompress = K256DecompressChip::default();
         chips.push(RiscvAir::K256Decompress(k256_decompress));
         let weierstrass_add_assign =
-            WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+            WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Add(weierstrass_add_assign));
         let weierstrass_double_assign =
-            WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new();
+            WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
@@ -149,7 +149,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
-        let field_ltu = FieldLTUChip::default();
+        let field_ltu = FieldLtuChip::default();
         chips.push(RiscvAir::FieldLTU(field_ltu));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));

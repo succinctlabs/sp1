@@ -88,7 +88,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     prove(program)
 }
 
-pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize + Clone>(
+pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
     runtime: Runtime,
 ) -> crate::stark::Proof<SC>
@@ -183,12 +183,18 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<<Val as Field>::Packing, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<
+        <Val as Field>::Packing,
+        <Val as Field>::Packing,
+        MyHash,
+        MyCompress,
+        8,
+    >;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
@@ -290,16 +296,14 @@ pub(super) mod baby_bear_poseidon2 {
 
 pub(super) mod baby_bear_keccak {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
-    use p3_challenger::DuplexChallenger;
+    use p3_challenger::{HashChallenger, SerializingChallenger32};
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_keccak::Keccak256Hash;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
@@ -311,17 +315,17 @@ pub(super) mod baby_bear_keccak {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<Keccak256Hash>;
+    type ByteHash = Keccak256Hash;
+    type FieldHash = SerializingHasher32<ByteHash>;
 
-    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+    type MyCompress = CompressionFunctionFromHasher<u8, ByteHash, 2, 32>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u8, FieldHash, MyCompress, 32>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Challenger = SerializingChallenger32<Val, u8, HashChallenger<u8, ByteHash, 32>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
@@ -329,7 +333,6 @@ pub(super) mod baby_bear_keccak {
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearKeccak>")]
     pub struct BabyBearKeccak {
-        perm: Perm,
         pcs: Pcs,
     }
     // Implement serialization manually instead of using serde(into) to avoid cloing the config
@@ -351,13 +354,12 @@ pub(super) mod baby_bear_keccak {
     impl BabyBearKeccak {
         #[allow(dead_code)]
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            let byte_hash = ByteHash {};
+            let field_hash = FieldHash::new(byte_hash);
 
-            let hash = MyHash::new(Keccak256Hash {});
+            let compress = MyCompress::new(byte_hash);
 
-            let compress = MyCompress::new(hash);
-
-            let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
@@ -371,7 +373,7 @@ pub(super) mod baby_bear_keccak {
             };
             let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
-            Self { pcs, perm }
+            Self { pcs }
         }
     }
 
@@ -385,7 +387,7 @@ pub(super) mod baby_bear_keccak {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
+            Challenger::from_hasher(vec![], ByteHash {})
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -418,17 +420,17 @@ pub(super) mod baby_bear_keccak {
 
 pub(super) mod baby_bear_blake3 {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
-    use p3_blake3::Blake3;
-    use p3_challenger::DuplexChallenger;
+    use p3_challenger::{HashChallenger, SerializingChallenger32};
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use p3_symmetric::{
+        CompressionFunctionFromHasher, CryptographicHasher, PseudoCompressionFunction,
+        SerializingHasher32,
+    };
     use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
@@ -439,26 +441,53 @@ pub(super) mod baby_bear_blake3 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<Blake3>;
+    type ByteHash = Blake3U32;
+    type RecursiveVerifierByteHash = Blake3U32Zkvm;
 
-    type MyCompress = CompressionFunctionFromHasher<Val, MyHash, 2, 8>;
+    type FieldHash = SerializingHasher32<ByteHash>;
+    type RecursiveVerifierFieldHash = SerializingHasher32<RecursiveVerifierByteHash>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    type Compress = CompressionFunctionFromHasher<u32, ByteHash, 2, 8>;
+    type RecursiveVerifierCompress = Blake3SingleBlockCompression;
+
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u32, FieldHash, Compress, 8>;
+    pub type RecursiveVerifierValMmcs =
+        FieldMerkleTreeMmcs<Val, u32, RecursiveVerifierFieldHash, RecursiveVerifierCompress, 8>;
+
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+    pub type RecursiveVerifierChallengeMmcs =
+        ExtensionMmcs<Val, Challenge, RecursiveVerifierValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Challenger = SerializingChallenger32<Val, u32, HashChallenger<u32, ByteHash, 8>>;
+    type RecursiveVerifierChallenger =
+        SerializingChallenger32<Val, u32, HashChallenger<u32, RecursiveVerifierByteHash, 8>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
+    type RecursiveVerifierPcs = TwoAdicFriPcs<
+        TwoAdicFriPcsConfig<
+            Val,
+            Challenge,
+            RecursiveVerifierChallenger,
+            Dft,
+            RecursiveVerifierValMmcs,
+            RecursiveVerifierChallengeMmcs,
+        >,
+    >;
+
+    // Fri parameters
+    const LOG_BLOWUP: usize = 1;
+    const NUM_QUERIES: usize = 100;
+    const PROOF_OF_WORK_BITS: usize = 16;
 
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearBlake3>")]
+    #[allow(dead_code)]
     pub struct BabyBearBlake3 {
-        perm: Perm,
         pcs: Pcs,
+        recursive_verifier_pcs: RecursiveVerifierPcs,
     }
 
     // Implement serialization manually instead of using serde(into) to avoid cloing the config
@@ -477,38 +506,64 @@ pub(super) mod baby_bear_blake3 {
         }
     }
 
+    impl Clone for BabyBearBlake3 {
+        fn clone(&self) -> Self {
+            Self::new()
+        }
+    }
+
     impl BabyBearBlake3 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-            Self::from_perm(perm)
-        }
+            let byte_hash = ByteHash {};
+            let field_hash: SerializingHasher32<Blake3U32> = FieldHash::new(byte_hash);
 
-        fn from_perm(perm: Perm) -> Self {
-            let hash = MyHash::new(Blake3 {});
+            let compress = Compress::new(byte_hash);
 
-            let compress = MyCompress::new(hash);
-
-            let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
             let dft = Dft {};
 
             let fri_config = FriConfig {
-                log_blowup: 1,
-                num_queries: 100,
-                proof_of_work_bits: 16,
+                log_blowup: LOG_BLOWUP,
+                num_queries: NUM_QUERIES,
+                proof_of_work_bits: PROOF_OF_WORK_BITS,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(fri_config, dft, val_mmcs);
+            let pcs = Pcs::new(fri_config, dft.clone(), val_mmcs);
 
-            Self { pcs, perm }
-        }
-    }
+            // Create the recursive verifier PCS instance
+            let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
+            let recursive_verifier_field_hash: SerializingHasher32<Blake3U32Zkvm> =
+                RecursiveVerifierFieldHash::new(recursive_verifier_byte_hash);
 
-    impl Clone for BabyBearBlake3 {
-        fn clone(&self) -> Self {
-            Self::from_perm(self.perm.clone())
+            let recursive_verifier_compress = RecursiveVerifierCompress::new();
+
+            let recursive_verifier_val_mmcs = RecursiveVerifierValMmcs::new(
+                recursive_verifier_field_hash,
+                recursive_verifier_compress,
+            );
+
+            let recursive_verifier_challenge_mmcs =
+                RecursiveVerifierChallengeMmcs::new(recursive_verifier_val_mmcs.clone());
+
+            let recursive_verifier_fri_config = FriConfig {
+                log_blowup: LOG_BLOWUP,
+                num_queries: NUM_QUERIES,
+                proof_of_work_bits: PROOF_OF_WORK_BITS,
+                mmcs: recursive_verifier_challenge_mmcs,
+            };
+            let recursive_verifier_pcs = RecursiveVerifierPcs::new(
+                recursive_verifier_fri_config,
+                dft,
+                recursive_verifier_val_mmcs,
+            );
+
+            Self {
+                pcs,
+                recursive_verifier_pcs,
+            }
         }
     }
 
@@ -516,7 +571,13 @@ pub(super) mod baby_bear_blake3 {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
+            cfg_if::cfg_if! {
+                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
+                    RecursiveVerifierChallenger::from_hasher(vec![], RecursiveVerifierByteHash {})
+                } else {
+                    Challenger::from_hasher(vec![], ByteHash {})
+                }
+            }
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -528,11 +589,24 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
 
-        type Pcs = Pcs;
-        type Challenger = Challenger;
+        cfg_if::cfg_if! {
+            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
+                type Pcs = RecursiveVerifierPcs;
+                type Challenger = RecursiveVerifierChallenger;
+            } else {
+                type Pcs = Pcs;
+                type Challenger = Challenger;
+            }
+        }
 
         fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
+            cfg_if::cfg_if! {
+                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
+                    &self.recursive_verifier_pcs
+                } else {
+                    &self.pcs
+                }
+            }
         }
     }
 
@@ -540,11 +614,108 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
 
-        type Pcs = Pcs;
-        type Challenger = Challenger;
+        cfg_if::cfg_if! {
+            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
+                type Pcs = RecursiveVerifierPcs;
+                type Challenger = RecursiveVerifierChallenger;
+            } else {
+                type Pcs = Pcs;
+                type Challenger = Challenger;
+            }
+        }
 
         fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
+            cfg_if::cfg_if! {
+                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
+                    &self.recursive_verifier_pcs
+                } else {
+                    &self.pcs
+                }
+            }
+        }
+    }
+    #[derive(Clone)]
+    pub struct Blake3SingleBlockCompression;
+
+    impl Blake3SingleBlockCompression {
+        pub fn new() -> Self {
+            Self {}
+        }
+    }
+
+    impl PseudoCompressionFunction<[u32; 8], 2> for Blake3SingleBlockCompression {
+        fn compress(&self, input: [[u32; 8]; 2]) -> [u32; 8] {
+            let mut block_words = [0u32; blake3_zkvm::BLOCK_LEN];
+            block_words[0..8].copy_from_slice(&input[0]);
+            block_words[8..].copy_from_slice(&input[1]);
+            blake3_zkvm::hash_single_block(&block_words, blake3_zkvm::BLOCK_LEN)
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    pub struct Blake3U32;
+
+    impl CryptographicHasher<u32, [u32; 8]> for Blake3U32 {
+        fn hash_iter<I>(&self, input: I) -> [u32; 8]
+        where
+            I: IntoIterator<Item = u32>,
+        {
+            let input = input.into_iter().collect::<Vec<_>>();
+            self.hash_iter_slices([input.as_slice()])
+        }
+
+        fn hash_iter_slices<'a, I>(&self, input: I) -> [u32; 8]
+        where
+            I: IntoIterator<Item = &'a [u32]>,
+        {
+            let mut hasher = blake3::Hasher::new();
+            for chunk in input.into_iter() {
+                let u8_chunk = chunk
+                    .iter()
+                    .flat_map(|x| x.to_le_bytes())
+                    .collect::<Vec<_>>();
+                #[cfg(not(feature = "parallel"))]
+                hasher.update(&u8_chunk);
+                #[cfg(feature = "parallel")]
+                hasher.update_rayon(&u8_chunk);
+            }
+            let u8_hash = hasher.finalize();
+            blake3::platform::words_from_le_bytes_32(u8_hash.as_bytes())
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    pub struct Blake3U32Zkvm;
+
+    impl CryptographicHasher<u32, [u32; 8]> for Blake3U32Zkvm {
+        fn hash_iter<I>(&self, input: I) -> [u32; 8]
+        where
+            I: IntoIterator<Item = u32>,
+        {
+            let mut input = input.into_iter().collect::<Vec<_>>();
+            if input.len() <= blake3_zkvm::BLOCK_LEN {
+                let size = input.len();
+                input.resize(blake3_zkvm::BLOCK_LEN, 0u32);
+                blake3_zkvm::hash_single_block(input.as_slice().try_into().unwrap(), size)
+            } else {
+                let ret = self.hash_iter_slices([input.as_slice()]);
+                ret
+            }
+        }
+
+        fn hash_iter_slices<'a, I>(&self, input: I) -> [u32; 8]
+        where
+            I: IntoIterator<Item = &'a [u32]>,
+        {
+            let mut zkvm_hasher = blake3_zkvm::Hasher::new();
+
+            for chunk in input.into_iter() {
+                zkvm_hasher.update(chunk);
+            }
+            let mut out: [u32; 8] = [0u32; 8];
+            zkvm_hasher.finalize(&mut out);
+
+            out
         }
     }
 }

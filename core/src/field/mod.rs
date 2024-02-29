@@ -20,16 +20,16 @@ use crate::utils::pad_to_power_of_two;
 use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
-pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
+pub const NUM_FIELD_COLS: usize = size_of::<FieldLtuCols<u8>>();
 
 /// A chip that implements less than within the field.
 #[derive(Default)]
-pub struct FieldLTUChip;
+pub struct FieldLtuChip;
 
 /// The column layout for the chip.
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldLTUCols<T> {
+pub struct FieldLtuCols<T> {
     /// The result of the `LT` operation on `a` and `b`
     pub lt: T,
 
@@ -47,7 +47,7 @@ pub struct FieldLTUCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
+impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
@@ -64,7 +64,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
-                let cols: &mut FieldLTUCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut FieldLtuCols<F> = row.as_mut_slice().borrow_mut();
                 let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
                 cols.b = F::from_canonical_u32(event.b);
                 cols.c = F::from_canonical_u32(event.c);
@@ -96,16 +96,16 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
 
 pub const LTU_NB_BITS: usize = 29;
 
-impl<F: Field> BaseAir<F> for FieldLTUChip {
+impl<F: Field> BaseAir<F> for FieldLtuChip {
     fn width(&self) -> usize {
         NUM_FIELD_COLS
     }
 }
 
-impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
+impl<AB: SP1AirBuilder> Air<AB> for FieldLtuChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &FieldLTUCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &FieldLtuCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint for normalizing to degree 3.
         builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);
