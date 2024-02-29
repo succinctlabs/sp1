@@ -134,11 +134,23 @@ impl Blake2bCompressInnerChip {
 
         // Read & write the state.
         for i in 0..STATE_ELE_PER_CALL {
+            // lo 32 bit limbs of the state.
             builder.constraint_memory_access(
                 local.segment,
                 local.clk,
-                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.state_reads_writes[i],
+                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2),
+                &local.state_reads_writes[2 * i],
+                local.is_real,
+            );
+
+            // hi 32 bit limbs of the state.
+            builder.constraint_memory_access(
+                local.segment,
+                local.clk,
+                local.state_ptr
+                    + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2)
+                    + AB::F::from_canonical_usize(WORD_SIZE),
+                &local.state_reads_writes[2 * i + 1],
                 local.is_real,
             );
         }
@@ -170,11 +182,24 @@ impl Blake2bCompressInnerChip {
 
         // Read the message.
         for i in 0..MSG_ELE_PER_CALL {
+            // lo 32 bit limbs of the message.
             builder.constraint_memory_access(
                 local.segment,
                 local.clk,
-                local.message_ptr + local.message_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
-                &local.message_reads[i],
+                local.message_ptr
+                    + local.message_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2),
+                &local.message_reads[2 * i],
+                local.is_real,
+            );
+
+            // hi 32 bit limbs of the message.
+            builder.constraint_memory_access(
+                local.segment,
+                local.clk,
+                local.message_ptr
+                    + local.message_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2)
+                    + AB::F::from_canonical_usize(WORD_SIZE),
+                &local.message_reads[2 * i + 1],
                 local.is_real,
             );
         }
