@@ -56,7 +56,7 @@ impl Syscall for SyscallWrite {
                         u32_to_comma_separated(rt.state.global_clk - start)
                     );
                 } else {
-                    log::info!("stdout: {}", s.trim_end());
+                    log::debug!("stdout: {}", s.trim_end());
                 }
             } else if fd == 2 {
                 let s = core::str::from_utf8(slice).unwrap();
