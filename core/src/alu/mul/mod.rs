@@ -430,26 +430,23 @@ mod tests {
 
     #[test]
     fn generate_trace_mul() {
-        utils::setup_logger();
         let mut shard = ExecutionRecord::default();
 
-        for _ in 0..10 {
-            // Fill mul_events with 10^7 MULHSU events.
-            let mut mul_events: Vec<AluEvent> = Vec::new();
-            for _ in 0..10i32.pow(7) {
-                mul_events.push(AluEvent::new(
-                    0,
-                    Opcode::MULHSU,
-                    0x80004000,
-                    0x80000000,
-                    0xffff8000,
-                ));
-            }
-            shard.mul_events = mul_events;
-            let chip = MulChip::default();
-            let _trace: RowMajorMatrix<BabyBear> =
-                chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        // Fill mul_events with 10^7 MULHSU events.
+        let mut mul_events: Vec<AluEvent> = Vec::new();
+        for _ in 0..10i32.pow(7) {
+            mul_events.push(AluEvent::new(
+                0,
+                Opcode::MULHSU,
+                0x80004000,
+                0x80000000,
+                0xffff8000,
+            ));
         }
+        shard.mul_events = mul_events;
+        let chip = MulChip::default();
+        let _trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 
     #[test]
