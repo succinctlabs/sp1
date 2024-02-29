@@ -173,11 +173,11 @@ where
         // Verify that the calculated ro and alpha_pow are equal to their memory values in the
         // next row
         for i in 0..DEGREE {
-            builder.when_transition().when(next.is_input).assert_eq(
+            builder.when_transition().when(local.is_input).assert_eq(
                 ro_output.0[i].clone(),
                 next.ro_rw_records[i].value().reduce::<AB>(),
             );
-            builder.when_transition().when(next.is_input).assert_eq(
+            builder.when_transition().when(local.is_input).assert_eq(
                 alpha_pow_output.0[i].clone(),
                 next.alpha_pow_rw_records[i].value().reduce::<AB>(),
             );

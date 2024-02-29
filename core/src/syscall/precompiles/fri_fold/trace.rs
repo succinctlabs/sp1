@@ -2,7 +2,6 @@ use std::borrow::BorrowMut;
 
 use alloc::vec::Vec;
 
-use itertools::Itertools;
 use p3_field::{
     extension::{BinomialExtensionField, BinomiallyExtendable},
     AbstractExtensionField, PrimeField32,
