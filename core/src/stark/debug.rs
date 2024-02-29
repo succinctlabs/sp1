@@ -81,7 +81,7 @@ pub fn debug_constraints<SC: StarkGenericConfig>(
         }));
         if result.is_err() {
             println!("local: {:?}", main_local);
-            println!("next:  {:?}", main_local);
+            println!("next:  {:?}", main_next);
             panic!("failed at row {} of chip {}", i, chip.name());
         }
     });
