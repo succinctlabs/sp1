@@ -62,5 +62,14 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
 
+/// Native field add operation.
+pub const FADD: usize = 200;
+/// Native field mul operation.
+pub const FMUL: usize = 201;
+/// Native field sub operation.
+pub const FSUB: usize = 202;
+/// Native field div operation.
+pub const FDIV: usize = 203;
+
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;
