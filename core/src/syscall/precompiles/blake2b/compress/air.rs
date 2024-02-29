@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use crate::{
-    air::{SP1AirBuilder, WORD_SIZE},
+    air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE},
     syscall::precompiles::blake2b::{MSG_ELE_PER_CALL, STATE_ELE_PER_CALL},
 };
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -34,7 +34,7 @@ where
 
         self.constrain_memory(builder, local);
 
-        self.constraint_mix_operation(builder, local);
+        self.constrain_mix_operation(builder, local);
     }
 }
 
@@ -90,10 +90,17 @@ impl Blake2bCompressInnerChip {
                 builder
                     .when_transition()
                     .when(local.is_operation_index_n[i])
+                    .when_not(local.is_mix_round_index_n[NUM_MIX_ROUNDS - 1])
                     .assert_eq(
                         local.mix_round + AB::F::from_canonical_u16(1),
                         next.mix_round,
                     );
+
+                builder
+                    .when_transition()
+                    .when(local.is_operation_index_n[i])
+                    .when(local.is_mix_round_index_n[NUM_MIX_ROUNDS - 1])
+                    .assert_zero(next.mix_round)
             }
         }
     }
@@ -174,7 +181,7 @@ impl Blake2bCompressInnerChip {
     }
 
     /// Constrains the `mix` operation.
-    fn constraint_mix_operation<AB: SP1AirBuilder>(
+    fn constrain_mix_operation<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake2bCompressInnerCols<AB::Var>,
