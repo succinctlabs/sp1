@@ -1,5 +1,7 @@
 use std::process::exit;
 
+use p3_field::PrimeField32;
+
 use crate::runtime::{Register, Syscall, SyscallContext};
 
 pub struct SyscallLWA;
@@ -10,8 +12,8 @@ impl SyscallLWA {
     }
 }
 
-impl Syscall for SyscallLWA {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+impl<F: PrimeField32> Syscall<F> for SyscallLWA {
+    fn execute(&self, ctx: &mut SyscallContext<F>) -> u32 {
         // TODO: in the future this will be used for private vs. public inputs.
         let a0 = Register::X10;
         let a1 = Register::X11;

@@ -65,9 +65,9 @@ pub struct WeierstrassAddAssignChip<E> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
+impl<E: EllipticCurve, F: PrimeField32> Syscall<F> for WeierstrassAddAssignChip<E> {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
+        let event = create_ec_add_event::<E, F>(rt);
         rt.record_mut().weierstrass_add_events.push(event);
         event.p_ptr + 1
     }

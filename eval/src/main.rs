@@ -2,6 +2,7 @@ use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
+use sp1_core::stark::Val;
 use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
 use sp1_core::{SP1ProofWithIO, SP1Stdin, SP1Stdout, SP1Verifier};
 use std::fmt;
@@ -100,10 +101,12 @@ fn main() {
         panic!("shard_size must be a power of 2");
     }
 
+    type BabyBear = Val<BabyBearBlake3>;
+
     let (execution_duration, prove_duration, verify_duration) = match args.hashfn {
         HashFnId::Blake3 => {
             // Execute the runtime.
-            let mut runtime = Runtime::new(program);
+            let mut runtime = Runtime::<BabyBear>::new(program);
             let execution_start = Instant::now();
             runtime.run();
             let execution_duration = execution_start.elapsed();
@@ -129,7 +132,7 @@ fn main() {
         }
         HashFnId::Poseidon => {
             // Execute the runtime.
-            let mut runtime = Runtime::new(program);
+            let mut runtime = Runtime::<BabyBear>::new(program);
             let execution_start = Instant::now();
             runtime.run();
             let execution_duration = execution_start.elapsed();
@@ -155,7 +158,7 @@ fn main() {
         }
         HashFnId::Keccak256 => {
             // Execute the runtime.
-            let mut runtime = Runtime::new(program);
+            let mut runtime = Runtime::<BabyBear>::new(program);
             let execution_start = Instant::now();
             runtime.run();
             let execution_duration = execution_start.elapsed();

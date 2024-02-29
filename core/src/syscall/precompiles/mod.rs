@@ -7,6 +7,7 @@ pub mod sha256;
 pub mod weierstrass;
 
 use num::BigUint;
+use p3_field::PrimeField32;
 
 use crate::air::SP1AirBuilder;
 use crate::operations::field::params::Limbs;
@@ -29,7 +30,9 @@ pub struct ECAddEvent {
     pub q_memory_records: [MemoryReadRecord; 16],
 }
 
-pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEvent {
+pub fn create_ec_add_event<E: EllipticCurve, F: PrimeField32>(
+    rt: &mut SyscallContext<F>,
+) -> ECAddEvent {
     let a0 = crate::runtime::Register::X10;
     let a1 = crate::runtime::Register::X11;
 
@@ -85,7 +88,9 @@ pub struct ECDoubleEvent {
     pub p_memory_records: [MemoryWriteRecord; 16],
 }
 
-pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDoubleEvent {
+pub fn create_ec_double_event<E: EllipticCurve, F: PrimeField32>(
+    rt: &mut SyscallContext<F>,
+) -> ECDoubleEvent {
     let a0 = crate::runtime::Register::X10;
 
     let start_clk = rt.clk;

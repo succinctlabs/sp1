@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use p3_baby_bear::BabyBear;
 use sp1_core::runtime::{Program, Runtime};
 use sp1_core::utils::prove;
 
@@ -14,7 +15,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let elf_path = format!("../programs/demo/{}/elf/riscv32im-succinct-zkvm-elf", p);
         let program = Program::from_elf(&elf_path);
         let cycles = {
-            let mut runtime = Runtime::new(program.clone());
+            let mut runtime = Runtime::<BabyBear>::new(program.clone());
             runtime.run();
             runtime.state.global_clk
         };

@@ -1,3 +1,5 @@
+use p3_field::PrimeField32;
+
 use crate::{
     runtime::{Register, Syscall},
     syscall::precompiles::{
@@ -8,12 +10,12 @@ use crate::{
 
 use super::ShaCompressChip;
 
-impl Syscall for ShaCompressChip {
+impl<F: PrimeField32> Syscall<F> for ShaCompressChip {
     fn num_extra_cycles(&self) -> u32 {
         8 * 4 + 64 * 4 + 8 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
         // Read `w_ptr` from register a0.
         let w_ptr = rt.register_unsafe(Register::X10);
 

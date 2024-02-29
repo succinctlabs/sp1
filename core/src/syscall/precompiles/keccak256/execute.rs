@@ -3,6 +3,7 @@ use crate::{
     syscall::precompiles::{keccak256::KeccakPermuteEvent, SyscallContext},
 };
 
+use p3_field::PrimeField32;
 use p3_keccak_air::{NUM_ROUNDS, RC};
 
 use super::{KeccakPermuteChip, STATE_NUM_WORDS};
@@ -15,12 +16,12 @@ const PI: [usize; 24] = [
     10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4, 15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1,
 ];
 
-impl Syscall for KeccakPermuteChip {
+impl<F: PrimeField32> Syscall<F> for KeccakPermuteChip {
     fn num_extra_cycles(&self) -> u32 {
         NUM_ROUNDS as u32 * 4
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
         // Read `state_ptr` from register a0.
         let state_ptr = rt.register_unsafe(Register::X10);
 
@@ -82,7 +83,7 @@ impl Syscall for KeccakPermuteChip {
             state[0] ^= RC[i];
         }
 
-        rt.clk += self.num_extra_cycles() - 4;
+        rt.clk += Syscall::<F>::num_extra_cycles(self) - 4;
         let mut values_to_write = Vec::new();
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;

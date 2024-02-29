@@ -1,3 +1,5 @@
+use p3_field::PrimeField32;
+
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 use crate::runtime::Register;
 use crate::runtime::Syscall;
@@ -7,12 +9,12 @@ use crate::syscall::precompiles::blake3::{
 };
 use crate::syscall::precompiles::SyscallContext;
 
-impl Syscall for Blake3CompressInnerChip {
+impl<F: PrimeField32> Syscall<F> for Blake3CompressInnerChip {
     fn num_extra_cycles(&self) -> u32 {
         (4 * ROUND_COUNT * OPERATION_COUNT) as u32
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
         // TODO: These pointers have to be constrained.
         let state_ptr = rt.register_unsafe(Register::X10);
         let message_ptr = rt.register_unsafe(Register::X11);

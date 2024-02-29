@@ -109,13 +109,13 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     }
 }
 
-impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
+impl<E: EllipticCurve + EdwardsParameters, F: PrimeField32> Syscall<F> for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
         8
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
+        let event = create_ec_add_event::<E, F>(rt);
         rt.record_mut().ed_add_events.push(event);
         event.p_ptr + 1
     }

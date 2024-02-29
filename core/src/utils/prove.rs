@@ -7,6 +7,7 @@ use crate::{
     stark::{RiscvStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
+use p3_baby_bear::BabyBear;
 use p3_commit::Pcs;
 use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
@@ -26,14 +27,14 @@ pub trait StarkUtils: StarkGenericConfig {
 }
 
 pub fn get_cycles(program: Program) -> u64 {
-    let mut runtime = Runtime::new(program);
+    let mut runtime = Runtime::<BabyBear>::new(program);
     runtime.run();
     runtime.state.global_clk as u64
 }
 
 pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
         runtime
     });
@@ -47,7 +48,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
         runtime
     });
@@ -90,7 +91,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
-    runtime: Runtime,
+    runtime: Runtime<SC::Val>,
 ) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,

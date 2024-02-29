@@ -17,6 +17,7 @@ mod tests {
     use crate::utils::BabyBearBlake3;
     use crate::utils::{setup_logger, StarkUtils};
     use p3_air::{PairCol, VirtualPairCol};
+    use p3_baby_bear::BabyBear;
     use p3_field::{Field, PrimeField32};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
@@ -77,7 +78,7 @@ mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
 
         let config = BabyBearBlake3::new();

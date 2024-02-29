@@ -1,17 +1,18 @@
+use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::io::Read;
 
 use super::Runtime;
 
-impl Read for Runtime {
+impl<F: PrimeField32> Read for Runtime<F> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.read_stdout_slice(buf);
         Ok(buf.len())
     }
 }
 
-impl Runtime {
+impl<F: PrimeField32> Runtime<F> {
     pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();
         bincode::serialize_into(&mut buf, input).expect("serialization failed");
@@ -43,6 +44,7 @@ pub mod tests {
     use crate::runtime::Program;
     use crate::utils::tests::IO_ELF;
     use crate::utils::{self, prove_core, BabyBearBlake3};
+    use p3_baby_bear::BabyBear;
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -71,7 +73,7 @@ pub mod tests {
     fn test_io_run() {
         utils::setup_logger();
         let program = Program::from(IO_ELF);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);
@@ -91,7 +93,7 @@ pub mod tests {
     fn test_io_prove() {
         utils::setup_logger();
         let program = Program::from(IO_ELF);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);

@@ -195,8 +195,8 @@ pub struct EdDecompressChip<E> {
     _phantom: PhantomData<E>,
 }
 
-impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+impl<E: EdwardsParameters, F: PrimeField32> Syscall<F> for EdDecompressChip<E> {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;

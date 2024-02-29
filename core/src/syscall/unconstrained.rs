@@ -1,5 +1,6 @@
 use crate::runtime::{ForkState, Syscall, SyscallContext};
 use hashbrown::HashMap;
+use p3_field::PrimeField32;
 
 pub struct SyscallEnterUnconstrained;
 
@@ -9,8 +10,8 @@ impl SyscallEnterUnconstrained {
     }
 }
 
-impl Syscall for SyscallEnterUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+impl<F: PrimeField32> Syscall<F> for SyscallEnterUnconstrained {
+    fn execute(&self, ctx: &mut SyscallContext<F>) -> u32 {
         if ctx.rt.unconstrained {
             panic!("Unconstrained block is already active.");
         }
@@ -35,8 +36,8 @@ impl SyscallExitUnconstrained {
     }
 }
 
-impl Syscall for SyscallExitUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+impl<F: PrimeField32> Syscall<F> for SyscallExitUnconstrained {
+    fn execute(&self, ctx: &mut SyscallContext<F>) -> u32 {
         // Reset the state of the runtime.
         if ctx.rt.unconstrained {
             ctx.rt.state.global_clk = ctx.rt.unconstrained_state.global_clk;

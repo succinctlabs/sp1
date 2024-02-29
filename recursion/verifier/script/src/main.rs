@@ -22,7 +22,7 @@ fn main() {
     let program = get_program();
     let (pk, vk) = machine.setup(&program);
 
-    let mut runtime = Runtime::new(program);
+    let mut runtime = Runtime::<BabyBear>::new(program);
     runtime.run();
 
     let mut challenger = machine.config().challenger();
@@ -60,7 +60,7 @@ mod tests {
         let program = get_program();
         let (pk, vk) = machine.setup(&program);
 
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
 
         let mut challenger = machine.config().challenger();

@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn test_memory_generate_trace() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
         let shard = runtime.record.clone();
 
@@ -183,7 +183,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
 
         let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
@@ -200,7 +200,7 @@ mod tests {
     fn test_memory_lookup_interactions() {
         setup_logger();
         let program = sha_extend_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
 
         let machine = RiscvStark::new(BabyBearPoseidon2::new());
@@ -215,7 +215,7 @@ mod tests {
     fn test_byte_lookup_interactions() {
         setup_logger();
         let program = sha_extend_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
 
         let machine = RiscvStark::new(BabyBearPoseidon2::new());

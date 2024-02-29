@@ -1,3 +1,5 @@
+use p3_field::PrimeField32;
+
 use crate::{
     runtime::{Register, Syscall, SyscallContext},
     utils::u32_to_comma_separated,
@@ -6,13 +8,13 @@ use crate::{
 pub struct SyscallWrite;
 
 impl SyscallWrite {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
 
-impl Syscall for SyscallWrite {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+impl<F: PrimeField32> Syscall<F> for SyscallWrite {
+    fn execute(&self, ctx: &mut SyscallContext<F>) -> u32 {
         let a0 = Register::X10;
         let a1 = Register::X11;
         let a2 = Register::X12;

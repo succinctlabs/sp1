@@ -552,7 +552,7 @@ mod tests {
     #[test]
     fn generate_trace_simple_program() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
@@ -569,7 +569,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =

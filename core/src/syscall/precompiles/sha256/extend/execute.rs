@@ -1,3 +1,5 @@
+use p3_field::PrimeField32;
+
 use crate::{
     runtime::{Register, Syscall},
     syscall::precompiles::{sha256::ShaExtendEvent, SyscallContext},
@@ -5,12 +7,12 @@ use crate::{
 
 use super::ShaExtendChip;
 
-impl Syscall for ShaExtendChip {
+impl<F: PrimeField32> Syscall<F> for ShaExtendChip {
     fn num_extra_cycles(&self) -> u32 {
         48 * 20
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
         // Initialize the registers.
         let a0 = Register::X10;
 

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use p3_field::PrimeField32;
+
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
@@ -95,9 +97,9 @@ impl SyscallCode {
     }
 }
 
-pub trait Syscall {
+pub trait Syscall<F: PrimeField32> {
     /// Execute the syscall and return the resulting value of register a0.
-    fn execute(&self, ctx: &mut SyscallContext) -> u32;
+    fn execute(&self, ctx: &mut SyscallContext<F>) -> u32;
 
     /// The number of extra cycles that the syscall takes to execute. Unless this syscall is complex
     /// and requires many cycles, this should be zero.
@@ -107,16 +109,16 @@ pub trait Syscall {
 }
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
-pub struct SyscallContext<'a> {
+pub struct SyscallContext<'a, F: PrimeField32> {
     current_shard: u32,
     pub clk: u32,
 
     pub(crate) next_pc: u32,
-    pub(crate) rt: &'a mut Runtime,
+    pub(crate) rt: &'a mut Runtime<F>,
 }
 
-impl<'a> SyscallContext<'a> {
-    pub fn new(runtime: &'a mut Runtime) -> Self {
+impl<'a, F: PrimeField32> SyscallContext<'a, F> {
+    pub fn new(runtime: &'a mut Runtime<F>) -> Self {
         let current_shard = runtime.current_shard();
         let clk = runtime.state.clk;
         Self {
@@ -191,8 +193,8 @@ impl<'a> SyscallContext<'a> {
     }
 }
 
-pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
-    let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
+pub fn default_syscall_map<F: PrimeField32>() -> HashMap<SyscallCode, Rc<dyn Syscall<F>>> {
+    let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall<F>>>::default();
     syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
     syscall_map.insert(SyscallCode::LWA, Rc::new(SyscallLWA::new()));
     syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));

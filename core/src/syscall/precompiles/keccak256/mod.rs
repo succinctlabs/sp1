@@ -37,6 +37,8 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod permute_tests {
+    use p3_baby_bear::BabyBear;
+
     use crate::utils::run_test;
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -64,7 +66,7 @@ pub mod permute_tests {
     #[test]
     pub fn test_keccak_permute_program_execute() {
         let program = keccak_permute_program();
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::<BabyBear>::new(program);
         runtime.run()
     }
 

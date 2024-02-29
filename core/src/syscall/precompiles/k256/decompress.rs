@@ -70,12 +70,12 @@ impl K256DecompressChip {
     }
 }
 
-impl Syscall for K256DecompressChip {
+impl<F: PrimeField32> Syscall<F> for K256DecompressChip {
     fn num_extra_cycles(&self) -> u32 {
         4
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+    fn execute(&self, rt: &mut SyscallContext<F>) -> u32 {
         let a0 = crate::runtime::Register::X10;
 
         let start_clk = rt.clk;
