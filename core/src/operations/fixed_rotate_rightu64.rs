@@ -148,7 +148,7 @@ impl<F: Field> FixedRotateRightOperationU64<F> {
         // new byte value using the current shifted byte and the last carry.
         let mut first_shift = AB::Expr::zero();
         let mut last_carry = AB::Expr::zero();
-        for i in (0..WORD_SIZE).rev() {
+        for i in (0..WORD_SIZE * 2).rev() {
             builder.send_byte_pair(
                 AB::F::from_canonical_u32(ByteOpcode::ShrCarry as u32),
                 cols.shift[i],
