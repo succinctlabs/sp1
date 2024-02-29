@@ -7,7 +7,7 @@ use super::{
     Blake3CompressInnerChip, G_INDEX, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL,
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
 };
-use crate::air::{SP1AirBuilder, WORD_SIZE};
+use crate::air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE};
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -31,7 +31,7 @@ where
 
         self.constrain_memory(builder, local);
 
-        self.constraint_g_operation(builder, local);
+        self.constrain_g_operation(builder, local);
     }
 }
 
@@ -87,10 +87,17 @@ impl Blake3CompressInnerChip {
                 builder
                     .when_transition()
                     .when(local.is_operation_index_n[i])
+                    .when_not(local.is_round_index_n[ROUND_COUNT - 1])
                     .assert_eq(
                         local.round_index + AB::F::from_canonical_u16(1),
                         next.round_index,
                     );
+
+                builder
+                    .when_transition()
+                    .when(local.is_operation_index_n[i])
+                    .when(local.is_round_index_n[ROUND_COUNT - 1])
+                    .assert_zero(next.round_index);
             }
         }
     }
@@ -170,7 +177,7 @@ impl Blake3CompressInnerChip {
     }
 
     /// Constrains the input and the output of the `g` operation.
-    fn constraint_g_operation<AB: SP1AirBuilder>(
+    fn constrain_g_operation<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &Blake3CompressInnerCols<AB::Var>,
