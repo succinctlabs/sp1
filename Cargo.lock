@@ -1135,9 +1135,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.2.3"
+version = "2.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233cf39063f058ea2caae4091bf4a3ef70a653afbc026f5c4a4135d114e3c177"
+checksum = "7b0b929d511467233429c45a44ac1dcaa21ba0f5ba11e4879e6ed28ddb4f9df4"
 dependencies = [
  "equivalent",
  "hashbrown",
@@ -1510,7 +1510,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1519,7 +1519,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "rand",
@@ -1529,7 +1529,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -1538,7 +1538,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1550,7 +1550,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1561,7 +1561,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1572,7 +1572,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -1583,7 +1583,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -1601,7 +1601,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1612,7 +1612,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1622,7 +1622,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1631,7 +1631,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1655,7 +1655,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "rayon",
 ]
@@ -1663,7 +1663,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1679,7 +1679,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -1695,7 +1695,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -1710,7 +1710,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1724,7 +1724,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1734,7 +1734,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -1752,7 +1752,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#b9f88d89607508dde77781f536c90f7640cdc9d3"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=ratan/logging#cbf58986c683840d400ac3d1a5694ad714a3f8e8"
 dependencies = [
  "serde",
 ]
