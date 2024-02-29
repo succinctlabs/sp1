@@ -49,6 +49,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<4>> MachineAir<F> for FriFoldChip {
                     // Populate basic columns.
                     input_cols.is_real = F::one();
                     input_cols.is_input = F::one();
+                    input_cols.is_output = F::zero();
                     input_cols.shard = F::from_canonical_u32(event.shard);
                     input_cols.clk = F::from_canonical_u32(event.clk);
                     input_cols.input_slice_ptr = F::from_canonical_u32(event.input_slice_ptr);
@@ -97,6 +98,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<4>> MachineAir<F> for FriFoldChip {
                     let output_cols: &mut FriFoldCols<F> = output_row.as_mut_slice().borrow_mut();
                     output_cols.is_real = F::one();
                     output_cols.is_input = F::zero();
+                    output_cols.is_output = F::one();
                     output_cols.shard = F::from_canonical_u32(event.shard);
                     output_cols.clk = F::from_wrapped_u32(event.clk) + F::from_wrapped_u32(4);
                     output_cols.ro_addr = input_cols.ro_addr;

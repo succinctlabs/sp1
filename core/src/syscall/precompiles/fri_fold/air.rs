@@ -35,6 +35,23 @@ where
         let local: &FriFoldCols<AB::Var> = main.row_slice(0).borrow();
         let next: &FriFoldCols<AB::Var> = main.row_slice(1).borrow();
 
+        builder.assert_bool(local.is_real);
+
+        builder
+            .when(local.is_real)
+            .assert_one(local.is_input + local.is_output);
+
+        builder.when_first_row().assert_one(local.is_input);
+        builder
+            .when_transition()
+            .when(local.is_input)
+            .assert_one(next.is_output);
+        builder
+            .when_transition()
+            .when(local.is_output)
+            .when(next.is_real)
+            .assert_one(next.is_input);
+
         // Constrain input mem slice
         for i in 0..NUM_INPUT_ELMS as u32 {
             builder.constraint_memory_access(
