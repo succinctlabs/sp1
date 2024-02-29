@@ -25,7 +25,7 @@ pub extern "C" fn syscall_native_mul(a: *mut u32, b: *mut u32) {
     unsafe {
         asm!(
             "ecall",
-            in("t0") crate::syscalls::FMULL,
+            in("t0") crate::syscalls::FMUL,
             in("a0") a,
             in("a1") b
         );
