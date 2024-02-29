@@ -171,10 +171,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let chunk_size = std::cmp::max(
-            input.weierstrass_double_events.len() / (num_cpus::get() * 2),
-            1,
-        );
+        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows_and_records = input
