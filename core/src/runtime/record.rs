@@ -13,6 +13,7 @@ use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
+use crate::syscall::precompiles::native::NativeEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
@@ -80,6 +81,11 @@ pub struct ExecutionRecord {
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+
+    pub native_add_events: Vec<NativeEvent>,
+    pub native_mul_events: Vec<NativeEvent>,
+    pub native_sub_events: Vec<NativeEvent>,
+    pub native_div_events: Vec<NativeEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.

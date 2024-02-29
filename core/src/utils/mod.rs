@@ -73,6 +73,22 @@ pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl F
     rows.resize(padded_nb_rows, dummy_row);
 }
 
+pub fn pad_simd_rows<T: Clone, const N: usize, const LANES: usize>(
+    rows: &mut Vec<[T; N]>,
+    row_fn: impl Fn() -> [T; N],
+) {
+    let nb_rows = rows.len() / LANES;
+    let mut padded_nb_rows = nb_rows.next_power_of_two();
+    if padded_nb_rows == 2 || padded_nb_rows == 1 {
+        padded_nb_rows = 4;
+    }
+    if padded_nb_rows == nb_rows {
+        return;
+    }
+    let dummy_row = row_fn();
+    rows.resize(padded_nb_rows * LANES, dummy_row);
+}
+
 /// Converts a slice of words to a byte array in little endian.
 pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
     debug_assert_eq!(words.len() * 4, B);

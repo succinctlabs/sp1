@@ -18,20 +18,18 @@ use super::BinaryOpcode;
 
 const DEFAULT_WIDTH: usize = 10;
 
-const NUM_NATIVE_COLS: usize = size_of::<NativeCols<u8>>();
+pub const NUM_NATIVE_COLS: usize = size_of::<NativeCols<u8>>();
 
 /// A chip for a native field operation
-pub struct NativeChip {
-    op: BinaryOpcode,
-    width: usize,
+///
+/// The chip is configured to process `LANES` number of operations in parallel
+pub struct NativeChip<const LANES: usize = DEFAULT_WIDTH> {
+    pub(super) op: BinaryOpcode,
 }
 
-impl NativeChip {
+impl<const LANES: usize> NativeChip<LANES> {
     pub const fn new(op: BinaryOpcode) -> Self {
-        Self {
-            op,
-            width: DEFAULT_WIDTH,
-        }
+        Self { op }
     }
 
     pub const fn add() -> Self {
@@ -58,25 +56,25 @@ pub struct NativeCols<T> {
     pub shard: T,
     pub clk: T,
 
-    a_access: MemoryWriteCols<T>,
-    b_access: MemoryReadCols<T>,
-    is_real: T,
+    pub a_access: MemoryWriteCols<T>,
+    pub b_access: MemoryReadCols<T>,
+    pub is_real: T,
 }
 
-impl<F: PrimeField32> BaseAir<F> for NativeChip {
+impl<F: PrimeField32, const LANES: usize> BaseAir<F> for NativeChip<LANES> {
     fn width(&self) -> usize {
-        NUM_NATIVE_COLS * self.width
+        NUM_NATIVE_COLS * LANES
     }
 }
 
-impl<AB: SP1AirBuilder> Air<AB> for NativeChip
+impl<AB: SP1AirBuilder, const LANES: usize> Air<AB> for NativeChip<LANES>
 where
     AB::F: PrimeField32,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
 
-        for chunk in main.row_slice(0).chunks_exact(self.width) {
+        for chunk in main.row_slice(0).chunks_exact(LANES) {
             let local: &NativeCols<AB::Var> = chunk.borrow();
 
             // Read the value of `a`, `b`, and the result.
@@ -101,14 +99,22 @@ where
             };
 
             // constrain memory accesses.
-            let a0 = AB::F::from_canonical_u32(Register::X11 as u32);
+            let a0 = AB::F::from_canonical_u32(Register::X10 as u32);
+            let a1 = AB::F::from_canonical_u32(Register::X11 as u32);
             builder.constraint_memory_access(
                 local.shard,
                 local.clk,
                 a0,
                 &local.a_access,
                 local.is_real,
-            )
+            );
+            builder.constraint_memory_access(
+                local.shard,
+                local.clk,
+                a1,
+                &local.b_access,
+                local.is_real,
+            );
         }
     }
 }
