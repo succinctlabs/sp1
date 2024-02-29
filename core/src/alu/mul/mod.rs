@@ -121,8 +121,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mul_events = input.mul_events.clone();
-        // Compute the chunk size based on the number of events and the number of CPUs.
-        let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
+        // Compute the chunk size based on the number of events and the number of CPUs. Allocate
+        // more chunks so the Rayon scheduler can better distribute the work.
+        const CHUNK_SPLIT_FACTOR: usize = 10;
+        let chunk_size =
+            std::cmp::max(mul_events.len() / (num_cpus::get() * CHUNK_SPLIT_FACTOR), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows_and_records = mul_events
@@ -426,26 +429,30 @@ mod tests {
     };
 
     use super::MulChip;
+    use crate::utils;
 
     #[test]
     fn generate_trace_mul() {
+        utils::setup_logger();
         let mut shard = ExecutionRecord::default();
 
-        // Fill mul_events with 10^7 MULHSU events.
-        let mut mul_events: Vec<AluEvent> = Vec::new();
-        for _ in 0..10i32.pow(7) {
-            mul_events.push(AluEvent::new(
-                0,
-                Opcode::MULHSU,
-                0x80004000,
-                0x80000000,
-                0xffff8000,
-            ));
+        for _ in 0..10 {
+            // Fill mul_events with 10^7 MULHSU events.
+            let mut mul_events: Vec<AluEvent> = Vec::new();
+            for _ in 0..10i32.pow(7) {
+                mul_events.push(AluEvent::new(
+                    0,
+                    Opcode::MULHSU,
+                    0x80004000,
+                    0x80000000,
+                    0xffff8000,
+                ));
+            }
+            shard.mul_events = mul_events;
+            let chip = MulChip::default();
+            let _trace: RowMajorMatrix<BabyBear> =
+                chip.generate_trace(&shard, &mut ExecutionRecord::default());
         }
-        shard.mul_events = mul_events;
-        let chip = MulChip::default();
-        let _trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 
     #[test]
