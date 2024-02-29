@@ -60,6 +60,15 @@ pub enum SyscallCode {
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 112,
 
+    /// Native field add operation.
+    FADD = 200,
+    /// Native field mul operation.
+    FMUL = 201,
+    /// Native field sub operation.
+    FSUB = 202,
+    /// Native field div operation.
+    FDIV = 203,
+
     WRITE = 999,
 }
 
