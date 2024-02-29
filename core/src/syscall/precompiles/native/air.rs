@@ -7,6 +7,7 @@ use core::borrow::BorrowMut;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::BaseAir;
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
@@ -100,10 +101,11 @@ where
             };
 
             // constrain memory accesses.
+            let a0 = AB::F::from_canonical_u32(Register::X11 as u32);
             builder.constraint_memory_access(
                 local.shard,
                 local.clk,
-                Register::A0,
+                a0,
                 &local.a_access,
                 local.is_real,
             )
