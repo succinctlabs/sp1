@@ -43,10 +43,8 @@ curve25519-dalek = {version = "=4.0.0"}
 elliptic-curve = "0.13.8"
 flate2 = "1.0.28"
 hashbrown = "0.14.3"
-hashbrown = "0.14.3"
 hex = "0.4.3"
 k256 = {version = "0.13.3", features = ["expose-field"]}
-num_cpus = "1.16.0"
 num_cpus = "1.16.0"
 petgraph = "0.6.4"
 serde_json = {version = "1.0.113", default-features = false, features = [
