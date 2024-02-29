@@ -163,15 +163,6 @@ where
         // // ro[log_height] += alpha_pow[log_height] * quotient;
         // // alpha_pow[log_height] *= alpha;
 
-        builder
-            .when(local.is_input)
-            .assert_eq(p_at_x.clone(), AB::Expr::from_canonical_u32(777132171));
-
-        builder.when(local.is_input).assert_eq(
-            p_at_z.as_base_slice()[0].clone(),
-            AB::Expr::from_canonical_u32(1257978304),
-        );
-
         let num = p_at_z.neg::<AB>().add::<AB>(&Extension::from::<AB>(p_at_x));
         let den = z
             .clone()
