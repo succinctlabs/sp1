@@ -45,6 +45,7 @@ fn main() {
     let proof = SP1Prover::prove(VERIFIER_ELF, stdin).expect("proving failed");
     // Verify the recursive proof.
     SP1Verifier::verify(VERIFIER_ELF, &proof).expect("verification failed");
+    println!("verification succeeded!");
 }
 
 #[cfg(test)]
