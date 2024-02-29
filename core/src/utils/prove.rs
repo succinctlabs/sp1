@@ -325,7 +325,7 @@ pub(super) mod baby_bear_keccak {
 
     pub type Dft = Radix2DitParallel;
 
-    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
+    type Challenger = SerializingChallenger32<Val, u8, HashChallenger<u8, ByteHash, 32>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
@@ -449,7 +449,7 @@ pub(super) mod baby_bear_blake3 {
 
     pub type Dft = Radix2DitParallel;
 
-    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
+    type Challenger = SerializingChallenger32<Val, u8, HashChallenger<u8, ByteHash, 32>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
