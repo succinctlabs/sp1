@@ -426,7 +426,6 @@ mod tests {
     };
 
     use super::MulChip;
-    use crate::utils;
 
     #[test]
     fn generate_trace_mul() {
