@@ -10,10 +10,8 @@ struct RecursiveTwoAdicFriPCS<
     pcs: C::Pcs,
 }
 
-impl<
-        C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>, Val = T::Val>,
-        T: TwoAdicFriPcsGenericConfig,
-    > RecursiveTwoAdicFriPCS<C, T>
+impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
+    RecursiveTwoAdicFriPCS<C, T>
 {
     fn new(pcs: C::Pcs) -> Self {
         Self { pcs }
