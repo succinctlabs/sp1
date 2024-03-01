@@ -1,6 +1,6 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use sp1_core::utils::Buffer;
+use crate::utils::Buffer;
 
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize)]
