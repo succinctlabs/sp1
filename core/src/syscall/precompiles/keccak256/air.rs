@@ -128,7 +128,7 @@ mod test {
             input_buf.write(&input);
         }
 
-        // Combine the outputs into a vector of bytes
+        // Combine the outputs into a vector of bytes.
         let expected_outputs = outputs
             .iter()
             .flat_map(|x| x.iter().cloned())
