@@ -197,7 +197,6 @@ name = "chess-script"
 version = "0.1.0"
 dependencies = [
  "sp1",
- "sp1-core",
 ]
 
 [[package]]

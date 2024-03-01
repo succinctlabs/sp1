@@ -6,4 +6,3 @@ version = "0.1.0"
 
 [dependencies]
 sp1 = {path = "../../../sp1"}
-sp1-core = {path = "../../../core"}

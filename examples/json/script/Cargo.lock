@@ -668,7 +668,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1",
- "sp1-core",
 ]
 
 [[package]]

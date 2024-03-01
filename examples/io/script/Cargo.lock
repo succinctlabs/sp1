@@ -651,7 +651,6 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "sp1",
- "sp1-core",
 ]
 
 [[package]]
