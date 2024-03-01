@@ -1,25 +1,23 @@
 use itertools::izip;
 use p3_challenger::CanSample;
 use p3_commit::{Mmcs, Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{AbstractField, TwoAdicField};
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 use p3_fri::{verifier, FriConfig, TwoAdicFriPcs, TwoAdicFriPcsGenericConfig, VerificationError};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::{log2_strict_usize, reverse_bits_len};
-use sp1_core::stark::StarkGenericConfig;
 
-pub(crate) struct RecursiveTwoAdicFriPCS<
-    C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>,
-    T: TwoAdicFriPcsGenericConfig,
-> {
+extern "C" {
+    fn syscall_fri_fold(input_mem_ptr: *const u32, output_mem_ptr: *const *mut u32);
+}
+
+pub(crate) struct RecursiveTwoAdicFriPCS<T: TwoAdicFriPcsGenericConfig> {
     fri: FriConfig<T::FriMmcs>,
     dft: T::Dft,
     mmcs: T::InputMmcs,
-    pcs: C::Pcs,
+    pcs: TwoAdicFriPcs<T>,
 }
 
-impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
-    RecursiveTwoAdicFriPCS<C, T>
-{
+impl<T: TwoAdicFriPcsGenericConfig> RecursiveTwoAdicFriPCS<T> {
     pub const fn new(fri: FriConfig<T::FriMmcs>, dft: T::Dft, mmcs: T::InputMmcs) -> Self {
         let plonky3_pcs = TwoAdicFriPcs::new(fri, dft, mmcs);
         Self {
@@ -31,16 +29,16 @@ impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfi
     }
 }
 
-impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
+impl<T: TwoAdicFriPcsGenericConfig>
     UnivariatePcsWithLde<T::Val, T::Challenge, RowMajorMatrix<T::Val>, T::Challenger>
-    for RecursiveTwoAdicFriPCS<C, T>
+    for RecursiveTwoAdicFriPCS<T>
 {
-    type Lde<'a> = <C::Pcs as UnivariatePcsWithLde<
+    type Lde<'a> = <TwoAdicFriPcs<T> as UnivariatePcsWithLde<
         T::Val,
         T::Challenge,
         RowMajorMatrix<T::Val>,
         T::Challenger,
-    >>::Lde<'a> where T: 'a, C: 'a;
+    >>::Lde<'a> where T: 'a;
 
     fn coset_shift(&self) -> T::Val {
         <TwoAdicFriPcs<T> as UnivariatePcsWithLde<
@@ -89,9 +87,9 @@ impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfi
     }
 }
 
-impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
+impl<T: TwoAdicFriPcsGenericConfig>
     UnivariatePcs<T::Val, T::Challenge, RowMajorMatrix<T::Val>, T::Challenger>
-    for RecursiveTwoAdicFriPCS<C, T>
+    for RecursiveTwoAdicFriPCS<T>
 {
     fn open_multi_batches(
         &self,
@@ -208,13 +206,13 @@ impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfi
     }
 }
 
-impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
-    Pcs<T::Val, RowMajorMatrix<T::Val>> for RecursiveTwoAdicFriPCS<C, T>
+impl<T: TwoAdicFriPcsGenericConfig> Pcs<T::Val, RowMajorMatrix<T::Val>>
+    for RecursiveTwoAdicFriPCS<T>
 {
-    type Commitment = <C::Pcs as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Commitment;
-    type ProverData = <C::Pcs as Pcs<T::Val, RowMajorMatrix<T::Val>>>::ProverData;
-    type Proof = <C::Pcs as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Proof;
-    type Error = <C::Pcs as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Error;
+    type Commitment = <TwoAdicFriPcs<T> as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Commitment;
+    type ProverData = <TwoAdicFriPcs<T> as Pcs<T::Val, RowMajorMatrix<T::Val>>>::ProverData;
+    type Proof = <TwoAdicFriPcs<T> as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Proof;
+    type Error = <TwoAdicFriPcs<T> as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Error;
 
     fn commit_batches(
         &self,

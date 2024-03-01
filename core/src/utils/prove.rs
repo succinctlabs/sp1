@@ -515,13 +515,7 @@ pub(super) mod baby_bear_blake3 {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            cfg_if::cfg_if! {
-                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                    RecursiveVerifierChallenger::from_hasher(vec![], RecursiveVerifierByteHash {})
-                } else {
-                    Challenger::from_hasher(vec![], ByteHash {})
-                }
-            }
+            Challenger::from_hasher(vec![], ByteHash {})
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -533,15 +527,8 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
 
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                type Pcs = RecursiveVerifierPcs;
-                type Challenger = RecursiveVerifierChallenger;
-            } else {
-                type Pcs = Pcs;
-                type Challenger = Challenger;
-            }
-        }
+        type Pcs = Pcs;
+        type Challenger = Challenger;
 
         fn pcs(&self) -> &Self::Pcs {
             &self.pcs

@@ -2533,6 +2533,7 @@ dependencies = [
  "serde",
  "sp1-core",
  "sp1-recursion-macros",
+ "sp1-zkvm 0.1.0",
 ]
 
 [[package]]
