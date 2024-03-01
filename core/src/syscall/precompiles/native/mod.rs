@@ -67,32 +67,384 @@ impl Display for BinaryOpcode {
 
 #[cfg(test)]
 mod tests {
+    use p3_baby_bear::BabyBear;
+    use p3_field::PrimeField32;
+    use rand::Rng;
+
     use crate::{
-        runtime::{Instruction, Opcode, Program, SyscallCode, A0, A1, T0},
+        runtime::{Instruction, Opcode, Program, Runtime, SyscallCode, A0, A1, T0, ZERO},
         utils::{run_test, setup_logger},
     };
 
     #[test]
+    fn test_add_native_execute() {
+        type F = BabyBear;
+        let num_tests = 10;
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FADD
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FADD as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+
+            let mut runtime = Runtime::<BabyBear>::new(program);
+            runtime.run();
+            assert_eq!(runtime.register(A0), (a + b).as_canonical_u32());
+        }
+    }
+
+    #[test]
     fn test_native_add_prove() {
+        type F = BabyBear;
         setup_logger();
-        // main:
-        //     addi a0, x0, 5
-        //     addi a1, x0, 37
-        //     FADD
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, A0 as u32, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, A1 as u32, 0, 8, false, true),
-            Instruction::new(
-                Opcode::ADD,
-                T0 as u32,
-                0,
-                SyscallCode::FADD as u32,
-                false,
-                true,
-            ),
-            Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        let num_tests = 3;
+
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FADD
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FADD as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            run_test(program).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_mul_native_execute() {
+        type F = BabyBear;
+        let num_tests = 10;
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FMUL
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FMUL as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+
+            let mut runtime = Runtime::<BabyBear>::new(program);
+            runtime.run();
+            assert_eq!(runtime.register(A0), (a * b).as_canonical_u32());
+        }
+    }
+
+    #[test]
+    fn test_native_mul_prove() {
+        type F = BabyBear;
+        setup_logger();
+        let num_tests = 3;
+
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FMUL
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FMUL as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            run_test(program).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_native_sub_execute() {
+        type F = BabyBear;
+        let num_tests = 10;
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FSUB
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FSUB as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+
+            let mut runtime = Runtime::<BabyBear>::new(program);
+            runtime.run();
+            assert_eq!(runtime.register(A0), (a - b).as_canonical_u32());
+        }
+    }
+
+    #[test]
+    fn test_native_sub_prove() {
+        type F = BabyBear;
+        setup_logger();
+        let num_tests = 3;
+
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FSUB
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FSUB as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            run_test(program).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_native_div_execute() {
+        type F = BabyBear;
+        let num_tests = 10;
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FDIV
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FDIV as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+
+            let mut runtime = Runtime::<BabyBear>::new(program);
+            runtime.run();
+            assert_eq!(runtime.register(A0), (a / b).as_canonical_u32());
+        }
+    }
+
+    #[test]
+    fn test_native_div_prove() {
+        type F = BabyBear;
+        setup_logger();
+        let num_tests = 3;
+
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_tests {
+            let a = rng.gen::<F>();
+            let b = rng.gen::<F>();
+            // main:
+            //     addi a0, x0, a
+            //     addi a1, x0, b
+            //     FDIV
+            let instructions = vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    A0 as u32,
+                    ZERO as u32,
+                    a.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    A1 as u32,
+                    ZERO as u32,
+                    b.as_canonical_u32(),
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    T0 as u32,
+                    0,
+                    SyscallCode::FDIV as u32,
+                    false,
+                    true,
+                ),
+                Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            run_test(program).unwrap();
+        }
     }
 }

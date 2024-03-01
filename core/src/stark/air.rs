@@ -25,6 +25,7 @@ pub(crate) mod riscv_chips {
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
     pub use crate::syscall::precompiles::k256::K256DecompressChip;
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
+    pub use crate::syscall::precompiles::native::NativeChip;
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
@@ -72,6 +73,14 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryFinal(MemoryGlobalChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryGlobalChip),
+    /// Native field addition.
+    FADD(NativeChip),
+    /// Native field multiplication.
+    FMUL(NativeChip),
+    /// Native Field subtraction.
+    FSUB(NativeChip),
+    /// Native Field division.
+    FDIV(NativeChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -98,6 +107,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         vec![
             Self::Cpu(CpuChip),
             Self::Program(ProgramChip::new()),
+            Self::FADD(NativeChip::add()),
+            Self::FMUL(NativeChip::mul()),
+            Self::FSUB(NativeChip::sub()),
+            Self::FDIV(NativeChip::div()),
             Self::Sha256Extend(ShaExtendChip),
             Self::Sha256Compress(ShaCompressChip),
             Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
@@ -152,6 +165,10 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
             RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
             RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
+            RiscvAir::FADD(_) => !shard.native_add_events.is_empty(),
+            RiscvAir::FMUL(_) => !shard.native_mul_events.is_empty(),
+            RiscvAir::FSUB(_) => !shard.native_sub_events.is_empty(),
+            RiscvAir::FDIV(_) => !shard.native_div_events.is_empty(),
         }
     }
 
@@ -162,32 +179,36 @@ impl<F: PrimeField32> RiscvAir<F> {
         match i {
             0 => Self::Cpu(CpuChip),
             1 => Self::Program(ProgramChip::new()),
-            2 => Self::Sha256Extend(ShaExtendChip),
-            3 => Self::Sha256Compress(ShaCompressChip),
-            4 => Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
-            5 => Self::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::new()),
-            6 => Self::K256Decompress(K256DecompressChip),
-            7 => {
+            2 => Self::FADD(NativeChip::add()),
+            3 => Self::FMUL(NativeChip::mul()),
+            4 => Self::FSUB(NativeChip::sub()),
+            5 => Self::FDIV(NativeChip::div()),
+            6 => Self::Sha256Extend(ShaExtendChip),
+            7 => Self::Sha256Compress(ShaCompressChip),
+            8 => Self::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
+            9 => Self::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::new()),
+            10 => Self::K256Decompress(K256DecompressChip),
+            11 => {
                 Self::Secp256k1Add(WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new())
             }
-            8 => Self::Secp256k1Double(
+            12 => Self::Secp256k1Double(
                 WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
             ),
-            9 => Self::KeccakP(KeccakPermuteChip::new()),
-            10 => Self::Blake3Compress(Blake3CompressInnerChip::new()),
-            11 => Self::Add(AddChip),
-            12 => Self::Sub(SubChip),
-            13 => Self::Bitwise(BitwiseChip),
-            14 => Self::DivRem(DivRemChip),
-            15 => Self::Mul(MulChip),
-            16 => Self::ShiftRight(ShiftRightChip),
-            17 => Self::ShiftLeft(ShiftLeft),
-            18 => Self::Lt(LtChip),
-            19 => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
-            20 => Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
-            21 => Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
-            22 => Self::FieldLTU(FieldLtuChip),
-            23 => Self::ByteLookup(ByteChip::new()),
+            13 => Self::KeccakP(KeccakPermuteChip::new()),
+            14 => Self::Blake3Compress(Blake3CompressInnerChip::new()),
+            15 => Self::Add(AddChip),
+            16 => Self::Sub(SubChip),
+            17 => Self::Bitwise(BitwiseChip),
+            18 => Self::DivRem(DivRemChip),
+            19 => Self::Mul(MulChip),
+            20 => Self::ShiftRight(ShiftRightChip),
+            21 => Self::ShiftLeft(ShiftLeft),
+            22 => Self::Lt(LtChip),
+            23 => Self::MemoryInit(MemoryGlobalChip::new(MemoryChipKind::Init)),
+            24 => Self::MemoryFinal(MemoryGlobalChip::new(MemoryChipKind::Finalize)),
+            25 => Self::ProgramMemory(MemoryGlobalChip::new(MemoryChipKind::Program)),
+            26 => Self::FieldLTU(FieldLtuChip),
+            27 => Self::ByteLookup(ByteChip::new()),
             _ => panic!("Index out of bounds"),
         }
     }
@@ -246,6 +267,10 @@ impl<F: PrimeField32> Clone for RiscvAir<F> {
             >::new()),
             Self::KeccakP(_) => Self::KeccakP(KeccakPermuteChip::new()),
             Self::Blake3Compress(_) => Self::Blake3Compress(Blake3CompressInnerChip::new()),
+            Self::FADD(_) => Self::FADD(NativeChip::add()),
+            Self::FMUL(_) => Self::FMUL(NativeChip::mul()),
+            Self::FSUB(_) => Self::FSUB(NativeChip::sub()),
+            Self::FDIV(_) => Self::FDIV(NativeChip::div()),
         }
     }
 }

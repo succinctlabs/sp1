@@ -28,14 +28,14 @@ impl<F: PrimeField32> Syscall<F> for NativeChip {
 
         let a_record = ctx.mw(A0 as u32, result);
 
-        ctx.clk += 4;
-
         let native_event = NativeEvent {
             clk: start_clk,
             shard: ctx.current_shard(),
             a_record,
             b_record,
         };
+
+        ctx.clk += 4;
 
         self.op.events_mut(ctx.record_mut()).push(native_event);
 

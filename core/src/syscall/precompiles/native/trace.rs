@@ -16,6 +16,9 @@ use super::{NativeChip, NativeEvent};
 
 impl<F: PrimeField32> NativeCols<F> {
     fn populate(&mut self, event: &NativeEvent, new_field_events: &mut Vec<FieldEvent>) {
+        self.is_real = F::one();
+        self.shard = F::from_canonical_u32(event.shard);
+        self.clk = F::from_canonical_u32(event.clk);
         self.a_access.populate(event.a_record, new_field_events);
         self.b_access.populate(event.b_record, new_field_events);
     }

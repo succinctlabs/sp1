@@ -32,14 +32,15 @@ pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
     type F = BabyBear;
     let mut tokens = TokenStream2::new();
 
-    let airs = RiscvAir::<BabyBear>::get_all();
+    let airs = RiscvAir::<F>::get_all();
 
     // Add a constant for each chip, and collect tokens for putting them in a slice.
-    let air_type = riscv_air_type::<BabyBear>();
+    let air_type = riscv_air_type::<F>();
     let mut chip_tokens = vec![];
     for (i, air) in airs.into_iter().enumerate() {
         let air_token = quote! {crate::stark::RiscvAir::get_air_at_index(#i) };
-        let chip = Chip::<BabyBear, _>::new(air);
+        let chip = Chip::<F, _>::new(air);
+
         let name = chip.name().to_uppercase();
         let chip_ident = Ident::new(&name, proc_macro2::Span::call_site());
         chip_token(

@@ -16,7 +16,7 @@ use crate::air::SP1AirBuilder;
 
 use super::BinaryOpcode;
 
-const DEFAULT_WIDTH: usize = 10;
+const DEFAULT_WIDTH: usize = 1;
 
 pub const NUM_NATIVE_COLS: usize = size_of::<NativeCols<u8>>();
 
@@ -74,7 +74,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
 
-        for chunk in main.row_slice(0).chunks_exact(LANES) {
+        for chunk in main.row_slice(0).chunks_exact(NUM_NATIVE_COLS) {
             let local: &NativeCols<AB::Var> = chunk.borrow();
 
             // Read the value of `a`, `b`, and the result.

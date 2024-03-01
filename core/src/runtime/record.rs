@@ -108,6 +108,7 @@ pub struct ShardingConfig {
     pub keccak_len: usize,
     pub weierstrass_add_len: usize,
     pub weierstrass_double_len: usize,
+    pub native_ops_len: usize,
 }
 
 impl ShardingConfig {
@@ -133,6 +134,7 @@ impl Default for ShardingConfig {
             keccak_len: shard_size,
             weierstrass_add_len: shard_size,
             weierstrass_double_len: shard_size,
+            native_ops_len: shard_size,
         }
     }
 }
@@ -294,6 +296,38 @@ impl ExecutionRecord {
             shard
                 .weierstrass_double_events
                 .extend_from_slice(weierstrass_double_chunk);
+        }
+
+        for (fadd_chunk, shard) in self
+            .native_add_events
+            .chunks(config.native_ops_len)
+            .zip(shards.iter_mut())
+        {
+            shard.native_add_events.extend_from_slice(fadd_chunk);
+        }
+
+        for (fmul_chunk, shard) in self
+            .native_mul_events
+            .chunks(config.native_ops_len)
+            .zip(shards.iter_mut())
+        {
+            shard.native_mul_events.extend_from_slice(fmul_chunk);
+        }
+
+        for (fsub_chunk, shard) in self
+            .native_sub_events
+            .chunks(config.native_ops_len)
+            .zip(shards.iter_mut())
+        {
+            shard.native_sub_events.extend_from_slice(fsub_chunk);
+        }
+
+        for (fdiv_chunk, shard) in self
+            .native_div_events
+            .chunks(config.native_ops_len)
+            .zip(shards.iter_mut())
+        {
+            shard.native_div_events.extend_from_slice(fdiv_chunk);
         }
 
         // Put the precompile events in the first shard.
