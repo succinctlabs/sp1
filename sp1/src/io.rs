@@ -125,10 +125,11 @@ pub mod proof_serde {
 
     #[cfg(test)]
     mod tests {
-        use crate::{
-            utils::{tests::FIBONACCI_IO_ELF, BabyBearBlake3},
-            SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
-        };
+        use crate::{SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier};
+        use sp1_core::utils::BabyBearBlake3;
+
+        pub const FIBONACCI_IO_ELF: &[u8] =
+            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
 
         /// Tests serialization with a human-readable encoding
         #[test]
