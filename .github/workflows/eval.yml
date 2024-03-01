@@ -1,15 +1,8 @@
 name: Evaluate Performance
 
-# on:
-#   schedule:
-#     - cron: "0 0 * * *" # Runs at 00:00 UTC every day
-
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  merge_group:
+  schedule:
+    - cron: "0 0 * * *" # Runs at 00:00 UTC every day
 
 jobs:
   benchmark:

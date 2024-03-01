@@ -9,6 +9,7 @@ use std::fs::OpenOptions;
 use std::io;
 use std::{fs, time::Instant};
 
+/// An identifier used to select the hash function to evaluate.
 #[derive(clap::ValueEnum, Clone)]
 enum HashFnId {
     Sha256,
@@ -19,12 +20,13 @@ enum HashFnId {
 
 impl fmt::Display for HashFnId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            HashFnId::Sha256 => write!(f, "sha-256"),
-            HashFnId::Poseidon => write!(f, "poseidon"),
-            HashFnId::Blake3 => write!(f, "blake3"),
-            HashFnId::Keccak256 => write!(f, "keccak256"),
-        }
+        let hash_fn_str = match self {
+            HashFnId::Sha256 => "sha-256",
+            HashFnId::Poseidon => "poseidon",
+            HashFnId::Blake3 => "blake3",
+            HashFnId::Keccak256 => "keccak256",
+        };
+        write!(f, "{}", hash_fn_str)
     }
 }
 
