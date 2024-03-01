@@ -10,7 +10,12 @@ sp1-core = { path = "../../core" }
 sp1-recursion-macros = { path = "../constgen" }
 p3-baby-bear = { workspace = true }
 p3-air = { workspace = true }
+p3-challenger = { workspace = true }
 p3-commit = {workspace = true}
 p3-field = { workspace = true }
 p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
+p3-util = { workspace = true }
+
+cfg-if = "1.0"
+itertools = "0.12.1"

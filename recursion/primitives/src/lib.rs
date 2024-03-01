@@ -1,6 +1,8 @@
 extern crate alloc;
 
+mod config;
 mod constants;
+mod hash;
 mod pcs;
 pub use constants::*;
 

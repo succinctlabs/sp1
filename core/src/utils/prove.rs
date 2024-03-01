@@ -442,40 +442,21 @@ pub(super) mod baby_bear_blake3 {
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
     type ByteHash = Blake3U32;
-    type RecursiveVerifierByteHash = Blake3U32Zkvm;
 
     type FieldHash = SerializingHasher32<ByteHash>;
-    type RecursiveVerifierFieldHash = SerializingHasher32<RecursiveVerifierByteHash>;
 
     type Compress = CompressionFunctionFromHasher<u32, ByteHash, 2, 8>;
-    type RecursiveVerifierCompress = Blake3SingleBlockCompression;
 
     pub type ValMmcs = FieldMerkleTreeMmcs<Val, u32, FieldHash, Compress, 8>;
-    pub type RecursiveVerifierValMmcs =
-        FieldMerkleTreeMmcs<Val, u32, RecursiveVerifierFieldHash, RecursiveVerifierCompress, 8>;
 
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-    pub type RecursiveVerifierChallengeMmcs =
-        ExtensionMmcs<Val, Challenge, RecursiveVerifierValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
     type Challenger = SerializingChallenger32<Val, u32, HashChallenger<u32, ByteHash, 8>>;
-    type RecursiveVerifierChallenger =
-        SerializingChallenger32<Val, u32, HashChallenger<u32, RecursiveVerifierByteHash, 8>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
-    type RecursiveVerifierPcs = TwoAdicFriPcs<
-        TwoAdicFriPcsConfig<
-            Val,
-            Challenge,
-            RecursiveVerifierChallenger,
-            Dft,
-            RecursiveVerifierValMmcs,
-            RecursiveVerifierChallengeMmcs,
-        >,
-    >;
 
     // Fri parameters
     const LOG_BLOWUP: usize = 1;
@@ -487,7 +468,6 @@ pub(super) mod baby_bear_blake3 {
     #[allow(dead_code)]
     pub struct BabyBearBlake3 {
         pcs: Pcs,
-        recursive_verifier_pcs: RecursiveVerifierPcs,
     }
 
     // Implement serialization manually instead of using serde(into) to avoid cloing the config
@@ -542,48 +522,7 @@ pub(super) mod baby_bear_blake3 {
             };
             let pcs = Pcs::new(fri_config, dft_clone, val_mmcs);
 
-            // Create the recursive verifier PCS instance
-            let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
-            let recursive_verifier_field_hash: SerializingHasher32<Blake3U32Zkvm> =
-                RecursiveVerifierFieldHash::new(recursive_verifier_byte_hash);
-
-            let recursive_verifier_compress = RecursiveVerifierCompress::new();
-
-            let recursive_verifier_val_mmcs = RecursiveVerifierValMmcs::new(
-                recursive_verifier_field_hash,
-                recursive_verifier_compress,
-            );
-
-            let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
-            let recursive_verifier_field_hash: SerializingHasher32<Blake3U32Zkvm> =
-                RecursiveVerifierFieldHash::new(recursive_verifier_byte_hash);
-
-            let recursive_verifier_compress = RecursiveVerifierCompress::new();
-
-            let recursive_verifier_val_mmcs_clone = RecursiveVerifierValMmcs::new(
-                recursive_verifier_field_hash,
-                recursive_verifier_compress,
-            );
-
-            let recursive_verifier_challenge_mmcs =
-                RecursiveVerifierChallengeMmcs::new(recursive_verifier_val_mmcs_clone);
-
-            let recursive_verifier_fri_config = FriConfig {
-                log_blowup: LOG_BLOWUP,
-                num_queries: NUM_QUERIES,
-                proof_of_work_bits: PROOF_OF_WORK_BITS,
-                mmcs: recursive_verifier_challenge_mmcs,
-            };
-            let recursive_verifier_pcs = RecursiveVerifierPcs::new(
-                recursive_verifier_fri_config,
-                dft,
-                recursive_verifier_val_mmcs,
-            );
-
-            Self {
-                pcs,
-                recursive_verifier_pcs,
-            }
+            Self { pcs }
         }
     }
 
@@ -620,13 +559,7 @@ pub(super) mod baby_bear_blake3 {
         }
 
         fn pcs(&self) -> &Self::Pcs {
-            cfg_if::cfg_if! {
-                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                    &self.recursive_verifier_pcs
-                } else {
-                    &self.pcs
-                }
-            }
+            &self.pcs
         }
     }
 
@@ -634,24 +567,11 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
 
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                type Pcs = RecursiveVerifierPcs;
-                type Challenger = RecursiveVerifierChallenger;
-            } else {
-                type Pcs = Pcs;
-                type Challenger = Challenger;
-            }
-        }
+        type Pcs = Pcs;
+        type Challenger = Challenger;
 
         fn pcs(&self) -> &Self::Pcs {
-            cfg_if::cfg_if! {
-                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                    &self.recursive_verifier_pcs
-                } else {
-                    &self.pcs
-                }
-            }
+            &self.pcs
         }
     }
     #[derive(Clone)]
