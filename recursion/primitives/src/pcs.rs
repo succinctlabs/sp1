@@ -3,14 +3,17 @@ use p3_fri::{TwoAdicFriPcs, TwoAdicFriPcsGenericConfig};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core::stark::StarkGenericConfig;
 
-struct CustomPCS<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig> {
+struct RecursiveTwoAdicFriPCS<
+    C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>,
+    T: TwoAdicFriPcsGenericConfig,
+> {
     pcs: C::Pcs,
 }
 
 impl<
         C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>, Val = T::Val>,
         T: TwoAdicFriPcsGenericConfig,
-    > CustomPCS<C, T>
+    > RecursiveTwoAdicFriPCS<C, T>
 {
     fn new(pcs: C::Pcs) -> Self {
         Self { pcs }
@@ -19,7 +22,7 @@ impl<
 
 impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
     UnivariatePcsWithLde<T::Val, T::Challenge, RowMajorMatrix<T::Val>, T::Challenger>
-    for CustomPCS<C, T>
+    for RecursiveTwoAdicFriPCS<C, T>
 {
     type Lde<'a> = <C::Pcs as UnivariatePcsWithLde<
         T::Val,
@@ -76,7 +79,8 @@ impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfi
 }
 
 impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
-    UnivariatePcs<T::Val, T::Challenge, RowMajorMatrix<T::Val>, T::Challenger> for CustomPCS<C, T>
+    UnivariatePcs<T::Val, T::Challenge, RowMajorMatrix<T::Val>, T::Challenger>
+    for RecursiveTwoAdicFriPCS<C, T>
 {
     fn open_multi_batches(
         &self,
@@ -116,7 +120,7 @@ impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfi
 }
 
 impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
-    Pcs<T::Val, RowMajorMatrix<T::Val>> for CustomPCS<C, T>
+    Pcs<T::Val, RowMajorMatrix<T::Val>> for RecursiveTwoAdicFriPCS<C, T>
 {
     type Commitment = <C::Pcs as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Commitment;
     type ProverData = <C::Pcs as Pcs<T::Val, RowMajorMatrix<T::Val>>>::ProverData;
