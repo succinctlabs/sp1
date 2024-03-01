@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+
 pub mod io;
 
 use anyhow::Result;
