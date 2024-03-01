@@ -41,6 +41,7 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     prove_core(config, runtime)
 }
 
+// Run a test with the given input and expected output.
 #[cfg(test)]
 pub fn run_test_io(
     program: Program,
