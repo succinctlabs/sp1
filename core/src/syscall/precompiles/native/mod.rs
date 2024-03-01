@@ -64,3 +64,35 @@ impl Display for BinaryOpcode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        runtime::{Instruction, Opcode, Program, SyscallCode, A0, A1, T0},
+        utils::{run_test, setup_logger},
+    };
+
+    #[test]
+    fn test_native_add_prove() {
+        setup_logger();
+        // main:
+        //     addi a0, x0, 5
+        //     addi a1, x0, 37
+        //     FADD
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, A0 as u32, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, A1 as u32, 0, 8, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                T0 as u32,
+                0,
+                SyscallCode::FADD as u32,
+                false,
+                true,
+            ),
+            Instruction::new(Opcode::ECALL, A0 as u32, T0 as u32, 0, false, true),
+        ];
+        let program = Program::new(instructions, 0, 0);
+        run_test(program).unwrap();
+    }
+}
