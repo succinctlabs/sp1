@@ -1,8 +1,8 @@
 [workspace]
 [package]
-version = "0.1.0"
-name = "tendermint-script"
 edition = "2021"
+name = "tendermint-script"
+version = "0.1.0"
 
 [dependencies]
-sp1-core = { path = "../../../core", features = ["neon"]  }
+sp1 = {path = "../../../sp1", features = ["neon"]}
