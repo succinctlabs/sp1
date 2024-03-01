@@ -1,5 +1,5 @@
 pub mod event;
-
+use p3_matrix::{Matrix, MatrixRowSlices};
 use crate::air::FieldAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -11,7 +11,6 @@ use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*; //{ParallelIterator, ParallelSlice,};
 use sp1_derive::AlignedBorrow;
 
@@ -19,7 +18,7 @@ use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
 pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
-const WIDTH: usize = 10;
+const WIDTH: usize = 1;
 /// A chip that implements less than within the field.
 #[derive(Default)]
 pub struct FieldLTUChip;
@@ -63,9 +62,12 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
+	let events = &input.field_events;
+	let rem = events.len() % WIDTH;
+	assert_eq!(rem,0);
         let rows = input
             .field_events
-            .par_chunks_exact(WIDTH)
+            .par_chunks(WIDTH)
             .map(|events| {
                 let mut row = [F::zero(); NUM_FIELD_COLS * WIDTH];
                 let packed_cols: &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
@@ -93,11 +95,11 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_FIELD_COLS * WIDTH,
         );
-
+	println!("trace height {:?}", trace.height());
         // Pad the trace to a power of two.
         const width: usize = NUM_FIELD_COLS * WIDTH;
         pad_to_power_of_two::<width, F>(&mut trace.values);
-
+	println!("trace height {:?}", trace.height());
         trace
     }
 }
