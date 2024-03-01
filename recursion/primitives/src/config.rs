@@ -3,17 +3,17 @@ use p3_challenger::{HashChallenger, SerializingChallenger32};
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
+use p3_fri::{FriConfig, TwoAdicFriPcsConfig};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_symmetric::{
-    CompressionFunctionFromHasher, CryptographicHasher, PseudoCompressionFunction,
-    SerializingHasher32,
-};
+use p3_symmetric::SerializingHasher32;
 use serde::{Deserialize, Serialize};
+use sp1_core::utils::StarkUtils;
 
-use crate::stark::StarkGenericConfig;
-
-use super::StarkUtils;
+use crate::{
+    hash::{Blake3SingleBlockCompression, Blake3U32Zkvm},
+    pcs::RecursiveTwoAdicFriPCS,
+    stark::StarkGenericConfig,
+};
 
 pub type Val = BabyBear;
 pub type Challenge = BinomialExtensionField<Val, 4>;
@@ -27,7 +27,10 @@ pub type Dft = Radix2DitParallel;
 
 type Challenger = SerializingChallenger32<Val, u32, HashChallenger<u32, ByteHash, 8>>;
 
-type Pcs = RecursiveTwoAdicFriPCS;
+type Pcs = RecursiveTwoAdicFriPCS<
+    BabyBearBlake3Recursion,
+    TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>,
+>;
 
 // Fri parameters
 const LOG_BLOWUP: usize = 1;
@@ -73,7 +76,7 @@ impl BabyBearBlake3Recursion {
 
         let val_mmcs = ValMmcs::new(field_hash, compress);
 
-        let challenge_mmcs = ChallengeMmcs::new(val_mmcs_clone);
+        let challenge_mmcs = ChallengeMmcs::new(val_mmcs);
 
         let fri_config = FriConfig {
             log_blowup: LOG_BLOWUP,
@@ -81,23 +84,20 @@ impl BabyBearBlake3Recursion {
             proof_of_work_bits: PROOF_OF_WORK_BITS,
             mmcs: challenge_mmcs,
         };
+
+        let dft = Dft {};
+
         let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
         Self { pcs }
     }
 }
 
-impl StarkUtils for BabyBearBlake3 {
+impl StarkUtils for BabyBearBlake3Recursion {
     type UniConfig = Self;
 
     fn challenger(&self) -> Self::Challenger {
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                RecursiveVerifierChallenger::from_hasher(vec![], RecursiveVerifierByteHash {})
-            } else {
-                Challenger::from_hasher(vec![], ByteHash {})
-            }
-        }
+        Challenger::from_hasher(vec![], ByteHash {})
     }
 
     fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -105,52 +105,24 @@ impl StarkUtils for BabyBearBlake3 {
     }
 }
 
-impl StarkGenericConfig for BabyBearBlake3 {
+impl StarkGenericConfig for BabyBearBlake3Recursion {
     type Val = Val;
     type Challenge = Challenge;
-
-    cfg_if::cfg_if! {
-        if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-            type Pcs = RecursiveVerifierPcs;
-            type Challenger = RecursiveVerifierChallenger;
-        } else {
-            type Pcs = Pcs;
-            type Challenger = Challenger;
-        }
-    }
+    type Challenger = Challenger;
+    type Pcs = Pcs;
 
     fn pcs(&self) -> &Self::Pcs {
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                &self.recursive_verifier_pcs
-            } else {
-                &self.pcs
-            }
-        }
+        &self.pcs
     }
 }
 
-impl p3_uni_stark::StarkGenericConfig for BabyBearBlake3 {
+impl p3_uni_stark::StarkGenericConfig for BabyBearBlake3Recursion {
     type Val = Val;
     type Challenge = Challenge;
-
-    cfg_if::cfg_if! {
-        if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-            type Pcs = RecursiveVerifierPcs;
-            type Challenger = RecursiveVerifierChallenger;
-        } else {
-            type Pcs = Pcs;
-            type Challenger = Challenger;
-        }
-    }
+    type Challenger = Challenger;
+    type Pcs = Pcs;
 
     fn pcs(&self) -> &Self::Pcs {
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                &self.recursive_verifier_pcs
-            } else {
-                &self.pcs
-            }
-        }
+        &self.pcs
     }
 }

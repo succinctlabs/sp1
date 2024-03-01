@@ -1,3 +1,5 @@
+use p3_symmetric::{CryptographicHasher, PseudoCompressionFunction};
+
 #[derive(Clone)]
 pub struct Blake3SingleBlockCompression;
 
@@ -13,38 +15,6 @@ impl PseudoCompressionFunction<[u32; 8], 2> for Blake3SingleBlockCompression {
         block_words[0..8].copy_from_slice(&input[0]);
         block_words[8..].copy_from_slice(&input[1]);
         blake3_zkvm::hash_single_block(&block_words, blake3_zkvm::BLOCK_LEN)
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct Blake3U32;
-
-impl CryptographicHasher<u32, [u32; 8]> for Blake3U32 {
-    fn hash_iter<I>(&self, input: I) -> [u32; 8]
-    where
-        I: IntoIterator<Item = u32>,
-    {
-        let input = input.into_iter().collect::<Vec<_>>();
-        self.hash_iter_slices([input.as_slice()])
-    }
-
-    fn hash_iter_slices<'a, I>(&self, input: I) -> [u32; 8]
-    where
-        I: IntoIterator<Item = &'a [u32]>,
-    {
-        let mut hasher = blake3::Hasher::new();
-        for chunk in input.into_iter() {
-            let u8_chunk = chunk
-                .iter()
-                .flat_map(|x| x.to_le_bytes())
-                .collect::<Vec<_>>();
-            #[cfg(not(feature = "parallel"))]
-            hasher.update(&u8_chunk);
-            #[cfg(feature = "parallel")]
-            hasher.update_rayon(&u8_chunk);
-        }
-        let u8_hash = hasher.finalize();
-        blake3::platform::words_from_le_bytes_32(u8_hash.as_bytes())
     }
 }
 

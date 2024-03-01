@@ -189,11 +189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake3_zkvm"
-version = "0.1.0"
-source = "git+https://github.com/sp1-patches/BLAKE3.git?branch=patch-blake3_zkvm/v.1.0.0#f3b07c45f422a118309f5917160eb947f1aafcff"
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1559,7 +1554,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "blake3 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "blake3_zkvm",
  "cfg-if",
  "clap",
  "curve25519-dalek",

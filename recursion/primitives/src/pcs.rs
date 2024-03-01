@@ -7,7 +7,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_util::{log2_strict_usize, reverse_bits_len};
 use sp1_core::stark::StarkGenericConfig;
 
-struct RecursiveTwoAdicFriPCS<
+pub(crate) struct RecursiveTwoAdicFriPCS<
     C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>,
     T: TwoAdicFriPcsGenericConfig,
 > {
@@ -20,7 +20,7 @@ struct RecursiveTwoAdicFriPCS<
 impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfig>
     RecursiveTwoAdicFriPCS<C, T>
 {
-    fn new(fri: FriConfig<T::FriMmcs>, dft: T::Dft, mmcs: T::InputMmcs) -> Self {
+    pub const fn new(fri: FriConfig<T::FriMmcs>, dft: T::Dft, mmcs: T::InputMmcs) -> Self {
         let plonky3_pcs = TwoAdicFriPcs::new(fri, dft, mmcs);
         Self {
             fri,
@@ -156,45 +156,36 @@ impl<C: StarkGenericConfig<Pcs = TwoAdicFriPcs<T>>, T: TwoAdicFriPcsGenericConfi
                             * T::Val::two_adic_generator(log_height)
                                 .exp_u64(rev_reduced_index as u64);
 
-                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
                         let mut array_arg: [u32; 14] = [0u32; 14];
-                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
                         let mut array_idx = 0;
-                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
-                        {
+                        array_arg[array_idx] = x.as_canonical_u32();
+                        alpha.as_base_slice().iter().for_each(|x| {
+                            array_idx += 1;
                             array_arg[array_idx] = x.as_canonical_u32();
-                            alpha.as_base_slice().iter().for_each(|x| {
-                                array_idx += 1;
-                                array_arg[array_idx] = x.as_canonical_u32();
-                            });
-                        }
-                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
-                        let save_arg: [*mut u32; 2] = [ro[log_height].as_base_slice_mut() as *mut u32, alpha_pow[log_height].as_base_slice_mut() as *mut u32];
+                        });
+
+                        let save_arg: [*mut u32; 2] = [
+                            ro[log_height].as_base_slice_mut() as *mut u32,
+                            alpha_pow[log_height].as_base_slice_mut() as *mut u32,
+                        ];
+
                         for (&z, ps_at_z) in izip!(mat_points, mat_at_z) {
                             #[allow(clippy::never_loop)]
                             for (&p_at_x, &p_at_z) in izip!(mat_opening, ps_at_z) {
-                                cfg_if::cfg_if! {
-                                    if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                                        let mut idx = array_idx;
-                                        z.as_base_slice().iter().for_each(|x| {
-                                            idx += 1;
-                                            array_arg[idx] = x.as_canonical_u32();
-                                        });
-                                        p_at_z.as_base_slice().iter().for_each(|x| {
-                                            idx += 1;
-                                            array_arg[idx] = x.as_canonical_u32();
-                                        });
-                                        idx += 1;
-                                        array_arg[idx] = p_at_x.as_canonical_u32();
+                                let mut idx = array_idx;
+                                z.as_base_slice().iter().for_each(|x| {
+                                    idx += 1;
+                                    array_arg[idx] = x.as_canonical_u32();
+                                });
+                                p_at_z.as_base_slice().iter().for_each(|x| {
+                                    idx += 1;
+                                    array_arg[idx] = x.as_canonical_u32();
+                                });
+                                idx += 1;
+                                array_arg[idx] = p_at_x.as_canonical_u32();
 
-                                        unsafe {
-                                            syscall_fri_fold((&array_arg).as_ptr(), (&save_arg).as_ptr());
-                                        }
-                                    } else {
-                                        let quotient = (-p_at_z + p_at_x) / (-z + x);
-                                        ro[log_height] += alpha_pow[log_height] * quotient;
-                                        alpha_pow[log_height] *= alpha;
-                                    }
+                                unsafe {
+                                    syscall_fri_fold((&array_arg).as_ptr(), (&save_arg).as_ptr());
                                 }
                             }
                         }
