@@ -25,6 +25,7 @@ use sp1_core::utils::{prove_core, BabyBearBlake3, StarkUtils};
 use std::fs;
 
 pub use io::*;
+pub use sp1_core::utils;
 
 /// A prover that can prove RISCV ELFs.
 pub struct SP1Prover;

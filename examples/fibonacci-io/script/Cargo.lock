@@ -545,7 +545,6 @@ name = "fibonacci-io-script"
 version = "0.1.0"
 dependencies = [
  "sp1",
- "sp1-core",
  "sp1-helper",
 ]
 
