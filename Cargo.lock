@@ -2360,6 +2360,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "hex",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-blake3",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-keccak",
+ "p3-keccak-air",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-mds",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "p3-util",
+ "serde",
+ "serde_json",
+ "sp1-core",
+ "tracing",
+]
+
+[[package]]
 name = "sp1-cli"
 version = "0.1.0"
 dependencies = [
@@ -2377,6 +2409,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sp1",
  "sp1-core",
  "tar",
  "target-lexicon",
@@ -2460,6 +2493,7 @@ dependencies = [
  "clap",
  "csv",
  "serde",
+ "sp1",
  "sp1-core",
 ]
 

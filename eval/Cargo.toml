@@ -1,11 +1,11 @@
 [package]
+edition = "2021"
 name = "sp1-eval"
 version = "0.1.0"
-edition = "2021"
 
 [dependencies]
-sp1-core = { path = "../core" }
-clap = { version = "4.4.0", features = ["derive"] }
+clap = {version = "4.4.0", features = ["derive"]}
 csv = "1.3.0"
 serde = "1.0.196"
-
+sp1 = {path = "../sp1"}
+sp1-core = {path = "../core"}

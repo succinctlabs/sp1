@@ -1,11 +1,12 @@
 [workspace]
 [package]
-version = "0.1.0"
-name = "json-script"
 edition = "2021"
+name = "json-script"
+version = "0.1.0"
 
 [dependencies]
+lib = {path = "../lib"}
 serde = "1.0.197"
 serde_json = "1.0.114"
-sp1-core = { path = "../../../core" }
-lib = { path = "../lib" }
+sp1 = {path = "../../../sp1"}
+sp1-core = {path = "../../../core"}

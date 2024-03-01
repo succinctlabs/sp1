@@ -1,8 +1,9 @@
 [workspace]
 [package]
-version = "0.1.0"
-name = "chess-script"
 edition = "2021"
+name = "chess-script"
+version = "0.1.0"
 
 [dependencies]
-sp1-core = { path = "../../../core" }
+sp1 = {path = "../../../sp1"}
+sp1-core = {path = "../../../core"}

@@ -6,17 +6,17 @@ We recommend that during development of large programs (> 1 million cycles) that
 Instead, you should have your script only execute the program with the RISC-V runtime and read `stdout`. Here is an example:
 
 ```rust,noplayground
-use sp1_core::{SP1Prover, SP1Stdin, SP1Verifier};
+use sp1::{SP1Prover, SP1Stdin, SP1Verifier};
 
 // The ELF file with the RISC-V bytecode of the program from above.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
-    let mut stdin = SP1Stdin::new(); 
+    let mut stdin = SP1Stdin::new();
     let n = 5000u32;
-    stdin.write(&n); 
+    stdin.write(&n);
     let mut stdout = SP1Prover::execute(ELF, stdin).expect("execution failed");
-    let a = stdout.read::<u32>(); 
+    let a = stdout.read::<u32>();
     let b = stdout.read::<u32>();
 
     // Print the program's outputs in our script.
@@ -27,7 +27,6 @@ fn main() {
 ```
 
 If execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
-
 
 ## Performance
 
@@ -64,23 +63,26 @@ You can either use `utils::setup_logger()` or `utils::setup_tracer()` to enable 
 
 **Tracing:**
 
-Tracing will show more detailed timing information. 
+Tracing will show more detailed timing information.
 
 ```rust,noplayground
 utils::setup_tracer();
 ```
 
 You must run your command with:
+
 ```bash
 RUST_TRACER=info cargo run --release
 ```
 
 **Logging:**
+
 ```rust,noplayground
 utils::setup_logger();
 ```
 
 You must run your command with:
+
 ```bash
 RUST_LOG=info cargo run --release
 ```

@@ -1,9 +1,9 @@
 use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
+use sp1::{SP1ProofWithIO, SP1Stdin, SP1Stdout, SP1Verifier};
 use sp1_core::runtime::{Program, Runtime};
 use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
-use sp1_core::{SP1ProofWithIO, SP1Stdin, SP1Stdout, SP1Verifier};
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io;

@@ -1,11 +1,12 @@
 [workspace]
 [package]
-version = "0.1.0"
-name = "fibonacci-io-script"
 edition = "2021"
+name = "fibonacci-io-script"
+version = "0.1.0"
 
 [dependencies]
-sp1-core = { path = "../../../core" }
+sp1 = {path = "../../../sp1"}
+sp1-core = {path = "../../../core"}
 
 [build-dependencies]
-sp1-helper = { path = "../../../helper" }
+sp1-helper = {path = "../../../helper"}

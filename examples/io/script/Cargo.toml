@@ -1,9 +1,10 @@
 [workspace]
 [package]
-version = "0.1.0"
-name = "io-script"
 edition = "2021"
+name = "io-script"
+version = "0.1.0"
 
 [dependencies]
-serde = { version = "1.0.196", features = ["derive"] }
-sp1-core = { path = "../../../core" }
+serde = {version = "1.0.196", features = ["derive"]}
+sp1 = {path = "../../../sp1"}
+sp1-core = {path = "../../../core"}

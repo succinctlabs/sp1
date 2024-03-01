@@ -1,8 +1,9 @@
 [workspace]
 [package]
-version = "0.1.0"
-name = "ssz-withdrawals-script"
 edition = "2021"
+name = "ssz-withdrawals-script"
+version = "0.1.0"
 
 [dependencies]
-sp1-core = { path = "../../../core" }
+sp1 = {path = "../../../sp1"}
+sp1-core = {path = "../../../core"}
