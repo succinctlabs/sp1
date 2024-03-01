@@ -291,22 +291,24 @@ where
 mod tests {
 
     use crate::{
+        runtime::Program,
         utils::{
-            self,
+            self, run_test,
             tests::{ED25519_ELF, ED_ADD_ELF},
         },
-        SP1Prover, SP1Stdin,
     };
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        SP1Prover::prove(ED_ADD_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED_ADD_ELF);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        SP1Prover::prove(ED25519_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED25519_ELF);
+        run_test(program).unwrap();
     }
 }

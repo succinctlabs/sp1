@@ -224,7 +224,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         // Re-insert sign bit into last bit of Y for CompressedEdwardsY format
         let mut compressed_edwards_y: [u8; COMPRESSED_POINT_BYTES] = y_bytes;
         compressed_edwards_y[compressed_edwards_y.len() - 1] &= 0b0111_1111;
-        compressed_edwards_y[compressed_edwards_y.len() - 1] |= (sign as u8) << 7;
+        compressed_edwards_y[compressed_edwards_y.len() - 1] |= sign << 7;
 
         // Compute actual decompressed X
         let compressed_y = CompressedEdwardsY(compressed_edwards_y);
@@ -327,13 +327,14 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::{
-        utils::{self, tests::ED_DECOMPRESS_ELF},
-        SP1Prover, SP1Stdin,
+        runtime::Program,
+        utils::{self, run_test, tests::ED_DECOMPRESS_ELF},
     };
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        SP1Prover::prove(ED_DECOMPRESS_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED_DECOMPRESS_ELF);
+        run_test(program).unwrap();
     }
 }

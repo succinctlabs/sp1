@@ -111,12 +111,12 @@ impl Blake3CompressInnerChip {
 pub mod compress_tests {
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
+    use crate::runtime::Program;
     use crate::runtime::Register;
     use crate::runtime::SyscallCode;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::tests::BLAKE3_COMPRESS_ELF;
-    use crate::Program;
 
     use super::MSG_SIZE;
 

@@ -362,9 +362,9 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
-    use crate::utils::setup_logger;
+    use crate::runtime::Program;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
-    use crate::{SP1Prover, SP1Stdin, SP1Verifier};
+    use crate::utils::{run_test_io, setup_logger};
 
     #[test]
     fn test_k256_decompress() {
@@ -378,14 +378,8 @@ pub mod tests {
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
 
-            let inputs = SP1Stdin::from(&compressed);
-
-            let mut proof = SP1Prover::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
-            let mut result = [0; 65];
-            proof.stdout.read_slice(&mut result);
-            assert_eq!(result, decompressed);
-
-            SP1Verifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
+            let program = Program::from(SECP256K1_DECOMPRESS_ELF);
+            run_test_io(program, &compressed, decompressed).unwrap();
         }
     }
 }
