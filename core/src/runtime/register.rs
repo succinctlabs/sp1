@@ -1,3 +1,40 @@
+// Include common aliases as specified by the RISC-V assembly handebook.
+//
+// see https://riscv.org/wp-content/uploads/2019/06/riscv-spec.pdf chapter 26.
+
+pub const ZERO: Register = Register::X0;
+pub const RA: Register = Register::X1;
+pub const SP: Register = Register::X2;
+pub const GP: Register = Register::X3;
+pub const TP: Register = Register::X4;
+pub const T0: Register = Register::X5;
+pub const T1: Register = Register::X6;
+pub const T2: Register = Register::X7;
+pub const S0: Register = Register::X8;
+pub const S1: Register = Register::X9;
+pub const A0: Register = Register::X10;
+pub const A1: Register = Register::X11;
+pub const A2: Register = Register::X12;
+pub const A3: Register = Register::X13;
+pub const A4: Register = Register::X14;
+pub const A5: Register = Register::X15;
+pub const A6: Register = Register::X16;
+pub const A7: Register = Register::X17;
+pub const S2: Register = Register::X18;
+pub const S3: Register = Register::X19;
+pub const S4: Register = Register::X20;
+pub const S5: Register = Register::X21;
+pub const S6: Register = Register::X22;
+pub const S7: Register = Register::X23;
+pub const S8: Register = Register::X24;
+pub const S9: Register = Register::X25;
+pub const S10: Register = Register::X26;
+pub const S11: Register = Register::X27;
+pub const T3: Register = Register::X28;
+pub const T4: Register = Register::X29;
+pub const T5: Register = Register::X30;
+pub const T6: Register = Register::X31;
+
 /// A register stores a 32-bit value used by operations.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Register {

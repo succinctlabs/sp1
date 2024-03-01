@@ -9,6 +9,7 @@ use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
+use crate::syscall::precompiles::native::{BinaryOpcode, NativeChip};
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
@@ -92,6 +93,10 @@ impl SyscallCode {
             111 => SyscallCode::EXIT_UNCONSTRAINED,
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
             999 => SyscallCode::WRITE,
+            200 => SyscallCode::FADD,
+            201 => SyscallCode::FMUL,
+            202 => SyscallCode::FSUB,
+            203 => SyscallCode::FDIV,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -237,6 +242,22 @@ pub fn default_syscall_map<F: PrimeField32>() -> HashMap<SyscallCode, Rc<dyn Sys
         Rc::new(SyscallExitUnconstrained::new()),
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
+    syscall_map.insert(
+        SyscallCode::FADD,
+        Rc::new(NativeChip::new(BinaryOpcode::Add)),
+    );
+    syscall_map.insert(
+        SyscallCode::FMUL,
+        Rc::new(NativeChip::new(BinaryOpcode::Mul)),
+    );
+    syscall_map.insert(
+        SyscallCode::FSUB,
+        Rc::new(NativeChip::new(BinaryOpcode::Sub)),
+    );
+    syscall_map.insert(
+        SyscallCode::FDIV,
+        Rc::new(NativeChip::new(BinaryOpcode::Div)),
+    );
 
     syscall_map
 }

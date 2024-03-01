@@ -40,6 +40,18 @@ impl BinaryOpcode {
             Self::Div => &input.native_div_events,
         }
     }
+
+    pub(crate) fn events_mut<'b>(
+        &self,
+        input: &'b mut ExecutionRecord,
+    ) -> &'b mut Vec<NativeEvent> {
+        match self {
+            Self::Add => &mut input.native_add_events,
+            Self::Mul => &mut input.native_mul_events,
+            Self::Sub => &mut input.native_sub_events,
+            Self::Div => &mut input.native_div_events,
+        }
+    }
 }
 
 impl Display for BinaryOpcode {
