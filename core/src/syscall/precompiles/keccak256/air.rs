@@ -93,7 +93,7 @@ where
     }
 }
 
-// #[cfg(feature = "keccak")]
+#[cfg(feature = "keccak")]
 #[cfg(test)]
 mod test {
     use crate::runtime::Program;
