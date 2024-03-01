@@ -93,14 +93,12 @@ where
     }
 }
 
-#[cfg(feature = "keccak")]
+// #[cfg(feature = "keccak")]
 #[cfg(test)]
 mod test {
-    use crate::SP1Stdin;
-    use crate::{
-        utils::{setup_logger, tests::KECCAK256_ELF},
-        SP1Prover, SP1Verifier,
-    };
+    use crate::runtime::Program;
+    use crate::utils::{run_test_io, Buffer};
+    use crate::utils::{setup_logger, tests::KECCAK256_ELF};
     use rand::Rng;
     use rand::SeedableRng;
     use tiny_keccak::Hasher;
@@ -124,19 +122,19 @@ mod test {
             outputs.push(hash);
         }
 
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&NUM_TEST_CASES);
+        let mut input_buf = Buffer::new();
+        input_buf.write(&NUM_TEST_CASES);
         for input in inputs.iter() {
-            stdin.write(&input);
+            input_buf.write(&input);
         }
 
-        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin).unwrap();
-        SP1Verifier::verify(KECCAK256_ELF, &proof).unwrap();
+        // Combine the outputs into a vector of bytes
+        let expected_outputs = outputs
+            .iter()
+            .flat_map(|x| x.iter().cloned())
+            .collect::<Vec<_>>();
 
-        for i in 0..NUM_TEST_CASES {
-            let expected = outputs.get(i).unwrap();
-            let actual = proof.stdout.read::<[u8; 32]>();
-            assert_eq!(expected, &actual);
-        }
+        let program = Program::from(KECCAK256_ELF);
+        run_test_io(program, &input_buf.data, &expected_outputs).unwrap();
     }
 }

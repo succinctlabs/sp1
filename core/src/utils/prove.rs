@@ -51,16 +51,17 @@ pub fn run_test_io(
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program.clone());
         runtime.write_stdin_slice(input);
         runtime.run();
 
+        let stdout = runtime.state.output_stream.clone();
+        assert_eq!(stdout, expected_output);
+
         runtime
     });
-    let stdout = runtime.state.output_stream;
-    assert_eq!(stdout, expected_output);
 
-    prove_runtime(program, runtime)
+    prove_runtime(runtime)
 }
 
 #[cfg(test)]
@@ -69,19 +70,16 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program.clone());
         runtime.run();
         runtime
     });
 
-    prove_runtime(program, runtime)
+    prove_runtime(runtime)
 }
 
 #[cfg(test)]
-fn prove_runtime(
-    program: Program,
-    runtime: Runtime,
-) -> Result<(), crate::stark::ProgramVerificationError> {
+fn prove_runtime(runtime: Runtime) -> Result<(), crate::stark::ProgramVerificationError> {
     let config = BabyBearBlake3::new();
 
     let machine = RiscvStark::new(config);
