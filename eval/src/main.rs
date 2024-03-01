@@ -9,7 +9,6 @@ use std::fs::OpenOptions;
 use std::io;
 use std::{fs, time::Instant};
 
-/// An identifier used to select the hash function to evaluate.
 #[derive(clap::ValueEnum, Clone)]
 enum HashFnId {
     Sha256,
@@ -20,13 +19,12 @@ enum HashFnId {
 
 impl fmt::Display for HashFnId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let hash_fn_str = match self {
-            HashFnId::Sha256 => "sha-256",
-            HashFnId::Poseidon => "poseidon",
-            HashFnId::Blake3 => "blake3",
-            HashFnId::Keccak256 => "keccak256",
-        };
-        write!(f, "{}", hash_fn_str)
+        match self {
+            HashFnId::Sha256 => write!(f, "sha-256"),
+            HashFnId::Poseidon => write!(f, "poseidon"),
+            HashFnId::Blake3 => write!(f, "blake3"),
+            HashFnId::Keccak256 => write!(f, "keccak256"),
+        }
     }
 }
 
@@ -75,126 +73,127 @@ struct EvalArgs {
 
     #[arg(long)]
     pub elf_path: String,
+
+    #[arg(long, default_value_t = 1)]
+    pub runs: usize,
 }
 
 fn main() {
     let args = EvalArgs::parse();
 
-    let elf_path = args.elf_path;
-    println!("ELF path: {}", elf_path);
-
-    let benchmark_path = args.benchmark_path;
-    println!("Benchmark path: {}", benchmark_path);
-
-    // Read the program from the file system.
-    let program = Program::from_elf(&elf_path);
-    let elf = fs::read(&elf_path).unwrap();
-
-    // Compute some statistics.
+    // Load the program.
+    let elf_path = &args.elf_path;
+    let program = Program::from_elf(elf_path);
     let cycles = get_cycles(program.clone());
-    println!("sp1 cycles: {}", cycles);
 
-    // Setup the prover.
-    std::env::set_var("SHARD_SIZE", format!("{}", args.shard_size));
-    if args.shard_size & (args.shard_size - 1) != 0 {
-        panic!("shard_size must be a power of 2");
+    // Initialize total duration counters.
+    let mut total_execution_duration = 0f64;
+    let mut total_prove_duration = 0f64;
+    let mut total_verify_duration = 0f64;
+
+    // Perform runs.
+    for _ in 0..args.runs {
+        let elf = fs::read(elf_path).expect("Failed to read ELF file");
+        let (execution_duration, prove_duration, verify_duration) =
+            run_evaluation(&args.hashfn, &program, &elf);
+
+        // Accumulate durations.
+        total_execution_duration += execution_duration;
+        total_prove_duration += prove_duration;
+        total_verify_duration += verify_duration;
     }
 
-    let (execution_duration, prove_duration, verify_duration) = match args.hashfn {
-        HashFnId::Blake3 => {
-            // Execute the runtime.
-            let mut runtime = Runtime::new(program);
-            let execution_start = Instant::now();
-            runtime.run();
-            let execution_duration = execution_start.elapsed();
-
-            // Generate the proof.
-            let config = BabyBearBlake3::new();
-            let prove_start = Instant::now();
-            let proof = prove_core(config, runtime);
-            let prove_duration = prove_start.elapsed();
-            let proof = SP1ProofWithIO {
-                stdin: SP1Stdin::new(),
-                stdout: SP1Stdout::new(),
-                proof,
-            };
-
-            // Verify the proof.
-            let config = BabyBearBlake3::new();
-            let verify_start = Instant::now();
-            SP1Verifier::verify_with_config(&elf, &proof, config).unwrap();
-            let verify_duration = verify_start.elapsed();
-
-            (execution_duration, prove_duration, verify_duration)
-        }
-        HashFnId::Poseidon => {
-            // Execute the runtime.
-            let mut runtime = Runtime::new(program);
-            let execution_start = Instant::now();
-            runtime.run();
-            let execution_duration = execution_start.elapsed();
-
-            // Generate the proof.
-            let config = BabyBearPoseidon2::new();
-            let prove_start = Instant::now();
-            let proof = prove_core(config, runtime);
-            let prove_duration = prove_start.elapsed();
-            let proof = SP1ProofWithIO {
-                stdin: SP1Stdin::new(),
-                stdout: SP1Stdout::new(),
-                proof,
-            };
-
-            // Verify the proof.
-            let config = BabyBearPoseidon2::new();
-            let verify_start = Instant::now();
-            SP1Verifier::verify_with_config(&elf, &proof, config).unwrap();
-            let verify_duration = verify_start.elapsed();
-
-            (execution_duration, prove_duration, verify_duration)
-        }
-        HashFnId::Keccak256 => {
-            // Execute the runtime.
-            let mut runtime = Runtime::new(program);
-            let execution_start = Instant::now();
-            runtime.run();
-            let execution_duration = execution_start.elapsed();
-
-            // Generate the proof.
-            let config = BabyBearKeccak::new();
-            let prove_start = Instant::now();
-            let proof = prove_core(config, runtime);
-            let prove_duration = prove_start.elapsed();
-            let proof = SP1ProofWithIO {
-                stdin: SP1Stdin::new(),
-                stdout: SP1Stdout::new(),
-                proof,
-            };
-
-            // Verify the proof.
-            let config = BabyBearKeccak::new();
-            let verify_start = Instant::now();
-            SP1Verifier::verify_with_config(&elf, &proof, config).unwrap();
-            let verify_duration = verify_start.elapsed();
-
-            (execution_duration, prove_duration, verify_duration)
-        }
-        _ => panic!("unsupported hash function"),
-    };
+    // Calculate average durations.
+    let avg_execution_duration = total_execution_duration / args.runs as f64;
+    let avg_prove_duration = total_prove_duration / args.runs as f64;
+    let avg_verify_duration = total_verify_duration / args.runs as f64;
 
     let report = PerformanceReport {
         program: args.program,
         hashfn: args.hashfn.to_string(),
         shard_size: args.shard_size,
         cycles,
-        speed: (cycles as f64) / prove_duration.as_secs_f64(),
-        execution_duration: execution_duration.as_secs_f64(),
-        prove_duration: prove_duration.as_secs_f64(),
-        verify_duration: verify_duration.as_secs_f64(),
+        speed: cycles as f64 / avg_prove_duration,
+        execution_duration: avg_execution_duration,
+        prove_duration: avg_prove_duration,
+        verify_duration: avg_verify_duration,
     };
 
-    if let Err(e) = write_report(report, &benchmark_path) {
+    // Write the report.
+    if let Err(e) = write_report(report, &args.benchmark_path) {
         eprintln!("Failed to write report: {}", e);
+    }
+}
+
+fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64, f64) {
+    match hashfn {
+        HashFnId::Blake3 => {
+            let mut runtime = Runtime::new(program.clone());
+            let execution_start = Instant::now();
+            runtime.run();
+            let execution_duration = execution_start.elapsed().as_secs_f64();
+
+            let config = BabyBearBlake3::new();
+            let prove_start = Instant::now();
+            let proof = prove_core(config.clone(), runtime);
+            let prove_duration = prove_start.elapsed().as_secs_f64();
+            let proof = SP1ProofWithIO {
+                stdin: SP1Stdin::new(),
+                stdout: SP1Stdout::new(),
+                proof,
+            };
+
+            let verify_start = Instant::now();
+            SP1Verifier::verify_with_config(elf, &proof, config).unwrap();
+            let verify_duration = verify_start.elapsed().as_secs_f64();
+
+            (execution_duration, prove_duration, verify_duration)
+        }
+        HashFnId::Poseidon => {
+            let mut runtime = Runtime::new(program.clone());
+            let execution_start = Instant::now();
+            runtime.run();
+            let execution_duration = execution_start.elapsed().as_secs_f64();
+
+            let config = BabyBearPoseidon2::new();
+            let prove_start = Instant::now();
+            let proof = prove_core(config.clone(), runtime);
+            let prove_duration = prove_start.elapsed().as_secs_f64();
+            let proof = SP1ProofWithIO {
+                stdin: SP1Stdin::new(),
+                stdout: SP1Stdout::new(),
+                proof,
+            };
+
+            let verify_start = Instant::now();
+            SP1Verifier::verify_with_config(elf, &proof, config).unwrap();
+            let verify_duration = verify_start.elapsed().as_secs_f64();
+
+            (execution_duration, prove_duration, verify_duration)
+        }
+        HashFnId::Keccak256 => {
+            let mut runtime = Runtime::new(program.clone());
+            let execution_start = Instant::now();
+            runtime.run();
+            let execution_duration = execution_start.elapsed().as_secs_f64();
+
+            let config = BabyBearKeccak::new();
+            let prove_start = Instant::now();
+            let proof = prove_core(config.clone(), runtime);
+            let prove_duration = prove_start.elapsed().as_secs_f64();
+            let proof = SP1ProofWithIO {
+                stdin: SP1Stdin::new(),
+                stdout: SP1Stdout::new(),
+                proof,
+            };
+
+            let verify_start = Instant::now();
+            SP1Verifier::verify_with_config(elf, &proof, config).unwrap();
+            let verify_duration = verify_start.elapsed().as_secs_f64();
+
+            (execution_duration, prove_duration, verify_duration)
+        }
+        _ => panic!("Unsupported hash function"),
     }
 }
 
