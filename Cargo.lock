@@ -2519,7 +2519,10 @@ version = "0.1.0"
 dependencies = [
  "p3-air",
  "p3-baby-bear",
+ "p3-commit",
  "p3-field",
+ "p3-fri",
+ "p3-matrix",
  "sp1-core",
  "sp1-recursion-macros",
 ]

@@ -1,6 +1,7 @@
 extern crate alloc;
 
 mod constants;
+mod pcs;
 pub use constants::*;
 
 pub use sp1_core::*;
