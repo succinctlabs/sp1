@@ -1,6 +1,6 @@
 use super::FieldToken;
 use proc_macro2::TokenStream;
-use sp1_core::lookup::Interaction;
+use sp1_recursion::lookup::Interaction;
 
 use crate::interaction_token;
 use quote::quote;

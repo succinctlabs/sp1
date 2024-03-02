@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use sp1_core::stark::StarkGenericConfig;
+use sp1_recursion::stark::StarkGenericConfig;
 use syn::Path;
 pub trait ConfigToken: StarkGenericConfig {
     fn get_type() -> Path;

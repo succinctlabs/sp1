@@ -9,8 +9,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-sp1-core = { path = "../../core" }
-p3-baby-bear = { workspace = true }
+sp1-recursion = { path = "../primitives" }
 p3-field = { workspace = true }
 p3-air = { workspace = true }
 proc-macro2 = "1.0"

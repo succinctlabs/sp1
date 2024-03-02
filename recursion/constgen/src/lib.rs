@@ -21,11 +21,11 @@ use virtual_column::*;
 
 use proc_macro2::Ident;
 
-use p3_baby_bear::BabyBear;
+use sp1_recursion::baby_bear::BabyBear;
 
-use sp1_core::air::MachineAir;
-use sp1_core::stark::{Chip, RiscvAir};
-use sp1_core::utils::BabyBearBlake3;
+use sp1_recursion::air::MachineAir;
+use sp1_recursion::stark::{Chip, RiscvAir};
+use sp1_recursion::utils::BabyBearBlake3;
 
 #[proc_macro]
 pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {

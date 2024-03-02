@@ -1,8 +1,8 @@
 extern crate alloc;
 
-pub use sp1_core::*;
-
 use sp1_recursion_macros::const_riscv_stark;
+
+pub use sp1_recursion::*;
 
 const_riscv_stark! {}
 
@@ -17,8 +17,8 @@ mod tests {
     use crate::stark::{LocalProver, RiscvStark};
     use crate::utils::BabyBearBlake3;
     use crate::utils::{setup_logger, StarkUtils};
+    use baby_bear::BabyBear;
     use p3_air::{PairCol, VirtualPairCol};
-    use p3_baby_bear::BabyBear;
     use p3_field::{Field, PrimeField32};
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {

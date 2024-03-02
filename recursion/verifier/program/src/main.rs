@@ -7,7 +7,7 @@ use sp1_recursion::stark::Proof;
 use sp1_recursion::stark::VerifyingKey;
 use sp1_recursion::utils::StarkUtils;
 
-use sp1_recursion::RISCV_STARK;
+use sp1_static_machine::RISCV_STARK;
 
 pub fn main() {
     type SC = sp1_recursion::utils::BabyBearBlake3;

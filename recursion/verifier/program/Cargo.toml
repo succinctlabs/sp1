@@ -7,3 +7,4 @@ edition = "2021"
 [dependencies]
 sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 sp1-recursion = { path = "../../primitives" }
+sp1-static-machine = { path = "../../machine" }

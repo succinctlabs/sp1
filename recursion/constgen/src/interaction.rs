@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 
 use crate::virtual_pair_col_token;
 use quote::quote;
-use sp1_core::lookup::{Interaction, InteractionKind};
+use sp1_recursion::lookup::{Interaction, InteractionKind};
 use syn::Ident;
 
 pub fn kind_token(value: &InteractionKind) -> TokenStream {

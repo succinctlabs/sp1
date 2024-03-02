@@ -12,7 +12,7 @@ pub fn get_fixture_proof() -> SP1ProofWithIO<BabyBearBlake3> {
 }
 
 pub fn get_program() -> Program {
-    simple_program()
+    add_program()
 }
 
 #[allow(dead_code)]

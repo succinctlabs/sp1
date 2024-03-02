@@ -4,6 +4,7 @@ use sp1_core::runtime::Program;
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::LocalProver;
 use sp1_core::stark::RiscvStark;
+use sp1_core::stark::Val;
 use sp1_core::utils;
 use sp1_core::utils::BabyBearBlake3;
 use sp1_core::utils::StarkUtils;
@@ -22,7 +23,7 @@ fn main() {
     let program = get_program();
     let (pk, vk) = machine.setup(&program);
 
-    let mut runtime = Runtime::<BabyBear>::new(program);
+    let mut runtime = Runtime::<Val<BabyBearBlake3>>::new(program);
     runtime.run();
 
     let mut challenger = machine.config().challenger();
@@ -60,7 +61,7 @@ mod tests {
         let program = get_program();
         let (pk, vk) = machine.setup(&program);
 
-        let mut runtime = Runtime::<BabyBear>::new(program);
+        let mut runtime = Runtime::new(program);
         runtime.run();
 
         let mut challenger = machine.config().challenger();

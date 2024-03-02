@@ -9,6 +9,5 @@ edition = "2021"
 sp1-core = { path = "../../core" }
 sp1-recursion-macros = { path = "../constgen" }
 sp1-recursion = { path = "../primitives" }
-p3-baby-bear = { workspace = true }
 p3-air = { workspace = true }
 p3-field = { workspace = true }
