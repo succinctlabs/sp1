@@ -192,6 +192,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    DebugInteractionsFailed,
 }
 
 #[cfg(test)]
