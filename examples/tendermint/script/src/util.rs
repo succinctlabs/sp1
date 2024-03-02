@@ -75,7 +75,7 @@ where
     Ok(response)
 }
 
-pub async fn generate_light_block_at_given_block_height(
+pub async fn fetch_light_block(
     block_height: u64,
     peer_id: [u8; 20],
 ) -> Result<LightBlock, Box<dyn Error>> {
