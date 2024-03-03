@@ -2,6 +2,7 @@
 use core::arch::asm;
 
 /// Halts the program.
+#[allow(unused_variables)]
 pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     #[cfg(target_os = "zkvm")]
     unsafe {
