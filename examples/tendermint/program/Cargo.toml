@@ -12,6 +12,7 @@ tendermint = { version = "0.34.0", default-features = false }
 tendermint-light-client-verifier = { version = "0.34.0", default-features = false, features = [
     "rust-crypto",
 ] }
+serde_cbor = "0.11.2"
 
 [patch.crates-io]
 sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }

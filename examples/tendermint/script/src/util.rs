@@ -80,7 +80,7 @@ pub async fn fetch_light_block(
     peer_id: [u8; 20],
 ) -> Result<LightBlock, Box<dyn Error>> {
     let client = Client::new();
-    const BASE_URL: &str = "https://celestia-mocha-rpc.publicnode.com:443";
+    const BASE_URL: &str = "https://celestia-rpc.publicnode.com:443";
 
     let commit_response =
         fetch_json::<CommitResponse>(&client, &format!("{}/commit", BASE_URL), block_height)
