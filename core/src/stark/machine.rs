@@ -207,6 +207,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    DebugInteractionsFailed,
 }
 
 impl<SC: StarkGenericConfig> VerifyingKey<SC> {

@@ -59,11 +59,12 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let mut challenger = machine.config().challenger();
 
     let start = Instant::now();
+    let record_clone = runtime.record.clone();
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record_clone, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
-    assert!(debug_interactions_with_all_chips(
+    assert!(debug_interactions_with_all_chips::<BabyBearBlake3>(
         &machine.chips(),
         &runtime.record,
         InteractionKind::all_kinds(),
