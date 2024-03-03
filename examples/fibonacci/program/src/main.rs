@@ -16,8 +16,4 @@ fn fibonacci(n: u32) -> u32 {
 pub fn main() {
     let result = black_box(fibonacci(black_box(50000)));
     println!("result: {}", result);
-    println!("result2: {}", result + 2);
-    println!("resuilt3: {}\n results4 {}", result + 3, result + 4);
-    assert_eq!(result, 0);
-    println!("result: {}", result);
 }
