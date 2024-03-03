@@ -103,8 +103,8 @@ pub enum RiscvAir<F: PrimeField32> {
 
 impl<F: PrimeField32> RiscvAir<F> {
     /// Get all the different RISC-V AIRs.
-    pub fn get_all() -> Vec<Self> {
-        vec![
+    pub const fn get_all() -> [Self; 28] {
+        [
             Self::Cpu(CpuChip),
             Self::Program(ProgramChip::new()),
             Self::FADD(NativeChip::add()),

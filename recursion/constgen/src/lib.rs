@@ -33,12 +33,30 @@ pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
     let mut tokens = TokenStream2::new();
 
     let airs = RiscvAir::<F>::get_all();
+    let num_chips = airs.len();
 
     // Add a constant for each chip, and collect tokens for putting them in a slice.
     let air_type = riscv_air_type::<F>();
+    let airs_ident = Ident::new("RISCV_AIRS", proc_macro2::Span::call_site());
+    let chip_slice = quote! {
+        pub const #airs_ident : [#air_type ; #num_chips ] = crate::stark::RiscvAir::get_all();
+    };
+    tokens.extend(chip_slice);
+
+    let get_air_at_index = quote! {
+        pub const fn get_air_at_index<F>(index: usize) -> crate::stark::RiscvAir<F>
+        where F: p3_field::PrimeField32 {
+            let all_airs =  crate::stark::RiscvAir::<F>::get_all();
+
+            // * Safety : TODO
+            unsafe { core::mem::transmute_copy(&all_airs[index]) }
+        }
+    };
+    tokens.extend(get_air_at_index);
+
     let mut chip_tokens = vec![];
     for (i, air) in airs.into_iter().enumerate() {
-        let air_token = quote! {crate::stark::RiscvAir::get_air_at_index(#i) };
+        let air_token = quote! {get_air_at_index(#i) };
         let chip = Chip::<F, _>::new(air);
 
         let name = chip.name().to_uppercase();
