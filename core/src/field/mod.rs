@@ -11,7 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 
-use p3_matrix::{MatrixRowSlices};
+use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 
 use sp1_derive::AlignedBorrow;
@@ -163,7 +163,7 @@ mod tests {
 
     use super::{event::FieldEvent, FieldLtuChip};
     use crate::{
-        runtime::{ExecutionRecord},
+        runtime::ExecutionRecord,
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
