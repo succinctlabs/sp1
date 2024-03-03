@@ -10,6 +10,7 @@ mod syscall;
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
+use hashbrown::hash_map::Entry;
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
@@ -17,7 +18,6 @@ pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use state::*;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
@@ -357,7 +357,7 @@ impl Runtime {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
-    #[inline]
+    #[inline(always)]
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
@@ -380,14 +380,14 @@ impl Runtime {
     }
 
     /// Set the destination register with the result and emit an ALU event.
-    #[inline]
+    #[inline(always)]
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
         self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
     }
 
     /// Fetch the input operand values for a load instruction.
-    #[inline]
+    #[inline(always)]
     fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, u32) {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
@@ -397,7 +397,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a store instruction.
-    #[inline]
+    #[inline(always)]
     fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
         let c = imm;
@@ -409,7 +409,7 @@ impl Runtime {
     }
 
     /// Fetch the input operand values for a branch instruction.
-    #[inline]
+    #[inline(always)]
     fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let c = imm;
@@ -419,6 +419,7 @@ impl Runtime {
     }
 
     /// Fetch the instruction at the current program counter.
+    #[inline(always)]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]

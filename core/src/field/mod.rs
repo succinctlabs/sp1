@@ -10,23 +10,27 @@ use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
+
 use p3_matrix::{Matrix, MatrixRowSlices};
-use p3_maybe_rayon::prelude::*; //{ParallelIterator, ParallelSlice,};
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
+
 use sp1_derive::AlignedBorrow;
 
 use tracing::instrument;
 
 /// The number of main trace columns for `FieldLTUChip`.
-pub const NUM_FIELD_COLS: usize = size_of::<FieldLTUCols<u8>>();
+
+pub const NUM_FIELD_COLS: usize = size_of::<FieldLtuCols<u8>>();
 const WIDTH: usize = 10;
+
 /// A chip that implements less than within the field.
 #[derive(Default)]
-pub struct FieldLTUChip;
+pub struct FieldLtuChip;
 
 /// The column layout for the chip.
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldLTUCols<T> {
+pub struct FieldLtuCols<T> {
     /// The result of the `LT` operation on `a` and `b`
     pub lt: T,
 
@@ -47,10 +51,10 @@ pub struct FieldLTUCols<T> {
 #[derive(Debug, Clone, AlignedBorrow, Copy)]
 #[repr(C)]
 pub struct PackedFieldLTUCols<T> {
-    packed_chips: [FieldLTUCols<T>; WIDTH],
+    packed_chips: [FieldLtuCols<T>; WIDTH],
 }
 
-impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
+impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
@@ -69,7 +73,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
                 let mut row = [F::zero(); NUM_FIELD_COLS * WIDTH];
                 let packed_cols: /*&mut FieldLTUCols<F>*/ &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
 		for (i, event) in events.iter().enumerate() {
-                    let mut cols: &mut FieldLTUCols<F> = packed_cols.packed_chips[i].borrow_mut();
+                    let mut cols: &mut FieldLtuCols<F> = packed_cols.packed_chips[i].borrow_mut();
                     let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
                     cols.b = F::from_canonical_u32(event.b);
                     cols.c = F::from_canonical_u32(event.c);
@@ -100,17 +104,18 @@ impl<F: PrimeField> MachineAir<F> for FieldLTUChip {
 
 pub const LTU_NB_BITS: usize = 29;
 
-impl<F: Field> BaseAir<F> for FieldLTUChip {
+impl<F: Field> BaseAir<F> for FieldLtuChip {
     fn width(&self) -> usize {
         NUM_FIELD_COLS * WIDTH
     }
 }
 
-impl<AB: SP1AirBuilder> Air<AB> for FieldLTUChip {
+impl<AB: SP1AirBuilder> Air<AB> for FieldLtuChip {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
+
         let local_packed: &PackedFieldLTUCols<AB::Var> = main.row_slice(0).borrow();
-        let local_packed_chips: Vec<FieldLTUCols<AB::Var>> = local_packed.packed_chips.to_vec();
+        let local_packed_chips: Vec<FieldLtuCols<AB::Var>> = local_packed.packed_chips.to_vec();
         local_packed_chips.iter().for_each(|local| {
             // Dummy constraint for normalizing to degree 3.
             builder.assert_eq(local.b * local.b * local.b, local.b * local.b * local.b);
@@ -156,7 +161,7 @@ mod tests {
     };
     use rand::{thread_rng, Rng};
 
-    use super::{event::FieldEvent, FieldLTUChip};
+    use super::{event::FieldEvent, FieldLtuChip};
     use crate::{
         runtime::{ExecutionRecord, Opcode},
         utils::{BabyBearPoseidon2, StarkUtils},
@@ -166,7 +171,7 @@ mod tests {
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
         shard.field_events = vec![FieldEvent::new(true, 1, 2)];
-        let chip = FieldLTUChip::default();
+        let chip = FieldLtuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
@@ -187,7 +192,7 @@ mod tests {
                 .push(FieldEvent::new(true, operand_1, operand_2));
         }
 
-        let chip = FieldLTUChip::default();
+        let chip = FieldLtuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof_time = Instant::now();

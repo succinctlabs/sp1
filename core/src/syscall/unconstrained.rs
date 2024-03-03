@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use crate::runtime::{ForkState, Syscall, SyscallContext};
+use hashbrown::HashMap;
 
 pub struct SyscallEnterUnconstrained;
 

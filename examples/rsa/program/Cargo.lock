@@ -591,11 +591,11 @@ dependencies = [
 name = "sp1-zkvm"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bincode",
  "cfg-if",
  "getrandom",
  "k256",
+ "libm",
  "rand",
  "serde",
  "sp1-precompiles",

@@ -160,6 +160,10 @@ where
     ) -> RowMajorMatrix<F> {
         self.air.generate_trace(input, output)
     }
+
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        self.air.generate_dependencies(input, output)
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.

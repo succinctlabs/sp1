@@ -1,4 +1,5 @@
 use itertools::izip;
+use itertools::Itertools;
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_challenger::CanObserve;
@@ -41,41 +42,28 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             ..
         } = proof;
 
-        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
-        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
-
-        let num_interactions = sends
+        let (main_dims, perm_dims, quot_dims): (Vec<_>, Vec<_>, Vec<_>) = chips
             .iter()
-            .zip(receives.iter())
-            .map(|(s, r)| s.len() + r.len())
-            .collect::<Vec<usize>>();
+            .zip(opened_values.chips.iter())
+            .map(|(chip, val)| {
+                (
+                    Dimensions {
+                        width: chip.width(),
+                        height: 1 << val.log_degree,
+                    },
+                    Dimensions {
+                        width: (chip.sends().len() + chip.receives().len()) * SC::Challenge::D,
+                        height: 1 << val.log_degree,
+                    },
+                    Dimensions {
+                        width: SC::Challenge::D << chip.log_quotient_degree(),
+                        height: 1 << val.log_degree,
+                    },
+                )
+            })
+            .multiunzip();
 
-        let dims = &[
-            chips
-                .iter()
-                .zip(opened_values.chips.iter())
-                .map(|(chip, val)| Dimensions {
-                    width: chip.width(),
-                    height: 1 << val.log_degree,
-                })
-                .collect::<Vec<_>>(),
-            num_interactions
-                .iter()
-                .zip(opened_values.chips.iter())
-                .map(|(n_int, val)| Dimensions {
-                    width: (*n_int + 1) * SC::Challenge::D,
-                    height: 1 << val.log_degree,
-                })
-                .collect::<Vec<_>>(),
-            chips
-                .iter()
-                .zip(opened_values.chips.iter())
-                .map(|(chip, val)| Dimensions {
-                    width: SC::Challenge::D << chip.log_quotient_degree(),
-                    height: 1 << val.log_degree,
-                })
-                .collect::<Vec<_>>(),
-        ];
+        let dims = &[main_dims, perm_dims, quot_dims];
 
         let g_subgroups = opened_values
             .chips

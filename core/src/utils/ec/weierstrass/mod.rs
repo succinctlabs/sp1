@@ -39,9 +39,9 @@ pub trait WeierstrassParameters: EllipticCurveParameters {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SWCurve<E>(pub E);
+pub struct SwCurve<E>(pub E);
 
-impl<E: WeierstrassParameters> WeierstrassParameters for SWCurve<E> {
+impl<E: WeierstrassParameters> WeierstrassParameters for SwCurve<E> {
     const A: [u16; MAX_NB_LIMBS] = E::A;
     const B: [u16; MAX_NB_LIMBS] = E::B;
 
@@ -66,11 +66,11 @@ impl<E: WeierstrassParameters> WeierstrassParameters for SWCurve<E> {
     }
 }
 
-impl<E: WeierstrassParameters> EllipticCurveParameters for SWCurve<E> {
+impl<E: WeierstrassParameters> EllipticCurveParameters for SwCurve<E> {
     type BaseField = E::BaseField;
 }
 
-impl<E: WeierstrassParameters> EllipticCurve for SWCurve<E> {
+impl<E: WeierstrassParameters> EllipticCurve for SwCurve<E> {
     fn ec_add(p: &AffinePoint<Self>, q: &AffinePoint<Self>) -> AffinePoint<Self> {
         p.sw_add(q)
     }
@@ -94,8 +94,8 @@ impl<E: WeierstrassParameters> EllipticCurve for SWCurve<E> {
     }
 }
 
-impl<E: WeierstrassParameters> SWCurve<E> {
-    pub fn generator() -> AffinePoint<SWCurve<E>> {
+impl<E: WeierstrassParameters> SwCurve<E> {
+    pub fn generator() -> AffinePoint<SwCurve<E>> {
         let (x, y) = E::generator();
 
         AffinePoint::new(x, y)
@@ -110,9 +110,9 @@ impl<E: WeierstrassParameters> SWCurve<E> {
     }
 }
 
-impl<E: WeierstrassParameters> AffinePoint<SWCurve<E>> {
+impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     pub fn sw_scalar_mul(&self, scalar: &BigUint) -> Self {
-        let mut result: Option<AffinePoint<SWCurve<E>>> = None;
+        let mut result: Option<AffinePoint<SwCurve<E>>> = None;
         let mut temp = self.clone();
         let bits = biguint_to_bits_le(scalar, E::nb_scalar_bits());
         for bit in bits {
@@ -125,8 +125,8 @@ impl<E: WeierstrassParameters> AffinePoint<SWCurve<E>> {
     }
 }
 
-impl<E: WeierstrassParameters> AffinePoint<SWCurve<E>> {
-    pub fn sw_add(&self, other: &AffinePoint<SWCurve<E>>) -> AffinePoint<SWCurve<E>> {
+impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
+    pub fn sw_add(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
         if self.x == other.x && self.y == other.y {
             panic!("Error: Points are the same. Use sw_double instead.");
         }
@@ -142,7 +142,7 @@ impl<E: WeierstrassParameters> AffinePoint<SWCurve<E>> {
         AffinePoint::new(x_3n, y_3n)
     }
 
-    pub fn sw_double(&self) -> AffinePoint<SWCurve<E>> {
+    pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
         let p = E::BaseField::modulus();
         let a = E::a_int();
         let slope_numerator = (&a + &(&self.x * &self.x) * 3u32) % &p;

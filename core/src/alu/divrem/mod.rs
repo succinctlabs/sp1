@@ -546,13 +546,13 @@ where
                         );
                     builder
                         .when(not_overflow.clone())
-                        .when(one.clone() - local.b_neg)
-                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
+                        .when_ne(one.clone(), local.b_neg)
+                        .assert_zero(c_times_quotient_plus_remainder[i].clone());
 
                     // The only exception to the upper-4-byte check is the overflow case.
                     builder
                         .when(local.is_overflow)
-                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
+                        .assert_zero(c_times_quotient_plus_remainder[i].clone());
                 }
             }
         }
