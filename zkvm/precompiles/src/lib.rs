@@ -3,7 +3,7 @@ pub mod secp256k1;
 pub mod unconstrained;
 
 extern "C" {
-    pub fn syscall_halt() -> !;
+    pub fn syscall_halt(exit_code: u8) -> !;
     pub fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize);
     pub fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize);
     pub fn syscall_sha256_extend(w: *mut u32);

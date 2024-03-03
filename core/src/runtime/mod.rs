@@ -73,6 +73,9 @@ pub struct Runtime {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
+    /// Whether the runtime should panic on halt or not.
+    pub panic_on_halt: bool,
+
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
     /// the unconstrained block. The only thing preserved is writes to the input stream.
@@ -106,7 +109,9 @@ impl Runtime {
             cpu_record: CpuRecord::default(),
             shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
+            io_buf: HashMap::new(),
             trace_buf,
+            panic_on_halt: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map: default_syscall_map(),
