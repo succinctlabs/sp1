@@ -58,14 +58,14 @@ impl Syscall for SyscallWrite {
                 } else {
                     let flush_s = update_io_buf(ctx, fd, s);
                     if let Some(s) = flush_s {
-                        log::info!("stdout: {}", s);
+                        s.split('\n').for_each(|line| println!("stdout: {}", line));
                     }
                 }
             } else if fd == 2 {
                 let s = core::str::from_utf8(slice).unwrap();
                 let flush_s = update_io_buf(ctx, fd, s);
                 if let Some(s) = flush_s {
-                    log::info!("stderr: {}", s);
+                    s.split('\n').for_each(|line| println!("stderr: {}", line));
                 }
             } else if fd == 3 {
                 rt.state.output_stream.extend_from_slice(slice);
@@ -85,14 +85,10 @@ pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Option<Strin
         if let Some(existing) = rt.io_buf.remove(&fd) {
             Some(format!("{}{}", existing, s.trim_end()))
         } else {
-            Some(format!("{}", s.trim_end()))
+            Some(s.trim_end().to_string())
         }
     } else {
-        ctx.rt
-            .io_buf
-            .entry(fd)
-            .or_insert_with(String::new)
-            .push_str(s);
+        ctx.rt.io_buf.entry(fd).or_default().push_str(s);
         None
     }
 }
