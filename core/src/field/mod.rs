@@ -11,8 +11,8 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, Field, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 
-use p3_matrix::{Matrix, MatrixRowSlices};
-use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
+use p3_matrix::{MatrixRowSlices};
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 
 use sp1_derive::AlignedBorrow;
 
@@ -73,7 +73,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
                 let mut row = [F::zero(); NUM_FIELD_COLS * WIDTH];
                 let packed_cols: /*&mut FieldLTUCols<F>*/ &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
 		for (i, event) in events.iter().enumerate() {
-                    let mut cols: &mut FieldLtuCols<F> = packed_cols.packed_chips[i].borrow_mut();
+                    let cols: &mut FieldLtuCols<F> = packed_cols.packed_chips[i].borrow_mut();
                     let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
                     cols.b = F::from_canonical_u32(event.b);
                     cols.c = F::from_canonical_u32(event.c);
@@ -95,8 +95,8 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
         let mut trace = RowMajorMatrix::new(flat_rows, NUM_FIELD_COLS * WIDTH);
 
         // Pad the trace to a power of two.
-        const width: usize = NUM_FIELD_COLS * WIDTH;
-        pad_to_power_of_two::<width, F>(&mut trace.values);
+        const WIDTHP: usize = NUM_FIELD_COLS * WIDTH;
+        pad_to_power_of_two::<WIDTHP, F>(&mut trace.values);
 
         trace
     }
@@ -163,7 +163,7 @@ mod tests {
 
     use super::{event::FieldEvent, FieldLtuChip};
     use crate::{
-        runtime::{ExecutionRecord, Opcode},
+        runtime::{ExecutionRecord},
         utils::{BabyBearPoseidon2, StarkUtils},
     };
 
@@ -183,8 +183,8 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        let mut result = true;
-        for i in 0..1000 {
+        let result = true;
+        for _ in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..100);
             let operand_2 = operand_1 + 2;
             shard
@@ -199,7 +199,7 @@ mod tests {
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
         println!("proof time {:?}", proof_time.elapsed());
         let mut challenger = config.challenger();
-        if result == true {
+        if result {
             verify(&config, &chip, &mut challenger, &proof).unwrap();
         }
     }
