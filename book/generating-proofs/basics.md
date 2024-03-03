@@ -14,6 +14,8 @@ To make this more concrete, let's walk through a simple example of generating a 
 {{#include ../../examples/fibonacci-io/script/src/main.rs}}
 ```
 
+You can run the above script with `RUST_LOG=info cargo run --release`.
+
 ## Build Script
 
 If you want your program crate to be built automatically whenever you build/run your script crate, you can add a `build.rs` file inside of `script/`:

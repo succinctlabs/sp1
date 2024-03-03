@@ -56,11 +56,17 @@ impl Syscall for SyscallWrite {
                         u32_to_comma_separated(rt.state.global_clk - start)
                     );
                 } else {
-                    log::info!("stdout: {}", s.trim_end());
+                    let flush_s = update_io_buf(ctx, fd, s);
+                    if let Some(s) = flush_s {
+                        log::info!("stdout: {}", s);
+                    }
                 }
             } else if fd == 2 {
                 let s = core::str::from_utf8(slice).unwrap();
-                log::info!("stderr: {}", s.trim_end());
+                let flush_s = update_io_buf(ctx, fd, s);
+                if let Some(s) = flush_s {
+                    log::info!("stderr: {}", s);
+                }
             } else if fd == 3 {
                 rt.state.output_stream.extend_from_slice(slice);
             } else if fd == 4 {
@@ -70,5 +76,23 @@ impl Syscall for SyscallWrite {
             }
         }
         0
+    }
+}
+
+pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Option<String> {
+    let rt = &mut ctx.rt;
+    if s.ends_with('\n') {
+        if let Some(existing) = rt.io_buf.remove(&fd) {
+            Some(format!("{}{}", existing, s.trim_end()))
+        } else {
+            Some(format!("{}", s.trim_end()))
+        }
+    } else {
+        ctx.rt
+            .io_buf
+            .entry(fd)
+            .or_insert_with(String::new)
+            .push_str(s);
+        None
     }
 }

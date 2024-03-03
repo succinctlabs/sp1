@@ -67,6 +67,9 @@ pub struct Runtime {
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
 
+    /// A buffer for stdout and stderr IO.
+    pub io_buf: HashMap<u32, String>,
+
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
