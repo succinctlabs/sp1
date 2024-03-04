@@ -72,4 +72,7 @@ pub mod tests {
 
     pub const SHA2_ELF: &[u8] =
         include_bytes!("../../../tests/sha2/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SIMPLE_PRECOMPILE_ELF: &[u8] =
+        include_bytes!("../../../tests/simple-precompile/elf/riscv32im-succinct-zkvm-elf");
 }
