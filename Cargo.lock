@@ -19,9 +19,9 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.8.10"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b79b82693f705137f8fb9b37871d99e4f9a7df12b917eed79c3d3954830a60b"
+checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -295,10 +295,11 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.0.88"
+version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02f341c093d19155a6e41631ce5971aac4e9a868262212153124c15fa22d1cdc"
+checksum = "a0ba8f7aaa012f30d5b2861462f6708eccd49c3c39863fe083a308035f63d723"
 dependencies = [
+ "jobserver",
  "libc",
 ]
 
@@ -1030,9 +1031,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8947b1a6fad4393052c7ba1f4cd97bed3e953a95c79c92ad9b051a04611d9fbb"
+checksum = "601cbb57e577e2f5ef5be8e7b83f0f63994f25aa94d673e54a92d5c516d101f1"
 dependencies = [
  "bytes",
  "fnv",
@@ -1195,6 +1196,15 @@ name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
+
+[[package]]
+name = "jobserver"
+version = "0.1.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab46a6e9526ddef3ae7f787c06f0f2600639ba80ea3eade3d8e670a2230f51d6"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "js-sys"
@@ -1510,6 +1520,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1518,6 +1529,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "rand",
@@ -1527,6 +1539,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -1535,6 +1548,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1546,6 +1560,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -1556,6 +1571,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1566,6 +1582,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "itertools 0.12.1",
  "p3-util",
@@ -1576,6 +1593,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "cfg-if",
  "itertools 0.12.1",
@@ -1595,6 +1613,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1605,6 +1624,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1614,6 +1634,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1622,6 +1643,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1633,6 +1655,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1644,6 +1667,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "rayon",
 ]
@@ -1651,6 +1675,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1666,6 +1691,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -1681,6 +1707,7 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -1695,6 +1722,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1708,6 +1736,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -1717,6 +1746,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -1734,6 +1764,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#e3df298d545a2b113e3a7d44cae5ef02cef607d5"
 dependencies = [
  "serde",
 ]
@@ -1969,7 +2000,7 @@ checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.5",
+ "regex-automata 0.4.6",
  "regex-syntax 0.8.2",
 ]
 
@@ -1984,9 +2015,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bb987efffd3c6d0d8f5f89510bb458559eab11e4f869acb20bf845e016259cd"
+checksum = "86b83b8b9847f9bf95ef68afb0b8e6cdb80f498442f5179a29fad448fcc1eaea"
 dependencies = [
  "aho-corasick",
  "memchr",
