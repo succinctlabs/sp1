@@ -1,11 +1,12 @@
 use itertools::izip;
 use p3_challenger::CanSample;
-use p3_commit::{Mmcs, Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_commit::{DirectMmcs, Mmcs, Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_dft::TwoAdicSubgroupDft;
 #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
 use p3_field::AbstractExtensionField;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use p3_fri::{verifier, FriConfig, TwoAdicFriPcs, TwoAdicFriPcsGenericConfig, VerificationError};
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::dense::{RowMajorMatrix, RowMajorMatrixView};
 use p3_util::{log2_strict_usize, reverse_bits_len};
 
 #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
@@ -19,7 +20,13 @@ pub struct RecursiveTwoAdicFriPCS<C: TwoAdicFriPcsGenericConfig> {
     pcs: TwoAdicFriPcs<C>,
 }
 
-impl<C: TwoAdicFriPcsGenericConfig> RecursiveTwoAdicFriPCS<C> {
+impl<
+        F: DirectMmcs<C::Challenge> + Copy,
+        D: TwoAdicSubgroupDft<C::Val> + Copy,
+        I: 'static + for<'a> DirectMmcs<C::Val, Mat<'a> = RowMajorMatrixView<'a, C::Val>> + Copy,
+        C: TwoAdicFriPcsGenericConfig<FriMmcs = F, Dft = D, InputMmcs = I>,
+    > RecursiveTwoAdicFriPCS<C>
+{
     pub const fn new(fri: FriConfig<C::FriMmcs>, dft: C::Dft, mmcs: C::InputMmcs) -> Self {
         let plonky3_pcs = TwoAdicFriPcs::new(fri, dft, mmcs);
 
