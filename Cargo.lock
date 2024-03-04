@@ -2524,12 +2524,9 @@ dependencies = [
  "p3-symmetric",
  "p3-uni-stark",
  "p3-util",
- "proc-macro2",
- "quote",
  "serde",
  "sp1-core",
  "sp1-zkvm 0.1.0",
- "syn 1.0.109",
 ]
 
 [[package]]

@@ -25,7 +25,4 @@ p3-util = { workspace = true }
 blake3-zkvm = { git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0" }
 cfg-if = "1.0"
 itertools = "0.12.1"
-proc-macro2 = "1.0"
-quote = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-syn = { version = "1.0", features = ["full"] }
