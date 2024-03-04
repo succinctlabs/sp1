@@ -67,7 +67,10 @@ where
 {
     let response = client
         .get(url)
-        .query(&[("height", block_height.to_string().as_str())])
+        .query(&[
+            ("height", block_height.to_string().as_str()),
+            ("per_page", "100"), // helpful only when fetching validators
+        ])
         .send()
         .await?
         .json::<T>()
