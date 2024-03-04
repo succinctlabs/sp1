@@ -156,143 +156,146 @@ where
 }
 
 pub use baby_bear_keccak::BabyBearKeccak;
-// pub use baby_bear_poseidon2::BabyBearPoseidon2;
+pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
 
-// pub(super) mod baby_bear_poseidon2 {
+pub(super) mod baby_bear_poseidon2 {
 
-//     use crate::utils::prove::RC_16_30;
-//     use p3_baby_bear::BabyBear;
-//     use p3_challenger::DuplexChallenger;
-//     use p3_commit::ExtensionMmcs;
-//     use p3_dft::Radix2DitParallel;
-//     use p3_field::{extension::BinomialExtensionField, Field};
-//     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
-//     use p3_merkle_tree::FieldMerkleTreeMmcs;
-//     use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-//     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-//     use serde::{Deserialize, Serialize};
+    use crate::utils::prove::RC_16_30;
+    use p3_baby_bear::BabyBear;
+    use p3_challenger::DuplexChallenger;
+    use p3_commit::ExtensionMmcs;
+    use p3_dft::Radix2DitParallel;
+    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
+    use p3_merkle_tree::FieldMerkleTreeMmcs;
+    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
+    use serde::{Deserialize, Serialize};
 
-//     use crate::stark::StarkGenericConfig;
+    use crate::stark::StarkGenericConfig;
 
-//     use super::StarkUtils;
+    use super::StarkUtils;
 
-//     pub type Val = BabyBear;
+    pub type Val = BabyBear;
 
-//     pub type Challenge = BinomialExtensionField<Val, 4>;
+    pub type Challenge = BinomialExtensionField<Val, 4>;
 
-//     pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
-//     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
+    const ROUNDS_F: usize = 8;
+    const ROUNDS_P: usize = 22;
+    const NUM_ROUNDS: usize = ROUNDS_F + ROUNDS_P;
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, NUM_ROUNDS, ROUNDS_F, ROUNDS_P, 5>;
+    pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
-//     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
 
-//     pub type ValMmcs = FieldMerkleTreeMmcs<
-//         <Val as Field>::Packing,
-//         <Val as Field>::Packing,
-//         MyHash,
-//         MyCompress,
-//         8,
-//     >;
-//     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<
+        <Val as Field>::Packing,
+        <Val as Field>::Packing,
+        MyHash,
+        MyCompress,
+        8,
+    >;
+    pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
-//     pub type Dft = Radix2DitParallel;
+    pub type Dft = Radix2DitParallel;
 
-//     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-//     type Pcs =
-//         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
+    type Pcs =
+        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
 
-//     #[derive(Deserialize)]
-//     #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
-//     pub struct BabyBearPoseidon2 {
-//         perm: Perm,
-//         pcs: Pcs,
-//     }
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
+    pub struct BabyBearPoseidon2 {
+        perm: Perm,
+        pcs: Pcs,
+    }
 
-//     /// Implement serialization manually instead of using serde to avoid cloing the config.
-//     impl Serialize for BabyBearPoseidon2 {
-//         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//         where
-//             S: serde::Serializer,
-//         {
-//             std::marker::PhantomData::<BabyBearPoseidon2>.serialize(serializer)
-//         }
-//     }
+    /// Implement serialization manually instead of using serde to avoid cloing the config.
+    impl Serialize for BabyBearPoseidon2 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            std::marker::PhantomData::<BabyBearPoseidon2>.serialize(serializer)
+        }
+    }
 
-//     impl From<std::marker::PhantomData<BabyBearPoseidon2>> for BabyBearPoseidon2 {
-//         fn from(_: std::marker::PhantomData<BabyBearPoseidon2>) -> Self {
-//             Self::new()
-//         }
-//     }
+    impl From<std::marker::PhantomData<BabyBearPoseidon2>> for BabyBearPoseidon2 {
+        fn from(_: std::marker::PhantomData<BabyBearPoseidon2>) -> Self {
+            Self::new()
+        }
+    }
 
-//     impl Clone for BabyBearPoseidon2 {
-//         fn clone(&self) -> Self {
-//             Self::new()
-//         }
-//     }
+    impl Clone for BabyBearPoseidon2 {
+        fn clone(&self) -> Self {
+            Self::new()
+        }
+    }
 
-//     impl BabyBearPoseidon2 {
-//         pub fn new() -> Self {
-//             let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+    impl BabyBearPoseidon2 {
+        pub fn new() -> Self {
+            let perm = Perm::new(*RC_16_30, DiffusionMatrixBabybear);
 
-//             let hash = MyHash::new(perm.clone());
+            let hash = MyHash::new(perm);
 
-//             let compress = MyCompress::new(perm.clone());
+            let compress = MyCompress::new(perm);
 
-//             let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(hash, compress);
 
-//             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs);
 
-//             let dft = Dft {};
+            let dft = Dft {};
 
-//             let fri_config = FriConfig {
-//                 log_blowup: 1,
-//                 num_queries: 100,
-//                 proof_of_work_bits: 16,
-//                 mmcs: challenge_mmcs,
-//             };
-//             let pcs = Pcs::new(fri_config, dft, val_mmcs);
+            let fri_config = FriConfig {
+                log_blowup: 1,
+                num_queries: 100,
+                proof_of_work_bits: 16,
+                mmcs: challenge_mmcs,
+            };
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
-//             Self { pcs, perm }
-//         }
-//     }
+            Self { pcs, perm }
+        }
+    }
 
-//     impl StarkUtils for BabyBearPoseidon2 {
-//         type UniConfig = Self;
+    impl StarkUtils for BabyBearPoseidon2 {
+        type UniConfig = Self;
 
-//         fn challenger(&self) -> Self::Challenger {
-//             Challenger::new(self.perm.clone())
-//         }
+        fn challenger(&self) -> Self::Challenger {
+            Challenger::new(self.perm)
+        }
 
-//         fn uni_stark_config(&self) -> &Self::UniConfig {
-//             self
-//         }
-//     }
+        fn uni_stark_config(&self) -> &Self::UniConfig {
+            self
+        }
+    }
 
-//     impl StarkGenericConfig for BabyBearPoseidon2 {
-//         type Val = Val;
-//         type Challenge = Challenge;
-//         type Pcs = Pcs;
-//         type Challenger = Challenger;
+    impl StarkGenericConfig for BabyBearPoseidon2 {
+        type Val = Val;
+        type Challenge = Challenge;
+        type Pcs = Pcs;
+        type Challenger = Challenger;
 
-//         fn pcs(&self) -> &Self::Pcs {
-//             &self.pcs
-//         }
-//     }
+        fn pcs(&self) -> &Self::Pcs {
+            &self.pcs
+        }
+    }
 
-//     impl p3_uni_stark::StarkGenericConfig for BabyBearPoseidon2 {
-//         type Val = Val;
-//         type Challenge = Challenge;
-//         type Pcs = Pcs;
-//         type Challenger = Challenger;
+    impl p3_uni_stark::StarkGenericConfig for BabyBearPoseidon2 {
+        type Val = Val;
+        type Challenge = Challenge;
+        type Pcs = Pcs;
+        type Challenger = Challenger;
 
-//         fn pcs(&self) -> &Self::Pcs {
-//             &self.pcs
-//         }
-//     }
-// }
+        fn pcs(&self) -> &Self::Pcs {
+            &self.pcs
+        }
+    }
+}
 
 pub(super) mod baby_bear_keccak {
 
