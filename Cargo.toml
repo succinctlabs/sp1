@@ -24,22 +24,22 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-field = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-commit = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-util = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-dft = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-fri = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-blake3 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-mds = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
-p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git", branch = "kevjue/restore_plonky3_two_adic_fri_pcs" }
+p3-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-field = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-commit = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-util = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-dft = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-fri = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-blake3 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-mds = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
+p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git", branch = "tamir/recursion-combined" }
