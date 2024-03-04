@@ -1,7 +1,9 @@
 use itertools::izip;
 use p3_challenger::CanSample;
 use p3_commit::{Mmcs, Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_field::{AbstractExtensionField, AbstractField, PrimeField32, TwoAdicField};
+#[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
+use p3_field::AbstractExtensionField;
+use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use p3_fri::{verifier, FriConfig, TwoAdicFriPcs, TwoAdicFriPcsGenericConfig, VerificationError};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::{log2_strict_usize, reverse_bits_len};
