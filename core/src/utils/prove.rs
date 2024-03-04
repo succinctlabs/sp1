@@ -183,10 +183,7 @@ pub(super) mod baby_bear_poseidon2 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 22;
-    const NUM_ROUNDS: usize = ROUNDS_F + ROUNDS_P;
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, NUM_ROUNDS, ROUNDS_F, ROUNDS_P, 5>;
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -238,15 +235,15 @@ pub(super) mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let perm = Perm::new(*RC_16_30, DiffusionMatrixBabybear);
+            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
 
-            let hash = MyHash::new(perm);
+            let hash = MyHash::new(perm.clone());
 
-            let compress = MyCompress::new(perm);
+            let compress = MyCompress::new(perm.clone());
 
             let val_mmcs = ValMmcs::new(hash, compress);
 
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs);
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
             let dft = Dft {};
 
@@ -266,7 +263,7 @@ pub(super) mod baby_bear_poseidon2 {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm)
+            Challenger::new(self.perm.clone())
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -364,7 +361,7 @@ pub(super) mod baby_bear_keccak {
 
             let val_mmcs = ValMmcs::new(field_hash, compress);
 
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs);
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
             let dft = Dft {};
 
