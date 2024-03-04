@@ -1,0 +1,31 @@
+[package]
+name = "sp1-recursion-pcs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sp1-core = { path = "../../core" }
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+
+p3-air = { workspace = true }
+p3-baby-bear = { workspace = true }
+p3-challenger = { workspace = true }
+p3-commit = { workspace = true }
+p3-dft = { workspace = true }
+p3-fri = { workspace = true }
+p3-field = { workspace = true }
+p3-matrix = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-uni-stark = { workspace = true }
+p3-util = { workspace = true }
+
+blake3-zkvm = { git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0" }
+cfg-if = "1.0"
+itertools = "0.12.1"
+proc-macro2 = "1.0"
+quote = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+syn = { version = "1.0", features = ["full"] }

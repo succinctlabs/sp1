@@ -1,12 +1,10 @@
 extern crate alloc;
 
-mod config;
 mod constants;
-mod hash;
-mod pcs;
 pub use constants::*;
 
 pub use sp1_core::*;
+pub use sp1_recursion_pcs::BabyBearBlake3Recursion;
 
 #[cfg(test)]
 mod tests {
@@ -22,6 +20,7 @@ mod tests {
     use p3_air::{PairCol, VirtualPairCol};
     use p3_field::extension::BinomiallyExtendable;
     use p3_field::{Field, PrimeField32};
+    use sp1_core::stark::Proof;
 
     fn assert_pair_col_eq(left: &PairCol, right: &PairCol) {
         match (left, right) {
@@ -67,8 +66,8 @@ mod tests {
 
     #[test]
     fn test_constant_gen() {
-        let config = BabyBearBlake3::new();
-        let machine = RiscvStark::<BabyBearBlake3>::new(config);
+        let config = BabyBearBlake3Recursion::new();
+        let machine = RiscvStark::<BabyBearBlake3Recursion>::new(config);
 
         for (chip, const_chip) in machine.chips().iter().zip(RISCV_STARK.chips()) {
             assert_chips_eq(chip, const_chip);
@@ -90,14 +89,20 @@ mod tests {
         let config = BabyBearBlake3::new();
 
         let machine = RiscvStark::new(config);
-        let (pk, vk) = machine.setup(runtime.program.as_ref());
+        let (pk, _) = machine.setup(runtime.program.as_ref());
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger);
+        let proof_json = serde_json::to_string(&proof).unwrap();
 
+        let config = BabyBearBlake3Recursion::new();
+        let machine = RiscvStark::new(config);
+        let (_, vk) = machine.setup(runtime.program.as_ref());
         let mut challenger = machine.config().challenger();
+        let recursive_proof: Proof<BabyBearBlake3Recursion> =
+            serde_json::from_str(&proof_json).unwrap();
 
         RISCV_STARK
-            .verify(&vk, &proof, &mut challenger)
+            .verify(&vk, &recursive_proof, &mut challenger)
             .expect("verification failed");
     }
 }

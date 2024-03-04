@@ -12,6 +12,7 @@ use sp1_core::SP1Prover;
 use sp1_core::SP1Stdin;
 use sp1_core::SP1Verifier;
 
+use sp1_recursion_pcs::BabyBearBlake3Recursion;
 use verifier_script::{get_fixture_proof, simple_program};
 
 const VERIFIER_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -36,7 +37,7 @@ fn main() {
 
     // Write the first shard proof to stdin of the recursive verifier.
     let mut stdin = SP1Stdin::new();
-    let proof = get_fixture_proof().proof;
+    let proof = get_fixture_proof::<BabyBearBlake3Recursion>().proof;
     stdin.write(&proof);
 
     // Execute the recursive verifier and get the cycle counts.
@@ -55,11 +56,11 @@ mod tests {
 
     #[test]
     fn test_main_execution() {
-        type SC = sp1_recursion::utils::BabyBearBlake3;
+        type SC = sp1_recursion::BabyBearBlake3Recursion;
 
         let config = SC::new();
         let mut stdin = SP1Stdin::new();
-        let proof = get_fixture_proof().proof;
+        let proof = get_fixture_proof::<SC>().proof;
 
         let vk = VerifyingKey::empty();
         let mut challenger = config.challenger();

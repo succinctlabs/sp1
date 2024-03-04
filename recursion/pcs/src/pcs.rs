@@ -1,75 +1,43 @@
 use itertools::izip;
-use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
-use p3_commit::{DirectMmcs, Mmcs, Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_dft::TwoAdicSubgroupDft;
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, PrimeField32, TwoAdicField};
-use p3_fri::{
-    verifier, FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig, TwoAdicFriPcsGenericConfig,
-    VerificationError,
-};
-use p3_matrix::dense::{RowMajorMatrix, RowMajorMatrixView};
+use p3_challenger::CanSample;
+use p3_commit::{Mmcs, Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_field::{AbstractExtensionField, AbstractField, PrimeField32, TwoAdicField};
+use p3_fri::{verifier, FriConfig, TwoAdicFriPcs, TwoAdicFriPcsGenericConfig, VerificationError};
+use p3_matrix::dense::RowMajorMatrix;
 use p3_util::{log2_strict_usize, reverse_bits_len};
 
+#[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
 extern "C" {
     fn syscall_fri_fold(input_mem_ptr: *const u32, output_mem_ptr: *const *mut u32);
 }
 
-pub(crate) trait TwoAdicPrime32FriPcsGenericConfig: TwoAdicFriPcsGenericConfig {
-    type Prime32Val: TwoAdicField + PrimeField32;
-    type Prime32Challenge: TwoAdicField + ExtensionField<Self::Prime32Val>;
-    type ChallengerPrime32: FieldChallenger<Self::Val>
-        + GrindingChallenger<Witness = Self::Val>
-        + CanObserve<<Self::FriMmcs as Mmcs<Self::Challenge>>::Commitment>
-        + CanSample<Self::Challenge>
-        + CanSample<Self::Prime32Challenge>;
-}
-
-pub(crate) struct RecursiveTwoAdicFriPCS<C: TwoAdicPrime32FriPcsGenericConfig> {
+pub struct RecursiveTwoAdicFriPCS<C: TwoAdicFriPcsGenericConfig> {
     fri: FriConfig<C::FriMmcs>,
-    dft: C::Dft,
     mmcs: C::InputMmcs,
     pcs: TwoAdicFriPcs<C>,
 }
 
-impl<C: TwoAdicPrime32FriPcsGenericConfig> RecursiveTwoAdicFriPCS<C> {
+impl<C: TwoAdicFriPcsGenericConfig> RecursiveTwoAdicFriPCS<C> {
     pub const fn new(fri: FriConfig<C::FriMmcs>, dft: C::Dft, mmcs: C::InputMmcs) -> Self {
         let plonky3_pcs = TwoAdicFriPcs::new(fri, dft, mmcs);
+
         Self {
             fri,
-            dft,
             mmcs,
             pcs: plonky3_pcs,
         }
     }
 }
 
-impl<Val, Challenge, Challenger, Dft, InputMmcs, FriMmcs> TwoAdicPrime32FriPcsGenericConfig
-    for TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, InputMmcs, FriMmcs>
-where
-    Val: TwoAdicField + PrimeField32,
-    Challenge: TwoAdicField + ExtensionField<Val>,
-    Challenger: FieldChallenger<Val>
-        + GrindingChallenger<Witness = Val>
-        + CanObserve<<FriMmcs as Mmcs<Challenge>>::Commitment>
-        + CanSample<Challenge>,
-    Dft: TwoAdicSubgroupDft<Val>,
-    InputMmcs: 'static + for<'a> DirectMmcs<Val, Mat<'a> = RowMajorMatrixView<'a, Val>>,
-    FriMmcs: DirectMmcs<Challenge>,
-{
-    type Prime32Val = Val;
-    type Prime32Challenge = Challenge;
-    type ChallengerPrime32 = Challenger;
-}
-
-impl<C: TwoAdicPrime32FriPcsGenericConfig>
-    UnivariatePcsWithLde<C::Val, C::Challenge, RowMajorMatrix<C::Val>, C::ChallengerPrime32>
+impl<Val: TwoAdicField + PrimeField32, C: TwoAdicFriPcsGenericConfig<Val = Val>>
+    UnivariatePcsWithLde<C::Val, C::Challenge, RowMajorMatrix<C::Val>, C::Challenger>
     for RecursiveTwoAdicFriPCS<C>
 {
     type Lde<'a> = <TwoAdicFriPcs<C> as UnivariatePcsWithLde<
         C::Val,
         C::Challenge,
         RowMajorMatrix<C::Val>,
-        C::Challenger,
+        <C as TwoAdicFriPcsGenericConfig>::Challenger,
     >>::Lde<'a> where C: 'a;
 
     fn coset_shift(&self) -> C::Val {
@@ -77,7 +45,7 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
             C::Val,
             C::Challenge,
             RowMajorMatrix<C::Val>,
-            C::Challenger,
+            <C as TwoAdicFriPcsGenericConfig>::Challenger,
         >>::coset_shift(&self.pcs)
     }
 
@@ -86,7 +54,7 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
             C::Val,
             C::Challenge,
             RowMajorMatrix<C::Val>,
-            C::Challenger,
+            <C as TwoAdicFriPcsGenericConfig>::Challenger,
         >>::log_blowup(&self.pcs)
     }
 
@@ -98,7 +66,7 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
             C::Val,
             C::Challenge,
             RowMajorMatrix<C::Val>,
-            C::Challenger,
+            <C as TwoAdicFriPcsGenericConfig>::Challenger,
         >>::get_ldes(&self.pcs, prover_data)
     }
 
@@ -119,21 +87,16 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
     }
 }
 
-impl<C: TwoAdicPrime32FriPcsGenericConfig>
-    UnivariatePcs<C::Val, C::Challenge, RowMajorMatrix<C::Val>, C::ChallengerPrime32>
+impl<Val: TwoAdicField + PrimeField32, C: TwoAdicFriPcsGenericConfig<Val = Val>>
+    UnivariatePcs<C::Val, C::Challenge, RowMajorMatrix<C::Val>, C::Challenger>
     for RecursiveTwoAdicFriPCS<C>
 {
     fn open_multi_batches(
         &self,
-        prover_data_and_points: &[(&Self::ProverData, &[Vec<C::Challenge>])],
-        challenger: &mut C::ChallengerPrime32,
+        _prover_data_and_points: &[(&Self::ProverData, &[Vec<C::Challenge>])],
+        _challenger: &mut C::Challenger,
     ) -> (p3_commit::OpenedValues<C::Challenge>, Self::Proof) {
-        <TwoAdicFriPcs<C> as UnivariatePcs<
-            C::Val,
-            C::Challenge,
-            RowMajorMatrix<C::Val>,
-            C::Challenger,
-        >>::open_multi_batches(&self.pcs, prover_data_and_points, challenger)
+        panic!("Not implemented for recursive verifier");
     }
 
     fn verify_multi_batches(
@@ -142,10 +105,10 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
         dims: &[Vec<p3_matrix::Dimensions>],
         values: p3_commit::OpenedValues<C::Challenge>,
         proof: &Self::Proof,
-        challenger: &mut C::ChallengerPrime32,
+        challenger: &mut C::Challenger,
     ) -> Result<(), Self::Error> {
         // Batch combination challenge
-        let alpha = <C::ChallengerPrime32 as CanSample<C::Prime32Challenge>>::sample(challenger);
+        let alpha = <C::Challenger as CanSample<C::Challenge>>::sample(challenger);
 
         let fri_challenges =
             verifier::verify_shape_and_sample_challenges(&self.fri, &proof.fri_proof, challenger)
@@ -182,18 +145,23 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
                         let rev_reduced_index = reverse_bits_len(index >> bits_reduced, log_height);
 
                         // A field mul with (field lookup then field exp)
-                        let x = C::Prime32Val::generator()
-                            * C::Prime32Val::two_adic_generator(log_height)
+                        let x = C::Val::generator()
+                            * C::Val::two_adic_generator(log_height)
                                 .exp_u64(rev_reduced_index as u64);
 
+                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
                         let mut array_arg: [u32; 14] = [0u32; 14];
+                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
                         let mut array_idx = 0;
-                        array_arg[array_idx] = x.as_canonical_u32();
-                        alpha.as_base_slice().iter().for_each(|x| {
-                            array_idx += 1;
+                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
+                        {
                             array_arg[array_idx] = x.as_canonical_u32();
-                        });
-
+                            alpha.as_base_slice().iter().for_each(|x| {
+                                array_idx += 1;
+                                array_arg[array_idx] = x.as_canonical_u32();
+                            });
+                        }
+                        #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))]
                         let save_arg: [*mut u32; 2] = [
                             ro[log_height].as_base_slice_mut() as *mut u32,
                             alpha_pow[log_height].as_base_slice_mut() as *mut u32,
@@ -202,20 +170,28 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
                         for (&z, ps_at_z) in izip!(mat_points, mat_at_z) {
                             #[allow(clippy::never_loop)]
                             for (&p_at_x, &p_at_z) in izip!(mat_opening, ps_at_z) {
-                                let mut idx = array_idx;
-                                z.as_base_slice().iter().for_each(|x| {
-                                    idx += 1;
-                                    array_arg[idx] = x.as_canonical_u32();
-                                });
-                                p_at_z.as_base_slice().iter().for_each(|x| {
-                                    idx += 1;
-                                    array_arg[idx] = x.as_canonical_u32();
-                                });
-                                idx += 1;
-                                array_arg[idx] = p_at_x.as_canonical_u32();
+                                cfg_if::cfg_if! {
+                                    if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
+                                        let mut idx = array_idx;
+                                        z.as_base_slice().iter().for_each(|x| {
+                                            idx += 1;
+                                            array_arg[idx] = x.as_canonical_u32();
+                                        });
+                                        p_at_z.as_base_slice().iter().for_each(|x| {
+                                            idx += 1;
+                                            array_arg[idx] = x.as_canonical_u32();
+                                        });
+                                        idx += 1;
+                                        array_arg[idx] = p_at_x.as_canonical_u32();
 
-                                unsafe {
-                                    syscall_fri_fold((&array_arg).as_ptr(), (&save_arg).as_ptr());
+                                        unsafe {
+                                            syscall_fri_fold((array_arg).as_ptr(), (save_arg).as_ptr());
+                                        }
+                                    } else {
+                                        let quotient = (-p_at_z + p_at_x) / (-z + x);
+                                        ro[log_height] += alpha_pow[log_height] * quotient;
+                                        alpha_pow[log_height] *= alpha;
+                                    }
                                 }
                             }
                         }
@@ -238,7 +214,7 @@ impl<C: TwoAdicPrime32FriPcsGenericConfig>
     }
 }
 
-impl<T: TwoAdicPrime32FriPcsGenericConfig> Pcs<T::Val, RowMajorMatrix<T::Val>>
+impl<T: TwoAdicFriPcsGenericConfig> Pcs<T::Val, RowMajorMatrix<T::Val>>
     for RecursiveTwoAdicFriPCS<T>
 {
     type Commitment = <TwoAdicFriPcs<T> as Pcs<T::Val, RowMajorMatrix<T::Val>>>::Commitment;

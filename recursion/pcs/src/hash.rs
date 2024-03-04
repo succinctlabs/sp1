@@ -1,6 +1,6 @@
 use p3_symmetric::{CryptographicHasher, PseudoCompressionFunction};
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Blake3SingleBlockCompression;
 
 impl Blake3SingleBlockCompression {

@@ -176,19 +176,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake3"
-version = "1.5.0"
-source = "git+https://github.com/succinctlabs/BLAKE3.git?branch=hide/compress-inner-patch-off-1-5-0#cf88c0a29f9a7ff18e3a4df21e4c3eb53c536ede"
-dependencies = [
- "arrayref",
- "arrayvec",
- "cc",
- "cfg-if",
- "constant_time_eq",
- "rayon",
-]
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -917,7 +904,6 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -926,7 +912,6 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "rand",
@@ -936,16 +921,14 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
- "blake3 1.5.0 (git+https://github.com/succinctlabs/BLAKE3.git?branch=hide/compress-inner-patch-off-1-5-0)",
+ "blake3",
  "p3-symmetric",
 ]
 
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -957,7 +940,6 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-challenger",
  "p3-field",
@@ -968,7 +950,6 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -979,7 +960,6 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "itertools",
  "p3-util",
@@ -990,7 +970,6 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "cfg-if",
  "itertools",
@@ -1010,7 +989,6 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "p3-util",
@@ -1021,7 +999,6 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -1031,7 +1008,6 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -1040,7 +1016,6 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -1052,7 +1027,6 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -1064,7 +1038,6 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "rayon",
 ]
@@ -1072,7 +1045,6 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-baby-bear",
  "p3-dft",
@@ -1088,7 +1060,6 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "itertools",
  "p3-commit",
@@ -1104,7 +1075,6 @@ dependencies = [
 [[package]]
 name = "p3-mersenne-31"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "itertools",
  "p3-dft",
@@ -1119,7 +1089,6 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -1133,7 +1102,6 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "itertools",
  "p3-field",
@@ -1143,7 +1111,6 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "itertools",
  "p3-air",
@@ -1161,7 +1128,6 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/plonky3.git?branch=kevjue/restore_plonky3_two_adic_fri_pcs#af7997e741a55c20fb72c846816e314e950784a6"
 dependencies = [
  "serde",
 ]
@@ -1563,7 +1529,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "blake3 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake3",
  "cfg-if",
  "clap",
  "curve25519-dalek",
@@ -1625,7 +1591,7 @@ dependencies = [
 [[package]]
 name = "sp1-precompiles"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#5ea8c46254578c5e75f0570e08d90e4e200dba85"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#049410580e3945f1f90767f740ed6c7696baefdf"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1639,7 +1605,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#5ea8c46254578c5e75f0570e08d90e4e200dba85"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=kevjue/recursive_verifier_take_two#049410580e3945f1f90767f740ed6c7696baefdf"
 dependencies = [
  "anyhow",
  "bincode",
