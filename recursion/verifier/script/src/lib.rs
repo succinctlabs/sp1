@@ -1,10 +1,13 @@
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sp1_core::runtime::Instruction;
 use sp1_core::runtime::Opcode;
 use sp1_core::runtime::Program;
-use sp1_core::utils::BabyBearBlake3;
+use sp1_core::stark::StarkGenericConfig;
 use sp1_core::SP1ProofWithIO;
 
-pub fn get_fixture_proof() -> SP1ProofWithIO<BabyBearBlake3> {
+pub fn get_fixture_proof<SC: StarkGenericConfig + Serialize + DeserializeOwned>(
+) -> SP1ProofWithIO<SC> {
     let proof_str = include_str!("./fixtures/fib-proof-with-pis.json");
 
     serde_json::from_str(proof_str).expect("loading proof failed")

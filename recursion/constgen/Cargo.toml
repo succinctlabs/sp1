@@ -10,9 +10,12 @@ proc-macro = true
 
 [dependencies]
 sp1-core = { path = "../../core" }
+sp1-recursion-pcs = { path = "../pcs" }
+
+p3-air = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-field = { workspace = true }
-p3-air = { workspace = true }
+
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "1.0", features = ["full"] }

@@ -427,10 +427,7 @@ pub(super) mod baby_bear_blake3 {
     use p3_field::extension::BinomialExtensionField;
     use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_symmetric::{
-        CompressionFunctionFromHasher, CryptographicHasher, PseudoCompressionFunction,
-        SerializingHasher32,
-    };
+    use p3_symmetric::{CompressionFunctionFromHasher, CryptographicHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
@@ -442,40 +439,21 @@ pub(super) mod baby_bear_blake3 {
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
     type ByteHash = Blake3U32;
-    type RecursiveVerifierByteHash = Blake3U32Zkvm;
 
     type FieldHash = SerializingHasher32<ByteHash>;
-    type RecursiveVerifierFieldHash = SerializingHasher32<RecursiveVerifierByteHash>;
 
     type Compress = CompressionFunctionFromHasher<u32, ByteHash, 2, 8>;
-    type RecursiveVerifierCompress = Blake3SingleBlockCompression;
 
     pub type ValMmcs = FieldMerkleTreeMmcs<Val, u32, FieldHash, Compress, 8>;
-    pub type RecursiveVerifierValMmcs =
-        FieldMerkleTreeMmcs<Val, u32, RecursiveVerifierFieldHash, RecursiveVerifierCompress, 8>;
 
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-    pub type RecursiveVerifierChallengeMmcs =
-        ExtensionMmcs<Val, Challenge, RecursiveVerifierValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
     type Challenger = SerializingChallenger32<Val, u32, HashChallenger<u32, ByteHash, 8>>;
-    type RecursiveVerifierChallenger =
-        SerializingChallenger32<Val, u32, HashChallenger<u32, RecursiveVerifierByteHash, 8>>;
 
     type Pcs =
         TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
-    type RecursiveVerifierPcs = TwoAdicFriPcs<
-        TwoAdicFriPcsConfig<
-            Val,
-            Challenge,
-            RecursiveVerifierChallenger,
-            Dft,
-            RecursiveVerifierValMmcs,
-            RecursiveVerifierChallengeMmcs,
-        >,
-    >;
 
     // Fri parameters
     const LOG_BLOWUP: usize = 1;
@@ -487,7 +465,6 @@ pub(super) mod baby_bear_blake3 {
     #[allow(dead_code)]
     pub struct BabyBearBlake3 {
         pcs: Pcs,
-        recursive_verifier_pcs: RecursiveVerifierPcs,
     }
 
     // Implement serialization manually instead of using serde(into) to avoid cloing the config
@@ -516,23 +493,9 @@ pub(super) mod baby_bear_blake3 {
         pub const fn new() -> Self {
             let byte_hash = ByteHash {};
             let field_hash: SerializingHasher32<Blake3U32> = FieldHash::new(byte_hash);
-
             let compress = Compress::new(byte_hash);
-
             let val_mmcs = ValMmcs::new(field_hash, compress);
-
-            let byte_hash = ByteHash {};
-            let field_hash: SerializingHasher32<Blake3U32> = FieldHash::new(byte_hash);
-
-            let compress = Compress::new(byte_hash);
-
-            let val_mmcs_clone = ValMmcs::new(field_hash, compress);
-
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs_clone);
-
-            let dft = Dft {};
-
-            let dft_clone = Dft {};
+            let challenge_mmcs = ChallengeMmcs::new(val_mmcs);
 
             let fri_config = FriConfig {
                 log_blowup: LOG_BLOWUP,
@@ -540,50 +503,11 @@ pub(super) mod baby_bear_blake3 {
                 proof_of_work_bits: PROOF_OF_WORK_BITS,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(fri_config, dft_clone, val_mmcs);
 
-            // Create the recursive verifier PCS instance
-            let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
-            let recursive_verifier_field_hash: SerializingHasher32<Blake3U32Zkvm> =
-                RecursiveVerifierFieldHash::new(recursive_verifier_byte_hash);
+            let dft = Dft {};
+            let pcs = Pcs::new(fri_config, dft, val_mmcs);
 
-            let recursive_verifier_compress = RecursiveVerifierCompress::new();
-
-            let recursive_verifier_val_mmcs = RecursiveVerifierValMmcs::new(
-                recursive_verifier_field_hash,
-                recursive_verifier_compress,
-            );
-
-            let recursive_verifier_byte_hash = RecursiveVerifierByteHash {};
-            let recursive_verifier_field_hash: SerializingHasher32<Blake3U32Zkvm> =
-                RecursiveVerifierFieldHash::new(recursive_verifier_byte_hash);
-
-            let recursive_verifier_compress = RecursiveVerifierCompress::new();
-
-            let recursive_verifier_val_mmcs_clone = RecursiveVerifierValMmcs::new(
-                recursive_verifier_field_hash,
-                recursive_verifier_compress,
-            );
-
-            let recursive_verifier_challenge_mmcs =
-                RecursiveVerifierChallengeMmcs::new(recursive_verifier_val_mmcs_clone);
-
-            let recursive_verifier_fri_config = FriConfig {
-                log_blowup: LOG_BLOWUP,
-                num_queries: NUM_QUERIES,
-                proof_of_work_bits: PROOF_OF_WORK_BITS,
-                mmcs: recursive_verifier_challenge_mmcs,
-            };
-            let recursive_verifier_pcs = RecursiveVerifierPcs::new(
-                recursive_verifier_fri_config,
-                dft,
-                recursive_verifier_val_mmcs,
-            );
-
-            Self {
-                pcs,
-                recursive_verifier_pcs,
-            }
+            Self { pcs }
         }
     }
 
@@ -591,13 +515,7 @@ pub(super) mod baby_bear_blake3 {
         type UniConfig = Self;
 
         fn challenger(&self) -> Self::Challenger {
-            cfg_if::cfg_if! {
-                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                    RecursiveVerifierChallenger::from_hasher(vec![], RecursiveVerifierByteHash {})
-                } else {
-                    Challenger::from_hasher(vec![], ByteHash {})
-                }
-            }
+            Challenger::from_hasher(vec![], ByteHash {})
         }
 
         fn uni_stark_config(&self) -> &Self::UniConfig {
@@ -609,24 +527,11 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
 
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                type Pcs = RecursiveVerifierPcs;
-                type Challenger = RecursiveVerifierChallenger;
-            } else {
-                type Pcs = Pcs;
-                type Challenger = Challenger;
-            }
-        }
+        type Pcs = Pcs;
+        type Challenger = Challenger;
 
         fn pcs(&self) -> &Self::Pcs {
-            cfg_if::cfg_if! {
-                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                    &self.recursive_verifier_pcs
-                } else {
-                    &self.pcs
-                }
-            }
+            &self.pcs
         }
     }
 
@@ -634,41 +539,11 @@ pub(super) mod baby_bear_blake3 {
         type Val = Val;
         type Challenge = Challenge;
 
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                type Pcs = RecursiveVerifierPcs;
-                type Challenger = RecursiveVerifierChallenger;
-            } else {
-                type Pcs = Pcs;
-                type Challenger = Challenger;
-            }
-        }
+        type Pcs = Pcs;
+        type Challenger = Challenger;
 
         fn pcs(&self) -> &Self::Pcs {
-            cfg_if::cfg_if! {
-                if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {
-                    &self.recursive_verifier_pcs
-                } else {
-                    &self.pcs
-                }
-            }
-        }
-    }
-    #[derive(Clone)]
-    pub struct Blake3SingleBlockCompression;
-
-    impl Blake3SingleBlockCompression {
-        pub const fn new() -> Self {
-            Self {}
-        }
-    }
-
-    impl PseudoCompressionFunction<[u32; 8], 2> for Blake3SingleBlockCompression {
-        fn compress(&self, input: [[u32; 8]; 2]) -> [u32; 8] {
-            let mut block_words = [0u32; blake3_zkvm::BLOCK_LEN];
-            block_words[0..8].copy_from_slice(&input[0]);
-            block_words[8..].copy_from_slice(&input[1]);
-            blake3_zkvm::hash_single_block(&block_words, blake3_zkvm::BLOCK_LEN)
+            &self.pcs
         }
     }
 
@@ -701,41 +576,6 @@ pub(super) mod baby_bear_blake3 {
             }
             let u8_hash = hasher.finalize();
             blake3::platform::words_from_le_bytes_32(u8_hash.as_bytes())
-        }
-    }
-
-    #[derive(Copy, Clone)]
-    pub struct Blake3U32Zkvm;
-
-    impl CryptographicHasher<u32, [u32; 8]> for Blake3U32Zkvm {
-        fn hash_iter<I>(&self, input: I) -> [u32; 8]
-        where
-            I: IntoIterator<Item = u32>,
-        {
-            let mut input = input.into_iter().collect::<Vec<_>>();
-            if input.len() <= blake3_zkvm::BLOCK_LEN {
-                let size = input.len();
-                input.resize(blake3_zkvm::BLOCK_LEN, 0u32);
-                blake3_zkvm::hash_single_block(input.as_slice().try_into().unwrap(), size)
-            } else {
-                let ret = self.hash_iter_slices([input.as_slice()]);
-                ret
-            }
-        }
-
-        fn hash_iter_slices<'a, I>(&self, input: I) -> [u32; 8]
-        where
-            I: IntoIterator<Item = &'a [u32]>,
-        {
-            let mut zkvm_hasher = blake3_zkvm::Hasher::new();
-
-            for chunk in input.into_iter() {
-                zkvm_hasher.update(chunk);
-            }
-            let mut out: [u32; 8] = [0u32; 8];
-            zkvm_hasher.finalize(&mut out);
-
-            out
         }
     }
 }

@@ -17,6 +17,7 @@ use config::*;
 use field::*;
 use interaction::*;
 use riscv_air::*;
+use sp1_recursion_pcs::BabyBearBlake3Recursion;
 use virtual_column::*;
 
 use proc_macro2::Ident;
@@ -25,7 +26,6 @@ use p3_baby_bear::BabyBear;
 
 use sp1_core::air::MachineAir;
 use sp1_core::stark::{Chip, RiscvAir};
-use sp1_core::utils::BabyBearBlake3;
 
 #[proc_macro]
 pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
@@ -62,9 +62,9 @@ pub fn const_riscv_stark(_input: TokenStream) -> TokenStream {
     });
 
     // get the const tokens for making the config
-    type SC = BabyBearBlake3;
+    type SC = BabyBearBlake3Recursion;
     let config_type = SC::get_type();
-    let config = BabyBearBlake3::new();
+    let config = BabyBearBlake3Recursion::new();
     let config_token = config.as_token();
 
     // Generate a constant machine from the config and chip slice

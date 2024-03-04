@@ -10,7 +10,7 @@ use sp1_recursion::utils::StarkUtils;
 use sp1_recursion::RISCV_STARK;
 
 pub fn main() {
-    type SC = sp1_recursion::utils::BabyBearBlake3;
+    type SC = sp1_recursion::BabyBearBlake3Recursion;
 
     let config = SC::new();
 

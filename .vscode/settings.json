@@ -55,6 +55,11 @@
         "tests/sha-compress/Cargo.toml",
         "tests/sha-extend/Cargo.toml",
         "tests/sha2/Cargo.toml",
+
+        "recursion/constgen/Cargo.toml",
+        "recursion/primitives/Cargo.toml",
+        "recursion/verifier/program/Cargo.toml",
+        "recursion/verifier/script/Cargo.toml",
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }
