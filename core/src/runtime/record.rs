@@ -154,8 +154,8 @@ pub struct ShardStats {
 fn drain_chunks<T>(vec: &mut Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut chunks = Vec::new();
     assert!(chunk_size > 0, "chunk size must be greater than 0");
-    println!("vec len: {}", vec.len());
     while !vec.is_empty() {
+        println!("vec len: {}", vec.len());
         chunks.push(vec.drain(0..std::cmp::min(chunk_size, vec.len())).collect());
     }
     chunks
