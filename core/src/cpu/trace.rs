@@ -19,6 +19,7 @@ use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
+use std::sync::{Arc, Mutex};
 use tracing::instrument;
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {
@@ -81,38 +82,53 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
         // Generate the trace rows for each event.
         println!("starting cpu gen");
+        println!("cpu events: {}", input.cpu_events.len());
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
-                ops.iter()
-                    .map(|op| {
-                        let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
-                        (alu_events, blu_events, field_events)
-                    })
-                    .collect::<Vec<_>>()
+                let mut alu_map = HashMap::new();
+                let mut blu: Vec<_> = Vec::default();
+                let mut field: Vec<_> = Vec::default();
+                ops.iter().for_each(|op| {
+                    let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
+                    alu_events.into_iter().for_each(|(key, value)| {
+                        alu_map.entry(key).or_insert(Vec::default()).extend(value);
+                    });
+                    // (blu_events, field_events)
+                    blu.extend(blu_events);
+                    field.extend(field_events);
+                });
+                (alu_map, blu, field)
             })
-            .flatten()
             .collect::<Vec<_>>();
-
-        println!("done cpu gen");
-
-        events.into_iter().for_each(|e| {
-            let (alu_events, blu_events, field_events) = e;
-            println!("alu_events: {}", alu_events.len());
-            println!("blu_events: {}", blu_events.len());
-            println!("field_events: {}", field_events.len());
-            alu_events.into_iter().for_each(|(key, value)| {
-                new_alu_events
-                    .entry(key)
-                    .or_insert(Vec::default())
-                    .extend(value);
-            });
-            new_blu_events.extend(blu_events);
-            new_field_events.extend(field_events);
-        });
         println!("done events");
+
+        events
+            .into_iter()
+            .for_each(|(alu_events, blu_events, field_events)| {
+                alu_events.into_iter().for_each(|(key, value)| {
+                    new_alu_events
+                        .entry(key)
+                        .or_insert(Vec::default())
+                        .extend(value);
+                });
+                new_blu_events.extend(blu_events);
+                new_field_events.extend(field_events);
+                // v.into_iter().for_each(|e| {
+                //     let (alu_events, blu_events, field_events) = e;
+                //     alu_events.into_iter().for_each(|(key, value)| {
+                //         new_alu_events
+                //             .entry(key)
+                //             .or_insert(Vec::default())
+                //             .extend(value);
+                //     });
+                //     new_blu_events.extend(blu_events);
+                //     new_field_events.extend(field_events);
+                // })
+            });
+        println!("done appending");
 
         // Add the dependency events to the shard.
         output.add_alu_events(new_alu_events);
