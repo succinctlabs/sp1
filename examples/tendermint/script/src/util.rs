@@ -57,15 +57,12 @@ pub fn sort_signatures_by_validators_power_desc(
     });
 }
 
-pub async fn fetch_json<T>(
+pub async fn fetch_commit(
     client: &Client,
     url: &str,
     block_height: u64,
-) -> Result<T, Box<dyn Error>>
-where
-    T: serde::de::DeserializeOwned,
-{
-    let response = client
+) -> Result<CommitResponse, Box<dyn Error>> {
+    let response: CommitResponse = client
         .get(url)
         .query(&[
             ("height", block_height.to_string().as_str()),
@@ -73,9 +70,42 @@ where
         ])
         .send()
         .await?
-        .json::<T>()
+        .json::<CommitResponse>()
         .await?;
     Ok(response)
+}
+
+pub async fn fetch_validators(
+    client: &Client,
+    url: &str,
+    block_height: u64,
+) -> Result<Vec<Info>, Box<dyn Error>> {
+    let mut validators = vec![];
+    let mut collected_validators = 0;
+    let mut page_index = 1;
+    loop {
+        let response = client
+            .get(url)
+            .query(&[
+                ("height", block_height.to_string().as_str()),
+                ("per_page", "30"),
+                ("page", page_index.to_string().as_str()),
+            ])
+            .send()
+            .await?
+            .json::<ValidatorSetResponse>()
+            .await?;
+        let block_validator_set: BlockValidatorSet = response.result;
+        validators.extend(block_validator_set.validators);
+        collected_validators += block_validator_set.count.parse::<i32>().unwrap();
+
+        if collected_validators >= block_validator_set.total.parse::<i32>().unwrap() {
+            break;
+        }
+        page_index += 1;
+    }
+
+    Ok(validators)
 }
 
 pub async fn fetch_light_block(
@@ -86,27 +116,21 @@ pub async fn fetch_light_block(
     const BASE_URL: &str = "https://celestia-rpc.publicnode.com:443";
 
     let commit_response =
-        fetch_json::<CommitResponse>(&client, &format!("{}/commit", BASE_URL), block_height)
-            .await?;
+        fetch_commit(&client, &format!("{}/commit", BASE_URL), block_height).await?;
     let mut signed_header = commit_response.result.signed_header;
 
-    let validator_response = fetch_json::<ValidatorSetResponse>(
-        &client,
-        &format!("{}/validators", BASE_URL),
-        block_height,
-    )
-    .await?;
-    let block_validator_set: BlockValidatorSet = validator_response.result;
-    let validators = Set::new(block_validator_set.validators, None);
+    let validator_response =
+        fetch_validators(&client, &format!("{}/validators", BASE_URL), block_height).await?;
 
-    let next_validator_response = fetch_json::<ValidatorSetResponse>(
+    let validators = Set::new(validator_response, None);
+
+    let next_validator_response = fetch_validators(
         &client,
         &format!("{}/validators", BASE_URL),
         block_height + 1,
     )
     .await?;
-    let next_block_validator_set = next_validator_response.result;
-    let next_validators = Set::new(next_block_validator_set.validators, None);
+    let next_validators = Set::new(next_validator_response, None);
 
     sort_signatures_by_validators_power_desc(&mut signed_header, &validators);
     Ok(LightBlock::new(
