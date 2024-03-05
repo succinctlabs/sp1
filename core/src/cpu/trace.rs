@@ -81,7 +81,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
 
         // Generate the trace rows for each event.
-        println!("starting cpu gen");
         println!("cpu events: {}", input.cpu_events.len());
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input

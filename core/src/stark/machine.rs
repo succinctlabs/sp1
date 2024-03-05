@@ -101,6 +101,10 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
             "Record stats before generate_trace (incomplete): {:#?}",
             record.stats()
         );
+        println!(
+            "Record stats before generate_trace (incomplete): {:#?}",
+            record.stats()
+        );
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
