@@ -80,6 +80,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
 
         // Generate the trace rows for each event.
+        println!("starting cpu gen");
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
@@ -95,24 +96,29 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
             .flatten()
             .collect::<Vec<_>>();
 
+        println!("done cpu gen");
+
         events.into_iter().for_each(|e| {
             let (alu_events, blu_events, field_events) = e;
-            for (key, value) in alu_events {
+            println!("alu_events: {}", alu_events.len());
+            println!("blu_events: {}", blu_events.len());
+            println!("field_events: {}", field_events.len());
+            alu_events.into_iter().for_each(|(key, value)| {
                 new_alu_events
                     .entry(key)
-                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
-                        op_new_events.extend(value.clone())
-                    })
-                    .or_insert(value);
-            }
+                    .or_insert(Vec::default())
+                    .extend(value);
+            });
             new_blu_events.extend(blu_events);
             new_field_events.extend(field_events);
         });
+        println!("done events");
 
         // Add the dependency events to the shard.
         output.add_alu_events(new_alu_events);
         output.add_byte_lookup_events(new_blu_events);
         output.add_field_events(&new_field_events);
+        println!("done cpu")
     }
 }
 
