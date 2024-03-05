@@ -270,13 +270,22 @@ impl ExecutionRecord {
 
         // Shard the field events.
         println!("sharding9");
-        for (field_chunk, shard) in self
-            .field_events
-            .chunks_mut(config.field_len)
-            .zip(shards.iter_mut())
-        {
-            shard.field_events.extend_from_slice(field_chunk);
-        }
+        println!("num field events: {}", self.field_events.len());
+        // for (field_chunk, shard) in self
+        //     .field_events
+        //     .chunks_mut(config.field_len)
+        //     .zip(shards.iter_mut())
+        // {
+        //     shard.field_events.extend_from_slice(field_chunk);
+        // }
+        let num_shards = shards.len();
+        self.field_events
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                let shard = &mut shards[i / num_shards];
+                shard.field_events.push(event);
+            });
 
         // Keccak-256 permute events.
         println!("sharding10");
