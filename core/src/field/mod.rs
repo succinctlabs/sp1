@@ -61,7 +61,6 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        println!("num field events: {}", input.field_events.len());
         let cols = input
             .field_events
             .par_iter()
@@ -83,15 +82,12 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
                 row
             })
             .collect::<Vec<_>>();
-        println!("done flat_map");
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(cols, NUM_FIELD_COLS);
-        println!("done trace");
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_FIELD_COLS, F>(&mut trace.values);
-        println!("done pad");
 
         trace
     }
