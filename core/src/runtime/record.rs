@@ -278,12 +278,11 @@ impl ExecutionRecord {
         // {
         //     shard.field_events.extend_from_slice(field_chunk);
         // }
-        let num_shards = shards.len();
         self.field_events
             .into_iter()
             .enumerate()
             .for_each(|(i, event)| {
-                let shard = &mut shards[i / num_shards];
+                let shard = &mut shards[i / config.field_len];
                 shard.field_events.push(event);
             });
 
