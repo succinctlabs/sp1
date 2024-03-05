@@ -830,6 +830,10 @@ impl<F: PrimeField32> Runtime<F> {
     }
 
     fn postprocess(&mut self) {
+        // Print all native field op statistics
+        println!("Native add events: {}", self.record.native_add_events.len());
+        println!("Native sub events: {}", self.record.sub_events.len());
+
         let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.
