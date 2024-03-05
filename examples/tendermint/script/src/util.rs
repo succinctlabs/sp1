@@ -88,7 +88,7 @@ pub async fn fetch_validators(
             .get(url)
             .query(&[
                 ("height", block_height.to_string().as_str()),
-                ("per_page", "30"),
+                ("per_page", "100"),
                 ("page", page_index.to_string().as_str()),
             ])
             .send()
