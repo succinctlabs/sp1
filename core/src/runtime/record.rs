@@ -153,9 +153,7 @@ pub struct ShardStats {
 
 fn drain_chunks<T>(vec: &mut Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut chunks = Vec::new();
-    assert!(chunk_size > 0, "chunk size must be greater than 0");
     while !vec.is_empty() {
-        println!("vec len: {}", vec.len());
         chunks.push(vec.drain(0..std::cmp::min(chunk_size, vec.len())).collect());
     }
     chunks
@@ -173,13 +171,14 @@ impl ExecutionRecord {
     pub fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
         println!("sharding");
-        let mut shards = drain_chunks(&mut self.cpu_events, config.shard_size)
-            .into_iter()
+        let mut shards = self
+            .cpu_events
+            .chunks_mut(config.shard_size)
             .enumerate()
             .map(|(i, cpu_chunk)| {
                 let mut shard = ExecutionRecord::default();
                 shard.index = (i + 1) as u32;
-                shard.cpu_events = cpu_chunk;
+                shard.cpu_events = cpu_chunk.to_vec();
                 shard.program = self.program.clone();
                 shard
             })
@@ -189,123 +188,128 @@ impl ExecutionRecord {
 
         // Shard the ADD events.
         println!("sharding1");
-        for (add_chunk, shard) in drain_chunks(&mut self.add_events, config.add_len)
-            .into_iter()
+        for (add_chunk, shard) in self
+            .add_events
+            .chunks_mut(config.add_len)
             .zip(shards.iter_mut())
         {
-            shard.add_events.extend_from_slice(&add_chunk);
+            shard.add_events.extend_from_slice(add_chunk);
         }
 
         // Shard the MUL events.
         println!("sharding2");
-        for (mul_chunk, shard) in drain_chunks(&mut self.mul_events, config.mul_len)
-            .into_iter()
+        for (mul_chunk, shard) in self
+            .mul_events
+            .chunks_mut(config.mul_len)
             .zip(shards.iter_mut())
         {
-            shard.mul_events.extend_from_slice(&mul_chunk);
+            shard.mul_events.extend_from_slice(mul_chunk);
         }
 
         // Shard the SUB events.
         println!("sharding3");
-        for (sub_chunk, shard) in drain_chunks(&mut self.sub_events, config.sub_len)
-            .into_iter()
+        for (sub_chunk, shard) in self
+            .sub_events
+            .chunks_mut(config.sub_len)
             .zip(shards.iter_mut())
         {
-            shard.sub_events.extend_from_slice(&sub_chunk);
+            shard.sub_events.extend_from_slice(sub_chunk);
         }
 
         // Shard the bitwise events.
         println!("sharding4");
-        for (bitwise_chunk, shard) in drain_chunks(&mut self.bitwise_events, config.bitwise_len)
-            .into_iter()
+        for (bitwise_chunk, shard) in self
+            .bitwise_events
+            .chunks_mut(config.bitwise_len)
             .zip(shards.iter_mut())
         {
-            shard.bitwise_events.extend_from_slice(&bitwise_chunk);
+            shard.bitwise_events.extend_from_slice(bitwise_chunk);
         }
 
         // Shard the shift left events.
         println!("sharding5");
-        for (shift_left_chunk, shard) in
-            drain_chunks(&mut self.shift_left_events, config.shift_left_len)
-                .into_iter()
-                .zip(shards.iter_mut())
+        for (shift_left_chunk, shard) in self
+            .shift_left_events
+            .chunks_mut(config.shift_left_len)
+            .zip(shards.iter_mut())
         {
-            shard.shift_left_events.extend_from_slice(&shift_left_chunk);
+            shard.shift_left_events.extend_from_slice(shift_left_chunk);
         }
 
         // Shard the shift right events.
         println!("sharding6");
-        for (shift_right_chunk, shard) in
-            drain_chunks(&mut self.shift_right_events, config.shift_right_len)
-                .into_iter()
-                .zip(shards.iter_mut())
+        for (shift_right_chunk, shard) in self
+            .shift_right_events
+            .chunks_mut(config.shift_right_len)
+            .zip(shards.iter_mut())
         {
             shard
                 .shift_right_events
-                .extend_from_slice(&shift_right_chunk);
+                .extend_from_slice(shift_right_chunk);
         }
 
         // Shard the divrem events.
         println!("sharding7");
-        for (divrem_chunk, shard) in drain_chunks(&mut self.divrem_events, config.divrem_len)
-            .into_iter()
+        for (divrem_chunk, shard) in self
+            .divrem_events
+            .chunks_mut(config.divrem_len)
             .zip(shards.iter_mut())
         {
-            shard.divrem_events.extend_from_slice(&divrem_chunk);
+            shard.divrem_events.extend_from_slice(divrem_chunk);
         }
 
         // Shard the LT events.
         println!("sharding8");
-        for (lt_chunk, shard) in drain_chunks(&mut self.lt_events, config.lt_len)
-            .into_iter()
+        for (lt_chunk, shard) in self
+            .lt_events
+            .chunks_mut(config.lt_len)
             .zip(shards.iter_mut())
         {
-            shard.lt_events.extend_from_slice(&lt_chunk);
+            shard.lt_events.extend_from_slice(lt_chunk);
         }
 
         // Shard the field events.
         println!("sharding9");
-        for (field_chunk, shard) in drain_chunks(&mut self.field_events, config.field_len)
-            .into_iter()
+        for (field_chunk, shard) in self
+            .field_events
+            .chunks_mut(config.field_len)
             .zip(shards.iter_mut())
         {
-            shard.field_events.extend_from_slice(&field_chunk);
+            shard.field_events.extend_from_slice(field_chunk);
         }
 
         // Keccak-256 permute events.
         println!("sharding10");
-        for (keccak_chunk, shard) in
-            drain_chunks(&mut self.keccak_permute_events, config.keccak_len)
-                .into_iter()
-                .zip(shards.iter_mut())
+        for (keccak_chunk, shard) in self
+            .keccak_permute_events
+            .chunks_mut(config.keccak_len)
+            .zip(shards.iter_mut())
         {
-            shard.keccak_permute_events.extend_from_slice(&keccak_chunk);
+            shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
         // Weierstrass curve add events.
         println!("sharding11");
-        for (weierstrass_add_chunk, shard) in
-            drain_chunks(&mut self.weierstrass_add_events, config.weierstrass_add_len)
-                .into_iter()
-                .zip(shards.iter_mut())
+        for (weierstrass_add_chunk, shard) in self
+            .weierstrass_add_events
+            .chunks_mut(config.weierstrass_add_len)
+            .zip(shards.iter_mut())
         {
             shard
                 .weierstrass_add_events
-                .extend_from_slice(&weierstrass_add_chunk);
+                .extend_from_slice(weierstrass_add_chunk);
         }
 
         // Weierstrass curve double events.
         println!("sharding12");
-        for (weierstrass_double_chunk, shard) in drain_chunks(
-            &mut self.weierstrass_double_events,
-            config.weierstrass_double_len,
-        )
-        .into_iter()
-        .zip(shards.iter_mut())
+        for (weierstrass_double_chunk, shard) in self
+            .weierstrass_double_events
+            .chunks_mut(config.weierstrass_double_len)
+            .zip(shards.iter_mut())
         {
             shard
                 .weierstrass_double_events
-                .extend_from_slice(&weierstrass_double_chunk);
+                .extend_from_slice(weierstrass_double_chunk);
         }
 
         // Put the precompile events in the first shard.
