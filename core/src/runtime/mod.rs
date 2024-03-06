@@ -643,6 +643,28 @@ impl<F: PrimeField32> Runtime<F> {
                 self.rw(rd, a);
             }
 
+            // Native arithmetic instructions
+            Opcode::NADD => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_add(c);
+                self.alu_rw(instruction, rd, a, b, c);
+            }
+            Opcode::NSUB => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_sub(c);
+                self.alu_rw(instruction, rd, a, b, c);
+            }
+            Opcode::NMUL => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_mul(c);
+                self.alu_rw(instruction, rd, a, b, c);
+            }
+            Opcode::NDIV => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_mul(c);
+                self.alu_rw(instruction, rd, a, b, c);
+            }
+
             // System instructions.
             Opcode::ECALL => {
                 let t0 = Register::X5;

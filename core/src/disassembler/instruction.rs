@@ -142,6 +142,34 @@ pub struct InstructionTranspiler;
 impl InstructionProcessor for InstructionTranspiler {
     type InstructionResult = Instruction;
 
+    fn process_native_add(
+        &mut self,
+        dec_insn: rrs_lib::instruction_formats::RType,
+    ) -> Self::InstructionResult {
+        Instruction::from_r_type(Opcode::NADD, dec_insn)
+    }
+
+    fn process_native_mul(
+        &mut self,
+        dec_insn: rrs_lib::instruction_formats::RType,
+    ) -> Self::InstructionResult {
+        Instruction::from_r_type(Opcode::NMUL, dec_insn)
+    }
+
+    fn process_native_sub(
+        &mut self,
+        dec_insn: rrs_lib::instruction_formats::RType,
+    ) -> Self::InstructionResult {
+        Instruction::from_r_type(Opcode::NSUB, dec_insn)
+    }
+
+    fn process_native_div(
+        &mut self,
+        dec_insn: rrs_lib::instruction_formats::RType,
+    ) -> Self::InstructionResult {
+        Instruction::from_r_type(Opcode::NDIV, dec_insn)
+    }
+
     fn process_add(&mut self, dec_insn: RType) -> Self::InstructionResult {
         Instruction::from_r_type(Opcode::ADD, dec_insn)
     }

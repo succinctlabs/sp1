@@ -1338,7 +1338,7 @@ dependencies = [
 [[package]]
 name = "rrs-lib"
 version = "0.1.0"
-source = "git+https://github.com/GregAC/rrs.git#b23afc16b4e6a1fb5c4a73eb1e337e9400816507"
+source = "git+https://github.com/tamirhemo/rrs.git?branch=native-ops#b299d4149655355833c70d6a22217d100b3b4345"
 dependencies = [
  "downcast-rs",
  "num_enum",

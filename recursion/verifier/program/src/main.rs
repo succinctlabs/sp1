@@ -16,38 +16,50 @@ pub fn main() {
 
     let config = SC::new();
 
+    println!("cycle-tracker-start: program");
+
     let a = 1u32;
     let b = 4u32;
-    let result: u32 = 0;
-
-    let mut result_ptr = &result as *const u32;
+    let mut result: u32;
+    let mut result_imm: u32;
 
     unsafe {
         asm!(
-            ".insn r 51, 0, 1, {0}, {1}, {2}",
-            out(reg) result_ptr,
+            ".insn r 0x7f, 0, 0, {0}, {1}, {2}",
+            out(reg) result,
             in(reg) a,
             in(reg) b,
             options(nostack)
         );
     }
 
-    // println!("result: {}", result_ptr);
+    unsafe {
+        asm!(
+            ".insn i 0b0010011, 0, {0}, {1}, 12",
+            out(reg) result_imm,
+            in(reg) a,
+            options(nostack)
+        );
+    }
 
-    // Read the proof from the input
-    println!("cycle-tracker-start: read proof");
-    let proof = sp1_zkvm::io::read::<Proof<SC>>();
-    println!("cycle-tracker-end: read proof");
+    println!("cycle-tracker-end: program");
+
+    println!("result: {}", result);
+
+    // // Read the proof from the input
+    // println!("cycle-tracker-start: read proof");
+    // let proof = sp1_zkvm::io::read::<Proof<SC>>();
+    // println!("cycle-tracker-end: read proof");
 
     println!("cycle-tracker-start: get a new challenger");
-    let mut challenger = config.challenger();
+    // let mut challenger = config.challenger();
     println!("cycle-tracker-end: get a new challenger");
 
-    let vk = VerifyingKey::empty();
+    // let vk = VerifyingKey::empty();
 
-    println!("cycle-tracker-start: verify proof");
-    RISCV_STARK
-        .verify(&vk, &proof, &mut challenger)
-        .expect("proof verification failed");
-    println!("cycle-tracker-end: verify proof");
+    // println!("cycle-tracker-start: verify proof");
+    // RISCV_STARK
+    //     .verify(&vk, &proof, &mut challenger)
+    //     .expect("proof verification failed");
+    // println!("cycle-tracker-end: verify proof");
 }

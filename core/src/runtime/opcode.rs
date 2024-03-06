@@ -59,6 +59,12 @@ pub enum Opcode {
 
     // Miscellaneaous instructions.
     UNIMP = 39,
+
+    // Native field instructions.
+    NADD = 40,
+    NSUB = 41,
+    NMUL = 42,
+    NDIV = 43,
 }
 
 impl Display for Opcode {
@@ -108,6 +114,10 @@ impl Opcode {
             Opcode::REM => "rem",
             Opcode::REMU => "remu",
             Opcode::UNIMP => "unimp",
+            Opcode::NADD => "nadd",
+            Opcode::NSUB => "nsub",
+            Opcode::NMUL => "nmul",
+            Opcode::NDIV => "ndiv",
         }
     }
 }
