@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 
 use crate::{
-    air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE},
-    syscall::precompiles::blake2b::{MSG_ELE_PER_CALL, STATE_ELE_PER_CALL},
+    air::{BaseAirBuilder, SP1AirBuilder, WordU64, WORD_SIZE, WORD_U64_SIZE},
+    syscall::precompiles::blake2b::{MSG_ELE_PER_CALL, STATE_SIZE},
 };
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
@@ -11,8 +11,8 @@ use p3_matrix::MatrixRowSlices;
 use super::{
     columns::{Blake2bCompressInnerCols, NUM_BLAKE2B_COMPRESS_INNER_COLS},
     mix::MixOperation,
-    Blake2bCompressInnerChip, MIX_INDEX, NUM_MIX_ROUNDS, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
-    SIGMA_PERMUTATIONS,
+    Blake2bCompressInnerChip, MIX_INDEX, NUM_MIX_ROUNDS, OPERATION_COUNT, SIGMA_PERMUTATIONS,
+    STATE_NUM_WORDS,
 };
 
 impl<F> BaseAir<F> for Blake2bCompressInnerChip {
@@ -30,10 +30,13 @@ where
         let local: &Blake2bCompressInnerCols<AB::Var> = main.row_slice(0).borrow();
         let next: &Blake2bCompressInnerCols<AB::Var> = main.row_slice(1).borrow();
 
+        // Constrain the control flow flags.
         self.constrain_control_flow_flags(builder, local, next);
 
+        // Constrain the memory access for the state and the message.
         self.constrain_memory(builder, local);
 
+        // Constrain the `mix` operation.
         self.constrain_mix_operation(builder, local);
     }
 }
@@ -112,7 +115,7 @@ impl Blake2bCompressInnerChip {
         local: &Blake2bCompressInnerCols<AB::Var>,
     ) {
         // Calculate the 4 indices to read from the state. This corresponds to a, b, c, d.
-        for i in 0..STATE_ELE_PER_CALL {
+        for i in 0..STATE_SIZE {
             let index_to_read = {
                 self.constrain_index_selector(
                     builder,
@@ -133,12 +136,12 @@ impl Blake2bCompressInnerChip {
         }
 
         // Read & write the state.
-        for i in 0..STATE_ELE_PER_CALL {
+        for i in 0..STATE_SIZE {
             // lo 32 bit limbs of the state.
             builder.constraint_memory_access(
                 local.segment,
                 local.clk,
-                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2),
+                local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_U64_SIZE),
                 &local.state_reads_writes[2 * i],
                 local.is_real,
             );
@@ -148,7 +151,7 @@ impl Blake2bCompressInnerChip {
                 local.segment,
                 local.clk,
                 local.state_ptr
-                    + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2)
+                    + local.state_index[i] * AB::F::from_canonical_usize(WORD_U64_SIZE)
                     + AB::F::from_canonical_usize(WORD_SIZE),
                 &local.state_reads_writes[2 * i + 1],
                 local.is_real,
@@ -187,7 +190,7 @@ impl Blake2bCompressInnerChip {
                 local.segment,
                 local.clk,
                 local.message_ptr
-                    + local.message_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2),
+                    + local.message_index[i] * AB::F::from_canonical_usize(WORD_U64_SIZE),
                 &local.message_reads[2 * i],
                 local.is_real,
             );
@@ -197,7 +200,7 @@ impl Blake2bCompressInnerChip {
                 local.segment,
                 local.clk,
                 local.message_ptr
-                    + local.message_index[i] * AB::F::from_canonical_usize(WORD_SIZE * 2)
+                    + local.message_index[i] * AB::F::from_canonical_usize(WORD_U64_SIZE)
                     + AB::F::from_canonical_usize(WORD_SIZE),
                 &local.message_reads[2 * i + 1],
                 local.is_real,
@@ -214,33 +217,53 @@ impl Blake2bCompressInnerChip {
         builder.assert_bool(local.is_real);
 
         // Apply the `mix` operation.
-        // a, b, c, d, x, y are in u64. each of them are in 32 bits limbs.
-        // a_lo, a_hi, b_lo, b_hi, c_lo, c_hi, d_lo, d_hi, x_lo, x_hi, y_lo, y_hi
-        // are in u32.
+        // The input to the `mix` function is the 4 state words and the 2 message words. Each of them
+        // are stored in 2 32-bit limbs in the trace. We need to combine them to form the 64-bit word.
         let input = [
-            local.state_reads_writes[0].prev_value,
-            local.state_reads_writes[1].prev_value,
-            local.state_reads_writes[2].prev_value,
-            local.state_reads_writes[3].prev_value,
-            local.state_reads_writes[4].prev_value,
-            local.state_reads_writes[5].prev_value,
-            local.state_reads_writes[6].prev_value,
-            local.state_reads_writes[7].prev_value,
-            local.message_reads[0].access.value,
-            local.message_reads[1].access.value,
-            local.message_reads[2].access.value,
-            local.message_reads[3].access.value,
+            WordU64::from_u32_word(
+                local.state_reads_writes[0].prev_value,
+                local.state_reads_writes[1].prev_value,
+            ),
+            WordU64::from_u32_word(
+                local.state_reads_writes[2].prev_value,
+                local.state_reads_writes[3].prev_value,
+            ),
+            WordU64::from_u32_word(
+                local.state_reads_writes[4].prev_value,
+                local.state_reads_writes[5].prev_value,
+            ),
+            WordU64::from_u32_word(
+                local.state_reads_writes[6].prev_value,
+                local.state_reads_writes[7].prev_value,
+            ),
+            WordU64::from_u32_word(
+                local.message_reads[0].access.value,
+                local.message_reads[1].access.value,
+            ),
+            WordU64::from_u32_word(
+                local.message_reads[2].access.value,
+                local.message_reads[3].access.value,
+            ),
         ];
 
         // Apply the `mix` operation.
         MixOperation::<AB::F>::eval(builder, input, local.mix, local.is_real);
 
+        // The result of the `mix` function is stored in 4 u64 words, fetched from the respective
+        // columns of the `MixOperation` trace.
+        let mix_result = local.mix.results();
+
         // Finally, the results of the `mix` function should be written to the memory.
-        for i in 0..NUM_STATE_WORDS_PER_CALL {
+        // The result of the `mix` function is stored in 4 u64 words, where each u64 words is
+        // made up of 8 bytes limb. Whereas, in the trace, the state is stored in 8 u32 words, where
+        // each u32 word is made up of 4 bytes limb. So, the mapping of the bytes is as follows:
+        // local_state[i] = mix_result[i / 2][i % 2 * WORD_SIZE + j], where j is the byte index in
+        // the limb.
+        for i in 0..STATE_NUM_WORDS {
             for j in 0..WORD_SIZE {
                 builder.when(local.is_real).assert_eq(
                     local.state_reads_writes[i].access.value[j],
-                    local.mix.result[i][j],
+                    mix_result[i / 2][j + WORD_SIZE * (i % 2)],
                 );
             }
         }

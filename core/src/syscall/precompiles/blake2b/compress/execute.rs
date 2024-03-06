@@ -6,8 +6,8 @@ use crate::{
 
 use super::{
     mix, Blake2bCompressInnerChip, Blake2bCompressInnerEvent, MIX_INDEX, MSG_ELE_PER_CALL,
-    NUM_MIX_ROUNDS, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT,
-    SIGMA_PERMUTATIONS, STATE_ELE_PER_CALL,
+    NUM_MIX_ROUNDS, NUM_MSG_WORDS_PER_CALL, OPERATION_COUNT, SIGMA_PERMUTATIONS, STATE_NUM_WORDS,
+    STATE_SIZE,
 };
 
 impl Syscall for Blake2bCompressInnerChip {
@@ -23,8 +23,8 @@ impl Syscall for Blake2bCompressInnerChip {
         let saved_clk = rt.clk;
         let mut message_reads = [[[MemoryReadRecord::default(); NUM_MSG_WORDS_PER_CALL];
             OPERATION_COUNT]; NUM_MIX_ROUNDS];
-        let mut state_writes = [[[MemoryWriteRecord::default(); NUM_STATE_WORDS_PER_CALL];
-            OPERATION_COUNT]; NUM_MIX_ROUNDS];
+        let mut state_writes =
+            [[[MemoryWriteRecord::default(); STATE_NUM_WORDS]; OPERATION_COUNT]; NUM_MIX_ROUNDS];
 
         for round in 0..NUM_MIX_ROUNDS {
             for operation in 0..OPERATION_COUNT {
@@ -53,21 +53,11 @@ impl Syscall for Blake2bCompressInnerChip {
                     }
                 }
 
-                // println!(
-                //     "round: {} operation: {} input: {:?}",
-                //     round, operation, input
-                // );
-
                 // Call mix.
                 let results = mix(input.try_into().unwrap());
 
-                // println!(
-                //     "round: {} operation: {} results: {:?}",
-                //     round, operation, results
-                // );
-
                 // Write the state.
-                for i in 0..STATE_ELE_PER_CALL {
+                for i in 0..STATE_SIZE {
                     let lo = results[i] as u32;
                     let hi = (results[i] >> 32) as u32;
                     state_writes[round][operation][2 * i] =

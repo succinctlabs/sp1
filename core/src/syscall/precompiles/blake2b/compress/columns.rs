@@ -5,10 +5,9 @@ use crate::memory::{MemoryReadCols, MemoryReadWriteCols};
 use sp1_derive::AlignedBorrow;
 
 use super::{
-    mix::MixOperation, NUM_MIX_ROUNDS, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL,
-    OPERATION_COUNT,
+    mix::MixOperation, NUM_MIX_ROUNDS, NUM_MSG_WORDS_PER_CALL, OPERATION_COUNT, STATE_NUM_WORDS,
 };
-use super::{MSG_ELE_PER_CALL, STATE_ELE_PER_CALL};
+use super::{MSG_ELE_PER_CALL, STATE_SIZE};
 
 pub const NUM_BLAKE2B_COMPRESS_INNER_COLS: usize = size_of::<Blake2bCompressInnerCols<u8>>();
 
@@ -25,7 +24,7 @@ pub struct Blake2bCompressInnerCols<T> {
     pub message_ptr: T,
 
     /// Reads and writes a part of the state.
-    pub state_reads_writes: [MemoryReadWriteCols<T>; NUM_STATE_WORDS_PER_CALL],
+    pub state_reads_writes: [MemoryReadWriteCols<T>; STATE_NUM_WORDS],
 
     /// Reads a part of the message.
     pub message_reads: [MemoryReadCols<T>; NUM_MSG_WORDS_PER_CALL],
@@ -39,7 +38,7 @@ pub struct Blake2bCompressInnerCols<T> {
     pub is_mix_round_index_n: [T; NUM_MIX_ROUNDS],
 
     /// The indices to pass to `mix`.
-    pub state_index: [T; STATE_ELE_PER_CALL],
+    pub state_index: [T; STATE_SIZE],
 
     /// The two values from `SIGMA_PERMUTATIONS` to pass to `mix`.
     pub message_index: [T; MSG_ELE_PER_CALL],

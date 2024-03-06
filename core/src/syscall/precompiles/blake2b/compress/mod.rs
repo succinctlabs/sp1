@@ -11,9 +11,9 @@
 //!         // * Pick 4 indices a, b, c, d for the state, based on the operation index.
 //!         // * Pick 2 indices x, y for the message, based on both the round and the operation index.
 //!         //
-//!         // g takes those 6 values, and updates the 4 state values, at indices a, b, c, d.
+//!         // The mix takes those 6 values, and updates the 4 state values, at indices a, b, c, d.
 //!         //
-//!         // Each call of mix becomes one row in the trace.
+//!         // Each call of mix becomes one row in the trace. And in total we have 12 * 8 = 96 rows.
 //!         mix(&mut state[a], &mut state[b], &mut state[c], &mut state[d], message[x], message[y]);
 //!     }
 //! }
@@ -27,36 +27,31 @@ mod trace;
 /// The number of `u64`s in the message of the compress inner operation.
 pub(crate) const MSG_SIZE: usize = 16;
 
-/// Each msg word is 8 bytes and our words size is 4 bytes. So we need to double the size of the
-/// message.
-#[allow(dead_code)]
-pub(crate) const MSG_NUM_WORDS: usize = MSG_SIZE * 2;
-
 /// The number of rounds in the compress inner operation.
 pub(crate) const NUM_MIX_ROUNDS: usize = 12;
 
 /// The number of time we call `mix` in the compress inner operation in each mix round.
 pub(crate) const OPERATION_COUNT: usize = 8;
 
-/// The number of `Word`s in the state that we pass to `mix`. Each `Word` is 8 bytes.
-pub(crate) const STATE_ELE_PER_CALL: usize = 4;
+/// The number of `u64` words we pass from the state to `mix` in each call.
+pub(crate) const STATE_SIZE: usize = 4;
 
-/// Each state word is 8 bytes and our words size is 4 bytes. So we need to double the size of the
-/// state.
-pub(crate) const NUM_STATE_WORDS_PER_CALL: usize = STATE_ELE_PER_CALL * 2;
+/// Each state word is 8 bytes(u64) and our words size is 4 bytes(u32). So we need to double the
+/// size of the state.
+pub(crate) const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 
-/// The number of `Word`s in the message that we pass to `mix`. Each `Word` is 8 bytes.
+/// The number of `u64` words we pass from the message to `mix` in each call.
 pub(crate) const MSG_ELE_PER_CALL: usize = 2;
 
-/// Each message word is 8 bytes and our words size is 4 bytes. So we need to double the size of the
-/// message.
+/// Each message word is 8 bytes(u64) and our words size is 4 bytes(u32). So we need to double the
+/// size.
 pub(crate) const NUM_MSG_WORDS_PER_CALL: usize = MSG_ELE_PER_CALL * 2;
 
-/// The number of `Word`s in the input of `mix`.
-pub(crate) const MIX_INPUT_SIZE: usize = STATE_ELE_PER_CALL + MSG_ELE_PER_CALL;
+/// The number of u64 words sent to `mix` in each call.
+pub(crate) const MIX_INPUT_SIZE: usize = STATE_SIZE + MSG_ELE_PER_CALL;
 
 /// The `i`-th row of `MIX_INDEX` is the indices used for the `i`-th call to `mix` in each round.
-pub(crate) const MIX_INDEX: [[usize; STATE_ELE_PER_CALL]; OPERATION_COUNT] = [
+pub(crate) const MIX_INDEX: [[usize; STATE_SIZE]; OPERATION_COUNT] = [
     [0, 4, 8, 12],
     [1, 5, 9, 13],
     [2, 6, 10, 14],
@@ -86,8 +81,11 @@ pub(crate) const SIGMA_PERMUTATIONS: [[usize; MSG_SIZE]; NUM_MIX_ROUNDS] = [
     [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
 ];
 
+/// The `mix` function in the BLAKE2b hash function. It takes 6 `u64` values and updates the first 4
+/// values. It is applied 96 times in total in the compress inner operation. Each call of `mix`
+/// becomes one row in the trace.
 #[inline(always)]
-pub(crate) fn mix(input: [u64; MIX_INPUT_SIZE]) -> [u64; STATE_ELE_PER_CALL] {
+pub(crate) fn mix(input: [u64; MIX_INPUT_SIZE]) -> [u64; STATE_SIZE] {
     let mut a = input[0];
     let mut b = input[1];
     let mut c = input[2];
@@ -115,8 +113,7 @@ pub struct Blake2bCompressInnerEvent {
     pub message_ptr: u32,
     pub message_reads:
         [[[MemoryReadRecord; NUM_MSG_WORDS_PER_CALL]; OPERATION_COUNT]; NUM_MIX_ROUNDS],
-    pub state_writes:
-        [[[MemoryWriteRecord; NUM_STATE_WORDS_PER_CALL]; OPERATION_COUNT]; NUM_MIX_ROUNDS],
+    pub state_writes: [[[MemoryWriteRecord; STATE_NUM_WORDS]; OPERATION_COUNT]; NUM_MIX_ROUNDS],
 }
 
 pub struct Blake2bCompressInnerChip {}
@@ -138,10 +135,10 @@ pub mod compress_tests {
     use crate::utils::tests::BLAKE2B_COMPRESS_ELF;
     use crate::Program;
 
-    use super::MSG_NUM_WORDS;
+    use super::MSG_SIZE;
 
     /// The number of `Word`s in the state of the compress inner operation.
-    const NUM_STATE_WORD: usize = MSG_NUM_WORDS;
+    const NUM_STATE_WORD: usize = MSG_SIZE * 2;
 
     pub fn blake2b_compress_internal_program() -> Program {
         let state_ptr = 100;
@@ -157,7 +154,7 @@ pub mod compress_tests {
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
-        for i in 0..MSG_NUM_WORDS {
+        for i in 0..MSG_SIZE * 2 {
             // Store 2000 + i in memory for the i-th word of the message. 2000 + i is an arbitrary
             // number that is easy to spot while debugging.
             instructions.extend(vec![
