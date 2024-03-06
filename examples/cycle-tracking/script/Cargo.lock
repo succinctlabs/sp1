@@ -349,6 +349,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cycle-tracking-script"
+version = "0.1.0"
+dependencies = [
+ "sp1-core",
+]
+
+[[package]]
 name = "dashmap"
 version = "5.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -401,13 +408,6 @@ dependencies = [
  "rfc6979",
  "signature",
  "spki",
-]
-
-[[package]]
-name = "ed25519-script"
-version = "0.1.0"
-dependencies = [
- "sp1-core",
 ]
 
 [[package]]
