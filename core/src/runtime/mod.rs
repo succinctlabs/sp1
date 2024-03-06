@@ -73,8 +73,8 @@ pub struct Runtime {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
-    /// Whether the runtime should panic on halt or not.
-    pub panic_on_halt: bool,
+    /// Whether the runtime should fail on panic or not.
+    pub fail_on_panic: bool,
 
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
@@ -111,7 +111,7 @@ impl Runtime {
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
-            panic_on_halt: true,
+            fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map: default_syscall_map(),
@@ -829,6 +829,20 @@ impl Runtime {
         }
         if let Some(ref mut buf) = self.trace_buf {
             buf.flush().unwrap();
+        }
+        // Flush remaining stdout/stderr
+        for (fd, buf) in self.io_buf.iter() {
+            if !buf.is_empty() {
+                match fd {
+                    1 => {
+                        println!("[stdout] {}", buf);
+                    }
+                    2 => {
+                        println!("[stderr] {}", buf);
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory

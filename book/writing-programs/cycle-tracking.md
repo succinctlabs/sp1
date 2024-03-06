@@ -4,8 +4,7 @@ When writing a program, it is useful to know how many RISC-V cycles a portion of
 
 ## Tracking Cycles
 
-To track the number of cycles spent in a portion of the program, you can either use a `println!("cycle-tracker-{start,end}:")` statement that wraps the portion of your program you want to profile or use the `#[sp1_derive::cycle_tracker]` macro on a function. An example is shown below:
-
+To track the number of cycles spent in a portion of the program, you can either put `println!("cycle-tracker-start: block name")` + `println!("cycle-tracker-end: block name")` statements (block name must be same between start and end) around the portion of your program you want to profile or use the `#[sp1_derive::cycle_tracker]` macro on a function. An example is shown below:
 
 ```rust,noplayground
 {{#include ../../examples/cycle-tracking/program/src/main.rs}}
@@ -39,4 +38,3 @@ $ RUST_LOG=info cargo run --release
 ```
 
 Note that we elegantly handle nested cycle tracking, as you can see above.
-

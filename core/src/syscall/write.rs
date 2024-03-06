@@ -57,15 +57,19 @@ impl Syscall for SyscallWrite {
                     );
                 } else {
                     let flush_s = update_io_buf(ctx, fd, s);
-                    if let Some(s) = flush_s {
-                        s.split('\n').for_each(|line| println!("stdout: {}", line));
+                    if !flush_s.is_empty() {
+                        flush_s
+                            .into_iter()
+                            .for_each(|line| println!("[stdout] {}", line));
                     }
                 }
             } else if fd == 2 {
                 let s = core::str::from_utf8(slice).unwrap();
                 let flush_s = update_io_buf(ctx, fd, s);
-                if let Some(s) = flush_s {
-                    s.split('\n').for_each(|line| println!("stderr: {}", line));
+                if !flush_s.is_empty() {
+                    flush_s
+                        .into_iter()
+                        .for_each(|line| println!("[stderr] {}", line));
                 }
             } else if fd == 3 {
                 rt.state.output_stream.extend_from_slice(slice);
@@ -79,16 +83,21 @@ impl Syscall for SyscallWrite {
     }
 }
 
-pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Option<String> {
+pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Vec<String> {
     let rt = &mut ctx.rt;
-    if s.ends_with('\n') {
-        if let Some(existing) = rt.io_buf.remove(&fd) {
-            Some(format!("{}{}", existing, s.trim_end()))
-        } else {
-            Some(s.trim_end().to_string())
-        }
+    let entry = rt.io_buf.entry(fd).or_default();
+    entry.push_str(s);
+    if entry.contains('\n') {
+        // Return lines except for the last from buf.
+        let prev_buf = std::mem::take(entry);
+        let mut lines = prev_buf.split('\n').collect::<Vec<&str>>();
+        let last = lines.pop().unwrap_or("");
+        *entry = last.to_string();
+        lines
+            .into_iter()
+            .map(|line| line.to_string())
+            .collect::<Vec<String>>()
     } else {
-        ctx.rt.io_buf.entry(fd).or_default().push_str(s);
-        None
+        vec![]
     }
 }
