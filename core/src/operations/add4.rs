@@ -100,7 +100,6 @@ impl<F: Field> Add4Operation<F> {
             builder.slice_range_check_u8(&cols.value.0, is_real);
         }
 
-        builder.assert_bool(is_real);
         let mut builder_is_real = builder.when(is_real);
 
         // Each value in is_carry_{0,1,2,3} is 0 or 1, and exactly one of them is 1 per digit.

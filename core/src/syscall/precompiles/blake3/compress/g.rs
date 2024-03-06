@@ -7,7 +7,6 @@ use std::mem::size_of;
 
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
-use crate::air::WORD_SIZE;
 use crate::operations::AddOperation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::XorOperation;
@@ -44,8 +43,25 @@ pub struct GOperation<T> {
     pub c_plus_d_2: AddOperation<T>,
     pub b_xor_c_2: XorOperation<T>,
     pub b_xor_c_2_rotate_right_7: FixedRotateRightOperation<T>,
-    /// `state[a]`, `state[b]`, `state[c]`, `state[d]` after all the steps.
-    pub result: [Word<T>; 4],
+}
+
+impl<T: Copy> GOperation<T> {
+    /// Returns the results of the g operation. The results are in the following order:
+    /// a, b, c, d.
+    /// a <- `a_plus_b_2_add_y` column
+    /// b <- `b_xor_c_2_rotate_right_7` column
+    /// c <- `c_plus_d_2` column
+    /// d <- `d_xor_a_2` column (rotated right by 1 byte).
+    pub fn results(&self) -> [Word<T>; 4] {
+        let a = self.a_plus_b_2_add_y.value;
+        let b = self.b_xor_c_2_rotate_right_7.value;
+        let c = self.c_plus_d_2.value;
+        let mut d = self.d_xor_a_2.value;
+
+        d = Word([d[1], d[2], d[3], d[0]]);
+
+        [a, b, c, d]
+    }
 }
 
 impl<F: Field> GOperation<F> {
@@ -95,7 +111,6 @@ impl<F: Field> GOperation<F> {
 
         let result = [a, b, c, d];
         assert_eq!(result, g_func(input));
-        self.result = result.map(Word::from);
         result
     }
 
@@ -105,7 +120,6 @@ impl<F: Field> GOperation<F> {
         cols: GOperation<AB::Var>,
         is_real: AB::Var,
     ) {
-        builder.assert_bool(is_real);
         let mut a = input[0];
         let mut b = input[1];
         let mut c = input[2];
@@ -172,15 +186,8 @@ impl<F: Field> GOperation<F> {
                 cols.b_xor_c_2_rotate_right_7,
                 is_real,
             );
-            b = cols.b_xor_c_2_rotate_right_7.value;
         }
 
-        let results = [a, b, c, d];
-        for i in 0..4 {
-            for j in 0..WORD_SIZE {
-                builder.assert_eq(cols.result[i][j], results[i][j]);
-            }
-        }
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }

@@ -198,13 +198,16 @@ impl Blake3CompressInnerChip {
             // Call the g function.
             GOperation::<AB::F>::eval(builder, input, local.g, local.is_real);
 
+            // The result of the `g` function is stored in 4 Words, fetched from the respective
+            // columns of the `GOperation` trace.
+            let g_result = local.g.results();
+
             // Finally, the results of the g function should be written to the memory.
             for i in 0..NUM_STATE_WORDS_PER_CALL {
                 for j in 0..WORD_SIZE {
-                    builder.when(local.is_real).assert_eq(
-                        local.state_reads_writes[i].access.value[j],
-                        local.g.result[i][j],
-                    );
+                    builder
+                        .when(local.is_real)
+                        .assert_eq(local.state_reads_writes[i].access.value[j], g_result[i][j]);
                 }
             }
         }
