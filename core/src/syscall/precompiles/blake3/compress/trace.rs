@@ -105,15 +105,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
 
         output.add_field_events(&new_field_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
-            let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
-
-            // Put this value in this padded row to avoid failing the constraint.
-            cols.round_index = F::from_canonical_usize(ROUND_COUNT);
-
-            row
-        });
+        pad_rows(&mut rows, || [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

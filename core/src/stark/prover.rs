@@ -1,8 +1,6 @@
 use super::{quotient_values, RiscvStark};
 use super::{ProvingKey, RiscvChip};
 use itertools::izip;
-#[cfg(not(feature = "perf"))]
-use p3_air::BaseAir;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{AbstractExtensionField, AbstractField};
@@ -408,7 +406,7 @@ where
         #[cfg(not(feature = "perf"))]
         tracing::info_span!("debug constraints").in_scope(|| {
             for i in 0..chips.len() {
-                debug_constraints(
+                debug_constraints::<SC>(
                     &chips[i],
                     None,
                     &traces[i],
@@ -421,7 +419,7 @@ where
         #[cfg(not(feature = "perf"))]
         return ShardProof {
             main_commit: shard_data.main_commit.clone(),
-            traces,
+            traces: traces.to_vec(),
             permutation_traces,
             chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
         };
@@ -492,6 +490,7 @@ where
                 .map(|data| match data {
                     ShardMainDataWrapper::InMemory(_) => 0,
                     ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                    ShardMainDataWrapper::Empty() => 0,
                 })
                 .sum::<u64>();
             if bytes_written > 0 {
