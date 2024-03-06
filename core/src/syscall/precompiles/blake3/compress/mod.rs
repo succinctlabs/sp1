@@ -121,7 +121,7 @@ pub mod compress_tests {
     use super::MSG_SIZE;
 
     /// The number of `Word`s in the state of the compress inner operation.
-    const STATE_SIZE: usize = 16;
+    const STATE_SIZE: usize = MSG_SIZE;
 
     pub fn blake3_compress_internal_program() -> Program {
         let state_ptr = 100;
@@ -163,7 +163,7 @@ pub mod compress_tests {
     }
 
     #[test]
-    fn prove_babybear() {
+    fn prove_blake3_compress_inner_elf() {
         setup_logger();
         let program = blake3_compress_internal_program();
         run_test(program).unwrap();
