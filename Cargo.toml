@@ -1,5 +1,13 @@
 [workspace]
-members = ["core", "cli", "derive", "zkvm/*", "helper", "eval"]
+members = [
+    "core",
+    "cli",
+    "derive",
+    "zkvm/*",
+    "helper",
+    "eval",
+    "recursion/compiler",
+]
 exclude = ["examples/target"]
 resolver = "2"
 
