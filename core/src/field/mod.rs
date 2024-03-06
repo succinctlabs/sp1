@@ -71,9 +71,9 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
             .par_chunks(WIDTH)
             .map(|events| {
                 let mut row = [F::zero(); NUM_FIELD_COLS * WIDTH];
-                let packed_cols: /*&mut FieldLTUCols<F>*/ &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
+                let packed_cols: &mut PackedFieldLTUCols<F> = row.as_mut_slice().borrow_mut();
 		for (i, event) in events.iter().enumerate() {
-                    let cols: &mut FieldLtuCols<F> = packed_cols.packed_chips[i].borrow_mut();
+                    let cols = &mut packed_cols.packed_chips[i];
                     let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
                     cols.b = F::from_canonical_u32(event.b);
                     cols.c = F::from_canonical_u32(event.c);
@@ -87,6 +87,7 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
                     cols.lt = F::from_bool(event.ltu);
                     cols.is_real = F::one();
 		}
+		println!("row {:?}", row);
                 row
             })
             .collect::<Vec<_>>();
