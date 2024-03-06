@@ -8,6 +8,8 @@ use crate::utils::pad_rows;
 
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
+use tracing::instrument;
 
 use crate::air::MachineAir;
 
@@ -22,88 +24,117 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
         "Blake3CompressInner".to_string()
     }
 
+    #[instrument(name = "generate blake3 inner compression trace", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        // compute the number of events to process in each chunk.
+        let chunk_size = std::cmp::max(
+            input.blake3_compress_inner_events.len() / num_cpus::get(),
+            1,
+        );
+
+        // Generate the trace rows & corresponding records for each chunk of events concurrently.
+        let rows_and_records = input
+            .blake3_compress_inner_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut records = ExecutionRecord::default();
+                let mut new_field_events = Vec::new();
+
+                let rows = events
+                    .iter()
+                    .flat_map(|event| {
+                        let mut rows = Vec::new();
+                        let mut clk = event.clk;
+
+                        for round in 0..ROUND_COUNT {
+                            for operation in 0..OPERATION_COUNT {
+                                let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
+                                let cols: &mut Blake3CompressInnerCols<F> =
+                                    row.as_mut_slice().borrow_mut();
+
+                                // Assign basic values to the columns.
+                                {
+                                    cols.segment = F::from_canonical_u32(event.shard);
+                                    cols.clk = F::from_canonical_u32(clk);
+
+                                    cols.round_index = F::from_canonical_u32(round as u32);
+                                    cols.is_round_index_n[round] = F::one();
+
+                                    cols.operation_index = F::from_canonical_u32(operation as u32);
+                                    cols.is_operation_index_n[operation] = F::one();
+
+                                    for i in 0..NUM_STATE_WORDS_PER_CALL {
+                                        cols.state_index[i] =
+                                            F::from_canonical_usize(G_INDEX[operation][i]);
+                                    }
+
+                                    for i in 0..NUM_MSG_WORDS_PER_CALL {
+                                        cols.msg_schedule[i] = F::from_canonical_usize(
+                                            MSG_SCHEDULE[round][2 * operation + i],
+                                        );
+                                    }
+                                }
+
+                                // Memory columns.
+                                {
+                                    cols.message_ptr = F::from_canonical_u32(event.message_ptr);
+                                    for i in 0..NUM_MSG_WORDS_PER_CALL {
+                                        cols.message_reads[i].populate(
+                                            event.message_reads[round][operation][i],
+                                            &mut new_field_events,
+                                        );
+                                    }
+
+                                    cols.state_ptr = F::from_canonical_u32(event.state_ptr);
+                                    for i in 0..NUM_STATE_WORDS_PER_CALL {
+                                        cols.state_reads_writes[i].populate(
+                                            MemoryRecordEnum::Write(
+                                                event.state_writes[round][operation][i],
+                                            ),
+                                            &mut new_field_events,
+                                        );
+                                    }
+                                }
+
+                                // Apply the `g` operation.
+                                {
+                                    let input: [u32; G_INPUT_SIZE] = [
+                                        event.state_writes[round][operation][0].prev_value,
+                                        event.state_writes[round][operation][1].prev_value,
+                                        event.state_writes[round][operation][2].prev_value,
+                                        event.state_writes[round][operation][3].prev_value,
+                                        event.message_reads[round][operation][0].value,
+                                        event.message_reads[round][operation][1].value,
+                                    ];
+
+                                    cols.g.populate(&mut records, input);
+                                }
+
+                                clk += 4;
+
+                                cols.is_real = F::one();
+
+                                rows.push(row);
+                            }
+                        }
+
+                        rows
+                    })
+                    .collect::<Vec<_>>();
+                records.add_field_events(&new_field_events);
+                (rows, records)
+            })
+            .collect::<Vec<_>>();
+
         let mut rows = Vec::new();
-
-        let mut new_field_events = Vec::new();
-
-        for i in 0..input.blake3_compress_inner_events.len() {
-            let event = input.blake3_compress_inner_events[i];
-
-            let mut clk = event.clk;
-            for round in 0..ROUND_COUNT {
-                for operation in 0..OPERATION_COUNT {
-                    let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
-                    let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
-
-                    // Assign basic values to the columns.
-                    {
-                        cols.segment = F::from_canonical_u32(event.shard);
-                        cols.clk = F::from_canonical_u32(clk);
-
-                        cols.round_index = F::from_canonical_u32(round as u32);
-                        cols.is_round_index_n[round] = F::one();
-
-                        cols.operation_index = F::from_canonical_u32(operation as u32);
-                        cols.is_operation_index_n[operation] = F::one();
-
-                        for i in 0..NUM_STATE_WORDS_PER_CALL {
-                            cols.state_index[i] = F::from_canonical_usize(G_INDEX[operation][i]);
-                        }
-
-                        for i in 0..NUM_MSG_WORDS_PER_CALL {
-                            cols.msg_schedule[i] =
-                                F::from_canonical_usize(MSG_SCHEDULE[round][2 * operation + i]);
-                        }
-                    }
-
-                    // Memory columns.
-                    {
-                        cols.message_ptr = F::from_canonical_u32(event.message_ptr);
-                        for i in 0..NUM_MSG_WORDS_PER_CALL {
-                            cols.message_reads[i].populate(
-                                event.message_reads[round][operation][i],
-                                &mut new_field_events,
-                            );
-                        }
-
-                        cols.state_ptr = F::from_canonical_u32(event.state_ptr);
-                        for i in 0..NUM_STATE_WORDS_PER_CALL {
-                            cols.state_reads_writes[i].populate(
-                                MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
-                                &mut new_field_events,
-                            );
-                        }
-                    }
-
-                    // Apply the `g` operation.
-                    {
-                        let input: [u32; G_INPUT_SIZE] = [
-                            event.state_writes[round][operation][0].prev_value,
-                            event.state_writes[round][operation][1].prev_value,
-                            event.state_writes[round][operation][2].prev_value,
-                            event.state_writes[round][operation][3].prev_value,
-                            event.message_reads[round][operation][0].value,
-                            event.message_reads[round][operation][1].value,
-                        ];
-
-                        cols.g.populate(output, input);
-                    }
-
-                    clk += 4;
-
-                    cols.is_real = F::one();
-
-                    rows.push(row);
-                }
-            }
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
         }
-
-        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS]);
 
