@@ -8,10 +8,9 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
-use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::cpu::columns::{AuipcCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
+use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::runtime::{AccessPosition, Opcode};
@@ -88,8 +87,7 @@ where
 
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
-        let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
+        let memory_columns = local.opcode_specific_columns.memory();
         builder.constraint_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
@@ -175,8 +173,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the jump specific columns
-        let jump_columns: JumpCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_JUMP_COLS].borrow();
+        let jump_columns = local.opcode_specific_columns.jump();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
@@ -219,8 +216,7 @@ impl CpuChip {
     /// Constraints related to the AUIPC opcode.
     pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         // Get the auipc specific columns.
-        let auipc_columns: AuipcCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();
+        let auipc_columns = local.opcode_specific_columns.auipc();
 
         // Verify that the word form of local.pc is correct.
         builder

@@ -4,8 +4,6 @@
 //!
 //! The idea is that 1 - input * inverse is exactly the boolean value indicating whether the input
 //! is 0.
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;

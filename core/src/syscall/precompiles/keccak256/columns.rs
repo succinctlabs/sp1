@@ -1,4 +1,3 @@
-use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
