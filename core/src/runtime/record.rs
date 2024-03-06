@@ -206,8 +206,7 @@ impl ExecutionRecord {
 
         // Shard the SUB events.
         println!("sharding3");
-        for (sub_chunk, shard) in self
-            .sub_events
+        for (sub_chunk, shard) in take(&mut self.sub_events)
             .chunks_mut(config.sub_len)
             .zip(shards.iter_mut())
         {
