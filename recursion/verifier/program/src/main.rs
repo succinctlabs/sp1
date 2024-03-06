@@ -9,10 +9,30 @@ use sp1_recursion::utils::StarkUtils;
 
 use sp1_static_machine::RISCV_STARK;
 
+use core::arch::asm;
+
 pub fn main() {
     type SC = sp1_recursion::utils::BabyBearBlake3;
 
     let config = SC::new();
+
+    let a = 1u32;
+    let b = 4u32;
+    let result: u32 = 0;
+
+    let mut result_ptr = &result as *const u32;
+
+    unsafe {
+        asm!(
+            ".insn r 51, 0, 1, {0}, {1}, {2}",
+            out(reg) result_ptr,
+            in(reg) a,
+            in(reg) b,
+            options(nostack)
+        );
+    }
+
+    // println!("result: {}", result_ptr);
 
     // Read the proof from the input
     println!("cycle-tracker-start: read proof");
