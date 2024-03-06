@@ -21,7 +21,6 @@ pub fn main() {
     let a = 1u32;
     let b = 4u32;
     let mut result: u32;
-    let mut result_imm: u32;
 
     unsafe {
         asm!(
@@ -29,15 +28,6 @@ pub fn main() {
             out(reg) result,
             in(reg) a,
             in(reg) b,
-            options(nostack)
-        );
-    }
-
-    unsafe {
-        asm!(
-            ".insn i 0b0010011, 0, {0}, {1}, 12",
-            out(reg) result_imm,
-            in(reg) a,
             options(nostack)
         );
     }
