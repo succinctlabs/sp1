@@ -101,20 +101,14 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
             "Record stats before generate_trace (incomplete): {:#?}",
             record.stats()
         );
-        println!(
-            "Record stats before generate_trace (incomplete): {:#?}",
-            record.stats()
-        );
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
-            println!("Generating trace for chip: {}", chip.name());
             let mut output = ExecutionRecord::default();
             output.index = record.index;
             chip.generate_dependencies(&record, &mut output);
             record.append(&mut output);
         });
-        println!("Record stats after generate_trace: {:#?}", record.stats());
 
         // Display the statistics about the workload after generate_trace.
         tracing::info!("Record stats finalized {:#?}", record.stats());

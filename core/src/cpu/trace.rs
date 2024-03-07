@@ -16,7 +16,6 @@ use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
-use std::sync::{Arc, Mutex};
 use tracing::instrument;
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {

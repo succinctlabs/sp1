@@ -152,14 +152,6 @@ pub struct ShardStats {
     pub nb_k256_decompress_events: usize,
 }
 
-fn drain_chunks<T>(vec: &mut Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
-    let mut chunks = Vec::new();
-    while !vec.is_empty() {
-        chunks.push(vec.drain(0..std::cmp::min(chunk_size, vec.len())).collect());
-    }
-    chunks
-}
-
 impl ExecutionRecord {
     pub fn new(index: u32, program: Arc<Program>) -> Self {
         Self {
@@ -171,23 +163,25 @@ impl ExecutionRecord {
 
     pub fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        println!("sharding");
-        let mut shards = take(&mut self.cpu_events)
-            .chunks_mut(config.shard_size)
-            .enumerate()
-            .map(|(i, cpu_chunk)| {
-                let mut shard = ExecutionRecord::default();
-                shard.index = (i + 1) as u32;
-                shard.cpu_events = cpu_chunk.to_vec();
-                shard.program = self.program.clone();
-                shard
-            })
-            .collect::<Vec<_>>();
+        let mut shards = Vec::new();
+        while !self.cpu_events.is_empty() {
+            // Iterate from end so we can truncate cpu_events as we go.
+            let index = self.cpu_events.len() / config.shard_size;
+            let start = index * config.shard_size;
+            let end = std::cmp::min(start + config.shard_size, self.cpu_events.len());
+            let chunk = self.cpu_events[start..end].to_vec();
+            self.cpu_events.truncate(start);
+            let mut shard = ExecutionRecord::default();
+            shard.index = (index + 1) as u32;
+            shard.cpu_events = chunk;
+            shard.program = self.program.clone();
+            shards.push(shard);
+        }
+        shards.reverse();
 
         // Shard all the other events according to the configuration.
 
         // Shard the ADD events.
-        println!("sharding1");
         for (add_chunk, shard) in take(&mut self.add_events)
             .chunks_mut(config.add_len)
             .zip(shards.iter_mut())
@@ -196,7 +190,6 @@ impl ExecutionRecord {
         }
 
         // Shard the MUL events.
-        println!("sharding2");
         for (mul_chunk, shard) in take(&mut self.mul_events)
             .chunks_mut(config.mul_len)
             .zip(shards.iter_mut())
@@ -205,7 +198,6 @@ impl ExecutionRecord {
         }
 
         // Shard the SUB events.
-        println!("sharding3");
         for (sub_chunk, shard) in take(&mut self.sub_events)
             .chunks_mut(config.sub_len)
             .zip(shards.iter_mut())
@@ -214,7 +206,6 @@ impl ExecutionRecord {
         }
 
         // Shard the bitwise events.
-        println!("sharding4");
         for (bitwise_chunk, shard) in take(&mut self.bitwise_events)
             .chunks_mut(config.bitwise_len)
             .zip(shards.iter_mut())
@@ -223,7 +214,6 @@ impl ExecutionRecord {
         }
 
         // Shard the shift left events.
-        println!("sharding5");
         for (shift_left_chunk, shard) in take(&mut self.shift_left_events)
             .chunks_mut(config.shift_left_len)
             .zip(shards.iter_mut())
@@ -232,7 +222,6 @@ impl ExecutionRecord {
         }
 
         // Shard the shift right events.
-        println!("sharding6");
         for (shift_right_chunk, shard) in take(&mut self.shift_right_events)
             .chunks_mut(config.shift_right_len)
             .zip(shards.iter_mut())
@@ -243,7 +232,6 @@ impl ExecutionRecord {
         }
 
         // Shard the divrem events.
-        println!("sharding7");
         for (divrem_chunk, shard) in take(&mut self.divrem_events)
             .chunks_mut(config.divrem_len)
             .zip(shards.iter_mut())
@@ -252,7 +240,6 @@ impl ExecutionRecord {
         }
 
         // Shard the LT events.
-        println!("sharding8");
         for (lt_chunk, shard) in take(&mut self.lt_events)
             .chunks_mut(config.lt_len)
             .zip(shards.iter_mut())
@@ -261,8 +248,6 @@ impl ExecutionRecord {
         }
 
         // Shard the field events.
-        println!("sharding9");
-        println!("num field events: {}", self.field_events.len());
         take(&mut self.field_events)
             .into_iter()
             .enumerate()
@@ -272,7 +257,6 @@ impl ExecutionRecord {
             });
 
         // Keccak-256 permute events.
-        println!("sharding10");
         for (keccak_chunk, shard) in take(&mut self.keccak_permute_events)
             .chunks_mut(config.keccak_len)
             .zip(shards.iter_mut())
@@ -281,7 +265,6 @@ impl ExecutionRecord {
         }
 
         // Weierstrass curve add events.
-        println!("sharding11");
         for (weierstrass_add_chunk, shard) in take(&mut self.weierstrass_add_events)
             .chunks_mut(config.weierstrass_add_len)
             .zip(shards.iter_mut())
@@ -292,7 +275,6 @@ impl ExecutionRecord {
         }
 
         // Weierstrass curve double events.
-        println!("sharding12");
         for (weierstrass_double_chunk, shard) in take(&mut self.weierstrass_double_events)
             .chunks_mut(config.weierstrass_double_len)
             .zip(shards.iter_mut())
@@ -303,7 +285,6 @@ impl ExecutionRecord {
         }
 
         // Put the precompile events in the first shard.
-        println!("sharding13");
         let first = shards.first_mut().unwrap();
 
         // SHA-256 extend events.
