@@ -163,16 +163,13 @@ impl ExecutionRecord {
 
     pub fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        log::info!("cpu");
         let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
         let mut shards = (0..num_shards)
             .map(|_| ExecutionRecord::default())
             .collect::<Vec<_>>();
-        log::info!("starting");
         while !self.cpu_events.is_empty() {
             // Iterate from end so we can truncate cpu_events as we go.
             let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
-            log::info!("shard {}", index);
             let start = index * config.shard_size;
             let shard = &mut shards[index];
             shard.index = (index + 1) as u32;
@@ -182,7 +179,6 @@ impl ExecutionRecord {
 
         // Shard all the other events according to the configuration.
 
-        log::info!("add");
         // Shard the ADD events.
         for (add_chunk, shard) in take(&mut self.add_events)
             .chunks_mut(config.add_len)
@@ -192,7 +188,6 @@ impl ExecutionRecord {
         }
 
         // Shard the MUL events.
-        log::info!("mul");
         for (mul_chunk, shard) in take(&mut self.mul_events)
             .chunks_mut(config.mul_len)
             .zip(shards.iter_mut())
@@ -201,7 +196,6 @@ impl ExecutionRecord {
         }
 
         // Shard the SUB events.
-        log::info!("s");
         for (sub_chunk, shard) in take(&mut self.sub_events)
             .chunks_mut(config.sub_len)
             .zip(shards.iter_mut())
@@ -210,7 +204,6 @@ impl ExecutionRecord {
         }
 
         // Shard the bitwise events.
-        log::info!("b");
         for (bitwise_chunk, shard) in take(&mut self.bitwise_events)
             .chunks_mut(config.bitwise_len)
             .zip(shards.iter_mut())
@@ -219,7 +212,6 @@ impl ExecutionRecord {
         }
 
         // Shard the shift left events.
-        log::info!("sl");
         for (shift_left_chunk, shard) in take(&mut self.shift_left_events)
             .chunks_mut(config.shift_left_len)
             .zip(shards.iter_mut())
@@ -228,7 +220,6 @@ impl ExecutionRecord {
         }
 
         // Shard the shift right events.
-        log::info!("sr");
         for (shift_right_chunk, shard) in take(&mut self.shift_right_events)
             .chunks_mut(config.shift_right_len)
             .zip(shards.iter_mut())
@@ -290,7 +281,6 @@ impl ExecutionRecord {
                 .weierstrass_double_events
                 .extend_from_slice(weierstrass_double_chunk);
         }
-        log::info!("done");
 
         // Put the precompile events in the first shard.
         let first = shards.first_mut().unwrap();
@@ -329,7 +319,6 @@ impl ExecutionRecord {
             .program_memory_record
             .extend_from_slice(&self.program_memory_record);
 
-        log::info!("full");
         shards
     }
 
