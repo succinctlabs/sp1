@@ -163,7 +163,10 @@ impl ExecutionRecord {
 
     pub fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        let mut shards = Vec::new();
+        let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
+        let mut shards = (0..num_shards)
+            .map(|_| ExecutionRecord::default())
+            .collect::<Vec<_>>();
         while !self.cpu_events.is_empty() {
             // Iterate from end so we can truncate cpu_events as we go.
             let index = self.cpu_events.len() / config.shard_size;
@@ -171,13 +174,11 @@ impl ExecutionRecord {
             let end = std::cmp::min(start + config.shard_size, self.cpu_events.len());
             let chunk = self.cpu_events[start..end].to_vec();
             self.cpu_events.truncate(start);
-            let mut shard = ExecutionRecord::default();
+            let shard = &mut shards[index];
             shard.index = (index + 1) as u32;
             shard.cpu_events = chunk;
             shard.program = self.program.clone();
-            shards.push(shard);
         }
-        shards.reverse();
 
         // Shard all the other events according to the configuration.
 
