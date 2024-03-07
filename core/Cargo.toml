@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 bincode = "1.3.3"
+serde = { version = "1.0", features = ["derive", "rc"] }
 elf = "0.7.4"
 itertools = "0.12.0"
 lazy_static = "1.4"
@@ -31,7 +32,6 @@ p3-symmetric = {workspace = true}
 p3-uni-stark = {workspace = true}
 p3-util = {workspace = true}
 rrs-lib = {git = "https://github.com/GregAC/rrs.git"}
-serde = {version = "1.0", features = ["derive"]}
 sp1-derive = {path = "../derive"}
 
 anyhow = "1.0.79"
@@ -46,6 +46,7 @@ hashbrown = "0.14.3"
 hex = "0.4.3"
 k256 = {version = "0.13.3", features = ["expose-field"]}
 num_cpus = "1.16.0"
+serde_with = "3.6.1"
 petgraph = "0.6.4"
 serde_json = {version = "1.0.113", default-features = false, features = [
   "alloc",
