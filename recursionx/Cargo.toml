@@ -1,0 +1,7 @@
+[package]
+edition = "2021"
+name = "sp1-recursion"
+version = "0.1.0"
+
+[dependencies]
+p3-field = {workspace = true}

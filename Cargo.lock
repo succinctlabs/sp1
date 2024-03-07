@@ -2485,6 +2485,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-recursion"
+version = "0.1.0"
+dependencies = [
+ "p3-field",
+]
+
+[[package]]
 name = "sp1-zkvm"
 version = "0.1.0"
 dependencies = [
