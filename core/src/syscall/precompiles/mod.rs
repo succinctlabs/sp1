@@ -6,6 +6,7 @@ pub mod sha256;
 pub mod weierstrass;
 
 use num::BigUint;
+use serde::{Deserialize, Serialize};
 
 use crate::air::SP1AirBuilder;
 use crate::operations::field::params::Limbs;
@@ -15,7 +16,7 @@ use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
 
 /// Elliptic curve add event.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECAddEvent {
     pub shard: u32,
     pub clk: u32,
@@ -75,7 +76,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
 }
 
 /// Elliptic curve double event.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ECDoubleEvent {
     pub shard: u32,
     pub clk: u32,

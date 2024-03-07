@@ -168,6 +168,7 @@ impl Runtime {
 
     #[inline]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
+        #[cfg(debug_assertions)]
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
             let _ = BabyBear::from_canonical_u32(addr);
