@@ -3,16 +3,17 @@ use opcode::Opcode;
 use p3_field::PrimeField32;
 use program::Program;
 
+mod air;
 mod instruction;
 mod opcode;
 mod program;
 
 pub struct AluEvent<F> {
-    clk: F,
-    opcode: Opcode,
-    a: F,
-    b: F,
-    c: F,
+    pub clk: F,
+    pub opcode: Opcode,
+    pub a: F,
+    pub b: F,
+    pub c: F,
 }
 
 pub struct ExecutionRecord<F> {

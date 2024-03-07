@@ -2488,8 +2488,14 @@ dependencies = [
 name = "sp1-recursion"
 version = "0.1.0"
 dependencies = [
+ "p3-air",
  "p3-baby-bear",
  "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "sp1-core",
+ "sp1-derive",
+ "tracing",
 ]
 
 [[package]]
