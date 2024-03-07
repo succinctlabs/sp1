@@ -171,7 +171,7 @@ impl ExecutionRecord {
         log::info!("starting");
         while !self.cpu_events.is_empty() {
             // Iterate from end so we can truncate cpu_events as we go.
-            let index = self.cpu_events.len() / config.shard_size;
+            let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
             log::info!("shard {}", index);
             let start = index * config.shard_size;
             let shard = &mut shards[index];
