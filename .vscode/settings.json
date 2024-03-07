@@ -55,6 +55,8 @@
         "tests/sha-compress/Cargo.toml",
         "tests/sha-extend/Cargo.toml",
         "tests/sha2/Cargo.toml",
+        // Eval.
+        "eval/Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }

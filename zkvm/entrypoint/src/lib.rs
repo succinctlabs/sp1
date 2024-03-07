@@ -47,7 +47,7 @@ mod zkvm {
             main()
         }
 
-        syscall_halt();
+        syscall_halt(0);
     }
 
     static STACK_TOP: u32 = 0x0020_0400;
