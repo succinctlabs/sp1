@@ -168,16 +168,15 @@ impl ExecutionRecord {
         let mut shards = (0..num_shards)
             .map(|_| ExecutionRecord::default())
             .collect::<Vec<_>>();
+        log::info!("starting");
         while !self.cpu_events.is_empty() {
             // Iterate from end so we can truncate cpu_events as we go.
             let index = self.cpu_events.len() / config.shard_size;
+            log::info!("shard {}", index);
             let start = index * config.shard_size;
-            let end = std::cmp::min(start + config.shard_size, self.cpu_events.len());
-            let chunk = self.cpu_events[start..end].to_vec();
-            self.cpu_events.truncate(start);
             let shard = &mut shards[index];
             shard.index = (index + 1) as u32;
-            shard.cpu_events = chunk;
+            shard.cpu_events = self.cpu_events.split_off(start);
             shard.program = self.program.clone();
         }
 
