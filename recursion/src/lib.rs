@@ -8,19 +8,25 @@ mod instruction;
 mod opcode;
 mod program;
 
-pub struct AluEvent<F> {
+pub struct CpuEvent<F> {
     pub clk: F,
+    pub pc: F,
+    pub fp: F,
+    pub instruction: Instruction<F>,
     pub opcode: Opcode,
     pub a: F,
+    pub a_record: MemoryRecord,
     pub b: F,
+    pub b_record: MemoryRecord,
     pub c: F,
+    pub c_record: MemoryRecord,
 }
 
-pub struct ExecutionRecord<F> {
-    pub add_events: Vec<AluEvent<F>>,
-    pub sub_events: Vec<AluEvent<F>>,
-    pub mul_events: Vec<AluEvent<F>>,
-    pub div_events: Vec<AluEvent<F>>,
+pub struct MemoryRecord {
+    pub value: u32,
+    pub timestamp: u32,
+    pub prev_value: u32,
+    pub prev_timestamp: u32,
 }
 
 pub struct Runtime<F: PrimeField32 + Clone> {
