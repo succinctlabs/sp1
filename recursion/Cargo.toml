@@ -5,3 +5,4 @@ version = "0.1.0"
 
 [dependencies]
 p3-field = {workspace = true}
+p3-baby-bear = {workspace = true}

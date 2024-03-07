@@ -65,7 +65,7 @@ pub struct Runtime<F: PrimeField32 + Clone> {
     pub program: Program<F>,
 
     /// Memory.
-    pub memory: [F; 1024 * 1024],
+    pub memory: Vec<F>,
 }
 
 impl<F: PrimeField32 + Clone> Runtime<F> {
@@ -189,5 +189,39 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
 
             self.pc = next_pc;
         }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+
+    use crate::{Instruction, Opcode, Program, Runtime};
+
+    #[test]
+    fn test_add() {
+        let program = Program::<BabyBear> {
+            instructions: vec![Instruction {
+                opcode: Opcode::ADD,
+                op_a: BabyBear::from_canonical_u32(0),
+                op_b: BabyBear::from_canonical_u32(1),
+                op_c: BabyBear::from_canonical_u32(2),
+                imm_b: false,
+                imm_c: true,
+            }],
+            pc_start: BabyBear::from_canonical_u32(0),
+            pc_base: BabyBear::from_canonical_u32(0),
+        };
+
+        let mut runtime = Runtime::<BabyBear> {
+            program,
+            fp: BabyBear::zero(),
+            pc: BabyBear::zero(),
+            memory: vec![BabyBear::zero(); 1024 * 1024],
+        };
+        runtime.run();
+
+        println!("{:?}", &runtime.memory[0..16]);
     }
 }
