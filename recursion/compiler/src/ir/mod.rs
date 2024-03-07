@@ -1,33 +1,31 @@
-pub enum Address {
-    Main(u32),
+mod arithmetic;
+mod field;
+mod int;
+mod ptr;
+
+use crate::builder::Builder;
+
+pub use arithmetic::*;
+pub use field::*;
+pub use int::*;
+pub use ptr::*;
+
+pub trait Expression<B: Builder> {
+    type Value;
+
+    fn eval(&self, builder: &mut B) -> Self::Value;
 }
 
-pub struct F(Address);
+pub trait Variable<B: Builder> {
+    fn uninit(builder: &mut B) -> Self;
+}
 
-pub struct EF(Address);
+pub trait FromConstant<B: Builder>: SizedVariable<B> {
+    type Constant;
 
-pub trait Variable {
+    fn constant(builder: &mut B, value: Self::Constant) -> Self;
+}
+
+pub trait SizedVariable<B: Builder>: Variable<B> {
     fn size_of() -> usize;
-
-    fn from_address(address: Address) -> Self;
-}
-
-impl Variable for F {
-    fn size_of() -> usize {
-        1
-    }
-
-    fn from_address(address: Address) -> Self {
-        F(address)
-    }
-}
-
-impl Variable for EF {
-    fn size_of() -> usize {
-        4
-    }
-
-    fn from_address(address: Address) -> Self {
-        EF(address)
-    }
 }
