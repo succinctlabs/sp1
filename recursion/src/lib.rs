@@ -202,18 +202,27 @@ pub mod tests {
     #[test]
     fn test_add() {
         let program = Program::<BabyBear> {
-            instructions: vec![Instruction {
-                opcode: Opcode::ADD,
-                op_a: BabyBear::from_canonical_u32(0),
-                op_b: BabyBear::from_canonical_u32(1),
-                op_c: BabyBear::from_canonical_u32(2),
-                imm_b: false,
-                imm_c: true,
-            }],
+            instructions: vec![
+                Instruction {
+                    opcode: Opcode::ADD,
+                    op_a: BabyBear::from_canonical_u32(0),
+                    op_b: BabyBear::from_canonical_u32(1),
+                    op_c: BabyBear::from_canonical_u32(2),
+                    imm_b: false,
+                    imm_c: true,
+                },
+                Instruction {
+                    opcode: Opcode::MUL,
+                    op_a: BabyBear::from_canonical_u32(0),
+                    op_b: BabyBear::from_canonical_u32(0),
+                    op_c: BabyBear::from_canonical_u32(5),
+                    imm_b: false,
+                    imm_c: true,
+                },
+            ],
             pc_start: BabyBear::from_canonical_u32(0),
             pc_base: BabyBear::from_canonical_u32(0),
         };
-
         let mut runtime = Runtime::<BabyBear> {
             program,
             fp: BabyBear::zero(),
@@ -221,7 +230,6 @@ pub mod tests {
             memory: vec![BabyBear::zero(); 1024 * 1024],
         };
         runtime.run();
-
         println!("{:?}", &runtime.memory[0..16]);
     }
 }
