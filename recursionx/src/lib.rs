@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use p3_field::PrimeField32;
 
 #[derive(Debug, Clone)]
@@ -25,104 +23,98 @@ pub enum Opcode {
 
 #[derive(Debug, Clone)]
 pub struct Instruction<F: PrimeField32 + Clone> {
+    /// Which operation to execute.
     pub opcode: Opcode,
+
+    /// The first operand.
     pub op_a: F,
+
+    /// The second operand.
     pub op_b: F,
+
+    /// The third operand.
     pub op_c: F,
+
+    /// Whether the second operand is an immediate value.
     pub imm_b: bool,
+
+    /// Whether the third operand is an immediate value.
     pub imm_c: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct Program<F: PrimeField32 + Clone> {
+    /// The instructions of the program.
     pub instructions: Vec<Instruction<F>>,
+
+    /// The start address of the program.
     pub pc_start: F,
+
+    /// The base address of the program.
     pub pc_base: F,
 }
 
 pub struct Runtime<F: PrimeField32 + Clone> {
+    /// The frame pointer.
     pub fp: F,
+
+    /// The program counter.
     pub pc: F,
+
+    /// The program.
     pub program: Program<F>,
-    pub memory: HashMap<F, F>,
+
+    /// Memory.
+    pub memory: [F; 1024 * 1024],
 }
 
 impl<F: PrimeField32 + Clone> Runtime<F> {
-    pub fn execute(&mut self, instruction: &Instruction<F>) {
-        todo!()
-    }
-
-    fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, F) {
-        let zero = F::zero();
+    /// Fetch the destination address and input operand values for an ALU instruction.
+    fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
         if !instruction.imm_c {
-            let c = self
-                .memory
-                .get(&(self.fp + instruction.op_c))
-                .unwrap_or(&zero);
-            let b = self
-                .memory
-                .get(&(self.fp + instruction.op_b))
-                .unwrap_or(&zero);
-            (*b, *c)
-        } else if !instruction.imm_b && instruction.imm_c {
-            let c = instruction.op_c;
-            let b = self
-                .memory
-                .get(&(self.fp + instruction.op_b))
-                .unwrap_or(&zero);
-            (*b, c)
+            let a_ptr = self.fp + instruction.op_a;
+            let b_val = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
+            let c_val = self.memory[(self.fp + instruction.op_c).as_canonical_u32() as usize];
+            (a_ptr, b_val, c_val)
         } else {
-            unreachable!()
+            let a_ptr = self.fp + instruction.op_a;
+            let b_val = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
+            let c_val = instruction.op_c;
+            (a_ptr, b_val, c_val)
         }
     }
 
-    fn load_rr(&mut self, instruction: &Instruction<F>) -> F {
-        let zero = F::zero();
+    /// Fetch the destination address input operand values for a load instruction (from heap).
+    fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, F) {
         if !instruction.imm_b {
-            let b_addr = self
-                .memory
-                .get(&(self.fp + instruction.op_b))
-                .unwrap_or(&zero);
-            let b = self.memory.get(b_addr).unwrap_or(&zero);
-            *b
+            let a_ptr = self.fp + instruction.op_a;
+            let b_ptr = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
+            let b = self.memory[(b_ptr).as_canonical_u32() as usize];
+            (a_ptr, b)
         } else {
-            instruction.op_b
+            let a_ptr = self.fp + instruction.op_a;
+            (a_ptr, instruction.op_b)
         }
     }
 
+    /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, F) {
-        let zero = F::zero();
         if !instruction.imm_b {
-            let b = self
-                .memory
-                .get(&(self.fp + instruction.op_b))
-                .unwrap_or(&zero);
-            let a_addr = self
-                .memory
-                .get(&(self.fp + instruction.op_a))
-                .unwrap_or(&zero);
-            (*a_addr, *b)
+            let a_ptr = self.fp + instruction.op_a;
+            let b = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
+            (a_ptr, b)
         } else {
-            let a_addr = self
-                .memory
-                .get(&(self.fp + instruction.op_a))
-                .unwrap_or(&zero);
-            (*a_addr, instruction.op_b)
+            let a_ptr = self.fp + instruction.op_a;
+            (a_ptr, instruction.op_b)
         }
     }
 
+    /// Fetch the input operand values for a branch instruction.
     pub fn branch_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
-        let zero = F::zero();
+        let a = self.memory[(self.fp + instruction.op_a).as_canonical_u32() as usize];
+        let b = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
         let c = instruction.op_c;
-        let b = self
-            .memory
-            .get(&(self.fp + instruction.op_b))
-            .unwrap_or(&zero);
-        let a = self
-            .memory
-            .get(&(self.fp + instruction.op_a))
-            .unwrap_or(&zero);
-        (*a, *b, c)
+        (a, b, c)
     }
 
     pub fn run(&mut self) {
@@ -132,65 +124,70 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
             let idx = (self.pc - self.program.pc_base).as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
 
+            let mut next_pc = self.pc + F::one();
             match instruction.opcode {
                 Opcode::ADD => {
-                    let (b, c) = self.alu_rr(&instruction);
+                    let (a_ptr, b, c) = self.alu_rr(&instruction);
                     let a = b + c;
-                    self.memory.insert(self.fp + instruction.op_a, a);
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
                 }
                 Opcode::SUB => {
-                    let (b, c) = self.alu_rr(&instruction);
+                    let (a_ptr, b, c) = self.alu_rr(&instruction);
                     let a = b - c;
-                    self.memory.insert(self.fp + instruction.op_a, a);
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
                 }
                 Opcode::MUL => {
-                    let (b, c) = self.alu_rr(&instruction);
+                    let (a_ptr, b, c) = self.alu_rr(&instruction);
                     let a = b * c;
-                    self.memory.insert(self.fp + instruction.op_a, a);
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
                 }
                 Opcode::DIV => {
-                    let (b, c) = self.alu_rr(&instruction);
+                    let (a_ptr, b, c) = self.alu_rr(&instruction);
                     let a = b / c;
-                    self.memory.insert(self.fp + instruction.op_a, a);
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
                 }
                 Opcode::LW => {
-                    let b = self.load_rr(&instruction);
+                    let (a_ptr, b) = self.load_rr(&instruction);
                     let a = b;
-                    self.memory.insert(self.fp + instruction.op_a, a);
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
                 }
                 Opcode::SW => {
-                    let (a_addr, b) = self.store_rr(&instruction);
+                    let (a_ptr, b) = self.store_rr(&instruction);
                     let a = b;
-                    self.memory.insert(a_addr, a);
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
                 }
                 Opcode::BEQ => {
                     let (a, b, c) = self.branch_rr(&instruction);
                     if a == b {
-                        self.pc = c;
+                        next_pc = c;
                     }
                 }
                 Opcode::BNE => {
                     let (a, b, c) = self.branch_rr(&instruction);
                     if a != b {
-                        self.pc = c;
+                        next_pc = c;
                     }
                 }
                 Opcode::JAL => {
-                    let imm = instruction.op_c;
-                    let b_addr = instruction.op_b + self.fp;
-                    self.memory.insert(b_addr, self.pc);
-                    self.pc += self.pc + imm;
+                    let imm = instruction.op_b;
+                    let a_ptr = instruction.op_a + self.fp;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = self.pc;
+                    next_pc = self.pc + imm;
                 }
                 Opcode::JALR => {
                     let imm = instruction.op_c;
-                    let b = self.memory.get(&(self.fp + instruction.op_b)).unwrap();
-                    let b_addr = *b;
-                    self.memory.insert(b_addr, self.pc);
-                    self.pc = b_addr + imm;
+                    let b_ptr = instruction.op_b + self.fp;
+                    let a_ptr = instruction.op_a + self.fp;
+
+                    let b = self.memory[(b_ptr).as_canonical_u32() as usize];
+                    let c = imm;
+                    let a = self.pc + F::one();
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    next_pc = b + c;
                 }
             };
 
-            todo!()
+            self.pc = next_pc;
         }
     }
 }
