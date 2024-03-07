@@ -1,57 +1,25 @@
+use instruction::Instruction;
+use opcode::Opcode;
 use p3_field::PrimeField32;
+use program::Program;
 
-#[derive(Debug, Clone)]
-pub enum Opcode {
-    // Arithmetic instructions.
-    ADD = 0,
-    SUB = 1,
-    MUL = 2,
-    DIV = 3,
+mod instruction;
+mod opcode;
+mod program;
 
-    // Memory instructions.
-    LW = 4,
-    SW = 5,
-
-    // Branch instructions.
-    BEQ = 6,
-    BNE = 7,
-
-    // Jump instructions.
-    JAL = 8,
-    JALR = 9,
+pub struct AluEvent<F> {
+    clk: F,
+    opcode: Opcode,
+    a: F,
+    b: F,
+    c: F,
 }
 
-#[derive(Debug, Clone)]
-pub struct Instruction<F: PrimeField32 + Clone> {
-    /// Which operation to execute.
-    pub opcode: Opcode,
-
-    /// The first operand.
-    pub op_a: F,
-
-    /// The second operand.
-    pub op_b: F,
-
-    /// The third operand.
-    pub op_c: F,
-
-    /// Whether the second operand is an immediate value.
-    pub imm_b: bool,
-
-    /// Whether the third operand is an immediate value.
-    pub imm_c: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct Program<F: PrimeField32 + Clone> {
-    /// The instructions of the program.
-    pub instructions: Vec<Instruction<F>>,
-
-    /// The start address of the program.
-    pub pc_start: F,
-
-    /// The base address of the program.
-    pub pc_base: F,
+pub struct ExecutionRecord<F> {
+    pub add_events: Vec<AluEvent<F>>,
+    pub sub_events: Vec<AluEvent<F>>,
+    pub mul_events: Vec<AluEvent<F>>,
+    pub div_events: Vec<AluEvent<F>>,
 }
 
 pub struct Runtime<F: PrimeField32 + Clone> {
@@ -112,16 +80,18 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
     /// Fetch the input operand values for a branch instruction.
     pub fn branch_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
         let a = self.memory[(self.fp + instruction.op_a).as_canonical_u32() as usize];
-        let b = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
+        let b = if !instruction.imm_b {
+            self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize]
+        } else {
+            instruction.op_b
+        };
         let c = instruction.op_c;
         (a, b, c)
     }
 
     pub fn run(&mut self) {
-        while self.pc - self.program.pc_base
-            < F::from_canonical_u32(self.program.instructions.len() as u32)
-        {
-            let idx = (self.pc - self.program.pc_base).as_canonical_u32() as usize;
+        while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
+            let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
 
             let mut next_pc = self.pc + F::one();
@@ -200,6 +170,42 @@ pub mod tests {
     use crate::{Instruction, Opcode, Program, Runtime};
 
     #[test]
+    fn test_fibonacci() {
+        // .main
+        //  si 0(fp) 1 <-- a = 1
+        //  si 1(fp) 1 <-- b = 1
+        //  si 2(fp) 10 <-- iterations = 10
+        // .body:
+        //   add 3(fp) 0(fp) 1(fp) <-- tmp = a + b
+        //   sw 0(fp) 1(fp) <-- a = b
+        //   sw 1(fp) 3(fp) <-- b = tmp
+        // . subi 2(fp) 2(fp) 1 <-- iterations -= 1
+        //   bne 2(fp) 0 .body <-- if iterations != 0 goto .body
+        let program = Program::<BabyBear> {
+            instructions: vec![
+                // .main
+                Instruction::new(Opcode::SW, 0, 1, 0, true, true),
+                Instruction::new(Opcode::SW, 1, 1, 0, true, true),
+                Instruction::new(Opcode::SW, 2, 10, 0, true, true),
+                // .body:
+                Instruction::new(Opcode::ADD, 3, 0, 1, false, false),
+                Instruction::new(Opcode::SW, 0, 1, 0, false, true),
+                Instruction::new(Opcode::SW, 1, 3, 0, false, true),
+                Instruction::new(Opcode::SUB, 2, 2, 1, false, true),
+                Instruction::new(Opcode::BNE, 2, 0, 3, true, true),
+            ],
+        };
+        let mut runtime = Runtime::<BabyBear> {
+            program,
+            fp: BabyBear::zero(),
+            pc: BabyBear::zero(),
+            memory: vec![BabyBear::zero(); 1024 * 1024],
+        };
+        runtime.run();
+        assert_eq!(runtime.memory[1], BabyBear::from_canonical_u32(144));
+    }
+
+    #[test]
     fn test_add() {
         let program = Program::<BabyBear> {
             instructions: vec![
@@ -220,8 +226,6 @@ pub mod tests {
                     imm_c: true,
                 },
             ],
-            pc_start: BabyBear::from_canonical_u32(0),
-            pc_base: BabyBear::from_canonical_u32(0),
         };
         let mut runtime = Runtime::<BabyBear> {
             program,
