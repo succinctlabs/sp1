@@ -18,17 +18,37 @@ use std::fmt::Debug;
 ///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
+#[derive(Debug, Clone)]
 #[repr(C)]
-pub struct FieldDenCols<T> {
+pub struct FieldDenCols<T, const N: usize> {
     /// The result of `a den b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
+    pub result: Limbs<T, N>,
+    pub(crate) carry: Limbs<T, N>,
     pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
     pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
 }
 
-impl<F: PrimeField32> FieldDenCols<F> {
+impl<T, const N: usize> Borrow<FieldDenCols<T, N>> for [T] {
+    fn borrow(&self) -> &FieldDenCols<T, N> {
+        debug_assert_eq!(self.len(), size_of::<FieldDenCols<T, N>>());
+        let (prefix, shorts, _suffix) = unsafe { self.align_to::<FieldDenCols<T, N>>() };
+        debug_assert!(prefix.is_empty(), "Alignment should match");
+        debug_assert_eq!(shorts.len(), 1);
+        &shorts[0]
+    }
+}
+
+impl<T, const N: usize> BorrowMut<FieldDenCols<T, N>> for [T] {
+    fn borrow_mut(&mut self) -> &mut FieldDenCols<T, N> {
+        debug_assert_eq!(self.len(), size_of::<FieldDenCols<T, N>>());
+        let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<FieldDenCols<T, N>>() };
+        debug_assert!(prefix.is_empty(), "Alignment should match");
+        debug_assert_eq!(shorts.len(), 1);
+        &mut shorts[0]
+    }
+}
+
+impl<F: PrimeField32, const N: usize> FieldDenCols<F, N> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
@@ -84,13 +104,13 @@ impl<F: PrimeField32> FieldDenCols<F> {
     }
 }
 
-impl<V: Copy> FieldDenCols<V> {
+impl<V: Copy, const N: usize> FieldDenCols<V, N> {
     #[allow(unused_variables)]
     pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
-        b: &Limbs<AB::Var>,
+        a: &Limbs<AB::Var, N>,
+        b: &Limbs<AB::Var, N>,
         sign: bool,
     ) where
         V: Into<AB::Expr>,
