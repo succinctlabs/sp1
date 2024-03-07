@@ -122,6 +122,8 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
 }
 
 impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }

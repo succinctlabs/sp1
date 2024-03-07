@@ -43,6 +43,8 @@ pub struct BitwiseCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for BitwiseChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Bitwise".to_string()
     }

@@ -38,6 +38,8 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
 }
 
 impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         match self.kind {
             MemoryChipKind::Init => "MemoryInit".to_string(),

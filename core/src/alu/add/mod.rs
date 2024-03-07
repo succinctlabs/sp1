@@ -40,6 +40,8 @@ pub struct AddCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for AddChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Add".to_string()
     }

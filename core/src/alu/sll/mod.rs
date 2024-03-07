@@ -91,6 +91,8 @@ pub struct ShiftLeftCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for ShiftLeft {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShiftLeft".to_string()
     }

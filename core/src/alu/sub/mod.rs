@@ -41,6 +41,8 @@ pub struct SubCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for SubChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Sub".to_string()
     }

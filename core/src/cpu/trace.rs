@@ -19,6 +19,8 @@ use std::borrow::BorrowMut;
 use tracing::instrument;
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "CPU".to_string()
     }

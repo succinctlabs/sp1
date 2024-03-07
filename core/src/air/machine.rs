@@ -2,12 +2,14 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::{ExecutionRecord, Program};
+use crate::runtime::Program;
 
 pub use sp1_derive::MachineAir;
 
 /// An AIR that is part of a Risc-V AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
+    type Record;
+
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
 
@@ -16,14 +18,10 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// - `input` is the execution record containing the events to be written to the trace.
     /// - `output` is the execution record containing events that the `MachineAir` can add to
     ///    the record such as byte lookup requests.
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F>;
+    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F>;
 
     /// Generate the dependencies for a given execution record.
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         self.generate_trace(input, output);
     }
 

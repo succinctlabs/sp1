@@ -123,6 +123,8 @@ pub struct ShiftRightCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShiftRight".to_string()
     }

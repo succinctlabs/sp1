@@ -4,14 +4,15 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
+use std::borrow::BorrowMut;
 use tracing::instrument;
 
+use crate::ExecutionRecord;
 use sp1_core::air::MachineAir;
 use sp1_core::air::SP1AirBuilder;
-use sp1_core::operations::{AddOperation, IsZeroOperation};
-use sp1_core::runtime::{ExecutionRecord, Opcode};
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::operations::IsZeroOperation;
 
 /// The number of main trace columns for `CpuChip`.
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -38,17 +39,6 @@ pub struct MemoryWriteCols<T> {
     pub prev_timestamp: T,
     pub curr_timestamp: T,
 }
-
-// #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
-// pub struct ExtensionCols<T> {
-//     pub a: [T; 4],
-//     pub b: [T; 4],
-//     pub c: [T; 4],
-//     pub add: [T; 4],
-//     pub sub: [T; 4],
-//     pub mul: [T; 4],
-//     pub div: [T; 4],
-// }
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 pub struct HashCols<T> {
@@ -114,17 +104,37 @@ pub struct CpuCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {
+    type Record = ExecutionRecord<F>;
+
     fn name(&self) -> String {
         "CPU".to_string()
     }
 
-    #[instrument(name = "generate add trace", skip_all)]
     fn generate_trace(
         &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        input: &ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        todo!()
+        let rows = input
+            .cpu_events
+            .iter()
+            .map(|event| {
+                let mut row = [F::zero(); NUM_CPU_COLS];
+                let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+                cols.clk = event.clk;
+                cols.pc = event.pc;
+                cols.fp = event.fp;
+                row
+            })
+            .collect::<Vec<_>>();
+
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
+
+        // Pad the trace to a power of two.
+        pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
+
+        trace
     }
 }
 
@@ -140,7 +150,7 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+        let _: &CpuCols<AB::Var> = main.row_slice(0).borrow();
+        let _: &CpuCols<AB::Var> = main.row_slice(1).borrow();
     }
 }

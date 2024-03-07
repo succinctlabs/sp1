@@ -8,6 +8,7 @@ mod instruction;
 mod opcode;
 mod program;
 
+#[derive(Debug, Clone)]
 pub struct CpuEvent<F> {
     pub clk: F,
     pub pc: F,
@@ -15,21 +16,30 @@ pub struct CpuEvent<F> {
     pub instruction: Instruction<F>,
     pub opcode: Opcode,
     pub a: F,
-    pub a_record: MemoryRecord,
+    pub a_record: Option<MemoryRecord<F>>,
     pub b: F,
-    pub b_record: MemoryRecord,
+    pub b_record: Option<MemoryRecord<F>>,
     pub c: F,
-    pub c_record: MemoryRecord,
+    pub c_record: Option<MemoryRecord<F>>,
 }
 
-pub struct MemoryRecord {
-    pub value: u32,
-    pub timestamp: u32,
-    pub prev_value: u32,
-    pub prev_timestamp: u32,
+#[derive(Debug, Clone)]
+pub struct MemoryRecord<F> {
+    pub value: F,
+    pub timestamp: F,
+    pub prev_value: F,
+    pub prev_timestamp: F,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct ExecutionRecord<F: Default> {
+    pub cpu_events: Vec<CpuEvent<F>>,
 }
 
 pub struct Runtime<F: PrimeField32 + Clone> {
+    /// The current clock.
+    pub clk: F,
+
     /// The frame pointer.
     pub fp: F,
 
@@ -41,6 +51,9 @@ pub struct Runtime<F: PrimeField32 + Clone> {
 
     /// Memory.
     pub memory: Vec<F>,
+
+    /// The execution record.
+    pub record: ExecutionRecord<F>,
 }
 
 impl<F: PrimeField32 + Clone> Runtime<F> {
@@ -100,47 +113,53 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
-
             let mut next_pc = self.pc + F::one();
+            let (a, b, c): (F, F, F);
             match instruction.opcode {
                 Opcode::ADD => {
-                    let (a_ptr, b, c) = self.alu_rr(&instruction);
-                    let a = b + c;
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = b_val + c_val;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::SUB => {
-                    let (a_ptr, b, c) = self.alu_rr(&instruction);
-                    let a = b - c;
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = b_val - c_val;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::MUL => {
-                    let (a_ptr, b, c) = self.alu_rr(&instruction);
-                    let a = b * c;
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = b_val * c_val;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::DIV => {
-                    let (a_ptr, b, c) = self.alu_rr(&instruction);
-                    let a = b / c;
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = b_val / c_val;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LW => {
-                    let (a_ptr, b) = self.load_rr(&instruction);
-                    let a = b;
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    let (a_ptr, b_val) = self.load_rr(&instruction);
+                    let a_val = b_val;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    (a, b, c) = (a_val, b_val, F::zero());
                 }
                 Opcode::SW => {
-                    let (a_ptr, b) = self.store_rr(&instruction);
-                    let a = b;
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
+                    let (a_ptr, b_val) = self.store_rr(&instruction);
+                    let a_val = b_val;
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    (a, b, c) = (a_val, b_val, F::zero());
                 }
                 Opcode::BEQ => {
-                    let (a, b, c) = self.branch_rr(&instruction);
+                    (a, b, c) = self.branch_rr(&instruction);
                     if a == b {
                         next_pc = c;
                     }
                 }
                 Opcode::BNE => {
-                    let (a, b, c) = self.branch_rr(&instruction);
+                    (a, b, c) = self.branch_rr(&instruction);
                     if a != b {
                         next_pc = c;
                     }
@@ -150,21 +169,37 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                     let a_ptr = instruction.op_a + self.fp;
                     self.memory[(a_ptr).as_canonical_u32() as usize] = self.pc;
                     next_pc = self.pc + imm;
+                    (a, b, c) = (a_ptr, F::zero(), F::zero());
                 }
                 Opcode::JALR => {
                     let imm = instruction.op_c;
                     let b_ptr = instruction.op_b + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
-
-                    let b = self.memory[(b_ptr).as_canonical_u32() as usize];
-                    let c = imm;
-                    let a = self.pc + F::one();
-                    self.memory[(a_ptr).as_canonical_u32() as usize] = a;
-                    next_pc = b + c;
+                    let b_val = self.memory[(b_ptr).as_canonical_u32() as usize];
+                    let c_val = imm;
+                    let a_val = self.pc + F::one();
+                    self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
+                    next_pc = b_val + c_val;
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
             };
 
             self.pc = next_pc;
+            let event = CpuEvent {
+                clk: self.clk,
+                pc: self.pc,
+                fp: self.fp,
+                instruction: instruction.clone(),
+                opcode: instruction.opcode,
+                a,
+                a_record: None,
+                b,
+                b_record: None,
+                c,
+                c_record: None,
+            };
+            self.record.cpu_events.push(event);
+            self.clk += F::one();
         }
     }
 }
@@ -174,6 +209,7 @@ pub mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
 
+    use crate::ExecutionRecord;
     use crate::{Instruction, Opcode, Program, Runtime};
 
     #[test]
@@ -203,12 +239,15 @@ pub mod tests {
             ],
         };
         let mut runtime = Runtime::<BabyBear> {
+            clk: BabyBear::zero(),
             program,
             fp: BabyBear::zero(),
             pc: BabyBear::zero(),
             memory: vec![BabyBear::zero(); 1024 * 1024],
+            record: ExecutionRecord::<BabyBear>::default(),
         };
         runtime.run();
+        println!("{:#?}", runtime.record.cpu_events);
         assert_eq!(runtime.memory[1], BabyBear::from_canonical_u32(144));
     }
 
@@ -235,10 +274,12 @@ pub mod tests {
             ],
         };
         let mut runtime = Runtime::<BabyBear> {
+            clk: BabyBear::zero(),
             program,
             fp: BabyBear::zero(),
             pc: BabyBear::zero(),
             memory: vec![BabyBear::zero(); 1024 * 1024],
+            record: ExecutionRecord::<BabyBear>::default(),
         };
         runtime.run();
         println!("{:?}", &runtime.memory[0..16]);

@@ -286,6 +286,8 @@ impl<V: Copy> K256DecompressCols<V> {
 }
 
 impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }

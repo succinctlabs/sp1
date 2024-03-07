@@ -15,6 +15,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaCompress".to_string()
     }

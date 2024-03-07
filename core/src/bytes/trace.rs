@@ -7,6 +7,8 @@ use crate::{air::MachineAir, runtime::ExecutionRecord};
 pub const NUM_ROWS: usize = 1 << 16;
 
 impl<F: Field> MachineAir<F> for ByteChip<F> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Byte".to_string()
     }

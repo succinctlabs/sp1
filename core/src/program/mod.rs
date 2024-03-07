@@ -38,6 +38,8 @@ impl ProgramChip {
 }
 
 impl<F: PrimeField> MachineAir<F> for ProgramChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Program".to_string()
     }

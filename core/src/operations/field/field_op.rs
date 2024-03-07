@@ -215,6 +215,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldOpChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             format!("FieldOp{:?}", self.operation)
         }

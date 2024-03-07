@@ -110,6 +110,8 @@ pub struct MulCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for MulChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Mul".to_string()
     }

@@ -171,6 +171,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldDenChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "FieldDen".to_string()
         }

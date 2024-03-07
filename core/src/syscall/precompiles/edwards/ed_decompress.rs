@@ -272,6 +272,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 }
 
 impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }

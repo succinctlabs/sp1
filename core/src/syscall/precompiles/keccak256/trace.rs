@@ -18,6 +18,8 @@ use super::{
 };
 
 impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "KeccakPermute".to_string()
     }

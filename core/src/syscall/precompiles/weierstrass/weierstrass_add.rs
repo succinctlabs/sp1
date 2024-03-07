@@ -145,6 +145,8 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassAddAssignChip<E>
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
     }

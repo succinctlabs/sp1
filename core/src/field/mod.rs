@@ -48,6 +48,8 @@ pub struct FieldLtuCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }

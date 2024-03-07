@@ -158,6 +158,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldIpChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "FieldInnerProduct".to_string()
         }

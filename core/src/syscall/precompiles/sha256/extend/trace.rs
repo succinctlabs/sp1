@@ -8,6 +8,8 @@ use crate::{air::MachineAir, runtime::ExecutionRecord};
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaExtend".to_string()
     }

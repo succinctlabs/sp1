@@ -140,8 +140,10 @@ where
 impl<F, A> MachineAir<F> for Chip<F, A>
 where
     F: Field,
-    A: MachineAir<F>,
+    A: MachineAir<F, Record = crate::runtime::ExecutionRecord>,
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         self.air.name()
     }

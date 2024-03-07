@@ -18,6 +18,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()
     }

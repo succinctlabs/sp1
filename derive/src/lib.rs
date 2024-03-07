@@ -143,6 +143,8 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
             let machine_air = quote! {
                 impl #impl_generics crate::air::MachineAir<F> for #name #ty_generics #where_clause {
+                    type Record = crate::runtime::ExecutionRecord;
+
                     fn name(&self) -> String {
                         match self {
                             #(#name_arms,)*

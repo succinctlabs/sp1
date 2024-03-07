@@ -161,6 +161,8 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassDoubleAssignChip<E>
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
     }

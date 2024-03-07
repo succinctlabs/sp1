@@ -74,6 +74,8 @@ impl LtCols<u32> {
 }
 
 impl<F: PrimeField> MachineAir<F> for LtChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Lt".to_string()
     }

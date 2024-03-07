@@ -118,6 +118,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
