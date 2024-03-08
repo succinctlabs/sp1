@@ -4,6 +4,7 @@ use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
 use p3_field::PrimeField32;
+use sp1_recursion_core::Instruction;
 
 #[derive(Debug, Clone, Default)]
 pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);
@@ -27,6 +28,24 @@ impl<F: PrimeField32> BasicBlock<F> {
 impl<F: PrimeField32> AssemblyCode<F> {
     pub fn new(blocks: Vec<BasicBlock<F>>, labels: BTreeMap<F, String>) -> Self {
         Self { blocks, labels }
+    }
+
+    pub fn machine_code(self) -> Vec<Instruction<F>> {
+        let blocks = self.blocks;
+
+        // Make a first pass to collect all the pc rows corresponding to the labels.
+        let mut label_to_pc = BTreeMap::new();
+        let mut pc = 0;
+        for (i, block) in blocks.iter().enumerate() {
+            label_to_pc.insert(i, pc);
+            pc += block.0.len();
+        }
+
+        // Make the second pass to convert the assembly code to machine code.
+        let mut machine_code = Vec::new();
+        for block in blocks {}
+
+        machine_code
     }
 }
 

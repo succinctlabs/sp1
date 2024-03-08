@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use instruction::Instruction;
 use opcode::Opcode;
 use p3_field::PrimeField32;
 use program::Program;
@@ -10,6 +9,8 @@ mod instruction;
 mod machine;
 mod opcode;
 mod program;
+
+pub use instruction::Instruction;
 
 #[derive(Debug, Clone)]
 pub struct CpuEvent<F> {
