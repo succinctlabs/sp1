@@ -37,7 +37,7 @@ impl<F: PrimeField32> AssemblyCode<F> {
         let mut label_to_pc = BTreeMap::new();
         let mut pc = 0;
         for (i, block) in blocks.iter().enumerate() {
-            label_to_pc.insert(i, pc);
+            label_to_pc.insert(F::from_canonical_usize(i), pc);
             pc += block.0.len();
         }
 
@@ -46,7 +46,7 @@ impl<F: PrimeField32> AssemblyCode<F> {
         let mut pc = 0;
         for block in blocks {
             for instruction in block.0 {
-                machine_code.push(instruction.machine_code(pc, &label_to_pc));
+                machine_code.push(instruction.to_machine(pc, &label_to_pc));
                 pc += 1;
             }
         }

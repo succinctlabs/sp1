@@ -156,17 +156,19 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                     let a_ptr = instruction.op_a + self.fp;
                     self.memory[(a_ptr).as_canonical_u32() as usize] = self.pc;
                     next_pc = self.pc + imm;
+                    self.fp += instruction.op_c;
                     (a, b, c) = (a_ptr, F::zero(), F::zero());
                 }
                 Opcode::JALR => {
-                    let imm = instruction.op_c;
                     let b_ptr = instruction.op_b + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
+                    let c_ptr = instruction.op_c + self.fp;
                     let b_val = self.memory[(b_ptr).as_canonical_u32() as usize];
-                    let c_val = imm;
+                    let c_val = self.memory[(c_ptr).as_canonical_u32() as usize];
                     let a_val = self.pc + F::one();
                     self.memory[(a_ptr).as_canonical_u32() as usize] = a_val;
-                    next_pc = b_val + c_val;
+                    next_pc = b_val;
+                    self.fp += c_val;
                     (a, b, c) = (a_val, b_val, c_val);
                 }
             };

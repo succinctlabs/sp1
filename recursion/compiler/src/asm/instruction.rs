@@ -58,7 +58,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
         AsmInstruction::JAL(dst.0, label, F::zero())
     }
 
-    pub fn machine_code(self, pc: usize, label_to_pc: &BTreeMap<usize, usize>) -> Instruction<F> {
+    pub fn to_machine(self, pc: usize, label_to_pc: &BTreeMap<F, usize>) -> Instruction<F> {
         let i32_f = canonical_i32_to_field::<F>;
         let f_u32 = |x: F| x.as_canonical_u32();
         match self {
@@ -121,11 +121,74 @@ impl<F: PrimeField32> AsmInstruction<F> {
             AsmInstruction::DIVIN(dst, lhs, rhs) => {
                 Instruction::new(Opcode::DIV, i32_f(dst), f_u32(rhs), i32_f(lhs), true, false)
             }
-            // AsmInstruction::BEQ(label, lhs, rhs) => {
-            //     let offset = label_to_pc[&label.as_canonical_u32()] as i32 - pc as i32;
-            //     Instruction::new(Opcode::BEQ, i32_f(lhs), i32_f(rhs), offset, false, false)
-            // }
-            _ => todo!(),
+            AsmInstruction::BEQ(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BEQ,
+                    i32_f(lhs),
+                    i32_f(rhs),
+                    f_u32(offset),
+                    false,
+                    true,
+                )
+            }
+            AsmInstruction::BEQI(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BEQ,
+                    i32_f(lhs),
+                    f_u32(rhs),
+                    f_u32(offset),
+                    true,
+                    true,
+                )
+            }
+            AsmInstruction::BNE(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BNE,
+                    i32_f(lhs),
+                    i32_f(rhs),
+                    f_u32(offset),
+                    false,
+                    true,
+                )
+            }
+            AsmInstruction::BNEI(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BNE,
+                    i32_f(lhs),
+                    f_u32(rhs),
+                    f_u32(offset),
+                    true,
+                    true,
+                )
+            }
+            AsmInstruction::JAL(dst, label, offset) => {
+                let pc_offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::JAL,
+                    i32_f(dst),
+                    f_u32(pc_offset),
+                    f_u32(offset),
+                    false,
+                    true,
+                )
+            }
+            AsmInstruction::JALR(dst, label, offset) => Instruction::new(
+                Opcode::JALR,
+                i32_f(dst),
+                i32_f(label),
+                i32_f(offset),
+                false,
+                false,
+            ),
         }
     }
 
