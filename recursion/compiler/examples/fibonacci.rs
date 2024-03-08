@@ -10,17 +10,24 @@ fn main() {
 
     // let temp = builder.uninit::<Felt<BabyBear>>();
     // builder.assign(temp, a + b);
-    builder.assign(a, a + b - n + BabyBear::from_canonical_u32(59));
+    // builder.assign(a, a + b - n + BabyBear::from_canonical_u32(59));
     // builder.assign(b, temp);
 
     let start = a;
     let end = n;
 
+    let zero = builder.constant(BabyBear::zero());
     builder.range(start, end).for_each(|_, builder| {
         builder.assign(a, a + b);
+        // Make a nested for loop
+        let start = zero;
+        let end = n;
+        builder.range(start, end).for_each(|_, builder| {
+            builder.assign(b, a + b);
+        });
     });
 
-    builder.assign(b, a + b + n);
+    // builder.assign(b, a + b + n);
 
     // let mut temp = builder.uninit::<F>();
 

@@ -282,6 +282,14 @@ impl<F> Mul<Felt<F>> for Symbolic<F> {
     }
 }
 
+impl<F> Mul<F> for Symbolic<F> {
+    type Output = Self;
+
+    fn mul(self, rhs: F) -> Self {
+        Symbolic::Mul(Rc::new(self), Rc::new(Symbolic::Const(rhs)))
+    }
+}
+
 impl<F> Sub<Felt<F>> for Symbolic<F> {
     type Output = Self;
 
@@ -290,10 +298,26 @@ impl<F> Sub<Felt<F>> for Symbolic<F> {
     }
 }
 
+impl<F> Sub<F> for Symbolic<F> {
+    type Output = Self;
+
+    fn sub(self, rhs: F) -> Self {
+        Symbolic::Sub(Rc::new(self), Rc::new(Symbolic::Const(rhs)))
+    }
+}
+
 impl<F> Div<Felt<F>> for Symbolic<F> {
     type Output = Self;
 
     fn div(self, rhs: Felt<F>) -> Self {
         Symbolic::Div(Rc::new(self), Rc::new(Symbolic::Value(rhs)))
+    }
+}
+
+impl<F> Div<F> for Symbolic<F> {
+    type Output = Self;
+
+    fn div(self, rhs: F) -> Self {
+        Symbolic::Div(Rc::new(self), Rc::new(Symbolic::Const(rhs)))
     }
 }

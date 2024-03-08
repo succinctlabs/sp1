@@ -17,6 +17,8 @@ pub trait Builder: Sized {
 
     fn push(&mut self, instruction: Instruction<Self::F>);
 
+    fn push_to_block(&mut self, block_label: Self::F, instruction: Instruction<Self::F>);
+
     fn basic_block(&mut self);
 
     fn block_label(&mut self) -> Self::F;
@@ -66,6 +68,10 @@ impl<'a, B: Builder> Builder for ForBuilder<'a, B> {
         self.builder.push(instruction);
     }
 
+    fn push_to_block(&mut self, block_label: Self::F, instruction: Instruction<Self::F>) {
+        self.builder.push_to_block(block_label, instruction);
+    }
+
     fn basic_block(&mut self) {
         self.builder.basic_block();
     }
@@ -87,9 +93,8 @@ impl<'a, B: Builder> ForBuilder<'a, B> {
         let loop_var = self.loop_var;
         // Set the loop variable to the start of the range.
         self.assign(loop_var, self.start);
-        // Add a jump instruction to the loop condition in the following block
-        let label = self.block_label() + B::F::two();
-        self.push(Instruction::J(label));
+        // Save the label of the for loop call
+        let loop_call_label = self.block_label();
         // A basic block for the loop body
         self.basic_block();
         // The loop body.
@@ -103,5 +108,9 @@ impl<'a, B: Builder> ForBuilder<'a, B> {
         // Jump to loop body if the loop condition still holds.
         let instr = Instruction::BNE(loop_label, loop_var.0, self.end.0);
         self.push(instr);
+        // Add a jump instruction to the loop condition in the following block
+        let label = self.block_label();
+        let instr = Instruction::j(label, self);
+        self.push_to_block(loop_call_label, instr);
     }
 }

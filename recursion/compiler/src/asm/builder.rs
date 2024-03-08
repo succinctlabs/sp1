@@ -51,6 +51,13 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
+    fn push_to_block(&mut self, block_label: Self::F, instruction: Instruction<Self::F>) {
+        self.basic_blocks
+            .get_mut(block_label.as_canonical_u32() as usize)
+            .unwrap_or_else(|| panic!("Missing block at label: {:?}", block_label))
+            .push(instruction);
+    }
+
     fn push(&mut self, instruction: Instruction<F>) {
         self.basic_blocks.last_mut().unwrap().push(instruction);
     }

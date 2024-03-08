@@ -1,6 +1,8 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+use crate::builder::Builder;
+use crate::ir::Felt;
 use p3_field::PrimeField;
 
 #[derive(Debug, Clone)]
@@ -31,8 +33,6 @@ pub enum Instruction<F> {
     DIVI(i32, i32, F),
     /// Divide immediate and invert (dst = rhs / lhs)
     DIVIN(i32, i32, F),
-    /// Jump
-    J(F),
     /// Jump and link
     JAL(i32, F, F),
     /// Jump and link value
@@ -48,6 +48,11 @@ pub enum Instruction<F> {
 }
 
 impl<F: PrimeField> Instruction<F> {
+    pub fn j<B: Builder<F = F>>(label: F, builder: &mut B) -> Self {
+        let dst = builder.uninit::<Felt<F>>();
+        Instruction::JAL(dst.0, label, F::zero())
+    }
+
     pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instruction::LW(dst, src) => write!(f, "lw ({})fp, ({})fp", dst, src),
@@ -75,16 +80,25 @@ impl<F: PrimeField> Instruction<F> {
             Instruction::DIVIN(dst, lhs, rhs) => {
                 write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
-            Instruction::J(label) => {
+            Instruction::JAL(dst, label, offset) => {
+                if *offset == F::zero() {
+                    return write!(
+                        f,
+                        "j ({})fp, {}",
+                        dst,
+                        labels.get(label).unwrap_or(&format!(".BBL_{}", label))
+                    );
+                }
                 write!(
                     f,
-                    "j {}",
-                    labels.get(label).unwrap_or(&format!(".BBL_{}", label))
+                    "jal ({})fp, {}, {}",
+                    dst,
+                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    offset
                 )
             }
-            Instruction::JAL(dst, lhs, rhs) => write!(f, "jal ({})fp, {}, {}", dst, lhs, rhs),
-            Instruction::JALV(dst, lhs, rhs) => {
-                write!(f, "jalv ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            Instruction::JALV(dst, label, offset) => {
+                write!(f, "jalv ({})fp, ({})fp, ({})fp", dst, label, offset)
             }
             Instruction::BNE(label, lhs, rhs) => {
                 write!(
