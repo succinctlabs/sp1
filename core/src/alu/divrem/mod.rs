@@ -182,6 +182,8 @@ pub struct DivRemCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "DivRem".to_string()
     }
@@ -395,6 +397,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         }
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.divrem_events.is_empty()
     }
 }
 

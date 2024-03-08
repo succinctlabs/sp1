@@ -15,6 +15,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaCompress".to_string()
     }
@@ -255,5 +257,9 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_compress_events.is_empty()
     }
 }

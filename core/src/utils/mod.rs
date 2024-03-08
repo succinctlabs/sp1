@@ -110,3 +110,13 @@ pub fn u32_to_comma_separated(value: u32) -> String {
         .rev()
         .collect()
 }
+
+pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
+    let mut result = Vec::new();
+    while !vec.is_empty() {
+        let current_chunk_size = std::cmp::min(chunk_size, vec.len());
+        let current_chunk = vec.drain(..current_chunk_size).collect::<Vec<T>>();
+        result.push(current_chunk);
+    }
+    result
+}

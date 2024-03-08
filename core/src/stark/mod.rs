@@ -7,6 +7,7 @@ mod machine;
 mod permutation;
 mod prover;
 mod quotient;
+mod record;
 mod types;
 mod util;
 mod verifier;
@@ -21,6 +22,7 @@ pub use machine::*;
 pub use permutation::*;
 pub use prover::*;
 pub use quotient::*;
+pub use record::*;
 pub use types::*;
 pub use verifier::*;
 

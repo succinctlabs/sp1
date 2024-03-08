@@ -6,8 +6,7 @@ use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
 use crate::air::MachineAir;
-use crate::runtime::ExecutionRecord;
-use crate::stark::{RiscvChip, StarkGenericConfig};
+use crate::stark::{MachineChip, StarkGenericConfig};
 
 use super::InteractionKind;
 
@@ -43,9 +42,9 @@ fn babybear_to_int(n: BabyBear) -> i32 {
     }
 }
 
-pub fn debug_interactions<SC: StarkGenericConfig>(
-    chip: &RiscvChip<SC>,
-    record: &ExecutionRecord,
+pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+    chip: &MachineChip<SC, A>,
+    record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
     BTreeMap<String, Vec<InteractionData<SC::Val>>>,
@@ -54,7 +53,7 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
-    let trace = chip.generate_trace(record, &mut ExecutionRecord::default());
+    let trace = chip.generate_trace(record, &mut A::Record::default());
     let mut main = trace.clone();
     let height = trace.clone().height();
 
@@ -109,15 +108,18 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
 
 /// Calculate the the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
-pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>(
-    chips: &[RiscvChip<SC>],
-    segment: &ExecutionRecord,
+pub fn debug_interactions_with_all_chips<
+    SC: StarkGenericConfig<Val = BabyBear>,
+    A: MachineAir<SC::Val>,
+>(
+    chips: &[MachineChip<SC, A>],
+    segment: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
     let mut final_map = BTreeMap::new();
 
     for chip in chips.iter() {
-        let (_, count) = debug_interactions::<SC>(chip, segment, interaction_kinds.clone());
+        let (_, count) = debug_interactions::<SC, A>(chip, segment, interaction_kinds.clone());
 
         tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {

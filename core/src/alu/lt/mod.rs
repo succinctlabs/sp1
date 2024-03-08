@@ -74,6 +74,8 @@ impl LtCols<u32> {
 }
 
 impl<F: PrimeField> MachineAir<F> for LtChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Lt".to_string()
     }
@@ -168,6 +170,10 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.lt_events.is_empty()
     }
 }
 

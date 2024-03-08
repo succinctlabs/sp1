@@ -158,6 +158,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldIpChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "FieldInnerProduct".to_string()
         }
@@ -204,6 +206,10 @@ mod tests {
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
 
             trace
+        }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
         }
     }
 

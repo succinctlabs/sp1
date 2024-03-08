@@ -1,9 +1,13 @@
 use std::marker::PhantomData;
 
 use crate::air::MachineAir;
-use crate::runtime::ExecutionRecord;
+use crate::lookup::InteractionBuilder;
 use crate::runtime::Program;
-use crate::runtime::ShardingConfig;
+use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::VerifierConstraintFolder;
+use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -11,60 +15,48 @@ use p3_field::Field;
 use super::Chip;
 use super::Proof;
 use super::Prover;
-use super::RiscvAir;
 use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
-pub type RiscvChip<SC> =
-    Chip<<SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
+pub type MachineChip<SC, A> = Chip<<SC as StarkGenericConfig>::Val, A>;
 
 /// A STARK for proving RISC-V execution.
-pub struct RiscvStark<SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
+pub struct MachineStark<SC: StarkGenericConfig, A> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
     chips: Vec<Chip<SC::Val, A>>,
 }
 
+impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
+    pub fn new(config: SC, chips: Vec<Chip<SC::Val, A>>) -> Self {
+        Self { config, chips }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
     //TODO
-    marker: std::marker::PhantomData<SC>,
+    pub marker: std::marker::PhantomData<SC>,
 }
 
 #[derive(Debug, Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     // TODO:
-    marker: std::marker::PhantomData<SC>,
+    pub marker: std::marker::PhantomData<SC>,
 }
 
-impl<SC: StarkGenericConfig> RiscvStark<SC> {
-    /// Create a new RISC-V STARK machine.
-    pub fn new(config: SC) -> Self {
-        // The machine consists of a config (input) and a set of chips. The chip vector should
-        // contain the chips in the order they are executed. Each chip's air is able to add events
-        // to another chip's record (depending on interactions), so we order the chips by keeping
-        // track of which chips receive events from which other chips.
-
-        // First, get all the chips associated with this machine.
-        let chips = RiscvAir::get_all()
-            .into_iter()
-            .map(Chip::new)
-            .collect::<Vec<_>>();
-
-        Self { config, chips }
-    }
-
+impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> &[RiscvChip<SC>] {
+    pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
     }
 
     pub fn shard_chips<'a, 'b>(
         &'a self,
-        shard: &'b ExecutionRecord,
-    ) -> impl Iterator<Item = &'b RiscvChip<SC>>
+        shard: &'b A::Record,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
     where
         'a: 'b,
     {
@@ -88,9 +80,9 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
 
     pub fn shard(
         &self,
-        mut record: ExecutionRecord,
-        shard_config: &ShardingConfig,
-    ) -> Vec<ExecutionRecord> {
+        mut record: A::Record,
+        config: &<A::Record as MachineRecord>::Config,
+    ) -> Vec<A::Record> {
         // Get the local and global chips.
         let chips = self.chips();
 
@@ -104,8 +96,8 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
-            let mut output = ExecutionRecord::default();
-            output.index = record.index;
+            let mut output = A::Record::default();
+            output.set_index(record.index());
             chip.generate_dependencies(&record, &mut output);
             record.append(&mut output);
         });
@@ -116,21 +108,27 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
 
         // For each chip, shard the events into segments.
 
-        record.shard(shard_config)
+        record.shard(config)
     }
 
     /// Prove the execution record is valid.
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC>>(
+    pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: ExecutionRecord,
+        record: A::Record,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC> {
+    ) -> Proof<SC>
+    where
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<SC::Val>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+    {
         tracing::info!("Sharding the execution record.");
-        let shards = self.shard(record, &ShardingConfig::default());
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
         tracing::info!("Generating the shard proofs.");
         P::prove_shards(self, pk, shards, challenger)
@@ -148,6 +146,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Challenger: Clone,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.

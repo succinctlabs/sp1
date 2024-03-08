@@ -287,6 +287,8 @@ impl<V: Copy> K256DecompressCols<V> {
 }
 
 impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }
@@ -336,6 +338,10 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_K256_DECOMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.k256_decompress_events.is_empty()
     }
 }
 

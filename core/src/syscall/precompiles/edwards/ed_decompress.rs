@@ -274,6 +274,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 }
 
 impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }
@@ -306,6 +308,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_DECOMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_decompress_events.is_empty()
     }
 }
 
