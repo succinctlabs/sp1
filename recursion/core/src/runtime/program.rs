@@ -1,4 +1,4 @@
-use crate::instruction::Instruction;
+use super::Instruction;
 
 #[derive(Debug, Clone)]
 pub struct Program<F> {
