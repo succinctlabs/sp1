@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use alloc::vec::Vec;
 
+use crate::stark::MachineRecord;
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
@@ -18,6 +19,8 @@ use super::{
 };
 
 impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "KeccakPermute".to_string()
     }
@@ -156,5 +159,9 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_KECCAK_COLS + NUM_KECCAK_MEM_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.keccak_permute_events.is_empty()
     }
 }

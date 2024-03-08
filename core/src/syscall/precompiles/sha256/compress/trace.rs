@@ -15,6 +15,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaCompress".to_string()
     }
@@ -28,7 +30,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
         let mut new_field_events = Vec::new();
         for i in 0..input.sha_compress_events.len() {
-            let mut event = input.sha_compress_events[i];
+            let mut event = input.sha_compress_events[i].clone();
 
             let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);
@@ -255,5 +257,9 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_compress_events.is_empty()
     }
 }

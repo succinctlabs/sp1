@@ -6,7 +6,7 @@ members = [
     "zkvm/*",
     "helper",
     "eval",
-    "recursion/compiler",
+    "recursion/core",
 ]
 exclude = ["examples/target"]
 resolver = "2"

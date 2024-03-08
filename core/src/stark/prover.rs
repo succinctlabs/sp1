@@ -1,6 +1,11 @@
-use super::{quotient_values, RiscvStark};
-use super::{ProvingKey, RiscvChip};
+use super::{quotient_values, MachineStark};
+use super::{ProvingKey, VerifierConstraintFolder};
+use crate::lookup::InteractionBuilder;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::MachineChip;
+use crate::stark::ProverConstraintFolder;
 use itertools::izip;
+use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{AbstractExtensionField, AbstractField};
@@ -19,7 +24,6 @@ use std::marker::PhantomData;
 use super::util::decompose_and_flatten;
 use super::{types::*, StarkGenericConfig};
 use crate::air::MachineAir;
-use crate::runtime::ExecutionRecord;
 use crate::utils::env;
 
 #[cfg(not(feature = "perf"))]
@@ -35,16 +39,21 @@ fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     result
 }
 
-pub trait Prover<SC: StarkGenericConfig> {
+pub trait Prover<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     fn prove_shards(
-        machine: &RiscvStark<SC>,
+        machine: &MachineStark<SC, A>,
         pk: &ProvingKey<SC>,
-        shards: Vec<ExecutionRecord>,
+        shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC>;
+    ) -> Proof<SC>
+    where
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<SC::Val>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>;
 }
 
-impl<SC> Prover<SC> for LocalProver<SC>
+impl<SC, A> Prover<SC, A> for LocalProver<SC, A>
 where
     SC::Val: Send + Sync,
     SC: StarkGenericConfig + Send + Sync,
@@ -53,13 +62,20 @@ where
     PcsProverData<SC>: Send + Sync,
     PcsProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
+    A: MachineAir<SC::Val>,
 {
     fn prove_shards(
-        machine: &RiscvStark<SC>,
+        machine: &MachineStark<SC, A>,
         pk: &ProvingKey<SC>,
-        shards: Vec<ExecutionRecord>,
+        shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC> {
+    ) -> Proof<SC>
+    where
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<SC::Val>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+    {
         tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
@@ -107,21 +123,22 @@ where
     }
 }
 
-pub struct LocalProver<SC>(PhantomData<SC>);
+pub struct LocalProver<SC, A>(PhantomData<SC>, PhantomData<A>);
 
-impl<SC> LocalProver<SC>
+impl<SC, A> LocalProver<SC, A>
 where
     SC::Val: TwoAdicField,
     SC: StarkGenericConfig + Send + Sync,
     SC::Challenger: Clone,
+    A: MachineAir<SC::Val>,
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn commit_main(
+    pub fn commit_main(
         config: &SC,
-        machine: &RiscvStark<SC>,
-        shard: &ExecutionRecord,
+        machine: &MachineStark<SC, A>,
+        shard: &A::Record,
         index: usize,
     ) -> ShardMainData<SC>
     where
@@ -133,7 +150,7 @@ where
         // For each chip, generate the trace.
         let traces = filtered_chips
             .par_iter()
-            .map(|chip| chip.generate_trace(shard, &mut ExecutionRecord::default()))
+            .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
@@ -155,10 +172,10 @@ where
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
-    fn prove_shard(
+    pub fn prove_shard(
         config: &SC,
         _pk: &ProvingKey<SC>,
-        chips: &[&RiscvChip<SC>],
+        chips: &[&MachineChip<SC, A>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
@@ -166,6 +183,10 @@ where
         SC::Val: PrimeField32,
         SC: Send + Sync,
         ShardMainData<SC>: DeserializeOwned,
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<SC::Val>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
         // Get the traces.
         let traces = &shard_data.traces;
@@ -406,7 +427,7 @@ where
         #[cfg(not(feature = "perf"))]
         tracing::info_span!("debug constraints").in_scope(|| {
             for i in 0..chips.len() {
-                debug_constraints::<SC>(
+                debug_constraints::<SC, A>(
                     &chips[i],
                     None,
                     &traces[i],
@@ -426,8 +447,8 @@ where
     }
 
     fn commit_shards<F, EF>(
-        machine: &RiscvStark<SC>,
-        shards: &[ExecutionRecord],
+        machine: &MachineStark<SC, A>,
+        shards: &[A::Record],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<ShardMainDataWrapper<SC>>,

@@ -1,10 +1,8 @@
-use core::borrow::Borrow;
-
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{BranchCols, CpuCols, OpcodeSelectorCols, NUM_BRANCH_COLS};
+use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
@@ -37,8 +35,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the branch specific columns.
-        let branch_cols: BranchCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_BRANCH_COLS].borrow();
+        let branch_cols = local.opcode_specific_columns.branch();
 
         // Evaluate program counter constraints.
         {

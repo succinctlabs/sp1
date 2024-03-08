@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
@@ -69,7 +70,9 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.record_mut().weierstrass_double_events.push(event);
+        rt.record_mut()
+            .weierstrass_double_events
+            .push(event.clone());
         event.p_ptr + 1
     }
 
@@ -161,6 +164,8 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassDoubleAssignChip<E>
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
     }
@@ -234,6 +239,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_WEIERSTRASS_DOUBLE_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.weierstrass_double_events.is_empty()
     }
 }
 

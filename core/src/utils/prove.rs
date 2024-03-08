@@ -1,10 +1,11 @@
 use std::time::Instant;
 
+use crate::stark::RiscvAir;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
+    stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
-    stark::{RiscvStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_commit::Pcs;
@@ -52,18 +53,20 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
         runtime
     });
     let config = BabyBearBlake3::new();
-
-    let machine = RiscvStark::new(config);
+    let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
     let start = Instant::now();
     let record_clone = runtime.record.clone();
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record_clone, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
-    assert!(debug_interactions_with_all_chips::<BabyBearBlake3>(
+    assert!(debug_interactions_with_all_chips::<
+        BabyBearBlake3,
+        RiscvAir<p3_baby_bear::BabyBear>,
+    >(
         &machine.chips(),
         &runtime.record,
         InteractionKind::all_kinds(),
@@ -105,13 +108,13 @@ where
 
     let start = Instant::now();
 
-    let machine = RiscvStark::new(config);
+    let machine = RiscvAir::machine(config);
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
     // Prove the program.
     let cycles = runtime.state.global_clk;
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
@@ -162,7 +165,7 @@ use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
 
-pub(super) mod baby_bear_poseidon2 {
+pub mod baby_bear_poseidon2 {
 
     use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;

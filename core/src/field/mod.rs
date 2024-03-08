@@ -48,9 +48,13 @@ pub struct FieldLtuCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
+
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {}
 
     #[instrument(name = "generate FieldLTU trace", skip_all)]
     fn generate_trace(
@@ -59,10 +63,10 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = input
+        let cols = input
             .field_events
             .par_iter()
-            .map(|event| {
+            .flat_map_iter(|event| {
                 let mut row = [F::zero(); NUM_FIELD_COLS];
                 let cols: &mut FieldLtuCols<F> = row.as_mut_slice().borrow_mut();
                 let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
@@ -82,15 +86,16 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_FIELD_COLS,
-        );
+        let mut trace = RowMajorMatrix::new(cols, NUM_FIELD_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_FIELD_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.field_events.is_empty()
     }
 }
 

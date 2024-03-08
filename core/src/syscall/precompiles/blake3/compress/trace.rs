@@ -18,6 +18,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()
     }
@@ -32,7 +34,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
         let mut new_field_events = Vec::new();
 
         for i in 0..input.blake3_compress_inner_events.len() {
-            let event = input.blake3_compress_inner_events[i];
+            let event = input.blake3_compress_inner_events[i].clone();
 
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
@@ -112,5 +114,9 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_BLAKE3_COMPRESS_INNER_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.blake3_compress_inner_events.is_empty()
     }
 }

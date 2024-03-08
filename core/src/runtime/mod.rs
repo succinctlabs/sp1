@@ -26,9 +26,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 pub use syscall::*;
 
-use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-
 use self::state::ExecutionState;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -167,7 +164,11 @@ impl Runtime {
     }
 
     #[inline]
+    #[cfg(debug_assertions)]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
+        use p3_baby_bear::BabyBear;
+        use p3_field::AbstractField;
+
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
             let _ = BabyBear::from_canonical_u32(addr);
@@ -176,6 +177,9 @@ impl Runtime {
             let _ = Register::from_u32(addr);
         }
     }
+
+    #[cfg(not(debug_assertions))]
+    fn validate_memory_access(&self, _addr: u32, _position: AccessPosition) {}
 
     pub fn mr(&mut self, addr: u32, shard: u32, clk: u32) -> MemoryReadRecord {
         // Get the memory entry.

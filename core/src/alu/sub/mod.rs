@@ -41,6 +41,8 @@ pub struct SubCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for SubChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Sub".to_string()
     }
@@ -98,6 +100,10 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
         pad_to_power_of_two::<NUM_SUB_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sub_events.is_empty()
     }
 }
 

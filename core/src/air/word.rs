@@ -2,7 +2,6 @@ use std::array::IntoIter;
 use std::mem::size_of;
 use std::ops::{Index, IndexMut};
 
-use core::borrow::{Borrow, BorrowMut};
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;

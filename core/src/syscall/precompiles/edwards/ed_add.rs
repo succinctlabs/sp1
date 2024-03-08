@@ -116,12 +116,14 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().ed_add_events.push(event);
+        rt.record_mut().ed_add_events.push(event.clone());
         event.p_ptr + 1
     }
 }
 
 impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
@@ -189,6 +191,10 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_ADD_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_add_events.is_empty()
     }
 }
 
