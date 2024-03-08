@@ -16,6 +16,9 @@ fn main() {
     let not: Bool = builder.uninit();
     builder.assign(not, !a);
 
+    let expr: Bool = builder.uninit();
+    builder.assign(expr, (a & b) | (a ^ b));
+
     let code = builder.code();
     println!("{}", code);
 }
