@@ -16,11 +16,10 @@ use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
 
-pub type RiscvChip<SC> =
-    Chip<<SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
+pub type MachineChip<SC, A> = Chip<<SC as StarkGenericConfig>::Val, A>;
 
 /// A STARK for proving RISC-V execution.
-pub struct RiscvStark<SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
+pub struct MachineStark<SC: StarkGenericConfig, A> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
@@ -39,32 +38,32 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-impl<SC: StarkGenericConfig> RiscvStark<SC> {
-    /// Create a new RISC-V STARK machine.
-    pub fn new(config: SC) -> Self {
-        // The machine consists of a config (input) and a set of chips. The chip vector should
-        // contain the chips in the order they are executed. Each chip's air is able to add events
-        // to another chip's record (depending on interactions), so we order the chips by keeping
-        // track of which chips receive events from which other chips.
+impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
+    // /// Create a new RISC-V STARK machine.
+    // pub fn new(config: SC) -> Self {
+    //     // The machine consists of a config (input) and a set of chips. The chip vector should
+    //     // contain the chips in the order they are executed. Each chip's air is able to add events
+    //     // to another chip's record (depending on interactions), so we order the chips by keeping
+    //     // track of which chips receive events from which other chips.
 
-        // First, get all the chips associated with this machine.
-        let chips = RiscvAir::get_all()
-            .into_iter()
-            .map(Chip::new)
-            .collect::<Vec<_>>();
+    //     // First, get all the chips associated with this machine.
+    //     let chips = RiscvAir::get_all()
+    //         .into_iter()
+    //         .map(Chip::new)
+    //         .collect::<Vec<_>>();
 
-        Self { config, chips }
-    }
+    //     Self { config, chips }
+    // }
 
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> &[RiscvChip<SC>] {
+    pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
     }
 
     pub fn shard_chips<'a, 'b>(
         &'a self,
-        shard: &'b ExecutionRecord,
-    ) -> impl Iterator<Item = &'b RiscvChip<SC>>
+        shard: &'b A::Record,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
     where
         'a: 'b,
     {

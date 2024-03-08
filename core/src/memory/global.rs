@@ -146,7 +146,7 @@ mod tests {
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
     use crate::runtime::Runtime;
-    use crate::stark::RiscvStark;
+    use crate::stark::MachineStark;
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
@@ -205,7 +205,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let machine = RiscvStark::new(BabyBearPoseidon2::new());
+        let machine = MachineStark::new(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips::<BabyBearPoseidon2>(
             machine.chips(),
             &runtime.record,
@@ -220,7 +220,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let machine = RiscvStark::new(BabyBearPoseidon2::new());
+        let machine = MachineStark::new(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips::<BabyBearPoseidon2>(
             machine.chips(),
             &runtime.record,

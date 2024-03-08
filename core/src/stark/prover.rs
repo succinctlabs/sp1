@@ -1,4 +1,4 @@
-use super::{quotient_values, RiscvStark};
+use super::{quotient_values, MachineStark};
 use super::{ProvingKey, RiscvChip};
 use itertools::izip;
 use p3_challenger::{CanObserve, FieldChallenger};
@@ -37,7 +37,7 @@ fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
 
 pub trait Prover<SC: StarkGenericConfig> {
     fn prove_shards(
-        machine: &RiscvStark<SC>,
+        machine: &MachineStark<SC>,
         pk: &ProvingKey<SC>,
         shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
@@ -55,7 +55,7 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
     fn prove_shards(
-        machine: &RiscvStark<SC>,
+        machine: &MachineStark<SC>,
         pk: &ProvingKey<SC>,
         shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
@@ -120,7 +120,7 @@ where
 {
     fn commit_main(
         config: &SC,
-        machine: &RiscvStark<SC>,
+        machine: &MachineStark<SC>,
         shard: &ExecutionRecord,
         index: usize,
     ) -> ShardMainData<SC>
@@ -426,7 +426,7 @@ where
     }
 
     fn commit_shards<F, EF>(
-        machine: &RiscvStark<SC>,
+        machine: &MachineStark<SC>,
         shards: &[ExecutionRecord],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,

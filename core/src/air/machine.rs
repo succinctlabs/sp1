@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::Program;
+use crate::runtime::{ExecutionRecord, Program};
 
 pub use sp1_derive::MachineAir;
 
@@ -33,5 +33,9 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     #[allow(unused_variables)]
     fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
         None
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        todo!()
     }
 }

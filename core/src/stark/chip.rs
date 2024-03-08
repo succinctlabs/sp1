@@ -45,9 +45,9 @@ impl<F: Field, A> Chip<F, A> {
     }
 }
 
-impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
+impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     /// Returns whether the given chip is included in the execution record of the shard.
-    pub fn included(&self, shard: &ExecutionRecord) -> bool {
+    pub fn included(&self, shard: &A::Record) -> bool {
         self.air.included(shard)
     }
 }

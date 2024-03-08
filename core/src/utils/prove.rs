@@ -4,7 +4,7 @@ use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
     stark::{LocalProver, OpeningProof, ShardMainData},
-    stark::{RiscvStark, StarkGenericConfig},
+    stark::{MachineStark, StarkGenericConfig},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_commit::Pcs;
@@ -53,7 +53,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     });
     let config = BabyBearBlake3::new();
 
-    let machine = RiscvStark::new(config);
+    let machine = MachineStark::new(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
@@ -105,7 +105,7 @@ where
 
     let start = Instant::now();
 
-    let machine = RiscvStark::new(config);
+    let machine = MachineStark::new(config);
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
     // Prove the program.

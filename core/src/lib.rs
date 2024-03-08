@@ -37,8 +37,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use runtime::{Program, Runtime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use stark::{MachineStark, StarkGenericConfig};
 use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
-use stark::{RiscvStark, StarkGenericConfig};
 use std::fs;
 use utils::{prove_core, BabyBearBlake3, StarkUtils};
 
@@ -123,7 +123,7 @@ impl SP1Verifier {
     ) -> Result<(), ProgramVerificationError> {
         let config = BabyBearBlake3::new();
         let mut challenger = config.challenger();
-        let machine = RiscvStark::new(config);
+        let machine = MachineStark::new(config);
         let (_, vk) = machine.setup(&Program::from(elf));
         machine.verify(&vk, &proof.proof, &mut challenger)
     }
@@ -145,7 +145,7 @@ impl SP1Verifier {
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let mut challenger = config.challenger();
-        let machine = RiscvStark::new(config);
+        let machine = MachineStark::new(config);
 
         let (_, vk) = machine.setup(&Program::from(elf));
         machine.verify(&vk, &proof.proof, &mut challenger)

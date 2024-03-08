@@ -152,6 +152,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips
     }
 
+    // TODO: move to machine air and put it into the macro
+
     /// Returns `true` if the given `shard` includes events for this AIR.
     pub fn included(&self, shard: &ExecutionRecord) -> bool {
         match self {
