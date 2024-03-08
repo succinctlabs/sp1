@@ -9,7 +9,8 @@ mod state;
 mod syscall;
 
 use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
-use crate::utils::env;
+use crate::stark::RiscvStark;
+use crate::utils::{env, BabyBearPoseidon2};
 use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
@@ -848,6 +849,13 @@ impl Runtime {
         let elapsed = start_time.elapsed();
         log::info!("Execution took {:?}", elapsed);
         log::info!("Unconstrained cycles: {}", unconstrained_cycles);
+
+        let config = BabyBearPoseidon2::new();
+        let machine = RiscvStark::new(config);
+        let start_time = Instant::now();
+        let shards = machine.shard(std::mem::take(&mut self.record), &ShardingConfig::default());
+        let elapsed = start_time.elapsed();
+        log::info!("Sharding took {:?}", elapsed);
         exit(0);
     }
 

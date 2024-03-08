@@ -86,9 +86,11 @@ pub struct ExecutionRecord {
     pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 
+    #[serde(skip)]
     pub config: ShardingConfig,
 }
 
+#[derive(Debug, Clone)]
 pub struct ShardingConfig {
     pub shard_size: usize,
     pub add_len: usize,
@@ -107,7 +109,7 @@ pub struct ShardingConfig {
 
 impl ShardingConfig {
     pub const fn shard_size(&self) -> usize {
-        self.config.shard_size
+        self.shard_size
     }
 }
 

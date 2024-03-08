@@ -1,9 +1,10 @@
 use std::sync::mpsc;
 use std::thread;
 
+use crate::air::MachineAir;
 use crate::alu::AluEvent;
 use crate::bytes::ByteLookupEvent;
-use crate::cpu::CpuEvent;
+use crate::cpu::{CpuEvent, MemoryRecord};
 use crate::field::event::FieldEvent;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
@@ -11,6 +12,8 @@ use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
+use crate::RiscvStark;
+use crate::StarkGenericConfig;
 
 use super::ExecutionRecord;
 
@@ -36,6 +39,9 @@ pub enum RuntimeEvent {
     WeierstrassDouble(Box<ECDoubleEvent>),
     K256Decompress(Box<K256DecompressEvent>),
     Blake3CompressInner(Box<Blake3CompressInnerEvent>),
+    FirstMemory(Vec<(u32, MemoryRecord, u32)>),
+    LastMemory(Vec<(u32, MemoryRecord, u32)>),
+    ProgramMemory(Vec<(u32, MemoryRecord, u32)>),
 }
 
 trait EventReceiver {
@@ -43,7 +49,7 @@ trait EventReceiver {
 }
 
 pub struct SimpleEventReceiver {
-    record: ExecutionRecord,
+    pub record: ExecutionRecord,
 }
 
 impl SimpleEventReceiver {
@@ -113,38 +119,71 @@ impl EventReceiver for SimpleEventReceiver {
                     .blake3_compress_inner_events
                     .push(*blake3_compress_inner_event);
             }
+            RuntimeEvent::FirstMemory(record) => {
+                self.record.first_memory_record = record;
+            }
+            RuntimeEvent::LastMemory(record) => {
+                self.record.last_memory_record = record;
+            }
+            RuntimeEvent::ProgramMemory(record) => {
+                self.record.program_memory_record = record;
+            }
         }
     }
 }
 
-pub struct BufferedEventProcessor {
+/// An event processor that sends events to another thread and periodically processes them, filling
+/// out the record with all necessary events.
+pub struct BufferedEventProcessor<SC: StarkGenericConfig> {
     tx: mpsc::Sender<Option<RuntimeEvent>>,
-    thread: thread::JoinHandle<()>,
+    rx: mpsc::Receiver<ExecutionRecord>,
+    _phantom: std::marker::PhantomData<SC>,
 }
-
-impl BufferedEventProcessor {
-    pub fn new() -> Self {
+impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
+    pub fn new(buffer_size: usize, machine: RiscvStark<SC>) -> Self {
         let (tx, rx) = mpsc::channel();
 
-        let handle = thread::spawn(move || {
-            rx.iter().for_each(|event| {
-                if let Some(event) = event {
-                    // Process the event.
+        let (result_tx, result_rx) = mpsc::channel();
+
+        thread::spawn(move || {
+            let mut num_received = 0_u32;
+            let mut record = ExecutionRecord::default();
+            let mut receiver = SimpleEventReceiver::new();
+            while let Some(event) = rx.recv().unwrap() {
+                num_received += 1;
+                // Process the event.
+                receiver.receive(event);
+                // Periodically, generate dependencies.
+                if num_received % buffer_size as u32 == 0 {
+                    let current_record = std::mem::take(&mut receiver.record);
+                    let chips = machine.chips();
+                    chips.iter().for_each(|chip| {
+                        chip.generate_dependencies(&current_record, &mut record);
+                    });
                 }
+            }
+            let current_record = std::mem::take(&mut receiver.record);
+            let chips = machine.chips();
+            chips.iter().for_each(|chip| {
+                chip.generate_dependencies(&current_record, &mut record);
             });
+            result_tx.send(record).unwrap();
         });
 
-        Self { tx, thread: handle }
+        Self {
+            tx,
+            rx: result_rx,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
     pub fn close(&mut self) -> ExecutionRecord {
         self.tx.send(None).unwrap();
-        self.thread.join().unwrap();
-        ExecutionRecord::default()
+        self.rx.recv().unwrap()
     }
 }
 
-impl EventReceiver for BufferedEventProcessor {
+impl<SC: StarkGenericConfig> EventReceiver for BufferedEventProcessor<SC> {
     fn receive(&mut self, event: RuntimeEvent) {
         self.tx.send(Some(event)).unwrap();
     }
