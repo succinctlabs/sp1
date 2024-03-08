@@ -19,11 +19,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut dyn EventHandler,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F>;
 
     /// Generate the dependencies for a given execution record.
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut dyn EventHandler) {
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         self.generate_trace(input, output);
     }
 

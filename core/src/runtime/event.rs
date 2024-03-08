@@ -150,6 +150,28 @@ pub struct ShardingEventRecorder {
     program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 }
 
+fn append_events<T>(
+    shards: &mut [ExecutionRecord],
+    func: impl Fn(&mut ExecutionRecord) -> &mut Vec<T>,
+    mut events: Vec<T>,
+    shard: usize,
+    max: usize,
+) -> usize {
+    let current_shard = shard;
+    let shard_events = func(&mut shards[current_shard]);
+    shard_events.append(&mut events);
+    loop {
+        let events = func(&mut shards[current_shard]);
+        if events.len() <= max {
+            break;
+        }
+        let extra_events = events.split_off(max);
+        let next_shard_events = func(&mut shards[current_shard + 1]);
+        *next_shard_events = extra_events;
+    }
+    current_shard
+}
+
 impl ShardingEventRecorder {
     pub fn new(config: ShardingConfig) -> Self {
         Self {
@@ -179,191 +201,195 @@ impl ShardingEventRecorder {
         }
     }
 
-    fn ingest_events<T: Clone>(
-        &mut self,
-        dst: &mut Vec<T>,
-        next_shard: Option<&mut Vec<T>>,
-        src: &Vec<T>,
-        max: usize,
-    ) {
-        let space_left = max - dst.len();
-        dst.extend_from_slice(&src[..space_left]);
-        let mut remaining = &src[space_left..];
-        if remaining.len() > 0 {
-            let shard = next_shard.unwrap();
-            shard.extend_from_slice(&remaining);
-        }
-    }
-
-    pub fn ingest_record(&mut self, record: ExecutionRecord) {
+    pub fn ingest_record(&mut self, mut record: ExecutionRecord) {
         let cpu_shard = &mut self.shards.last_mut().unwrap();
         let space_left = self.config.shard_size - cpu_shard.cpu_events.len();
+        let end = std::cmp::min(space_left, record.cpu_events.len());
         cpu_shard
             .cpu_events
-            .extend_from_slice(&record.cpu_events[..space_left]);
-        let mut remaining_cpu_events = &record.cpu_events[space_left..];
-        if remaining_cpu_events.len() > 0 {
-            self.shards.push(ExecutionRecord::default());
-            let cpu_shard = &mut self.shards.last_mut().unwrap();
-            cpu_shard
+            .extend_from_slice(&record.cpu_events[..end]);
+        let mut remaining_cpu_events = &record.cpu_events[end..];
+        let mut index = cpu_shard.index + 1;
+        let program = cpu_shard.program.clone();
+        while !remaining_cpu_events.is_empty() {
+            let mut new_shard =
+                ExecutionRecord::with_capacity(index, program.clone(), self.config.shard_size);
+            index += 1;
+            let end = std::cmp::min(self.config.shard_size, remaining_cpu_events.len());
+            new_shard
                 .cpu_events
-                .extend_from_slice(&remaining_cpu_events);
+                .extend_from_slice(&remaining_cpu_events[..end]);
+            self.shards.push(new_shard);
+            remaining_cpu_events = &remaining_cpu_events[end..];
         }
-        self.ingest_events(
-            &mut self.shards[self.add_shard].add_events,
-            self.shards
-                .get_mut(self.add_shard + 1)
-                .map(|x| &mut x.add_events),
-            &record.add_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.add_events,
+            record.add_events,
+            self.add_shard,
             self.config.add_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.mul_shard].mul_events,
-            self.shards
-                .get_mut(self.mul_shard + 1)
-                .map(|x| &mut x.mul_events),
-            &record.mul_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.mul_events,
+            record.mul_events,
+            self.mul_shard,
             self.config.mul_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.sub_shard].sub_events,
-            self.shards
-                .get_mut(self.sub_shard + 1)
-                .map(|x| &mut x.sub_events),
-            &record.sub_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.sub_events,
+            record.sub_events,
+            self.sub_shard,
             self.config.sub_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.bitwise_shard].bitwise_events,
-            self.shards
-                .get_mut(self.bitwise_shard + 1)
-                .map(|x| &mut x.bitwise_events),
-            &record.bitwise_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.bitwise_events,
+            record.bitwise_events,
+            self.bitwise_shard,
             self.config.bitwise_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.shift_left_shard].shift_left_events,
-            self.shards
-                .get_mut(self.shift_left_shard + 1)
-                .map(|x| &mut x.shift_left_events),
-            &record.shift_left_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.shift_left_events,
+            record.shift_left_events,
+            self.shift_left_shard,
             self.config.shift_left_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.shift_right_shard].shift_right_events,
-            self.shards
-                .get_mut(self.shift_right_shard + 1)
-                .map(|x| &mut x.shift_right_events),
-            &record.shift_right_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.shift_right_events,
+            record.shift_right_events,
+            self.shift_right_shard,
             self.config.shift_right_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.divrem_shard].divrem_events,
-            self.shards
-                .get_mut(self.divrem_shard + 1)
-                .map(|x| &mut x.divrem_events),
-            &record.divrem_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.divrem_events,
+            record.divrem_events,
+            self.divrem_shard,
             self.config.divrem_len,
         );
-        self.ingest_events(
-            &mut self.shards[self.lt_shard].lt_events,
-            self.shards
-                .get_mut(self.lt_shard + 1)
-                .map(|x| &mut x.lt_events),
-            &record.lt_events,
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.lt_events,
+            record.lt_events,
+            self.lt_shard,
             self.config.lt_len,
         );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.field_events,
+            record.field_events,
+            self.field_shard,
+            self.config.field_len,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.sha_extend_events,
+            record.sha_extend_events,
+            self.sha_extend_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.sha_compress_events,
+            record.sha_compress_events,
+            self.sha_compress_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.keccak_permute_events,
+            record.keccak_permute_events,
+            self.keccak_permute_shard,
+            self.config.keccak_len,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.ed_add_events,
+            record.ed_add_events,
+            self.ed_add_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.ed_decompress_events,
+            record.ed_decompress_events,
+            self.ed_decompress_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.weierstrass_add_events,
+            record.weierstrass_add_events,
+            self.weierstrass_add_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.weierstrass_double_events,
+            record.weierstrass_double_events,
+            self.weierstrass_double_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.k256_decompress_events,
+            record.k256_decompress_events,
+            self.k256_decompress_shard,
+            self.config.shard_size,
+        );
+
+        append_events(
+            &mut self.shards,
+            |r| &mut r.blake3_compress_inner_events,
+            record.blake3_compress_inner_events,
+            self.blake3_compress_inner_shard,
+            self.config.shard_size,
+        );
+
         for (byte_lookup, count) in record.byte_lookups {
-            let mut shard = &mut self.shards[0];
+            let shard = &mut self.shards[0];
             shard
                 .byte_lookups
                 .entry(byte_lookup)
                 .and_modify(|i| *i += count)
                 .or_insert(count);
         }
-        self.ingest_events(
-            &mut self.shards[self.field_shard].field_events,
-            self.shards
-                .get_mut(self.field_shard + 1)
-                .map(|x| &mut x.field_events),
-            &record.field_events,
-            self.config.field_len,
-        );
-        self.ingest_events(
-            &mut self.shards[self.sha_extend_shard].sha_extend_events,
-            self.shards
-                .get_mut(self.sha_extend_shard + 1)
-                .map(|x| &mut x.sha_extend_events),
-            &record.sha_extend_events,
-            self.config.shard_size,
-        );
-        self.ingest_events(
-            &mut self.shards[self.sha_compress_shard].sha_compress_events,
-            self.shards
-                .get_mut(self.sha_compress_shard + 1)
-                .map(|x| &mut x.sha_compress_events),
-            &record.sha_compress_events,
-            self.config.shard_size,
-        );
-        self.ingest_events(
-            &mut self.shards[self.keccak_permute_shard].keccak_permute_events,
-            self.shards
-                .get_mut(self.keccak_permute_shard + 1)
-                .map(|x| &mut x.keccak_permute_events),
-            &record.keccak_permute_events,
-            self.config.keccak_len,
-        );
-        self.ingest_events(
-            &mut self.shards[self.ed_add_shard].ed_add_events,
-            self.shards
-                .get_mut(self.ed_add_shard + 1)
-                .map(|x| &mut x.ed_add_events),
-            &record.ed_add_events,
-            self.config.shard_size,
-        );
-        self.ingest_events(
-            &mut self.shards[self.ed_decompress_shard].ed_decompress_events,
-            self.shards
-                .get_mut(self.ed_decompress_shard + 1)
-                .map(|x| &mut x.ed_decompress_events),
-            &record.ed_decompress_events,
-            self.config.shard_size,
-        );
-        self.ingest_events(
-            &mut self.shards[self.weierstrass_add_shard].weierstrass_add_events,
-            self.shards
-                .get_mut(self.weierstrass_add_shard + 1)
-                .map(|x| &mut x.weierstrass_add_events),
-            &record.weierstrass_add_events,
-            self.config.weierstrass_add_len,
-        );
-        self.ingest_events(
-            &mut self.shards[self.weierstrass_double_shard].weierstrass_double_events,
-            self.shards
-                .get_mut(self.weierstrass_double_shard + 1)
-                .map(|x| &mut x.weierstrass_double_events),
-            &record.weierstrass_double_events,
-            self.config.weierstrass_double_len,
-        );
-        self.ingest_events(
-            &mut self.shards[self.k256_decompress_shard].k256_decompress_events,
-            self.shards
-                .get_mut(self.k256_decompress_shard + 1)
-                .map(|x| &mut x.k256_decompress_events),
-            &record.k256_decompress_events,
-            self.config.shard_size,
-        );
-        self.ingest_events(
-            &mut self.shards[self.blake3_compress_inner_shard].blake3_compress_inner_events,
-            self.shards
-                .get_mut(self.blake3_compress_inner_shard + 1)
-                .map(|x| &mut x.blake3_compress_inner_events),
-            &record.blake3_compress_inner_events,
-            self.config.shard_size,
-        );
-        self.first_memory_record = record.first_memory_record;
-        self.last_memory_record = record.last_memory_record;
-        self.program_memory_record = record.program_memory_record;
+
+        self.first_memory_record
+            .append(&mut record.first_memory_record);
+        self.last_memory_record
+            .append(&mut record.last_memory_record);
+        self.program_memory_record
+            .append(&mut record.program_memory_record);
+    }
+
+    pub fn close(mut self) -> Vec<ExecutionRecord> {
+        let last = self.shards.last_mut().unwrap();
+        last.first_memory_record = self.first_memory_record;
+        last.last_memory_record = self.last_memory_record;
+        last.program_memory_record = self.program_memory_record;
+        self.shards
     }
 }
 
@@ -545,7 +571,7 @@ pub struct BufferedEventProcessor<SC: StarkGenericConfig> {
     // s: Option<kanal::Sender<RuntimeEvent>>,
     // r: kanal::Receiver<ExecutionRecord>,
     s: Option<mpsc::Sender<RuntimeEvent>>,
-    r: mpsc::Receiver<ExecutionRecord>,
+    r: mpsc::Receiver<Vec<ExecutionRecord>>,
     _phantom: std::marker::PhantomData<SC>,
 }
 impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
@@ -558,7 +584,6 @@ impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
 
         thread::spawn(move || {
             let mut num_received = 0_u32;
-            let mut record = ExecutionRecord::default();
             let mut receiver = SimpleEventRecorder::new();
             let mut final_receiver = ShardingEventRecorder::new(ShardingConfig::default());
             for event in r {
@@ -568,23 +593,33 @@ impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
                 // Periodically, generate dependencies.
                 if num_received % buffer_size as u32 == 0 {
                     log::info!("BufferedEventProcessor: received {} events", num_received);
-                    let mut current_record = std::mem::take(&mut receiver.record);
+                    let current_record = std::mem::take(&mut receiver.record);
+                    let mut current_output =
+                        ExecutionRecord::new(current_record.index, current_record.program.clone());
                     let chips = machine.chips();
                     tracing::trace_span!("generate_dependencies").in_scope(|| {
                         chips.iter().for_each(|chip| {
-                            chip.generate_dependencies(&current_record, &mut final_receiver);
+                            chip.generate_dependencies(&current_record, &mut current_output);
                         });
                     });
-                    record.append(&mut current_record);
+                    // record.append(&mut current_record);
+                    final_receiver.ingest_record(current_record);
+                    final_receiver.ingest_record(current_output);
                 }
             }
             let mut current_record = std::mem::take(&mut receiver.record);
+            let mut current_output =
+                ExecutionRecord::new(current_record.index, current_record.program.clone());
             let chips = machine.chips();
-            chips.iter().for_each(|chip| {
-                chip.generate_dependencies(&current_record, &mut record);
+            tracing::trace_span!("generate_dependencies").in_scope(|| {
+                chips.iter().for_each(|chip| {
+                    chip.generate_dependencies(&current_record, &mut current_output);
+                });
             });
-            record.append(&mut current_record);
-            result_s.send(record).unwrap();
+            final_receiver.ingest_record(current_record);
+            final_receiver.ingest_record(current_output);
+            let shards = final_receiver.close();
+            result_s.send(shards).unwrap();
         });
 
         Self {
@@ -594,7 +629,7 @@ impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
         }
     }
 
-    pub fn close(&mut self) -> ExecutionRecord {
+    pub fn close(&mut self) -> Vec<ExecutionRecord> {
         self.s = None;
         self.r.recv().unwrap()
     }

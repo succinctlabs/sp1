@@ -42,14 +42,15 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     let config = BabyBearBlake3::new();
     let machine = RiscvStark::new(config.clone());
     let mut receiver = BufferedEventProcessor::new(10000000, machine);
-    let record = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let shards = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program, &mut receiver);
         runtime.run();
         receiver.close()
     });
+    let record = &shards[0];
     println!("stats: {:?}", record.stats());
     exit(0);
-    prove_core(config, record)
+    prove_core(config, record.clone())
 }
 
 #[cfg(test)]

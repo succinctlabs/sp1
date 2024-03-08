@@ -96,9 +96,11 @@ impl SP1Prover {
             runtime.run();
         });
         let start_time = std::time::Instant::now();
-        let record = receiver.close();
+        let shards = receiver.close();
         println!("time: {:?}", start_time.elapsed());
-        println!("stats: {:?}", record.stats());
+        println!("shards: {:?}", shards.len());
+        println!("shard[0] stats: {:?}", shards[0].stats());
+        // println!("stats: {:?}", record.stats());
         exit(0);
         let config = BabyBearBlake3::new();
         let stdout = SP1Stdout::from(&runtime.state.output_stream);
