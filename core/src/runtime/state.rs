@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use nohash_hasher::BuildNoHashHasher;
 
-use super::{CpuRecord, DummyEventReceiver, EventReceiver, ExecutionRecord};
+use super::{CpuRecord, DummyEventReceiver, EventHandler, ExecutionRecord};
 
 const SYSTEM_START: usize = 0x0C00_0000;
 const MAX_MEMORY_SIZE: usize = 1 << 29;
@@ -137,7 +137,7 @@ pub(crate) struct ForkState {
     pub(crate) op_record: CpuRecord,
 
     /// Full shard from original state
-    pub(crate) event_receiver: Rc<RefCell<dyn EventReceiver>>,
+    pub(crate) event_receiver: Rc<RefCell<dyn EventHandler>>,
 }
 
 impl Default for ForkState {

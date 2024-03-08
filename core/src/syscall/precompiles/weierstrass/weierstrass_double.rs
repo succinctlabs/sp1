@@ -73,7 +73,7 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
         let event = create_ec_double_event::<E>(rt);
         let ptr = event.p_ptr + 1;
         RefCell::borrow_mut(&rt.receiver())
-            .receive(RuntimeEvent::WeierstrassDouble(Box::new(event)));
+            .handle(RuntimeEvent::WeierstrassDouble(Box::new(event)));
         ptr
     }
 

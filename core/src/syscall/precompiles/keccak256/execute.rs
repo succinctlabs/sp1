@@ -100,7 +100,7 @@ impl Syscall for KeccakPermuteChip {
 
         // Push the Keccak permute event.
         let shard = rt.current_shard();
-        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::KeccakPermute(Box::new(
+        RefCell::borrow_mut(&rt.receiver()).handle(RuntimeEvent::KeccakPermute(Box::new(
             KeccakPermuteEvent {
                 shard,
                 clk: saved_clk,

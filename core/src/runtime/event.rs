@@ -37,14 +37,14 @@ pub enum RuntimeEvent {
     ProgramMemory(Vec<(u32, MemoryRecord, u32)>),
 }
 
-pub trait EventReceiver {
-    fn receive(&mut self, event: RuntimeEvent);
+pub trait EventHandler {
+    fn handle(&mut self, event: RuntimeEvent);
 }
 
 pub struct DummyEventReceiver;
 
-impl EventReceiver for DummyEventReceiver {
-    fn receive(&mut self, _event: RuntimeEvent) {}
+impl EventHandler for DummyEventReceiver {
+    fn handle(&mut self, _event: RuntimeEvent) {}
 }
 
 pub struct SimpleEventReceiver {
@@ -59,8 +59,8 @@ impl SimpleEventReceiver {
     }
 }
 
-impl EventReceiver for SimpleEventReceiver {
-    fn receive(&mut self, event: RuntimeEvent) {
+impl EventHandler for SimpleEventReceiver {
+    fn handle(&mut self, event: RuntimeEvent) {
         match event {
             RuntimeEvent::Cpu(cpu_event) => {
                 self.record.add_cpu_event(cpu_event);
@@ -148,7 +148,7 @@ impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
             for event in r {
                 num_received += 1;
                 // Process the event.
-                receiver.receive(event);
+                receiver.handle(event);
                 // Periodically, generate dependencies.
                 if num_received % buffer_size as u32 == 0 {
                     log::info!("BufferedEventProcessor: received {} events", num_received);
@@ -184,8 +184,8 @@ impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
     }
 }
 
-impl<SC: StarkGenericConfig> EventReceiver for BufferedEventProcessor<SC> {
-    fn receive(&mut self, event: RuntimeEvent) {
+impl<SC: StarkGenericConfig> EventHandler for BufferedEventProcessor<SC> {
+    fn handle(&mut self, event: RuntimeEvent) {
         self.s
             .as_ref()
             .expect("already closed")

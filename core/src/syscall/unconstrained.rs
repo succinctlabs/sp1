@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::runtime::{DummyEventReceiver, EventReceiver, ForkState, Syscall, SyscallContext};
+use crate::runtime::{DummyEventReceiver, EventHandler, ForkState, Syscall, SyscallContext};
 
 pub struct SyscallEnterUnconstrained;
 
@@ -16,9 +16,9 @@ impl Syscall for SyscallEnterUnconstrained {
             panic!("Unconstrained block is already active.");
         }
         ctx.rt.unconstrained = true;
-        let mut receiver: Rc<RefCell<dyn EventReceiver>> =
+        let mut receiver: Rc<RefCell<dyn EventHandler>> =
             Rc::new(RefCell::new(DummyEventReceiver {}));
-        std::mem::swap(&mut ctx.rt.event_receiver, &mut receiver);
+        std::mem::swap(&mut ctx.rt.handler, &mut receiver);
         ctx.rt.unconstrained_state = ForkState {
             global_clk: ctx.rt.state.global_clk,
             clk: ctx.rt.state.clk,
@@ -59,7 +59,7 @@ impl Syscall for SyscallExitUnconstrained {
             }
             // ctx.rt.event_receiver = std::mem::take(&mut ctx.rt.unconstrained_state.event_receiver);
             std::mem::swap(
-                &mut ctx.rt.event_receiver,
+                &mut ctx.rt.handler,
                 &mut ctx.rt.unconstrained_state.event_receiver,
             );
             ctx.rt.cpu_record = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);

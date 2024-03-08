@@ -89,7 +89,7 @@ impl Syscall for ShaCompressChip {
         let shard = rt.current_shard();
         rt.receiver()
             .borrow_mut()
-            .receive(RuntimeEvent::ShaCompress(Box::new(ShaCompressEvent {
+            .handle(RuntimeEvent::ShaCompress(Box::new(ShaCompressEvent {
                 shard,
                 clk: saved_clk,
                 w_and_h_ptr: saved_w_ptr,

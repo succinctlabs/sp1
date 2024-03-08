@@ -119,7 +119,7 @@ impl Syscall for K256DecompressChip {
         let y_memory_records: [MemoryWriteRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
         let shard = rt.current_shard();
-        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::K256Decompress(Box::new(
+        RefCell::borrow_mut(&rt.receiver()).handle(RuntimeEvent::K256Decompress(Box::new(
             K256DecompressEvent {
                 shard,
                 clk: start_clk,

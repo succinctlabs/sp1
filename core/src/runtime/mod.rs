@@ -65,7 +65,7 @@ pub struct Runtime {
     pub shard_size: u32,
 
     /// Where all the events go.
-    pub event_receiver: Rc<RefCell<dyn EventReceiver>>,
+    pub handler: Rc<RefCell<dyn EventHandler>>,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
@@ -91,7 +91,7 @@ pub struct Runtime {
 
 impl Runtime {
     // Create a new runtime
-    pub fn new(program: Program, receiver: Rc<RefCell<dyn EventReceiver>>) -> Self {
+    pub fn new(program: Program, handler: Rc<RefCell<dyn EventHandler>>) -> Self {
         let program_arc = Arc::new(program);
         let record = ExecutionRecord {
             program: program_arc.clone(),
@@ -106,7 +106,7 @@ impl Runtime {
         };
 
         Self {
-            event_receiver: receiver,
+            handler,
             state: ExecutionState::new(program_arc.pc_start),
             program: program_arc,
             cpu_record: CpuRecord::default(),
@@ -309,9 +309,9 @@ impl Runtime {
             memory: memory_store_value,
             memory_record: record.memory,
         };
-        self.event_receiver
+        self.handler
             .borrow_mut()
-            .receive(RuntimeEvent::Cpu(cpu_event));
+            .handle(RuntimeEvent::Cpu(cpu_event));
     }
 
     /// Emit an ALU event.
@@ -323,9 +323,7 @@ impl Runtime {
             b,
             c,
         };
-        self.event_receiver
-            .borrow_mut()
-            .receive(RuntimeEvent::Alu(event));
+        self.handler.borrow_mut().handle(RuntimeEvent::Alu(event));
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
@@ -907,15 +905,15 @@ impl Runtime {
             .collect::<Vec<(u32, MemoryRecord, u32)>>();
         program_memory_record.sort_by_key(|&(addr, _, _)| addr);
 
-        self.event_receiver
+        self.handler
             .borrow_mut()
-            .receive(RuntimeEvent::FirstMemory(first_memory_record));
-        self.event_receiver
+            .handle(RuntimeEvent::FirstMemory(first_memory_record));
+        self.handler
             .borrow_mut()
-            .receive(RuntimeEvent::LastMemory(last_memory_record));
-        self.event_receiver
+            .handle(RuntimeEvent::LastMemory(last_memory_record));
+        self.handler
             .borrow_mut()
-            .receive(RuntimeEvent::ProgramMemory(program_memory_record));
+            .handle(RuntimeEvent::ProgramMemory(program_memory_record));
     }
 }
 
