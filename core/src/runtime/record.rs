@@ -85,6 +85,8 @@ pub struct ExecutionRecord {
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+
+    pub config: ShardingConfig,
 }
 
 pub struct ShardingConfig {
@@ -105,7 +107,7 @@ pub struct ShardingConfig {
 
 impl ShardingConfig {
     pub const fn shard_size(&self) -> usize {
-        self.shard_size
+        self.config.shard_size
     }
 }
 
@@ -319,6 +321,16 @@ impl ExecutionRecord {
         shards
     }
 
+    pub fn add_cpu_event(&mut self, cpu_event: CpuEvent) {
+        if self.cpu_events.is_empty()
+            || self.cpu_events.last().unwrap().len() == self.config.shard_size as usize
+        {
+            self.cpu_events
+                .push(Vec::with_capacity(self.config.shard_size as usize));
+        }
+        self.cpu_events.last_mut().unwrap().push(cpu_event);
+    }
+
     pub fn add_mul_event(&mut self, mul_event: AluEvent) {
         self.mul_events.push(mul_event);
     }
@@ -340,6 +352,38 @@ impl ExecutionRecord {
             .entry(blu_event)
             .and_modify(|i| *i += 1)
             .or_insert(1);
+    }
+
+    pub fn add_alu_event(&mut self, event: AluEvent) {
+        match event.opcode {
+            Opcode::ADD => {
+                self.add_events.push(event);
+            }
+            Opcode::SUB => {
+                self.sub_events.push(event);
+            }
+            Opcode::XOR | Opcode::OR | Opcode::AND => {
+                self.bitwise_events.push(event);
+            }
+            Opcode::SLL => {
+                self.shift_left_events.push(event);
+            }
+            Opcode::SRL | Opcode::SRA => {
+                self.shift_right_events.push(event);
+            }
+            Opcode::SLT | Opcode::SLTU => {
+                self.lt_events.push(event);
+            }
+            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
+                self.mul_events.push(event);
+            }
+            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
+                self.divrem_events.push(event);
+            }
+            _ => {
+                panic!("Invalid ALU opcode: {:?}", event.opcode);
+            }
+        }
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
@@ -369,7 +413,7 @@ impl ExecutionRecord {
                     self.lt_events.extend_from_slice(&alu_events[opcode]);
                 }
                 _ => {
-                    panic!("Invalid opcode: {:?}", opcode);
+                    panic!("Invalid ALU opcode: {:?}", opcode);
                 }
             }
         }

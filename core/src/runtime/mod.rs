@@ -1,3 +1,4 @@
+mod event;
 mod instruction;
 mod io;
 mod opcode;
@@ -305,14 +306,7 @@ impl Runtime {
             memory: memory_store_value,
             memory_record: record.memory,
         };
-        if self.record.cpu_events.is_empty()
-            || self.record.cpu_events.last().unwrap().len() == self.shard_size as usize
-        {
-            self.record
-                .cpu_events
-                .push(Vec::with_capacity(self.shard_size as usize));
-        }
-        self.record.cpu_events.last_mut().unwrap().push(cpu_event);
+        self.record.add_cpu_event(cpu_event);
     }
 
     /// Emit an ALU event.
