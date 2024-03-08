@@ -38,6 +38,8 @@ fn main() {
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
         0xcd, 0x90, 0x3e, 0x18, 0xa2,
     ];
+
+    println!("cycle-tracker-start: io");
     // Generate the Light Block's without testgen
     let file_content = include_bytes!("./fixtures/1/signed_header.json");
     let file_content_str =
@@ -92,12 +94,13 @@ fn main() {
         serde_json::from_str(file_content_str).expect("Failed to parse JSON");
     let next_validators = next_validators_response.result;
     let next_validators = ValidatorSet::new(next_validators.validators, None);
-
     // Create a default light block with a valid chain-id for height `1` with a timestamp 20
     // secs before now (to be treated as trusted state)
     let light_block_2: LightBlock =
         LightBlock::new(signed_header, validators, next_validators, Id::new(peer_id));
+    println!("cycle-tracker-end: io");
 
+    println!("cycle-tracker-start: verify");
     let vp = ProdVerifier::default();
     let opt = Options {
         trust_threshold: Default::default(),
@@ -113,6 +116,7 @@ fn main() {
         &opt,
         verify_time.unwrap(),
     );
+    println!("cycle-tracker-end: verify");
 
     match verdict {
         Verdict::Success => {

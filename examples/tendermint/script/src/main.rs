@@ -16,7 +16,7 @@ async fn main() {
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
         0xcd, 0x90, 0x3e, 0x18, 0xa2,
     ];
-    const BASE_URL: &str = "https://osmosis-rpc.publicnode.com:443";
+    const BASE_URL: &str = "https://celestia-mocha-rpc.publicnode.com:443";
     let client = Client::new();
     let url = format!("{}/commit", BASE_URL);
     let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
