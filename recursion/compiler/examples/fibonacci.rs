@@ -8,10 +8,10 @@ fn main() {
     let b = builder.constant(BabyBear::one());
     let n = builder.constant(BabyBear::from_canonical_u32(10));
 
-    let temp = builder.uninit::<Felt<BabyBear>>();
-    builder.assign(temp, a + b);
-    builder.assign(a, b);
-    builder.assign(b, temp);
+    // let temp = builder.uninit::<Felt<BabyBear>>();
+    // builder.assign(temp, a + b);
+    builder.assign(a, a + b - n + BabyBear::from_canonical_u32(59));
+    // builder.assign(b, temp);
 
     // let mut temp = builder.uninit::<F>();
 
@@ -30,7 +30,7 @@ fn main() {
     // });
 
     for (i, block) in builder.basic_blocks.iter().enumerate() {
-        println!(".LBB0_{}:", i);
+        println!(".LBB_{}:", i);
         println!("{}", block);
     }
 }

@@ -47,6 +47,14 @@ impl<F> Add for Felt<F> {
     }
 }
 
+impl<F> Add<F> for Felt<F> {
+    type Output = Symbolic<F>;
+
+    fn add(self, rhs: F) -> Symbolic<F> {
+        Symbolic::from(self) + rhs
+    }
+}
+
 impl<F> Add<Symbolic<F>> for Felt<F> {
     type Output = Symbolic<F>;
 

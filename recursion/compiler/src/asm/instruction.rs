@@ -14,10 +14,20 @@ pub enum Instruction<F> {
     ADDI(i32, i32, F),
     /// Subtract
     SUB(i32, i32, i32),
+    /// Subtract immediate
+    SUBI(i32, i32, F),
+    /// Subtract immediate and negate, dst = -lhs + rhs
+    SUBIN(i32, i32, F),
     /// Multiply
     MUL(i32, i32, i32),
+    /// Multiply immediate
+    MULI(i32, i32, F),
     /// Divide
     DIV(i32, i32, i32),
+    /// Divide immediate
+    DIVI(i32, i32, F),
+    /// Divide immediate and invert (dst = rhs / lhs)
+    DIVIN(i32, i32, F),
     /// Jump
     JUMP(i32),
 }
@@ -35,11 +45,20 @@ impl<F: fmt::Display> fmt::Display for Instruction<F> {
             Instruction::SUB(dst, lhs, rhs) => {
                 write!(f, "sub ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
+            Instruction::SUBI(dst, lhs, rhs) => write!(f, "subi ({})fp, ({})fp, {}", dst, lhs, rhs),
+            Instruction::SUBIN(dst, lhs, rhs) => {
+                write!(f, "subin ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
             Instruction::MUL(dst, lhs, rhs) => {
                 write!(f, "mul ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
+            Instruction::MULI(dst, lhs, rhs) => write!(f, "muli ({})fp, ({})fp, {}", dst, lhs, rhs),
             Instruction::DIV(dst, lhs, rhs) => {
                 write!(f, "div ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            Instruction::DIVI(dst, lhs, rhs) => write!(f, "divi ({})fp, ({})fp, {}", dst, lhs, rhs),
+            Instruction::DIVIN(dst, lhs, rhs) => {
+                write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             Instruction::JUMP(label) => write!(f, "jump {}", label),
         }
