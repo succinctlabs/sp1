@@ -29,8 +29,8 @@ pub struct ExecutionRecord {
     /// The program.
     pub program: Arc<Program>,
 
-    /// A trace of the CPU events which get emitted during execution.
-    pub cpu_events: Vec<CpuEvent>,
+    /// A trace of the CPU events which get emitted during execution, split into shards.
+    pub cpu_events: Vec<Vec<CpuEvent>>,
 
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
@@ -163,19 +163,16 @@ impl ExecutionRecord {
 
     pub fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
+        let num_shards = self.cpu_events.len();
         let mut shards = (0..num_shards)
             .map(|_| ExecutionRecord::default())
             .collect::<Vec<_>>();
-        while !self.cpu_events.is_empty() {
-            // Iterate from end so we can truncate cpu_events as we go.
-            let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
-            let start = index * config.shard_size;
-            let shard = &mut shards[index];
-            shard.index = (index + 1) as u32;
-            shard.cpu_events = self.cpu_events.split_off(start);
-            shard.program = self.program.clone();
-        }
+        self.cpu_events
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, shard)| {
+                shards[i].cpu_events.push(shard);
+            });
 
         // Shard all the other events according to the configuration.
 
@@ -460,7 +457,7 @@ impl ExecutionRecord {
 
     /// Append the events from another execution record to this one, leaving the other one empty.
     pub fn append(&mut self, other: &mut ExecutionRecord) {
-        assert_eq!(self.index, other.index, "Shard index mismatch");
+        debug_assert_eq!(self.index, other.index, "Shard index mismatch");
 
         self.cpu_events.append(&mut other.cpu_events);
         self.add_events.append(&mut other.add_events);

@@ -37,7 +37,11 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         let rows_with_events = input
             .cpu_events
             .par_iter()
-            .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
+            .flat_map(|shard| {
+                shard
+                    .par_iter()
+                    .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
+            })
             .collect::<Vec<_>>();
 
         let mut rows = Vec::<F>::new();
@@ -73,15 +77,14 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
-        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
-            .par_chunks(chunk_size)
-            .map(|ops: &[CpuEvent]| {
+            .par_iter()
+            .map(|shard| {
                 let mut alu = HashMap::new();
                 let mut blu: Vec<_> = Vec::default();
                 let mut field: Vec<_> = Vec::default();
-                ops.iter().for_each(|op| {
+                shard.iter().for_each(|op: &CpuEvent| {
                     let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
@@ -505,7 +508,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.cpu_events = vec![CpuEvent {
+        shard.cpu_events = vec![vec![CpuEvent {
             shard: 1,
             clk: 6,
             pc: 1,
@@ -525,7 +528,7 @@ mod tests {
             c_record: None,
             memory: None,
             memory_record: None,
-        }];
+        }]];
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
