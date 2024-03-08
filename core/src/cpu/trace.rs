@@ -74,44 +74,35 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
     #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        let mut new_alu_events = HashMap::with_capacity(input.cpu_events.len());
-        let mut new_blu_events = Vec::with_capacity(input.cpu_events.len());
-        let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
-
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
-                ops.iter()
-                    .map(|op| {
-                        let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
-                        (alu_events, blu_events, field_events)
-                    })
-                    .collect::<Vec<_>>()
+                let mut alu = HashMap::new();
+                let mut blu: Vec<_> = Vec::default();
+                let mut field: Vec<_> = Vec::default();
+                ops.iter().for_each(|op| {
+                    let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
+                    alu_events.into_iter().for_each(|(key, value)| {
+                        alu.entry(key).or_insert(Vec::default()).extend(value);
+                    });
+                    blu.extend(blu_events);
+                    field.extend(field_events);
+                });
+                (alu, blu, field)
             })
-            .flatten()
             .collect::<Vec<_>>();
 
-        events.into_iter().for_each(|e| {
-            let (alu_events, blu_events, field_events) = e;
-            for (key, value) in alu_events {
-                new_alu_events
-                    .entry(key)
-                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
-                        op_new_events.extend(value.clone())
-                    })
-                    .or_insert(value);
-            }
-            new_blu_events.extend(blu_events);
-            new_field_events.extend(field_events);
-        });
-
-        // Add the dependency events to the shard.
-        output.add_alu_events(new_alu_events);
-        output.add_byte_lookup_events(new_blu_events);
-        output.add_field_events(&new_field_events);
+        events
+            .into_iter()
+            .for_each(|(alu_events, blu_events, field_events)| {
+                // Add the dependency events to the shard.
+                output.add_alu_events(alu_events);
+                output.add_byte_lookup_events(blu_events);
+                output.add_field_events(&field_events);
+            });
     }
 
     fn included(&self, _: &Self::Record) -> bool {

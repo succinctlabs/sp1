@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
 use std::collections::BTreeMap;
+use std::mem::take;
 use std::sync::Arc;
 
 use super::program::Program;
@@ -17,10 +18,11 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
+use serde::{Deserialize, Serialize};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
 /// the execution of the shard.
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord {
     /// The index of the shard.
     pub index: u32,
@@ -30,9 +32,6 @@ pub struct ExecutionRecord {
 
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
-
-    /// Multiplicity counts for each instruction in the program.
-    pub instruction_counts: HashMap<u32, usize>,
 
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
@@ -243,73 +242,67 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.program_memory_record);
     }
 
-    fn shard(self, config: &ShardingConfig) -> Vec<Self> {
+    fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        let mut shards = self
-            .cpu_events
-            .chunks(config.shard_size())
-            .enumerate()
-            .map(|(i, chunk)| {
-                let mut shard = ExecutionRecord::default();
-                shard.index = (i + 1) as u32;
-                shard.program = self.program.clone();
-                shard.cpu_events = chunk.to_vec();
-
-                shard
-            })
+        let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
+        let mut shards = (0..num_shards)
+            .map(|_| ExecutionRecord::default())
             .collect::<Vec<_>>();
+        while !self.cpu_events.is_empty() {
+            // Iterate from end so we can truncate cpu_events as we go.
+            let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
+            let start = index * config.shard_size;
+            let shard = &mut shards[index];
+            shard.index = (index + 1) as u32;
+            shard.cpu_events = self.cpu_events.split_off(start);
+            shard.program = self.program.clone();
+        }
 
         // Shard all the other events according to the configuration.
 
         // Shard the ADD events.
-        for (add_chunk, shard) in self
-            .add_events
-            .chunks(config.add_len)
+        for (add_chunk, shard) in take(&mut self.add_events)
+            .chunks_mut(config.add_len)
             .zip(shards.iter_mut())
         {
             shard.add_events.extend_from_slice(add_chunk);
         }
 
         // Shard the MUL events.
-        for (mul_chunk, shard) in self
-            .mul_events
-            .chunks(config.mul_len)
+        for (mul_chunk, shard) in take(&mut self.mul_events)
+            .chunks_mut(config.mul_len)
             .zip(shards.iter_mut())
         {
             shard.mul_events.extend_from_slice(mul_chunk);
         }
 
         // Shard the SUB events.
-        for (sub_chunk, shard) in self
-            .sub_events
-            .chunks(config.sub_len)
+        for (sub_chunk, shard) in take(&mut self.sub_events)
+            .chunks_mut(config.sub_len)
             .zip(shards.iter_mut())
         {
             shard.sub_events.extend_from_slice(sub_chunk);
         }
 
         // Shard the bitwise events.
-        for (bitwise_chunk, shard) in self
-            .bitwise_events
-            .chunks(config.bitwise_len)
+        for (bitwise_chunk, shard) in take(&mut self.bitwise_events)
+            .chunks_mut(config.bitwise_len)
             .zip(shards.iter_mut())
         {
             shard.bitwise_events.extend_from_slice(bitwise_chunk);
         }
 
         // Shard the shift left events.
-        for (shift_left_chunk, shard) in self
-            .shift_left_events
-            .chunks(config.shift_left_len)
+        for (shift_left_chunk, shard) in take(&mut self.shift_left_events)
+            .chunks_mut(config.shift_left_len)
             .zip(shards.iter_mut())
         {
             shard.shift_left_events.extend_from_slice(shift_left_chunk);
         }
 
         // Shard the shift right events.
-        for (shift_right_chunk, shard) in self
-            .shift_right_events
-            .chunks(config.shift_right_len)
+        for (shift_right_chunk, shard) in take(&mut self.shift_right_events)
+            .chunks_mut(config.shift_right_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -318,41 +311,41 @@ impl MachineRecord for ExecutionRecord {
         }
 
         // Shard the divrem events.
-        for (divrem_chunk, shard) in self
-            .divrem_events
-            .chunks(config.divrem_len)
+        for (divrem_chunk, shard) in take(&mut self.divrem_events)
+            .chunks_mut(config.divrem_len)
             .zip(shards.iter_mut())
         {
             shard.divrem_events.extend_from_slice(divrem_chunk);
         }
 
         // Shard the LT events.
-        for (lt_chunk, shard) in self.lt_events.chunks(config.lt_len).zip(shards.iter_mut()) {
+        for (lt_chunk, shard) in take(&mut self.lt_events)
+            .chunks_mut(config.lt_len)
+            .zip(shards.iter_mut())
+        {
             shard.lt_events.extend_from_slice(lt_chunk);
         }
 
         // Shard the field events.
-        for (field_chunk, shard) in self
-            .field_events
-            .chunks(config.field_len)
-            .zip(shards.iter_mut())
-        {
-            shard.field_events.extend_from_slice(field_chunk);
-        }
+        take(&mut self.field_events)
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, event)| {
+                let shard = &mut shards[i / config.field_len];
+                shard.field_events.push(event);
+            });
 
         // Keccak-256 permute events.
-        for (keccak_chunk, shard) in self
-            .keccak_permute_events
-            .chunks(config.keccak_len)
+        for (keccak_chunk, shard) in take(&mut self.keccak_permute_events)
+            .chunks_mut(config.keccak_len)
             .zip(shards.iter_mut())
         {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
         // Weierstrass curve add events.
-        for (weierstrass_add_chunk, shard) in self
-            .weierstrass_add_events
-            .chunks(config.weierstrass_add_len)
+        for (weierstrass_add_chunk, shard) in take(&mut self.weierstrass_add_events)
+            .chunks_mut(config.weierstrass_add_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -361,9 +354,8 @@ impl MachineRecord for ExecutionRecord {
         }
 
         // Weierstrass curve double events.
-        for (weierstrass_double_chunk, shard) in self
-            .weierstrass_double_events
-            .chunks(config.weierstrass_double_len)
+        for (weierstrass_double_chunk, shard) in take(&mut self.weierstrass_double_events)
+            .chunks_mut(config.weierstrass_double_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -375,35 +367,25 @@ impl MachineRecord for ExecutionRecord {
         let first = shards.first_mut().unwrap();
 
         // SHA-256 extend events.
-        first
-            .sha_extend_events
-            .extend_from_slice(&self.sha_extend_events);
+        first.sha_extend_events = std::mem::take(&mut self.sha_extend_events);
 
         // SHA-256 compress events.
-        first
-            .sha_compress_events
-            .extend_from_slice(&self.sha_compress_events);
+        first.sha_compress_events = std::mem::take(&mut self.sha_compress_events);
 
         // Edwards curve add events.
-        first.ed_add_events.extend_from_slice(&self.ed_add_events);
+        first.ed_add_events = std::mem::take(&mut self.ed_add_events);
 
         // Edwards curve decompress events.
-        first
-            .ed_decompress_events
-            .extend_from_slice(&self.ed_decompress_events);
+        first.ed_decompress_events = std::mem::take(&mut self.ed_decompress_events);
 
         // K256 curve decompress events.
-        first
-            .k256_decompress_events
-            .extend_from_slice(&self.k256_decompress_events);
+        first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
 
         // Blake3 compress events .
-        first
-            .blake3_compress_inner_events
-            .extend_from_slice(&self.blake3_compress_inner_events);
+        first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
 
         // Put all byte lookups in the first shard (as the table size is fixed)
-        first.byte_lookups.extend(&self.byte_lookups);
+        first.byte_lookups = std::mem::take(&mut self.byte_lookups);
 
         // Put the memory records in the last shard.
         let last_shard = shards.last_mut().unwrap();

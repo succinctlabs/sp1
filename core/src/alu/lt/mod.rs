@@ -80,6 +80,8 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         "Lt".to_string()
     }
 
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {}
+
     #[instrument(name = "generate lt trace", skip_all)]
     fn generate_trace(
         &self,

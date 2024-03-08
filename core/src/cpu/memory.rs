@@ -1,17 +1,19 @@
-#[derive(Debug, Copy, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum MemoryRecordEnum {
     Read(MemoryReadRecord),
     Write(MemoryWriteRecord),
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct MemoryRecord {
     pub value: u32,
     pub shard: u32,
     pub timestamp: u32,
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct MemoryReadRecord {
     pub value: u32,
@@ -21,7 +23,7 @@ pub struct MemoryReadRecord {
     pub prev_timestamp: u32,
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct MemoryWriteRecord {
     pub value: u32,

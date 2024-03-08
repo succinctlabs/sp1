@@ -135,7 +135,7 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn commit_main(
+    pub fn commit_main(
         config: &SC,
         machine: &MachineStark<SC, A>,
         shard: &A::Record,
@@ -172,7 +172,7 @@ where
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
-    fn prove_shard(
+    pub fn prove_shard(
         config: &SC,
         _pk: &ProvingKey<SC>,
         chips: &[&MachineChip<SC, A>],

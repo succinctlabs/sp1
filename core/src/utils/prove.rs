@@ -162,7 +162,7 @@ use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
 
-pub(super) mod baby_bear_poseidon2 {
+pub mod baby_bear_poseidon2 {
 
     use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
