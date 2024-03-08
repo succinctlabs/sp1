@@ -20,14 +20,7 @@ use super::ExecutionRecord;
 #[derive(Debug, Clone)]
 pub enum RuntimeEvent {
     Cpu(CpuEvent),
-    Mul(AluEvent),
-    Add(AluEvent),
-    Sub(AluEvent),
-    Bitwise(AluEvent),
-    ShiftLeft(AluEvent),
-    ShiftRight(AluEvent),
-    Divrem(AluEvent),
-    Lt(AluEvent),
+    Alu(AluEvent),
     ByteLookup(ByteLookupEvent),
     Field(FieldEvent),
     ShaExtend(Box<ShaExtendEvent>),
@@ -44,8 +37,14 @@ pub enum RuntimeEvent {
     ProgramMemory(Vec<(u32, MemoryRecord, u32)>),
 }
 
-trait EventReceiver {
+pub trait EventReceiver {
     fn receive(&mut self, event: RuntimeEvent);
+}
+
+pub struct DummyEventReceiver;
+
+impl EventReceiver for DummyEventReceiver {
+    fn receive(&mut self, _event: RuntimeEvent) {}
 }
 
 pub struct SimpleEventReceiver {
@@ -66,14 +65,7 @@ impl EventReceiver for SimpleEventReceiver {
             RuntimeEvent::Cpu(cpu_event) => {
                 self.record.add_cpu_event(cpu_event);
             }
-            RuntimeEvent::Mul(alu_event)
-            | RuntimeEvent::Add(alu_event)
-            | RuntimeEvent::Sub(alu_event)
-            | RuntimeEvent::Bitwise(alu_event)
-            | RuntimeEvent::ShiftLeft(alu_event)
-            | RuntimeEvent::ShiftRight(alu_event)
-            | RuntimeEvent::Divrem(alu_event)
-            | RuntimeEvent::Lt(alu_event) => {
+            RuntimeEvent::Alu(alu_event) => {
                 self.record.add_alu_event(alu_event);
             }
             RuntimeEvent::ByteLookup(byte_lookup_event) => {
@@ -135,56 +127,69 @@ impl EventReceiver for SimpleEventReceiver {
 /// An event processor that sends events to another thread and periodically processes them, filling
 /// out the record with all necessary events.
 pub struct BufferedEventProcessor<SC: StarkGenericConfig> {
-    tx: mpsc::Sender<Option<RuntimeEvent>>,
-    rx: mpsc::Receiver<ExecutionRecord>,
+    // s: Option<kanal::Sender<RuntimeEvent>>,
+    // r: kanal::Receiver<ExecutionRecord>,
+    s: Option<mpsc::Sender<RuntimeEvent>>,
+    r: mpsc::Receiver<ExecutionRecord>,
     _phantom: std::marker::PhantomData<SC>,
 }
 impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
     pub fn new(buffer_size: usize, machine: RiscvStark<SC>) -> Self {
-        let (tx, rx) = mpsc::channel();
+        // let (s, r) = kanal::unbounded();
+        let (s, r) = mpsc::channel();
 
-        let (result_tx, result_rx) = mpsc::channel();
+        // let (result_s, result_r) = kanal::unbounded();
+        let (result_s, result_r) = mpsc::channel();
 
         thread::spawn(move || {
             let mut num_received = 0_u32;
             let mut record = ExecutionRecord::default();
             let mut receiver = SimpleEventReceiver::new();
-            while let Some(event) = rx.recv().unwrap() {
+            for event in r {
                 num_received += 1;
                 // Process the event.
                 receiver.receive(event);
                 // Periodically, generate dependencies.
                 if num_received % buffer_size as u32 == 0 {
-                    let current_record = std::mem::take(&mut receiver.record);
+                    log::info!("BufferedEventProcessor: received {} events", num_received);
+                    let mut current_record = std::mem::take(&mut receiver.record);
                     let chips = machine.chips();
-                    chips.iter().for_each(|chip| {
-                        chip.generate_dependencies(&current_record, &mut record);
+                    tracing::trace_span!("generate_dependencies").in_scope(|| {
+                        chips.iter().for_each(|chip| {
+                            chip.generate_dependencies(&current_record, &mut record);
+                        });
                     });
+                    record.append(&mut current_record);
                 }
             }
-            let current_record = std::mem::take(&mut receiver.record);
+            let mut current_record = std::mem::take(&mut receiver.record);
             let chips = machine.chips();
             chips.iter().for_each(|chip| {
                 chip.generate_dependencies(&current_record, &mut record);
             });
-            result_tx.send(record).unwrap();
+            record.append(&mut current_record);
+            result_s.send(record).unwrap();
         });
 
         Self {
-            tx,
-            rx: result_rx,
+            s: Some(s),
+            r: result_r,
             _phantom: std::marker::PhantomData,
         }
     }
 
     pub fn close(&mut self) -> ExecutionRecord {
-        self.tx.send(None).unwrap();
-        self.rx.recv().unwrap()
+        self.s = None;
+        self.r.recv().unwrap()
     }
 }
 
 impl<SC: StarkGenericConfig> EventReceiver for BufferedEventProcessor<SC> {
     fn receive(&mut self, event: RuntimeEvent) {
-        self.tx.send(Some(event)).unwrap();
+        self.s
+            .as_ref()
+            .expect("already closed")
+            .send(event)
+            .unwrap();
     }
 }

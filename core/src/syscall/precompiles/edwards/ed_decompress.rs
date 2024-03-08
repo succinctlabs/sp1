@@ -10,6 +10,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::RuntimeEvent;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
@@ -36,6 +37,7 @@ use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use serde::Deserialize;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 
 use p3_matrix::dense::RowMajorMatrix;
@@ -242,9 +244,8 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
         let shard = rt.current_shard();
-        rt.record_mut()
-            .ed_decompress_events
-            .push(EdDecompressEvent {
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::EdDecompress(Box::new(
+            EdDecompressEvent {
                 shard,
                 clk: start_clk,
                 ptr: slice_ptr,
@@ -253,7 +254,8 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
                 decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
                 x_memory_records,
                 y_memory_records,
-            });
+            },
+        )));
 
         rt.clk += 4;
 

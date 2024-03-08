@@ -1,5 +1,7 @@
+use std::cell::RefCell;
+
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::{Register, RuntimeEvent, Syscall},
     syscall::precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
         SyscallContext,
@@ -85,16 +87,18 @@ impl Syscall for ShaCompressChip {
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
-        rt.record_mut().sha_compress_events.push(ShaCompressEvent {
-            shard,
-            clk: saved_clk,
-            w_and_h_ptr: saved_w_ptr,
-            w: original_w,
-            h: hx,
-            h_read_records: h_read_records.try_into().unwrap(),
-            w_i_read_records,
-            h_write_records: h_write_records.try_into().unwrap(),
-        });
+        rt.receiver()
+            .borrow_mut()
+            .receive(RuntimeEvent::ShaCompress(Box::new(ShaCompressEvent {
+                shard,
+                clk: saved_clk,
+                w_and_h_ptr: saved_w_ptr,
+                w: original_w,
+                h: hx,
+                h_read_records: h_read_records.try_into().unwrap(),
+                w_i_read_records,
+                h_write_records: h_write_records.try_into().unwrap(),
+            })));
 
         w_ptr
     }

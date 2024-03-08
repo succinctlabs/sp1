@@ -11,6 +11,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::RuntimeEvent;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
@@ -33,6 +34,7 @@ use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
@@ -116,8 +118,9 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
 
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().ed_add_events.push(event.clone());
-        event.p_ptr + 1
+        let ptr = event.p_ptr + 1;
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::EdAdd(Box::new(event)));
+        ptr
     }
 }
 

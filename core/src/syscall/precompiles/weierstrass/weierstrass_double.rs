@@ -6,6 +6,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::RuntimeEvent;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
@@ -30,6 +31,7 @@ use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
@@ -69,10 +71,10 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.record_mut()
-            .weierstrass_double_events
-            .push(event.clone());
-        event.p_ptr + 1
+        let ptr = event.p_ptr + 1;
+        RefCell::borrow_mut(&rt.receiver())
+            .receive(RuntimeEvent::WeierstrassDouble(Box::new(event)));
+        ptr
     }
 
     fn num_extra_cycles(&self) -> u32 {

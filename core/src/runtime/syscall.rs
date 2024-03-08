@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -16,6 +17,8 @@ use crate::syscall::{
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
+
+use super::EventReceiver;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -118,8 +121,8 @@ impl<'a> SyscallContext<'a> {
         }
     }
 
-    pub fn record_mut(&mut self) -> &mut ExecutionRecord {
-        &mut self.rt.record
+    pub fn receiver(&mut self) -> Rc<RefCell<dyn EventReceiver>> {
+        self.rt.event_receiver.clone()
     }
 
     pub fn current_shard(&self) -> u32 {

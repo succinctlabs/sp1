@@ -8,6 +8,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
+use crate::runtime::RuntimeEvent;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
@@ -29,6 +30,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -68,8 +70,9 @@ pub struct WeierstrassAddAssignChip<E> {
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().weierstrass_add_events.push(event.clone());
-        event.p_ptr + 1
+        let ptr = event.p_ptr + 1;
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::WeierstrassAdd(Box::new(event)));
+        ptr
     }
 
     fn num_extra_cycles(&self) -> u32 {

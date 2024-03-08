@@ -1,5 +1,7 @@
+use std::cell::RefCell;
+
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::{Register, RuntimeEvent, Syscall},
     syscall::precompiles::{sha256::ShaExtendEvent, SyscallContext},
 };
 
@@ -67,16 +69,18 @@ impl Syscall for ShaExtendChip {
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
-        rt.record_mut().sha_extend_events.push(ShaExtendEvent {
-            shard,
-            clk: clk_init,
-            w_ptr: w_ptr_init,
-            w_i_minus_15_reads,
-            w_i_minus_2_reads,
-            w_i_minus_16_reads,
-            w_i_minus_7_reads,
-            w_i_writes,
-        });
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::ShaExtend(Box::new(
+            ShaExtendEvent {
+                shard,
+                clk: clk_init,
+                w_ptr: w_ptr_init,
+                w_i_minus_15_reads,
+                w_i_minus_2_reads,
+                w_i_minus_16_reads,
+                w_i_minus_7_reads,
+                w_i_writes,
+            },
+        )));
 
         w_ptr
     }

@@ -1,5 +1,11 @@
+use std::cell::RefCell;
+use std::process::exit;
+use std::rc::Rc;
 use std::time::Instant;
 
+use crate::runtime::{
+    BufferedEventProcessor, DummyEventReceiver, ExecutionRecord, SimpleEventReceiver,
+};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -26,19 +32,23 @@ pub trait StarkUtils: StarkGenericConfig {
 }
 
 pub fn get_cycles(program: Program) -> u64 {
-    let mut runtime = Runtime::new(program);
+    let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
     runtime.run();
     runtime.state.global_clk as u64
 }
 
 pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        runtime
-    });
     let config = BabyBearBlake3::new();
-    prove_core(config, runtime)
+    let machine = RiscvStark::new(config.clone());
+    let receiver = Rc::new(RefCell::new(BufferedEventProcessor::new(10000000, machine)));
+    let record = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program, receiver.clone());
+        runtime.run();
+        receiver.borrow_mut().close()
+    });
+    println!("stats: {:?}", record.stats());
+    exit(0);
+    prove_core(config, record)
 }
 
 #[cfg(test)]
@@ -47,7 +57,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
         runtime.run();
         runtime
     });
@@ -91,7 +101,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
-    runtime: Runtime,
+    record: ExecutionRecord,
 ) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
@@ -106,12 +116,16 @@ where
     let start = Instant::now();
 
     let machine = RiscvStark::new(config);
-    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let (pk, _) = machine.setup(record.program.as_ref());
 
     // Prove the program.
-    let cycles = runtime.state.global_clk;
+    let cycles = record
+        .cpu_events
+        .iter()
+        .map(|x| x.len() as u64)
+        .sum::<u64>();
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 

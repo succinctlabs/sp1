@@ -12,6 +12,7 @@ use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::stark::RiscvStark;
 use crate::utils::{env, BabyBearPoseidon2};
 use crate::{alu::AluEvent, cpu::CpuEvent};
+pub use event::*;
 pub use instruction::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
@@ -19,6 +20,7 @@ pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use state::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
@@ -56,14 +58,14 @@ pub struct Runtime {
     /// Current global state.
     pub state: ExecutionState,
 
-    /// The record containing all events emitted during execution so far.
-    pub record: ExecutionRecord,
-
     /// The record for the current CPU opcode containing relevant events.
     pub cpu_record: CpuRecord,
 
     /// The maximum size of each shard.
     pub shard_size: u32,
+
+    /// Where all the events go.
+    pub event_receiver: Rc<RefCell<dyn EventReceiver>>,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
@@ -89,7 +91,7 @@ pub struct Runtime {
 
 impl Runtime {
     // Create a new runtime
-    pub fn new(program: Program) -> Self {
+    pub fn new(program: Program, receiver: Rc<RefCell<dyn EventReceiver>>) -> Self {
         let program_arc = Arc::new(program);
         let record = ExecutionRecord {
             program: program_arc.clone(),
@@ -104,7 +106,7 @@ impl Runtime {
         };
 
         Self {
-            record,
+            event_receiver: receiver,
             state: ExecutionState::new(program_arc.pc_start),
             program: program_arc,
             cpu_record: CpuRecord::default(),
@@ -307,7 +309,9 @@ impl Runtime {
             memory: memory_store_value,
             memory_record: record.memory,
         };
-        self.record.add_cpu_event(cpu_event);
+        self.event_receiver
+            .borrow_mut()
+            .receive(RuntimeEvent::Cpu(cpu_event));
     }
 
     /// Emit an ALU event.
@@ -319,33 +323,9 @@ impl Runtime {
             b,
             c,
         };
-        match opcode {
-            Opcode::ADD => {
-                self.record.add_events.push(event);
-            }
-            Opcode::SUB => {
-                self.record.sub_events.push(event);
-            }
-            Opcode::XOR | Opcode::OR | Opcode::AND => {
-                self.record.bitwise_events.push(event);
-            }
-            Opcode::SLL => {
-                self.record.shift_left_events.push(event);
-            }
-            Opcode::SRL | Opcode::SRA => {
-                self.record.shift_right_events.push(event);
-            }
-            Opcode::SLT | Opcode::SLTU => {
-                self.record.lt_events.push(event);
-            }
-            Opcode::MUL | Opcode::MULHU | Opcode::MULHSU | Opcode::MULH => {
-                self.record.mul_events.push(event);
-            }
-            Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                self.record.divrem_events.push(event);
-            }
-            _ => {}
-        }
+        self.event_receiver
+            .borrow_mut()
+            .receive(RuntimeEvent::Alu(event));
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
@@ -853,10 +833,10 @@ impl Runtime {
         let config = BabyBearPoseidon2::new();
         let machine = RiscvStark::new(config);
         let start_time = Instant::now();
-        let shards = machine.shard(std::mem::take(&mut self.record), &ShardingConfig::default());
+        // let shards = machine.shard(std::mem::take(&mut self.record), &ShardingConfig::default());
         let elapsed = start_time.elapsed();
         log::info!("Sharding took {:?}", elapsed);
-        exit(0);
+        // exit(0);
     }
 
     fn postprocess(&mut self) {
@@ -927,9 +907,15 @@ impl Runtime {
             .collect::<Vec<(u32, MemoryRecord, u32)>>();
         program_memory_record.sort_by_key(|&(addr, _, _)| addr);
 
-        self.record.first_memory_record = first_memory_record;
-        self.record.last_memory_record = last_memory_record;
-        self.record.program_memory_record = program_memory_record;
+        self.event_receiver
+            .borrow_mut()
+            .receive(RuntimeEvent::FirstMemory(first_memory_record));
+        self.event_receiver
+            .borrow_mut()
+            .receive(RuntimeEvent::LastMemory(last_memory_record));
+        self.event_receiver
+            .borrow_mut()
+            .receive(RuntimeEvent::ProgramMemory(program_memory_record));
     }
 }
 

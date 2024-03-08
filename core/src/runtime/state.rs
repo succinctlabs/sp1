@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use nohash_hasher::BuildNoHashHasher;
 
-use super::{CpuRecord, ExecutionRecord};
+use super::{CpuRecord, DummyEventReceiver, EventReceiver, ExecutionRecord};
 
 const SYSTEM_START: usize = 0x0C00_0000;
 const MAX_MEMORY_SIZE: usize = 1 << 29;
@@ -119,7 +119,7 @@ impl ExecutionState {
 }
 
 /// Holds data to track changes made to the runtime since a fork point.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct ForkState {
     /// Original global_clk
     pub(crate) global_clk: u32,
@@ -137,5 +137,24 @@ pub(crate) struct ForkState {
     pub(crate) op_record: CpuRecord,
 
     /// Full shard from original state
-    pub(crate) record: ExecutionRecord,
+    pub(crate) event_receiver: Rc<RefCell<dyn EventReceiver>>,
+}
+
+impl Default for ForkState {
+    fn default() -> Self {
+        Self {
+            global_clk: 0,
+            clk: 0,
+            pc: 0,
+            memory_diff: HashMap::with_hasher(BuildNoHashHasher::default()),
+            op_record: CpuRecord::default(),
+            event_receiver: Rc::new(RefCell::new(DummyEventReceiver {})),
+        }
+    }
+}
+
+impl std::fmt::Debug for ForkState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[ForkState]")
+    }
 }

@@ -1,5 +1,7 @@
+use std::cell::RefCell;
+
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::{Register, RuntimeEvent, Syscall},
     syscall::precompiles::{keccak256::KeccakPermuteEvent, SyscallContext},
 };
 
@@ -98,9 +100,8 @@ impl Syscall for KeccakPermuteChip {
 
         // Push the Keccak permute event.
         let shard = rt.current_shard();
-        rt.record_mut()
-            .keccak_permute_events
-            .push(KeccakPermuteEvent {
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::KeccakPermute(Box::new(
+            KeccakPermuteEvent {
                 shard,
                 clk: saved_clk,
                 pre_state: saved_state.as_slice().try_into().unwrap(),
@@ -108,7 +109,8 @@ impl Syscall for KeccakPermuteChip {
                 state_read_records,
                 state_write_records,
                 state_addr: state_ptr,
-            });
+            },
+        )));
 
         state_ptr
     }

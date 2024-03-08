@@ -1,6 +1,8 @@
+use std::cell::RefCell;
+
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
-use crate::runtime::Register;
 use crate::runtime::Syscall;
+use crate::runtime::{Register, RuntimeEvent};
 use crate::syscall::precompiles::blake3::{
     g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, MSG_SCHEDULE,
     NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
@@ -60,16 +62,16 @@ impl Syscall for Blake3CompressInnerChip {
 
         let shard = rt.current_shard();
 
-        rt.record_mut()
-            .blake3_compress_inner_events
-            .push(Blake3CompressInnerEvent {
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::Blake3CompressInner(Box::new(
+            Blake3CompressInnerEvent {
                 shard,
                 clk: saved_clk,
                 state_ptr,
                 message_reads,
                 state_writes,
                 message_ptr,
-            });
+            },
+        )));
 
         state_ptr
     }

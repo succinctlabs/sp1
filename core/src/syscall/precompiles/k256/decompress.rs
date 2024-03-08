@@ -10,6 +10,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::RuntimeEvent;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
@@ -38,6 +39,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::str::FromStr;
 
 use p3_matrix::dense::RowMajorMatrix;
@@ -117,9 +119,8 @@ impl Syscall for K256DecompressChip {
         let y_memory_records: [MemoryWriteRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
         let shard = rt.current_shard();
-        rt.record_mut()
-            .k256_decompress_events
-            .push(K256DecompressEvent {
+        RefCell::borrow_mut(&rt.receiver()).receive(RuntimeEvent::K256Decompress(Box::new(
+            K256DecompressEvent {
                 shard,
                 clk: start_clk,
                 ptr: slice_ptr,
@@ -128,7 +129,8 @@ impl Syscall for K256DecompressChip {
                 decompressed_y_bytes,
                 x_memory_records,
                 y_memory_records,
-            });
+            },
+        )));
 
         rt.clk += 4;
 

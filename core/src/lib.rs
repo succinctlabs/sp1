@@ -34,13 +34,18 @@ pub use io::*;
 use anyhow::Result;
 use p3_commit::Pcs;
 use p3_matrix::dense::RowMajorMatrix;
-use runtime::{Program, Runtime};
+use runtime::{DummyEventReceiver, ExecutionRecord, Program, Runtime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
 use stark::{RiscvStark, StarkGenericConfig};
+use std::cell::RefCell;
 use std::fs;
+use std::process::exit;
+use std::rc::Rc;
 use utils::{prove_core, BabyBearBlake3, StarkUtils};
+
+use crate::runtime::BufferedEventProcessor;
 
 /// A prover that can prove RISCV ELFs.
 pub struct SP1Prover;
@@ -61,7 +66,7 @@ impl SP1Prover {
     /// Executes the elf with the given inputs and returns the output.
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1Stdout> {
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
         Ok(SP1Stdout::from(&runtime.state.output_stream))
@@ -69,15 +74,36 @@ impl SP1Prover {
 
     /// Generate a proof for the execution of the ELF with the given public inputs.
     pub fn prove(elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearBlake3>> {
+        // let config = BabyBearBlake3::new();
+        // let machine = RiscvStark::new(config.clone());
+        // let receiver = Rc::new(RefCell::new(BufferedEventProcessor::new(10000000, machine)));
+        // let record = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        //     let mut runtime = Runtime::new(program, receiver.clone());
+        //     runtime.run();
+        //     receiver.borrow_mut().close()
+        // });
+        // println!("stats: {:?}", record.stats());
+        // exit(0);
+
+        let config = BabyBearBlake3::new();
+        let machine = RiscvStark::new(config.clone());
+        let receiver = Rc::new(RefCell::new(BufferedEventProcessor::new(
+            100000000, machine,
+        )));
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, receiver.clone());
         runtime.write_stdin_slice(&stdin.buffer.data);
         tracing::info_span!("runtime.run(...)").in_scope(|| {
             runtime.run();
         });
+        let start_time = std::time::Instant::now();
+        let record = receiver.borrow_mut().close();
+        println!("time: {:?}", start_time.elapsed());
+        println!("stats: {:?}", record.stats());
+        exit(0);
         let config = BabyBearBlake3::new();
         let stdout = SP1Stdout::from(&runtime.state.output_stream);
-        let proof = prove_core(config, runtime);
+        let proof = prove_core(config, ExecutionRecord::default());
         Ok(SP1ProofWithIO {
             proof,
             stdin,
@@ -101,11 +127,11 @@ impl SP1Prover {
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
+        let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
         let stdout = SP1Stdout::from(&runtime.state.output_stream);
-        let proof = prove_core(config, runtime);
+        let proof = prove_core(config, ExecutionRecord::default());
         Ok(SP1ProofWithIO {
             proof,
             stdin,

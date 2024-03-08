@@ -480,7 +480,7 @@ impl ExecutionRecord {
 
     pub fn stats(&self) -> ShardStats {
         ShardStats {
-            nb_cpu_events: self.cpu_events.len(),
+            nb_cpu_events: self.cpu_events.iter().map(Vec::len).sum(),
             nb_add_events: self.add_events.len(),
             nb_mul_events: self.mul_events.len(),
             nb_sub_events: self.sub_events.len(),
