@@ -1,12 +1,13 @@
 pub mod air;
 pub mod cpu;
 pub mod memory;
+pub mod program;
 pub mod runtime;
 pub mod stark;
 
 #[cfg(test)]
 pub mod tests {
-    use crate::runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime};
+    use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use crate::stark::RecursionAir;
 
     use p3_baby_bear::BabyBear;
@@ -18,9 +19,9 @@ pub mod tests {
 
     pub fn fibonacci_program<F: PrimeField32>() -> Program<F> {
         // .main
-        //  imm 0(fp) 1 <-- a = 1
-        //  imm 1(fp) 1 <-- b = 1
-        //  imm 2(fp) 10 <-- iterations = 10
+        //   imm 0(fp) 1 <-- a = 1
+        //   imm 1(fp) 1 <-- b = 1
+        //   imm 2(fp) 10 <-- iterations = 10
         // .body:
         //   add 3(fp) 0(fp) 1(fp) <-- tmp = a + b
         //   sw 0(fp) 1(fp) <-- a = b
@@ -45,18 +46,11 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_execute() {
-        let program = fibonacci_program();
-        let mut runtime = Runtime::<BabyBear> {
-            clk: BabyBear::zero(),
-            program,
-            fp: BabyBear::zero(),
-            pc: BabyBear::zero(),
-            memory: vec![BabyBear::zero(); 1024 * 1024],
-            record: ExecutionRecord::<BabyBear>::default(),
-        };
+        let program = fibonacci_program::<BabyBear>();
+        let mut runtime = Runtime::new(&program);
         runtime.run();
         println!("{:#?}", runtime.record.cpu_events);
-        assert_eq!(runtime.memory[1], BabyBear::from_canonical_u32(144));
+        assert_eq!(runtime.memory[1].value, BabyBear::from_canonical_u32(144));
     }
 
     #[test]

@@ -1,6 +1,4 @@
-use super::Bool;
 use super::Constant;
-use super::Eq;
 use crate::asm::AsmInstruction;
 use crate::ir::Builder;
 use crate::ir::Expression;

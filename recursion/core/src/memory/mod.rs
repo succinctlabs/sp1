@@ -1,9 +1,12 @@
+mod global;
+
 use crate::air::Word;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
 #[derive(Debug, Clone)]
 pub struct MemoryRecord<F> {
+    pub addr: F,
     pub value: F,
     pub timestamp: F,
     pub prev_value: F,

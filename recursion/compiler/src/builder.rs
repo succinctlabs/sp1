@@ -33,8 +33,8 @@ pub trait Builder: Sized {
         var
     }
 
-    fn assign<E: Expression<Self>>(&mut self, value: E::Value, expr: E) {
-        expr.assign(value, self);
+    fn assign<E: Expression<Self>>(&mut self, dst: E::Value, expr: E) {
+        expr.assign(dst, self);
     }
 
     fn range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForBuilder<Self> {
