@@ -1,5 +1,7 @@
+use reqwest::Client;
 use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
+use crate::util::fetch_latest_commit;
 use crate::util::fetch_light_block;
 
 const TENDERMINT_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -14,11 +16,18 @@ async fn main() {
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
         0xcd, 0x90, 0x3e, 0x18, 0xa2,
     ];
-    let light_block_1 = fetch_light_block(916000, peer_id)
+    const BASE_URL: &str = "https://osmosis-rpc.publicnode.com:443";
+    let client = Client::new();
+    let url = format!("{}/commit", BASE_URL);
+    let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
+    let block: u64 = latest_commit.result.signed_header.header.height.into();
+    println!("Latest block: {}", block);
+
+    let light_block_1 = fetch_light_block(block - 20, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 1");
 
-    let light_block_2 = fetch_light_block(916020, peer_id)
+    let light_block_2 = fetch_light_block(block, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 2");
     let mut stdin = SP1Stdin::new();

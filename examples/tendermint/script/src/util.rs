@@ -57,6 +57,19 @@ pub fn sort_signatures_by_validators_power_desc(
     });
 }
 
+pub async fn fetch_latest_commit(
+    client: &Client,
+    url: &str,
+) -> Result<CommitResponse, Box<dyn Error>> {
+    let response: CommitResponse = client
+        .get(url)
+        .send()
+        .await?
+        .json::<CommitResponse>()
+        .await?;
+    Ok(response)
+}
+
 pub async fn fetch_commit(
     client: &Client,
     url: &str,
@@ -111,22 +124,22 @@ pub async fn fetch_validators(
 pub async fn fetch_light_block(
     block_height: u64,
     peer_id: [u8; 20],
+    base_url: &str,
 ) -> Result<LightBlock, Box<dyn Error>> {
     let client = Client::new();
-    const BASE_URL: &str = "https://celestia-rpc.publicnode.com:443";
 
     let commit_response =
-        fetch_commit(&client, &format!("{}/commit", BASE_URL), block_height).await?;
+        fetch_commit(&client, &format!("{}/commit", base_url), block_height).await?;
     let mut signed_header = commit_response.result.signed_header;
 
     let validator_response =
-        fetch_validators(&client, &format!("{}/validators", BASE_URL), block_height).await?;
+        fetch_validators(&client, &format!("{}/validators", base_url), block_height).await?;
 
     let validators = Set::new(validator_response, None);
 
     let next_validator_response = fetch_validators(
         &client,
-        &format!("{}/validators", BASE_URL),
+        &format!("{}/validators", base_url),
         block_height + 1,
     )
     .await?;
