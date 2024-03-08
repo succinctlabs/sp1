@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
 use p3_field::PrimeField32;
-use sp1_recursion_core::runtime::Instruction;
+use sp1_recursion_core::runtime::Program;
 
 #[derive(Debug, Clone, Default)]
 pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);
@@ -30,7 +30,7 @@ impl<F: PrimeField32> AssemblyCode<F> {
         Self { blocks, labels }
     }
 
-    pub fn machine_code(self) -> Vec<Instruction<F>> {
+    pub fn machine_code(self) -> Program<F> {
         let blocks = self.blocks;
 
         // Make a first pass to collect all the pc rows corresponding to the labels.
@@ -51,7 +51,9 @@ impl<F: PrimeField32> AssemblyCode<F> {
             }
         }
 
-        machine_code
+        Program {
+            instructions: machine_code,
+        }
     }
 }
 

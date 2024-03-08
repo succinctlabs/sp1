@@ -11,3 +11,4 @@ sp1-recursion-core = { path = "../core" }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
+sp1-core = { path = "../../core" }

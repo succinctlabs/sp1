@@ -36,7 +36,7 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         Self {
             clk: F::zero(),
             program: program.clone(),
-            fp: F::zero(),
+            fp: F::from_canonical_u32(1024),
             pc: F::zero(),
             memory: vec![F::zero(); 1024 * 1024],
             record: ExecutionRecord::<F>::default(),
