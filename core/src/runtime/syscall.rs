@@ -18,7 +18,7 @@ use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
-use super::EventHandler;
+use super::{EventHandler, RuntimeEvent};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -101,16 +101,16 @@ pub trait Syscall {
 }
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the runtime.
-pub struct SyscallContext<'a> {
+pub struct SyscallContext<'a, 'b> {
     current_shard: u32,
     pub clk: u32,
 
     pub(crate) next_pc: u32,
-    pub(crate) rt: &'a mut Runtime,
+    pub(crate) rt: &'a mut Runtime<'b>,
 }
 
-impl<'a> SyscallContext<'a> {
-    pub fn new(runtime: &'a mut Runtime) -> Self {
+impl<'a, 'b> SyscallContext<'a, 'b> {
+    pub fn new(runtime: &'a mut Runtime<'b>) -> Self {
         let current_shard = runtime.current_shard();
         let clk = runtime.state.clk;
         Self {
@@ -121,8 +121,10 @@ impl<'a> SyscallContext<'a> {
         }
     }
 
-    pub fn receiver(&mut self) -> Rc<RefCell<dyn EventHandler>> {
-        self.rt.handler.clone()
+    pub fn emit_event(&mut self, event: RuntimeEvent) {
+        if !self.rt.unconstrained {
+            self.rt.handler.handle(event);
+        }
     }
 
     pub fn current_shard(&self) -> u32 {

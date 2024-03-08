@@ -32,7 +32,8 @@ pub trait StarkUtils: StarkGenericConfig {
 }
 
 pub fn get_cycles(program: Program) -> u64 {
-    let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
+    let mut handler = DummyEventReceiver {};
+    let mut runtime = Runtime::new(program, &mut handler);
     runtime.run();
     runtime.state.global_clk as u64
 }
@@ -40,11 +41,11 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     let config = BabyBearBlake3::new();
     let machine = RiscvStark::new(config.clone());
-    let receiver = Rc::new(RefCell::new(BufferedEventProcessor::new(10000000, machine)));
+    let mut receiver = BufferedEventProcessor::new(10000000, machine);
     let record = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program, receiver.clone());
+        let mut runtime = Runtime::new(program, &mut receiver);
         runtime.run();
-        receiver.borrow_mut().close()
+        receiver.close()
     });
     println!("stats: {:?}", record.stats());
     exit(0);
@@ -57,7 +58,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
+        let mut runtime = Runtime::new(program, &mut DummyEventReceiver {});
         runtime.run();
         runtime
     });

@@ -87,9 +87,7 @@ impl Syscall for ShaCompressChip {
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
-        rt.receiver()
-            .borrow_mut()
-            .handle(RuntimeEvent::ShaCompress(Box::new(ShaCompressEvent {
+        rt.emit_event(RuntimeEvent::ShaCompress(Box::new(ShaCompressEvent {
                 shard,
                 clk: saved_clk,
                 w_and_h_ptr: saved_w_ptr,

@@ -62,7 +62,7 @@ impl Syscall for Blake3CompressInnerChip {
 
         let shard = rt.current_shard();
 
-        RefCell::borrow_mut(&rt.receiver()).handle(RuntimeEvent::Blake3CompressInner(Box::new(
+        rt.emit_event(RuntimeEvent::Blake3CompressInner(Box::new(
             Blake3CompressInnerEvent {
                 shard,
                 clk: saved_clk,

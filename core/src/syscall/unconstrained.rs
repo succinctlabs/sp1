@@ -16,15 +16,11 @@ impl Syscall for SyscallEnterUnconstrained {
             panic!("Unconstrained block is already active.");
         }
         ctx.rt.unconstrained = true;
-        let mut receiver: Rc<RefCell<dyn EventHandler>> =
-            Rc::new(RefCell::new(DummyEventReceiver {}));
-        std::mem::swap(&mut ctx.rt.handler, &mut receiver);
         ctx.rt.unconstrained_state = ForkState {
             global_clk: ctx.rt.state.global_clk,
             clk: ctx.rt.state.clk,
             pc: ctx.rt.state.pc,
             memory_diff: HashMap::default(),
-            event_receiver: receiver,
             op_record: std::mem::take(&mut ctx.rt.cpu_record),
         };
         1
@@ -57,11 +53,6 @@ impl Syscall for SyscallExitUnconstrained {
                     }
                 }
             }
-            // ctx.rt.event_receiver = std::mem::take(&mut ctx.rt.unconstrained_state.event_receiver);
-            std::mem::swap(
-                &mut ctx.rt.handler,
-                &mut ctx.rt.unconstrained_state.event_receiver,
-            );
             ctx.rt.cpu_record = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
             ctx.rt.unconstrained = false;
         }

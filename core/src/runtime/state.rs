@@ -119,7 +119,6 @@ impl ExecutionState {
 }
 
 /// Holds data to track changes made to the runtime since a fork point.
-#[derive(Clone)]
 pub(crate) struct ForkState {
     /// Original global_clk
     pub(crate) global_clk: u32,
@@ -135,9 +134,6 @@ pub(crate) struct ForkState {
 
     /// Full record from original state
     pub(crate) op_record: CpuRecord,
-
-    /// Full shard from original state
-    pub(crate) event_receiver: Rc<RefCell<dyn EventHandler>>,
 }
 
 impl Default for ForkState {
@@ -148,7 +144,6 @@ impl Default for ForkState {
             pc: 0,
             memory_diff: HashMap::with_hasher(BuildNoHashHasher::default()),
             op_record: CpuRecord::default(),
-            event_receiver: Rc::new(RefCell::new(DummyEventReceiver {})),
         }
     }
 }

@@ -244,18 +244,16 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
         let shard = rt.current_shard();
-        RefCell::borrow_mut(&rt.receiver()).handle(RuntimeEvent::EdDecompress(Box::new(
-            EdDecompressEvent {
-                shard,
-                clk: start_clk,
-                ptr: slice_ptr,
-                sign: sign_bool,
-                y_bytes,
-                decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
-                x_memory_records,
-                y_memory_records,
-            },
-        )));
+        rt.emit_event(RuntimeEvent::EdDecompress(Box::new(EdDecompressEvent {
+            shard,
+            clk: start_clk,
+            ptr: slice_ptr,
+            sign: sign_bool,
+            y_bytes,
+            decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
+            x_memory_records,
+            y_memory_records,
+        })));
 
         rt.clk += 4;
 

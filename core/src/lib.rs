@@ -66,7 +66,8 @@ impl SP1Prover {
     /// Executes the elf with the given inputs and returns the output.
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1Stdout> {
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
+        let mut handler = DummyEventReceiver {};
+        let mut runtime = Runtime::new(program, &mut handler);
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
         Ok(SP1Stdout::from(&runtime.state.output_stream))
@@ -87,17 +88,15 @@ impl SP1Prover {
 
         let config = BabyBearBlake3::new();
         let machine = RiscvStark::new(config.clone());
-        let receiver = Rc::new(RefCell::new(BufferedEventProcessor::new(
-            100000000, machine,
-        )));
+        let mut receiver = BufferedEventProcessor::new(100000000, machine);
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program, receiver.clone());
+        let mut runtime = Runtime::new(program, &mut receiver);
         runtime.write_stdin_slice(&stdin.buffer.data);
         tracing::info_span!("runtime.run(...)").in_scope(|| {
             runtime.run();
         });
         let start_time = std::time::Instant::now();
-        let record = receiver.borrow_mut().close();
+        let record = receiver.close();
         println!("time: {:?}", start_time.elapsed());
         println!("stats: {:?}", record.stats());
         exit(0);
@@ -127,7 +126,8 @@ impl SP1Prover {
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program, Rc::new(RefCell::new(DummyEventReceiver {})));
+        let mut receiver = DummyEventReceiver {};
+        let mut runtime = Runtime::new(program, &mut receiver);
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
         let stdout = SP1Stdout::from(&runtime.state.output_stream);

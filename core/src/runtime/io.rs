@@ -4,14 +4,14 @@ use std::io::Read;
 
 use super::Runtime;
 
-impl Read for Runtime {
+impl<'a> Read for Runtime<'a> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.read_stdout_slice(buf);
         Ok(buf.len())
     }
 }
 
-impl Runtime {
+impl<'a> Runtime<'a> {
     pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();
         bincode::serialize_into(&mut buf, input).expect("serialization failed");

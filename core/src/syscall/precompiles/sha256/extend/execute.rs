@@ -69,18 +69,16 @@ impl Syscall for ShaExtendChip {
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
-        RefCell::borrow_mut(&rt.receiver()).handle(RuntimeEvent::ShaExtend(Box::new(
-            ShaExtendEvent {
-                shard,
-                clk: clk_init,
-                w_ptr: w_ptr_init,
-                w_i_minus_15_reads,
-                w_i_minus_2_reads,
-                w_i_minus_16_reads,
-                w_i_minus_7_reads,
-                w_i_writes,
-            },
-        )));
+        rt.emit_event(RuntimeEvent::ShaExtend(Box::new(ShaExtendEvent {
+            shard,
+            clk: clk_init,
+            w_ptr: w_ptr_init,
+            w_i_minus_15_reads,
+            w_i_minus_2_reads,
+            w_i_minus_16_reads,
+            w_i_minus_7_reads,
+            w_i_writes,
+        })));
 
         w_ptr
     }

@@ -71,7 +71,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
         let ptr = event.p_ptr + 1;
-        RefCell::borrow_mut(&rt.receiver()).handle(RuntimeEvent::WeierstrassAdd(Box::new(event)));
+        rt.emit_event(RuntimeEvent::WeierstrassAdd(Box::new(event)));
         ptr
     }
 
