@@ -4,7 +4,7 @@ use super::Expression;
 use super::SizedVariable;
 use super::SymbolicLogic;
 use super::Variable;
-use crate::asm::Instruction;
+use crate::asm::AsmInstruction;
 use core::ops::{BitAnd, BitOr, BitXor, Not};
 use p3_field::AbstractField;
 
@@ -27,7 +27,7 @@ impl<B: Builder> Constant<B> for Bool {
     type Constant = bool;
 
     fn imm(&self, constant: Self::Constant, builder: &mut B) {
-        builder.push(Instruction::IMM(self.0, B::F::from_bool(constant)));
+        builder.push(AsmInstruction::IMM(self.0, B::F::from_bool(constant)));
     }
 }
 
@@ -35,7 +35,7 @@ impl<B: Builder> Expression<B> for Bool {
     type Value = Bool;
 
     fn assign(&self, value: Bool, builder: &mut B) {
-        builder.push(Instruction::ADDI(value.0, self.0, B::F::zero()));
+        builder.push(AsmInstruction::ADDI(value.0, self.0, B::F::zero()));
     }
 }
 

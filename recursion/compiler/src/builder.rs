@@ -1,4 +1,4 @@
-use crate::asm::Instruction;
+use crate::asm::AsmInstruction;
 use crate::ir::Constant;
 use crate::ir::Variable;
 
@@ -15,9 +15,9 @@ pub trait Builder: Sized {
     //  Allocate heap memory.
     // fn alloc(&mut self, size: Int) -> Int;
 
-    fn push(&mut self, instruction: Instruction<Self::F>);
+    fn push(&mut self, instruction: AsmInstruction<Self::F>);
 
-    fn push_to_block(&mut self, block_label: Self::F, instruction: Instruction<Self::F>);
+    fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>);
 
     fn basic_block(&mut self);
 
@@ -64,11 +64,11 @@ impl<'a, B: Builder> Builder for ForBuilder<'a, B> {
         self.builder.get_mem(size)
     }
 
-    fn push(&mut self, instruction: Instruction<B::F>) {
+    fn push(&mut self, instruction: AsmInstruction<B::F>) {
         self.builder.push(instruction);
     }
 
-    fn push_to_block(&mut self, block_label: Self::F, instruction: Instruction<Self::F>) {
+    fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>) {
         self.builder.push_to_block(block_label, instruction);
     }
 
@@ -106,11 +106,11 @@ impl<'a, B: Builder> ForBuilder<'a, B> {
         // Add a basic block for the loop condition.
         self.basic_block();
         // Jump to loop body if the loop condition still holds.
-        let instr = Instruction::BNE(loop_label, loop_var.0, self.end.0);
+        let instr = AsmInstruction::BNE(loop_label, loop_var.0, self.end.0);
         self.push(instr);
         // Add a jump instruction to the loop condition in the following block
         let label = self.block_label();
-        let instr = Instruction::j(label, self);
+        let instr = AsmInstruction::j(label, self);
         self.push_to_block(loop_call_label, instr);
     }
 }

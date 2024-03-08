@@ -1,4 +1,4 @@
-use super::Instruction;
+use super::AsmInstruction;
 use alloc::format;
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
@@ -6,7 +6,7 @@ use core::fmt::Display;
 use p3_field::PrimeField32;
 
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F>(Vec<Instruction<F>>);
+pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);
 
 #[derive(Debug, Clone)]
 pub struct AssemblyCode<F> {
@@ -19,7 +19,7 @@ impl<F: PrimeField32> BasicBlock<F> {
         Self(Vec::new())
     }
 
-    pub(crate) fn push(&mut self, instruction: Instruction<F>) {
+    pub(crate) fn push(&mut self, instruction: AsmInstruction<F>) {
         self.0.push(instruction);
     }
 }

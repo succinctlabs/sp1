@@ -1,5 +1,5 @@
 use super::Constant;
-use crate::asm::Instruction;
+use crate::asm::AsmInstruction;
 use crate::ir::Builder;
 use crate::ir::Expression;
 use crate::ir::SizedVariable;
@@ -29,7 +29,7 @@ impl<B: Builder> Expression<B> for Felt<B::F> {
     type Value = Felt<B::F>;
 
     fn assign(&self, value: Felt<B::F>, builder: &mut B) {
-        builder.push(Instruction::ADDI(value.0, self.0, B::F::zero()));
+        builder.push(AsmInstruction::ADDI(value.0, self.0, B::F::zero()));
     }
 }
 
@@ -37,7 +37,7 @@ impl<B: Builder> Constant<B> for Felt<B::F> {
     type Constant = B::F;
 
     fn imm(&self, constant: Self::Constant, builder: &mut B) {
-        builder.push(Instruction::IMM(self.0, constant));
+        builder.push(AsmInstruction::IMM(self.0, constant));
     }
 }
 

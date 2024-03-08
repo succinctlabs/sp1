@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 
 use p3_field::PrimeField32;
 
-use crate::asm::Instruction;
+use crate::asm::AsmInstruction;
 use crate::builder::Builder;
 
 #[derive(Debug, Clone)]
@@ -54,14 +54,14 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
-    fn push_to_block(&mut self, block_label: Self::F, instruction: Instruction<Self::F>) {
+    fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>) {
         self.basic_blocks
             .get_mut(block_label.as_canonical_u32() as usize)
             .unwrap_or_else(|| panic!("Missing block at label: {:?}", block_label))
             .push(instruction);
     }
 
-    fn push(&mut self, instruction: Instruction<F>) {
+    fn push(&mut self, instruction: AsmInstruction<F>) {
         self.basic_blocks.last_mut().unwrap().push(instruction);
     }
 }

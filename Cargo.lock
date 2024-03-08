@@ -2592,6 +2592,7 @@ version = "0.1.0"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
+ "sp1-recursion-core",
 ]
 
 [[package]]

@@ -2,7 +2,7 @@ use super::Builder;
 use super::Constant;
 use super::Expression;
 use super::Variable;
-use crate::asm::Instruction;
+use crate::asm::AsmInstruction;
 use crate::ir::Bool;
 use alloc::rc::Rc;
 use core::ops::{BitAnd, BitOr, BitXor, Not};
@@ -43,36 +43,36 @@ impl<B: Builder> Expression<B> for SymbolicLogic {
                     lhs.assign(value, builder);
                 }
                 (SymbolicLogic::Value(lhs), SymbolicLogic::Value(rhs)) => {
-                    builder.push(Instruction::MUL(value.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::MUL(value.0, lhs.0, rhs.0));
                 }
                 (SymbolicLogic::Value(lhs), rhs) => {
                     let rhs_value = Bool::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(Instruction::MUL(value.0, lhs.0, rhs_value.0));
+                    builder.push(AsmInstruction::MUL(value.0, lhs.0, rhs_value.0));
                 }
                 (lhs, SymbolicLogic::Value(rhs)) => {
                     let lhs_value = Bool::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(Instruction::MUL(value.0, lhs_value.0, rhs.0));
+                    builder.push(AsmInstruction::MUL(value.0, lhs_value.0, rhs.0));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Bool::uninit(builder);
                     lhs.assign(lhs_value, builder);
                     let rhs_value = Bool::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(Instruction::MUL(value.0, lhs_value.0, rhs_value.0));
+                    builder.push(AsmInstruction::MUL(value.0, lhs_value.0, rhs_value.0));
                 }
             },
             SymbolicLogic::Or(lhs, rhs) => {
                 let or = |lhs: &Bool, rhs: &Bool, builder: &mut B| {
                     // Set sum = lhs + rhs.
                     let sum = Bool::uninit(builder);
-                    builder.push(Instruction::ADD(sum.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::ADD(sum.0, lhs.0, rhs.0));
                     // Set and = lhs & rhs.
                     let and = Bool::uninit(builder);
-                    builder.push(Instruction::MUL(and.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::MUL(and.0, lhs.0, rhs.0));
                     // Set value = lhs + rhs - (lhs & rhs).
-                    builder.push(Instruction::SUB(value.0, sum.0, and.0));
+                    builder.push(AsmInstruction::SUB(value.0, sum.0, and.0));
                 };
                 match (&**lhs, &**rhs) {
                     (SymbolicLogic::Const(lhs), SymbolicLogic::Const(rhs)) => {
@@ -113,18 +113,18 @@ impl<B: Builder> Expression<B> for SymbolicLogic {
                 let xor = |lhs: &Bool, rhs: &Bool, builder: &mut B| {
                     // Set sum = lhs + rhs
                     let sum = Bool::uninit(builder);
-                    builder.push(Instruction::ADD(sum.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::ADD(sum.0, lhs.0, rhs.0));
                     let two_times_and = Bool::uninit(builder);
                     // set two_times_and = (lhs & rhs)
-                    builder.push(Instruction::MUL(two_times_and.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::MUL(two_times_and.0, lhs.0, rhs.0));
                     // set two_times_and = 2 * (lhs & rhs)
-                    builder.push(Instruction::MULI(
+                    builder.push(AsmInstruction::MULI(
                         two_times_and.0,
                         two_times_and.0,
                         B::F::two(),
                     ));
                     // Set value = lhs + rhs - 2 * (lhs & rhs)
-                    builder.push(Instruction::SUB(value.0, sum.0, two_times_and.0));
+                    builder.push(AsmInstruction::SUB(value.0, sum.0, two_times_and.0));
                 };
                 match (&**lhs, &**rhs) {
                     (SymbolicLogic::Const(lhs), SymbolicLogic::Const(rhs)) => {
@@ -132,24 +132,24 @@ impl<B: Builder> Expression<B> for SymbolicLogic {
                     }
                     (SymbolicLogic::Const(true), SymbolicLogic::Value(rhs)) => {
                         // Set value = 1 - rhs
-                        builder.push(Instruction::SUBIN(value.0, rhs.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, rhs.0, B::F::one()));
                     }
                     (SymbolicLogic::Const(true), rhs) => {
                         let rhs_value = Bool::uninit(builder);
                         rhs.assign(rhs_value, builder);
                         // Set value = 1 - rhs
-                        builder.push(Instruction::SUBIN(value.0, rhs_value.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, rhs_value.0, B::F::one()));
                     }
                     (SymbolicLogic::Const(false), rhs) => {
                         rhs.assign(value, builder);
                     }
                     (SymbolicLogic::Value(lhs), SymbolicLogic::Const(true)) => {
-                        builder.push(Instruction::SUBIN(value.0, lhs.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, lhs.0, B::F::one()));
                     }
                     (lhs, SymbolicLogic::Const(true)) => {
                         let lhs_value = Bool::uninit(builder);
                         lhs.assign(lhs_value, builder);
-                        builder.push(Instruction::SUBIN(value.0, lhs_value.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, lhs_value.0, B::F::one()));
                     }
                     (SymbolicLogic::Value(lhs), SymbolicLogic::Value(rhs)) => {
                         xor(lhs, rhs, builder);

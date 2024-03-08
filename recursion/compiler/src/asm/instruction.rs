@@ -8,7 +8,7 @@ use crate::ir::Felt;
 use p3_field::PrimeField;
 
 #[derive(Debug, Clone)]
-pub enum Instruction<F> {
+pub enum AsmInstruction<F> {
     /// Load work (src, dst) : load a value from the address stored at dest(fp) into src(fp).
     LW(i32, i32),
     /// Store word (src, dst) : store a value from src(fp) into the address stored at dest(fp).
@@ -49,40 +49,48 @@ pub enum Instruction<F> {
     BEQI(F, i32, F),
 }
 
-impl<F: PrimeField> Instruction<F> {
+impl<F: PrimeField> AsmInstruction<F> {
     pub fn j<B: Builder<F = F>>(label: F, builder: &mut B) -> Self {
         let dst = builder.uninit::<Felt<F>>();
-        Instruction::JAL(dst.0, label, F::zero())
+        AsmInstruction::JAL(dst.0, label, F::zero())
     }
 
     pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Instruction::LW(dst, src) => write!(f, "lw ({})fp, ({})fp", dst, src),
-            Instruction::SW(dst, src) => write!(f, "sw ({})fp, ({})fp", dst, src),
-            Instruction::IMM(dst, value) => write!(f, "imm ({})fp, {}", dst, value),
-            Instruction::ADD(dst, lhs, rhs) => {
+            AsmInstruction::LW(dst, src) => write!(f, "lw ({})fp, ({})fp", dst, src),
+            AsmInstruction::SW(dst, src) => write!(f, "sw ({})fp, ({})fp", dst, src),
+            AsmInstruction::IMM(dst, value) => write!(f, "imm ({})fp, {}", dst, value),
+            AsmInstruction::ADD(dst, lhs, rhs) => {
                 write!(f, "add ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
-            Instruction::ADDI(dst, lhs, rhs) => write!(f, "addi ({})fp, ({})fp, {}", dst, lhs, rhs),
-            Instruction::SUB(dst, lhs, rhs) => {
+            AsmInstruction::ADDI(dst, lhs, rhs) => {
+                write!(f, "addi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::SUB(dst, lhs, rhs) => {
                 write!(f, "sub ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
-            Instruction::SUBI(dst, lhs, rhs) => write!(f, "subi ({})fp, ({})fp, {}", dst, lhs, rhs),
-            Instruction::SUBIN(dst, lhs, rhs) => {
+            AsmInstruction::SUBI(dst, lhs, rhs) => {
+                write!(f, "subi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::SUBIN(dst, lhs, rhs) => {
                 write!(f, "subin ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
-            Instruction::MUL(dst, lhs, rhs) => {
+            AsmInstruction::MUL(dst, lhs, rhs) => {
                 write!(f, "mul ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
-            Instruction::MULI(dst, lhs, rhs) => write!(f, "muli ({})fp, ({})fp, {}", dst, lhs, rhs),
-            Instruction::DIV(dst, lhs, rhs) => {
+            AsmInstruction::MULI(dst, lhs, rhs) => {
+                write!(f, "muli ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::DIV(dst, lhs, rhs) => {
                 write!(f, "div ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
-            Instruction::DIVI(dst, lhs, rhs) => write!(f, "divi ({})fp, ({})fp, {}", dst, lhs, rhs),
-            Instruction::DIVIN(dst, lhs, rhs) => {
+            AsmInstruction::DIVI(dst, lhs, rhs) => {
+                write!(f, "divi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::DIVIN(dst, lhs, rhs) => {
                 write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
-            Instruction::JAL(dst, label, offset) => {
+            AsmInstruction::JAL(dst, label, offset) => {
                 if *offset == F::zero() {
                     return write!(
                         f,
@@ -99,10 +107,10 @@ impl<F: PrimeField> Instruction<F> {
                     offset
                 )
             }
-            Instruction::JALR(dst, label, offset) => {
+            AsmInstruction::JALR(dst, label, offset) => {
                 write!(f, "jalr ({})fp, ({})fp, ({})fp", dst, label, offset)
             }
-            Instruction::BNE(label, lhs, rhs) => {
+            AsmInstruction::BNE(label, lhs, rhs) => {
                 write!(
                     f,
                     "bne {}, ({})fp, ({})fp",
@@ -111,7 +119,7 @@ impl<F: PrimeField> Instruction<F> {
                     rhs
                 )
             }
-            Instruction::BNEI(label, lhs, rhs) => {
+            AsmInstruction::BNEI(label, lhs, rhs) => {
                 write!(
                     f,
                     "bnei .{}, ({})fp, {}",
@@ -120,7 +128,7 @@ impl<F: PrimeField> Instruction<F> {
                     rhs
                 )
             }
-            Instruction::BEQ(label, lhs, rhs) => {
+            AsmInstruction::BEQ(label, lhs, rhs) => {
                 write!(
                     f,
                     "beq {}, ({})fp, ({})fp",
@@ -129,7 +137,7 @@ impl<F: PrimeField> Instruction<F> {
                     rhs
                 )
             }
-            Instruction::BEQI(label, lhs, rhs) => {
+            AsmInstruction::BEQI(label, lhs, rhs) => {
                 write!(
                     f,
                     "beqi {}, ({})fp, {}",
