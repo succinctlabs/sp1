@@ -1,31 +1,33 @@
-use crate::ir::F;
 use core::fmt;
 
 #[derive(Debug, Clone, Copy)]
-pub enum Instruction {
-    /// Load word
-    LW(F, F),
-    /// Store word
-    SW(F, F),
+pub enum Instruction<F> {
+    /// Load work (src, dst) : load a value from the address stored at dest(fp) into src(fp).
+    LW(i32, i32),
+    /// Store word (src, dst) : store a value from src(fp) into the address stored at dest(fp).
+    SW(i32, i32),
+    // Get immediate (dst, value) : load a value into the dest(fp).
+    IMM(i32, F),
     /// Add
-    ADD(F, F, F),
+    ADD(i32, i32, i32),
     /// Add immediate
-    ADDI(F, F, u32),
+    ADDI(i32, i32, F),
     /// Subtract
-    SUB(F, F, F),
+    SUB(i32, i32, i32),
     /// Multiply
-    MUL(F, F, F),
+    MUL(i32, i32, i32),
     /// Divide
-    DIV(F, F, F),
+    DIV(i32, i32, i32),
     /// Jump
-    JUMP(u32),
+    JUMP(i32),
 }
 
-impl fmt::Display for Instruction {
+impl<F: fmt::Display> fmt::Display for Instruction<F> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instruction::LW(dst, src) => write!(f, "lw ({})fp, ({})fp", dst, src),
             Instruction::SW(dst, src) => write!(f, "sw ({})fp, ({})fp", dst, src),
+            Instruction::IMM(dst, value) => write!(f, "imm ({})fp, {}", dst, value),
             Instruction::ADD(dst, lhs, rhs) => {
                 write!(f, "add ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }

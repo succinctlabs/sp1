@@ -1,8 +1,12 @@
 [package]
-name = "compiler"
+name = "sp1-recursion-compiler"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+p3-field = { workspace = true }
+
+[dev-dependencies]
+p3-baby-bear = { workspace = true }
