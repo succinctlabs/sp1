@@ -44,8 +44,6 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
-    use p3_baby_bear::BabyBear;
-
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
@@ -67,7 +65,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     #[cfg(not(feature = "perf"))]
     assert!(debug_interactions_with_all_chips::<
         BabyBearBlake3,
-        RiscvAir<BabyBear>,
+        RiscvAir<p3_baby_bear::BabyBear>,
     >(
         &machine.chips(),
         &runtime.record,
