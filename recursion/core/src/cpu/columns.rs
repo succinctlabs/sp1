@@ -4,7 +4,7 @@ use sp1_core::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct CpuCols<T> {
     pub clk: T,
@@ -54,6 +54,8 @@ pub struct CpuCols<T> {
 
     // c = a == b;
     pub a_eq_b: IsZeroOperation<T>,
+
+    pub is_real: T,
 }
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

@@ -3,6 +3,8 @@ mod opcode;
 mod program;
 mod record;
 
+use std::sync::Arc;
+
 pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
@@ -33,13 +35,17 @@ pub struct Runtime<F: PrimeField32 + Clone> {
 
 impl<F: PrimeField32 + Clone> Runtime<F> {
     pub fn new(program: &Program<F>) -> Self {
+        let record = ExecutionRecord::<F> {
+            program: Arc::new(program.clone()),
+            ..Default::default()
+        };
         Self {
             clk: F::zero(),
             program: program.clone(),
             fp: F::zero(),
             pc: F::zero(),
             memory: vec![F::zero(); 1024 * 1024],
-            record: ExecutionRecord::<F>::default(),
+            record,
         }
     }
 
@@ -170,7 +176,6 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                 }
             };
 
-            self.pc = next_pc;
             let event = CpuEvent {
                 clk: self.clk,
                 pc: self.pc,
@@ -183,6 +188,7 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                 c,
                 c_record: None,
             };
+            self.pc = next_pc;
             self.record.cpu_events.push(event);
             self.clk += F::one();
         }

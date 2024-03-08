@@ -5,6 +5,8 @@ use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_core::air::AirInteraction;
+use sp1_core::lookup::InteractionKind;
 use sp1_core::stark::SP1AirBuilder;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
 use std::borrow::Borrow;
@@ -42,6 +44,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 cols.instruction.op_c = event.instruction.op_c;
                 cols.instruction.imm_b = F::from_canonical_u32(event.instruction.imm_b as u32);
                 cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
+                cols.is_real = F::one();
                 row
             })
             .collect::<Vec<_>>();
@@ -72,7 +75,19 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let _: &CpuCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let _: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+        builder.send(AirInteraction::new(
+            vec![
+                local.instruction.opcode.into(),
+                local.instruction.op_a.into(),
+                local.instruction.op_b.into(),
+                local.instruction.op_c.into(),
+                local.instruction.imm_b.into(),
+                local.instruction.imm_c.into(),
+            ],
+            local.is_real.into(),
+            InteractionKind::Program,
+        ));
     }
 }

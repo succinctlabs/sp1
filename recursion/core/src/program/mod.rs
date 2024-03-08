@@ -5,8 +5,9 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_core::lookup::InteractionKind;
 use sp1_core::{
-    air::{MachineAir, SP1AirBuilder},
+    air::{AirInteraction, MachineAir, SP1AirBuilder},
     utils::pad_to_power_of_two,
 };
 use sp1_derive::AlignedBorrow;
@@ -18,7 +19,7 @@ pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 #[derive(Default)]
 pub struct ProgramChip;
 
-#[derive(AlignedBorrow, Clone, Copy, Default)]
+#[derive(AlignedBorrow, Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub struct ProgramCols<T> {
     pub pc: T,
@@ -46,7 +47,6 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
         });
-
         let rows = input
             .program
             .instructions
@@ -54,7 +54,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .into_iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = F::from_canonical_u32(i as u32 * 4);
+                let pc = F::from_canonical_u32(i as u32);
                 let mut row = [F::zero(); NUM_PROGRAM_COLS];
                 let cols: &mut ProgramCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = pc;
@@ -106,5 +106,18 @@ where
             local.pc * local.pc * local.pc,
             local.pc * local.pc * local.pc,
         );
+
+        builder.receive(AirInteraction::new(
+            vec![
+                local.instruction.opcode.into(),
+                local.instruction.op_a.into(),
+                local.instruction.op_b.into(),
+                local.instruction.op_c.into(),
+                local.instruction.imm_b.into(),
+                local.instruction.imm_c.into(),
+            ],
+            local.multiplicity.into(),
+            InteractionKind::Program,
+        ));
     }
 }
