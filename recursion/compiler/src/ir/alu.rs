@@ -132,24 +132,24 @@ impl<B: Builder> Expression<B> for SymbolicLogic {
                     }
                     (SymbolicLogic::Const(true), SymbolicLogic::Value(rhs)) => {
                         // Set value = 1 - rhs
-                        builder.push(AsmInstruction::SUBIN(value.0, rhs.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, B::F::one(), rhs.0));
                     }
                     (SymbolicLogic::Const(true), rhs) => {
                         let rhs_value = Bool::uninit(builder);
                         rhs.assign(rhs_value, builder);
                         // Set value = 1 - rhs
-                        builder.push(AsmInstruction::SUBIN(value.0, rhs_value.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, B::F::one(), rhs_value.0));
                     }
                     (SymbolicLogic::Const(false), rhs) => {
                         rhs.assign(value, builder);
                     }
                     (SymbolicLogic::Value(lhs), SymbolicLogic::Const(true)) => {
-                        builder.push(AsmInstruction::SUBIN(value.0, lhs.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, B::F::one(), lhs.0));
                     }
                     (lhs, SymbolicLogic::Const(true)) => {
                         let lhs_value = Bool::uninit(builder);
                         lhs.assign(lhs_value, builder);
-                        builder.push(AsmInstruction::SUBIN(value.0, lhs_value.0, B::F::one()));
+                        builder.push(AsmInstruction::SUBIN(value.0, B::F::one(), lhs_value.0));
                     }
                     (SymbolicLogic::Value(lhs), SymbolicLogic::Value(rhs)) => {
                         xor(lhs, rhs, builder);

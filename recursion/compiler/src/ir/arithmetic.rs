@@ -116,12 +116,12 @@ impl<B: Builder> Expression<B> for Symbolic<B::F> {
                     builder.push(AsmInstruction::IMM(value.0, difference));
                 }
                 (Symbolic::Const(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::SUBIN(value.0, rhs.0, *lhs));
+                    builder.push(AsmInstruction::SUBIN(value.0, *lhs, rhs.0));
                 }
                 (Symbolic::Const(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::SUBIN(value.0, rhs_value.0, *lhs));
+                    builder.push(AsmInstruction::SUBIN(value.0, *lhs, rhs_value.0));
                 }
                 (Symbolic::Value(lhs), Symbolic::Const(rhs)) => {
                     builder.push(AsmInstruction::SUBI(value.0, lhs.0, *rhs));
@@ -158,12 +158,12 @@ impl<B: Builder> Expression<B> for Symbolic<B::F> {
                     builder.push(AsmInstruction::IMM(value.0, quotient));
                 }
                 (Symbolic::Const(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::DIVIN(value.0, rhs.0, *lhs));
+                    builder.push(AsmInstruction::DIVIN(value.0, *lhs, rhs.0));
                 }
                 (Symbolic::Const(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::DIVIN(value.0, rhs_value.0, *lhs));
+                    builder.push(AsmInstruction::DIVIN(value.0, *lhs, rhs_value.0));
                 }
                 (Symbolic::Value(lhs), Symbolic::Const(rhs)) => {
                     builder.push(AsmInstruction::DIVI(value.0, lhs.0, *rhs));
@@ -200,15 +200,15 @@ impl<B: Builder> Expression<B> for Symbolic<B::F> {
                     builder.push(AsmInstruction::IMM(value.0, negated));
                 }
                 Symbolic::Value(operand) => {
-                    builder.push(AsmInstruction::SUBIN(value.0, operand.0, B::F::zero()));
+                    builder.push(AsmInstruction::SUBIN(value.0, B::F::zero(), operand.0));
                 }
                 operand => {
                     let operand_value = Felt::uninit(builder);
                     operand.assign(operand_value, builder);
                     builder.push(AsmInstruction::SUBIN(
                         value.0,
-                        operand_value.0,
                         B::F::zero(),
+                        operand_value.0,
                     ));
                 }
             },

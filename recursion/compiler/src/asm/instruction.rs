@@ -26,8 +26,8 @@ pub enum AsmInstruction<F> {
     SUB(i32, i32, i32),
     /// Subtract immediate, dst = lhs - rhs.
     SUBI(i32, i32, F),
-    /// Subtract value from immediate, dst = rhs - lhs.
-    SUBIN(i32, i32, F),
+    /// Subtract value from immediate, dst = lhs - rhs.
+    SUBIN(i32, F, i32),
     /// Multiply, dst = lhs * rhs.
     MUL(i32, i32, i32),
     /// Multiply immediate.
@@ -36,8 +36,8 @@ pub enum AsmInstruction<F> {
     DIV(i32, i32, i32),
     /// Divide immediate, dst = lhs / rhs.
     DIVI(i32, i32, F),
-    /// Divide value from immediate, dst = rhs / lhs.
-    DIVIN(i32, i32, F),
+    /// Divide value from immediate, dst = lhs / rhs.
+    DIVIN(i32, F, i32),
     /// Jump and link
     JAL(i32, F, F),
     /// Jump and link value
@@ -94,7 +94,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 Instruction::new(Opcode::SUB, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
             }
             AsmInstruction::SUBIN(dst, lhs, rhs) => {
-                Instruction::new(Opcode::SUB, i32_f(dst), f_u32(rhs), i32_f(lhs), true, false)
+                Instruction::new(Opcode::SUB, i32_f(dst), f_u32(lhs), i32_f(rhs), true, false)
             }
             AsmInstruction::MUL(dst, lhs, rhs) => Instruction::new(
                 Opcode::MUL,
@@ -119,7 +119,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 Instruction::new(Opcode::DIV, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
             }
             AsmInstruction::DIVIN(dst, lhs, rhs) => {
-                Instruction::new(Opcode::DIV, i32_f(dst), f_u32(rhs), i32_f(lhs), true, false)
+                Instruction::new(Opcode::DIV, i32_f(dst), f_u32(lhs), i32_f(rhs), true, false)
             }
             AsmInstruction::BEQ(label, lhs, rhs) => {
                 let offset =
@@ -210,7 +210,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 write!(f, "subi  ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::SUBIN(dst, lhs, rhs) => {
-                write!(f, "subin ({})fp, ({})fp, {}", dst, lhs, rhs)
+                write!(f, "subin ({})fp, {}, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::MUL(dst, lhs, rhs) => {
                 write!(f, "mul   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
@@ -225,7 +225,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 write!(f, "divi  ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::DIVIN(dst, lhs, rhs) => {
-                write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
+                write!(f, "divin ({})fp, {}, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::JAL(dst, label, offset) => {
                 if *offset == F::zero() {
