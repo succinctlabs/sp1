@@ -5,6 +5,7 @@ use program::Program;
 
 mod air;
 mod instruction;
+mod machine;
 mod opcode;
 mod program;
 

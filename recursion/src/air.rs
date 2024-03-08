@@ -13,16 +13,16 @@ use sp1_core::air::MachineAir;
 use sp1_core::air::SP1AirBuilder;
 use sp1_core::operations::IsZeroOperation;
 
-/// The number of main trace columns for `CpuChip`.
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 
 #[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct Word<T>(pub [T; 4]);
 
-/// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct CpuChip;
+pub struct CpuChip<F> {
+    _phantom: std::marker::PhantomData<F>,
+}
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 pub struct MemoryReadCols<T> {
@@ -74,35 +74,35 @@ pub struct CpuCols<T> {
     pub is_jal: T,
     pub is_jalr: T,
 
-    // Prove c = a + b;
+    // c = a + b;
     pub add_scratch: T,
 
-    // Prove c = a - b;
+    // c = a - b;
     pub sub_scratch: T,
 
-    // Prove c = a * b;
+    // c = a * b;
     pub mul_scratch: T,
 
-    // Prove c = a / b;
+    // c = a / b;
     pub div_scratch: T,
 
-    // Prove ext(c) = ext(a) + ext(b);
+    // ext(c) = ext(a) + ext(b);
     pub add_ext_scratch: [T; 4],
 
-    // Prove ext(c) = ext(a) - ext(b);
+    // ext(c) = ext(a) - ext(b);
     pub sub_ext_scratch: [T; 4],
 
-    // Prove ext(c) = ext(a) * ext(b);
+    // ext(c) = ext(a) * ext(b);
     pub mul_ext_scratch: [T; 4],
 
-    // Prove ext(c) = ext(a) / ext(b);
+    // ext(c) = ext(a) / ext(b);
     pub div_ext_scratch: [T; 4],
 
-    // Prove c = a == b;
+    // c = a == b;
     pub a_eq_b: IsZeroOperation<T>,
 }
 
-impl<F: PrimeField> MachineAir<F> for CpuChip {
+impl<F: PrimeField> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
 
     fn name(&self) -> String {
@@ -143,13 +143,13 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     }
 }
 
-impl<F> BaseAir<F> for CpuChip {
+impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
     fn width(&self) -> usize {
         NUM_CPU_COLS
     }
 }
 
-impl<AB> Air<AB> for CpuChip
+impl<AB> Air<AB> for CpuChip<AB::F>
 where
     AB: SP1AirBuilder,
 {
@@ -207,6 +207,6 @@ mod tests {
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
     }
 }
