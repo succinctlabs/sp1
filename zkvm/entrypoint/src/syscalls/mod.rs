@@ -1,3 +1,4 @@
+mod blake2b_compress;
 mod blake3_compress;
 mod ed25519;
 mod halt;
@@ -10,6 +11,7 @@ mod sha_extend;
 mod sys;
 mod unconstrained;
 
+pub use blake2b_compress::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -59,6 +61,9 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
+
+/// Executes `BLAKE2B_COMPRESS_INNER`.
+pub const BLAKE2B_COMPRESS_INNER: u32 = 113;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;

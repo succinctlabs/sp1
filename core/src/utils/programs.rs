@@ -37,6 +37,9 @@ pub mod tests {
     pub const BLAKE3_COMPRESS_ELF: &[u8] =
         include_bytes!("../../../tests/blake3-compress/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const BLAKE2B_COMPRESS_ELF: &[u8] =
+        include_bytes!("../../../tests/blake2b-compress/elf/riscv32im-succinct-zkvm-elf");
+
     pub const CYCLE_TRACKER_ELF: &[u8] =
         include_bytes!("../../../tests/cycle-tracker/elf/riscv32im-succinct-zkvm-elf");
 

@@ -10,6 +10,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::{CpuEvent, MemoryRecordEnum};
 use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
+use crate::syscall::precompiles::blake2b::Blake2bCompressInnerEvent;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
@@ -78,6 +79,8 @@ pub struct ExecutionRecord {
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
+    pub blake2b_compress_inner_events: Vec<Blake2bCompressInnerEvent>,
+
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
@@ -145,6 +148,7 @@ pub struct ShardStats {
     pub nb_sha_extend_events: usize,
     pub nb_sha_compress_events: usize,
     pub nb_keccak_permute_events: usize,
+    pub nb_blake2b_compress_events: usize,
     pub nb_ed_add_events: usize,
     pub nb_ed_decompress_events: usize,
     pub nb_weierstrass_add_events: usize,
@@ -303,6 +307,11 @@ impl ExecutionRecord {
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
 
+        // Blake2b compress events.
+        first
+            .blake2b_compress_inner_events
+            .extend_from_slice(&self.blake2b_compress_inner_events);
+
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups = std::mem::take(&mut self.byte_lookups);
 
@@ -450,6 +459,7 @@ impl ExecutionRecord {
             nb_sha_extend_events: self.sha_extend_events.len(),
             nb_sha_compress_events: self.sha_compress_events.len(),
             nb_keccak_permute_events: self.keccak_permute_events.len(),
+            nb_blake2b_compress_events: self.blake2b_compress_inner_events.len(),
             nb_ed_add_events: self.ed_add_events.len(),
             nb_ed_decompress_events: self.ed_decompress_events.len(),
             nb_weierstrass_add_events: self.weierstrass_add_events.len(),
@@ -489,6 +499,8 @@ impl ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.blake2b_compress_inner_events
+            .append(&mut other.blake2b_compress_inner_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
