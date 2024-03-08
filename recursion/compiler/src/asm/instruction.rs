@@ -23,17 +23,17 @@ pub enum AsmInstruction<F> {
     SUB(i32, i32, i32),
     /// Subtract immediate
     SUBI(i32, i32, F),
-    /// Subtract immediate and negate, dst = -lhs + rhs
+    /// Subtract value from immediate, dst = lhs - rhs.
     SUBIN(i32, i32, F),
     /// Multiply
     MUL(i32, i32, i32),
-    /// Multiply immediate
+    /// Multiply immediate.
     MULI(i32, i32, F),
     /// Divide
     DIV(i32, i32, i32),
     /// Divide immediate
     DIVI(i32, i32, F),
-    /// Divide immediate and invert (dst = rhs / lhs)
+    /// Divide value from immediate, dst = rhs / lhs.
     DIVIN(i32, i32, F),
     /// Jump and link
     JAL(i32, F, F),
