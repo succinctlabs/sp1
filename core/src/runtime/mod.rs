@@ -26,9 +26,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 pub use syscall::*;
 
-use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-
 use self::state::ExecutionState;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -67,8 +64,14 @@ pub struct Runtime {
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u32, u32)>,
 
+    /// A buffer for stdout and stderr IO.
+    pub io_buf: HashMap<u32, String>,
+
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
+
+    /// Whether the runtime should fail on panic or not.
+    pub fail_on_panic: bool,
 
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
@@ -103,7 +106,9 @@ impl Runtime {
             cpu_record: CpuRecord::default(),
             shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
+            io_buf: HashMap::new(),
             trace_buf,
+            fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map: default_syscall_map(),
@@ -159,7 +164,11 @@ impl Runtime {
     }
 
     #[inline]
+    #[cfg(debug_assertions)]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
+        use p3_baby_bear::BabyBear;
+        use p3_field::AbstractField;
+
         if position == AccessPosition::Memory {
             assert_eq!(addr % 4, 0, "addr is not aligned");
             let _ = BabyBear::from_canonical_u32(addr);
@@ -168,6 +177,9 @@ impl Runtime {
             let _ = Register::from_u32(addr);
         }
     }
+
+    #[cfg(not(debug_assertions))]
+    fn validate_memory_access(&self, _addr: u32, _position: AccessPosition) {}
 
     pub fn mr(&mut self, addr: u32, shard: u32, clk: u32) -> MemoryReadRecord {
         // Get the memory entry.
@@ -821,6 +833,20 @@ impl Runtime {
         }
         if let Some(ref mut buf) = self.trace_buf {
             buf.flush().unwrap();
+        }
+        // Flush remaining stdout/stderr
+        for (fd, buf) in self.io_buf.iter() {
+            if !buf.is_empty() {
+                match fd {
+                    1 => {
+                        println!("[stdout] {}", buf);
+                    }
+                    2 => {
+                        println!("[stderr] {}", buf);
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // Call postprocess to set up all variables needed for global accounts, like memory

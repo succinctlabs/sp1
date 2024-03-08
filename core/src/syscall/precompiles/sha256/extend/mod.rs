@@ -7,17 +7,18 @@ mod trace;
 pub use columns::*;
 
 use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaExtendEvent {
     pub shard: u32,
     pub clk: u32,
     pub w_ptr: u32,
-    pub w_i_minus_15_reads: [MemoryReadRecord; 48],
-    pub w_i_minus_2_reads: [MemoryReadRecord; 48],
-    pub w_i_minus_16_reads: [MemoryReadRecord; 48],
-    pub w_i_minus_7_reads: [MemoryReadRecord; 48],
-    pub w_i_writes: [MemoryWriteRecord; 48],
+    pub w_i_minus_15_reads: Vec<MemoryReadRecord>,
+    pub w_i_minus_2_reads: Vec<MemoryReadRecord>,
+    pub w_i_minus_16_reads: Vec<MemoryReadRecord>,
+    pub w_i_minus_7_reads: Vec<MemoryReadRecord>,
+    pub w_i_writes: Vec<MemoryWriteRecord>,
 }
 
 #[derive(Default)]

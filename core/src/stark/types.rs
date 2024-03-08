@@ -22,6 +22,7 @@ pub type PackedChallenge<SC> = <Challenge<SC> as ExtensionField<Val<SC>>>::Exten
 pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
+pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
 #[allow(dead_code)]
 type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
@@ -84,6 +85,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
 pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
     InMemory(ShardMainData<SC>),
     TempFile(File, u64),
+    Empty(),
 }
 
 impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
@@ -99,6 +101,7 @@ impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
                 let data = deserialize_from(&mut buffer)?;
                 Ok(data)
             }
+            Self::Empty() => unreachable!(),
         }
     }
 }

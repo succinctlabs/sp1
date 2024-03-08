@@ -37,13 +37,14 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct K256DecompressEvent {
     pub shard: u32,
     pub clk: u32,
@@ -298,10 +299,10 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
         let mut rows = Vec::new();
 
         for i in 0..input.k256_decompress_events.len() {
-            let event = input.k256_decompress_events[i];
+            let event = input.k256_decompress_events[i].clone();
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate(event, output);
+            cols.populate(event.clone(), output);
 
             rows.push(row);
         }

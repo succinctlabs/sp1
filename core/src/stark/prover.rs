@@ -1,8 +1,6 @@
 use super::{quotient_values, RiscvStark};
 use super::{ProvingKey, RiscvChip};
 use itertools::izip;
-#[cfg(not(feature = "perf"))]
-use p3_air::BaseAir;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
 use p3_field::{AbstractExtensionField, AbstractField};
@@ -77,20 +75,26 @@ where
         // identical global challenges across the segments.
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let config = machine.config();
-
+        let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
         let shard_proofs = shard_data_chunks
             .into_par_iter()
             .zip(shard_chunks.into_par_iter())
-            .map(|(datas, shards)| {
+            .enumerate()
+            .map(|(i, (datas, shards))| {
                 datas
                     .into_iter()
                     .zip(shards)
-                    .map(|(data, shard)| {
-                        let data = data
-                            .materialize()
-                            .expect("failed to materialize shard main data");
+                    .enumerate()
+                    .map(|(j, (data, shard))| {
+                        let idx = i * chunk_size + j;
+                        let data = if reconstruct_commitments {
+                            Self::commit_main(config, machine, &shard, idx)
+                        } else {
+                            data.materialize()
+                                .expect("failed to materialize shard main data")
+                        };
                         let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
                         Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
                     })
@@ -114,7 +118,7 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
-    fn commit_main(
+    pub fn commit_main(
         config: &SC,
         machine: &RiscvStark<SC>,
         shard: &ExecutionRecord,
@@ -151,7 +155,7 @@ where
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
-    fn prove_shard(
+    pub fn prove_shard(
         config: &SC,
         _pk: &ProvingKey<SC>,
         chips: &[&RiscvChip<SC>],
@@ -402,7 +406,7 @@ where
         #[cfg(not(feature = "perf"))]
         tracing::info_span!("debug constraints").in_scope(|| {
             for i in 0..chips.len() {
-                debug_constraints(
+                debug_constraints::<SC>(
                     &chips[i],
                     None,
                     &traces[i],
@@ -415,7 +419,7 @@ where
         #[cfg(not(feature = "perf"))]
         return ShardProof {
             main_commit: shard_data.main_commit.clone(),
-            traces,
+            traces: traces.to_vec(),
             permutation_traces,
             chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
         };
@@ -443,9 +447,10 @@ where
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
         let save_disk_threshold = env::save_disk_threshold();
+        let reconstruct_commitments = env::reconstruct_commitments();
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
             tracing::info_span!("commit main for all shards").in_scope(|| {
-                let chunk_size = std::cmp::max(shards.len() / (num_cpus::get() * 4), 1);
+                let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
                     .par_chunks(chunk_size)
                     .enumerate()
@@ -458,18 +463,15 @@ where
                                 let data = tracing::info_span!("shard commit main", shard = index)
                                     .in_scope(|| Self::commit_main(config, machine, shard, index));
                                 let commitment = data.main_commit.clone();
-                                #[cfg(target_arch = "wasm32")]
-                                let data = data.to_in_memory();
-                                #[cfg(not(target_arch = "wasm32"))]
-                                let data = {
-                                    let file = tempfile::tempfile().unwrap();
-                                    if num_shards > save_disk_threshold {
-                                        tracing::info_span!("saving trace to disk").in_scope(|| {
-                                            data.save(file).expect("failed to save shard main data")
-                                        })
-                                    } else {
-                                        data.to_in_memory()
-                                    }
+                                let file = tempfile::tempfile().unwrap();
+                                let data = if reconstruct_commitments {
+                                    ShardMainDataWrapper::Empty()
+                                } else if num_shards > save_disk_threshold {
+                                    tracing::info_span!("saving trace to disk").in_scope(|| {
+                                        data.save(file).expect("failed to save shard main data")
+                                    })
+                                } else {
+                                    data.to_in_memory()
                                 };
                                 (commitment, data)
                             })
@@ -488,6 +490,7 @@ where
                 .map(|data| match data {
                     ShardMainDataWrapper::InMemory(_) => 0,
                     ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
+                    ShardMainDataWrapper::Empty() => 0,
                 })
                 .sum::<u64>();
             if bytes_written > 0 {

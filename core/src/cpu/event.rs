@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use crate::runtime::Instruction;
 
 use super::memory::MemoryRecordEnum;
 
 /// A standard format for describing CPU operations that need to be proven.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CpuEvent {
     /// The current shard.
     pub shard: u32,

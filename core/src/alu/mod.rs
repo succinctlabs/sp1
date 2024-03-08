@@ -16,10 +16,12 @@ pub use sll::*;
 pub use sr::*;
 pub use sub::*;
 
+use serde::{Deserialize, Serialize};
+
 use crate::runtime::Opcode;
 
 /// A standard format for describing ALU operations that need to be proven.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AluEvent {
     /// The clock cycle that the operation occurs on.
     pub clk: u32,
