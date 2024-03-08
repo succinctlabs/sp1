@@ -1,6 +1,9 @@
 use core::fmt;
+use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Copy)]
+use p3_field::PrimeField;
+
+#[derive(Debug, Clone)]
 pub enum Instruction<F> {
     /// Load work (src, dst) : load a value from the address stored at dest(fp) into src(fp).
     LW(i32, i32),
@@ -28,12 +31,22 @@ pub enum Instruction<F> {
     DIVI(i32, i32, F),
     /// Divide immediate and invert (dst = rhs / lhs)
     DIVIN(i32, i32, F),
-    /// Jump
-    JUMP(i32),
+    /// Jump and link
+    JAL(i32, F, F),
+    /// Jump and link value
+    JALV(i32, i32, i32),
+    /// Branch not equal
+    BNE(F, i32, i32),
+    /// Branch not equal immediate
+    BNEI(F, i32, F),
+    /// Branch equal
+    BEQ(F, i32, i32),
+    /// Branch equal immediate
+    BEQI(F, i32, F),
 }
 
-impl<F: fmt::Display> fmt::Display for Instruction<F> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<F: PrimeField> Instruction<F> {
+    pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instruction::LW(dst, src) => write!(f, "lw ({})fp, ({})fp", dst, src),
             Instruction::SW(dst, src) => write!(f, "sw ({})fp, ({})fp", dst, src),
@@ -60,7 +73,46 @@ impl<F: fmt::Display> fmt::Display for Instruction<F> {
             Instruction::DIVIN(dst, lhs, rhs) => {
                 write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
-            Instruction::JUMP(label) => write!(f, "jump {}", label),
+            Instruction::JAL(dst, lhs, rhs) => write!(f, "jal ({})fp, {}, {}", dst, lhs, rhs),
+            Instruction::JALV(dst, lhs, rhs) => {
+                write!(f, "jalv ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            Instruction::BNE(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "bne {}, ({})fp, ({})fp",
+                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
+            Instruction::BNEI(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "bnei .{}, ({})fp, {}",
+                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
+            Instruction::BEQ(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "beq {}, ({})fp, ({})fp",
+                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
+            Instruction::BEQI(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "beqi {}, ({})fp, {}",
+                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
         }
     }
 }

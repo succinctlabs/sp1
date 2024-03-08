@@ -1,18 +1,18 @@
-use std::fmt::Display;
+use super::{AssemblyCode, BasicBlock};
+use alloc::collections::BTreeMap;
 
 use p3_field::PrimeField32;
 
-use super::Builder;
 use crate::asm::Instruction;
+use crate::builder::Builder;
 
-#[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F>(Vec<Instruction<F>>);
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AsmBuilder<F> {
     fp_offset: i32,
 
     pub basic_blocks: Vec<BasicBlock<F>>,
+
+    function_labels: BTreeMap<String, F>,
 }
 
 impl<F: PrimeField32> AsmBuilder<F> {
@@ -20,7 +20,17 @@ impl<F: PrimeField32> AsmBuilder<F> {
         Self {
             fp_offset: -4,
             basic_blocks: vec![BasicBlock::new()],
+            function_labels: BTreeMap::new(),
         }
+    }
+
+    pub fn code(self) -> AssemblyCode<F> {
+        let labels = self
+            .function_labels
+            .into_iter()
+            .map(|(k, v)| (v, k))
+            .collect();
+        AssemblyCode::new(self.basic_blocks, labels)
     }
 }
 
@@ -37,26 +47,17 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         self.basic_blocks.push(BasicBlock::new());
     }
 
+    fn block_idx(&mut self) -> usize {
+        self.basic_blocks.len() - 1
+    }
+
     fn push(&mut self, instruction: Instruction<F>) {
         self.basic_blocks.last_mut().unwrap().push(instruction);
     }
 }
 
-impl<F: PrimeField32> BasicBlock<F> {
-    pub fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    fn push(&mut self, instruction: Instruction<F>) {
-        self.0.push(instruction);
-    }
-}
-
-impl<F: Display> Display for BasicBlock<F> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for instruction in &self.0 {
-            writeln!(f, "        {}", instruction)?;
-        }
-        Ok(())
+impl<F: PrimeField32> Default for AsmBuilder<F> {
+    fn default() -> Self {
+        Self::new()
     }
 }

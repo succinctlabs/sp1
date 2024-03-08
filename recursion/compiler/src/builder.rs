@@ -5,9 +5,6 @@ use crate::ir::Variable;
 use crate::ir::Expression;
 use crate::ir::Felt;
 
-mod asm;
-
-pub use asm::*;
 use p3_field::PrimeField32;
 
 pub trait Builder: Sized {
@@ -20,6 +17,8 @@ pub trait Builder: Sized {
     fn push(&mut self, instruction: Instruction<Self::F>);
 
     fn basic_block(&mut self);
+
+    fn block_idx(&mut self) -> usize;
 
     fn uninit<T: Variable<Self>>(&mut self) -> T {
         T::uninit(self)
@@ -35,7 +34,7 @@ pub trait Builder: Sized {
         expr.assign(value, self);
     }
 
-    fn for_range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForBuilder<Self> {
+    fn range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForBuilder<Self> {
         let loop_var = Felt::uninit(self);
         ForBuilder {
             builder: self,
@@ -69,6 +68,10 @@ impl<'a, B: Builder> Builder for ForBuilder<'a, B> {
     fn basic_block(&mut self) {
         self.builder.basic_block();
     }
+
+    fn block_idx(&mut self) -> usize {
+        self.builder.block_idx()
+    }
 }
 
 impl<'a, B: Builder> ForBuilder<'a, B> {
@@ -77,10 +80,10 @@ impl<'a, B: Builder> ForBuilder<'a, B> {
         Func: FnOnce(&mut Self, Felt<B::F>),
     {
         let loop_var = self.loop_var;
-        // A basic block for the loop body and loop step.
+        // A basic block for the loop body
         self.basic_block();
         // The loop body.
         f(self, loop_var);
-        // The loop step.
+        // Add a basic block for the loop condition and the loop increment.
     }
 }

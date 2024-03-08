@@ -29,8 +29,7 @@ fn main() {
     //     builder.assign(fib[i], fib[i - 1] + fib[i - 2]);
     // });
 
-    for (i, block) in builder.basic_blocks.iter().enumerate() {
-        println!(".LBB_{}:", i);
-        println!("{}", block);
-    }
+    let code = builder.code();
+
+    println!("{}", code);
 }

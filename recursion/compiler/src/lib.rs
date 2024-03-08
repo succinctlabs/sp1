@@ -5,6 +5,7 @@ pub mod builder;
 pub mod ir;
 
 pub mod prelude {
+    pub use crate::asm::*;
     pub use crate::builder::*;
     pub use crate::ir::*;
 }
