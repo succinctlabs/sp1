@@ -432,13 +432,13 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "num-derive"
-version = "0.3.3"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -800,8 +800,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tendermint"
 version = "0.34.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc2294fa667c8b548ee27a9ba59115472d0a09c2ba255771092a7f1dcf03a789"
+source = "git+https://github.com/i-m-aditya/tendermint-rs.git?branch=i-m-aditya/break-loop-on-having-enough-voting-power#b5f695fe7e16958be1bf7875b0d0cedcd7cc5077"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -847,15 +846,13 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "sp1-zkvm",
- "tendermint",
  "tendermint-light-client-verifier",
 ]
 
 [[package]]
 name = "tendermint-proto"
 version = "0.34.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cc728a4f9e891d71adf66af6ecaece146f9c7a11312288a3107b3e1d6979aaf"
+source = "git+https://github.com/i-m-aditya/tendermint-rs.git?branch=i-m-aditya/break-loop-on-having-enough-voting-power#b5f695fe7e16958be1bf7875b0d0cedcd7cc5077"
 dependencies = [
  "bytes",
  "flex-error",
