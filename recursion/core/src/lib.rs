@@ -1,6 +1,7 @@
 pub mod air;
 pub mod cpu;
 pub mod memory;
+pub mod program;
 pub mod runtime;
 pub mod stark;
 
@@ -18,9 +19,9 @@ pub mod tests {
 
     pub fn fibonacci_program<F: PrimeField32>() -> Program<F> {
         // .main
-        //  imm 0(fp) 1 <-- a = 1
-        //  imm 1(fp) 1 <-- b = 1
-        //  imm 2(fp) 10 <-- iterations = 10
+        //   imm 0(fp) 1 <-- a = 1
+        //   imm 1(fp) 1 <-- b = 1
+        //   imm 2(fp) 10 <-- iterations = 10
         // .body:
         //   add 3(fp) 0(fp) 1(fp) <-- tmp = a + b
         //   sw 0(fp) 1(fp) <-- a = b

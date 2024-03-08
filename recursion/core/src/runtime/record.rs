@@ -1,11 +1,16 @@
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use sp1_core::stark::MachineRecord;
 
 use crate::cpu::CpuEvent;
 
+use super::Program;
+
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
+    pub program: Arc<Program<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
 }
 
