@@ -23,4 +23,3 @@ serde_cbor = "0.11.2"
 sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
 sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.10.6" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
-tendermint = { git = "https://github.com/i-m-aditya/tendermint-rs.git", branch = "i-m-aditya/break-loop-on-having-enough-voting-power"}
