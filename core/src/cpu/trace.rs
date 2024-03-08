@@ -19,6 +19,8 @@ use std::borrow::BorrowMut;
 use tracing::instrument;
 
 impl<F: PrimeField> MachineAir<F> for CpuChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "CPU".to_string()
     }
@@ -101,6 +103,10 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
                 output.add_byte_lookup_events(blu_events);
                 output.add_field_events(&field_events);
             });
+    }
+
+    fn included(&self, _: &Self::Record) -> bool {
+        true
     }
 }
 

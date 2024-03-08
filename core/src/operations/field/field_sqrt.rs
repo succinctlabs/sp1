@@ -118,6 +118,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
@@ -162,6 +164,10 @@ mod tests {
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
 
             trace
+        }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
         }
     }
 

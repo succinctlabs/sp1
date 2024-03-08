@@ -43,6 +43,8 @@ pub struct BitwiseCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for BitwiseChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
@@ -97,6 +99,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bitwise_events.is_empty()
     }
 }
 

@@ -48,6 +48,8 @@ pub struct FieldLtuCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "FieldLTU".to_string()
     }
@@ -90,6 +92,10 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
         pad_to_power_of_two::<NUM_FIELD_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.field_events.is_empty()
     }
 }
 

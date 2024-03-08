@@ -123,6 +123,8 @@ pub struct ShiftRightCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShiftRight".to_string()
     }
@@ -265,6 +267,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         }
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.shift_right_events.is_empty()
     }
 }
 

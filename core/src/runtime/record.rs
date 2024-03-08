@@ -10,6 +10,7 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::{CpuEvent, MemoryRecordEnum};
 use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
+use crate::stark::MachineRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
@@ -130,38 +131,118 @@ impl Default for ShardingConfig {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ShardStats {
-    pub nb_cpu_events: usize,
-    pub nb_add_events: usize,
-    pub nb_mul_events: usize,
-    pub nb_sub_events: usize,
-    pub nb_bitwise_events: usize,
-    pub nb_shift_left_events: usize,
-    pub nb_shift_right_events: usize,
-    pub nb_divrem_events: usize,
-    pub nb_lt_events: usize,
-    pub nb_field_events: usize,
-    pub nb_sha_extend_events: usize,
-    pub nb_sha_compress_events: usize,
-    pub nb_keccak_permute_events: usize,
-    pub nb_ed_add_events: usize,
-    pub nb_ed_decompress_events: usize,
-    pub nb_weierstrass_add_events: usize,
-    pub nb_weierstrass_double_events: usize,
-    pub nb_k256_decompress_events: usize,
-}
+impl MachineRecord for ExecutionRecord {
+    type Config = ShardingConfig;
 
-impl ExecutionRecord {
-    pub fn new(index: u32, program: Arc<Program>) -> Self {
-        Self {
-            index,
-            program,
-            ..Default::default()
-        }
+    fn index(&self) -> u32 {
+        self.index
     }
 
-    pub fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
+    fn set_index(&mut self, index: u32) {
+        self.index = index;
+    }
+
+    fn stats(&self) -> HashMap<String, usize> {
+        let mut stats = HashMap::new();
+        stats.insert("cpu_events".to_string(), self.cpu_events.len());
+        stats.insert("add_events".to_string(), self.add_events.len());
+        stats.insert("mul_events".to_string(), self.mul_events.len());
+        stats.insert("sub_events".to_string(), self.sub_events.len());
+        stats.insert("bitwise_events".to_string(), self.bitwise_events.len());
+        stats.insert(
+            "shift_left_events".to_string(),
+            self.shift_left_events.len(),
+        );
+        stats.insert(
+            "shift_right_events".to_string(),
+            self.shift_right_events.len(),
+        );
+        stats.insert("divrem_events".to_string(), self.divrem_events.len());
+        stats.insert("lt_events".to_string(), self.lt_events.len());
+        stats.insert("field_events".to_string(), self.field_events.len());
+        stats.insert(
+            "sha_extend_events".to_string(),
+            self.sha_extend_events.len(),
+        );
+        stats.insert(
+            "sha_compress_events".to_string(),
+            self.sha_compress_events.len(),
+        );
+        stats.insert(
+            "keccak_permute_events".to_string(),
+            self.keccak_permute_events.len(),
+        );
+        stats.insert("ed_add_events".to_string(), self.ed_add_events.len());
+        stats.insert(
+            "ed_decompress_events".to_string(),
+            self.ed_decompress_events.len(),
+        );
+        stats.insert(
+            "weierstrass_add_events".to_string(),
+            self.weierstrass_add_events.len(),
+        );
+        stats.insert(
+            "weierstrass_double_events".to_string(),
+            self.weierstrass_double_events.len(),
+        );
+        stats.insert(
+            "k256_decompress_events".to_string(),
+            self.k256_decompress_events.len(),
+        );
+        stats.insert(
+            "blake3_compress_inner_events".to_string(),
+            self.blake3_compress_inner_events.len(),
+        );
+        stats
+    }
+
+    fn append(&mut self, other: &mut ExecutionRecord) {
+        assert_eq!(self.index, other.index, "Shard index mismatch");
+
+        self.cpu_events.append(&mut other.cpu_events);
+        self.add_events.append(&mut other.add_events);
+        self.sub_events.append(&mut other.sub_events);
+        self.mul_events.append(&mut other.mul_events);
+        self.bitwise_events.append(&mut other.bitwise_events);
+        self.shift_left_events.append(&mut other.shift_left_events);
+        self.shift_right_events
+            .append(&mut other.shift_right_events);
+        self.divrem_events.append(&mut other.divrem_events);
+        self.lt_events.append(&mut other.lt_events);
+        self.field_events.append(&mut other.field_events);
+        self.sha_extend_events.append(&mut other.sha_extend_events);
+        self.sha_compress_events
+            .append(&mut other.sha_compress_events);
+        self.keccak_permute_events
+            .append(&mut other.keccak_permute_events);
+        self.ed_add_events.append(&mut other.ed_add_events);
+        self.ed_decompress_events
+            .append(&mut other.ed_decompress_events);
+        self.weierstrass_add_events
+            .append(&mut other.weierstrass_add_events);
+        self.weierstrass_double_events
+            .append(&mut other.weierstrass_double_events);
+        self.k256_decompress_events
+            .append(&mut other.k256_decompress_events);
+        self.blake3_compress_inner_events
+            .append(&mut other.blake3_compress_inner_events);
+
+        for (event, mult) in other.byte_lookups.iter_mut() {
+            self.byte_lookups
+                .entry(*event)
+                .and_modify(|i| *i += *mult)
+                .or_insert(*mult);
+        }
+
+        self.first_memory_record
+            .append(&mut other.first_memory_record);
+        self.last_memory_record
+            .append(&mut other.last_memory_record);
+        self.program_memory_record
+            .append(&mut other.program_memory_record);
+    }
+
+    fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
         let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
         let mut shards = (0..num_shards)
@@ -321,6 +402,16 @@ impl ExecutionRecord {
 
         shards
     }
+}
+
+impl ExecutionRecord {
+    pub fn new(index: u32, program: Arc<Program>) -> Self {
+        Self {
+            index,
+            program,
+            ..Default::default()
+        }
+    }
 
     pub fn add_mul_event(&mut self, mul_event: AluEvent) {
         self.mul_events.push(mul_event);
@@ -433,76 +524,6 @@ impl ExecutionRecord {
             b: b as u32,
             c: c as u32,
         });
-    }
-
-    pub fn stats(&self) -> ShardStats {
-        ShardStats {
-            nb_cpu_events: self.cpu_events.len(),
-            nb_add_events: self.add_events.len(),
-            nb_mul_events: self.mul_events.len(),
-            nb_sub_events: self.sub_events.len(),
-            nb_bitwise_events: self.bitwise_events.len(),
-            nb_shift_left_events: self.shift_left_events.len(),
-            nb_shift_right_events: self.shift_right_events.len(),
-            nb_divrem_events: self.divrem_events.len(),
-            nb_lt_events: self.lt_events.len(),
-            nb_field_events: self.field_events.len(),
-            nb_sha_extend_events: self.sha_extend_events.len(),
-            nb_sha_compress_events: self.sha_compress_events.len(),
-            nb_keccak_permute_events: self.keccak_permute_events.len(),
-            nb_ed_add_events: self.ed_add_events.len(),
-            nb_ed_decompress_events: self.ed_decompress_events.len(),
-            nb_weierstrass_add_events: self.weierstrass_add_events.len(),
-            nb_weierstrass_double_events: self.weierstrass_double_events.len(),
-            nb_k256_decompress_events: self.k256_decompress_events.len(),
-        }
-    }
-
-    /// Append the events from another execution record to this one, leaving the other one empty.
-    pub fn append(&mut self, other: &mut ExecutionRecord) {
-        assert_eq!(self.index, other.index, "Shard index mismatch");
-
-        self.cpu_events.append(&mut other.cpu_events);
-        self.add_events.append(&mut other.add_events);
-        self.sub_events.append(&mut other.sub_events);
-        self.mul_events.append(&mut other.mul_events);
-        self.bitwise_events.append(&mut other.bitwise_events);
-        self.shift_left_events.append(&mut other.shift_left_events);
-        self.shift_right_events
-            .append(&mut other.shift_right_events);
-        self.divrem_events.append(&mut other.divrem_events);
-        self.lt_events.append(&mut other.lt_events);
-        self.field_events.append(&mut other.field_events);
-        self.sha_extend_events.append(&mut other.sha_extend_events);
-        self.sha_compress_events
-            .append(&mut other.sha_compress_events);
-        self.keccak_permute_events
-            .append(&mut other.keccak_permute_events);
-        self.ed_add_events.append(&mut other.ed_add_events);
-        self.ed_decompress_events
-            .append(&mut other.ed_decompress_events);
-        self.weierstrass_add_events
-            .append(&mut other.weierstrass_add_events);
-        self.weierstrass_double_events
-            .append(&mut other.weierstrass_double_events);
-        self.k256_decompress_events
-            .append(&mut other.k256_decompress_events);
-        self.blake3_compress_inner_events
-            .append(&mut other.blake3_compress_inner_events);
-
-        for (event, mult) in other.byte_lookups.iter_mut() {
-            self.byte_lookups
-                .entry(*event)
-                .and_modify(|i| *i += *mult)
-                .or_insert(*mult);
-        }
-
-        self.first_memory_record
-            .append(&mut other.first_memory_record);
-        self.last_memory_record
-            .append(&mut other.last_memory_record);
-        self.program_memory_record
-            .append(&mut other.program_memory_record);
     }
 }
 
