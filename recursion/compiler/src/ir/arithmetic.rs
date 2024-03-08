@@ -21,7 +21,7 @@ impl<B: Builder> Expression<B> for Symbolic<B::F> {
     fn assign(&self, value: Felt<B::F>, builder: &mut B) {
         match self {
             Symbolic::Const(c) => {
-                c.imm(value, builder);
+                value.imm(*c, builder);
             }
             Symbolic::Value(v) => {
                 v.assign(value, builder);

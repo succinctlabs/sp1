@@ -4,8 +4,8 @@ use sp1_recursion_compiler::prelude::*;
 
 fn main() {
     let mut builder = AsmBuilder::<BabyBear>::new();
-    let a = builder.constant(BabyBear::zero());
-    let b = builder.constant(BabyBear::one());
+    let a: Felt<_> = builder.constant(BabyBear::zero());
+    let b: Felt<_> = builder.constant(BabyBear::one());
     let n = builder.constant(BabyBear::from_canonical_u32(10));
 
     // let temp = builder.uninit::<Felt<BabyBear>>();

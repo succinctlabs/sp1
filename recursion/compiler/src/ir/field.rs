@@ -1,10 +1,10 @@
+use super::Constant;
 use crate::asm::Instruction;
 use crate::ir::Builder;
 use crate::ir::Expression;
 use crate::ir::SizedVariable;
 use crate::ir::Symbolic;
 use crate::ir::Variable;
-use core::fmt;
 use core::marker::PhantomData;
 use p3_field::AbstractField;
 
@@ -33,9 +33,11 @@ impl<B: Builder> Expression<B> for Felt<B::F> {
     }
 }
 
-impl<F> fmt::Display for Felt<F> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "F({})", self.0)
+impl<B: Builder> Constant<B> for Felt<B::F> {
+    type Constant = B::F;
+
+    fn imm(&self, constant: Self::Constant, builder: &mut B) {
+        builder.push(Instruction::IMM(self.0, constant));
     }
 }
 

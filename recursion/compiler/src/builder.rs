@@ -27,9 +27,9 @@ pub trait Builder: Sized {
         T::uninit(self)
     }
 
-    fn constant<T: Constant<Self>>(&mut self, value: T) -> T::Value {
-        let var = T::Value::uninit(self);
-        value.imm(var, self);
+    fn constant<T: Constant<Self>>(&mut self, value: T::Constant) -> T {
+        let var = T::uninit(self);
+        var.imm(value, self);
         var
     }
 
