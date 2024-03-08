@@ -94,6 +94,10 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.field_events.is_empty()
+    }
 }
 
 pub const LTU_NB_BITS: usize = 29;

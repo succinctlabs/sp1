@@ -113,6 +113,10 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         output.add_byte_lookup_events(new_blu_events);
         output.add_field_events(&new_field_events);
     }
+
+    fn included(&self, _: &Self::Record) -> bool {
+        true
+    }
 }
 
 impl CpuChip {

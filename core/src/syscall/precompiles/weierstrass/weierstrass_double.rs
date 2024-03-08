@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
@@ -236,6 +237,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_WEIERSTRASS_DOUBLE_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.weierstrass_double_events.is_empty()
     }
 }
 

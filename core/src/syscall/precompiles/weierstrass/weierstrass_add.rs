@@ -210,6 +210,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             NUM_WEIERSTRASS_ADD_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.weierstrass_add_events.is_empty()
+    }
 }
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {

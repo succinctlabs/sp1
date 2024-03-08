@@ -258,4 +258,8 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
             NUM_SHA_COMPRESS_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_compress_events.is_empty()
+    }
 }

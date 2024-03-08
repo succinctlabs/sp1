@@ -8,12 +8,12 @@ use p3_util::log2_ceil_usize;
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::{ExecutionRecord, Program},
+    runtime::Program,
 };
 
 use super::{
     eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
-    ProverConstraintFolder, RiscvAir, StarkGenericConfig, VerifierConstraintFolder,
+    ProverConstraintFolder, StarkGenericConfig, VerifierConstraintFolder,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -140,9 +140,9 @@ where
 impl<F, A> MachineAir<F> for Chip<F, A>
 where
     F: Field,
-    A: MachineAir<F, Record = crate::runtime::ExecutionRecord>,
+    A: MachineAir<F>,
 {
-    type Record = ExecutionRecord;
+    type Record = A::Record;
 
     fn name(&self) -> String {
         self.air.name()
@@ -155,16 +155,16 @@ where
         self.air.preprocessed_width()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
         self.air.generate_trace(input, output)
     }
 
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+    fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
         self.air.generate_dependencies(input, output)
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.air.included(shard)
     }
 }
 

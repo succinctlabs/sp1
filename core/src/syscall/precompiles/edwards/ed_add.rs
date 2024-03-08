@@ -192,6 +192,10 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             NUM_ED_ADD_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_add_events.is_empty()
+    }
 }
 
 impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {

@@ -81,6 +81,14 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        match self.kind {
+            MemoryChipKind::Init => !shard.first_memory_record.is_empty(),
+            MemoryChipKind::Finalize => !shard.last_memory_record.is_empty(),
+            MemoryChipKind::Program => !shard.program_memory_record.is_empty(),
+        }
+    }
 }
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -146,7 +154,7 @@ mod tests {
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
     use crate::runtime::Runtime;
-    use crate::stark::MachineStark;
+    use crate::stark::RiscvAir;
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
@@ -205,8 +213,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let machine = MachineStark::new(BabyBearPoseidon2::new());
-        debug_interactions_with_all_chips::<BabyBearPoseidon2>(
+        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
             &runtime.record,
             vec![InteractionKind::Memory],
@@ -220,8 +228,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let machine = MachineStark::new(BabyBearPoseidon2::new());
-        debug_interactions_with_all_chips::<BabyBearPoseidon2>(
+        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
             &runtime.record,
             vec![InteractionKind::Byte],

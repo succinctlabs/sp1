@@ -307,6 +307,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             NUM_ED_DECOMPRESS_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_decompress_events.is_empty()
+    }
 }
 
 impl<F, E: EdwardsParameters> BaseAir<F> for EdDecompressChip<E> {

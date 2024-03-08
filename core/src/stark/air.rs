@@ -2,8 +2,12 @@ use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
 use crate::runtime::ExecutionRecord;
+use crate::stark::Chip;
+use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
+
+use super::MachineStark;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
@@ -93,6 +97,14 @@ pub enum RiscvAir<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
+    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> MachineStark<SC, Self> {
+        let chips = Self::get_all()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        MachineStark { config, chips }
+    }
+
     /// Get all the different RISC-V AIRs.
     pub fn get_all() -> Vec<Self> {
         // The order of the chips is important, as it is used to determine the order of trace
@@ -151,8 +163,6 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         chips
     }
-
-    // TODO: move to machine air and put it into the macro
 
     /// Returns `true` if the given `shard` includes events for this AIR.
     pub fn included(&self, shard: &ExecutionRecord) -> bool {

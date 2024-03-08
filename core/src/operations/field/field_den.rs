@@ -222,6 +222,10 @@ mod tests {
                 NUM_TEST_COLS,
             )
         }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
+        }
     }
 
     impl<F: Field, P: FieldParameters> BaseAir<F> for FieldDenChip<P> {

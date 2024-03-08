@@ -92,6 +92,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
 
         trace
     }
+
+    fn included(&self, _: &Self::Record) -> bool {
+        true
+    }
 }
 
 impl<F> BaseAir<F> for ProgramChip {

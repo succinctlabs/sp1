@@ -2,13 +2,13 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::Program;
+use crate::{runtime::Program, stark::MachineRecord};
 
 pub use sp1_derive::MachineAir;
 
 /// An AIR that is part of a Risc-V AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
-    type Record;
+    type Record: MachineRecord;
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
@@ -35,7 +35,5 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
         None
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        todo!()
-    }
+    fn included(&self, shard: &Self::Record) -> bool;
 }

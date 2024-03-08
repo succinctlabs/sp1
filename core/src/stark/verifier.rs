@@ -1,3 +1,5 @@
+use crate::air::MachineAir;
+use crate::stark::MachineChip;
 use itertools::izip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -17,24 +19,24 @@ use std::marker::PhantomData;
 
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
-use super::RiscvChip;
 use super::StarkGenericConfig;
 
 use core::fmt::Display;
 
-pub struct Verifier<SC>(PhantomData<SC>);
+pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
 
-impl<SC: StarkGenericConfig> Verifier<SC> {
+impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
     /// Verify a proof for a collection of air chips.
     #[cfg(feature = "perf")]
     pub fn verify_shard(
         config: &SC,
-        chips: &[&RiscvChip<SC>],
+        chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-    ) -> Result<(), VerificationError> {
-        use crate::air::MachineAir;
-
+    ) -> Result<(), VerificationError>
+    where
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    {
         let ShardProof {
             commitment,
             opened_values,
@@ -147,13 +149,16 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
 
     #[cfg(feature = "perf")]
     fn verify_constraints(
-        chip: &RiscvChip<SC>,
+        chip: &MachineChip<SC, A>,
         opening: ChipOpenedValues<SC::Challenge>,
         g: SC::Val,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-    ) -> Result<(), OodEvaluationMismatch> {
+    ) -> Result<(), OodEvaluationMismatch>
+    where
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    {
         let z_h = zeta.exp_power_of_2(opening.log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
         let is_last_row = z_h / (zeta - g.inverse());

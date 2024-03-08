@@ -13,6 +13,7 @@ use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode};
+use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `AddChip`.
@@ -89,6 +90,10 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         pad_to_power_of_two::<NUM_ADD_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.add_events.is_empty()
     }
 }
 

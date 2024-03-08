@@ -143,6 +143,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let included_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::included(x, shard)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics #sp1_core_path::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
@@ -185,6 +192,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     ) {
                         match self {
                             #(#generate_dependencies_arms,)*
+                        }
+                    }
+
+                    fn included(&self, shard: &Self::Record) -> bool {
+                        match self {
+                            #(#included_arms,)*
                         }
                     }
                 }

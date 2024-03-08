@@ -95,4 +95,8 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
             NUM_SHA_EXTEND_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_extend_events.is_empty()
+    }
 }

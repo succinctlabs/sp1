@@ -43,6 +43,7 @@ use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::{ExecutionRecord, Opcode};
+use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `MulChip`.
@@ -249,6 +250,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.mul_events.is_empty()
     }
 }
 

@@ -31,4 +31,8 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.byte_lookups.is_empty()
+    }
 }

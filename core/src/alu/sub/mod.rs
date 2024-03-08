@@ -101,6 +101,10 @@ impl<F: PrimeField> MachineAir<F> for SubChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sub_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for SubChip {

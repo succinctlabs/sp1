@@ -268,6 +268,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.shift_right_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for ShiftRightChip {

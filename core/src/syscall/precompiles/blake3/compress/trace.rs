@@ -115,4 +115,8 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
             NUM_BLAKE3_COMPRESS_INNER_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.blake3_compress_inner_events.is_empty()
+    }
 }

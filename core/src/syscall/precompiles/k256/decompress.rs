@@ -338,6 +338,10 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
             NUM_K256_DECOMPRESS_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.k256_decompress_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for K256DecompressChip {

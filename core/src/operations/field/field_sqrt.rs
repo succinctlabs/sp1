@@ -165,6 +165,10 @@ mod tests {
 
             trace
         }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
+        }
     }
 
     impl<F: Field, P: FieldParameters> BaseAir<F> for EdSqrtChip<P> {
