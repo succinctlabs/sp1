@@ -1,4 +1,4 @@
-use crate::cpu::CpuChip;
+use crate::{cpu::CpuChip, program::ProgramChip};
 use p3_field::PrimeField32;
 use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
 use sp1_derive::MachineAir;
@@ -8,6 +8,7 @@ use sp1_derive::MachineAir;
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 pub enum RecursionAir<F: PrimeField32> {
     Cpu(CpuChip<F>),
+    Program(ProgramChip),
 }
 
 #[allow(dead_code)]
@@ -24,6 +25,8 @@ impl<F: PrimeField32> RecursionAir<F> {
         let mut chips = vec![];
         let cpu = CpuChip::default();
         chips.push(RecursionAir::Cpu(cpu));
+        let program = ProgramChip;
+        chips.push(RecursionAir::Program(program));
         chips
     }
 }
