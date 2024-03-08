@@ -1,5 +1,7 @@
+use alloc::collections::BTreeMap;
+use alloc::format;
+use alloc::string::String;
 use core::fmt;
-use std::collections::BTreeMap;
 
 use crate::builder::Builder;
 use crate::ir::Felt;

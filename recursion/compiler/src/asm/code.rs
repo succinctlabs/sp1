@@ -1,8 +1,9 @@
 use super::Instruction;
-use alloc::collections::BTreeMap;
+use alloc::format;
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
+use core::fmt;
+use core::fmt::Display;
 use p3_field::PrimeField32;
-
-use std::fmt::Display;
 
 #[derive(Debug, Clone, Default)]
 pub struct BasicBlock<F>(Vec<Instruction<F>>);
@@ -30,7 +31,7 @@ impl<F: PrimeField32> AssemblyCode<F> {
 }
 
 impl<F: PrimeField32> Display for AssemblyCode<F> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, block) in self.blocks.iter().enumerate() {
             writeln!(
                 f,
