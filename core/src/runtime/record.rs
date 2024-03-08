@@ -30,7 +30,7 @@ pub struct ExecutionRecord {
     pub program: Arc<Program>,
 
     /// A trace of the CPU events which get emitted during execution, split into shards.
-    pub cpu_events: Vec<Vec<CpuEvent>>,
+    pub cpu_events: Vec<CpuEvent>,
 
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<AluEvent>,
@@ -85,9 +85,6 @@ pub struct ExecutionRecord {
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
-
-    #[serde(skip)]
-    pub config: ShardingConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -161,6 +158,15 @@ impl ExecutionRecord {
         Self {
             index,
             program,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_capacity(index: u32, program: Arc<Program>, shard_size: usize) -> Self {
+        Self {
+            index,
+            program,
+            cpu_events: Vec::with_capacity(shard_size),
             ..Default::default()
         }
     }
@@ -324,13 +330,7 @@ impl ExecutionRecord {
     }
 
     pub fn add_cpu_event(&mut self, cpu_event: CpuEvent) {
-        if self.cpu_events.is_empty()
-            || self.cpu_events.last().unwrap().len() == self.config.shard_size as usize
-        {
-            self.cpu_events
-                .push(Vec::with_capacity(self.config.shard_size as usize));
-        }
-        self.cpu_events.last_mut().unwrap().push(cpu_event);
+        self.cpu_events.push(cpu_event);
     }
 
     pub fn add_mul_event(&mut self, mul_event: AluEvent) {
@@ -480,7 +480,8 @@ impl ExecutionRecord {
 
     pub fn stats(&self) -> ShardStats {
         ShardStats {
-            nb_cpu_events: self.cpu_events.iter().map(Vec::len).sum(),
+            // nb_cpu_events: self.cpu_events.iter().map(Vec::len).sum(),
+            nb_cpu_events: self.cpu_events.len(),
             nb_add_events: self.add_events.len(),
             nb_mul_events: self.mul_events.len(),
             nb_sub_events: self.sub_events.len(),

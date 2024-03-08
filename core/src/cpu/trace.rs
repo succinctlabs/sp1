@@ -37,11 +37,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         let rows_with_events = input
             .cpu_events
             .par_iter()
-            .flat_map(|shard| {
-                shard
-                    .par_iter()
-                    .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
-            })
+            .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
             .collect::<Vec<_>>();
 
         let mut rows = Vec::<F>::new();
@@ -77,14 +73,15 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
-            .par_iter()
-            .map(|shard| {
+            .par_chunks(chunk_size)
+            .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
                 let mut blu: Vec<_> = Vec::default();
                 let mut field: Vec<_> = Vec::default();
-                shard.iter().for_each(|op: &CpuEvent| {
+                ops.iter().for_each(|op| {
                     let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);

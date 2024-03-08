@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::{ExecutionRecord, Program};
+use crate::runtime::{EventHandler, ExecutionRecord, Program};
 
 pub use sp1_derive::MachineAir;
 
@@ -19,11 +19,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
+        output: &mut dyn EventHandler,
     ) -> RowMajorMatrix<F>;
 
     /// Generate the dependencies for a given execution record.
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut dyn EventHandler) {
         self.generate_trace(input, output);
     }
 

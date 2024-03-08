@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::runtime::{
-    BufferedEventProcessor, DummyEventReceiver, ExecutionRecord, SimpleEventReceiver,
+    BufferedEventProcessor, DummyEventReceiver, ExecutionRecord, SimpleEventRecorder,
 };
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
@@ -120,11 +120,7 @@ where
     let (pk, _) = machine.setup(record.program.as_ref());
 
     // Prove the program.
-    let cycles = record
-        .cpu_events
-        .iter()
-        .map(|x| x.len() as u64)
-        .sum::<u64>();
+    let cycles = record.cpu_events.len();
     let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record, &mut challenger));
     let time = start.elapsed().as_millis();
