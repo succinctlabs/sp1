@@ -43,7 +43,13 @@ impl<F: PrimeField32> AssemblyCode<F> {
 
         // Make the second pass to convert the assembly code to machine code.
         let mut machine_code = Vec::new();
-        for block in blocks {}
+        let mut pc = 0;
+        for block in blocks {
+            for instruction in block.0 {
+                machine_code.push(instruction.machine_code(pc, &label_to_pc));
+                pc += 1;
+            }
+        }
 
         machine_code
     }

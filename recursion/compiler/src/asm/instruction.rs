@@ -2,10 +2,13 @@ use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
 use core::fmt;
+use sp1_recursion_core::cpu::Instruction;
+use sp1_recursion_core::runtime::Opcode;
 
 use crate::builder::Builder;
 use crate::ir::Felt;
-use p3_field::PrimeField;
+use crate::util::canonical_i32_to_field;
+use p3_field::PrimeField32;
 
 #[derive(Debug, Clone)]
 pub enum AsmInstruction<F> {
@@ -15,23 +18,23 @@ pub enum AsmInstruction<F> {
     SW(i32, i32),
     // Get immediate (dst, value) : load a value into the dest(fp).
     IMM(i32, F),
-    /// Add
+    /// Add, dst = lhs + rhs.
     ADD(i32, i32, i32),
-    /// Add immediate
+    /// Add immediate, dst = lhs + rhs.
     ADDI(i32, i32, F),
-    /// Subtract
+    /// Subtract, dst = lhs - rhs.
     SUB(i32, i32, i32),
-    /// Subtract immediate
+    /// Subtract immediate, dst = lhs - rhs.
     SUBI(i32, i32, F),
-    /// Subtract value from immediate, dst = lhs - rhs.
+    /// Subtract value from immediate, dst = rhs - lhs.
     SUBIN(i32, i32, F),
-    /// Multiply
+    /// Multiply, dst = lhs * rhs.
     MUL(i32, i32, i32),
     /// Multiply immediate.
     MULI(i32, i32, F),
-    /// Divide
+    /// Divide, dst = lhs / rhs.
     DIV(i32, i32, i32),
-    /// Divide immediate
+    /// Divide immediate, dst = lhs / rhs.
     DIVI(i32, i32, F),
     /// Divide value from immediate, dst = rhs / lhs.
     DIVIN(i32, i32, F),
@@ -49,10 +52,81 @@ pub enum AsmInstruction<F> {
     BEQI(F, i32, F),
 }
 
-impl<F: PrimeField> AsmInstruction<F> {
+impl<F: PrimeField32> AsmInstruction<F> {
     pub fn j<B: Builder<F = F>>(label: F, builder: &mut B) -> Self {
         let dst = builder.uninit::<Felt<F>>();
         AsmInstruction::JAL(dst.0, label, F::zero())
+    }
+
+    pub fn machine_code(self, pc: usize, label_to_pc: &BTreeMap<usize, usize>) -> Instruction<F> {
+        let i32_f = canonical_i32_to_field::<F>;
+        let f_u32 = |x: F| x.as_canonical_u32();
+        match self {
+            AsmInstruction::LW(dst, src) => {
+                Instruction::new(Opcode::LW, i32_f(dst), i32_f(src), 0, false, false)
+            }
+            AsmInstruction::SW(dst, src) => {
+                Instruction::new(Opcode::SW, i32_f(dst), i32_f(src), 0, false, false)
+            }
+            AsmInstruction::IMM(dst, value) => {
+                Instruction::new(Opcode::LW, i32_f(dst), f_u32(value), 0, true, false)
+            }
+            AsmInstruction::ADD(dst, lhs, rhs) => Instruction::new(
+                Opcode::ADD,
+                i32_f(dst),
+                i32_f(lhs),
+                i32_f(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::ADDI(dst, lhs, rhs) => {
+                Instruction::new(Opcode::ADD, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
+            }
+            AsmInstruction::SUB(dst, lhs, rhs) => Instruction::new(
+                Opcode::SUB,
+                i32_f(dst),
+                i32_f(lhs),
+                i32_f(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::SUBI(dst, lhs, rhs) => {
+                Instruction::new(Opcode::SUB, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
+            }
+            AsmInstruction::SUBIN(dst, lhs, rhs) => {
+                Instruction::new(Opcode::SUB, i32_f(dst), f_u32(rhs), i32_f(lhs), true, false)
+            }
+            AsmInstruction::MUL(dst, lhs, rhs) => Instruction::new(
+                Opcode::MUL,
+                i32_f(dst),
+                i32_f(lhs),
+                i32_f(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::MULI(dst, lhs, rhs) => {
+                Instruction::new(Opcode::MUL, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
+            }
+            AsmInstruction::DIV(dst, lhs, rhs) => Instruction::new(
+                Opcode::DIV,
+                i32_f(dst),
+                i32_f(lhs),
+                i32_f(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::DIVI(dst, lhs, rhs) => {
+                Instruction::new(Opcode::DIV, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
+            }
+            AsmInstruction::DIVIN(dst, lhs, rhs) => {
+                Instruction::new(Opcode::DIV, i32_f(dst), f_u32(rhs), i32_f(lhs), true, false)
+            }
+            // AsmInstruction::BEQ(label, lhs, rhs) => {
+            //     let offset = label_to_pc[&label.as_canonical_u32()] as i32 - pc as i32;
+            //     Instruction::new(Opcode::BEQ, i32_f(lhs), i32_f(rhs), offset, false, false)
+            // }
+            _ => todo!(),
+        }
     }
 
     pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {

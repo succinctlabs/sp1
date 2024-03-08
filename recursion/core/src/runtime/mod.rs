@@ -45,17 +45,18 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
 
     /// Fetch the destination address and input operand values for an ALU instruction.
     fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
-        if !instruction.imm_c {
-            let a_ptr = self.fp + instruction.op_a;
-            let b_val = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
-            let c_val = self.memory[(self.fp + instruction.op_c).as_canonical_u32() as usize];
-            (a_ptr, b_val, c_val)
+        let a_ptr = self.fp + instruction.op_a;
+        let b_val = if !instruction.imm_b {
+            self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize]
         } else {
-            let a_ptr = self.fp + instruction.op_a;
-            let b_val = self.memory[(self.fp + instruction.op_b).as_canonical_u32() as usize];
-            let c_val = instruction.op_c;
-            (a_ptr, b_val, c_val)
-        }
+            instruction.op_b
+        };
+        let c_val = if !instruction.imm_c {
+            self.memory[(self.fp + instruction.op_c).as_canonical_u32() as usize]
+        } else {
+            instruction.op_c
+        };
+        (a_ptr, b_val, c_val)
     }
 
     /// Fetch the destination address input operand values for a load instruction (from heap).
@@ -141,13 +142,13 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                 Opcode::BEQ => {
                     (a, b, c) = self.branch_rr(&instruction);
                     if a == b {
-                        next_pc = c;
+                        next_pc = self.pc + c;
                     }
                 }
                 Opcode::BNE => {
                     (a, b, c) = self.branch_rr(&instruction);
                     if a != b {
-                        next_pc = c;
+                        next_pc = self.pc + c;
                     }
                 }
                 Opcode::JAL => {
