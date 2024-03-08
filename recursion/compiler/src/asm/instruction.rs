@@ -38,7 +38,7 @@ pub enum Instruction<F> {
     /// Jump and link
     JAL(i32, F, F),
     /// Jump and link value
-    JALV(i32, i32, i32),
+    JALR(i32, i32, i32),
     /// Branch not equal
     BNE(F, i32, i32),
     /// Branch not equal immediate
@@ -99,8 +99,8 @@ impl<F: PrimeField> Instruction<F> {
                     offset
                 )
             }
-            Instruction::JALV(dst, label, offset) => {
-                write!(f, "jalv ({})fp, ({})fp, ({})fp", dst, label, offset)
+            Instruction::JALR(dst, label, offset) => {
+                write!(f, "jalr ({})fp, ({})fp, ({})fp", dst, label, offset)
             }
             Instruction::BNE(label, lhs, rhs) => {
                 write!(
