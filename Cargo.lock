@@ -2587,7 +2587,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-recursion"
+name = "sp1-recursion-core"
 version = "0.1.0"
 dependencies = [
  "hashbrown 0.14.3",
