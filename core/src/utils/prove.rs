@@ -58,11 +58,12 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let mut challenger = machine.config().challenger();
 
     let start = Instant::now();
+    let record_clone = runtime.record.clone();
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, runtime.record, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record_clone, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
-    assert!(debug_interactions_with_all_chips(
+    assert!(debug_interactions_with_all_chips::<BabyBearBlake3>(
         &machine.chips(),
         &runtime.record,
         InteractionKind::all_kinds(),
@@ -161,7 +162,7 @@ use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
 
-pub(super) mod baby_bear_poseidon2 {
+pub mod baby_bear_poseidon2 {
 
     use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;

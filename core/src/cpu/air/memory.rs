@@ -1,10 +1,8 @@
-use core::borrow::Borrow;
-
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols, NUM_MEMORY_COLUMNS};
+use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
 use crate::runtime::Opcode;
@@ -52,23 +50,17 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) {
         // Get the memory specific columns.
-        let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
+        let memory_columns = local.opcode_specific_columns.memory();
 
         // Compute whether this is a load instruction.
         let is_load = self.is_load_instruction::<AB>(&local.selectors);
 
         // Get the unsigned memory value.
-        self.eval_unsigned_mem_value(builder, &memory_columns, local);
+        self.eval_unsigned_mem_value(builder, memory_columns, local);
 
         // If it's a signed operation (such as LB or LH), then we need verify the bit decomposition
         // of the most significant byte to get it's sign.
-        self.eval_most_sig_byte_bit_decomp(
-            builder,
-            &memory_columns,
-            local,
-            &local.unsigned_mem_val,
-        );
+        self.eval_most_sig_byte_bit_decomp(builder, memory_columns, local, &local.unsigned_mem_val);
 
         // Assert that if `is_lb` and `is_lh` are both true, then the most significant byte is
         // matches the value of `local.mem_value_is_neg`.
@@ -107,11 +99,10 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
     ) {
-        let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
+        let memory_columns = local.opcode_specific_columns.memory();
 
         // Get the memory offset flags.
-        self.eval_offset_value_flags(builder, &memory_columns, local);
+        self.eval_offset_value_flags(builder, memory_columns, local);
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
             - memory_columns.offset_is_two

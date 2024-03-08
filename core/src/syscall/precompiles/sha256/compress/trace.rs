@@ -28,7 +28,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
         let mut new_field_events = Vec::new();
         for i in 0..input.sha_compress_events.len() {
-            let mut event = input.sha_compress_events[i];
+            let mut event = input.sha_compress_events[i].clone();
 
             let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);

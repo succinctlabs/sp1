@@ -24,7 +24,7 @@ sp1up
 ```
 
 This will install support for the `riscv32im-succinct-zkvm-elf` compilation target within your Rust compiler
-and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness. 
+and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
 
 You can verify the installation by running `cargo prove --version`:
 
@@ -52,7 +52,7 @@ rm ~/.sp1/bin/cargo-prove
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 
-Clone the `sp1` repository and navigate to the root directory. 
+Clone the `sp1` repository and navigate to the root directory.
 
 ```bash
 git clone git@github.com:succinctlabs/sp1.git
@@ -64,6 +64,7 @@ cargo prove build-toolchain
 ```
 
 Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine. If you're on a machine that we have prebuilt binaries for (ARM Mac or x86 or ARM Linux), you can use the following to download a prebuilt version.
+
 ```bash
 cargo prove install-toolchain
 ```
@@ -78,4 +79,29 @@ You can delete your existing installation of the toolchain with:
 
 ```bash
 rustup toolchain remove succinct
+```
+
+## Option 3: Using Docker
+
+SP1 can also be used entirely within a Docker container. If you don't have it, Docker can be
+installed directly from [Docker's website](https://docs.docker.com/get-docker/).
+
+Then you can use:
+
+```bash
+cargo prove --docker
+```
+
+to automatically use the latest image of SP1 in a container.
+
+Alternatively, it is possible to build the docker image locally by running:
+
+```bash
+docker build -t succinctlabs/sp1:latest ./cli/docker
+```
+
+You can then run the `cargo prove` command by mounting your program directory into the container:
+
+```bash
+docker run -v "$(pwd):/root/program" -it succinctlabs/sp1:latest prove build
 ```

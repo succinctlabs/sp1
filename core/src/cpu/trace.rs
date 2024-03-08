@@ -1,12 +1,9 @@
-use super::columns::{
-    AuipcCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
-    NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
-};
+use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::columns::{CpuCols, MemoryColumns};
+use crate::cpu::columns::CpuCols;
 use crate::cpu::memory::MemoryRecordEnum;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
@@ -75,44 +72,35 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
     #[instrument(name = "generate CPU dependencies", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        let mut new_alu_events = HashMap::with_capacity(input.cpu_events.len());
-        let mut new_blu_events = Vec::with_capacity(input.cpu_events.len());
-        let mut new_field_events: Vec<FieldEvent> = Vec::with_capacity(input.cpu_events.len());
-
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         let events = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
-                ops.iter()
-                    .map(|op| {
-                        let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
-                        (alu_events, blu_events, field_events)
-                    })
-                    .collect::<Vec<_>>()
+                let mut alu = HashMap::new();
+                let mut blu: Vec<_> = Vec::default();
+                let mut field: Vec<_> = Vec::default();
+                ops.iter().for_each(|op| {
+                    let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
+                    alu_events.into_iter().for_each(|(key, value)| {
+                        alu.entry(key).or_insert(Vec::default()).extend(value);
+                    });
+                    blu.extend(blu_events);
+                    field.extend(field_events);
+                });
+                (alu, blu, field)
             })
-            .flatten()
             .collect::<Vec<_>>();
 
-        events.into_iter().for_each(|e| {
-            let (alu_events, blu_events, field_events) = e;
-            for (key, value) in alu_events {
-                new_alu_events
-                    .entry(key)
-                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
-                        op_new_events.extend(value.clone())
-                    })
-                    .or_insert(value);
-            }
-            new_blu_events.extend(blu_events);
-            new_field_events.extend(field_events);
-        });
-
-        // Add the dependency events to the shard.
-        output.add_alu_events(new_alu_events);
-        output.add_byte_lookup_events(new_blu_events);
-        output.add_field_events(&new_field_events);
+        events
+            .into_iter()
+            .for_each(|(alu_events, blu_events, field_events)| {
+                // Add the dependency events to the shard.
+                output.add_alu_events(alu_events);
+                output.add_byte_lookup_events(blu_events);
+                output.add_field_events(&field_events);
+            });
     }
 }
 
@@ -157,8 +145,7 @@ impl CpuChip {
 
         // Populate memory accesses for reading from memory.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
-        let memory_columns: &mut MemoryColumns<F> =
-            cols.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow_mut();
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
@@ -200,8 +187,7 @@ impl CpuChip {
         }
 
         // Populate addr_word and addr_aligned columns.
-        let memory_columns: &mut MemoryColumns<F> =
-            cols.opcode_specific_columns[0..NUM_MEMORY_COLUMNS].borrow_mut();
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
         let memory_addr = event.b.wrapping_add(event.c);
         memory_columns.addr_word = memory_addr.into();
         memory_columns.addr_aligned =
@@ -308,8 +294,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_branch_instruction() {
-            let branch_columns: &mut BranchCols<F> =
-                cols.opcode_specific_columns[..NUM_BRANCH_COLS].borrow_mut();
+            let branch_columns = cols.opcode_specific_columns.branch_mut();
 
             let a_eq_b = event.a == event.b;
 
@@ -404,8 +389,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_jump_instruction() {
-            let jump_columns: &mut JumpCols<F> =
-                cols.opcode_specific_columns[..NUM_JUMP_COLS].borrow_mut();
+            let jump_columns = cols.opcode_specific_columns.jump_mut();
 
             match event.instruction.opcode {
                 Opcode::JAL => {
@@ -456,8 +440,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns: &mut AuipcCols<F> =
-                cols.opcode_specific_columns[..NUM_AUIPC_COLS].borrow_mut();
+            let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
             auipc_columns.pc = event.pc.into();
 

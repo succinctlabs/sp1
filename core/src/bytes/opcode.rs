@@ -1,9 +1,10 @@
 use p3_field::Field;
+use serde::{Deserialize, Serialize};
 
 use crate::{bytes::NUM_BYTE_OPS, runtime::Opcode};
 
 /// A byte opcode which the chip can process.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ByteOpcode {
     /// Bitwise AND.
     AND = 0,

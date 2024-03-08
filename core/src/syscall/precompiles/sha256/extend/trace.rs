@@ -21,7 +21,7 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
 
         let mut new_field_events = Vec::new();
         for i in 0..input.sha_extend_events.len() {
-            let event = input.sha_extend_events[i];
+            let event = input.sha_extend_events[i].clone();
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
