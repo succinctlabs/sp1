@@ -5,6 +5,7 @@ use p3_field::PrimeField32;
 use sp1_core::stark::MachineRecord;
 
 use crate::cpu::CpuEvent;
+use crate::memory::MemoryRecord;
 
 use super::Program;
 
@@ -12,6 +13,9 @@ use super::Program;
 pub struct ExecutionRecord<F: Default> {
     pub program: Arc<Program<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
+    pub first_memory_record: Vec<(u32, MemoryRecord<F>, u32)>,
+    pub last_memory_record: Vec<(u32, MemoryRecord<F>, u32)>,
+    pub program_memory_record: Vec<(u32, MemoryRecord<F>, u32)>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
