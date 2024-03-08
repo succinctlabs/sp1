@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use crate::air::MachineAir;
 use crate::lookup::InteractionBuilder;
-use crate::runtime::Program;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
@@ -38,13 +37,13 @@ impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
 #[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
     //TODO
-    pub marker: std::marker::PhantomData<SC>,
+    marker: std::marker::PhantomData<SC>,
 }
 
 #[derive(Debug, Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     // TODO:
-    pub marker: std::marker::PhantomData<SC>,
+    marker: std::marker::PhantomData<SC>,
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
@@ -67,7 +66,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup(&self, _program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    pub fn setup<P>(&self, _program: &P) -> (ProvingKey<SC>, VerifyingKey<SC>) {
         (
             ProvingKey {
                 marker: PhantomData,

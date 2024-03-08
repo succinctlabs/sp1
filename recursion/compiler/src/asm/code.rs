@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
 use p3_field::PrimeField32;
-use sp1_recursion_core::Instruction;
+use sp1_recursion_core::runtime::Instruction;
 
 #[derive(Debug, Clone, Default)]
 pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);

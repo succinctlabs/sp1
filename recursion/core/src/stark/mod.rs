@@ -1,12 +1,11 @@
-use crate::air::CpuChip;
+use crate::cpu::CpuChip;
 use p3_field::PrimeField32;
 use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
 use sp1_derive::MachineAir;
 
-#[allow(dead_code)]
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
-#[execution_record_path = "crate::ExecutionRecord<F>"]
+#[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 pub enum RecursionAir<F: PrimeField32> {
     Cpu(CpuChip<F>),
 }
