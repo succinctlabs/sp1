@@ -1,5 +1,6 @@
+use std::collections::HashMap;
+
 use crate::runtime::{ForkState, Syscall, SyscallContext};
-use hashbrown::HashMap;
 
 pub struct SyscallEnterUnconstrained;
 
@@ -49,7 +50,7 @@ impl Syscall for SyscallExitUnconstrained {
                         ctx.rt.state.memory.insert(addr, value);
                     }
                     None => {
-                        ctx.rt.state.memory.remove(&addr);
+                        ctx.rt.state.memory.remove(addr);
                     }
                 }
             }
