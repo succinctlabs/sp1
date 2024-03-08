@@ -97,12 +97,11 @@ impl<'a, B: Builder> ForBuilder<'a, B> {
         let loop_call_label = self.block_label();
         // A basic block for the loop body
         self.basic_block();
+        // Save the loop body label for the loop condition.
+        let loop_label = self.block_label();
         // The loop body.
         f(loop_var, self);
         self.assign(loop_var, loop_var + B::F::one());
-
-        // Save the loop body label for the loop condition.
-        let loop_label = self.block_label();
         // Add a basic block for the loop condition.
         self.basic_block();
         // Jump to loop body if the loop condition still holds.

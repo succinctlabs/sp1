@@ -2,6 +2,7 @@ mod alu;
 mod arithmetic;
 mod bool;
 mod field;
+mod ops;
 mod ptr;
 
 use crate::builder::Builder;
@@ -10,6 +11,7 @@ pub use alu::*;
 pub use arithmetic::*;
 pub use bool::*;
 pub use field::*;
+pub use ops::*;
 pub use ptr::*;
 
 pub trait Expression<B: Builder> {

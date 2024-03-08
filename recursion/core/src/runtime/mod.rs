@@ -171,6 +171,9 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                     self.fp += c_val;
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::TRAP => {
+                    panic!("trap instruction encountered");
+                }
             };
 
             self.pc = next_pc;

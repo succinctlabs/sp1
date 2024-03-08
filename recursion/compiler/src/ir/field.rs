@@ -1,4 +1,6 @@
+use super::Bool;
 use super::Constant;
+use super::Eq;
 use crate::asm::AsmInstruction;
 use crate::ir::Builder;
 use crate::ir::Expression;
@@ -40,6 +42,14 @@ impl<B: Builder> Constant<B> for Felt<B::F> {
         builder.push(AsmInstruction::IMM(self.0, constant));
     }
 }
+
+// impl<B: Builder> Eq<B> for Felt<B::F> {
+//     fn eq(&self, other: Self, builder: &mut B) -> Bool {
+//         let result = Felt::uninit(builder);
+//         builder.push(AsmInstruction::EQ(result.0, self.0, other.0));
+//         result
+//     }
+// }
 
 impl<F> Add for Felt<F> {
     type Output = Symbolic<F>;

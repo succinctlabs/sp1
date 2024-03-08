@@ -233,14 +233,14 @@ impl<F: PrimeField32> AsmInstruction<F> {
                         f,
                         "j ({})fp, {}",
                         dst,
-                        labels.get(label).unwrap_or(&format!(".BBL_{}", label))
+                        labels.get(label).unwrap_or(&format!(".L{}", label))
                     );
                 }
                 write!(
                     f,
                     "jal ({})fp, {}, {}",
                     dst,
-                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
                     offset
                 )
             }
@@ -251,7 +251,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 write!(
                     f,
                     "bne {}, ({})fp, ({})fp",
-                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
                 )
@@ -260,7 +260,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 write!(
                     f,
                     "bnei .{}, ({})fp, {}",
-                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
                 )
@@ -269,7 +269,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 write!(
                     f,
                     "beq {}, ({})fp, ({})fp",
-                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
                 )
@@ -278,7 +278,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 write!(
                     f,
                     "beqi {}, ({})fp, {}",
-                    labels.get(label).unwrap_or(&format!(".BBL_{}", label)),
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
                 )

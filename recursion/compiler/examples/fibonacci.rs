@@ -13,25 +13,23 @@ fn main() {
     let mut builder = AsmBuilder::<BabyBear>::new();
     let a: Felt<_> = builder.constant(BabyBear::zero());
     let b: Felt<_> = builder.constant(BabyBear::one());
-    let n = builder.constant(BabyBear::from_canonical_u32(10));
-
-    // let temp = builder.uninit::<Felt<BabyBear>>();
-    // builder.assign(temp, a + b);
-    // builder.assign(a, a + b - n + BabyBear::from_canonical_u32(59));
-    // builder.assign(b, temp);
+    let c: Felt<_> = builder.constant(BabyBear::from_canonical_u32(0));
+    let n: Felt<_> = builder.constant(BabyBear::from_canonical_u32(10));
 
     let start = a;
     let end = n;
 
-    let zero = builder.constant(BabyBear::zero());
+    let zero: Felt<_> = builder.constant(BabyBear::zero());
     builder.range(start, end).for_each(|_, builder| {
-        builder.assign(a, a + b);
+        builder.assign(a, a + BabyBear::two());
         // Make a nested for loop
-        let start = zero;
-        let end = n;
-        builder.range(start, end).for_each(|_, builder| {
-            builder.assign(b, a + b);
-        });
+        let inner_start = zero;
+        let inner_end: Felt<_> = builder.constant(BabyBear::from_canonical_u32(10));
+        builder
+            .range(inner_start, inner_end)
+            .for_each(|_, builder| {
+                builder.assign(c, c + BabyBear::one());
+            });
     });
 
     // builder.assign(b, a + b + n);

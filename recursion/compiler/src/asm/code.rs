@@ -65,7 +65,7 @@ impl<F: PrimeField32> Display for AssemblyCode<F> {
                 "{}:",
                 self.labels
                     .get(&F::from_canonical_u32(i as u32))
-                    .unwrap_or(&format!(".LBB_{}", i))
+                    .unwrap_or(&format!(".L{}", i))
             )?;
             for instruction in &block.0 {
                 write!(f, "        ")?;
