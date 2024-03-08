@@ -24,9 +24,15 @@ pub type MachineChip<SC, A> = Chip<<SC as StarkGenericConfig>::Val, A>;
 /// A STARK for proving RISC-V execution.
 pub struct MachineStark<SC: StarkGenericConfig, A> {
     /// The STARK settings for the RISC-V STARK.
-    pub config: SC,
+    config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    pub chips: Vec<Chip<SC::Val, A>>,
+    chips: Vec<Chip<SC::Val, A>>,
+}
+
+impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
+    pub fn new(config: SC, chips: Vec<Chip<SC::Val, A>>) -> Self {
+        Self { config, chips }
+    }
 }
 
 #[derive(Debug, Clone)]

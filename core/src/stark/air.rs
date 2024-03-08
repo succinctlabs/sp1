@@ -101,7 +101,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark { config, chips }
+        MachineStark::new(config, chips)
     }
 
     /// Get all the different RISC-V AIRs.

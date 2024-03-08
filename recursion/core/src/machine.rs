@@ -18,7 +18,7 @@ impl<F: PrimeField32> RecursionAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark { config, chips }
+        MachineStark::new(config, chips)
     }
 
     pub fn get_all() -> Vec<Self> {
