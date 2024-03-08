@@ -7,7 +7,6 @@ use p3_matrix::MatrixRowSlices;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
-use tracing::instrument;
 
 use crate::ExecutionRecord;
 use sp1_core::air::MachineAir;
@@ -41,11 +40,13 @@ pub struct MemoryWriteCols<T> {
 }
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
-pub struct HashCols<T> {
-    pub i1: MemoryReadCols<T>,
-    pub i2: MemoryReadCols<T>,
-    pub o1: MemoryWriteCols<T>,
-    pub o2: MemoryWriteCols<T>,
+pub struct InstructionCols<T> {
+    pub opcode: T,
+    pub op_a: T,
+    pub op_b: T,
+    pub op_c: T,
+    pub imm_b: T,
+    pub imm_c: T,
 }
 
 /// The column layout for the chip.
@@ -60,10 +61,8 @@ pub struct CpuCols<T> {
     pub b: MemoryReadCols<T>,
     pub c: MemoryReadCols<T>,
 
-    pub opcode: T,
-    pub op_a: T,
-    pub op_b: T,
-    pub op_c: T,
+    pub instruction: InstructionCols<T>,
+
     pub is_add: T,
     pub is_sub: T,
     pub is_mul: T,
@@ -124,6 +123,12 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
                 cols.clk = event.clk;
                 cols.pc = event.pc;
                 cols.fp = event.fp;
+                cols.instruction.opcode = F::from_canonical_u32(event.instruction.opcode as u32);
+                cols.instruction.op_a = event.instruction.op_a;
+                cols.instruction.op_b = event.instruction.op_b;
+                cols.instruction.op_c = event.instruction.op_c;
+                cols.instruction.imm_b = F::from_canonical_u32(event.instruction.imm_b as u32);
+                cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
                 row
             })
             .collect::<Vec<_>>();
@@ -152,5 +157,56 @@ where
         let main = builder.main();
         let _: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let _: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::air::CpuChip;
+    use crate::ExecutionRecord;
+    use crate::Instruction;
+    use crate::Opcode;
+    use crate::Program;
+    use crate::Runtime;
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::dense::RowMajorMatrix;
+    use sp1_core::air::MachineAir;
+    use sp1_core::utils::uni_stark_prove;
+    use sp1_core::utils::{BabyBearPoseidon2, StarkUtils};
+
+    #[test]
+    fn prove_babybear() {
+        let program = Program::<BabyBear> {
+            instructions: vec![
+                // .main
+                Instruction::new(Opcode::SW, 0, 1, 0, true, true),
+                Instruction::new(Opcode::SW, 1, 1, 0, true, true),
+                Instruction::new(Opcode::SW, 2, 10, 0, true, true),
+                // .body:
+                Instruction::new(Opcode::ADD, 3, 0, 1, false, false),
+                Instruction::new(Opcode::SW, 0, 1, 0, false, true),
+                Instruction::new(Opcode::SW, 1, 3, 0, false, true),
+                Instruction::new(Opcode::SUB, 2, 2, 1, false, true),
+                Instruction::new(Opcode::BNE, 2, 0, 3, true, true),
+            ],
+        };
+        let mut runtime = Runtime::<BabyBear> {
+            clk: BabyBear::zero(),
+            program,
+            fp: BabyBear::zero(),
+            pc: BabyBear::zero(),
+            memory: vec![BabyBear::zero(); 1024 * 1024],
+            record: ExecutionRecord::<BabyBear>::default(),
+        };
+        runtime.run();
+
+        let config = BabyBearPoseidon2::new();
+        let mut challenger = config.challenger();
+
+        let chip = CpuChip::default();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
     }
 }

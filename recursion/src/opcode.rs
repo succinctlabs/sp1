@@ -1,5 +1,5 @@
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Opcode {
     // Arithmetic instructions.
     ADD = 0,
