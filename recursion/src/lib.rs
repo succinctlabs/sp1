@@ -1,7 +1,9 @@
+use hashbrown::HashMap;
 use instruction::Instruction;
 use opcode::Opcode;
 use p3_field::PrimeField32;
 use program::Program;
+use sp1_core::stark::MachineRecord;
 
 mod air;
 mod instruction;
@@ -34,6 +36,26 @@ pub struct MemoryRecord<F> {
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
     pub cpu_events: Vec<CpuEvent<F>>,
+}
+
+impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
+    type Config = ();
+
+    fn index(&self) -> u32 {
+        0
+    }
+
+    fn set_index(&mut self, _: u32) {}
+
+    fn stats(&self) -> HashMap<String, usize> {
+        HashMap::new()
+    }
+
+    fn append(&mut self, _: &mut Self) {}
+
+    fn shard(self, _: &Self::Config) -> Vec<Self> {
+        vec![self]
+    }
 }
 
 pub struct Runtime<F: PrimeField32 + Clone> {
@@ -205,11 +227,19 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
 
 #[cfg(test)]
 pub mod tests {
+    use std::marker::PhantomData;
+    use std::time::Instant;
+
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
+    use sp1_core::stark::{ProvingKey, VerifyingKey};
+    use sp1_core::utils::{self, BabyBearPoseidon2};
 
+    use crate::machine::RecursionAir;
     use crate::ExecutionRecord;
     use crate::{Instruction, Opcode, Program, Runtime};
+    use sp1_core::stark::LocalProver;
+    use sp1_core::utils::StarkUtils;
 
     #[test]
     fn test_fibonacci() {
@@ -282,5 +312,52 @@ pub mod tests {
         };
         runtime.run();
         println!("{:?}", &runtime.memory[0..16]);
+    }
+
+    #[test]
+    fn test_prove() {
+        std::env::set_var("RUST_LOG", "debug");
+        utils::setup_logger();
+        let config = BabyBearPoseidon2::new();
+        let machine = RecursionAir::machine(config);
+        let pk = ProvingKey {
+            marker: PhantomData,
+        };
+        let vk = VerifyingKey {
+            marker: PhantomData,
+        };
+        let mut challenger = machine.config().challenger();
+
+        let program = Program::<BabyBear> {
+            instructions: vec![
+                // .main
+                Instruction::new(Opcode::SW, 0, 1, 0, true, true),
+                Instruction::new(Opcode::SW, 1, 1, 0, true, true),
+                Instruction::new(Opcode::SW, 2, 10, 0, true, true),
+                // .body:
+                Instruction::new(Opcode::ADD, 3, 0, 1, false, false),
+                Instruction::new(Opcode::SW, 0, 1, 0, false, true),
+                Instruction::new(Opcode::SW, 1, 3, 0, false, true),
+                Instruction::new(Opcode::SUB, 2, 2, 1, false, true),
+                Instruction::new(Opcode::BNE, 2, 0, 3, true, true),
+            ],
+        };
+        let mut runtime = Runtime::<BabyBear> {
+            clk: BabyBear::zero(),
+            program,
+            fp: BabyBear::zero(),
+            pc: BabyBear::zero(),
+            memory: vec![BabyBear::zero(); 1024 * 1024],
+            record: ExecutionRecord::<BabyBear>::default(),
+        };
+        runtime.run();
+        let record = runtime.record.clone();
+
+        let start = Instant::now();
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, record, &mut challenger);
+        let time = start.elapsed().as_secs();
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        println!("time = {}", time);
     }
 }

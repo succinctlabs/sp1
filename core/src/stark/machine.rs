@@ -32,13 +32,13 @@ pub struct MachineStark<SC: StarkGenericConfig, A> {
 #[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
     //TODO
-    marker: std::marker::PhantomData<SC>,
+    pub marker: std::marker::PhantomData<SC>,
 }
 
 #[derive(Debug, Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     // TODO:
-    marker: std::marker::PhantomData<SC>,
+    pub marker: std::marker::PhantomData<SC>,
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {

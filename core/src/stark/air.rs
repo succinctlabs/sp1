@@ -1,7 +1,6 @@
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
-use crate::runtime::ExecutionRecord;
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
@@ -162,36 +161,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ByteLookup(byte));
 
         chips
-    }
-
-    /// Returns `true` if the given `shard` includes events for this AIR.
-    pub fn included(&self, shard: &ExecutionRecord) -> bool {
-        match self {
-            RiscvAir::Program(_) => true,
-            RiscvAir::Cpu(_) => true,
-            RiscvAir::Add(_) => !shard.add_events.is_empty(),
-            RiscvAir::Sub(_) => !shard.sub_events.is_empty(),
-            RiscvAir::Bitwise(_) => !shard.bitwise_events.is_empty(),
-            RiscvAir::Mul(_) => !shard.mul_events.is_empty(),
-            RiscvAir::DivRem(_) => !shard.divrem_events.is_empty(),
-            RiscvAir::Lt(_) => !shard.lt_events.is_empty(),
-            RiscvAir::ShiftLeft(_) => !shard.shift_left_events.is_empty(),
-            RiscvAir::ShiftRight(_) => !shard.shift_right_events.is_empty(),
-            RiscvAir::ByteLookup(_) => !shard.byte_lookups.is_empty(),
-            RiscvAir::FieldLTU(_) => !shard.field_events.is_empty(),
-            RiscvAir::MemoryInit(_) => !shard.first_memory_record.is_empty(),
-            RiscvAir::MemoryFinal(_) => !shard.last_memory_record.is_empty(),
-            RiscvAir::ProgramMemory(_) => !shard.program_memory_record.is_empty(),
-            RiscvAir::Sha256Extend(_) => !shard.sha_extend_events.is_empty(),
-            RiscvAir::Sha256Compress(_) => !shard.sha_compress_events.is_empty(),
-            RiscvAir::Ed25519Add(_) => !shard.ed_add_events.is_empty(),
-            RiscvAir::Ed25519Decompress(_) => !shard.ed_decompress_events.is_empty(),
-            RiscvAir::K256Decompress(_) => !shard.k256_decompress_events.is_empty(),
-            RiscvAir::Secp256k1Add(_) => !shard.weierstrass_add_events.is_empty(),
-            RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
-            RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
-            RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
-        }
     }
 }
 

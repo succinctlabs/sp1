@@ -1,7 +1,7 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::{Air, BaseAir};
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::utils::pad_to_power_of_two;
@@ -102,7 +102,7 @@ pub struct CpuCols<T> {
     pub a_eq_b: IsZeroOperation<T>,
 }
 
-impl<F: PrimeField> MachineAir<F> for CpuChip<F> {
+impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
 
     fn name(&self) -> String {
@@ -140,6 +140,10 @@ impl<F: PrimeField> MachineAir<F> for CpuChip<F> {
         pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, _: &Self::Record) -> bool {
+        true
     }
 }
 

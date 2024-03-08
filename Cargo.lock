@@ -2488,6 +2488,7 @@ dependencies = [
 name = "sp1-recursion"
 version = "0.1.0"
 dependencies = [
+ "hashbrown",
  "p3-air",
  "p3-baby-bear",
  "p3-field",
