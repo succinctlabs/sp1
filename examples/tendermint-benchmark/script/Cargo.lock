@@ -1869,7 +1869,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tendermint-script"
+name = "tendermint-benchmark-script"
 version = "0.1.0"
 dependencies = [
  "sp1-core",

@@ -811,6 +811,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint-benchmark-program"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sp1-zkvm",
+ "tendermint",
+ "tendermint-light-client-verifier",
+]
+
+[[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -821,17 +832,6 @@ dependencies = [
  "serde",
  "tendermint",
  "time",
-]
-
-[[package]]
-name = "tendermint-program"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "sp1-zkvm",
- "tendermint",
- "tendermint-light-client-verifier",
 ]
 
 [[package]]
