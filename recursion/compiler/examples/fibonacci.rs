@@ -13,6 +13,15 @@ fn main() {
     builder.assign(a, a + b - n + BabyBear::from_canonical_u32(59));
     // builder.assign(b, temp);
 
+    let start = a;
+    let end = n;
+
+    builder.range(start, end).for_each(|_, builder| {
+        builder.assign(a, a + b);
+    });
+
+    builder.assign(b, a + b + n);
+
     // let mut temp = builder.uninit::<F>();
 
     // builder.for(n).do(|builder, i| {

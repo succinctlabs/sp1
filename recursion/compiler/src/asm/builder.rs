@@ -47,8 +47,8 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         self.basic_blocks.push(BasicBlock::new());
     }
 
-    fn block_idx(&mut self) -> usize {
-        self.basic_blocks.len() - 1
+    fn block_label(&mut self) -> F {
+        F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
     fn push(&mut self, instruction: Instruction<F>) {

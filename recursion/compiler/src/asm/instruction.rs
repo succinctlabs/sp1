@@ -31,6 +31,8 @@ pub enum Instruction<F> {
     DIVI(i32, i32, F),
     /// Divide immediate and invert (dst = rhs / lhs)
     DIVIN(i32, i32, F),
+    /// Jump
+    J(F),
     /// Jump and link
     JAL(i32, F, F),
     /// Jump and link value
@@ -72,6 +74,13 @@ impl<F: PrimeField> Instruction<F> {
             Instruction::DIVI(dst, lhs, rhs) => write!(f, "divi ({})fp, ({})fp, {}", dst, lhs, rhs),
             Instruction::DIVIN(dst, lhs, rhs) => {
                 write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            Instruction::J(label) => {
+                write!(
+                    f,
+                    "j {}",
+                    labels.get(label).unwrap_or(&format!(".BBL_{}", label))
+                )
             }
             Instruction::JAL(dst, lhs, rhs) => write!(f, "jal ({})fp, {}, {}", dst, lhs, rhs),
             Instruction::JALV(dst, lhs, rhs) => {

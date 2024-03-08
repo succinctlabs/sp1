@@ -5,6 +5,7 @@ use crate::ir::Variable;
 use crate::ir::Expression;
 use crate::ir::Felt;
 
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
 pub trait Builder: Sized {
@@ -18,7 +19,7 @@ pub trait Builder: Sized {
 
     fn basic_block(&mut self);
 
-    fn block_idx(&mut self) -> usize;
+    fn block_label(&mut self) -> Self::F;
 
     fn uninit<T: Variable<Self>>(&mut self) -> T {
         T::uninit(self)
@@ -69,21 +70,38 @@ impl<'a, B: Builder> Builder for ForBuilder<'a, B> {
         self.builder.basic_block();
     }
 
-    fn block_idx(&mut self) -> usize {
-        self.builder.block_idx()
+    fn block_label(&mut self) -> B::F {
+        self.builder.block_label()
     }
 }
 
 impl<'a, B: Builder> ForBuilder<'a, B> {
     pub fn for_each<Func>(&mut self, f: Func)
     where
-        Func: FnOnce(&mut Self, Felt<B::F>),
+        Func: FnOnce(Felt<B::F>, &mut Self),
     {
+        // The function block structure:
+        // - Setting the loop range
+        // - Executing the loop body and incrementing the loop variable
+        // - the loop condition
         let loop_var = self.loop_var;
+        // Set the loop variable to the start of the range.
+        self.assign(loop_var, self.start);
+        // Add a jump instruction to the loop condition in the following block
+        let label = self.block_label() + B::F::two();
+        self.push(Instruction::J(label));
         // A basic block for the loop body
         self.basic_block();
         // The loop body.
-        f(self, loop_var);
-        // Add a basic block for the loop condition and the loop increment.
+        f(loop_var, self);
+        self.assign(loop_var, loop_var + B::F::one());
+
+        // Save the loop body label for the loop condition.
+        let loop_label = self.block_label();
+        // Add a basic block for the loop condition.
+        self.basic_block();
+        // Jump to loop body if the loop condition still holds.
+        let instr = Instruction::BNE(loop_label, loop_var.0, self.end.0);
+        self.push(instr);
     }
 }
