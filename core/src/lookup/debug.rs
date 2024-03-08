@@ -3,11 +3,9 @@ use std::collections::BTreeMap;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::{Field, PrimeField64};
-use p3_matrix::Matrix;
 
-use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
-use crate::stark::{RiscvChip, StarkGenericConfig};
+use crate::stark::StarkGenericConfig;
 
 use super::InteractionKind;
 
@@ -43,8 +41,8 @@ fn babybear_to_int(n: BabyBear) -> i32 {
     }
 }
 
-pub fn debug_interactions<SC: StarkGenericConfig>(
-    chip: &RiscvChip<SC>,
+pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+    chip: &MachineChip<SC, MachineAir<SC::Val>>,
     record: &ExecutionRecord,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
