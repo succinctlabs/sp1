@@ -427,7 +427,7 @@ where
         #[cfg(not(feature = "perf"))]
         tracing::info_span!("debug constraints").in_scope(|| {
             for i in 0..chips.len() {
-                debug_constraints::<SC>(
+                debug_constraints::<SC, A>(
                     &chips[i],
                     None,
                     &traces[i],
