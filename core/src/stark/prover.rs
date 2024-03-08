@@ -463,12 +463,17 @@ where
                                 let data = tracing::info_span!("shard commit main", shard = index)
                                     .in_scope(|| Self::commit_main(config, machine, shard, index));
                                 let commitment = data.main_commit.clone();
-                                let file = tempfile::tempfile().unwrap();
                                 let data = if reconstruct_commitments {
                                     ShardMainDataWrapper::Empty()
                                 } else if num_shards > save_disk_threshold {
+                                    #[cfg(target_arch = "wasm32")]
+                                    {
+                                        data.to_in_memory()
+                                    }
+                                    #[cfg(not(target_arch = "wasm32"))]
                                     tracing::info_span!("saving trace to disk").in_scope(|| {
-                                        data.save(file).expect("failed to save shard main data")
+                                        data.save(tempfile::tempfile().unwrap())
+                                            .expect("failed to save shard main data")
                                     })
                                 } else {
                                     data.to_in_memory()
