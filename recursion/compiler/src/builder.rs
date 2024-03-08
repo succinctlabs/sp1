@@ -46,6 +46,8 @@ pub trait Builder: Sized {
             loop_var,
         }
     }
+
+    // fn if(&mut self, condition: )
 }
 
 /// A builder for a for loop.

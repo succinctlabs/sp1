@@ -194,35 +194,35 @@ impl<F: PrimeField32> AsmInstruction<F> {
 
     pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AsmInstruction::LW(dst, src) => write!(f, "lw ({})fp, ({})fp", dst, src),
-            AsmInstruction::SW(dst, src) => write!(f, "sw ({})fp, ({})fp", dst, src),
-            AsmInstruction::IMM(dst, value) => write!(f, "imm ({})fp, {}", dst, value),
+            AsmInstruction::LW(dst, src) => write!(f, "lw    ({})fp, ({})fp", dst, src),
+            AsmInstruction::SW(dst, src) => write!(f, "sw    ({})fp, ({})fp", dst, src),
+            AsmInstruction::IMM(dst, value) => write!(f, "imm   ({})fp, {}", dst, value),
             AsmInstruction::ADD(dst, lhs, rhs) => {
-                write!(f, "add ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+                write!(f, "add   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::ADDI(dst, lhs, rhs) => {
-                write!(f, "addi ({})fp, ({})fp, {}", dst, lhs, rhs)
+                write!(f, "addi  ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::SUB(dst, lhs, rhs) => {
-                write!(f, "sub ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+                write!(f, "sub   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::SUBI(dst, lhs, rhs) => {
-                write!(f, "subi ({})fp, ({})fp, {}", dst, lhs, rhs)
+                write!(f, "subi  ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::SUBIN(dst, lhs, rhs) => {
                 write!(f, "subin ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::MUL(dst, lhs, rhs) => {
-                write!(f, "mul ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+                write!(f, "mul   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::MULI(dst, lhs, rhs) => {
-                write!(f, "muli ({})fp, ({})fp, {}", dst, lhs, rhs)
+                write!(f, "muli  ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::DIV(dst, lhs, rhs) => {
-                write!(f, "div ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+                write!(f, "div   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
             AsmInstruction::DIVI(dst, lhs, rhs) => {
-                write!(f, "divi ({})fp, ({})fp, {}", dst, lhs, rhs)
+                write!(f, "divi  ({})fp, ({})fp, {}", dst, lhs, rhs)
             }
             AsmInstruction::DIVIN(dst, lhs, rhs) => {
                 write!(f, "divin ({})fp, ({})fp, {}", dst, lhs, rhs)
@@ -231,26 +231,26 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 if *offset == F::zero() {
                     return write!(
                         f,
-                        "j ({})fp, {}",
+                        "j     ({})fp, {}",
                         dst,
                         labels.get(label).unwrap_or(&format!(".L{}", label))
                     );
                 }
                 write!(
                     f,
-                    "jal ({})fp, {}, {}",
+                    "jal   ({})fp, {}, {}",
                     dst,
                     labels.get(label).unwrap_or(&format!(".L{}", label)),
                     offset
                 )
             }
             AsmInstruction::JALR(dst, label, offset) => {
-                write!(f, "jalr ({})fp, ({})fp, ({})fp", dst, label, offset)
+                write!(f, "jalr  ({})fp, ({})fp, ({})fp", dst, label, offset)
             }
             AsmInstruction::BNE(label, lhs, rhs) => {
                 write!(
                     f,
-                    "bne {}, ({})fp, ({})fp",
+                    "bne   {}, ({})fp, ({})fp",
                     labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
@@ -268,7 +268,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
             AsmInstruction::BEQ(label, lhs, rhs) => {
                 write!(
                     f,
-                    "beq {}, ({})fp, ({})fp",
+                    "beq  {}, ({})fp, ({})fp",
                     labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
