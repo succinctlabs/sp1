@@ -7,30 +7,26 @@ use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
 
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F> {
-    instructions: Vec<AsmInstruction<F>>,
-}
+pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);
 
 #[derive(Debug, Clone)]
 pub struct AssemblyCode<F> {
-    blocks: Vec<(F, BasicBlock<F>)>,
+    blocks: Vec<BasicBlock<F>>,
     labels: BTreeMap<F, String>,
 }
 
 impl<F: PrimeField32> BasicBlock<F> {
     pub fn new() -> Self {
-        Self {
-            instructions: Vec::new(),
-        }
+        Self(Vec::new())
     }
 
     pub(crate) fn push(&mut self, instruction: AsmInstruction<F>) {
-        self.instructions.push(instruction);
+        self.0.push(instruction);
     }
 }
 
 impl<F: PrimeField32> AssemblyCode<F> {
-    pub fn new(blocks: Vec<(F, BasicBlock<F>)>, labels: BTreeMap<F, String>) -> Self {
+    pub fn new(blocks: Vec<BasicBlock<F>>, labels: BTreeMap<F, String>) -> Self {
         Self { blocks, labels }
     }
 
@@ -40,16 +36,16 @@ impl<F: PrimeField32> AssemblyCode<F> {
         // Make a first pass to collect all the pc rows corresponding to the labels.
         let mut label_to_pc = BTreeMap::new();
         let mut pc = 0;
-        for (label, block) in blocks.iter() {
-            label_to_pc.insert(*label, pc);
-            pc += block.instructions.len();
+        for (i, block) in blocks.iter().enumerate() {
+            label_to_pc.insert(F::from_canonical_usize(i), pc);
+            pc += block.0.len();
         }
 
         // Make the second pass to convert the assembly code to machine code.
         let mut machine_code = Vec::new();
         let mut pc = 0;
-        for (_, block) in blocks {
-            for instruction in block.instructions {
+        for block in blocks {
+            for instruction in block.0 {
                 machine_code.push(instruction.to_machine(pc, &label_to_pc));
                 pc += 1;
             }
@@ -63,13 +59,15 @@ impl<F: PrimeField32> AssemblyCode<F> {
 
 impl<F: PrimeField32> Display for AssemblyCode<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (label, block) in self.blocks.iter() {
+        for (i, block) in self.blocks.iter().enumerate() {
             writeln!(
                 f,
                 "{}:",
-                self.labels.get(label).unwrap_or(&format!(".L{}", label))
+                self.labels
+                    .get(&F::from_canonical_u32(i as u32))
+                    .unwrap_or(&format!(".L{}", i))
             )?;
-            for instruction in &block.instructions {
+            for instruction in &block.0 {
                 write!(f, "        ")?;
                 instruction.fmt(&self.labels, f)?;
                 writeln!(f)?;
