@@ -1,21 +1,33 @@
 use crate::cpu::CpuChip;
 use core::mem::size_of;
 use p3_air::Air;
+use p3_air::AirBuilder;
 use p3_air::BaseAir;
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::stark::SP1AirBuilder;
+use sp1_core::utils::indices_arr;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
+use std::mem::transmute;
 
 use super::columns::CpuCols;
 use crate::runtime::ExecutionRecord;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
+
+const fn make_col_map() -> CpuCols<usize> {
+    let indices_arr = indices_arr::<NUM_CPU_COLS>();
+    unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
+}
+
+pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
@@ -38,12 +50,24 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 cols.clk = event.clk;
                 cols.pc = event.pc;
                 cols.fp = event.fp;
+
                 cols.instruction.opcode = F::from_canonical_u32(event.instruction.opcode as u32);
                 cols.instruction.op_a = event.instruction.op_a;
                 cols.instruction.op_b = event.instruction.op_b;
                 cols.instruction.op_c = event.instruction.op_c;
                 cols.instruction.imm_b = F::from_canonical_u32(event.instruction.imm_b as u32);
                 cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
+
+                if let Some(record) = &event.a_record {
+                    cols.a.populate(record);
+                }
+                if let Some(record) = &event.b_record {
+                    cols.b.populate(record);
+                }
+                if let Some(record) = &event.c_record {
+                    cols.c.populate(record);
+                }
+
                 cols.is_real = F::one();
                 row
             })
@@ -54,6 +78,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
+
+        for i in input.cpu_events.len()..trace.height() {
+            trace.values[i * NUM_CPU_COLS + CPU_COL_MAP.clk] =
+                F::from_canonical_u32(4) * F::from_canonical_usize(i);
+            trace.values[i * NUM_CPU_COLS + CPU_COL_MAP.instruction.imm_b] =
+                F::from_canonical_u32(1);
+            trace.values[i * NUM_CPU_COLS + CPU_COL_MAP.instruction.imm_c] =
+                F::from_canonical_u32(1);
+        }
 
         trace
     }
@@ -76,7 +109,92 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
-        let _: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+        let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+
+        // Increment clk by 4 every cycle..
+        builder
+            .when_transition()
+            .when(local.is_real)
+            .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
+
+        // Receive C.
+        builder.receive(AirInteraction::new(
+            vec![
+                local.c.addr.into(),
+                local.c.prev_timestamp.into(),
+                local.c.prev_value.0[0].into(),
+                local.c.prev_value.0[1].into(),
+                local.c.prev_value.0[2].into(),
+                local.c.prev_value.0[3].into(),
+            ],
+            AB::Expr::one() - local.instruction.imm_c.into(),
+            InteractionKind::Memory,
+        ));
+        builder.send(AirInteraction::new(
+            vec![
+                local.c.addr.into(),
+                local.c.timestamp.into(),
+                local.c.value.0[0].into(),
+                local.c.value.0[1].into(),
+                local.c.value.0[2].into(),
+                local.c.value.0[3].into(),
+            ],
+            AB::Expr::one() - local.instruction.imm_c.into(),
+            InteractionKind::Memory,
+        ));
+
+        // Receive B.
+        builder.receive(AirInteraction::new(
+            vec![
+                local.b.addr.into(),
+                local.b.prev_timestamp.into(),
+                local.b.prev_value.0[0].into(),
+                local.b.prev_value.0[1].into(),
+                local.b.prev_value.0[2].into(),
+                local.b.prev_value.0[3].into(),
+            ],
+            AB::Expr::one() - local.instruction.imm_b.into(),
+            InteractionKind::Memory,
+        ));
+        builder.send(AirInteraction::new(
+            vec![
+                local.b.addr.into(),
+                local.b.timestamp.into(),
+                local.b.value.0[0].into(),
+                local.b.value.0[1].into(),
+                local.b.value.0[2].into(),
+                local.b.value.0[3].into(),
+            ],
+            AB::Expr::one() - local.instruction.imm_b.into(),
+            InteractionKind::Memory,
+        ));
+
+        // Receive A.
+        builder.receive(AirInteraction::new(
+            vec![
+                local.a.addr.into(),
+                local.a.prev_timestamp.into(),
+                local.a.prev_value.0[0].into(),
+                local.a.prev_value.0[1].into(),
+                local.a.prev_value.0[2].into(),
+                local.a.prev_value.0[3].into(),
+            ],
+            local.is_real.into(),
+            InteractionKind::Memory,
+        ));
+        builder.send(AirInteraction::new(
+            vec![
+                local.a.addr.into(),
+                local.a.timestamp.into(),
+                local.a.value.0[0].into(),
+                local.a.value.0[1].into(),
+                local.a.value.0[2].into(),
+                local.a.value.0[3].into(),
+            ],
+            local.is_real.into(),
+            InteractionKind::Memory,
+        ));
+
         builder.send(AirInteraction::new(
             vec![
                 local.instruction.opcode.into(),

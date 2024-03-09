@@ -1,5 +1,5 @@
+use crate::memory::MemoryReadWriteCols;
 use core::mem::size_of;
-use sp1_core::memory::{MemoryReadCols, MemoryWriteCols};
 use sp1_core::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;
 
@@ -11,9 +11,9 @@ pub struct CpuCols<T> {
     pub pc: T,
     pub fp: T,
 
-    pub a: MemoryWriteCols<T>,
-    pub b: MemoryReadCols<T>,
-    pub c: MemoryReadCols<T>,
+    pub a: MemoryReadWriteCols<T>,
+    pub b: MemoryReadWriteCols<T>,
+    pub c: MemoryReadWriteCols<T>,
 
     pub instruction: InstructionCols<T>,
 

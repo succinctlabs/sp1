@@ -3,17 +3,18 @@ mod opcode;
 mod program;
 mod record;
 
-use crate::memory::MemoryRecord;
-use std::sync::Arc;
-
 pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
-use sp1_core::runtime::AccessPosition;
 
+use crate::air::Word;
 use crate::cpu::CpuEvent;
+use crate::memory::MemoryRecord;
+
 use p3_field::PrimeField32;
+use sp1_core::runtime::AccessPosition;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default)]
 pub struct CpuRecord<F> {
@@ -24,7 +25,7 @@ pub struct CpuRecord<F> {
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryEntry<F: PrimeField32> {
-    pub value: F,
+    pub value: Word<F>,
     pub timestamp: F,
 }
 
@@ -47,6 +48,7 @@ pub struct Runtime<F: PrimeField32 + Clone> {
     /// The execution record.
     pub record: ExecutionRecord<F>,
 
+    /// The access record for this cycle.
     pub access: CpuRecord<F>,
 }
 
@@ -68,28 +70,10 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
     }
 
     fn mr(&mut self, addr: F, position: AccessPosition) -> F {
-        let entry = self.memory[addr.as_canonical_u32() as usize].clone();
-        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value: prev_value,
-            timestamp: self.timestamp(&position),
-            prev_value,
-            prev_timestamp,
-        };
-        match position {
-            AccessPosition::A => self.access.a = Some(record),
-            AccessPosition::B => self.access.b = Some(record),
-            AccessPosition::C => self.access.c = Some(record),
-            _ => unreachable!(),
-        };
-        prev_value
-    }
-
-    fn mw(&mut self, addr: F, value: F, position: AccessPosition) {
-        let entry = self.memory[addr.as_canonical_u32() as usize].clone();
-        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
+        let addr_usize = addr.as_canonical_u32() as usize;
         let timestamp = self.timestamp(&position);
+        let entry = &self.memory[addr_usize];
+        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord {
             addr,
             value: prev_value,
@@ -97,7 +81,35 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
             prev_value,
             prev_timestamp,
         };
-        self.memory[addr.as_canonical_u32() as usize] = MemoryEntry { value, timestamp };
+        self.memory[addr_usize] = MemoryEntry {
+            value: prev_value,
+            timestamp,
+        };
+        match position {
+            AccessPosition::A => self.access.a = Some(record),
+            AccessPosition::B => self.access.b = Some(record),
+            AccessPosition::C => self.access.c = Some(record),
+            _ => unreachable!(),
+        };
+        prev_value.0[0]
+    }
+
+    fn mw(&mut self, addr: F, value: F, position: AccessPosition) {
+        let addr_usize = addr.as_canonical_u32() as usize;
+        let timestamp = self.timestamp(&position);
+        let entry = &self.memory[addr_usize];
+        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
+        let record = MemoryRecord {
+            addr,
+            value: Word::from(value),
+            timestamp,
+            prev_value,
+            prev_timestamp,
+        };
+        self.memory[addr_usize] = MemoryEntry {
+            value: Word::from(value),
+            timestamp,
+        };
         match position {
             AccessPosition::A => self.access.a = Some(record),
             AccessPosition::B => self.access.b = Some(record),
@@ -133,7 +145,8 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
             (a_ptr, b)
         } else {
             let a_ptr = self.fp + instruction.op_a;
-            (a_ptr, instruction.op_b)
+            let b = instruction.op_b;
+            (a_ptr, b)
         }
     }
 
@@ -242,15 +255,31 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                 fp: self.fp,
                 instruction: instruction.clone(),
                 a,
-                a_record: None,
+                a_record: self.access.a.clone(),
                 b,
-                b_record: None,
+                b_record: self.access.b.clone(),
                 c,
-                c_record: None,
+                c_record: self.access.c.clone(),
             };
             self.pc = next_pc;
             self.record.cpu_events.push(event);
-            self.clk += F::one();
+            self.clk += F::from_canonical_u32(4);
+        }
+
+        // Collect all used memory addresses.
+        for addr in 0..self.memory.len() {
+            let entry = &self.memory[addr];
+            if entry.timestamp != F::zero() {
+                self.record
+                    .first_memory_record
+                    .push(F::from_canonical_usize(addr));
+
+                self.record.last_memory_record.push((
+                    F::from_canonical_usize(addr),
+                    entry.timestamp,
+                    entry.value,
+                ))
+            }
         }
     }
 }
