@@ -44,36 +44,34 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
         runtime.run();
         receiver.close()
     });
-    let record = &shards[0];
-    println!("stats: {:?}", record.stats());
-    exit(0);
-    prove_core(config, record.clone())
+    prove_core(config, shards)
 }
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
-    use crate::runtime::SimpleEventRecorder;
     #[cfg(not(feature = "perf"))]
     {
         use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     }
 
-    let (runtime, record) = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut recorder = SimpleEventRecorder::new();
+    let config = BabyBearBlake3::new();
+    let machine = RiscvStark::new(config);
+
+    let (runtime, shards) = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut recorder = AsyncEventRecorder::new(100000000, machine);
         let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
-        (runtime, recorder.record)
+        let shards = recorder.close();
+        (runtime, shards)
     });
-    let config = BabyBearBlake3::new();
-
     let machine = RiscvStark::new(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
     let start = Instant::now();
-    let record_clone = record.clone();
+    let shards_clone = shards.clone();
     let proof = tracing::info_span!("runtime.prove(...)")
-        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record_clone, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_>>(&pk, shards, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
     assert!(debug_interactions_with_all_chips::<BabyBearBlake3>(
@@ -104,7 +102,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
-    record: ExecutionRecord,
+    shards: Vec<ExecutionRecord>,
 ) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,

@@ -1,7 +1,8 @@
 use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
-use sp1_core::runtime::{Program, Runtime};
+use sp1_core::runtime::{AsyncEventRecorder, Program, Runtime, SimpleEventRecorder};
+use sp1_core::stark::RiscvStark;
 use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
 use sp1_core::{SP1ProofWithIO, SP1Stdin, SP1Stdout, SP1Verifier};
 use std::fmt;
@@ -130,12 +131,14 @@ fn main() {
 fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64, f64) {
     match hashfn {
         HashFnId::Blake3 => {
-            let mut runtime = Runtime::new(program.clone());
+            let config = BabyBearBlake3::new();
+            let machine = RiscvStark::new(config.clone());
+            let mut recorder = AsyncEventRecorder::new(10000000, machine);
+            let mut runtime = Runtime::new(program.clone(), &mut recorder);
             let execution_start = Instant::now();
             runtime.run();
             let execution_duration = execution_start.elapsed().as_secs_f64();
 
-            let config = BabyBearBlake3::new();
             let prove_start = Instant::now();
             let proof = prove_core(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
@@ -174,7 +177,8 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             (execution_duration, prove_duration, verify_duration)
         }
         HashFnId::Keccak256 => {
-            let mut runtime = Runtime::new(program.clone());
+            let mut recorder = SimpleEventRecorder::new();
+            let mut runtime = Runtime::new(program.clone(), &mut recorder);
             let execution_start = Instant::now();
             runtime.run();
             let execution_duration = execution_start.elapsed().as_secs_f64();

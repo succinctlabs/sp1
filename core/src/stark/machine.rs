@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use crate::air::MachineAir;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
-use crate::runtime::ShardingConfig;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -86,39 +85,6 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
         )
     }
 
-    pub fn shard(
-        &self,
-        mut record: ExecutionRecord,
-        shard_config: &ShardingConfig,
-    ) -> Vec<ExecutionRecord> {
-        // Get the local and global chips.
-        let chips = self.chips();
-
-        tracing::info!("Generating trace for each chip.");
-        // Display the statistics about the workload. This is incomplete because it's run before
-        // generate_trace, which can adds events to the record.
-        tracing::info!(
-            "Record stats before generate_trace (incomplete): {:#?}",
-            record.stats()
-        );
-
-        // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        chips.iter().for_each(|chip| {
-            let mut output = ExecutionRecord::default();
-            output.index = record.index;
-            chip.generate_dependencies(&record, &mut output);
-            record.append(&mut output);
-        });
-
-        // Display the statistics about the workload after generate_trace.
-        tracing::info!("Record stats finalized {:#?}", record.stats());
-        tracing::info!("Sharding execution record by chip.");
-
-        // For each chip, shard the events into segments.
-
-        record.shard(shard_config)
-    }
-
     /// Prove the execution record is valid.
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
@@ -126,12 +92,9 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     pub fn prove<P: Prover<SC>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: ExecutionRecord,
+        shards: Vec<ExecutionRecord>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC> {
-        tracing::info!("Sharding the execution record.");
-        let shards = self.shard(record, &ShardingConfig::default());
-
         tracing::info!("Generating the shard proofs.");
         P::prove_shards(self, pk, shards, challenger)
     }

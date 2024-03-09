@@ -111,21 +111,23 @@ pub fn debug_interactions<SC: StarkGenericConfig>(
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<SC: StarkGenericConfig<Val = BabyBear>>(
     chips: &[RiscvChip<SC>],
-    segment: &ExecutionRecord,
+    shards: &Vec<ExecutionRecord>,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool {
     let mut final_map = BTreeMap::new();
 
-    for chip in chips.iter() {
-        let (_, count) = debug_interactions::<SC>(chip, segment, interaction_kinds.clone());
+    for shard in shards.iter() {
+        for chip in chips.iter() {
+            let (_, count) = debug_interactions::<SC>(chip, shard, interaction_kinds.clone());
 
-        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
-        for (key, value) in count.iter() {
-            let entry = final_map
-                .entry(key.clone())
-                .or_insert((SC::Val::zero(), BTreeMap::new()));
-            entry.0 += *value;
-            *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
+            tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+            for (key, value) in count.iter() {
+                let entry = final_map
+                    .entry(key.clone())
+                    .or_insert((SC::Val::zero(), BTreeMap::new()));
+                entry.0 += *value;
+                *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
+            }
         }
     }
 

@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::{EventHandler, ExecutionRecord, Program};
+use crate::runtime::{ExecutionRecord, Program};
 
 pub use sp1_derive::MachineAir;
 

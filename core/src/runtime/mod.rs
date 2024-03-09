@@ -916,7 +916,7 @@ impl<'a> Runtime<'a> {
 pub mod tests {
 
     use crate::{
-        runtime::Register,
+        runtime::{NoopEventHandler, Register},
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
@@ -950,7 +950,8 @@ pub mod tests {
     #[test]
     fn test_simple_program_run() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 42);
     }
@@ -967,7 +968,8 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 42);
     }
@@ -984,7 +986,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 32);
     }
@@ -1001,7 +1004,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 32);
     }
@@ -1018,7 +1022,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
 
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 37);
@@ -1036,7 +1041,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 5);
     }
@@ -1053,7 +1059,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 1184);
     }
@@ -1070,7 +1077,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 1);
     }
@@ -1087,7 +1095,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 1);
     }
@@ -1104,7 +1113,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -1121,7 +1131,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -1138,7 +1149,8 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
 
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 84);
     }
@@ -1154,7 +1166,8 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 4, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 5 - 1 + 4);
     }
@@ -1170,7 +1183,8 @@ pub mod tests {
             Instruction::new(Opcode::XOR, 31, 30, 42, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 10);
     }
@@ -1186,7 +1200,8 @@ pub mod tests {
             Instruction::new(Opcode::OR, 31, 30, 42, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 47);
     }
@@ -1202,7 +1217,8 @@ pub mod tests {
             Instruction::new(Opcode::AND, 31, 30, 42, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -1216,7 +1232,8 @@ pub mod tests {
             Instruction::new(Opcode::SLL, 31, 29, 4, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 80);
     }
@@ -1230,7 +1247,8 @@ pub mod tests {
             Instruction::new(Opcode::SRL, 31, 29, 4, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 2);
     }
@@ -1244,7 +1262,8 @@ pub mod tests {
             Instruction::new(Opcode::SRA, 31, 29, 4, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 2);
     }
@@ -1258,7 +1277,8 @@ pub mod tests {
             Instruction::new(Opcode::SLT, 31, 29, 37, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -1272,7 +1292,8 @@ pub mod tests {
             Instruction::new(Opcode::SLTU, 31, 29, 37, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.register(Register::X31), 0);
     }
@@ -1291,7 +1312,8 @@ pub mod tests {
             Instruction::new(Opcode::JALR, 5, 11, 8, false, true),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
@@ -1305,7 +1327,8 @@ pub mod tests {
             Instruction::new(opcode, 12, 10, 11, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
     }
@@ -1523,7 +1546,8 @@ pub mod tests {
     #[test]
     fn test_simple_memory_program_run() {
         let program = simple_memory_program();
-        let mut runtime = Runtime::new(program);
+        let mut recorder = NoopEventHandler::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
 
         // Assert SW & LW case

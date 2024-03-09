@@ -124,6 +124,12 @@ impl<SC: StarkGenericConfig> EventHandler for AsyncEventRecorder<SC> {
 /// Event handler that does nothing.
 pub struct NoopEventHandler;
 
+impl NoopEventHandler {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl EventHandler for NoopEventHandler {
     fn handle(&mut self, _event: RuntimeEvent) {}
 }
