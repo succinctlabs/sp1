@@ -6,6 +6,8 @@ use super::CpuRecord;
 
 const MAX_MEMORY_SIZE: usize = 1 << 29;
 
+/// A memory structure that holds the memory value, previous shard, and previous timestamp for each
+/// memory address. Vec + array are used internally to optimize r/w speed.
 #[derive(Clone)]
 pub struct Memory(Vec<Option<(u32, u32, u32)>>, [Option<(u32, u32, u32)>; 32]);
 
@@ -57,7 +59,7 @@ impl Default for Memory {
 
 impl std::fmt::Debug for Memory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[Memory]")
+        f.debug_struct("Memory").finish()
     }
 }
 
@@ -112,6 +114,7 @@ impl ExecutionState {
 }
 
 /// Holds data to track changes made to the runtime since a fork point.
+#[derive(Debug, Clone, Default)]
 pub(crate) struct ForkState {
     /// Original global_clk
     pub(crate) global_clk: u32,
@@ -127,22 +130,4 @@ pub(crate) struct ForkState {
 
     /// Full record from original state
     pub(crate) op_record: CpuRecord,
-}
-
-impl Default for ForkState {
-    fn default() -> Self {
-        Self {
-            global_clk: 0,
-            clk: 0,
-            pc: 0,
-            memory_diff: HashMap::with_hasher(BuildNoHashHasher::default()),
-            op_record: CpuRecord::default(),
-        }
-    }
-}
-
-impl std::fmt::Debug for ForkState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[ForkState]")
-    }
 }

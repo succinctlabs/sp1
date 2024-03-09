@@ -757,10 +757,6 @@ impl<'a> Runtime<'a> {
                 }
             }
 
-            if self.state.global_clk % 10000000 == 0 && !self.unconstrained {
-                log::info!("clk={}", self.state.global_clk);
-            }
-
             let width = 12;
             log::trace!(
                 "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
