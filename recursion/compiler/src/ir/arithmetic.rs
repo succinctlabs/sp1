@@ -18,198 +18,194 @@ pub enum Symbolic<F> {
 impl<B: Builder> Expression<B> for Symbolic<B::F> {
     type Value = Felt<B::F>;
 
-    fn assign(&self, value: Felt<B::F>, builder: &mut B) {
+    fn assign(&self, dst: Felt<B::F>, builder: &mut B) {
         match self {
             Symbolic::Const(c) => {
-                value.imm(*c, builder);
+                dst.imm(*c, builder);
             }
             Symbolic::Value(v) => {
-                v.assign(value, builder);
+                v.assign(dst, builder);
             }
             Symbolic::Add(lhs, rhs) => match (&**lhs, &**rhs) {
                 (Symbolic::Const(lhs), Symbolic::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.push(AsmInstruction::IMM(value.0, sum));
+                    builder.push(AsmInstruction::IMM(dst.0, sum));
                 }
                 (Symbolic::Const(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::ADDI(value.0, rhs.0, *lhs));
+                    builder.push(AsmInstruction::ADDI(dst.0, rhs.0, *lhs));
                 }
                 (Symbolic::Const(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::ADDI(value.0, rhs_value.0, *lhs));
+                    builder.push(AsmInstruction::ADDI(dst.0, rhs_value.0, *lhs));
                 }
                 (Symbolic::Value(lhs), Symbolic::Const(rhs)) => {
-                    builder.push(AsmInstruction::ADDI(value.0, lhs.0, *rhs));
+                    builder.push(AsmInstruction::ADDI(dst.0, lhs.0, *rhs));
                 }
                 (Symbolic::Value(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::ADD(value.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::ADD(dst.0, lhs.0, rhs.0));
                 }
                 (Symbolic::Value(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::ADD(value.0, lhs.0, rhs_value.0));
+                    builder.push(AsmInstruction::ADD(dst.0, lhs.0, rhs_value.0));
                 }
                 (lhs, Symbolic::Const(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::ADDI(value.0, lhs_value.0, *rhs));
+                    builder.push(AsmInstruction::ADDI(dst.0, lhs_value.0, *rhs));
                 }
                 (lhs, Symbolic::Value(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::ADD(value.0, lhs_value.0, rhs.0));
+                    builder.push(AsmInstruction::ADD(dst.0, lhs_value.0, rhs.0));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::ADD(value.0, lhs_value.0, rhs_value.0));
+                    builder.push(AsmInstruction::ADD(dst.0, lhs_value.0, rhs_value.0));
                 }
             },
             Symbolic::Mul(lhs, rhs) => match (&**lhs, &**rhs) {
                 (Symbolic::Const(lhs), Symbolic::Const(rhs)) => {
                     let product = *lhs * *rhs;
-                    builder.push(AsmInstruction::IMM(value.0, product));
+                    builder.push(AsmInstruction::IMM(dst.0, product));
                 }
                 (Symbolic::Const(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::MULI(value.0, rhs.0, *lhs));
+                    builder.push(AsmInstruction::MULI(dst.0, rhs.0, *lhs));
                 }
                 (Symbolic::Const(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::MULI(value.0, rhs_value.0, *lhs));
+                    builder.push(AsmInstruction::MULI(dst.0, rhs_value.0, *lhs));
                 }
                 (Symbolic::Value(lhs), Symbolic::Const(rhs)) => {
-                    builder.push(AsmInstruction::MULI(value.0, lhs.0, *rhs));
+                    builder.push(AsmInstruction::MULI(dst.0, lhs.0, *rhs));
                 }
                 (Symbolic::Value(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::MUL(value.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::MUL(dst.0, lhs.0, rhs.0));
                 }
                 (Symbolic::Value(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::MUL(value.0, lhs.0, rhs_value.0));
+                    builder.push(AsmInstruction::MUL(dst.0, lhs.0, rhs_value.0));
                 }
                 (lhs, Symbolic::Const(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::MULI(value.0, lhs_value.0, *rhs));
+                    builder.push(AsmInstruction::MULI(dst.0, lhs_value.0, *rhs));
                 }
                 (lhs, Symbolic::Value(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::MUL(value.0, lhs_value.0, rhs.0));
+                    builder.push(AsmInstruction::MUL(dst.0, lhs_value.0, rhs.0));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::MUL(value.0, lhs_value.0, rhs_value.0));
+                    builder.push(AsmInstruction::MUL(dst.0, lhs_value.0, rhs_value.0));
                 }
             },
             Symbolic::Sub(lhs, rhs) => match (&**lhs, &**rhs) {
                 (Symbolic::Const(lhs), Symbolic::Const(rhs)) => {
                     let difference = *lhs - *rhs;
-                    builder.push(AsmInstruction::IMM(value.0, difference));
+                    builder.push(AsmInstruction::IMM(dst.0, difference));
                 }
                 (Symbolic::Const(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::SUBIN(value.0, *lhs, rhs.0));
+                    builder.push(AsmInstruction::SUBIN(dst.0, *lhs, rhs.0));
                 }
                 (Symbolic::Const(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::SUBIN(value.0, *lhs, rhs_value.0));
+                    builder.push(AsmInstruction::SUBIN(dst.0, *lhs, rhs_value.0));
                 }
                 (Symbolic::Value(lhs), Symbolic::Const(rhs)) => {
-                    builder.push(AsmInstruction::SUBI(value.0, lhs.0, *rhs));
+                    builder.push(AsmInstruction::SUBI(dst.0, lhs.0, *rhs));
                 }
                 (Symbolic::Value(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::SUB(value.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::SUB(dst.0, lhs.0, rhs.0));
                 }
                 (Symbolic::Value(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::SUB(value.0, lhs.0, rhs_value.0));
+                    builder.push(AsmInstruction::SUB(dst.0, lhs.0, rhs_value.0));
                 }
                 (lhs, Symbolic::Const(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::SUBI(value.0, lhs_value.0, *rhs));
+                    builder.push(AsmInstruction::SUBI(dst.0, lhs_value.0, *rhs));
                 }
                 (lhs, Symbolic::Value(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::SUB(value.0, lhs_value.0, rhs.0));
+                    builder.push(AsmInstruction::SUB(dst.0, lhs_value.0, rhs.0));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::SUB(value.0, lhs_value.0, rhs_value.0));
+                    builder.push(AsmInstruction::SUB(dst.0, lhs_value.0, rhs_value.0));
                 }
             },
             Symbolic::Div(lhs, rhs) => match (&**lhs, &**rhs) {
                 (Symbolic::Const(lhs), Symbolic::Const(rhs)) => {
                     let quotient = *lhs / *rhs;
-                    builder.push(AsmInstruction::IMM(value.0, quotient));
+                    builder.push(AsmInstruction::IMM(dst.0, quotient));
                 }
                 (Symbolic::Const(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::DIVIN(value.0, *lhs, rhs.0));
+                    builder.push(AsmInstruction::DIVIN(dst.0, *lhs, rhs.0));
                 }
                 (Symbolic::Const(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::DIVIN(value.0, *lhs, rhs_value.0));
+                    builder.push(AsmInstruction::DIVIN(dst.0, *lhs, rhs_value.0));
                 }
                 (Symbolic::Value(lhs), Symbolic::Const(rhs)) => {
-                    builder.push(AsmInstruction::DIVI(value.0, lhs.0, *rhs));
+                    builder.push(AsmInstruction::DIVI(dst.0, lhs.0, *rhs));
                 }
                 (Symbolic::Value(lhs), Symbolic::Value(rhs)) => {
-                    builder.push(AsmInstruction::DIV(value.0, lhs.0, rhs.0));
+                    builder.push(AsmInstruction::DIV(dst.0, lhs.0, rhs.0));
                 }
                 (Symbolic::Value(lhs), rhs) => {
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::DIV(value.0, lhs.0, rhs_value.0));
+                    builder.push(AsmInstruction::DIV(dst.0, lhs.0, rhs_value.0));
                 }
                 (lhs, Symbolic::Const(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::DIVI(value.0, lhs_value.0, *rhs));
+                    builder.push(AsmInstruction::DIVI(dst.0, lhs_value.0, *rhs));
                 }
                 (lhs, Symbolic::Value(rhs)) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
-                    builder.push(AsmInstruction::DIV(value.0, lhs_value.0, rhs.0));
+                    builder.push(AsmInstruction::DIV(dst.0, lhs_value.0, rhs.0));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Felt::uninit(builder);
                     lhs.assign(lhs_value, builder);
                     let rhs_value = Felt::uninit(builder);
                     rhs.assign(rhs_value, builder);
-                    builder.push(AsmInstruction::DIV(value.0, lhs_value.0, rhs_value.0));
+                    builder.push(AsmInstruction::DIV(dst.0, lhs_value.0, rhs_value.0));
                 }
             },
             Symbolic::Neg(operand) => match &**operand {
                 Symbolic::Const(operand) => {
                     let negated = -*operand;
-                    builder.push(AsmInstruction::IMM(value.0, negated));
+                    builder.push(AsmInstruction::IMM(dst.0, negated));
                 }
                 Symbolic::Value(operand) => {
-                    builder.push(AsmInstruction::SUBIN(value.0, B::F::zero(), operand.0));
+                    builder.push(AsmInstruction::SUBIN(dst.0, B::F::zero(), operand.0));
                 }
                 operand => {
                     let operand_value = Felt::uninit(builder);
                     operand.assign(operand_value, builder);
-                    builder.push(AsmInstruction::SUBIN(
-                        value.0,
-                        B::F::zero(),
-                        operand_value.0,
-                    ));
+                    builder.push(AsmInstruction::SUBIN(dst.0, B::F::zero(), operand_value.0));
                 }
             },
         }

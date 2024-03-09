@@ -37,6 +37,12 @@ pub trait Builder: Sized {
         expr.assign(dst, self);
     }
 
+    fn eval<E: Expression<Self>>(&mut self, expr: E) -> E::Value {
+        let dst = E::Value::uninit(self);
+        expr.assign(dst, self);
+        dst
+    }
+
     fn range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForBuilder<Self> {
         let loop_var = Felt::uninit(self);
         ForBuilder {

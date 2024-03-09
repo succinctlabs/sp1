@@ -15,9 +15,9 @@ pub use ops::*;
 pub use ptr::*;
 
 pub trait Expression<B: Builder> {
-    type Value;
+    type Value: Variable<B>;
 
-    fn assign(&self, value: Self::Value, builder: &mut B);
+    fn assign(&self, dst: Self::Value, builder: &mut B);
 }
 
 pub trait Variable<B: Builder>: Sized + Copy {
