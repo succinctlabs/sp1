@@ -54,6 +54,10 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F> {
+        &mut self.basic_blocks[label.as_canonical_u32() as usize]
+    }
+
     fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>) {
         self.basic_blocks
             .get_mut(block_label.as_canonical_u32() as usize)

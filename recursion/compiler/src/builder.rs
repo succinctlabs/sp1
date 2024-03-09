@@ -2,8 +2,10 @@ use crate::asm::AsmInstruction;
 use crate::ir::Constant;
 use crate::ir::Variable;
 
+use crate::asm::BasicBlock;
 use crate::ir::Expression;
 use crate::ir::Felt;
+use crate::prelude::Symbolic;
 
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -17,11 +19,15 @@ pub trait Builder: Sized {
 
     fn push(&mut self, instruction: AsmInstruction<Self::F>);
 
-    fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>);
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F>;
 
     fn basic_block(&mut self);
 
     fn block_label(&mut self) -> Self::F;
+
+    fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>) {
+        self.get_block_mut(block_label).push(instruction);
+    }
 
     fn uninit<T: Variable<Self>>(&mut self) -> T {
         T::uninit(self)
@@ -53,7 +59,57 @@ pub trait Builder: Sized {
         }
     }
 
-    // fn if(&mut self, condition: )
+    fn if_eq<E1, E2>(&mut self, lhs: E1, rhs: E2) -> IfBuilder<Self>
+    where
+        E1: Into<Symbolic<Self::F>>,
+        E2: Into<Symbolic<Self::F>>,
+    {
+        todo!()
+    }
+}
+
+pub struct IfBuilder<'a, B: Builder> {
+    builder: &'a mut B,
+    lhs: Symbolic<B::F>,
+    rhs: Symbolic<B::F>,
+}
+
+impl<'a, B: Builder> Builder for IfBuilder<'a, B> {
+    type F = B::F;
+    fn get_mem(&mut self, size: usize) -> i32 {
+        self.builder.get_mem(size)
+    }
+
+    fn push(&mut self, instruction: AsmInstruction<B::F>) {
+        self.builder.push(instruction);
+    }
+
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F> {
+        self.builder.get_block_mut(label)
+    }
+
+    fn basic_block(&mut self) {
+        self.builder.basic_block();
+    }
+
+    fn block_label(&mut self) -> B::F {
+        self.builder.block_label()
+    }
+}
+
+impl<'a, B: Builder> IfBuilder<'a, B> {
+    pub fn then<Func>(&mut self, f: Func)
+    where
+        Func: FnOnce(&mut B),
+    {
+    }
+
+    pub fn then_or_else<ThenFunc, ElseFunc>(&mut self, then_f: ThenFunc, else_f: ElseFunc)
+    where
+        ThenFunc: FnOnce(&mut B),
+        ElseFunc: FnOnce(&mut B),
+    {
+    }
 }
 
 /// A builder for a for loop.
@@ -76,8 +132,8 @@ impl<'a, B: Builder> Builder for ForBuilder<'a, B> {
         self.builder.push(instruction);
     }
 
-    fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>) {
-        self.builder.push_to_block(block_label, instruction);
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F> {
+        self.builder.get_block_mut(label)
     }
 
     fn basic_block(&mut self) {
