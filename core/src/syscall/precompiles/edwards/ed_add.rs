@@ -34,7 +34,7 @@ use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
-use std::cell::RefCell;
+
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;

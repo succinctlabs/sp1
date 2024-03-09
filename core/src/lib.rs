@@ -34,15 +34,15 @@ pub use io::*;
 use anyhow::Result;
 use p3_commit::Pcs;
 use p3_matrix::dense::RowMajorMatrix;
-use runtime::{DummyEventReceiver, ExecutionRecord, Program, Runtime};
+use runtime::{ExecutionRecord, NoopEventHandler, Program, Runtime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
 use stark::{RiscvStark, StarkGenericConfig};
-use std::cell::RefCell;
+
 use std::fs;
 use std::process::exit;
-use std::rc::Rc;
+
 use utils::{prove_core, BabyBearBlake3, StarkUtils};
 
 use crate::runtime::BufferedEventProcessor;
@@ -66,7 +66,7 @@ impl SP1Prover {
     /// Executes the elf with the given inputs and returns the output.
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1Stdout> {
         let program = Program::from(elf);
-        let mut handler = DummyEventReceiver {};
+        let mut handler = NoopEventHandler {};
         let mut runtime = Runtime::new(program, &mut handler);
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
@@ -128,7 +128,7 @@ impl SP1Prover {
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         let program = Program::from(elf);
-        let mut receiver = DummyEventReceiver {};
+        let mut receiver = NoopEventHandler {};
         let mut runtime = Runtime::new(program, &mut receiver);
         runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();

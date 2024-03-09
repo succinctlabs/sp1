@@ -1,10 +1,9 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use nohash_hasher::BuildNoHashHasher;
 
-use super::{CpuRecord, DummyEventReceiver, EventHandler, ExecutionRecord};
+use super::CpuRecord;
 
-const SYSTEM_START: usize = 0x0C00_0000;
 const MAX_MEMORY_SIZE: usize = 1 << 29;
 
 #[derive(Clone)]
@@ -22,7 +21,6 @@ impl Memory {
 
     #[inline]
     pub fn get_mut(&mut self, addr: u32) -> &mut Option<(u32, u32, u32)> {
-        // &mut self.0[(addr / 4) as usize]
         if addr < 32 {
             &mut self.1[addr as usize]
         } else {
@@ -32,7 +30,6 @@ impl Memory {
 
     #[inline]
     pub fn remove(&mut self, addr: u32) {
-        // self.0[(addr / 4) as usize] = None;
         if addr < 32 {
             self.1[addr as usize] = None;
         } else {
@@ -42,7 +39,6 @@ impl Memory {
 
     #[inline]
     pub fn insert(&mut self, addr: u32, value: (u32, u32, u32)) {
-        // self.0[(addr / 4) as usize] = Some(value);
         if addr < 32 {
             self.1[addr as usize] = Some(value);
         } else {
@@ -53,8 +49,6 @@ impl Memory {
 
 impl Default for Memory {
     fn default() -> Self {
-        // Self(Box::new([None; MAX_MEMORY_SIZE]))
-        // Self(vec![None; MAX_MEMORY_SIZE / 4])
         let mut vec = Vec::with_capacity(MAX_MEMORY_SIZE / 4);
         vec.resize(MAX_MEMORY_SIZE / 4, None);
         Self(vec, [None; 32])
@@ -85,7 +79,6 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
-    // pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
     pub memory: Memory,
 
     /// A stream of input values (global to the entire program).

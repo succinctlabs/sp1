@@ -1,10 +1,10 @@
-use std::cell::RefCell;
+
 use std::process::exit;
-use std::rc::Rc;
+
 use std::time::Instant;
 
 use crate::runtime::{
-    BufferedEventProcessor, DummyEventReceiver, ExecutionRecord, SimpleEventRecorder,
+    BufferedEventProcessor, ExecutionRecord, NoopEventHandler,
 };
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
@@ -32,7 +32,7 @@ pub trait StarkUtils: StarkGenericConfig {
 }
 
 pub fn get_cycles(program: Program) -> u64 {
-    let mut handler = DummyEventReceiver {};
+    let mut handler = NoopEventHandler {};
     let mut runtime = Runtime::new(program, &mut handler);
     runtime.run();
     runtime.state.global_clk as u64
@@ -59,7 +59,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program, &mut DummyEventReceiver {});
+        let mut runtime = Runtime::new(program, &mut NoopEventHandler {});
         runtime.run();
         runtime
     });

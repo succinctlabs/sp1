@@ -91,7 +91,7 @@ impl<'a> Runtime<'a> {
     // Create a new runtime
     pub fn new(program: Program, handler: &'a mut dyn EventHandler) -> Self {
         let program_arc = Arc::new(program);
-        let record = ExecutionRecord {
+        let _record = ExecutionRecord {
             program: program_arc.clone(),
             ..Default::default()
         };
@@ -829,7 +829,7 @@ impl<'a> Runtime<'a> {
         log::info!("Unconstrained cycles: {}", unconstrained_cycles);
 
         let config = BabyBearPoseidon2::new();
-        let machine = RiscvStark::new(config);
+        let _machine = RiscvStark::new(config);
         let start_time = Instant::now();
         // let shards = machine.shard(std::mem::take(&mut self.record), &ShardingConfig::default());
         let elapsed = start_time.elapsed();

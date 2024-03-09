@@ -496,6 +496,7 @@ mod tests {
 
     use super::*;
 
+    use crate::runtime::SimpleEventRecorder;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, ExecutionRecord, Instruction, Runtime},
@@ -505,7 +506,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.cpu_events = vec![vec![CpuEvent {
+        shard.cpu_events = vec![CpuEvent {
             shard: 1,
             clk: 6,
             pc: 1,
@@ -525,7 +526,7 @@ mod tests {
             c_record: None,
             memory: None,
             memory_record: None,
-        }]];
+        }];
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -535,12 +536,14 @@ mod tests {
     #[test]
     fn generate_trace_simple_program() {
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut recorder = SimpleEventRecorder::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
+        let record = recorder.record;
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        for cpu_event in runtime.record.cpu_events {
+            chip.generate_trace(&record, &mut ExecutionRecord::default());
+        for cpu_event in record.cpu_events {
             println!("{:?}", cpu_event);
         }
         println!("{:?}", trace.values)
@@ -552,11 +555,13 @@ mod tests {
         let mut challenger = config.challenger();
 
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
+        let mut recorder = SimpleEventRecorder::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
+        let record = recorder.record;
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
+            chip.generate_trace(&record, &mut ExecutionRecord::default());
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);

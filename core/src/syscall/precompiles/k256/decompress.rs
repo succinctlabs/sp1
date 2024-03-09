@@ -39,7 +39,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
+
 use std::str::FromStr;
 
 use p3_matrix::dense::RowMajorMatrix;

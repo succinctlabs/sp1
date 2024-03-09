@@ -1,6 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{collections::HashMap};
 
-use crate::runtime::{DummyEventReceiver, EventHandler, ForkState, Syscall, SyscallContext};
+use crate::runtime::{ForkState, Syscall, SyscallContext};
 
 pub struct SyscallEnterUnconstrained;
 

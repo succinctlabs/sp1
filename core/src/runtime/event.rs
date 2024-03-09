@@ -17,6 +17,7 @@ use crate::StarkGenericConfig;
 
 use super::{ExecutionRecord, Opcode, ShardingConfig};
 
+/// An event that can be recorded during the execution of a program.
 #[derive(Debug, Clone)]
 pub enum RuntimeEvent {
     Cpu(CpuEvent),
@@ -37,16 +38,19 @@ pub enum RuntimeEvent {
     ProgramMemory(Vec<(u32, MemoryRecord, u32)>),
 }
 
+/// An event handler that take in events from program execution.
 pub trait EventHandler {
     fn handle(&mut self, event: RuntimeEvent);
 }
 
-pub struct DummyEventReceiver;
+/// Event handler that does nothing.
+pub struct NoopEventHandler;
 
-impl EventHandler for DummyEventReceiver {
+impl EventHandler for NoopEventHandler {
     fn handle(&mut self, _event: RuntimeEvent) {}
 }
 
+/// Event handler that records all events into a single ExecutionRecord.
 pub struct SimpleEventRecorder {
     pub record: ExecutionRecord,
 }
@@ -124,6 +128,7 @@ impl EventHandler for SimpleEventRecorder {
     }
 }
 
+/// Event handler that records all events into a Vec<ExecutionRecord>, sharding based on a config.
 pub struct ShardingEventRecorder {
     shards: Vec<ExecutionRecord>,
     config: ShardingConfig,
@@ -150,6 +155,8 @@ pub struct ShardingEventRecorder {
     program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 }
 
+/// Given shards, a function to get a field of ExecutionRecord, events, shard #, and max events,
+/// append all the events, moving onto further shards if necessary. Assumes that enough shards exist.
 fn append_events<T>(
     shards: &mut [ExecutionRecord],
     func: impl Fn(&mut ExecutionRecord) -> &mut Vec<T>,
@@ -201,6 +208,8 @@ impl ShardingEventRecorder {
         }
     }
 
+    /// Ingest a record, moving its events into the correct shards. New shards are only created
+    /// based on the number of CPU events, so it's assumed that no other events will fill up faster.
     pub fn ingest_record(&mut self, mut record: ExecutionRecord) {
         let cpu_shard = &mut self.shards.last_mut().unwrap();
         let space_left = self.config.shard_size - cpu_shard.cpu_events.len();
@@ -565,60 +574,54 @@ impl EventHandler for ShardingEventRecorder {
     }
 }
 
-/// An event processor that sends events to another thread and periodically processes them, filling
-/// out the record with all necessary events.
+/// An event processor that sends events to a buffer on another thread, periodically runs
+/// dependency generation, and finally puts them into ExecutionRecord shards.
 pub struct BufferedEventProcessor<SC: StarkGenericConfig> {
-    // s: Option<kanal::Sender<RuntimeEvent>>,
-    // r: kanal::Receiver<ExecutionRecord>,
     s: Option<mpsc::Sender<RuntimeEvent>>,
     r: mpsc::Receiver<Vec<ExecutionRecord>>,
     _phantom: std::marker::PhantomData<SC>,
 }
 impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
     pub fn new(buffer_size: usize, machine: RiscvStark<SC>) -> Self {
-        // let (s, r) = kanal::unbounded();
         let (s, r) = mpsc::channel();
-
-        // let (result_s, result_r) = kanal::unbounded();
         let (result_s, result_r) = mpsc::channel();
 
         thread::spawn(move || {
             let mut num_received = 0_u32;
-            let mut receiver = SimpleEventRecorder::new();
-            let mut final_receiver = ShardingEventRecorder::new(ShardingConfig::default());
+            let mut buffer = SimpleEventRecorder::new();
+            let mut shard_handler = ShardingEventRecorder::new(ShardingConfig::default());
             for event in r {
                 num_received += 1;
-                // Process the event.
-                receiver.handle(event);
+                // Put into record.
+                buffer.handle(event);
                 // Periodically, generate dependencies.
                 if num_received % buffer_size as u32 == 0 {
-                    log::info!("BufferedEventProcessor: received {} events", num_received);
-                    let current_record = std::mem::take(&mut receiver.record);
+                    // Swap out the buffer record and run generate_dependencies.
+                    let current_record = std::mem::take(&mut buffer.record);
                     let mut current_output =
                         ExecutionRecord::new(current_record.index, current_record.program.clone());
                     let chips = machine.chips();
-                    tracing::trace_span!("generate_dependencies").in_scope(|| {
-                        chips.iter().for_each(|chip| {
-                            chip.generate_dependencies(&current_record, &mut current_output);
-                        });
+                    chips.iter().for_each(|chip| {
+                        chip.generate_dependencies(&current_record, &mut current_output);
                     });
-                    // record.append(&mut current_record);
-                    final_receiver.ingest_record(current_record);
-                    final_receiver.ingest_record(current_output);
+                    // Put buffered events and new events into shards.
+                    shard_handler.ingest_record(current_record);
+                    shard_handler.ingest_record(current_output);
                 }
             }
-            let mut current_record = std::mem::take(&mut receiver.record);
+            // Process anything remaining in the buffer.
+            let current_record = std::mem::take(&mut buffer.record);
             let mut current_output =
                 ExecutionRecord::new(current_record.index, current_record.program.clone());
             let chips = machine.chips();
-            tracing::trace_span!("generate_dependencies").in_scope(|| {
-                chips.iter().for_each(|chip| {
-                    chip.generate_dependencies(&current_record, &mut current_output);
-                });
+            chips.iter().for_each(|chip| {
+                chip.generate_dependencies(&current_record, &mut current_output);
             });
-            final_receiver.ingest_record(current_record);
-            final_receiver.ingest_record(current_output);
-            let shards = final_receiver.close();
+            shard_handler.ingest_record(current_record);
+            shard_handler.ingest_record(current_output);
+
+            // Send shards back to main thread.
+            let shards = shard_handler.close();
             result_s.send(shards).unwrap();
         });
 
@@ -629,8 +632,11 @@ impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
         }
     }
 
+    /// Close the event processor, returning the ExecutionRecord shards.
     pub fn close(&mut self) -> Vec<ExecutionRecord> {
+        // Drop the sender, which will cause the thread to eventually finish.
         self.s = None;
+        // Block on the receiver to get the result.
         self.r.recv().unwrap()
     }
 }

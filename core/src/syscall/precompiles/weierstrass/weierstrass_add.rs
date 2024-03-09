@@ -30,7 +30,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
-use std::cell::RefCell;
+
 use std::fmt::Debug;
 use std::marker::PhantomData;
 

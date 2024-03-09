@@ -37,7 +37,7 @@ use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use serde::Deserialize;
 use serde::Serialize;
-use std::cell::RefCell;
+
 use std::marker::PhantomData;
 
 use p3_matrix::dense::RowMajorMatrix;

@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -16,7 +16,7 @@ use crate::syscall::{
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
+use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
 
 use super::{EventHandler, RuntimeEvent};
 

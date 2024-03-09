@@ -42,7 +42,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         "Program".to_string()
     }
 
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {}
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {}
 
     fn generate_trace(
         &self,
