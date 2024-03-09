@@ -115,10 +115,6 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
     }
 }
 
-// impl<E: EdwardsParameters> From<AffinePoint<EdwardsCurve<E>>> for EdwardsPoint {
-
-// }
-
 #[cfg(test)]
 mod tests {
 

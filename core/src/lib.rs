@@ -45,7 +45,7 @@ use std::process::exit;
 
 use utils::{prove_core, BabyBearBlake3, StarkUtils};
 
-use crate::runtime::BufferedEventProcessor;
+use crate::runtime::AsyncEventRecorder;
 
 /// A prover that can prove RISCV ELFs.
 pub struct SP1Prover;
@@ -88,7 +88,7 @@ impl SP1Prover {
 
         let config = BabyBearBlake3::new();
         let machine = RiscvStark::new(config.clone());
-        let mut receiver = BufferedEventProcessor::new(100000000, machine);
+        let mut receiver = AsyncEventRecorder::new(100000000, machine);
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program, &mut receiver);
         runtime.write_stdin_slice(&stdin.buffer.data);

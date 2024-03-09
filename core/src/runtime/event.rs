@@ -43,6 +43,84 @@ pub trait EventHandler {
     fn handle(&mut self, event: RuntimeEvent);
 }
 
+/// An event handler that sends events to a buffer on another thread, periodically runs
+/// dependency generation, and finally puts them into ExecutionRecord shards.
+pub struct AsyncEventRecorder<SC: StarkGenericConfig> {
+    s: Option<mpsc::Sender<RuntimeEvent>>,
+    r: mpsc::Receiver<Vec<ExecutionRecord>>,
+    _phantom: std::marker::PhantomData<SC>,
+}
+
+impl<SC: StarkGenericConfig + Send + 'static> AsyncEventRecorder<SC> {
+    pub fn new(buffer_size: usize, machine: RiscvStark<SC>) -> Self {
+        let (s, r) = mpsc::channel();
+        let (result_s, result_r) = mpsc::channel();
+
+        thread::spawn(move || {
+            let mut num_received = 0_u32;
+            let mut buffer = SimpleEventRecorder::new();
+            let mut shard_handler = ShardingEventRecorder::new(ShardingConfig::default());
+            for event in r {
+                num_received += 1;
+                // Put into record.
+                buffer.handle(event);
+                // Periodically, generate dependencies.
+                if num_received % buffer_size as u32 == 0 {
+                    // Swap out the buffer record and run generate_dependencies.
+                    let current_record = std::mem::take(&mut buffer.record);
+                    let mut current_output =
+                        ExecutionRecord::new(current_record.index, current_record.program.clone());
+                    let chips = machine.chips();
+                    chips.iter().for_each(|chip| {
+                        chip.generate_dependencies(&current_record, &mut current_output);
+                    });
+                    // Put buffered events and new events into shards.
+                    shard_handler.ingest_record(current_record);
+                    shard_handler.ingest_record(current_output);
+                }
+            }
+            // Process anything remaining in the buffer.
+            let current_record = std::mem::take(&mut buffer.record);
+            let mut current_output =
+                ExecutionRecord::new(current_record.index, current_record.program.clone());
+            let chips = machine.chips();
+            chips.iter().for_each(|chip| {
+                chip.generate_dependencies(&current_record, &mut current_output);
+            });
+            shard_handler.ingest_record(current_record);
+            shard_handler.ingest_record(current_output);
+
+            // Send shards back to main thread.
+            let shards = shard_handler.close();
+            result_s.send(shards).unwrap();
+        });
+
+        Self {
+            s: Some(s),
+            r: result_r,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Close the event processor, returning the ExecutionRecord shards.
+    pub fn close(mut self) -> Vec<ExecutionRecord> {
+        // Drop the sender, which will cause the thread to eventually finish.
+        self.s = None;
+        // Block on the receiver to get the result.
+        self.r.recv().unwrap()
+    }
+}
+
+impl<SC: StarkGenericConfig> EventHandler for AsyncEventRecorder<SC> {
+    fn handle(&mut self, event: RuntimeEvent) {
+        self.s
+            .as_ref()
+            .expect("already closed")
+            .send(event)
+            .unwrap();
+    }
+}
+
 /// Event handler that does nothing.
 pub struct NoopEventHandler;
 
@@ -129,6 +207,7 @@ impl EventHandler for SimpleEventRecorder {
 }
 
 /// Event handler that records all events into a Vec<ExecutionRecord>, sharding based on a config.
+/// Sharding as we go allows us to avoid large contiguous memory allocations.
 pub struct ShardingEventRecorder {
     shards: Vec<ExecutionRecord>,
     config: ShardingConfig,
@@ -571,82 +650,5 @@ impl EventHandler for ShardingEventRecorder {
                 self.program_memory_record = record;
             }
         }
-    }
-}
-
-/// An event processor that sends events to a buffer on another thread, periodically runs
-/// dependency generation, and finally puts them into ExecutionRecord shards.
-pub struct BufferedEventProcessor<SC: StarkGenericConfig> {
-    s: Option<mpsc::Sender<RuntimeEvent>>,
-    r: mpsc::Receiver<Vec<ExecutionRecord>>,
-    _phantom: std::marker::PhantomData<SC>,
-}
-impl<SC: StarkGenericConfig + Send + 'static> BufferedEventProcessor<SC> {
-    pub fn new(buffer_size: usize, machine: RiscvStark<SC>) -> Self {
-        let (s, r) = mpsc::channel();
-        let (result_s, result_r) = mpsc::channel();
-
-        thread::spawn(move || {
-            let mut num_received = 0_u32;
-            let mut buffer = SimpleEventRecorder::new();
-            let mut shard_handler = ShardingEventRecorder::new(ShardingConfig::default());
-            for event in r {
-                num_received += 1;
-                // Put into record.
-                buffer.handle(event);
-                // Periodically, generate dependencies.
-                if num_received % buffer_size as u32 == 0 {
-                    // Swap out the buffer record and run generate_dependencies.
-                    let current_record = std::mem::take(&mut buffer.record);
-                    let mut current_output =
-                        ExecutionRecord::new(current_record.index, current_record.program.clone());
-                    let chips = machine.chips();
-                    chips.iter().for_each(|chip| {
-                        chip.generate_dependencies(&current_record, &mut current_output);
-                    });
-                    // Put buffered events and new events into shards.
-                    shard_handler.ingest_record(current_record);
-                    shard_handler.ingest_record(current_output);
-                }
-            }
-            // Process anything remaining in the buffer.
-            let current_record = std::mem::take(&mut buffer.record);
-            let mut current_output =
-                ExecutionRecord::new(current_record.index, current_record.program.clone());
-            let chips = machine.chips();
-            chips.iter().for_each(|chip| {
-                chip.generate_dependencies(&current_record, &mut current_output);
-            });
-            shard_handler.ingest_record(current_record);
-            shard_handler.ingest_record(current_output);
-
-            // Send shards back to main thread.
-            let shards = shard_handler.close();
-            result_s.send(shards).unwrap();
-        });
-
-        Self {
-            s: Some(s),
-            r: result_r,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    /// Close the event processor, returning the ExecutionRecord shards.
-    pub fn close(&mut self) -> Vec<ExecutionRecord> {
-        // Drop the sender, which will cause the thread to eventually finish.
-        self.s = None;
-        // Block on the receiver to get the result.
-        self.r.recv().unwrap()
-    }
-}
-
-impl<SC: StarkGenericConfig> EventHandler for BufferedEventProcessor<SC> {
-    fn handle(&mut self, event: RuntimeEvent) {
-        self.s
-            .as_ref()
-            .expect("already closed")
-            .send(event)
-            .unwrap();
     }
 }

@@ -1,11 +1,8 @@
-
 use std::process::exit;
 
 use std::time::Instant;
 
-use crate::runtime::{
-    BufferedEventProcessor, ExecutionRecord, NoopEventHandler,
-};
+use crate::runtime::{AsyncEventRecorder, ExecutionRecord, NoopEventHandler};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -41,7 +38,7 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
     let config = BabyBearBlake3::new();
     let machine = RiscvStark::new(config.clone());
-    let mut receiver = BufferedEventProcessor::new(10000000, machine);
+    let mut receiver = AsyncEventRecorder::new(10000000, machine);
     let shards = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program, &mut receiver);
         runtime.run();
@@ -55,13 +52,17 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+    use crate::runtime::SimpleEventRecorder;
     #[cfg(not(feature = "perf"))]
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    {
+        use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    }
 
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program, &mut NoopEventHandler {});
+    let (runtime, record) = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut recorder = SimpleEventRecorder::new();
+        let mut runtime = Runtime::new(program, &mut recorder);
         runtime.run();
-        runtime
+        (runtime, recorder.record)
     });
     let config = BabyBearBlake3::new();
 
@@ -70,7 +71,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let mut challenger = machine.config().challenger();
 
     let start = Instant::now();
-    let record_clone = runtime.record.clone();
+    let record_clone = record.clone();
     let proof = tracing::info_span!("runtime.prove(...)")
         .in_scope(|| machine.prove::<LocalProver<_>>(&pk, record_clone, &mut challenger));
 
