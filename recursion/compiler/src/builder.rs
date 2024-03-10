@@ -86,6 +86,24 @@ pub trait Builder: Sized {
         }
     }
 
+    fn assert_eq<E1, E2>(&mut self, lhs: E1, rhs: E2)
+    where
+        E1: Into<Symbolic<Self::F>>,
+        E2: Into<Symbolic<Self::F>>,
+    {
+        self.if_neq(lhs, rhs)
+            .then(|builder| builder.push(AsmInstruction::TRAP));
+    }
+
+    fn assert_ne<E1, E2>(&mut self, lhs: E1, rhs: E2)
+    where
+        E1: Into<Symbolic<Self::F>>,
+        E2: Into<Symbolic<Self::F>>,
+    {
+        self.if_eq(lhs, rhs)
+            .then(|builder| builder.push(AsmInstruction::TRAP));
+    }
+
     fn if_true<E>(&mut self, expr: E) -> IfBoolBuilder<Self>
     where
         E: Into<SymbolicLogic>,
@@ -106,6 +124,22 @@ pub trait Builder: Sized {
             expr: expr.into(),
             is_true: false,
         }
+    }
+
+    fn assert<E>(&mut self, expr: E)
+    where
+        E: Into<SymbolicLogic>,
+    {
+        self.if_false(expr)
+            .then(|builder| builder.push(AsmInstruction::TRAP));
+    }
+
+    fn assert_not<E>(&mut self, expr: E)
+    where
+        E: Into<SymbolicLogic>,
+    {
+        self.if_true(expr)
+            .then(|builder| builder.push(AsmInstruction::TRAP));
     }
 }
 
@@ -190,21 +224,21 @@ impl<'a, B: Builder> IfBoolBuilder<'a, B> {
                 builder.push(instr);
             }
             (SymbolicLogic::Value(expr), true) => {
-                let instr = AsmInstruction::BNEI(block, expr.0, B::F::zero());
+                let instr = AsmInstruction::BNEI(block, expr.0, B::F::one());
                 builder.push(instr);
             }
             (SymbolicLogic::Value(expr), false) => {
-                let instr = AsmInstruction::BEQI(block, expr.0, B::F::zero());
+                let instr = AsmInstruction::BEQI(block, expr.0, B::F::one());
                 builder.push(instr);
             }
             (expr, true) => {
                 let value = builder.eval(expr);
-                let instr = AsmInstruction::BNEI(block, value.0, B::F::zero());
+                let instr = AsmInstruction::BNEI(block, value.0, B::F::one());
                 builder.push(instr);
             }
             (expr, false) => {
                 let value = builder.eval(expr);
-                let instr = AsmInstruction::BEQI(block, value.0, B::F::zero());
+                let instr = AsmInstruction::BEQI(block, value.0, B::F::one());
                 builder.push(instr);
             }
         }

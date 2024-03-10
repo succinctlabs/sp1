@@ -38,9 +38,7 @@ fn main() {
     });
 
     let expected_value = BabyBear::from_canonical_u32(fibonacci(n_val));
-    builder.if_neq(a, expected_value).then(|builder| {
-        builder.push(AsmInstruction::TRAP);
-    });
+    builder.assert_eq(a, expected_value);
 
     let code = builder.code();
     println!("{}", code);

@@ -5,43 +5,26 @@ use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::Runtime;
 
-fn fibonacci(n: u32) -> u32 {
-    if n == 0 {
-        0
-    } else {
-        let mut a = 0;
-        let mut b = 1;
-        for _ in 0..n {
-            let temp = b;
-            b += a;
-            a = temp;
-        }
-        a
-    }
-}
-
 #[test]
-fn compiler_if_test() {
-    let n_val = 12;
+fn test_compiler_conditionals() {
     let mut builder = AsmBuilder::<BabyBear>::new();
+    let p: Bool = builder.constant(true);
+    let q: Bool = builder.constant(false);
+
     let a: Felt<_> = builder.constant(BabyBear::zero());
     let b: Felt<_> = builder.constant(BabyBear::one());
-    let n: Felt<_> = builder.constant(BabyBear::from_canonical_u32(n_val));
 
-    let start: Felt<_> = builder.constant(BabyBear::zero());
-    let end = n;
+    builder.assert(p);
+    builder.assert_not(q);
 
-    builder.range(start, end).for_each(|_, builder| {
-        let temp: Felt<_> = builder.uninit();
-        builder.assign(temp, b);
-        builder.assign(b, a + b);
-        builder.assign(a, temp);
-    });
+    builder.assert(p & p);
+    builder.assert_not(p & q);
+    builder.assert(p | q);
+    builder.assert_not(q | q);
+    builder.assert(p ^ q);
 
-    let expected_value = BabyBear::from_canonical_u32(fibonacci(n_val));
-    builder.if_neq(a, expected_value).then(|builder| {
-        builder.push(AsmInstruction::TRAP);
-    });
+    builder.assert_ne(a, b);
+    builder.assert_eq(b, a + b);
 
     let code = builder.code();
     println!("{}", code);
