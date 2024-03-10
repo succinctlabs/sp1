@@ -1,5 +1,4 @@
 use crate::memory::Word;
-use core::mem::size_of;
 use sp1_derive::AlignedBorrow;
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]

@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::{
     cpu::CpuChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
