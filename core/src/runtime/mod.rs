@@ -1,5 +1,6 @@
 mod instruction;
 mod io;
+mod memory;
 mod opcode;
 mod program;
 mod record;
@@ -7,36 +8,26 @@ mod register;
 mod state;
 mod syscall;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
-use crate::utils::env;
-use crate::{alu::AluEvent, cpu::CpuEvent};
-use hashbrown::hash_map::Entry;
 pub use instruction::*;
-use nohash_hasher::BuildNoHashHasher;
+pub use memory::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use state::*;
+pub use syscall::*;
+
+use self::state::ExecutionState;
+use crate::utils::env;
+use crate::{alu::AluEvent, cpu::CpuEvent};
+
+use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
-pub use syscall::*;
-
-use self::state::ExecutionState;
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum AccessPosition {
-    Memory = 0,
-    // Note that these AccessPositions mean that when when read/writing registers, they must be
-    // read/written in the following order: C, B, A.
-    C = 1,
-    B = 2,
-    A = 3,
-}
 
 /// An implementation of a runtime for the SP1 VM.
 ///
@@ -74,6 +65,7 @@ pub struct Runtime {
     pub fail_on_panic: bool,
 
     /// Whether the runtime is in constrained mode or not.
+    ///
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
     /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
@@ -119,11 +111,7 @@ impl Runtime {
     pub fn registers(&self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
-            let addr = Register::from_u32(i as u32) as u32;
-            registers[i] = match self.state.memory.get(&addr) {
-                Some((value, _, _)) => *value,
-                None => 0,
-            };
+            registers[i] = self.state.memory.get(i as u32).value;
         }
         registers
     }
@@ -131,18 +119,12 @@ impl Runtime {
     /// Get the current value of a register.
     pub fn register(&self, register: Register) -> u32 {
         let addr = register as u32;
-        match self.state.memory.get(&addr) {
-            Some((value, _, _)) => *value,
-            None => 0,
-        }
+        self.state.memory.get(addr).value
     }
 
     /// Get the current value of a word.
     pub fn word(&self, addr: u32) -> u32 {
-        match self.state.memory.get(&addr) {
-            Some((value, _, _)) => *value,
-            None => 0,
-        }
+        self.state.memory.get(addr).value
     }
 
     pub fn byte(&self, addr: u32) -> u8 {
@@ -163,7 +145,6 @@ impl Runtime {
         addr - addr % 4
     }
 
-    #[inline]
     #[cfg(debug_assertions)]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
         use p3_baby_bear::BabyBear;
@@ -181,51 +162,47 @@ impl Runtime {
     #[cfg(not(debug_assertions))]
     fn validate_memory_access(&self, _addr: u32, _position: AccessPosition) {}
 
-    pub fn mr(&mut self, addr: u32, shard: u32, clk: u32) -> MemoryReadRecord {
+    pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory entry.
-        let memory_entry = self.state.memory.entry(addr);
-        if self.unconstrained {
-            // If we're in unconstrained mode, we don't want to modify state, so we'll save the
-            // original state if it's the first time modifying it.
-            let prev_value = match memory_entry {
-                Entry::Occupied(ref entry) => Some(entry.get()),
-                Entry::Vacant(_) => None,
-            };
+        let record = self.state.memory.get(addr);
+
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
+        if self.unconstrained && record.is_initialized() {
             self.unconstrained_state
                 .memory_diff
-                .entry(addr)
-                .or_insert(prev_value.copied());
+                .insert(addr, Some((record.value, record.shard, record.timestamp)));
         }
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let entry_value = memory_entry.or_insert((0, 0, 0));
-        // Get the last time this memory address was accessed, and then update with current clock.
-        let (value, prev_shard, prev_timestamp) = *entry_value;
-        (entry_value.1, entry_value.2) = (shard, clk);
 
-        MemoryReadRecord::new(value, shard, clk, prev_shard, prev_timestamp)
+        MemoryReadRecord {
+            value: record.value,
+            shard,
+            timestamp,
+            prev_shard: record.shard,
+            prev_timestamp: record.timestamp,
+        }
     }
 
-    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, clk: u32) -> MemoryWriteRecord {
+    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory entry.
-        let memory_entry = self.state.memory.entry(addr);
-        if self.unconstrained {
-            // If we're in unconstrained mode, we don't want to modify state, so we'll save the
-            // original state if it's the first time modifying it.
-            let prev_value = match memory_entry {
-                Entry::Occupied(ref entry) => Some(entry.get()),
-                Entry::Vacant(_) => None,
-            };
+        let record = self.state.memory.get(addr);
+
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
+        if self.unconstrained && record.is_initialized() {
             self.unconstrained_state
                 .memory_diff
-                .entry(addr)
-                .or_insert(prev_value.copied());
+                .insert(addr, Some((record.value, record.shard, record.timestamp)));
         }
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let entry_value = memory_entry.or_insert((0, 0, 0));
-        // Get previous values and then update with new values.
-        let (prev_value, prev_shard, prev_timestamp) = *entry_value;
-        *entry_value = (value, shard, clk);
-        MemoryWriteRecord::new(value, shard, clk, prev_value, prev_shard, prev_timestamp)
+
+        MemoryWriteRecord {
+            value,
+            shard,
+            timestamp,
+            prev_value: record.value,
+            prev_shard: record.shard,
+            prev_timestamp: record.timestamp,
+        }
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -771,7 +748,14 @@ impl Runtime {
         tracing::info_span!("load memory").in_scope(|| {
             // First load the memory image into the memory table.
             for (addr, value) in self.program.memory_image.iter() {
-                self.state.memory.insert(*addr, (*value, 0, 0));
+                self.state.memory.set(
+                    *addr,
+                    MemoryRecord {
+                        value: *value,
+                        shard: 0,
+                        timestamp: 0,
+                    },
+                );
             }
         });
 
@@ -864,14 +848,15 @@ impl Runtime {
         let mut first_memory_record = Vec::new();
         let mut last_memory_record = Vec::new();
 
-        let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
+        // let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
+        let memory_keys = (0..32).chain((32..(1 << 27)).step_by(4));
         for addr in memory_keys {
-            let (value, shard, timestamp) = *self.state.memory.get(&addr).unwrap();
-            if shard == 0 && timestamp == 0 {
+            let record = self.state.memory.get(addr);
+            if record.shard == 0 && record.timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (value, 0));
+                program_memory_used.insert(addr, (record.value, 0));
                 continue;
             }
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
@@ -892,9 +877,9 @@ impl Runtime {
             last_memory_record.push((
                 addr,
                 MemoryRecord {
-                    value,
-                    shard,
-                    timestamp,
+                    value: record.value,
+                    shard: record.shard,
+                    timestamp: record.timestamp,
                 },
                 1,
             ));

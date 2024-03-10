@@ -1,4 +1,5 @@
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::blake3::{

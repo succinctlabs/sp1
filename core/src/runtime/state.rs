@@ -2,6 +2,7 @@ use hashbrown::HashMap;
 use nohash_hasher::BuildNoHashHasher;
 
 use super::{CpuRecord, ExecutionRecord};
+use crate::runtime::ExecutionMemory;
 
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default)]
@@ -19,9 +20,10 @@ pub struct ExecutionState {
     /// The program counter.
     pub pc: u32,
 
-    /// The memory which instructions operate over. Values contain the memory value and last shard
-    /// + timestamp that each memory address was accessed.
-    pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
+    // /// The memory which instructions operate over. Values contain the memory value and last shard
+    // /// + timestamp that each memory address was accessed.
+    // pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
+    pub memory: ExecutionMemory,
 
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<u8>,
@@ -44,7 +46,7 @@ impl ExecutionState {
             current_shard: 1,
             clk: 0,
             pc: pc_start,
-            memory: HashMap::default(),
+            memory: ExecutionMemory::new(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
             output_stream: Vec::new(),
@@ -67,7 +69,7 @@ pub(crate) struct ForkState {
 
     /// Only contains the original memory values for addresses that have been modified
     pub(crate) memory_diff: HashMap<u32, Option<(u32, u32, u32)>, BuildNoHashHasher<u32>>,
-
+    // pub(crate) memory_diff: ExecutionMemory,
     /// Full record from original state
     pub(crate) op_record: CpuRecord,
 

@@ -16,6 +16,7 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    /// Creates a new instruction.
     pub fn new(opcode: Opcode, op_a: u32, op_b: u32, op_c: u32, imm_b: bool, imm_c: bool) -> Self {
         Self {
             opcode,
@@ -75,6 +76,7 @@ impl Instruction {
         )
     }
 
+    /// Returns if the instruction is a jump instruction.
     pub fn is_jump_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::JAL | Opcode::JALR)
     }

@@ -2,8 +2,7 @@ use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::air::WORD_SIZE;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
+
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
@@ -11,6 +10,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;

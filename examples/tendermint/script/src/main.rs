@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use reqwest::Client;
 use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
@@ -43,15 +45,19 @@ async fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
+    let start = Instant::now();
+    SP1Prover::execute(TENDERMINT_ELF, stdin).expect("execution failed");
+    let duration = start.elapsed().as_secs();
+    println!("execution time = {}", duration);
+    // let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
-    // Verify proof.
-    SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
+    // // Verify proof.
+    // SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
 
-    // Save proof.
-    proof
-        .save("proof-with-pis.json")
-        .expect("saving proof failed");
+    // // Save proof.
+    // proof
+    //     .save("proof-with-pis.json")
+    //     .expect("saving proof failed");
 
-    println!("succesfully generated and verified proof for the program!")
+    // println!("succesfully generated and verified proof for the program!")
 }

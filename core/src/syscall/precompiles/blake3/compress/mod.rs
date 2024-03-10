@@ -25,8 +25,9 @@ mod columns;
 mod execute;
 mod g;
 mod trace;
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryWriteRecord;
 use serde::{Deserialize, Serialize};
 
 /// The number of `Word`s in the message of the compress inner operation.

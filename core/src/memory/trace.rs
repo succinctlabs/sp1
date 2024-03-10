@@ -1,5 +1,9 @@
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
-use crate::field::event::FieldEvent;
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryRecordEnum;
+use crate::{
+    field::event::FieldEvent,
+    runtime::{MemoryRecord, MemoryWriteRecord},
+};
 use p3_field::Field;
 
 use super::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};

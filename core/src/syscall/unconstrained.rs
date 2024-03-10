@@ -1,5 +1,6 @@
-use crate::runtime::{ForkState, Syscall, SyscallContext};
 use hashbrown::HashMap;
+
+use crate::runtime::{ForkState, MemoryRecord, Syscall, SyscallContext};
 
 pub struct SyscallEnterUnconstrained;
 
@@ -46,10 +47,17 @@ impl Syscall for SyscallExitUnconstrained {
             for (addr, value) in ctx.rt.unconstrained_state.memory_diff.drain() {
                 match value {
                     Some(value) => {
-                        ctx.rt.state.memory.insert(addr, value);
+                        ctx.rt.state.memory.set(
+                            addr,
+                            MemoryRecord {
+                                value: value.0,
+                                shard: value.1,
+                                timestamp: value.2,
+                            },
+                        );
                     }
                     None => {
-                        ctx.rt.state.memory.remove(&addr);
+                        ctx.rt.state.memory.set(addr, MemoryRecord::default());
                     }
                 }
             }

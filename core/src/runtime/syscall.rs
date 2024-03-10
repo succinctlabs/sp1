@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryReadRecord;
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
@@ -15,7 +17,8 @@ use crate::syscall::{
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
+
+use super::MemoryWriteRecord;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

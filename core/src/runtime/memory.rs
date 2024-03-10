@@ -1,9 +1,36 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub enum MemoryRecordEnum {
-    Read(MemoryReadRecord),
-    Write(MemoryWriteRecord),
+const MAX_MEMORY_SIZE: usize = 1 << 29;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ExecutionMemory {
+    pub memory: Vec<MemoryRecord>,
+    pub registers: [MemoryRecord; 32],
+}
+
+impl ExecutionMemory {
+    pub fn new() -> Self {
+        Self {
+            memory: vec![MemoryRecord::default(); MAX_MEMORY_SIZE / 4],
+            registers: [MemoryRecord::default(); 32],
+        }
+    }
+
+    pub fn get(&self, addr: u32) -> MemoryRecord {
+        if addr < 32 {
+            self.registers[addr as usize]
+        } else {
+            self.memory[(addr / 4) as usize]
+        }
+    }
+
+    pub fn set(&mut self, addr: u32, record: MemoryRecord) {
+        if addr < 32 {
+            self.registers[addr as usize] = record;
+        } else {
+            self.memory[(addr / 4) as usize] = record;
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
@@ -11,6 +38,12 @@ pub struct MemoryRecord {
     pub value: u32,
     pub shard: u32,
     pub timestamp: u32,
+}
+
+impl MemoryRecord {
+    pub fn is_initialized(&self) -> bool {
+        self.timestamp == 0
+    }
 }
 
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
@@ -32,6 +65,12 @@ pub struct MemoryWriteRecord {
     pub prev_value: u32,
     pub prev_shard: u32,
     pub prev_timestamp: u32,
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum MemoryRecordEnum {
+    Read(MemoryReadRecord),
+    Write(MemoryWriteRecord),
 }
 
 impl MemoryRecordEnum {
@@ -93,4 +132,14 @@ impl MemoryWriteRecord {
             prev_timestamp,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum AccessPosition {
+    Memory = 0,
+    // Note that these AccessPositions mean that when when read/writing registers, they must be
+    // read/written in the following order: C, B, A.
+    C = 1,
+    B = 2,
+    A = 3,
 }
