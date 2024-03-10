@@ -9,7 +9,7 @@ pub mod ir;
 pub mod util;
 
 pub mod prelude {
-    pub use crate::asm::*;
-    pub use crate::builder::*;
-    pub use crate::ir::*;
+    pub use crate::asm::AsmBuilder;
+    pub use crate::builder::Builder;
+    pub use crate::ir::{Bool, Felt, Int, Symbolic, SymbolicInt, SymbolicLogic};
 }

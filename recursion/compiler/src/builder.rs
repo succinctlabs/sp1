@@ -5,6 +5,7 @@ use crate::ir::Variable;
 use crate::asm::BasicBlock;
 use crate::ir::Expression;
 use crate::ir::Felt;
+use crate::ir::Int;
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
 
@@ -16,7 +17,7 @@ pub trait Builder: Sized {
     /// Get stack memory.
     fn get_mem(&mut self, size: usize) -> i32;
     //  Allocate heap memory.
-    // fn alloc(&mut self, size: Int) -> Int;
+    fn alloc(&mut self, size: Int) -> Int;
 
     fn push(&mut self, instruction: AsmInstruction<Self::F>);
 
@@ -155,6 +156,10 @@ impl<'a, B: Builder> Builder for IfBoolBuilder<'a, B> {
         self.builder.get_mem(size)
     }
 
+    fn alloc(&mut self, size: Int) -> Int {
+        self.builder.alloc(size)
+    }
+
     fn push(&mut self, instruction: AsmInstruction<B::F>) {
         self.builder.push(instruction);
     }
@@ -256,6 +261,10 @@ impl<'a, B: Builder> Builder for IfBuilder<'a, B> {
     type F = B::F;
     fn get_mem(&mut self, size: usize) -> i32 {
         self.builder.get_mem(size)
+    }
+
+    fn alloc(&mut self, size: Int) -> Int {
+        self.builder.alloc(size)
     }
 
     fn push(&mut self, instruction: AsmInstruction<B::F>) {
@@ -434,6 +443,10 @@ impl<'a, B: Builder> Builder for ForBuilder<'a, B> {
     type F = B::F;
     fn get_mem(&mut self, size: usize) -> i32 {
         self.builder.get_mem(size)
+    }
+
+    fn alloc(&mut self, size: Int) -> Int {
+        self.builder.alloc(size)
     }
 
     fn push(&mut self, instruction: AsmInstruction<B::F>) {

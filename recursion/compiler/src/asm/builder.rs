@@ -1,4 +1,5 @@
 use super::{AssemblyCode, BasicBlock};
+use crate::ir::Int;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec;
@@ -50,6 +51,10 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         let offset = self.fp_offset;
         self.fp_offset -= size as i32;
         offset
+    }
+
+    fn alloc(&mut self, size: Int) -> Int {
+        todo!()
     }
 
     fn basic_block(&mut self) {
