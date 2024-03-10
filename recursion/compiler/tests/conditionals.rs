@@ -23,13 +23,12 @@ fn test_compiler_conditionals() {
     builder.assert_not(q | q);
     builder.assert(p ^ q);
 
+    builder.assert_eq(a, BabyBear::zero());
+    builder.assert_eq(b, BabyBear::one());
     builder.assert_ne(a, b);
     builder.assert_eq(b, a + b);
 
-    let code = builder.code();
-    println!("{}", code);
-
-    let program = code.machine_code();
+    let program = builder.compile();
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;

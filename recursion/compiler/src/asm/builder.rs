@@ -5,6 +5,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use p3_field::PrimeField32;
+use sp1_recursion_core::runtime::Program;
 
 use crate::asm::AsmInstruction;
 use crate::builder::Builder;
@@ -34,6 +35,11 @@ impl<F: PrimeField32> AsmBuilder<F> {
             .map(|(k, v)| (v, k))
             .collect();
         AssemblyCode::new(self.basic_blocks, labels)
+    }
+
+    pub fn compile(self) -> Program<F> {
+        let code = self.code();
+        code.machine_code()
     }
 }
 
