@@ -10,8 +10,10 @@ pub struct ExecutionMemory {
 
 impl ExecutionMemory {
     pub fn new() -> Self {
+        let mut memory = Vec::with_capacity(MAX_MEMORY_SIZE / 4);
+        memory.resize(MAX_MEMORY_SIZE / 4, MemoryRecord::default());
         Self {
-            memory: vec![MemoryRecord::default(); MAX_MEMORY_SIZE / 4],
+            memory,
             registers: [MemoryRecord::default(); 32],
         }
     }
@@ -36,7 +38,6 @@ impl ExecutionMemory {
 
     #[inline]
     pub fn set(&mut self, addr: u32, record: MemoryRecord) {
-        // println!("set addr = {}", addr);
         if addr < 32 {
             self.registers[addr as usize] = record;
         } else {
@@ -46,6 +47,7 @@ impl ExecutionMemory {
 }
 
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+#[repr(C)]
 pub struct MemoryRecord {
     pub value: u32,
     pub shard: u32,

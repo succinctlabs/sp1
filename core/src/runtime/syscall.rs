@@ -111,7 +111,7 @@ pub struct SyscallContext<'a> {
 
 impl<'a> SyscallContext<'a> {
     pub fn new(runtime: &'a mut Runtime) -> Self {
-        let current_shard = runtime.current_shard();
+        let current_shard = runtime.shard();
         let clk = runtime.state.clk;
         Self {
             current_shard,

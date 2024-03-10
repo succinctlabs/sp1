@@ -21,7 +21,6 @@ use self::state::ExecutionState;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
-use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
@@ -133,11 +132,12 @@ impl Runtime {
     }
 
     #[inline]
-    fn clk_from_position(&self, position: &AccessPosition) -> u32 {
+    pub fn timestamp(&self, position: &AccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
 
-    pub fn current_shard(&self) -> u32 {
+    #[inline]
+    pub fn shard(&self) -> u32 {
         self.state.current_shard
     }
 
@@ -147,23 +147,23 @@ impl Runtime {
 
     #[cfg(debug_assertions)]
     fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
-        use p3_baby_bear::BabyBear;
-        use p3_field::AbstractField;
+        // use p3_baby_bear::BabyBear;
+        // use p3_field::AbstractField;
 
-        if position == AccessPosition::Memory {
-            assert_eq!(addr % 4, 0, "addr is not aligned");
-            let _ = BabyBear::from_canonical_u32(addr);
-            assert!(addr > 40); // Assert that the address is > the max register.
-        } else {
-            let _ = Register::from_u32(addr);
-        }
+        // if position == AccessPosition::Memory {
+        //     assert_eq!(addr % 4, 0, "addr is not aligned");
+        //     let _ = BabyBear::from_canonical_u32(addr);
+        //     assert!(addr > 40); // Assert that the address is > the max register.
+        // } else {
+        //     let _ = Register::from_u32(addr);
+        // }
     }
 
     #[cfg(not(debug_assertions))]
     fn validate_memory_access(&self, _addr: u32, _position: AccessPosition) {}
 
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
-        // Get the memory entry.
+        // Get the memory record.
         let record = self.state.memory.get(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
@@ -184,7 +184,7 @@ impl Runtime {
     }
 
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
-        // Get the memory entry.
+        // Get the memory record.
         let record = self.state.memory.get_mut(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
@@ -195,6 +195,7 @@ impl Runtime {
                 .insert(addr, Some((record.value, record.shard, record.timestamp)));
         }
 
+        // Update the memory record.
         record.value = value;
         record.shard = shard;
         record.timestamp = timestamp;
@@ -213,20 +214,17 @@ impl Runtime {
     pub fn mr_cpu(&mut self, addr: u32, position: AccessPosition) -> u32 {
         self.validate_memory_access(addr, position);
 
-        let record = self.mr(
-            addr,
-            self.current_shard(),
-            self.clk_from_position(&position),
-        );
+        let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
-        if !self.unconstrained {
-            match position {
-                AccessPosition::A => self.cpu_record.a = Some(record.into()),
-                AccessPosition::B => self.cpu_record.b = Some(record.into()),
-                AccessPosition::C => self.cpu_record.c = Some(record.into()),
-                AccessPosition::Memory => self.cpu_record.memory = Some(record.into()),
-            }
-        }
+        // if !self.unconstrained {
+        //     match position {
+        //         AccessPosition::A => self.cpu_record.a = Some(record.into()),
+        //         AccessPosition::B => self.cpu_record.b = Some(record.into()),
+        //         AccessPosition::C => self.cpu_record.c = Some(record.into()),
+        //         AccessPosition::Memory => self.cpu_record.memory = Some(record.into()),
+        //     }
+        // }
+
         record.value
     }
 
@@ -234,34 +232,29 @@ impl Runtime {
     pub fn mw_cpu(&mut self, addr: u32, value: u32, position: AccessPosition) {
         self.validate_memory_access(addr, position);
 
-        let record = self.mw(
-            addr,
-            value,
-            self.current_shard(),
-            self.clk_from_position(&position),
-        );
+        let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
-        // Set the records.
-        if !self.unconstrained {
-            match position {
-                AccessPosition::A => {
-                    assert!(self.cpu_record.a.is_none());
-                    self.cpu_record.a = Some(record.into());
-                }
-                AccessPosition::B => {
-                    assert!(self.cpu_record.b.is_none());
-                    self.cpu_record.b = Some(record.into());
-                }
-                AccessPosition::C => {
-                    assert!(self.cpu_record.c.is_none());
-                    self.cpu_record.c = Some(record.into());
-                }
-                AccessPosition::Memory => {
-                    assert!(self.cpu_record.memory.is_none());
-                    self.cpu_record.memory = Some(record.into());
-                }
-            }
-        }
+        // // Set the records.
+        // if !self.unconstrained {
+        //     match position {
+        //         AccessPosition::A => {
+        //             assert!(self.cpu_record.a.is_none());
+        //             self.cpu_record.a = Some(record.into());
+        //         }
+        //         AccessPosition::B => {
+        //             assert!(self.cpu_record.b.is_none());
+        //             self.cpu_record.b = Some(record.into());
+        //         }
+        //         AccessPosition::C => {
+        //             assert!(self.cpu_record.c.is_none());
+        //             self.cpu_record.c = Some(record.into());
+        //         }
+        //         AccessPosition::Memory => {
+        //             assert!(self.cpu_record.memory.is_none());
+        //             self.cpu_record.memory = Some(record.into());
+        //         }
+        //     }
+        // }
     }
 
     /// Read from register.
@@ -734,17 +727,17 @@ impl Runtime {
         self.state.pc = next_pc;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(
-            self.current_shard(),
-            self.state.clk,
-            pc,
-            instruction,
-            a,
-            b,
-            c,
-            memory_store_value,
-            self.cpu_record,
-        );
+        // self.emit_cpu(
+        //     self.shard(),
+        //     self.state.clk,
+        //     pc,
+        //     instruction,
+        //     a,
+        //     b,
+        //     c,
+        //     memory_store_value,
+        //     self.cpu_record,
+        // );
     }
 
     /// Execute the program.
