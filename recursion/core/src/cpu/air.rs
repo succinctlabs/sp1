@@ -48,9 +48,11 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
         let rows = input
             .cpu_events
             .iter()
-            .map(|event| {
+            .enumerate()
+            .map(|(i, event)| {
                 let mut row = [F::zero(); NUM_CPU_COLS];
                 let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+
                 cols.clk = event.clk;
                 cols.pc = event.pc;
                 cols.fp = event.fp;
@@ -70,6 +72,12 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                     }
                     Opcode::MUL => {
                         cols.is_mul = F::one();
+                    }
+                    Opcode::BEQ => {
+                        cols.is_beq = F::one();
+                    }
+                    Opcode::BNE => {
+                        cols.is_bne = F::one();
                     }
                     _ => {}
                 };
@@ -100,6 +108,12 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
 
                 cols.a_eq_b
                     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
+
+                let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
+                cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
+                cols.bne = cols.is_bne * (F::one() - cols.a_eq_b.result) * (F::one() - is_last_row);
+
+                println!("pc={} beq={} bne={}", cols.pc, cols.beq, cols.bne);
 
                 cols.is_real = F::one();
                 row
@@ -149,6 +163,41 @@ where
             .when_transition()
             .when(local.is_real)
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
+
+        // Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
+        builder
+            .when_transition()
+            .when(next.is_real * (AB::Expr::one() - (local.is_beq + local.is_bne)))
+            .assert_eq(local.pc + AB::F::one(), next.pc);
+        builder
+            .when(local.beq + local.bne)
+            .assert_eq(next.pc, local.c.value.0[0]);
+
+        // Connect immediates.
+        builder
+            .when(local.instruction.imm_b)
+            .assert_eq(local.b.value.0[0], local.instruction.op_b);
+        builder
+            .when(local.instruction.imm_b)
+            .assert_zero(local.b.value.0[1]);
+        builder
+            .when(local.instruction.imm_b)
+            .assert_zero(local.b.value.0[2]);
+        builder
+            .when(local.instruction.imm_b)
+            .assert_zero(local.b.value.0[3]);
+        builder
+            .when(local.instruction.imm_c)
+            .assert_eq(local.c.value.0[0], local.instruction.op_c);
+        builder
+            .when(local.instruction.imm_c)
+            .assert_zero(local.c.value.0[1]);
+        builder
+            .when(local.instruction.imm_c)
+            .assert_zero(local.c.value.0[2]);
+        builder
+            .when(local.instruction.imm_c)
+            .assert_zero(local.c.value.0[3]);
 
         // Compute ALU.
         builder.assert_eq(local.b.value.0[0] + local.c.value.0[0], local.add_scratch);

@@ -18,6 +18,11 @@ pub struct CpuCols<T> {
     pub is_add: T,
     pub is_sub: T,
     pub is_mul: T,
+    pub is_beq: T,
+    pub is_bne: T,
+
+    pub beq: T,
+    pub bne: T,
 
     // c = a + b;
     pub add_scratch: T,

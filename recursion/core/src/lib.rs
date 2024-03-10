@@ -36,7 +36,7 @@ pub mod tests {
                 Instruction::new(Opcode::SW, 0, 1, 0, true, true),
                 Instruction::new(Opcode::SW, 1, 1, 0, true, true),
                 Instruction::new(Opcode::SW, 2, 10, 0, true, true),
-                // // .body:
+                // .body:
                 Instruction::new(Opcode::ADD, 3, 0, 1, false, false),
                 Instruction::new(Opcode::SW, 0, 1, 0, false, true),
                 Instruction::new(Opcode::SW, 1, 3, 0, false, true),
