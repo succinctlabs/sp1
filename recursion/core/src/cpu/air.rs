@@ -113,8 +113,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
                 cols.bne = cols.is_bne * (F::one() - cols.a_eq_b.result) * (F::one() - is_last_row);
 
-                println!("pc={} beq={} bne={}", cols.pc, cols.beq, cols.bne);
-
                 cols.is_real = F::one();
                 row
             })
