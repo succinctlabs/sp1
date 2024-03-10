@@ -6,6 +6,7 @@ use crate::asm::BasicBlock;
 use crate::ir::Expression;
 use crate::ir::Felt;
 use crate::prelude::Symbolic;
+use crate::prelude::SymbolicLogic;
 
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -82,6 +83,130 @@ pub trait Builder: Sized {
             lhs: lhs.into(),
             rhs: rhs.into(),
             is_eq: false,
+        }
+    }
+
+    fn if_true<E>(&mut self, expr: E) -> IfBoolBuilder<Self>
+    where
+        E: Into<SymbolicLogic>,
+    {
+        IfBoolBuilder {
+            builder: self,
+            expr: expr.into(),
+            is_true: true,
+        }
+    }
+
+    fn if_false<E>(&mut self, expr: E) -> IfBoolBuilder<Self>
+    where
+        E: Into<SymbolicLogic>,
+    {
+        IfBoolBuilder {
+            builder: self,
+            expr: expr.into(),
+            is_true: false,
+        }
+    }
+}
+
+pub struct IfBoolBuilder<'a, B: Builder> {
+    builder: &'a mut B,
+    expr: SymbolicLogic,
+    is_true: bool,
+}
+
+impl<'a, B: Builder> Builder for IfBoolBuilder<'a, B> {
+    type F = B::F;
+    fn get_mem(&mut self, size: usize) -> i32 {
+        self.builder.get_mem(size)
+    }
+
+    fn push(&mut self, instruction: AsmInstruction<B::F>) {
+        self.builder.push(instruction);
+    }
+
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F> {
+        self.builder.get_block_mut(label)
+    }
+
+    fn basic_block(&mut self) {
+        self.builder.basic_block();
+    }
+
+    fn block_label(&mut self) -> B::F {
+        self.builder.block_label()
+    }
+}
+
+impl<'a, B: Builder> IfBoolBuilder<'a, B> {
+    pub fn then<Func>(self, f: Func)
+    where
+        Func: FnOnce(&mut B),
+    {
+        let Self {
+            builder,
+            expr,
+            is_true,
+        } = self;
+        let after_if_block = builder.block_label() + B::F::two();
+        Self::branch(expr, is_true, after_if_block, builder);
+        builder.basic_block();
+        f(builder);
+        builder.basic_block();
+    }
+
+    pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
+    where
+        ThenFunc: FnOnce(&mut B),
+        ElseFunc: FnOnce(&mut B),
+    {
+        let Self {
+            builder,
+            expr,
+            is_true,
+        } = self;
+        let else_block = builder.block_label() + B::F::two();
+        let main_flow_block = else_block + B::F::one();
+        Self::branch(expr, is_true, else_block, builder);
+        builder.basic_block();
+        then_f(builder);
+        let instr = AsmInstruction::j(main_flow_block, builder);
+        builder.push(instr);
+        builder.basic_block();
+        else_f(builder);
+        builder.basic_block();
+    }
+
+    fn branch(expr: SymbolicLogic, is_true: bool, block: B::F, builder: &mut B) {
+        match (expr, is_true) {
+            (SymbolicLogic::Const(true), true) => {
+                let instr = AsmInstruction::j(block, builder);
+                builder.push(instr);
+            }
+            (SymbolicLogic::Const(true), false) => {}
+            (SymbolicLogic::Const(false), true) => {}
+            (SymbolicLogic::Const(false), false) => {
+                let instr = AsmInstruction::j(block, builder);
+                builder.push(instr);
+            }
+            (SymbolicLogic::Value(expr), true) => {
+                let instr = AsmInstruction::BNEI(block, expr.0, B::F::zero());
+                builder.push(instr);
+            }
+            (SymbolicLogic::Value(expr), false) => {
+                let instr = AsmInstruction::BEQI(block, expr.0, B::F::zero());
+                builder.push(instr);
+            }
+            (expr, true) => {
+                let value = builder.eval(expr);
+                let instr = AsmInstruction::BNEI(block, value.0, B::F::zero());
+                builder.push(instr);
+            }
+            (expr, false) => {
+                let value = builder.eval(expr);
+                let instr = AsmInstruction::BEQI(block, value.0, B::F::zero());
+                builder.push(instr);
+            }
         }
     }
 }
