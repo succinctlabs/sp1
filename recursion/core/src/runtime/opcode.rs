@@ -18,4 +18,7 @@ pub enum Opcode {
     // Jump instructions.
     JAL = 8,
     JALR = 9,
+
+    // System instructions.
+    TRAP = 10,
 }

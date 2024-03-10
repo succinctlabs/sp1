@@ -59,7 +59,7 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         Self {
             clk: F::zero(),
             program: program.clone(),
-            fp: F::zero(),
+            fp: F::from_canonical_usize(1024),
             pc: F::zero(),
             memory: vec![MemoryEntry::default(); 1024 * 1024],
             record,
@@ -112,17 +112,18 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
 
     /// Fetch the destination address and input operand values for an ALU instruction.
     fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
-        if !instruction.imm_c {
-            let a_ptr = self.fp + instruction.op_a;
-            let b_val = self.mr(self.fp + instruction.op_b, AccessPosition::B);
-            let c_val = self.mr(self.fp + instruction.op_c, AccessPosition::C);
-            (a_ptr, b_val, c_val)
+        let a_ptr = self.fp + instruction.op_a;
+        let c_val = if !instruction.imm_c {
+            self.mr(self.fp + instruction.op_c, AccessPosition::C)
         } else {
-            let a_ptr = self.fp + instruction.op_a;
-            let b_val = self.mr(self.fp + instruction.op_b, AccessPosition::B);
-            let c_val = instruction.op_c;
-            (a_ptr, b_val, c_val)
-        }
+            instruction.op_c
+        };
+        let b_val = if !instruction.imm_b {
+            self.mr(self.fp + instruction.op_b, AccessPosition::B)
+        } else {
+            instruction.op_b
+        };
+        (a_ptr, b_val, c_val)
     }
 
     /// Fetch the destination address input operand values for a load instruction (from heap).
@@ -207,13 +208,13 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                 Opcode::BEQ => {
                     (a, b, c) = self.branch_rr(&instruction);
                     if a == b {
-                        next_pc = c;
+                        next_pc = self.pc + c;
                     }
                 }
                 Opcode::BNE => {
                     (a, b, c) = self.branch_rr(&instruction);
                     if a != b {
-                        next_pc = c;
+                        next_pc = self.pc + c;
                     }
                 }
                 Opcode::JAL => {
@@ -221,6 +222,7 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                     let a_ptr = instruction.op_a + self.fp;
                     self.mw(a_ptr, self.pc, AccessPosition::A);
                     next_pc = self.pc + imm;
+                    self.fp += instruction.op_c;
                     (a, b, c) = (a_ptr, F::zero(), F::zero());
                 }
                 Opcode::JALR => {
@@ -231,8 +233,12 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                     let c_val = imm;
                     let a_val = self.pc + F::one();
                     self.mw(a_ptr, a_val, AccessPosition::A);
-                    next_pc = b_val + c_val;
+                    next_pc = b_val;
+                    self.fp = c_val;
                     (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::TRAP => {
+                    panic!("TRAP instruction encountered")
                 }
             };
 
