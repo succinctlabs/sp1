@@ -11,7 +11,7 @@ use p3_field::AbstractField;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Felt<F>(pub i32, PhantomData<F>);
+pub struct Felt<F>(pub(crate) i32, pub(crate) PhantomData<F>);
 
 impl<B: Builder> Variable<B> for Felt<B::F> {
     fn uninit(builder: &mut B) -> Self {
@@ -40,14 +40,6 @@ impl<B: Builder> Constant<B> for Felt<B::F> {
         builder.push(AsmInstruction::IMM(self.0, constant));
     }
 }
-
-// impl<B: Builder> Eq<B> for Felt<B::F> {
-//     fn eq(&self, other: Self, builder: &mut B) -> Bool {
-//         let result = Felt::uninit(builder);
-//         builder.push(AsmInstruction::EQ(result.0, self.0, other.0));
-//         result
-//     }
-// }
 
 impl<F> Add for Felt<F> {
     type Output = Symbolic<F>;
