@@ -16,15 +16,27 @@ impl ExecutionMemory {
         }
     }
 
-    pub fn get(&self, addr: u32) -> MemoryRecord {
+    #[inline]
+    pub fn get(&self, addr: u32) -> &MemoryRecord {
         if addr < 32 {
-            self.registers[addr as usize]
+            &self.registers[addr as usize]
         } else {
-            self.memory[(addr / 4) as usize]
+            &self.memory[(addr / 4) as usize]
         }
     }
 
+    #[inline]
+    pub fn get_mut(&mut self, addr: u32) -> &mut MemoryRecord {
+        if addr < 32 {
+            &mut self.registers[addr as usize]
+        } else {
+            &mut self.memory[(addr / 4) as usize]
+        }
+    }
+
+    #[inline]
     pub fn set(&mut self, addr: u32, record: MemoryRecord) {
+        // println!("set addr = {}", addr);
         if addr < 32 {
             self.registers[addr as usize] = record;
         } else {

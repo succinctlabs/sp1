@@ -185,7 +185,7 @@ impl Runtime {
 
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory entry.
-        let record = self.state.memory.get(addr);
+        let record = self.state.memory.get_mut(addr);
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -194,6 +194,10 @@ impl Runtime {
                 .memory_diff
                 .insert(addr, Some((record.value, record.shard, record.timestamp)));
         }
+
+        record.value = value;
+        record.shard = shard;
+        record.timestamp = timestamp;
 
         MemoryWriteRecord {
             value,
@@ -839,71 +843,71 @@ impl Runtime {
     }
 
     fn postprocess(&mut self) {
-        let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
-        for (key, value) in &self.program.memory_image {
-            // By default we assume that the program_memory is used.
-            program_memory_used.insert(*key, (*value, 1));
-        }
+        // let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
+        // for (key, value) in &self.program.memory_image {
+        //     // By default we assume that the program_memory is used.
+        //     program_memory_used.insert(*key, (*value, 1));
+        // }
 
-        let mut first_memory_record = Vec::new();
-        let mut last_memory_record = Vec::new();
+        // let mut first_memory_record = Vec::new();
+        // let mut last_memory_record = Vec::new();
 
-        // let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
-        let memory_keys = (0..32).chain((32..(1 << 27)).step_by(4));
-        for addr in memory_keys {
-            let record = self.state.memory.get(addr);
-            if record.shard == 0 && record.timestamp == 0 {
-                // This means that we never accessed this memory location throughout our entire program.
-                // The only way this can happen is if this was in the program memory image.
-                // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (record.value, 0));
-                continue;
-            }
-            // If the memory addr was accessed, we only add it to "first_memory_record" if it was
-            // not in the program_memory_image, otherwise we'll add to the memory argument from
-            // the program_memory_image table.
-            if !self.program.memory_image.contains_key(&addr) {
-                first_memory_record.push((
-                    addr,
-                    MemoryRecord {
-                        value: 0,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    1,
-                ));
-            }
+        // // let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
+        // let memory_keys = (0..32).chain((32..(1 << 27)).step_by(4));
+        // for addr in memory_keys {
+        //     let record = self.state.memory.get(addr);
+        //     if record.shard == 0 && record.timestamp == 0 {
+        //         // This means that we never accessed this memory location throughout our entire program.
+        //         // The only way this can happen is if this was in the program memory image.
+        //         // We mark this (addr, value) as not used in the `program_memory_used` map.
+        //         program_memory_used.insert(addr, (record.value, 0));
+        //         continue;
+        //     }
+        //     // If the memory addr was accessed, we only add it to "first_memory_record" if it was
+        //     // not in the program_memory_image, otherwise we'll add to the memory argument from
+        //     // the program_memory_image table.
+        //     if !self.program.memory_image.contains_key(&addr) {
+        //         first_memory_record.push((
+        //             addr,
+        //             MemoryRecord {
+        //                 value: 0,
+        //                 shard: 0,
+        //                 timestamp: 0,
+        //             },
+        //             1,
+        //         ));
+        //     }
 
-            last_memory_record.push((
-                addr,
-                MemoryRecord {
-                    value: record.value,
-                    shard: record.shard,
-                    timestamp: record.timestamp,
-                },
-                1,
-            ));
-        }
+        //     last_memory_record.push((
+        //         addr,
+        //         MemoryRecord {
+        //             value: record.value,
+        //             shard: record.shard,
+        //             timestamp: record.timestamp,
+        //         },
+        //         1,
+        //     ));
+        // }
 
-        let mut program_memory_record = program_memory_used
-            .iter()
-            .map(|(&addr, &(value, used))| {
-                (
-                    addr,
-                    MemoryRecord {
-                        value,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    used,
-                )
-            })
-            .collect::<Vec<(u32, MemoryRecord, u32)>>();
-        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
+        // let mut program_memory_record = program_memory_used
+        //     .iter()
+        //     .map(|(&addr, &(value, used))| {
+        //         (
+        //             addr,
+        //             MemoryRecord {
+        //                 value,
+        //                 shard: 0,
+        //                 timestamp: 0,
+        //             },
+        //             used,
+        //         )
+        //     })
+        //     .collect::<Vec<(u32, MemoryRecord, u32)>>();
+        // program_memory_record.sort_by_key(|&(addr, _, _)| addr);
 
-        self.record.first_memory_record = first_memory_record;
-        self.record.last_memory_record = last_memory_record;
-        self.record.program_memory_record = program_memory_record;
+        // self.record.first_memory_record = first_memory_record;
+        // self.record.last_memory_record = last_memory_record;
+        // self.record.program_memory_record = program_memory_record;
     }
 }
 
