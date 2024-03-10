@@ -13,6 +13,7 @@ use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::Extension;
 use sp1_core::lookup::InteractionKind;
+use sp1_core::operations::IsZeroOperation;
 use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
@@ -96,6 +97,9 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                     Word((Extension(cols.b.value.0) - Extension(cols.c.value.0)).0);
                 cols.mul_ext_scratch =
                     Word((Extension(cols.b.value.0) * Extension(cols.c.value.0)).0);
+
+                cols.a_eq_b
+                    .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
 
                 cols.is_real = F::one();
                 row
@@ -204,6 +208,14 @@ where
         builder
             .when(local.is_mul)
             .assert_eq(local.a.value.0[3], AB::F::zero());
+
+        // Compute if a == b.
+        IsZeroOperation::<AB::F>::eval::<AB>(
+            builder,
+            local.a.value.0[0] - local.b.value.0[0],
+            local.a_eq_b,
+            local.is_real.into(),
+        );
 
         // Receive C.
         builder.receive(AirInteraction::new(
