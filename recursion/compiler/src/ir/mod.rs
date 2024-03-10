@@ -2,7 +2,6 @@ mod alu;
 mod arithmetic;
 mod bool;
 mod field;
-mod ptr;
 
 use crate::builder::Builder;
 
@@ -10,7 +9,6 @@ pub use alu::*;
 pub use arithmetic::*;
 pub use bool::*;
 pub use field::*;
-pub use ptr::*;
 
 pub trait Expression<B: Builder> {
     type Value: Variable<B>;
