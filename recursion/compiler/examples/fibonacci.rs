@@ -21,6 +21,10 @@ fn main() {
         builder.assign(a, temp);
     });
 
+    builder.if_eq(a, BabyBear::zero()).then(|builder| {
+        builder.assign(a, b);
+    });
+
     let code = builder.code();
     println!("{}", code);
 

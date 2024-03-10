@@ -259,7 +259,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
             AsmInstruction::BNEI(label, lhs, rhs) => {
                 write!(
                     f,
-                    "bnei .{}, ({})fp, {}",
+                    "bnei  {}, ({})fp, {}",
                     labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs

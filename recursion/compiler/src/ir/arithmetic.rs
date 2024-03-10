@@ -218,6 +218,12 @@ impl<F> From<Felt<F>> for Symbolic<F> {
     }
 }
 
+impl<F> From<F> for Symbolic<F> {
+    fn from(value: F) -> Self {
+        Symbolic::Const(value)
+    }
+}
+
 impl<F> Add for Symbolic<F> {
     type Output = Self;
 

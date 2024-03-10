@@ -64,7 +64,12 @@ pub trait Builder: Sized {
         E1: Into<Symbolic<Self::F>>,
         E2: Into<Symbolic<Self::F>>,
     {
-        todo!()
+        IfBuilder {
+            builder: self,
+            lhs: lhs.into(),
+            rhs: rhs.into(),
+            is_eq: true,
+        }
     }
 }
 
@@ -72,6 +77,7 @@ pub struct IfBuilder<'a, B: Builder> {
     builder: &'a mut B,
     lhs: Symbolic<B::F>,
     rhs: Symbolic<B::F>,
+    is_eq: bool,
 }
 
 impl<'a, B: Builder> Builder for IfBuilder<'a, B> {
@@ -98,13 +104,117 @@ impl<'a, B: Builder> Builder for IfBuilder<'a, B> {
 }
 
 impl<'a, B: Builder> IfBuilder<'a, B> {
-    pub fn then<Func>(&mut self, f: Func)
+    pub fn then<Func>(self, f: Func)
     where
         Func: FnOnce(&mut B),
     {
+        let Self {
+            builder,
+            lhs,
+            rhs,
+            is_eq,
+        } = self;
+        // Get the label for the block after the if block, and generate the conditional branch
+        // instruction to it, if the condition is not met.
+        let after_if_block = builder.block_label() + B::F::two();
+        match (lhs, rhs, is_eq) {
+            (Symbolic::Const(lhs), Symbolic::Const(rhs), true) => {
+                if lhs == rhs {
+                    f(builder);
+                    return;
+                }
+            }
+            (Symbolic::Const(lhs), Symbolic::Const(rhs), false) => {
+                if lhs != rhs {
+                    f(builder);
+                    return;
+                }
+            }
+            (Symbolic::Const(lhs), Symbolic::Value(rhs), true) => {
+                let instr = AsmInstruction::BNEI(after_if_block, rhs.0, lhs);
+                builder.push(instr);
+            }
+            (Symbolic::Const(lhs), Symbolic::Value(rhs), false) => {
+                let instr = AsmInstruction::BEQI(after_if_block, rhs.0, lhs);
+                builder.push(instr);
+            }
+            (Symbolic::Const(lhs), rhs, true) => {
+                let rhs = builder.eval(rhs);
+                let instr = AsmInstruction::BNEI(after_if_block, rhs.0, lhs);
+                builder.push(instr);
+            }
+            (Symbolic::Const(lhs), rhs, false) => {
+                let rhs = builder.eval(rhs);
+                let instr = AsmInstruction::BEQI(after_if_block, rhs.0, lhs);
+                builder.push(instr);
+            }
+            (Symbolic::Value(lhs), Symbolic::Const(rhs), true) => {
+                let instr = AsmInstruction::BNEI(after_if_block, lhs.0, rhs);
+                builder.push(instr);
+            }
+            (Symbolic::Value(lhs), Symbolic::Const(rhs), false) => {
+                let instr = AsmInstruction::BEQI(after_if_block, lhs.0, rhs);
+                builder.push(instr);
+            }
+            (lhs, Symbolic::Const(rhs), true) => {
+                let lhs = builder.eval(lhs);
+                let instr = AsmInstruction::BNEI(after_if_block, lhs.0, rhs);
+                builder.push(instr);
+            }
+            (lhs, Symbolic::Const(rhs), false) => {
+                let lhs = builder.eval(lhs);
+                let instr = AsmInstruction::BEQI(after_if_block, lhs.0, rhs);
+                builder.push(instr);
+            }
+            (Symbolic::Value(lhs), Symbolic::Value(rhs), true) => {
+                let instr = AsmInstruction::BNE(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (Symbolic::Value(lhs), Symbolic::Value(rhs), false) => {
+                let instr = AsmInstruction::BEQ(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (Symbolic::Value(lhs), rhs, true) => {
+                let rhs = builder.eval(rhs);
+                let instr = AsmInstruction::BNE(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (Symbolic::Value(lhs), rhs, false) => {
+                let rhs = builder.eval(rhs);
+                let instr = AsmInstruction::BEQ(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (lhs, Symbolic::Value(rhs), true) => {
+                let lhs = builder.eval(lhs);
+                let instr = AsmInstruction::BNE(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (lhs, Symbolic::Value(rhs), false) => {
+                let lhs = builder.eval(lhs);
+                let instr = AsmInstruction::BEQ(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (lhs, rhs, true) => {
+                let lhs = builder.eval(lhs);
+                let rhs = builder.eval(rhs);
+                let instr = AsmInstruction::BNE(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+            (lhs, rhs, false) => {
+                let lhs = builder.eval(lhs);
+                let rhs = builder.eval(rhs);
+                let instr = AsmInstruction::BEQ(after_if_block, lhs.0, rhs.0);
+                builder.push(instr);
+            }
+        }
+        // Generate the block for the then branch.
+        builder.basic_block();
+        f(builder);
+        // Generate the block for returning to the main flow.
+        builder.basic_block();
     }
 
-    pub fn then_or_else<ThenFunc, ElseFunc>(&mut self, then_f: ThenFunc, else_f: ElseFunc)
+    pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
     where
         ThenFunc: FnOnce(&mut B),
         ElseFunc: FnOnce(&mut B),

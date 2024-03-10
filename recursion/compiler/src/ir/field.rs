@@ -53,7 +53,7 @@ impl<F> Add for Felt<F> {
     type Output = Symbolic<F>;
 
     fn add(self, rhs: Self) -> Symbolic<F> {
-        Symbolic::from(self) + rhs
+        Symbolic::<F>::from(self) + rhs
     }
 }
 
@@ -61,7 +61,7 @@ impl<F> Add<F> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn add(self, rhs: F) -> Symbolic<F> {
-        Symbolic::from(self) + rhs
+        Symbolic::<F>::from(self) + rhs
     }
 }
 
@@ -69,7 +69,7 @@ impl<F> Add<Symbolic<F>> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn add(self, rhs: Symbolic<F>) -> Symbolic<F> {
-        Symbolic::from(self) + rhs
+        Symbolic::<F>::from(self) + rhs
     }
 }
 
@@ -77,7 +77,7 @@ impl<F> Sub for Felt<F> {
     type Output = Symbolic<F>;
 
     fn sub(self, rhs: Self) -> Symbolic<F> {
-        Symbolic::from(self) - rhs
+        Symbolic::<F>::from(self) - rhs
     }
 }
 
@@ -85,7 +85,7 @@ impl<F> Sub<Symbolic<F>> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn sub(self, rhs: Symbolic<F>) -> Symbolic<F> {
-        Symbolic::from(self) - rhs
+        Symbolic::<F>::from(self) - rhs
     }
 }
 
@@ -93,7 +93,7 @@ impl<F> Sub<F> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn sub(self, rhs: F) -> Symbolic<F> {
-        Symbolic::from(self) - rhs
+        Symbolic::<F>::from(self) - rhs
     }
 }
 
@@ -101,7 +101,7 @@ impl<F> Mul for Felt<F> {
     type Output = Symbolic<F>;
 
     fn mul(self, rhs: Self) -> Symbolic<F> {
-        Symbolic::from(self) * rhs
+        Symbolic::<F>::from(self) * rhs
     }
 }
 
@@ -109,7 +109,7 @@ impl<F> Mul<F> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn mul(self, rhs: F) -> Symbolic<F> {
-        Symbolic::from(self) * rhs
+        Symbolic::<F>::from(self) * rhs
     }
 }
 
@@ -117,7 +117,7 @@ impl<F> Mul<Symbolic<F>> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn mul(self, rhs: Symbolic<F>) -> Symbolic<F> {
-        Symbolic::from(self) * rhs
+        Symbolic::<F>::from(self) * rhs
     }
 }
 
@@ -125,7 +125,7 @@ impl<F> Div for Felt<F> {
     type Output = Symbolic<F>;
 
     fn div(self, rhs: Self) -> Symbolic<F> {
-        Symbolic::from(self) / rhs
+        Symbolic::<F>::from(self) / rhs
     }
 }
 
@@ -133,7 +133,7 @@ impl<F> Div<F> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn div(self, rhs: F) -> Symbolic<F> {
-        Symbolic::from(self) / rhs
+        Symbolic::<F>::from(self) / rhs
     }
 }
 
@@ -141,7 +141,7 @@ impl<F> Div<Symbolic<F>> for Felt<F> {
     type Output = Symbolic<F>;
 
     fn div(self, rhs: Symbolic<F>) -> Symbolic<F> {
-        Symbolic::from(self) / rhs
+        Symbolic::<F>::from(self) / rhs
     }
 }
 
