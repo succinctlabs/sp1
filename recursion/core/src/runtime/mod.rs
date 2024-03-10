@@ -264,6 +264,7 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
             self.pc = next_pc;
             self.record.cpu_events.push(event);
             self.clk += F::from_canonical_u32(4);
+            self.access = CpuRecord::default();
         }
 
         // Collect all used memory addresses.

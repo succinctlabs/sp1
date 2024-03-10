@@ -15,6 +15,9 @@ pub struct CpuCols<T> {
     pub c: MemoryReadWriteCols<T>,
 
     pub instruction: InstructionCols<T>,
+    pub is_add: T,
+    pub is_sub: T,
+    pub is_mul: T,
 
     // c = a + b;
     pub add_scratch: T,

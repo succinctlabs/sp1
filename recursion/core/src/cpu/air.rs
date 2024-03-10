@@ -1,5 +1,6 @@
 use crate::air::Word;
 use crate::cpu::CpuChip;
+use crate::runtime::Opcode;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -59,15 +60,31 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 cols.instruction.op_c = event.instruction.op_c;
                 cols.instruction.imm_b = F::from_canonical_u32(event.instruction.imm_b as u32);
                 cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
+                match event.instruction.opcode {
+                    Opcode::ADD => {
+                        cols.is_add = F::one();
+                    }
+                    Opcode::SUB => {
+                        cols.is_sub = F::one();
+                    }
+                    Opcode::MUL => {
+                        cols.is_mul = F::one();
+                    }
+                    _ => {}
+                };
 
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
                 }
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
+                } else {
+                    cols.b.value = Word::from(event.instruction.op_b);
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
+                } else {
+                    cols.c.value = Word::from(event.instruction.op_c);
                 }
 
                 cols.add_scratch = cols.b.value.0[0] + cols.c.value.0[0];
@@ -147,6 +164,46 @@ where
             local.b.value.extension::<AB>() * local.c.value.extension::<AB>(),
             local.mul_ext_scratch.extension::<AB>(),
         );
+
+        // Connect ALU to CPU.
+        builder
+            .when(local.is_add)
+            .assert_eq(local.a.value.0[0], local.add_scratch);
+        builder
+            .when(local.is_add)
+            .assert_eq(local.a.value.0[1], AB::F::zero());
+        builder
+            .when(local.is_add)
+            .assert_eq(local.a.value.0[2], AB::F::zero());
+        builder
+            .when(local.is_add)
+            .assert_eq(local.a.value.0[3], AB::F::zero());
+
+        builder
+            .when(local.is_sub)
+            .assert_eq(local.a.value.0[0], local.sub_scratch);
+        builder
+            .when(local.is_sub)
+            .assert_eq(local.a.value.0[1], AB::F::zero());
+        builder
+            .when(local.is_sub)
+            .assert_eq(local.a.value.0[2], AB::F::zero());
+        builder
+            .when(local.is_sub)
+            .assert_eq(local.a.value.0[3], AB::F::zero());
+
+        builder
+            .when(local.is_mul)
+            .assert_eq(local.a.value.0[0], local.mul_scratch);
+        builder
+            .when(local.is_mul)
+            .assert_eq(local.a.value.0[1], AB::F::zero());
+        builder
+            .when(local.is_mul)
+            .assert_eq(local.a.value.0[2], AB::F::zero());
+        builder
+            .when(local.is_mul)
+            .assert_eq(local.a.value.0[3], AB::F::zero());
 
         // Receive C.
         builder.receive(AirInteraction::new(
