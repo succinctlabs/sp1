@@ -49,7 +49,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         "Bitwise".to_string()
     }
 
-    #[instrument(name = "generate bitwise trace", skip_all)]
+    #[instrument(name = "generate bitwise trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

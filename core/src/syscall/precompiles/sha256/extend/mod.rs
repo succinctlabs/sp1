@@ -6,7 +6,7 @@ mod trace;
 
 pub use columns::*;
 
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
