@@ -59,7 +59,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
 
     let start = Instant::now();
     let record_clone = runtime.record.clone();
-    let proof = tracing::info_span!("runtime.prove(...)")
+    let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
@@ -113,7 +113,7 @@ where
 
     // Prove the program.
     let cycles = runtime.state.global_clk;
-    let proof = tracing::info_span!("runtime.prove(...)")
+    let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

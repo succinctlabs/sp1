@@ -25,7 +25,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         "CPU".to_string()
     }
 
-    #[instrument(name = "generate CPU trace", skip_all)]
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -72,7 +72,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         trace
     }
 
-    #[instrument(name = "generate CPU dependencies", skip_all)]
+    #[instrument(name = "generate cpu dependencies", level = "debug", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);

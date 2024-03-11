@@ -73,7 +73,7 @@ impl SP1Prover {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&stdin.buffer.data);
-        tracing::info_span!("runtime.run(...)").in_scope(|| {
+        tracing::info_span!("execute").in_scope(|| {
             runtime.run();
         });
         let config = BabyBearBlake3::new();

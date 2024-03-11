@@ -97,7 +97,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         "ShiftLeft".to_string()
     }
 
-    #[instrument(name = "generate sll trace", skip_all)]
+    #[instrument(name = "generate sll trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

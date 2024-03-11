@@ -20,6 +20,8 @@ use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Instant;
 
 use super::util::decompose_and_flatten;
 use super::{types::*, StarkGenericConfig};
@@ -76,12 +78,11 @@ where
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
-        tracing::info!("Generating and commiting traces for each shard.");
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
-        tracing::info_span!("observing all challenges").in_scope(|| {
+        tracing::debug_span!("observing all challenges").in_scope(|| {
             shard_commits.into_iter().for_each(|commitment| {
                 challenger.observe(commitment);
             });
@@ -94,30 +95,51 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
-        let shard_proofs = shard_data_chunks
-            .into_par_iter()
-            .zip(shard_chunks.into_par_iter())
-            .enumerate()
-            .map(|(i, (datas, shards))| {
-                datas
-                    .into_iter()
-                    .zip(shards)
-                    .enumerate()
-                    .map(|(j, (data, shard))| {
-                        let idx = i * chunk_size + j;
-                        let data = if reconstruct_commitments {
-                            Self::commit_main(config, machine, &shard, idx)
-                        } else {
-                            data.materialize()
-                                .expect("failed to materialize shard main data")
-                        };
-                        let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
-                        Self::prove_shard(config, pk, &chips, data, &mut challenger.clone())
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect::<Vec<_>>();
+        let finished = AtomicU32::new(0);
+        let total = shard_data_chunks.len() as u32;
+        log::info!("open shards");
+        let shard_proofs = tracing::info_span!("open shards").in_scope(|| {
+            shard_data_chunks
+                .into_par_iter()
+                .zip(shard_chunks.into_par_iter())
+                .enumerate()
+                .map(|(i, (datas, shards))| {
+                    datas
+                        .into_iter()
+                        .zip(shards)
+                        .enumerate()
+                        .map(|(j, (data, shard))| {
+                            let start = Instant::now();
+                            let idx = i * chunk_size + j;
+                            let data = if reconstruct_commitments {
+                                Self::commit_main(config, machine, &shard, idx)
+                            } else {
+                                data.materialize()
+                                    .expect("failed to materialize shard main data")
+                            };
+                            let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                            let proof = Self::prove_shard(
+                                config,
+                                pk,
+                                &chips,
+                                data,
+                                &mut challenger.clone(),
+                            );
+                            finished.fetch_add(1, Ordering::Relaxed);
+                            log::info!(
+                                "> open shards ({}/{}): shard = {}, time = {:.2} secs",
+                                finished.load(Ordering::Relaxed),
+                                total,
+                                idx,
+                                start.elapsed().as_secs_f64()
+                            );
+                            proof
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .flatten()
+                .collect::<Vec<_>>()
+        });
 
         Proof { shard_proofs }
     }
@@ -212,7 +234,7 @@ where
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::info_span!("generate permutation traces").in_scope(|| {
+        tracing::debug_span!("generate permutation traces").in_scope(|| {
             chips
                 .par_iter()
                 .zip(traces.par_iter())
@@ -246,7 +268,7 @@ where
         }
 
         // Commit to the permutation traces.
-        let flattened_permutation_traces = tracing::info_span!("flatten permutation traces")
+        let flattened_permutation_traces = tracing::debug_span!("flatten permutation traces")
             .in_scope(|| {
                 permutation_traces
                     .par_iter()
@@ -254,13 +276,13 @@ where
                     .collect::<Vec<_>>()
             });
         let (permutation_commit, permutation_data) =
-            tracing::info_span!("commit permutation traces")
+            tracing::debug_span!("commit permutation traces")
                 .in_scope(|| config.pcs().commit_batches(flattened_permutation_traces));
         challenger.observe(permutation_commit.clone());
 
         // For each chip, compute the quotient polynomial.
         let log_stride_for_quotient = config.pcs().log_blowup() - log_quotient_degree;
-        let main_ldes = tracing::info_span!("get main ldes").in_scope(|| {
+        let main_ldes = tracing::debug_span!("get main ldes").in_scope(|| {
             config
                 .pcs()
                 .get_ldes(&shard_data.main_data)
@@ -268,7 +290,7 @@ where
                 .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
                 .collect::<Vec<_>>()
         });
-        let permutation_ldes = tracing::info_span!("get perm ldes").in_scope(|| {
+        let permutation_ldes = tracing::debug_span!("get perm ldes").in_scope(|| {
             config
                 .pcs()
                 .get_ldes(&permutation_data)
@@ -279,7 +301,7 @@ where
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
 
         // Compute the quotient values.
-        let quotient_values = tracing::info_span!("compute quotient values").in_scope(|| {
+        let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
             (0..chips.len())
                 .into_par_iter()
                 .map(|i| {
@@ -298,7 +320,7 @@ where
         });
 
         // Compute the quotient chunks.
-        let quotient_chunks = tracing::info_span!("decompose and flatten").in_scope(|| {
+        let quotient_chunks = tracing::debug_span!("decompose and flatten").in_scope(|| {
             quotient_values
                 .into_iter()
                 .map(|values| {
@@ -319,14 +341,14 @@ where
         }
 
         let num_quotient_chunks = quotient_chunks.len();
-        let coset_shifts = tracing::info_span!("coset shift").in_scope(|| {
+        let coset_shifts = tracing::debug_span!("coset shift").in_scope(|| {
             let shift = config
                 .pcs()
                 .coset_shift()
                 .exp_power_of_2(log_quotient_degree);
             vec![shift; chips.len()]
         });
-        let (quotient_commit, quotient_data) = tracing::info_span!("commit shifted batches")
+        let (quotient_commit, quotient_data) = tracing::debug_span!("commit shifted batches")
             .in_scope(|| {
                 config
                     .pcs()
@@ -340,7 +362,7 @@ where
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
         let trace_opening_points =
-            tracing::info_span!("compute trace opening points").in_scope(|| {
+            tracing::debug_span!("compute trace opening points").in_scope(|| {
                 g_subgroups
                     .iter()
                     .map(|g| vec![zeta, zeta * *g])
@@ -352,7 +374,7 @@ where
             .map(|_| vec![zeta_quot_pow])
             .collect::<Vec<_>>();
 
-        let (openings, opening_proof) = tracing::info_span!("open multi batches").in_scope(|| {
+        let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
             config.pcs().open_multi_batches(
                 &[
                     (&shard_data.main_data, &trace_opening_points),
@@ -464,13 +486,16 @@ where
     {
         let config = machine.config();
         let num_shards = shards.len();
-        tracing::info!("num_shards={}", num_shards);
+        log::info!("commit shards");
+
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
         let save_disk_threshold = env::save_disk_threshold();
         let reconstruct_commitments = env::reconstruct_commitments();
-        let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
-            tracing::info_span!("commit main for all shards").in_scope(|| {
+        let finished = AtomicU32::new(0);
+        let total = shards.len() as u32;
+        let (commitments, shard_main_data): (Vec<_>, Vec<_>) = tracing::info_span!("commit shards")
+            .in_scope(|| {
                 let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
                     .par_chunks(chunk_size)
@@ -481,8 +506,16 @@ where
                             .enumerate()
                             .map(|(j, shard)| {
                                 let index = i * chunk_size + j;
-                                let data = tracing::info_span!("shard commit main", shard = index)
-                                    .in_scope(|| Self::commit_main(config, machine, shard, index));
+                                let start = Instant::now();
+                                let data = Self::commit_main(config, machine, shard, index);
+                                finished.fetch_add(1, Ordering::Relaxed);
+                                log::info!(
+                                    "> commit shards ({}/{}): shard = {}, time = {:.2} secs",
+                                    finished.load(Ordering::Relaxed),
+                                    total,
+                                    index,
+                                    start.elapsed().as_secs_f64()
+                                );
                                 let commitment = data.main_commit.clone();
                                 let file = tempfile::tempfile().unwrap();
                                 let data = if reconstruct_commitments {
