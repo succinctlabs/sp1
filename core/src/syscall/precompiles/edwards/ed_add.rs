@@ -37,14 +37,15 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
 
-pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
-
+pub const fn num_ed_add_cols<const N: usize, const M: usize>() -> usize {
+    size_of::<EdAddAssignCols<u8, N, M>>()
+}
 /// A set of columns to compute `EdAdd` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
+#[derive(Debug, Clone)]
 #[repr(C)]
-pub struct EdAddAssignCols<T> {
+pub struct EdAddAssignCols<T, const N: usize, const M: usize> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
@@ -59,8 +60,8 @@ pub struct EdAddAssignCols<T> {
     pub(crate) x2_mul_y2: FieldOpCols<T>,
     pub(crate) f: FieldOpCols<T>,
     pub(crate) d_mul_f: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldDenCols<T>,
-    pub(crate) y3_ins: FieldDenCols<T>,
+    pub(crate) x3_ins: FieldDenCols<T, N, M>,
+    pub(crate) y3_ins: FieldDenCols<T, N, M>,
 }
 
 #[derive(Default)]
@@ -75,7 +76,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         }
     }
     fn populate_field_ops<F: PrimeField32>(
-        cols: &mut EdAddAssignCols<F>,
+        cols: &mut EdAddAssignCols<F, { E::NB_LIMBS }, { E::NB_WITNESS_LIMBS }>,
         p_x: BigUint,
         p_y: BigUint,
         q_x: BigUint,
@@ -134,52 +135,56 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let (mut rows, new_field_events_list): (Vec<[F; NUM_ED_ADD_COLS]>, Vec<Vec<FieldEvent>>) =
-            input
-                .ed_add_events
-                .par_iter()
-                .map(|event| {
-                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+        let (mut rows, new_field_events_list): (
+            Vec<[F; num_ed_add_cols::<{ E::NB_LIMBS }, { E::NB_WITNESS_LIMBS }>()]>,
+            Vec<Vec<FieldEvent>>,
+        ) = input
+            .ed_add_events
+            .par_iter()
+            .map(|event| {
+                let mut row =
+                    [F::zero(); num_ed_add_cols::<{ E::NB_LIMBS }, { E::NB_WITNESS_LIMBS }>()];
+                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
-                    // Decode affine points.
-                    let p = &event.p;
-                    let q = &event.q;
-                    let p = AffinePoint::<E>::from_words_le(p);
-                    let (p_x, p_y) = (p.x, p.y);
-                    let q = AffinePoint::<E>::from_words_le(q);
-                    let (q_x, q_y) = (q.x, q.y);
+                // Decode affine points.
+                let p = &event.p;
+                let q = &event.q;
+                let p = AffinePoint::<E>::from_words_le(p);
+                let (p_x, p_y) = (p.x, p.y);
+                let q = AffinePoint::<E>::from_words_le(q);
+                let (q_x, q_y) = (q.x, q.y);
 
-                    // Populate basic columns.
-                    cols.is_real = F::one();
-                    cols.shard = F::from_canonical_u32(event.shard);
-                    cols.clk = F::from_canonical_u32(event.clk);
-                    cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-                    cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+                // Populate basic columns.
+                cols.is_real = F::one();
+                cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+                cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-                    Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
+                Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
-                    // Populate the memory access columns.
-                    let mut new_field_events = Vec::new();
-                    for i in 0..16 {
-                        cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
-                    }
-                    for i in 0..16 {
-                        cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
-                    }
-                    cols.q_ptr_access
-                        .populate(event.q_ptr_record, &mut new_field_events);
+                // Populate the memory access columns.
+                let mut new_field_events = Vec::new();
+                for i in 0..16 {
+                    cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
+                }
+                for i in 0..16 {
+                    cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
+                }
+                cols.q_ptr_access
+                    .populate(event.q_ptr_record, &mut new_field_events);
 
-                    (row, new_field_events)
-                })
-                .unzip();
+                (row, new_field_events)
+            })
+            .unzip();
 
         for new_field_events in new_field_events_list {
             output.add_field_events(&new_field_events);
         }
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
+            let mut row =
+                [F::zero(); num_ed_add_cols::<{ E::NB_LIMBS }, { E::NB_WITNESS_LIMBS }>()];
             let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_field_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
@@ -189,7 +194,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_ADD_COLS,
+            num_ed_add_cols::<{ E::NB_LIMBS }, { E::NB_WITNESS_LIMBS }>(),
         )
     }
 
@@ -200,7 +205,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
 
 impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {
     fn width(&self) -> usize {
-        NUM_ED_ADD_COLS
+        num_ed_add_cols::<{ E::NB_LIMBS }, { E::NB_WITNESS_LIMBS }>()
     }
 }
 

@@ -10,6 +10,7 @@
     clippy::default_constructed_unit_structs,
     clippy::box_default
 )]
+#![feature(generic_const_exprs)]
 
 extern crate alloc;
 

@@ -8,7 +8,7 @@ pub const NB_BITS_PER_LIMB: usize = 8;
 pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct Limbs<T>(pub [T; NUM_LIMBS]);
+pub struct Limbs<T, const N: usize>(pub [T; N]);
 
 impl<T> Index<usize> for Limbs<T> {
     type Output = T;

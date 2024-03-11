@@ -89,6 +89,8 @@ pub trait EllipticCurveParameters:
 
 /// An interface for elliptic curve groups.
 pub trait EllipticCurve: EllipticCurveParameters {
+    const NB_LIMBS: usize = Self::BaseField::NB_LIMBS;
+    const NB_WITNESS_LIMBS: usize = Self::BaseField::NB_WITNESS_LIMBS;
     /// Adds two different points on the curve.
     ///
     /// Warning: This method assumes that the two points are different.

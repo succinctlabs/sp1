@@ -20,12 +20,12 @@ use std::fmt::Debug;
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldDenCols<T> {
+pub struct FieldDenCols<T, const N: usize, const M: usize> {
     /// The result of `a den b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
+    pub result: Limbs<T, N>,
+    pub(crate) carry: Limbs<T, N>,
+    pub(crate) witness_low: [T; M],
+    pub(crate) witness_high: [T; M],
 }
 
 impl<F: PrimeField32> FieldDenCols<F> {
