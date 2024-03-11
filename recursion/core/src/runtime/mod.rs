@@ -3,7 +3,6 @@ mod opcode;
 mod program;
 mod record;
 
-use crate::memory::MemoryRecord;
 use std::sync::Arc;
 
 pub use instruction::*;
@@ -12,7 +11,7 @@ pub use program::*;
 pub use record::*;
 use sp1_core::runtime::AccessPosition;
 
-use crate::cpu::CpuEvent;
+use crate::{cpu::CpuEvent, memory::MemoryRecord};
 use p3_field::PrimeField32;
 
 #[derive(Debug, Clone, Default)]

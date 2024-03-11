@@ -1,5 +1,6 @@
 mod instruction;
 mod io;
+mod memory;
 mod opcode;
 mod program;
 mod record;
@@ -7,11 +8,11 @@ mod register;
 mod state;
 mod syscall;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 use hashbrown::hash_map::Entry;
 pub use instruction::*;
+pub use memory::*;
 use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
@@ -27,16 +28,6 @@ use std::sync::Arc;
 pub use syscall::*;
 
 use self::state::ExecutionState;
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum AccessPosition {
-    Memory = 0,
-    // Note that these AccessPositions mean that when when read/writing registers, they must be
-    // read/written in the following order: C, B, A.
-    C = 1,
-    B = 2,
-    A = 3,
-}
 
 /// An implementation of a runtime for the SP1 VM.
 ///

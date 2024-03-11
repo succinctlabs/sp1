@@ -1,3 +1,13 @@
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum AccessPosition {
+    Memory = 0,
+    // Note that these AccessPositions mean that when when read/writing registers, they must be
+    // read/written in the following order: C, B, A.
+    C = 1,
+    B = 2,
+    A = 3,
+}
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
