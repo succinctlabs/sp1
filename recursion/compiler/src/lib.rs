@@ -6,6 +6,7 @@ pub mod asm;
 pub mod builder;
 pub mod heap;
 pub mod ir;
+pub mod syn;
 pub mod util;
 
 pub mod prelude {

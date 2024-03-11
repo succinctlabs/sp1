@@ -14,17 +14,17 @@ pub use int::*;
 pub use symbolic_field::*;
 pub use symbolic_int::*;
 
-pub trait Expression<B: Builder> {
+pub trait Expression<B> {
     type Value: Variable<B>;
 
     fn assign(&self, dst: Self::Value, builder: &mut B);
 }
 
-pub trait Variable<B: Builder>: Sized + Copy {
+pub trait Variable<B>: Sized + Copy {
     fn uninit(builder: &mut B) -> Self;
 }
 
-pub trait Constant<B: Builder>: Variable<B> {
+pub trait Constant<B>: Variable<B> {
     type Constant: Sized;
 
     fn imm(&self, constant: Self::Constant, builder: &mut B);
