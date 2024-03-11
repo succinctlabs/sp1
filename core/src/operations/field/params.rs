@@ -10,7 +10,7 @@ pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Limbs<T, const N: usize>(pub [T; N]);
 
-impl<T> Index<usize> for Limbs<T> {
+impl<T, const N: usize> Index<usize> for Limbs<T, N> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -18,17 +18,19 @@ impl<T> Index<usize> for Limbs<T> {
     }
 }
 
-impl<T> IntoIterator for Limbs<T> {
+impl<T, const N: usize> IntoIterator for Limbs<T, N> {
     type Item = T;
-    type IntoIter = std::array::IntoIter<T, NUM_LIMBS>;
+    type IntoIter = std::array::IntoIter<T, N>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<Var: Into<Expr> + Clone, Expr: Clone> From<Limbs<Var>> for Polynomial<Expr> {
-    fn from(value: Limbs<Var>) -> Self {
+impl<Var: Into<Expr> + Clone, Expr: Clone, const N: usize> From<Limbs<Var, N>>
+    for Polynomial<Expr>
+{
+    fn from(value: Limbs<Var, N>) -> Self {
         Polynomial::from_coefficients(&value.0.into_iter().map(|x| x.into()).collect::<Vec<_>>())
     }
 }
@@ -39,14 +41,14 @@ impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomia
     }
 }
 
-impl<T: Debug + Default + Clone> From<Polynomial<T>> for Limbs<T> {
+impl<T: Debug + Default + Clone, const N: usize> From<Polynomial<T>> for Limbs<T, N> {
     fn from(value: Polynomial<T>) -> Self {
         let inner = value.as_coefficients().try_into().unwrap();
         Self(inner)
     }
 }
 
-impl<'a, T: Debug + Default + Clone> From<Iter<'a, T>> for Limbs<T> {
+impl<'a, T: Debug + Default + Clone, const N: usize> From<Iter<'a, T>> for Limbs<T, N> {
     fn from(value: Iter<'a, T>) -> Self {
         let vec: Vec<T> = value.cloned().collect();
         let inner = vec.try_into().unwrap();
