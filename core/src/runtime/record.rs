@@ -11,10 +11,10 @@ use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
-// use crate::syscall::precompiles::k256::K256DecompressEvent;
+use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
-use crate::syscall::precompiles::ECAddEvent;
+use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
 
 /// A record of the execution of a program. Contains event data for everything that happened during
@@ -73,11 +73,12 @@ pub struct ExecutionRecord {
 
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
-    // pub weierstrass_add_events: Vec<ECAddEvent>,
+    pub weierstrass_add_events: Vec<ECAddEvent>,
 
-    // pub weierstrass_double_events: Vec<ECDoubleEvent>,
+    pub weierstrass_double_events: Vec<ECDoubleEvent>,
 
-    // pub k256_decompress_events: Vec<K256DecompressEvent>,
+    pub k256_decompress_events: Vec<K256DecompressEvent>,
+
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
@@ -147,9 +148,9 @@ pub struct ShardStats {
     pub nb_keccak_permute_events: usize,
     pub nb_ed_add_events: usize,
     pub nb_ed_decompress_events: usize,
-    // pub nb_weierstrass_add_events: usize,
-    // pub nb_weierstrass_double_events: usize,
-    // pub nb_k256_decompress_events: usize,
+    pub nb_weierstrass_add_events: usize,
+    pub nb_weierstrass_double_events: usize,
+    pub nb_k256_decompress_events: usize,
 }
 
 impl ExecutionRecord {
@@ -267,27 +268,27 @@ impl ExecutionRecord {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
-        // // Weierstrass curve add events.
-        // for (weierstrass_add_chunk, shard) in self
-        //     .weierstrass_add_events
-        //     .chunks(config.weierstrass_add_len)
-        //     .zip(shards.iter_mut())
-        // {
-        //     shard
-        //         .weierstrass_add_events
-        //         .extend_from_slice(weierstrass_add_chunk);
-        // }
+        // Weierstrass curve add events.
+        for (weierstrass_add_chunk, shard) in self
+            .weierstrass_add_events
+            .chunks(config.weierstrass_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .weierstrass_add_events
+                .extend_from_slice(weierstrass_add_chunk);
+        }
 
-        // // Weierstrass curve double events.
-        // for (weierstrass_double_chunk, shard) in self
-        //     .weierstrass_double_events
-        //     .chunks(config.weierstrass_double_len)
-        //     .zip(shards.iter_mut())
-        // {
-        //     shard
-        //         .weierstrass_double_events
-        //         .extend_from_slice(weierstrass_double_chunk);
-        // }
+        // Weierstrass curve double events.
+        for (weierstrass_double_chunk, shard) in self
+            .weierstrass_double_events
+            .chunks(config.weierstrass_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .weierstrass_double_events
+                .extend_from_slice(weierstrass_double_chunk);
+        }
 
         // Put the precompile events in the first shard.
         let first = shards.first_mut().unwrap();
@@ -311,9 +312,9 @@ impl ExecutionRecord {
             .extend_from_slice(&self.ed_decompress_events);
 
         // K256 curve decompress events.
-        // first
-        //     .k256_decompress_events
-        //     .extend_from_slice(&self.k256_decompress_events);
+        first
+            .k256_decompress_events
+            .extend_from_slice(&self.k256_decompress_events);
 
         // Blake3 compress events .
         first
@@ -469,9 +470,9 @@ impl ExecutionRecord {
             nb_keccak_permute_events: self.keccak_permute_events.len(),
             nb_ed_add_events: self.ed_add_events.len(),
             nb_ed_decompress_events: self.ed_decompress_events.len(),
-            // nb_weierstrass_add_events: self.weierstrass_add_events.len(),
-            // nb_weierstrass_double_events: self.weierstrass_double_events.len(),
-            // nb_k256_decompress_events: self.k256_decompress_events.len(),
+            nb_weierstrass_add_events: self.weierstrass_add_events.len(),
+            nb_weierstrass_double_events: self.weierstrass_double_events.len(),
+            nb_k256_decompress_events: self.k256_decompress_events.len(),
         }
     }
 
@@ -498,12 +499,12 @@ impl ExecutionRecord {
         self.ed_add_events.append(&mut other.ed_add_events);
         self.ed_decompress_events
             .append(&mut other.ed_decompress_events);
-        // self.weierstrass_add_events
-        //     .append(&mut other.weierstrass_add_events);
-        // self.weierstrass_double_events
-        //     .append(&mut other.weierstrass_double_events);
-        // self.k256_decompress_events
-        //     .append(&mut other.k256_decompress_events);
+        self.weierstrass_add_events
+            .append(&mut other.weierstrass_add_events);
+        self.weierstrass_double_events
+            .append(&mut other.weierstrass_double_events);
+        self.k256_decompress_events
+            .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
 

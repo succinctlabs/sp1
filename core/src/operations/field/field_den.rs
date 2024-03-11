@@ -3,7 +3,7 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
-use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
 use num::BigUint;
 use p3_field::PrimeField32;
@@ -28,7 +28,7 @@ pub struct FieldDenCols<T, const N: usize, const M: usize> {
 }
 
 impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
-    pub fn populate<P: FieldParameters<N>>(
+    pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
@@ -53,11 +53,12 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
         debug_assert!(carry < p);
         debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
 
-        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
-        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
-        let p_p: Polynomial<F> = P::to_limbs_field::<F>(&p).into();
-        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
+        let p_a: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(a)).into();
+        let p_b: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(b)).into();
+        let p_p: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&p)).into();
+        let p_result: Polynomial<F> =
+            limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result)).into();
+        let p_carry: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&carry)).into();
 
         // Compute the vanishing polynomial.
         let vanishing_poly = if sign {
@@ -85,7 +86,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
 
 impl<V: Copy, const N: usize, const M: usize> FieldDenCols<V, N, M> {
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters<N>>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var, N>,
@@ -133,7 +134,7 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::field::FieldParameters;
+    use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::utils::{BabyBearPoseidon2, StarkUtils};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
@@ -159,12 +160,12 @@ mod tests {
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
 
-    struct FieldDenChip<P: FieldParameters<NUM_LIMBS>> {
+    struct FieldDenChip<P: FieldParameters> {
         pub sign: bool,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters<NUM_LIMBS>> FieldDenChip<P> {
+    impl<P: FieldParameters> FieldDenChip<P> {
         pub fn new(sign: bool) -> Self {
             Self {
                 sign,
@@ -173,7 +174,7 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters<NUM_LIMBS>> MachineAir<F> for FieldDenChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldDenChip<P> {
         fn name(&self) -> String {
             "FieldDen".to_string()
         }
@@ -209,8 +210,8 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
                         row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
+                    cols.a = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(a));
+                    cols.b = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(b));
                     cols.a_den_b.populate::<P>(a, b, self.sign);
                     row
                 })
@@ -226,13 +227,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters<NUM_LIMBS>> BaseAir<F> for FieldDenChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldDenChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters<NUM_LIMBS>> Air<AB> for FieldDenChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FieldDenChip<P>
     where
         AB: SP1AirBuilder,
     {

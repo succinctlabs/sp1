@@ -21,20 +21,20 @@ const NUM_LIMBS: usize = 32;
 /// Secp256k1 curve parameter
 pub struct Secp256k1Parameters;
 
-pub type Secp256k1 = SwCurve<Secp256k1Parameters, NUM_LIMBS>;
+pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 base field parameter
 pub struct Secp256k1BaseField;
 
-impl FieldParameters<NUM_LIMBS> for Secp256k1BaseField {
+impl FieldParameters for Secp256k1BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
     const NB_LIMBS: usize = NUM_LIMBS;
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
-    const MODULUS: [u8; MAX_NB_LIMBS] = [
+    const MODULUS: &'static [u8] = &[
         0x2f, 0xfc, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff,
@@ -44,15 +44,15 @@ impl FieldParameters<NUM_LIMBS> for Secp256k1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
-        BigUint::from_bytes_le(&Self::MODULUS)
+        BigUint::from_bytes_le(Self::MODULUS)
     }
 }
 
-impl EllipticCurveParameters<NUM_LIMBS> for Secp256k1Parameters {
+impl EllipticCurveParameters for Secp256k1Parameters {
     type BaseField = Secp256k1BaseField;
 }
 
-impl WeierstrassParameters<NUM_LIMBS> for Secp256k1Parameters {
+impl WeierstrassParameters for Secp256k1Parameters {
     const A: [u16; MAX_NB_LIMBS] = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(&Secp256k1BaseField::MODULUS),
+            biguint_from_limbs(Secp256k1BaseField::MODULUS),
             Secp256k1BaseField::modulus()
         );
     }

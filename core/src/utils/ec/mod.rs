@@ -2,7 +2,7 @@ pub mod edwards;
 pub mod field;
 pub mod scalar_mul;
 pub mod utils;
-// pub mod weierstrass;
+pub mod weierstrass;
 
 use field::FieldParameters;
 use num::BigUint;
@@ -21,13 +21,13 @@ pub const COMPRESSED_POINT_BYTES: usize = 32;
 pub const NUM_WORDS_EC_POINT: usize = 2 * NUM_WORDS_FIELD_ELEMENT;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AffinePoint<E, const N: usize> {
+pub struct AffinePoint<E> {
     pub x: BigUint,
     pub y: BigUint,
     _marker: std::marker::PhantomData<E>,
 }
 
-impl<E, const N: usize> AffinePoint<E, N> {
+impl<E> AffinePoint<E> {
     #[allow(dead_code)]
     pub fn new(x: BigUint, y: BigUint) -> Self {
         Self {
@@ -55,7 +55,7 @@ impl<E, const N: usize> AffinePoint<E, N> {
         }
     }
 
-    pub fn to_words_le(&self) -> [u32; 16] {
+    pub fn to_words_le<const N: usize>(&self) -> [u32; 16] {
         let mut x_bytes = self.x.to_bytes_le();
         x_bytes.resize(N, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
@@ -80,31 +80,34 @@ impl<E, const N: usize> AffinePoint<E, N> {
     }
 }
 
-pub trait EllipticCurveParameters<const N: usize>:
+pub trait EllipticCurveParameters:
     Debug + Send + Sync + Copy + Serialize + DeserializeOwned + 'static
 {
-    type BaseField: FieldParameters<N>;
+    type BaseField: FieldParameters;
 }
 
 /// An interface for elliptic curve groups.
-pub trait EllipticCurve<const N: usize>: EllipticCurveParameters<N> {
+pub trait EllipticCurve: EllipticCurveParameters {
+    const NB_LIMBS: usize = Self::BaseField::NB_LIMBS;
+
+    const NB_WITNESS_LIMBS: usize = Self::BaseField::NB_WITNESS_LIMBS;
     /// Adds two different points on the curve.
     ///
     /// Warning: This method assumes that the two points are different.
-    fn ec_add(p: &AffinePoint<Self, N>, q: &AffinePoint<Self, N>) -> AffinePoint<Self, N>;
+    fn ec_add(p: &AffinePoint<Self>, q: &AffinePoint<Self>) -> AffinePoint<Self>;
 
     /// Doubles a point on the curve.
-    fn ec_double(p: &AffinePoint<Self, N>) -> AffinePoint<Self, N>;
+    fn ec_double(p: &AffinePoint<Self>) -> AffinePoint<Self>;
 
     /// Returns the generator of the curve group for a curve/subgroup of prime order.
-    fn ec_generator() -> AffinePoint<Self, N>;
+    fn ec_generator() -> AffinePoint<Self>;
 
     /// Returns the neutral element of the curve group, if this element is affine (such as in the
     /// case of the Edwards curve group). Otherwise, returns `None`.
-    fn ec_neutral() -> Option<AffinePoint<Self, N>>;
+    fn ec_neutral() -> Option<AffinePoint<Self>>;
 
     /// Returns the negative of a point on the curve.
-    fn ec_neg(p: &AffinePoint<Self, N>) -> AffinePoint<Self, N>;
+    fn ec_neg(p: &AffinePoint<Self>) -> AffinePoint<Self>;
 
     /// Returns the number of bits needed to represent a scalar in the group.
     fn nb_scalar_bits() -> usize {
@@ -112,42 +115,42 @@ pub trait EllipticCurve<const N: usize>: EllipticCurveParameters<N> {
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Add<&AffinePoint<E, N>> for &AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Add<&AffinePoint<E>> for &AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn add(self, other: &AffinePoint<E, N>) -> AffinePoint<E, N> {
+    fn add(self, other: &AffinePoint<E>) -> AffinePoint<E> {
         E::ec_add(self, other)
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Add<AffinePoint<E, N>> for AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Add<AffinePoint<E>> for AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn add(self, other: AffinePoint<E, N>) -> AffinePoint<E, N> {
+    fn add(self, other: AffinePoint<E>) -> AffinePoint<E> {
         &self + &other
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Add<&AffinePoint<E, N>> for AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Add<&AffinePoint<E>> for AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn add(self, other: &AffinePoint<E, N>) -> AffinePoint<E, N> {
+    fn add(self, other: &AffinePoint<E>) -> AffinePoint<E> {
         &self + other
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Neg for &AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Neg for &AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn neg(self) -> AffinePoint<E, N> {
+    fn neg(self) -> AffinePoint<E> {
         E::ec_neg(self)
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Neg for AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Neg for AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn neg(self) -> AffinePoint<E, N> {
+    fn neg(self) -> AffinePoint<E> {
         -&self
     }
 }

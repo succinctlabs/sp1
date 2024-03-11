@@ -4,6 +4,7 @@ use crate::memory::MemoryCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
+use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_double_event;
@@ -31,6 +32,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use super::NUM_LIMBS;
+use super::NUM_WITNESS_LIMBS;
 
 pub const NUM_WEIERSTRASS_DOUBLE_COLS: usize = size_of::<WeierstrassDoubleAssignCols<u8>>();
 
@@ -46,17 +48,17 @@ pub struct WeierstrassDoubleAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
-    pub(crate) slope_denominator: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) slope_numerator: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) slope: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) p_x_squared: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) p_x_squared_times_3: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) slope_squared: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) p_x_plus_p_x: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) x3_ins: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) p_x_minus_x: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) y3_ins: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) slope_denominator: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) slope_numerator: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) slope: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) p_x_squared: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) p_x_squared_times_3: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) slope_squared: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) p_x_plus_p_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x3_ins: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) p_x_minus_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) y3_ins: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
 }
 
 #[derive(Default)]
@@ -64,9 +66,7 @@ pub struct WeierstrassDoubleAssignChip<E> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>> Syscall
-    for WeierstrassDoubleAssignChip<E>
-{
+impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
         rt.record_mut().weierstrass_double_events.push(event);
@@ -78,9 +78,7 @@ impl<E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>> Syscall
     }
 }
 
-impl<E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>>
-    WeierstrassDoubleAssignChip<E>
-{
+impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -160,7 +158,7 @@ impl<E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>>
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>> MachineAir<F>
+impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassDoubleAssignChip<E>
 {
     fn name(&self) -> String {
@@ -183,7 +181,7 @@ impl<F: PrimeField32, E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LI
 
             // Decode affine points.
             let p = &event.p;
-            let p = AffinePoint::<E, NUM_LIMBS>::from_words_le(p);
+            let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
 
             // Populate basic columns.
@@ -219,16 +217,13 @@ impl<F: PrimeField32, E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LI
     }
 }
 
-impl<F, E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>> BaseAir<F>
-    for WeierstrassDoubleAssignChip<E>
-{
+impl<F, E: EllipticCurve + WeierstrassParameters> BaseAir<F> for WeierstrassDoubleAssignChip<E> {
     fn width(&self) -> usize {
         NUM_WEIERSTRASS_DOUBLE_COLS
     }
 }
 
-impl<AB, E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>> Air<AB>
-    for WeierstrassDoubleAssignChip<E>
+impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassDoubleAssignChip<E>
 where
     AB: SP1AirBuilder,
 {
@@ -236,11 +231,14 @@ where
         let main = builder.main();
         let row: &WeierstrassDoubleAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let p_x = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let p_y = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
+        let p_x: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> =
+            limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let p_y: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> =
+            limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
         // a in the Weierstrass form: y^2 = x^3 + a * x + b.
-        let a = limbs_from_biguint::<AB, E::BaseField>(&E::a_int());
+        let a: Limbs<<AB as AirBuilder>::Expr, NUM_LIMBS> =
+            limbs_from_biguint::<AB, E::BaseField>(&E::a_int());
 
         // slope = slope_numerator / slope_denominator.
         let slope = {

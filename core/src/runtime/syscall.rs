@@ -5,16 +5,16 @@ use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
-// use crate::syscall::precompiles::k256::K256DecompressChip;
+use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-// use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-// use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
+use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
+use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
     SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-// use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -200,19 +200,19 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::KECCAK_PERMUTE,
         Rc::new(KeccakPermuteChip::new()),
     );
-    // syscall_map.insert(
-    //     SyscallCode::SECP256K1_ADD,
-    //     Rc::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
-    // );
-    // syscall_map.insert(
-    //     SyscallCode::SECP256K1_DOUBLE,
-    //     Rc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
-    // );
+    syscall_map.insert(
+        SyscallCode::SECP256K1_ADD,
+        Rc::new(WeierstrassAddAssignChip::<Secp256k1>::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::SECP256K1_DOUBLE,
+        Rc::new(WeierstrassDoubleAssignChip::<Secp256k1>::new()),
+    );
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
-    // syscall_map.insert(
-    //     SyscallCode::SECP256K1_DECOMPRESS,
-    //     Rc::new(K256DecompressChip::new()),
-    // );
+    syscall_map.insert(
+        SyscallCode::SECP256K1_DECOMPRESS,
+        Rc::new(K256DecompressChip::new()),
+    );
     syscall_map.insert(
         SyscallCode::BLAKE3_COMPRESS_INNER,
         Rc::new(Blake3CompressInnerChip::new()),

@@ -3,7 +3,7 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
-use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
@@ -34,7 +34,7 @@ pub struct FieldOpCols<T, const N: usize, const M: usize> {
 }
 
 impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
-    pub fn populate<P: FieldParameters<N>>(
+    pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
@@ -60,7 +60,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
             self.populate::<P>(&result, b, FieldOperation::Add);
-            self.result = P::to_limbs_field::<F>(&result);
+            self.result = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result));
             return result;
         }
 
@@ -77,12 +77,12 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
             self.populate::<P>(&result, b, FieldOperation::Mul);
-            self.result = P::to_limbs_field::<F>(&result);
+            self.result = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result));
             return result;
         }
 
-        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
-        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
+        let p_a: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(a)).into();
+        let p_b: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(b)).into();
 
         // Compute field addition in the integers.
         let modulus = &P::modulus();
@@ -100,9 +100,11 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
         }
 
         // Make little endian polynomial limbs.
-        let p_modulus: Polynomial<F> = P::to_limbs_field::<F>(modulus).into();
-        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
+        let p_modulus: Polynomial<F> =
+            limbs_from_vec::<F, N>(P::to_limbs_field::<F>(modulus)).into();
+        let p_result: Polynomial<F> =
+            limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result)).into();
+        let p_carry: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&carry)).into();
 
         // Compute the vanishing polynomial.
         let p_op = match op {
@@ -133,7 +135,7 @@ impl<V: Copy, const N: usize, const M: usize> FieldOpCols<V, N, M> {
     #[allow(unused_variables)]
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
-        P: FieldParameters<N>,
+        P: FieldParameters,
         A: Into<Polynomial<AB::Expr>> + Clone,
         B: Into<Polynomial<AB::Expr>> + Clone,
     >(
@@ -177,7 +179,7 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::field::FieldParameters;
+    use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
@@ -203,12 +205,12 @@ mod tests {
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
 
-    struct FieldOpChip<P: FieldParameters<NUM_LIMBS>> {
+    struct FieldOpChip<P: FieldParameters> {
         pub operation: FieldOperation,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters<NUM_LIMBS>> FieldOpChip<P> {
+    impl<P: FieldParameters> FieldOpChip<P> {
         pub fn new(operation: FieldOperation) -> Self {
             Self {
                 operation,
@@ -217,7 +219,7 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters<NUM_LIMBS>> MachineAir<F> for FieldOpChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldOpChip<P> {
         fn name(&self) -> String {
             format!("FieldOp{:?}", self.operation)
         }
@@ -253,8 +255,8 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
                         row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
+                    cols.a = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(a));
+                    cols.b = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(b));
                     cols.a_op_b.populate::<P>(a, b, self.operation);
                     row
                 })
@@ -272,13 +274,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters<NUM_LIMBS>> BaseAir<F> for FieldOpChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldOpChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters<NUM_LIMBS>> Air<AB> for FieldOpChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for FieldOpChip<P>
     where
         AB: SP1AirBuilder,
     {

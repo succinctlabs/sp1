@@ -17,8 +17,8 @@ use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::EdwardsParameters;
+use crate::utils::ec::field::limbs_from_vec;
 use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::EllipticCurveParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
@@ -82,7 +82,7 @@ pub struct EdDecompressCols<T> {
 }
 
 impl<F: PrimeField32> EdDecompressCols<F> {
-    pub fn populate<P: FieldParameters<NUM_LIMBS>, E: EdwardsParameters>(
+    pub fn populate<P: FieldParameters, E: EdwardsParameters>(
         &mut self,
         event: EdDecompressEvent,
         record: &mut ExecutionRecord,
@@ -103,10 +103,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         record.add_field_events(&new_field_events);
     }
 
-    fn populate_field_ops<P: FieldParameters<NUM_LIMBS>, E: EdwardsParameters>(
-        &mut self,
-        y: &BigUint,
-    ) {
+    fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
         let one = BigUint::one();
         let yy = self.yy.populate::<P>(y, y, FieldOperation::Mul);
         let u = self.u.populate::<P>(&yy, &one, FieldOperation::Sub);
@@ -122,7 +119,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
 }
 
 impl<V: Copy> EdDecompressCols<V> {
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters<NUM_LIMBS>, E: EdwardsParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters, E: EdwardsParameters>(
         &self,
         builder: &mut AB,
     ) where
@@ -143,9 +140,8 @@ impl<V: Copy> EdDecompressCols<V> {
             FieldOperation::Sub,
         );
         let d_biguint = E::d_biguint();
-        let d_const = <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField::to_limbs_field::<AB::F>(
-            &d_biguint,
-        );
+        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
+        let d_const = limbs_from_vec::<AB::F, NUM_LIMBS>(d_const);
         self.dyy
             .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
         self.v.eval::<AB, P, _, _>(
@@ -296,7 +292,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             let event = input.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, E>(event, output);
+            cols.populate::<E::BaseField, E>(event, output);
 
             rows.push(row);
         }
@@ -305,9 +301,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            cols.populate_field_ops::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, E>(
-                &zero,
-            );
+            cols.populate_field_ops::<E::BaseField, E>(&zero);
             row
         });
 
@@ -331,7 +325,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let row: &EdDecompressCols<AB::Var> = main.row_slice(0).borrow();
-        row.eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, E>(builder);
+        row.eval::<AB, E::BaseField, E>(builder);
     }
 }
 

@@ -6,7 +6,7 @@ use super::utils::biguint_to_bits_le;
 use super::AffinePoint;
 use super::EllipticCurve;
 
-impl<E: EllipticCurve<N>, const N: usize> AffinePoint<E, N> {
+impl<E: EllipticCurve> AffinePoint<E> {
     pub fn scalar_mul(&self, scalar: &BigUint) -> Self {
         let power_two_modulus = BigUint::one() << E::nb_scalar_bits();
         let scalar = scalar % &power_two_modulus;
@@ -23,26 +23,26 @@ impl<E: EllipticCurve<N>, const N: usize> AffinePoint<E, N> {
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Mul<&BigUint> for &AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Mul<&BigUint> for &AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn mul(self, scalar: &BigUint) -> AffinePoint<E, N> {
+    fn mul(self, scalar: &BigUint) -> AffinePoint<E> {
         self.scalar_mul(scalar)
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Mul<BigUint> for &AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Mul<BigUint> for &AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn mul(self, scalar: BigUint) -> AffinePoint<E, N> {
+    fn mul(self, scalar: BigUint) -> AffinePoint<E> {
         self.scalar_mul(&scalar)
     }
 }
 
-impl<E: EllipticCurve<N>, const N: usize> Mul<BigUint> for AffinePoint<E, N> {
-    type Output = AffinePoint<E, N>;
+impl<E: EllipticCurve> Mul<BigUint> for AffinePoint<E> {
+    type Output = AffinePoint<E>;
 
-    fn mul(self, scalar: BigUint) -> AffinePoint<E, N> {
+    fn mul(self, scalar: BigUint) -> AffinePoint<E> {
         self.scalar_mul(&scalar)
     }
 }

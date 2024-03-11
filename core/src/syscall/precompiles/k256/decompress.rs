@@ -9,10 +9,12 @@ use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
+use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
+use crate::utils::ec::field::limbs_from_vec;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
@@ -44,6 +46,7 @@ use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 use super::NUM_LIMBS;
+use super::NUM_WITNESS_LIMBS;
 
 #[derive(Debug, Clone, Copy)]
 pub struct K256DecompressEvent {
@@ -146,11 +149,11 @@ pub struct K256DecompressCols<T> {
     pub ptr: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) x_2: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) x_3: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) x_3_plus_b: FieldOpCols<T, NUM_LIMBS>,
-    pub(crate) y: FieldSqrtCols<T, NUM_LIMBS>,
-    pub(crate) neg_y: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) x_2: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x_3: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x_3_plus_b: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) y: FieldSqrtCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) neg_y: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
     pub(crate) y_least_bits: [T; 8],
 }
 
@@ -208,7 +211,7 @@ impl<V: Copy> K256DecompressCols<V> {
         let should_be_odd: AB::Expr = self.y_access[0].prev_value[0].into();
         builder.assert_bool(should_be_odd.clone());
 
-        let x = limbs_from_prev_access(&self.x_access);
+        let x: Limbs<V, NUM_LIMBS> = limbs_from_prev_access(&self.x_access);
         self.x_2
             .eval::<AB, Secp256k1BaseField, _, _>(builder, &x, &x, FieldOperation::Mul);
         self.x_3.eval::<AB, Secp256k1BaseField, _, _>(
@@ -219,6 +222,7 @@ impl<V: Copy> K256DecompressCols<V> {
         );
         let b = Secp256k1Parameters::b_int();
         let b_const = Secp256k1BaseField::to_limbs_field::<AB::F>(&b);
+        let b_const = limbs_from_vec::<AB::F, NUM_LIMBS>(b_const);
         self.x_3_plus_b.eval::<AB, Secp256k1BaseField, _, _>(
             builder,
             &self.x_3.result,
@@ -255,7 +259,7 @@ impl<V: Copy> K256DecompressCols<V> {
 
         // When y_is_odd == should_be_odd, result is y
         // Equivalent: y_is_odd != !should_be_odd
-        let y_limbs = limbs_from_access(&self.y_access);
+        let y_limbs: Limbs<V, NUM_LIMBS> = limbs_from_access(&self.y_access);
         builder
             .when(self.is_real)
             .when_ne(y_is_odd.into(), AB::Expr::one() - should_be_odd.clone())

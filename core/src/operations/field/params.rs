@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn test_modulus() {
         // Convert the MODULUS array to BigUint
-        let array_modulus = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
+        let array_modulus = BigUint::from_bytes_le(Ed25519BaseField::MODULUS);
 
         // Get the modulus from the function
         let func_modulus = Ed25519BaseField::modulus();

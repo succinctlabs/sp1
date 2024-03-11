@@ -1,7 +1,7 @@
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
-use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
 use num::BigUint;
 use p3_field::PrimeField32;
@@ -24,7 +24,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldSqrtCols<F, N, M> {
     /// Populates the trace.
     ///
     /// `P` is the parameter of the field that each limb lives in.
-    pub fn populate<P: FieldParameters<N>>(
+    pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
@@ -41,7 +41,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldSqrtCols<F, N, M> {
 
         // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
-        self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
+        self.multiplication.result = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&sqrt));
 
         sqrt
     }
@@ -49,7 +49,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldSqrtCols<F, N, M> {
 
 impl<V: Copy, const N: usize, const M: usize> FieldSqrtCols<V, N, M> {
     /// Calculates the square root of `a`.
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters<N>>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var, N>,
@@ -84,7 +84,7 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
-    use crate::utils::ec::field::FieldParameters;
+    use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
@@ -108,11 +108,11 @@ mod tests {
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
 
-    struct EdSqrtChip<P: FieldParameters<NUM_LIMBS>> {
+    struct EdSqrtChip<P: FieldParameters> {
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters<NUM_LIMBS>> EdSqrtChip<P> {
+    impl<P: FieldParameters> EdSqrtChip<P> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -120,7 +120,7 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters<NUM_LIMBS>> MachineAir<F> for EdSqrtChip<P> {
+    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
@@ -151,7 +151,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
                         row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
+                    cols.a = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(a));
                     cols.sqrt.populate::<P>(a, ed25519_sqrt);
                     row
                 })
@@ -169,13 +169,13 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters<NUM_LIMBS>> BaseAir<F> for EdSqrtChip<P> {
+    impl<F: Field, P: FieldParameters> BaseAir<F> for EdSqrtChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters<NUM_LIMBS>> Air<AB> for EdSqrtChip<P>
+    impl<AB, P: FieldParameters> Air<AB> for EdSqrtChip<P>
     where
         AB: SP1AirBuilder,
     {
