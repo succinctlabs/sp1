@@ -794,7 +794,7 @@ impl Runtime {
         }
 
         tracing::info!(
-            "finished execution clk ={} pc =0x{:x?}",
+            "finished execution clk = {} pc = 0x{:x?}",
             self.state.global_clk,
             self.state.pc
         );
