@@ -4,11 +4,11 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use core::borrow::{Borrow, BorrowMut};
+use core::borrow::Borrow;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrowWithGenerics;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::usize;
 
@@ -23,7 +23,7 @@ pub enum FieldOperation {
 /// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrowWithGenerics)]
+#[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldOpCols<T, const N: usize, const M: usize> {
     /// The result of `a op b`, where a, b are field elements
@@ -189,9 +189,9 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use sp1_derive::AlignedBorrowWithGenerics;
+    use sp1_derive::AlignedBorrow;
 
-    #[derive(AlignedBorrowWithGenerics, Debug, Clone)]
+    #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T, const N: usize, const M: usize> {
         pub a: Limbs<T, N>,
         pub b: Limbs<T, N>,

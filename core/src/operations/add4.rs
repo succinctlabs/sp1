@@ -5,7 +5,6 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
-use std::mem::size_of;
 
 use crate::air::SP1AirBuilder;
 use crate::air::Word;

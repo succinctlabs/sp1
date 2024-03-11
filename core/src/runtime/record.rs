@@ -14,7 +14,7 @@ use crate::syscall::precompiles::edwards::EdDecompressEvent;
 // use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
-use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
+use crate::syscall::precompiles::ECAddEvent;
 use crate::utils::env;
 
 /// A record of the execution of a program. Contains event data for everything that happened during

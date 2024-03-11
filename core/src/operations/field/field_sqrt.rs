@@ -2,15 +2,15 @@ use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use core::borrow::{Borrow, BorrowMut};
+use core::borrow::Borrow;
 use num::BigUint;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrowWithGenerics;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
 /// limb lives.
-#[derive(Debug, Clone, AlignedBorrowWithGenerics)]
+#[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldSqrtCols<T, const N: usize, const M: usize> {
     /// The multiplication operation to verify that the sqrt and the input match.
@@ -96,8 +96,8 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use sp1_derive::AlignedBorrowWithGenerics;
-    #[derive(AlignedBorrowWithGenerics, Debug, Clone)]
+    use sp1_derive::AlignedBorrow;
+    #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T, const N: usize, const M: usize> {
         pub a: Limbs<T, N>,
         pub sqrt: FieldSqrtCols<T, N, M>,

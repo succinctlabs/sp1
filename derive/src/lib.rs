@@ -28,69 +28,89 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
 use syn::Data;
+use syn::DeriveInput;
+use syn::GenericParam;
 use syn::ItemFn;
 
 #[proc_macro_derive(AlignedBorrow)]
 pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
-
-    // Get struct name from ast
+    let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
-    let methods = quote! {
-        impl<T> Borrow<#name<T>> for [T] {
-            fn borrow(&self) -> &#name<T> {
-                debug_assert_eq!(self.len(), size_of::<#name<u8>>());
-                let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<T>>() };
-                debug_assert!(prefix.is_empty(), "Alignment should match");
-                debug_assert_eq!(shorts.len(), 1);
-                &shorts[0]
+
+    // Separate type generics and const generics
+    let type_generic = ast
+        .generics
+        .params
+        .iter()
+        .find_map(|param| {
+            if let GenericParam::Type(type_param) = param {
+                Some(&type_param.ident)
+            } else {
+                None
+            }
+        })
+        .expect("Expected at least one type generic");
+
+    let const_generics = ast
+        .generics
+        .params
+        .iter()
+        .filter_map(|param| {
+            if let GenericParam::Const(const_param) = param {
+                Some(&const_param.ident)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let methods = if const_generics.is_empty() {
+        quote! {
+            impl<#type_generic> Borrow<#name<#type_generic>> for [#type_generic] {
+                fn borrow(&self) -> &#name<#type_generic> {
+                    debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8>>());
+                    let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<#type_generic>>() };
+                    debug_assert!(prefix.is_empty(), "Alignment should match");
+                    debug_assert_eq!(shorts.len(), 1);
+                    &shorts[0]
+                }
+            }
+
+            impl<#type_generic> BorrowMut<#name<#type_generic>> for [#type_generic] {
+                fn borrow_mut(&mut self) -> &mut #name<#type_generic> {
+                    debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8>>());
+                    let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<#type_generic>>() };
+                    debug_assert!(prefix.is_empty(), "Alignment should match");
+                    debug_assert_eq!(shorts.len(), 1);
+                    &mut shorts[0]
+                }
             }
         }
+    } else {
+        quote! {
+            impl<#type_generic #(, const #const_generics: usize)*> Borrow<#name<#type_generic #(, #const_generics)*>> for [#type_generic] {
+                fn borrow(&self) -> &#name<#type_generic #(, #const_generics)*> {
+                    debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #const_generics)*>>());
+                    let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<#type_generic #(, #const_generics)*>>() };
+                    debug_assert!(prefix.is_empty(), "Alignment should match");
+                    debug_assert_eq!(shorts.len(), 1);
+                    &shorts[0]
+                }
+            }
 
-        impl<T> BorrowMut<#name<T>> for [T] {
-            fn borrow_mut(&mut self) -> &mut #name<T> {
-                debug_assert_eq!(self.len(), size_of::<#name<u8>>());
-                let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<T>>() };
-                debug_assert!(prefix.is_empty(), "Alignment should match");
-                debug_assert_eq!(shorts.len(), 1);
-                &mut shorts[0]
+            impl<#type_generic #(, const #const_generics: usize)*> std::borrow::BorrowMut<#name<#type_generic #(, #const_generics)*>> for [#type_generic] {
+                fn borrow_mut(&mut self) -> &mut #name<#type_generic #(, #const_generics)*> {
+                    debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #const_generics)*>>());
+                    let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<#type_generic #(, #const_generics)*>>() };
+                    debug_assert!(prefix.is_empty(), "Alignment should match");
+                    debug_assert_eq!(shorts.len(), 1);
+                    &mut shorts[0]
+                }
             }
         }
     };
 
-    methods.into()
-}
-
-#[proc_macro_derive(AlignedBorrowWithGenerics)]
-pub fn aligned_borrow_derive_with_generics(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
-
-    // Get struct name from ast
-    let name = &ast.ident;
-
-    let methods = quote! {
-        impl<T, const N: usize, const M: usize> Borrow<#name<T, N, M>> for [T] {
-            fn borrow(&self) -> &#name<T, N, M> {
-                debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8, N, M>>());
-                let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<T, N, M>>() };
-                debug_assert!(prefix.is_empty(), "Alignment should match");
-                debug_assert_eq!(shorts.len(), 1);
-                &shorts[0]
-            }
-        }
-
-        impl<T, const N: usize, const M: usize> BorrowMut<#name<T, N, M>> for [T] {
-            fn borrow_mut(&mut self) -> &mut #name<T, N, M> {
-                debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8, N, M>>());
-                let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<T, N, M>>() };
-                debug_assert!(prefix.is_empty(), "Alignment should match");
-                debug_assert_eq!(shorts.len(), 1);
-                &mut shorts[0]
-            }
-        }
-    };
-
-    methods.into()
+    TokenStream::from(methods)
 }
 
 #[proc_macro_derive(MachineAir)]
