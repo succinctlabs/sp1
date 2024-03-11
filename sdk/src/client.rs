@@ -9,7 +9,7 @@ use reqwest::{
 };
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::{de::DeserializeOwned, Serialize};
-use sp1_core::{stark::StarkGenericConfig, utils::BabyBearBlake3, SP1ProofWithIO};
+use sp1_core::{stark::StarkGenericConfig, SP1ProofWithIO};
 use twirp::Client as TwirpClient;
 
 use crate::proto::prover::{
@@ -28,6 +28,8 @@ impl Default for SP1ProverClient {
     }
 }
 
+const DEFAULT_SP1_SERVICE_URL: &str = "https://rpc.succinct.xyz/";
+
 impl SP1ProverClient {
     pub fn new() -> Self {
         let mut headers = HeaderMap::new();
@@ -43,7 +45,7 @@ impl SP1ProverClient {
             .build()
             .unwrap();
 
-        let rpc_url = env::var("SP1_SERVICE_URL").unwrap_or("http://localhost:3000/".to_string());
+        let rpc_url = env::var("SP1_SERVICE_URL").unwrap_or(DEFAULT_SP1_SERVICE_URL.to_string());
         let rpc =
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 

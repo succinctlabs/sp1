@@ -13,7 +13,6 @@ use serde::Serialize;
 use sp1_core::stark::OpeningProof;
 use sp1_core::stark::ShardMainData;
 use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils::BabyBearBlake3;
 use sp1_core::utils::StarkUtils;
 use sp1_core::SP1ProofWithIO;
 use sp1_core::SP1Prover;
