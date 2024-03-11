@@ -13,8 +13,8 @@ use sp1_core::{stark::StarkGenericConfig, utils::BabyBearBlake3, SP1ProofWithIO}
 use twirp::Client as TwirpClient;
 
 use crate::proto::prover::{
-    CreateProofRequest, GetProofStatusRequest, ProofStatus, Sp1ProverServiceClient,
-    SubmitProofRequest,
+    CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, ProofStatus,
+    Sp1ProverServiceClient, SubmitProofRequest,
 };
 
 pub struct SP1ProverClient {
@@ -43,8 +43,7 @@ impl SP1ProverClient {
             .build()
             .unwrap();
 
-        let rpc_url = env::var("SP1_SERVICE_URL")
-            .unwrap_or("http://localhost:3000/proto/prover/".to_string());
+        let rpc_url = env::var("SP1_SERVICE_URL").unwrap_or("http://localhost:3000/".to_string());
         let rpc =
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 
@@ -94,7 +93,7 @@ impl SP1ProverClient {
     pub async fn get_proof_status<SC: StarkGenericConfig + Serialize + DeserializeOwned>(
         &self,
         proof_id: &str,
-    ) -> Result<(ProofStatus, Option<SP1ProofWithIO<SC>>)> {
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithIO<SC>>)> {
         let res = self
             .rpc
             .get_proof_status(GetProofStatusRequest {
@@ -115,6 +114,6 @@ impl SP1ProverClient {
             None
         };
 
-        Ok((res.status(), result))
+        Ok((res, result))
     }
 }

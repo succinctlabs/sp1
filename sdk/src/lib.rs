@@ -2,6 +2,7 @@ pub mod proto {
     pub mod prover;
 }
 pub mod client;
+mod util;
 
 use crate::client::SP1ProverClient;
 use anyhow::{Ok, Result};
@@ -19,33 +20,11 @@ use sp1_core::SP1Prover;
 use sp1_core::SP1Stdin;
 use std::time::Duration;
 use tokio::time::sleep;
+use util::StageProgressBar;
 
 pub struct SP1SDKProver;
 
 impl SP1SDKProver {
-    /// Generate a proof for the execution of the ELF with the given public inputs.
-    pub fn prove(elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearBlake3>> {
-        if std::env::var("SP1_SERVICE_ACCESS_TOKEN").is_ok() {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async move {
-                    let client = SP1ProverClient::new();
-                    let id = client.create_proof(elf, &stdin.buffer.data).await?;
-
-                    loop {
-                        let status = client.get_proof_status(&id).await?;
-                        if let Some(result) = status.1 {
-                            return Ok(result);
-                        }
-                        sleep(Duration::from_secs(10)).await;
-                    }
-                })
-            })
-        } else {
-            let result = SP1Prover::prove(elf, stdin)?;
-            Ok(result)
-        }
-    }
-
     pub fn prove_with_config<SC>(
         elf: &[u8],
         stdin: SP1Stdin,
@@ -66,12 +45,22 @@ impl SP1SDKProver {
                     let client = SP1ProverClient::new();
                     let id = client.create_proof(elf, &stdin.buffer.data).await?;
 
+                    let mut pb = StageProgressBar::new();
                     loop {
-                        let status = client.get_proof_status(&id).await?;
-                        if let Some(result) = status.1 {
-                            return Ok(result);
+                        let status = client.get_proof_status(&id).await;
+                        if let std::result::Result::Ok(status) = status {
+                            if let Some(result) = status.1 {
+                                pb.finish();
+                                return Ok(result);
+                            }
+                            pb.update(
+                                status.0.stage,
+                                status.0.total_stages,
+                                &status.0.stage_name,
+                                status.0.stage_percent,
+                            );
                         }
-                        sleep(Duration::from_secs(10)).await;
+                        sleep(Duration::from_secs(1)).await;
                     }
                 })
             })
