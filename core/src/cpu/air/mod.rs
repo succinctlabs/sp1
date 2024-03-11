@@ -13,7 +13,7 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
-use crate::runtime::{AccessPosition, Opcode};
+use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -50,7 +50,7 @@ where
         // If they are not immediates, read `b` and `c` from memory.
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
@@ -61,7 +61,7 @@ where
 
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
@@ -74,7 +74,7 @@ where
         // we are performing a branch or a store.
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
             AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
@@ -90,7 +90,7 @@ where
         let memory_columns = local.opcode_specific_columns.memory();
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
             is_memory_instruction.clone(),

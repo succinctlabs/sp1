@@ -117,7 +117,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         "Mul".to_string()
     }
 
-    #[instrument(name = "generate mul trace", skip_all)]
+    #[instrument(name = "generate mul trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

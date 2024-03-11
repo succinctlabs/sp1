@@ -1,5 +1,4 @@
-use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
-
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use p3_keccak_air::KeccakAir;
 use serde::{Deserialize, Serialize};
 

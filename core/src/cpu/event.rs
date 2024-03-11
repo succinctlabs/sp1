@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::Instruction;
-
-use super::memory::MemoryRecordEnum;
+use crate::runtime::MemoryRecordEnum;
 
 /// A standard format for describing CPU operations that need to be proven.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
