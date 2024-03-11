@@ -53,7 +53,7 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         offset
     }
 
-    fn alloc(&mut self, size: Int) -> Int {
+    fn alloc(&mut self, _size: Int) -> Int {
         todo!()
     }
 
