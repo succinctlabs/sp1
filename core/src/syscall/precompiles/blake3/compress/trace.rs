@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 
-use crate::cpu::MemoryRecordEnum;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryRecordEnum;
 use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
 use crate::utils::pad_rows;

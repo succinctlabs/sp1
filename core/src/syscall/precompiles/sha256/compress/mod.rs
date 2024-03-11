@@ -1,4 +1,4 @@
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use serde::{Deserialize, Serialize};
 
 mod air;

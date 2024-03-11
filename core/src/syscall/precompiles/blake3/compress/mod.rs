@@ -25,7 +25,7 @@ mod columns;
 mod execute;
 mod g;
 mod trace;
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 
 use serde::{Deserialize, Serialize};
 
