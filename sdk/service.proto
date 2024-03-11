@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package prover;
+
+service SP1ProverService {
+  rpc CreateProof(CreateProofRequest) returns (CreateProofResponse) {}
+  rpc SubmitProof(SubmitProofRequest) returns (SubmitProofResponse) {}
+  rpc GetProofStatus(GetProofStatusRequest) returns (GetProofStatusResponse) {}
+}
+
+enum ProofStatus {
+    UNSPECIFIED_STATUS = 0;
+    CREATED = 1;
+    PENDING = 2;
+    RUNNING = 3;
+    SUCCEEDED = 4;
+    FAILED = 5;
+}
+
+message CreateProofRequest {
+}
+
+message CreateProofResponse {
+  string id = 1;
+  string program_put_url = 2;
+  string stdin_put_url = 3;
+}
+
+message SubmitProofRequest {
+  string id = 1;
+}
+
+message SubmitProofResponse {
+}
+
+message GetProofStatusRequest {
+  string id = 1;
+}
+
+message GetProofStatusResponse {
+  ProofStatus status = 1;
+  string result_get_url = 2;
+}

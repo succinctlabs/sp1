@@ -7,7 +7,7 @@ members = [
     "helper",
     "eval",
     "recursion/core",
-    "recursion/compiler",
+    "recursion/compiler", "sdk",
 ]
 exclude = ["examples/target"]
 resolver = "2"
