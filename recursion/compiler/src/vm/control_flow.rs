@@ -1,6 +1,7 @@
 use super::BasicBlock;
 use super::VmBuilder;
 use crate::syn::BaseBuilder;
+use crate::syn::Builder;
 use crate::vm::Int;
 
 use crate::vm::AsmInstruction;

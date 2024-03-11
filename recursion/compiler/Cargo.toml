@@ -8,7 +8,12 @@ edition = "2021"
 [dependencies]
 p3-field = { workspace = true }
 sp1-recursion-core = { path = "../core" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", optional = true }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
 sp1-core = { path = "../../core" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
+
+[features]
+default = ["plonky2x"]

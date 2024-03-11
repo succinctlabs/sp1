@@ -3,6 +3,8 @@ use super::Felt;
 use super::Int;
 use super::VmBuilder;
 use crate::syn::BaseBuilder;
+use crate::syn::Builder;
+use crate::syn::ConstantSizeLoopIterBuilder;
 use p3_field::AbstractField;
 
 use super::AsmInstruction;
@@ -76,5 +78,32 @@ impl<'a, B: VmBuilder> ForVmBuilder<'a, B> {
         let label = self.block_label();
         let instr = AsmInstruction::j(label, self);
         self.push_to_block(loop_call_label, instr);
+    }
+}
+
+impl<'a, B: VmBuilder> VmBuilder for ConstantSizeLoopIterBuilder<'a, B> {
+    type F = B::F;
+    fn get_mem(&mut self, size: usize) -> i32 {
+        self.builder.get_mem(size)
+    }
+
+    fn alloc(&mut self, size: Int) -> Int {
+        self.builder.alloc(size)
+    }
+
+    fn push(&mut self, instruction: AsmInstruction<B::F>) {
+        self.builder.push(instruction);
+    }
+
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F> {
+        self.builder.get_block_mut(label)
+    }
+
+    fn basic_block(&mut self) {
+        self.builder.basic_block();
+    }
+
+    fn block_label(&mut self) -> B::F {
+        self.builder.block_label()
     }
 }

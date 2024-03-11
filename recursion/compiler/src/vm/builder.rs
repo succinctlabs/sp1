@@ -16,7 +16,6 @@ use crate::vm::AsmInstruction;
 
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
-use crate::syn::Expression;
 use crate::vm::Felt;
 
 pub trait VmBuilder: BaseBuilder {
@@ -46,16 +45,6 @@ pub trait VmBuilder: BaseBuilder {
         let var = T::uninit(self);
         var.imm(value, self);
         var
-    }
-
-    fn assign<E: Expression<Self>>(&mut self, dst: E::Value, expr: E) {
-        expr.assign(dst, self);
-    }
-
-    fn eval<E: Expression<Self>>(&mut self, expr: E) -> E::Value {
-        let dst = E::Value::uninit(self);
-        expr.assign(dst, self);
-        dst
     }
 
     fn range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForVmBuilder<Self> {
