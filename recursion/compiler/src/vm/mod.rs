@@ -1,13 +1,13 @@
 mod builder;
 mod code;
-mod conditional;
+mod control_flow;
 mod instruction;
 mod ir;
 mod loops;
 
 pub use builder::*;
 pub use code::*;
-pub use conditional::*;
+pub use control_flow::*;
 pub use instruction::*;
 pub use ir::*;
 pub use loops::*;

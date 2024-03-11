@@ -31,7 +31,7 @@ impl<B: BaseBuilder> IntoIterator<B> for Range<usize> {
 /// By default, these loops will be unrolled by the compiler.
 pub struct ConstantSizeLoopIterBuilder<'a, B> {
     range: Range<usize>,
-    builder: &'a mut B,
+    pub(crate) builder: &'a mut B,
 }
 
 impl<'a, B: BaseBuilder> BaseBuilder for ConstantSizeLoopIterBuilder<'a, B> {}

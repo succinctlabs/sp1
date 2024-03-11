@@ -10,7 +10,7 @@ pub trait IfBuilder {
 // A constant boolean condition which can be evaluated in compile time.
 pub struct ConstantCondition<'a, B> {
     condition: bool,
-    builder: &'a mut B,
+    pub(crate) builder: &'a mut B,
 }
 
 impl<'a, B: BaseBuilder> BaseBuilder for ConstantCondition<'a, B> {}

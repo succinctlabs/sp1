@@ -10,6 +10,6 @@ pub mod util;
 pub mod vm;
 
 pub mod prelude {
-    // pub use crate::syn::*;
+    pub use crate::syn::*;
     pub use crate::vm::*;
 }
