@@ -150,6 +150,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         });
 
         // Verify the segment proofs.
+        tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
@@ -161,7 +162,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        log::info!("verified proof!");
+        tracing::info!("success");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
