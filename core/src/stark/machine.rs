@@ -94,7 +94,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         });
 
         // Display some statistics about the workload.
-        tracing::info!("execution record stats: {:#?}", record.stats());
+        let stats = record.stats();
+        for (k, v) in stats {
+            log::info!("{} = {}", k, v);
+        }
 
         // For each chip, shard the events into segments.
         record.shard(config)
@@ -157,8 +160,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
-            log::info!("verified shard {}", i);
         }
+        log::info!("verified shards");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();

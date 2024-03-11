@@ -792,8 +792,9 @@ impl Runtime {
                 self.state.clk = 0;
             }
         }
+
         tracing::info!(
-            "finished execution clk={} pc=0x{:x?}",
+            "finished execution clk ={} pc =0x{:x?}",
             self.state.global_clk,
             self.state.pc
         );

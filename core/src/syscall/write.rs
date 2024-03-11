@@ -60,7 +60,7 @@ impl Syscall for SyscallWrite {
                     if !flush_s.is_empty() {
                         flush_s
                             .into_iter()
-                            .for_each(|line| println!("[stdout] {}", line));
+                            .for_each(|line| println!("stdout: {}", line));
                     }
                 }
             } else if fd == 2 {
@@ -69,7 +69,7 @@ impl Syscall for SyscallWrite {
                 if !flush_s.is_empty() {
                     flush_s
                         .into_iter()
-                        .for_each(|line| println!("[stderr] {}", line));
+                        .for_each(|line| println!("stderr: {}", line));
                 }
             } else if fd == 3 {
                 rt.state.output_stream.extend_from_slice(slice);

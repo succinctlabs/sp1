@@ -88,6 +88,9 @@ where
             });
         });
 
+        let finished = AtomicU32::new(0);
+        let total = shards.len() as u32;
+
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
@@ -95,10 +98,8 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
-        let finished = AtomicU32::new(0);
-        let total = shard_data_chunks.len() as u32;
         log::info!("open shards");
-        let shard_proofs = tracing::info_span!("open shards").in_scope(|| {
+        let shard_proofs = tracing::debug_span!("open shards").in_scope(|| {
             shard_data_chunks
                 .into_par_iter()
                 .zip(shard_chunks.into_par_iter())
@@ -494,8 +495,8 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
-        let (commitments, shard_main_data): (Vec<_>, Vec<_>) = tracing::info_span!("commit shards")
-            .in_scope(|| {
+        let (commitments, shard_main_data): (Vec<_>, Vec<_>) =
+            tracing::debug_span!("commit shards").in_scope(|| {
                 let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
                     .par_chunks(chunk_size)
