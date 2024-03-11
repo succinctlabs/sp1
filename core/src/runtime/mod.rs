@@ -8,26 +8,27 @@ mod register;
 mod state;
 mod syscall;
 
-use crate::utils::env;
-use crate::{alu::AluEvent, cpu::CpuEvent};
-use hashbrown::hash_map::Entry;
 pub use instruction::*;
 pub use memory::*;
-use nohash_hasher::BuildNoHashHasher;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use state::*;
+pub use syscall::*;
+
+use self::state::ExecutionState;
+use crate::utils::env;
+use crate::{alu::AluEvent, cpu::CpuEvent};
+
+use hashbrown::hash_map::Entry;
+use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
-pub use syscall::*;
-
-use self::state::ExecutionState;
 
 /// An implementation of a runtime for the SP1 VM.
 ///
@@ -47,7 +48,7 @@ pub struct Runtime {
     pub record: ExecutionRecord,
 
     /// The record for the current CPU opcode containing relevant events.
-    pub cpu_record: CpuRecord,
+    pub memory_access_record: MemoryAccessRecord,
 
     /// The maximum size of each shard.
     pub shard_size: u32,
@@ -94,7 +95,7 @@ impl Runtime {
             record,
             state: ExecutionState::new(program_arc.pc_start),
             program: program_arc,
-            cpu_record: CpuRecord::default(),
+            memory_access_record: MemoryAccessRecord::default(),
             shard_size: env::shard_size() as u32 * 4,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
@@ -112,7 +113,7 @@ impl Runtime {
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
-                Some((value, _, _)) => *value,
+                Some(record) => record.value,
                 None => 0,
             };
         }
@@ -123,7 +124,7 @@ impl Runtime {
     pub fn register(&self, register: Register) -> u32 {
         let addr = register as u32;
         match self.state.memory.get(&addr) {
-            Some((value, _, _)) => *value,
+            Some(record) => record.value,
             None => 0,
         }
     }
@@ -131,7 +132,7 @@ impl Runtime {
     /// Get the current value of a word.
     pub fn word(&self, addr: u32) -> u32 {
         match self.state.memory.get(&addr) {
-            Some((value, _, _)) => *value,
+            Some(record) => record.value,
             None => 0,
         }
     }
@@ -188,10 +189,12 @@ impl Runtime {
                 .or_insert(prev_value.copied());
         }
         // If it's the first time accessing this address, initialize previous values as zero.
-        let entry_value = memory_entry.or_insert((0, 0, 0));
+        let entry_value = memory_entry.or_default();
         // Get the last time this memory address was accessed, and then update with current clock.
-        let (value, prev_shard, prev_timestamp) = *entry_value;
-        (entry_value.1, entry_value.2) = (shard, clk);
+        let value = entry_value.value;
+        let prev_shard = entry_value.shard;
+        let prev_timestamp = entry_value.timestamp;
+        (entry_value.shard, entry_value.timestamp) = (shard, clk);
 
         MemoryReadRecord::new(value, shard, clk, prev_shard, prev_timestamp)
     }
@@ -212,10 +215,15 @@ impl Runtime {
                 .or_insert(prev_value.copied());
         }
         // If it's the first time accessing this address, initialize previous values as zero.
-        let entry_value = memory_entry.or_insert((0, 0, 0));
+        let entry_value = memory_entry.or_default();
         // Get previous values and then update with new values.
-        let (prev_value, prev_shard, prev_timestamp) = *entry_value;
-        *entry_value = (value, shard, clk);
+        // let (prev_value, prev_shard, prev_timestamp) = *entry_value;
+        let prev_value = entry_value.value;
+        let prev_shard = entry_value.shard;
+        let prev_timestamp = entry_value.timestamp;
+        entry_value.value = value;
+        entry_value.shard = shard;
+        entry_value.timestamp = clk;
         MemoryWriteRecord::new(value, shard, clk, prev_value, prev_shard, prev_timestamp)
     }
 
@@ -231,10 +239,10 @@ impl Runtime {
 
         if !self.unconstrained {
             match position {
-                AccessPosition::A => self.cpu_record.a = Some(record.into()),
-                AccessPosition::B => self.cpu_record.b = Some(record.into()),
-                AccessPosition::C => self.cpu_record.c = Some(record.into()),
-                AccessPosition::Memory => self.cpu_record.memory = Some(record.into()),
+                AccessPosition::A => self.memory_access_record.a = Some(record.into()),
+                AccessPosition::B => self.memory_access_record.b = Some(record.into()),
+                AccessPosition::C => self.memory_access_record.c = Some(record.into()),
+                AccessPosition::Memory => self.memory_access_record.memory = Some(record.into()),
             }
         }
         record.value
@@ -255,20 +263,20 @@ impl Runtime {
         if !self.unconstrained {
             match position {
                 AccessPosition::A => {
-                    assert!(self.cpu_record.a.is_none());
-                    self.cpu_record.a = Some(record.into());
+                    assert!(self.memory_access_record.a.is_none());
+                    self.memory_access_record.a = Some(record.into());
                 }
                 AccessPosition::B => {
-                    assert!(self.cpu_record.b.is_none());
-                    self.cpu_record.b = Some(record.into());
+                    assert!(self.memory_access_record.b.is_none());
+                    self.memory_access_record.b = Some(record.into());
                 }
                 AccessPosition::C => {
-                    assert!(self.cpu_record.c.is_none());
-                    self.cpu_record.c = Some(record.into());
+                    assert!(self.memory_access_record.c.is_none());
+                    self.memory_access_record.c = Some(record.into());
                 }
                 AccessPosition::Memory => {
-                    assert!(self.cpu_record.memory.is_none());
-                    self.cpu_record.memory = Some(record.into());
+                    assert!(self.memory_access_record.memory.is_none());
+                    self.memory_access_record.memory = Some(record.into());
                 }
             }
         }
@@ -302,7 +310,7 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
-        record: CpuRecord,
+        record: MemoryAccessRecord,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -449,7 +457,7 @@ impl Runtime {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.cpu_record = CpuRecord::default();
+        self.memory_access_record = MemoryAccessRecord::default();
 
         match instruction.opcode {
             // Arithmetic instructions.
@@ -753,7 +761,7 @@ impl Runtime {
             b,
             c,
             memory_store_value,
-            self.cpu_record,
+            self.memory_access_record,
         );
     }
 
@@ -762,7 +770,14 @@ impl Runtime {
         tracing::info_span!("load memory").in_scope(|| {
             // First load the memory image into the memory table.
             for (addr, value) in self.program.memory_image.iter() {
-                self.state.memory.insert(*addr, (*value, 0, 0));
+                self.state.memory.insert(
+                    *addr,
+                    MemoryRecord {
+                        value: *value,
+                        shard: 0,
+                        timestamp: 0,
+                    },
+                );
             }
         });
 
@@ -857,12 +872,12 @@ impl Runtime {
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let (value, shard, timestamp) = *self.state.memory.get(&addr).unwrap();
-            if shard == 0 && timestamp == 0 {
+            let record = *self.state.memory.get(&addr).unwrap();
+            if record.shard == 0 && record.timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (value, 0));
+                program_memory_used.insert(addr, (record.value, 0));
                 continue;
             }
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
@@ -883,9 +898,9 @@ impl Runtime {
             last_memory_record.push((
                 addr,
                 MemoryRecord {
-                    value,
-                    shard,
-                    timestamp,
+                    value: record.value,
+                    shard: record.shard,
+                    timestamp: record.timestamp,
                 },
                 1,
             ));
