@@ -5,11 +5,27 @@ use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::Runtime;
 
+fn fibonacci(n: u32) -> u32 {
+    if n == 0 {
+        0
+    } else {
+        let mut a = 0;
+        let mut b = 1;
+        for _ in 0..n {
+            let temp = b;
+            b += a;
+            a = temp;
+        }
+        a
+    }
+}
+
 fn main() {
+    let n_val = 12;
     let mut builder = AsmBuilder::<BabyBear>::new();
     let a: Felt<_> = builder.constant(BabyBear::zero());
     let b: Felt<_> = builder.constant(BabyBear::one());
-    let n: Felt<_> = builder.constant(BabyBear::from_canonical_u32(12));
+    let n: Felt<_> = builder.constant(BabyBear::from_canonical_u32(n_val));
 
     let start: Felt<_> = builder.constant(BabyBear::zero());
     let end = n;
@@ -20,6 +36,9 @@ fn main() {
         builder.assign(b, a + b);
         builder.assign(a, temp);
     });
+
+    let expected_value = BabyBear::from_canonical_u32(fibonacci(n_val));
+    builder.assert_eq(a, expected_value);
 
     let code = builder.code();
     println!("{}", code);

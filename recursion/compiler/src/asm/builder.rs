@@ -1,10 +1,12 @@
 use super::{AssemblyCode, BasicBlock};
+use crate::ir::Int;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
 use p3_field::PrimeField32;
+use sp1_recursion_core::runtime::Program;
 
 use crate::asm::AsmInstruction;
 use crate::builder::Builder;
@@ -35,6 +37,11 @@ impl<F: PrimeField32> AsmBuilder<F> {
             .collect();
         AssemblyCode::new(self.basic_blocks, labels)
     }
+
+    pub fn compile(self) -> Program<F> {
+        let code = self.code();
+        code.machine_code()
+    }
 }
 
 impl<F: PrimeField32> Builder for AsmBuilder<F> {
@@ -46,12 +53,20 @@ impl<F: PrimeField32> Builder for AsmBuilder<F> {
         offset
     }
 
+    fn alloc(&mut self, size: Int) -> Int {
+        todo!()
+    }
+
     fn basic_block(&mut self) {
         self.basic_blocks.push(BasicBlock::new());
     }
 
     fn block_label(&mut self) -> F {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
+    }
+
+    fn get_block_mut(&mut self, label: Self::F) -> &mut BasicBlock<Self::F> {
+        &mut self.basic_blocks[label.as_canonical_u32() as usize]
     }
 
     fn push_to_block(&mut self, block_label: Self::F, instruction: AsmInstruction<Self::F>) {
