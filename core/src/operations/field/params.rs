@@ -7,8 +7,8 @@ pub const NUM_LIMBS: usize = 32;
 pub const NB_BITS_PER_LIMB: usize = 8;
 pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Limbs<T>(pub [T; NUM_LIMBS]);
+#[derive(Debug, Clone, Copy)]
+pub struct Limbs<T, const N: usize = NUM_LIMBS>(pub [T; N]);
 
 impl<T> Index<usize> for Limbs<T> {
     type Output = T;
@@ -18,9 +18,9 @@ impl<T> Index<usize> for Limbs<T> {
     }
 }
 
-impl<T> IntoIterator for Limbs<T> {
+impl<T, const N: usize> IntoIterator for Limbs<T, N> {
     type Item = T;
-    type IntoIter = std::array::IntoIter<T, NUM_LIMBS>;
+    type IntoIter = std::array::IntoIter<T, N>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

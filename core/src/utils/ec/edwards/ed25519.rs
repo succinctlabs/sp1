@@ -3,7 +3,7 @@ use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
+use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
@@ -18,9 +18,8 @@ pub struct Ed25519BaseField;
 
 impl FieldParameters for Ed25519BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-    const NB_LIMBS: usize = NUM_LIMBS;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-    const MODULUS: [u8; NUM_LIMBS] = [
+    const MODULUS: [u8; Self::NB_LIMBS] = [
         237, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
     ];

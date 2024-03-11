@@ -7,7 +7,7 @@ use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
+use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;
@@ -26,8 +26,6 @@ pub struct Secp256k1BaseField;
 
 impl FieldParameters for Secp256k1BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-
-    const NB_LIMBS: usize = NUM_LIMBS;
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
