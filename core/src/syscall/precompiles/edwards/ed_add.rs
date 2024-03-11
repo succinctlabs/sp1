@@ -9,7 +9,6 @@ use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
-use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
@@ -18,6 +17,7 @@ use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
+use crate::utils::ec::EllipticCurveParameters;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
@@ -37,6 +37,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
 
+use super::{NUM_LIMBS, NUM_WITNESS_LIMBS};
+
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.
@@ -53,14 +55,14 @@ pub struct EdAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FieldInnerProductCols<T>,
-    pub(crate) y3_numerator: FieldInnerProductCols<T>,
-    pub(crate) x1_mul_y1: FieldOpCols<T>,
-    pub(crate) x2_mul_y2: FieldOpCols<T>,
-    pub(crate) f: FieldOpCols<T>,
-    pub(crate) d_mul_f: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldDenCols<T>,
-    pub(crate) y3_ins: FieldDenCols<T>,
+    pub(crate) x3_numerator: FieldInnerProductCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) y3_numerator: FieldInnerProductCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x1_mul_y1: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x2_mul_y2: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) f: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) d_mul_f: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x3_ins: FieldDenCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) y3_ins: FieldDenCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
 }
 
 #[derive(Default)]
@@ -68,7 +70,7 @@ pub struct EdAddAssignChip<E> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
+impl<E: EllipticCurve<NUM_LIMBS> + EdwardsParameters> EdAddAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -83,33 +85,63 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     ) {
         let x3_numerator = cols
             .x3_numerator
-            .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &[p_x.clone(), q_x.clone()],
+                &[q_y.clone(), p_y.clone()],
+            );
         let y3_numerator = cols
             .y3_numerator
-            .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &[p_y.clone(), p_x.clone()],
+                &[q_y.clone(), q_x.clone()],
+            );
         let x1_mul_y1 = cols
             .x1_mul_y1
-            .populate::<E::BaseField>(&p_x, &p_y, FieldOperation::Mul);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &p_x,
+                &p_y,
+                FieldOperation::Mul,
+            );
         let x2_mul_y2 = cols
             .x2_mul_y2
-            .populate::<E::BaseField>(&q_x, &q_y, FieldOperation::Mul);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &q_x,
+                &q_y,
+                FieldOperation::Mul,
+            );
         let f = cols
             .f
-            .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &x1_mul_y1,
+                &x2_mul_y2,
+                FieldOperation::Mul,
+            );
 
         let d = E::d_biguint();
         let d_mul_f = cols
             .d_mul_f
-            .populate::<E::BaseField>(&f, &d, FieldOperation::Mul);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &f,
+                &d,
+                FieldOperation::Mul,
+            );
 
         cols.x3_ins
-            .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &x3_numerator,
+                &d_mul_f,
+                true,
+            );
         cols.y3_ins
-            .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
+            .populate::<<E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                &y3_numerator,
+                &d_mul_f,
+                false,
+            );
     }
 }
 
-impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
+impl<E: EllipticCurve<NUM_LIMBS> + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
         8
     }
@@ -121,7 +153,9 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+impl<F: PrimeField32, E: EllipticCurve<NUM_LIMBS> + EdwardsParameters> MachineAir<F>
+    for EdAddAssignChip<E>
+{
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
@@ -143,9 +177,9 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     // Decode affine points.
                     let p = &event.p;
                     let q = &event.q;
-                    let p = AffinePoint::<E>::from_words_le(p);
+                    let p = AffinePoint::<E, NUM_LIMBS>::from_words_le(p);
                     let (p_x, p_y) = (p.x, p.y);
-                    let q = AffinePoint::<E>::from_words_le(q);
+                    let q = AffinePoint::<E, NUM_LIMBS>::from_words_le(q);
                     let (q_x, q_y) = (q.x, q.y);
 
                     // Populate basic columns.
@@ -192,13 +226,13 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     }
 }
 
-impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {
+impl<F, E: EllipticCurve<NUM_LIMBS> + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {
     fn width(&self) -> usize {
         NUM_ED_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
+impl<AB, E: EllipticCurve<NUM_LIMBS> + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
 where
     AB: SP1AirBuilder,
 {
@@ -213,40 +247,80 @@ where
 
         // x3_numerator = x1 * y2 + x2 * y1.
         row.x3_numerator
-            .eval::<AB, E::BaseField>(builder, &[x1, x2], &[y2, y1]);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                builder,
+                &[x1, x2],
+                &[y2, y1],
+            );
 
         // y3_numerator = y1 * y2 + x1 * x2.
         row.y3_numerator
-            .eval::<AB, E::BaseField>(builder, &[y1, x1], &[y2, x2]);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                builder,
+                &[y1, x1],
+                &[y2, x2],
+            );
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, E::BaseField, _, _>(builder, &x1, &y1, FieldOperation::Mul);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, _, _>(
+                builder,
+                &x1,
+                &y1,
+                FieldOperation::Mul,
+            );
         row.x2_mul_y2
-            .eval::<AB, E::BaseField, _, _>(builder, &x2, &y2, FieldOperation::Mul);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, _, _>(
+                builder,
+                &x2,
+                &y2,
+                FieldOperation::Mul,
+            );
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
         row.f
-            .eval::<AB, E::BaseField, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, _, _>(
+                builder,
+                &x1_mul_y1,
+                &x2_mul_y2,
+                FieldOperation::Mul,
+            );
 
         // d * f.
         let f = row.f.result;
         let d_biguint = E::d_biguint();
-        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
+        let d_const = <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField::to_limbs_field::<AB::F>(
+            &d_biguint,
+        );
+        let d_const_expr = Limbs::<AB::Expr, NUM_LIMBS>(d_const.0.map(|x| x.into()));
         row.d_mul_f
-            .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FieldOperation::Mul);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField, _, _>(
+                builder,
+                &f,
+                &d_const_expr,
+                FieldOperation::Mul,
+            );
 
         let d_mul_f = row.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
         row.x3_ins
-            .eval::<AB, E::BaseField>(builder, &row.x3_numerator.result, &d_mul_f, true);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                builder,
+                &row.x3_numerator.result,
+                &d_mul_f,
+                true,
+            );
 
         // y3 = y3_numerator / (1 - d * f).
         row.y3_ins
-            .eval::<AB, E::BaseField>(builder, &row.y3_numerator.result, &d_mul_f, false);
+            .eval::<AB, <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField>(
+                builder,
+                &row.y3_numerator.result,
+                &d_mul_f,
+                false,
+            );
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.

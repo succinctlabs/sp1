@@ -7,24 +7,27 @@ use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
+use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
 
+/// Number of `u8` limbs in the base field of Secp256k1.
+const NUM_LIMBS: usize = 32;
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter
 pub struct Secp256k1Parameters;
 
-pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
+pub type Secp256k1 = SwCurve<Secp256k1Parameters, NUM_LIMBS>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 base field parameter
 pub struct Secp256k1BaseField;
 
-impl FieldParameters for Secp256k1BaseField {
+impl FieldParameters<NUM_LIMBS> for Secp256k1BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
     const NB_LIMBS: usize = NUM_LIMBS;
@@ -45,11 +48,11 @@ impl FieldParameters for Secp256k1BaseField {
     }
 }
 
-impl EllipticCurveParameters for Secp256k1Parameters {
+impl EllipticCurveParameters<NUM_LIMBS> for Secp256k1Parameters {
     type BaseField = Secp256k1BaseField;
 }
 
-impl WeierstrassParameters for Secp256k1Parameters {
+impl WeierstrassParameters<NUM_LIMBS> for Secp256k1Parameters {
     const A: [u16; MAX_NB_LIMBS] = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,

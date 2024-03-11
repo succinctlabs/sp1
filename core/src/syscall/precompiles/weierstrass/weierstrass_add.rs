@@ -5,7 +5,6 @@ use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
 use crate::runtime::Syscall;
@@ -32,6 +31,8 @@ use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use super::NUM_LIMBS;
+
 pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
@@ -49,15 +50,15 @@ pub struct WeierstrassAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
     pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
-    pub(crate) slope_denominator: FieldOpCols<T>,
-    pub(crate) slope_numerator: FieldOpCols<T>,
-    pub(crate) slope: FieldOpCols<T>,
-    pub(crate) slope_squared: FieldOpCols<T>,
-    pub(crate) p_x_plus_q_x: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldOpCols<T>,
-    pub(crate) p_x_minus_x: FieldOpCols<T>,
-    pub(crate) y3_ins: FieldOpCols<T>,
-    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T>,
+    pub(crate) slope_denominator: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) slope_numerator: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) slope: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) slope_squared: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) p_x_plus_q_x: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) x3_ins: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) p_x_minus_x: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) y3_ins: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, NUM_LIMBS>,
 }
 
 #[derive(Default)]
@@ -65,7 +66,7 @@ pub struct WeierstrassAddAssignChip<E> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
+impl<E: EllipticCurve<NUM_LIMBS>> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
         rt.record_mut().weierstrass_add_events.push(event);
@@ -77,7 +78,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     }
 }
 
-impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
+impl<E: EllipticCurve<NUM_LIMBS>> WeierstrassAddAssignChip<E> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -142,7 +143,7 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
+impl<F: PrimeField32, E: EllipticCurve<NUM_LIMBS> + WeierstrassParameters<NUM_LIMBS>> MachineAir<F>
     for WeierstrassAddAssignChip<E>
 {
     fn name(&self) -> String {
@@ -166,9 +167,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             // Decode affine points.
             let p = &event.p;
             let q = &event.q;
-            let p = AffinePoint::<E>::from_words_le(p);
+            let p = AffinePoint::<E, NUM_LIMBS>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
-            let q = AffinePoint::<E>::from_words_le(q);
+            let q = AffinePoint::<E, NUM_LIMBS>::from_words_le(q);
             let (q_x, q_y) = (q.x, q.y);
 
             // Populate basic columns.
@@ -210,13 +211,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 }
 
-impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
+impl<F, E: EllipticCurve<NUM_LIMBS>> BaseAir<F> for WeierstrassAddAssignChip<E> {
     fn width(&self) -> usize {
         NUM_WEIERSTRASS_ADD_COLS
     }
 }
 
-impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
+impl<AB, E: EllipticCurve<NUM_LIMBS>> Air<AB> for WeierstrassAddAssignChip<E>
 where
     AB: SP1AirBuilder,
 {

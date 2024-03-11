@@ -3,29 +3,28 @@ use super::params::Limbs;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
 use num::BigUint;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrowWithGenerics;
 use std::fmt::Debug;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
 /// limb lives.
-#[derive(Debug, Clone, AlignedBorrow)]
+#[derive(Debug, Clone, AlignedBorrowWithGenerics)]
 #[repr(C)]
-pub struct FieldSqrtCols<T> {
+pub struct FieldSqrtCols<T, const N: usize, const M: usize> {
     /// The multiplication operation to verify that the sqrt and the input match.
     ///
     /// In order to save space, we actually store the sqrt of the input in `multiplication.result`
     /// since we'll receive the input again in the `eval` function.
-    pub multiplication: FieldOpCols<T>,
+    pub multiplication: FieldOpCols<T, N, M>,
 }
 
-impl<F: PrimeField32> FieldSqrtCols<F> {
+impl<F: PrimeField32, const N: usize, const M: usize> FieldSqrtCols<F, N, M> {
     /// Populates the trace.
     ///
     /// `P` is the parameter of the field that each limb lives in.
-    pub fn populate<P: FieldParameters>(
+    pub fn populate<P: FieldParameters<N>>(
         &mut self,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
@@ -48,12 +47,12 @@ impl<F: PrimeField32> FieldSqrtCols<F> {
     }
 }
 
-impl<V: Copy> FieldSqrtCols<V> {
+impl<V: Copy, const N: usize, const M: usize> FieldSqrtCols<V, N, M> {
     /// Calculates the square root of `a`.
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters<N>>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
+        a: &Limbs<AB::Var, N>,
     ) where
         V: Into<AB::Expr>,
     {
@@ -65,7 +64,7 @@ impl<V: Copy> FieldSqrtCols<V> {
         multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in P since we want its BaseField to be the mod.
-        multiplication.eval::<AB, P, Limbs<V>, Limbs<V>>(
+        multiplication.eval::<AB, P, Limbs<V, N>, Limbs<V, N>>(
             builder,
             &sqrt,
             &sqrt,
@@ -97,20 +96,23 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use sp1_derive::AlignedBorrow;
-    #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: Limbs<T>,
-        pub sqrt: FieldSqrtCols<T>,
+    use sp1_derive::AlignedBorrowWithGenerics;
+    #[derive(AlignedBorrowWithGenerics, Debug, Clone)]
+    pub struct TestCols<T, const N: usize, const M: usize> {
+        pub a: Limbs<T, N>,
+        pub sqrt: FieldSqrtCols<T, N, M>,
     }
 
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    const NUM_LIMBS: usize = 32;
+    const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
-    struct EdSqrtChip<P: FieldParameters> {
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
+
+    struct EdSqrtChip<P: FieldParameters<NUM_LIMBS>> {
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> EdSqrtChip<P> {
+    impl<P: FieldParameters<NUM_LIMBS>> EdSqrtChip<P> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -118,7 +120,7 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
+    impl<F: PrimeField32, P: FieldParameters<NUM_LIMBS>> MachineAir<F> for EdSqrtChip<P> {
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
@@ -147,7 +149,8 @@ mod tests {
                 .iter()
                 .map(|a| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
+                    let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
+                        row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F>(a);
                     cols.sqrt.populate::<P>(a, ed25519_sqrt);
                     row
@@ -166,19 +169,20 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for EdSqrtChip<P> {
+    impl<F: Field, P: FieldParameters<NUM_LIMBS>> BaseAir<F> for EdSqrtChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for EdSqrtChip<P>
+    impl<AB, P: FieldParameters<NUM_LIMBS>> Air<AB> for EdSqrtChip<P>
     where
         AB: SP1AirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
+            let local: &TestCols<AB::Var, NUM_LIMBS, NUM_WITNESS_LIMBS> =
+                main.row_slice(0).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
             local.sqrt.eval::<AB, P>(builder, &local.a);

@@ -1,7 +1,6 @@
 use super::utils::biguint_from_limbs;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NB_BITS_PER_LIMB;
-use crate::operations::field::params::NUM_LIMBS;
 use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
@@ -9,7 +8,7 @@ use std::fmt::Debug;
 
 pub const MAX_NB_LIMBS: usize = 32;
 
-pub trait FieldParameters:
+pub trait FieldParameters<const NUM_LIMBS: usize>:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
 {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
@@ -33,7 +32,7 @@ pub trait FieldParameters:
             .take(Self::NB_LIMBS)
     }
 
-    fn to_limbs(x: &BigUint) -> Limbs<u8> {
+    fn to_limbs(x: &BigUint) -> Limbs<u8, NUM_LIMBS> {
         let mut bytes = x.to_bytes_le();
         bytes.resize(NUM_LIMBS, 0u8);
         let mut limbs = [0u8; NUM_LIMBS];
@@ -41,7 +40,7 @@ pub trait FieldParameters:
         Limbs(limbs)
     }
 
-    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F> {
+    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F, NUM_LIMBS> {
         Limbs(
             Self::to_limbs(x)
                 .0

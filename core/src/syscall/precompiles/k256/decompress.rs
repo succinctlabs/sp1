@@ -43,6 +43,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
+use super::NUM_LIMBS;
+
 #[derive(Debug, Clone, Copy)]
 pub struct K256DecompressEvent {
     pub shard: u32,
@@ -144,11 +146,11 @@ pub struct K256DecompressCols<T> {
     pub ptr: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) x_2: FieldOpCols<T>,
-    pub(crate) x_3: FieldOpCols<T>,
-    pub(crate) x_3_plus_b: FieldOpCols<T>,
-    pub(crate) y: FieldSqrtCols<T>,
-    pub(crate) neg_y: FieldOpCols<T>,
+    pub(crate) x_2: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) x_3: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) x_3_plus_b: FieldOpCols<T, NUM_LIMBS>,
+    pub(crate) y: FieldSqrtCols<T, NUM_LIMBS>,
+    pub(crate) neg_y: FieldOpCols<T, NUM_LIMBS>,
     pub(crate) y_least_bits: [T; 8],
 }
 

@@ -3,7 +3,8 @@ use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
+use super::NUM_LIMBS;
+use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
@@ -16,7 +17,7 @@ pub struct Ed25519Parameters;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Ed25519BaseField;
 
-impl FieldParameters for Ed25519BaseField {
+impl FieldParameters<NUM_LIMBS> for Ed25519BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = NUM_LIMBS;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
@@ -31,7 +32,7 @@ impl FieldParameters for Ed25519BaseField {
     }
 }
 
-impl EllipticCurveParameters for Ed25519Parameters {
+impl EllipticCurveParameters<NUM_LIMBS> for Ed25519Parameters {
     type BaseField = Ed25519BaseField;
 }
 
@@ -105,7 +106,7 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     beta
 }
 
-pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519> {
+pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519, NUM_LIMBS> {
     let mut point_bytes = *compressed_point.as_bytes();
     let sign = point_bytes[31] >> 7 == 1;
     // mask out the sign bit
@@ -146,7 +147,7 @@ mod tests {
         // Get the generator point.
         let mut point = {
             let (x, y) = Ed25519Parameters::generator();
-            AffinePoint::<EdwardsCurve<Ed25519Parameters>>::new(x, y)
+            AffinePoint::<EdwardsCurve<Ed25519Parameters>, NUM_LIMBS>::new(x, y)
         };
         for _ in 0..NUM_TEST_CASES {
             // Compress the point. The first 255 bits of a compressed point is the y-coordinate. The

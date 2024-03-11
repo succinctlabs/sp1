@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
-pub trait EdwardsParameters: EllipticCurveParameters {
+// The number of `u8` limbs in the base field of Ed25519.
+const NUM_LIMBS: usize = 32;
+pub trait EdwardsParameters: EllipticCurveParameters<NUM_LIMBS> {
     const D: [u16; MAX_NB_LIMBS];
 
     fn generator() -> (BigUint, BigUint);
@@ -50,7 +52,7 @@ impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
     }
 }
 
-impl<E: EdwardsParameters> EllipticCurveParameters for EdwardsCurve<E> {
+impl<E: EdwardsParameters> EllipticCurveParameters<NUM_LIMBS> for EdwardsCurve<E> {
     type BaseField = E::BaseField;
 }
 
@@ -59,42 +61,45 @@ impl<E: EdwardsParameters> EdwardsCurve<E> {
         E::prime_group_order()
     }
 
-    pub fn neutral() -> AffinePoint<Self> {
+    pub fn neutral() -> AffinePoint<Self, NUM_LIMBS> {
         let (x, y) = E::neutral();
         AffinePoint::new(x, y)
     }
 }
 
-impl<E: EdwardsParameters> EllipticCurve for EdwardsCurve<E> {
-    fn ec_add(p: &AffinePoint<Self>, q: &AffinePoint<Self>) -> AffinePoint<Self> {
+impl<E: EdwardsParameters> EllipticCurve<NUM_LIMBS> for EdwardsCurve<E> {
+    fn ec_add(
+        p: &AffinePoint<Self, NUM_LIMBS>,
+        q: &AffinePoint<Self, NUM_LIMBS>,
+    ) -> AffinePoint<Self, NUM_LIMBS> {
         p.ed_add(q)
     }
 
-    fn ec_double(p: &AffinePoint<Self>) -> AffinePoint<Self> {
+    fn ec_double(p: &AffinePoint<Self, NUM_LIMBS>) -> AffinePoint<Self, NUM_LIMBS> {
         p.ed_double()
     }
 
-    fn ec_generator() -> AffinePoint<Self> {
+    fn ec_generator() -> AffinePoint<Self, NUM_LIMBS> {
         let (x, y) = E::generator();
         AffinePoint::new(x, y)
     }
 
-    fn ec_neutral() -> Option<AffinePoint<Self>> {
+    fn ec_neutral() -> Option<AffinePoint<Self, NUM_LIMBS>> {
         Some(Self::neutral())
     }
 
-    fn ec_neg(p: &AffinePoint<Self>) -> AffinePoint<Self> {
-        let modulus = E::BaseField::modulus();
+    fn ec_neg(p: &AffinePoint<Self, NUM_LIMBS>) -> AffinePoint<Self, NUM_LIMBS> {
+        let modulus = <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField::modulus();
         AffinePoint::new(&modulus - &p.x, p.y.clone())
     }
 }
 
-impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
+impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>, NUM_LIMBS> {
     pub(crate) fn ed_add(
         &self,
-        other: &AffinePoint<EdwardsCurve<E>>,
-    ) -> AffinePoint<EdwardsCurve<E>> {
-        let p = E::BaseField::modulus();
+        other: &AffinePoint<EdwardsCurve<E>, NUM_LIMBS>,
+    ) -> AffinePoint<EdwardsCurve<E>, NUM_LIMBS> {
+        let p = <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField::modulus();
         let x_3n = (&self.x * &other.y + &self.y * &other.x) % &p;
         let y_3n = (&self.y * &other.y + &self.x * &other.x) % &p;
 
@@ -110,7 +115,7 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         AffinePoint::new(x_3, y_3)
     }
 
-    pub(crate) fn ed_double(&self) -> AffinePoint<EdwardsCurve<E>> {
+    pub(crate) fn ed_double(&self) -> AffinePoint<EdwardsCurve<E>, NUM_LIMBS> {
         self.ed_add(self)
     }
 }
@@ -143,7 +148,7 @@ mod tests {
         let base = E::ec_generator();
 
         let d = Ed25519Parameters::d_biguint();
-        let p = <E as EllipticCurveParameters>::BaseField::modulus();
+        let p = <E as EllipticCurveParameters<NUM_LIMBS>>::BaseField::modulus();
         assert_eq!((d * 121666u32) % &p, (&p - 121665u32) % &p);
 
         let mut rng = thread_rng();

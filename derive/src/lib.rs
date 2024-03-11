@@ -57,6 +57,39 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
             }
         }
     };
+
+    methods.into()
+}
+
+#[proc_macro_derive(AlignedBorrowWithGenerics)]
+pub fn aligned_borrow_derive_with_generics(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+
+    // Get struct name from ast
+    let name = &ast.ident;
+
+    let methods = quote! {
+        impl<T, const N: usize, const M: usize> Borrow<#name<T, N, M>> for [T] {
+            fn borrow(&self) -> &#name<T, N, M> {
+                debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8, N, M>>());
+                let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<T, N, M>>() };
+                debug_assert!(prefix.is_empty(), "Alignment should match");
+                debug_assert_eq!(shorts.len(), 1);
+                &shorts[0]
+            }
+        }
+
+        impl<T, const N: usize, const M: usize> BorrowMut<#name<T, N, M>> for [T] {
+            fn borrow_mut(&mut self) -> &mut #name<T, N, M> {
+                debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8, N, M>>());
+                let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<T, N, M>>() };
+                debug_assert!(prefix.is_empty(), "Alignment should match");
+                debug_assert_eq!(shorts.len(), 1);
+                &mut shorts[0]
+            }
+        }
+    };
+
     methods.into()
 }
 

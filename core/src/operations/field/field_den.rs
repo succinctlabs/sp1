@@ -1,15 +1,13 @@
 use super::params::Limbs;
-use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
 use num::BigUint;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrowWithGenerics;
 use std::fmt::Debug;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
@@ -19,18 +17,18 @@ use std::fmt::Debug;
 ///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
+#[derive(Debug, Clone, AlignedBorrowWithGenerics)]
 #[repr(C)]
-pub struct FieldDenCols<T> {
+pub struct FieldDenCols<T, const N: usize, const M: usize> {
     /// The result of `a den b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
+    pub result: Limbs<T, N>,
+    pub(crate) carry: Limbs<T, N>,
+    pub(crate) witness_low: [T; M],
+    pub(crate) witness_high: [T; M],
 }
 
-impl<F: PrimeField32> FieldDenCols<F> {
-    pub fn populate<P: FieldParameters>(
+impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
+    pub fn populate<P: FieldParameters<N>>(
         &mut self,
         a: &BigUint,
         b: &BigUint,
@@ -85,13 +83,13 @@ impl<F: PrimeField32> FieldDenCols<F> {
     }
 }
 
-impl<V: Copy> FieldDenCols<V> {
+impl<V: Copy, const N: usize, const M: usize> FieldDenCols<V, N, M> {
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters<N>>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
-        b: &Limbs<AB::Var>,
+        a: &Limbs<AB::Var, N>,
+        b: &Limbs<AB::Var, N>,
         sign: bool,
     ) where
         V: Into<AB::Expr>,
@@ -120,7 +118,7 @@ impl<V: Copy> FieldDenCols<V> {
         let p_witness_low = self.witness_low.iter().into();
         let p_witness_high = self.witness_high.iter().into();
 
-        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        eval_field_operation::<AB, N, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
 }
 
@@ -147,22 +145,26 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use sp1_derive::AlignedBorrow;
-    #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: Limbs<T>,
-        pub b: Limbs<T>,
-        pub a_den_b: FieldDenCols<T>,
+    use sp1_derive::AlignedBorrowWithGenerics;
+
+    #[derive(Debug, Clone, AlignedBorrowWithGenerics)]
+    pub struct TestCols<T, const N: usize, const M: usize> {
+        pub a: Limbs<T, N>,
+        pub b: Limbs<T, N>,
+        pub a_den_b: FieldDenCols<T, N, M>,
     }
 
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    const NUM_LIMBS: usize = 32;
+    const NUM_WITNESS_LIMBS: usize = NUM_LIMBS * 2 - 2;
 
-    struct FieldDenChip<P: FieldParameters> {
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
+
+    struct FieldDenChip<P: FieldParameters<NUM_LIMBS>> {
         pub sign: bool,
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FieldDenChip<P> {
+    impl<P: FieldParameters<NUM_LIMBS>> FieldDenChip<P> {
         pub fn new(sign: bool) -> Self {
             Self {
                 sign,
@@ -171,7 +173,7 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldDenChip<P> {
+    impl<F: PrimeField32, P: FieldParameters<NUM_LIMBS>> MachineAir<F> for FieldDenChip<P> {
         fn name(&self) -> String {
             "FieldDen".to_string()
         }
@@ -205,7 +207,8 @@ mod tests {
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
+                    let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
+                        row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F>(a);
                     cols.b = P::to_limbs_field::<F>(b);
                     cols.a_den_b.populate::<P>(a, b, self.sign);
@@ -223,19 +226,20 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldDenChip<P> {
+    impl<F: Field, P: FieldParameters<NUM_LIMBS>> BaseAir<F> for FieldDenChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FieldDenChip<P>
+    impl<AB, P: FieldParameters<NUM_LIMBS>> Air<AB> for FieldDenChip<P>
     where
         AB: SP1AirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
+            let local: &TestCols<AB::Var, NUM_LIMBS, NUM_WITNESS_LIMBS> =
+                main.row_slice(0).borrow();
             local
                 .a_den_b
                 .eval::<AB, P>(builder, &local.a, &local.b, self.sign);
@@ -257,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn prove_babybear() {
+    fn prove_field_den_babybear() {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 

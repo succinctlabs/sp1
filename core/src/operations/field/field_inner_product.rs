@@ -1,33 +1,31 @@
 use super::params::Limbs;
-use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
 use num::BigUint;
 use num::Zero;
 use p3_field::{AbstractField, PrimeField32};
-use sp1_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrowWithGenerics;
 use std::fmt::Debug;
 
 /// A set of columns to compute `FieldInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
+#[derive(Debug, Clone, AlignedBorrowWithGenerics)]
 #[repr(C)]
-pub struct FieldInnerProductCols<T> {
+pub struct FieldInnerProductCols<T, const N: usize, const M: usize> {
     /// The result of `a inner product b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
+    pub result: Limbs<T, N>,
+    pub(crate) carry: Limbs<T, N>,
+    pub(crate) witness_low: [T; M],
+    pub(crate) witness_high: [T; M],
 }
 
-impl<F: PrimeField32> FieldInnerProductCols<F> {
-    pub fn populate<P: FieldParameters>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
+impl<F: PrimeField32, const N: usize, const M: usize> FieldInnerProductCols<F, N, M> {
+    pub fn populate<P: FieldParameters<N>>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
         let p_a_vec: Vec<Polynomial<F>> =
             a.iter().map(|x| P::to_limbs_field::<F>(x).into()).collect();
         let p_b_vec: Vec<Polynomial<F>> =
@@ -75,13 +73,13 @@ impl<F: PrimeField32> FieldInnerProductCols<F> {
     }
 }
 
-impl<V: Copy> FieldInnerProductCols<V> {
+impl<V: Copy, const N: usize, const M: usize> FieldInnerProductCols<V, N, M> {
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters<N>>(
         &self,
         builder: &mut AB,
-        a: &[Limbs<AB::Var>],
-        b: &[Limbs<AB::Var>],
+        a: &[Limbs<AB::Var, N>],
+        b: &[Limbs<AB::Var, N>],
     ) where
         V: Into<AB::Expr>,
     {
@@ -108,7 +106,7 @@ impl<V: Copy> FieldInnerProductCols<V> {
         let p_witness_low = self.witness_low.iter().into();
         let p_witness_high = self.witness_high.iter().into();
 
-        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        eval_field_operation::<AB, N, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
 }
 
@@ -135,22 +133,25 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
-    use sp1_derive::AlignedBorrow;
+    use sp1_derive::AlignedBorrowWithGenerics;
 
-    #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: [Limbs<T>; 1],
-        pub b: [Limbs<T>; 1],
-        pub a_ip_b: FieldInnerProductCols<T>,
+    #[derive(AlignedBorrowWithGenerics, Debug, Clone)]
+    pub struct TestCols<T, const N: usize, const M: usize> {
+        pub a: [Limbs<T, N>; 1],
+        pub b: [Limbs<T, N>; 1],
+        pub a_ip_b: FieldInnerProductCols<T, N, M>,
     }
 
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    const NUM_LIMBS: usize = 32;
+    const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
-    struct FieldIpChip<P: FieldParameters> {
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
+
+    struct FieldIpChip<P: FieldParameters<NUM_LIMBS>> {
         pub _phantom: std::marker::PhantomData<P>,
     }
 
-    impl<P: FieldParameters> FieldIpChip<P> {
+    impl<P: FieldParameters<NUM_LIMBS>> FieldIpChip<P> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -158,7 +159,7 @@ mod tests {
         }
     }
 
-    impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldIpChip<P> {
+    impl<F: PrimeField32, P: FieldParameters<NUM_LIMBS>> MachineAir<F> for FieldIpChip<P> {
         fn name(&self) -> String {
             "FieldInnerProduct".to_string()
         }
@@ -188,7 +189,8 @@ mod tests {
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
+                    let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
+                        row.as_mut_slice().borrow_mut();
                     cols.a[0] = P::to_limbs_field::<F>(&a[0]);
                     cols.b[0] = P::to_limbs_field::<F>(&b[0]);
                     cols.a_ip_b.populate::<P>(a, b);
@@ -208,19 +210,20 @@ mod tests {
         }
     }
 
-    impl<F: Field, P: FieldParameters> BaseAir<F> for FieldIpChip<P> {
+    impl<F: Field, P: FieldParameters<NUM_LIMBS>> BaseAir<F> for FieldIpChip<P> {
         fn width(&self) -> usize {
             NUM_TEST_COLS
         }
     }
 
-    impl<AB, P: FieldParameters> Air<AB> for FieldIpChip<P>
+    impl<AB, P: FieldParameters<NUM_LIMBS>> Air<AB> for FieldIpChip<P>
     where
         AB: SP1AirBuilder,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
+            let local: &TestCols<AB::Var, NUM_LIMBS, NUM_WITNESS_LIMBS> =
+                main.row_slice(0).borrow();
             local.a_ip_b.eval::<AB, P>(builder, &local.a, &local.b);
 
             // A dummy constraint to keep the degree 3.
