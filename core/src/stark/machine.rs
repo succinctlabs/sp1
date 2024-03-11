@@ -161,7 +161,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        log::info!("verified shards");
+        log::info!("verified proof!");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();

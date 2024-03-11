@@ -121,7 +121,7 @@ where
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
         cycles,
         time,
         (cycles as f64 / time as f64),
