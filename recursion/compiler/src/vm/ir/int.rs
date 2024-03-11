@@ -1,29 +1,29 @@
 use core::marker::PhantomData;
 
-use super::Builder;
-use crate::asm::AsmInstruction;
-use crate::ir::Felt;
-use crate::ir::SymbolicInt;
-use crate::ir::{Constant, Expression, SizedVariable, Variable};
+use super::Felt;
+use super::SymbolicInt;
+use crate::syn::{Expression, FromConstant, SizedVariable, Variable};
+use crate::vm::AsmInstruction;
+use crate::vm::VmBuilder;
 use core::ops::{Add, Mul, Sub};
 use p3_field::{AbstractField, PrimeField32};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Int(pub(crate) i32);
 
-impl<B: Builder> Variable<B> for Int {
+impl<B: VmBuilder> Variable<B> for Int {
     fn uninit(builder: &mut B) -> Self {
         Int(builder.get_mem(4))
     }
 }
 
-impl<B: Builder> SizedVariable<B> for Int {
+impl<B: VmBuilder> SizedVariable<B> for Int {
     fn size_of() -> usize {
         1
     }
 }
 
-impl<B: Builder> Expression<B> for Int {
+impl<B: VmBuilder> Expression<B> for Int {
     type Value = Int;
 
     fn assign(&self, value: Int, builder: &mut B) {
@@ -31,7 +31,7 @@ impl<B: Builder> Expression<B> for Int {
     }
 }
 
-impl<B: Builder> Constant<B> for Int {
+impl<B: VmBuilder> FromConstant<B> for Int {
     type Constant = u32;
 
     fn imm(&self, constant: Self::Constant, builder: &mut B) {

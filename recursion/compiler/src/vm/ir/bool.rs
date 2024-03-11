@@ -1,29 +1,29 @@
-use super::Builder;
-use super::Constant;
-use super::Expression;
-use super::SizedVariable;
-use super::SymbolicLogic;
-use super::Variable;
-use crate::asm::AsmInstruction;
+use crate::syn::Expression;
+use crate::syn::FromConstant;
+use crate::syn::SizedVariable;
+use crate::syn::Variable;
+use crate::vm::AsmInstruction;
+use crate::vm::SymbolicLogic;
+use crate::vm::VmBuilder;
 use core::ops::{BitAnd, BitOr, BitXor, Not};
 use p3_field::AbstractField;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Bool(pub i32);
 
-impl<B: Builder> Variable<B> for Bool {
+impl<B: VmBuilder> Variable<B> for Bool {
     fn uninit(builder: &mut B) -> Self {
         Bool(builder.get_mem(4))
     }
 }
 
-impl<B: Builder> SizedVariable<B> for Bool {
+impl<B: VmBuilder> SizedVariable<B> for Bool {
     fn size_of() -> usize {
         1
     }
 }
 
-impl<B: Builder> Constant<B> for Bool {
+impl<B: VmBuilder> FromConstant<B> for Bool {
     type Constant = bool;
 
     fn imm(&self, constant: Self::Constant, builder: &mut B) {
@@ -31,7 +31,7 @@ impl<B: Builder> Constant<B> for Bool {
     }
 }
 
-impl<B: Builder> Expression<B> for Bool {
+impl<B: VmBuilder> Expression<B> for Bool {
     type Value = Bool;
 
     fn assign(&self, value: Bool, builder: &mut B) {

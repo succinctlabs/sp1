@@ -5,9 +5,9 @@ use core::fmt;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;
 
-use crate::builder::Builder;
-use crate::ir::Felt;
+use super::VmBuilder;
 use crate::util::canonical_i32_to_field;
+use crate::vm::Felt;
 use p3_field::PrimeField32;
 
 #[derive(Debug, Clone)]
@@ -55,7 +55,7 @@ pub enum AsmInstruction<F> {
 }
 
 impl<F: PrimeField32> AsmInstruction<F> {
-    pub fn j<B: Builder<F = F>>(label: F, builder: &mut B) -> Self {
+    pub fn j<B: VmBuilder<F = F>>(label: F, builder: &mut B) -> Self {
         let dst = builder.uninit::<Felt<F>>();
         AsmInstruction::JAL(dst.0, label, F::zero())
     }

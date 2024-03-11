@@ -1,9 +1,9 @@
-use super::Builder;
-use super::Constant;
-use super::Expression;
-use super::Variable;
-use crate::asm::AsmInstruction;
-use crate::ir::Bool;
+use super::Bool;
+use crate::syn::Expression;
+use crate::syn::FromConstant;
+use crate::syn::Variable;
+use crate::vm::AsmInstruction;
+use crate::vm::VmBuilder;
 use alloc::rc::Rc;
 use core::ops::{BitAnd, BitOr, BitXor, Not};
 use p3_field::AbstractField;
@@ -18,7 +18,7 @@ pub enum SymbolicLogic {
     Not(Rc<SymbolicLogic>),
 }
 
-impl<B: Builder> Expression<B> for SymbolicLogic {
+impl<B: VmBuilder> Expression<B> for SymbolicLogic {
     type Value = Bool;
 
     fn assign(&self, dst: Bool, builder: &mut B) {

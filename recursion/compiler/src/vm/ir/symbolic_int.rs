@@ -1,5 +1,8 @@
-use crate::asm::AsmInstruction;
-use crate::ir::*;
+use super::*;
+use crate::syn::Expression;
+use crate::syn::{FromConstant, Variable};
+use crate::vm::AsmInstruction;
+use crate::vm::VmBuilder;
 use alloc::rc::Rc;
 use core::ops::{Add, Mul, Sub};
 use p3_field::{AbstractField, PrimeField32};
@@ -13,7 +16,7 @@ pub enum SymbolicInt {
     Sub(Rc<SymbolicInt>, Rc<SymbolicInt>),
 }
 
-impl<B: Builder> Expression<B> for SymbolicInt {
+impl<B: VmBuilder> Expression<B> for SymbolicInt {
     type Value = Int;
 
     fn assign(&self, dst: Int, builder: &mut B) {

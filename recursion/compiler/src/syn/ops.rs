@@ -1,9 +1,14 @@
 use super::{variable::FromConstant, BaseBuilder, Expression};
+use p3_field::Field;
 
 use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Sub};
 
+pub trait FieldBuilder: BaseBuilder {
+    type Felt: FieldVariable<Self>;
+}
+
 pub trait AlgebraicVariable<B: BaseBuilder>:
-    FromConstant<B>
+    FromConstant<B, Constant = Self::ArithConst>
     + Add<Output = Self::ArithExpr>
     + Sub<Output = Self::ArithExpr>
     + Mul<Output = Self::ArithExpr>
@@ -15,6 +20,13 @@ pub trait AlgebraicVariable<B: BaseBuilder>:
     + Sub<Self::ArithExpr, Output = Self::ArithExpr>
     + Mul<Self::ArithExpr, Output = Self::ArithExpr>
 {
+    type ArithConst: Add<Output = Self>
+        + Sub<Output = Self>
+        + Mul<Output = Self>
+        + Add<Self, Output = Self::ArithExpr>
+        + Sub<Self, Output = Self::ArithExpr>
+        + Mul<Self, Output = Self::ArithExpr>;
+
     type ArithExpr: Expression<B, Value = Self>
         + From<Self::Constant>
         + From<Self>
@@ -29,14 +41,18 @@ pub trait AlgebraicVariable<B: BaseBuilder>:
 }
 
 pub trait FieldVariable<B: BaseBuilder>:
-    AlgebraicVariable<B> + Div<Output = Self::ArithExpr>
-where
-    Self::ArithExpr: Div<Output = Self>,
+    AlgebraicVariable<B, ArithConst = Self::F, ArithExpr = Self::FieldExpr>
+    + Div<Output = Self::ArithExpr>
 {
+    type F: Field;
+
+    type FieldExpr: Div<Output = Self::ArithExpr>
+        + Div<Self::Constant, Output = Self::ArithExpr>
+        + Div<Self, Output = Self::ArithExpr>;
 }
 
 pub trait LogicalVariable<B: BaseBuilder>:
-    FromConstant<B>
+    FromConstant<B, Constant = Self::AluConst>
     + BitAnd<Output = Self::AluExpr>
     + BitOr<Output = Self::AluExpr>
     + BitXor<Output = Self::AluExpr>
@@ -49,6 +65,8 @@ pub trait LogicalVariable<B: BaseBuilder>:
     + BitOr<Self::AluExpr, Output = Self::AluExpr>
     + BitXor<Self::AluExpr, Output = Self::AluExpr>
 {
+    type AluConst: From<bool>;
+
     type AluExpr: Expression<B, Value = Self>
         + From<bool>
         + From<Self::Constant>

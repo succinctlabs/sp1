@@ -1,4 +1,4 @@
-use crate::ir::Int;
+use crate::vm::Int;
 use core::marker::PhantomData;
 
 /// A pointer to an absolute memory location.

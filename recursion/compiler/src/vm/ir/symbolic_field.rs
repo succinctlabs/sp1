@@ -1,5 +1,8 @@
-use crate::asm::AsmInstruction;
-use crate::ir::*;
+use super::*;
+use crate::syn::Expression;
+use crate::syn::{FromConstant, Variable};
+use crate::vm::AsmInstruction;
+use crate::vm::VmBuilder;
 use alloc::rc::Rc;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use p3_field::AbstractField;
@@ -15,7 +18,7 @@ pub enum Symbolic<F> {
     Neg(Rc<Symbolic<F>>),
 }
 
-impl<B: Builder> Expression<B> for Symbolic<B::F> {
+impl<B: VmBuilder> Expression<B> for Symbolic<B::F> {
     type Value = Felt<B::F>;
 
     fn assign(&self, dst: Felt<B::F>, builder: &mut B) {

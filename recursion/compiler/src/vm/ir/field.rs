@@ -1,10 +1,10 @@
-use super::Constant;
-use crate::asm::AsmInstruction;
-use crate::ir::Builder;
-use crate::ir::Expression;
-use crate::ir::SizedVariable;
-use crate::ir::Symbolic;
-use crate::ir::Variable;
+use crate::syn::Expression;
+use crate::syn::FromConstant;
+use crate::syn::SizedVariable;
+use crate::syn::Variable;
+use crate::vm::AsmInstruction;
+use crate::vm::Symbolic;
+use crate::vm::VmBuilder;
 use core::marker::PhantomData;
 use p3_field::AbstractField;
 
@@ -13,19 +13,19 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Felt<F>(pub(crate) i32, pub(crate) PhantomData<F>);
 
-impl<B: Builder> Variable<B> for Felt<B::F> {
+impl<B: VmBuilder> Variable<B> for Felt<B::F> {
     fn uninit(builder: &mut B) -> Self {
         Felt(builder.get_mem(4), PhantomData)
     }
 }
 
-impl<B: Builder> SizedVariable<B> for Felt<B::F> {
+impl<B: VmBuilder> SizedVariable<B> for Felt<B::F> {
     fn size_of() -> usize {
         1
     }
 }
 
-impl<B: Builder> Expression<B> for Felt<B::F> {
+impl<B: VmBuilder> Expression<B> for Felt<B::F> {
     type Value = Felt<B::F>;
 
     fn assign(&self, value: Felt<B::F>, builder: &mut B) {
@@ -33,7 +33,7 @@ impl<B: Builder> Expression<B> for Felt<B::F> {
     }
 }
 
-impl<B: Builder> Constant<B> for Felt<B::F> {
+impl<B: VmBuilder> FromConstant<B> for Felt<B::F> {
     type Constant = B::F;
 
     fn imm(&self, constant: Self::Constant, builder: &mut B) {

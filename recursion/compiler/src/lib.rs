@@ -2,15 +2,14 @@
 
 extern crate alloc;
 
-pub mod asm;
 pub mod builder;
+pub mod circuit;
 pub mod heap;
-pub mod ir;
 pub mod syn;
 pub mod util;
+pub mod vm;
 
 pub mod prelude {
-    pub use crate::asm::AsmBuilder;
-    pub use crate::builder::Builder;
-    pub use crate::ir::{Bool, Felt, Int, Symbolic, SymbolicInt, SymbolicLogic};
+    // pub use crate::syn::*;
+    pub use crate::vm::*;
 }
