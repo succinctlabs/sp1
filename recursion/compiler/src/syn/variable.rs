@@ -1,14 +1,9 @@
 use super::BaseBuilder;
-use core::borrow::Borrow;
 
 pub struct Equal<A, B>(pub(crate) A, pub(crate) B);
 
 pub trait Variable<B: BaseBuilder>: Copy {
     fn uninit(builder: &mut B) -> Self;
-
-    fn eq(&self, other: impl Borrow<Self>) -> Equal<Self, Self> {
-        Equal(*self, *other.borrow())
-    }
 }
 
 pub trait FromConstant<B: BaseBuilder>: Variable<B> {
