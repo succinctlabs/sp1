@@ -4,12 +4,13 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 
 use super::interaction::AirInteraction;
 use super::word::Word;
+use super::BinomialExtension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
-use p3_uni_stark::check_constraints::DebugConstraintBuilder;
+
 use p3_uni_stark::StarkGenericConfig;
 use std::clone;
 use std::iter::once;
@@ -33,9 +34,9 @@ pub trait EmptyMessageBuilder: AirBuilder {}
 
 /// A trait which contains basic methods for building an AIR.
 pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
-    /// Returns a sub-builder whose constraints are enforced only when condition is one.
+    /// Returns a sub-builder whose constraints are enforced only when `condition` is not one.
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
-        self.when(Self::Expr::from(Self::F::one()) - condition.into())
+        self.when_ne(condition, Self::F::one())
     }
 
     /// Asserts that an iterator of expressions are all equal.
@@ -523,6 +524,19 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     }
 }
 
+pub trait ExtensionAirBuilder: BaseAirBuilder {
+    /// Asserts that the two field extensions are equal.
+    fn assert_ext_eq<I: Into<Self::Expr>>(
+        &mut self,
+        left: BinomialExtension<I>,
+        right: BinomialExtension<I>,
+    ) {
+        for (left, right) in left.0.into_iter().zip(right.0) {
+            self.assert_eq(left, right);
+        }
+    }
+}
+
 pub trait MultiTableAirBuilder: PermutationAirBuilder {
     type Sum: Into<Self::ExprEF>;
 
@@ -537,6 +551,7 @@ pub trait SP1AirBuilder:
     + CoprocessorAirBuilder
     + MemoryAirBuilder
     + ProgramAirBuilder
+    + ExtensionAirBuilder
 {
 }
 
@@ -557,9 +572,11 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder f
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> CoprocessorAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
-impl<'a, F: Field> EmptyMessageBuilder for DebugConstraintBuilder<'a, F> {}
+
+impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}

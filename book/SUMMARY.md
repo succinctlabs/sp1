@@ -20,6 +20,8 @@
 
 - [Patched Crates](./writing-programs/patched-crates.md)
 
+- [Cycle Tracking](./writing-programs/cycle-tracking.md)
+
 # Generating Proofs
 
 - [Setup](./generating-proofs/setup.md)

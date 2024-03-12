@@ -144,6 +144,8 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassAddAssignChip<E>
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
     }
@@ -158,7 +160,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let mut new_field_events = Vec::new();
 
         for i in 0..input.weierstrass_add_events.len() {
-            let event = input.weierstrass_add_events[i];
+            let event = input.weierstrass_add_events[i].clone();
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -204,6 +206,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_WEIERSTRASS_ADD_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.weierstrass_add_events.is_empty()
     }
 }
 

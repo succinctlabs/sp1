@@ -24,13 +24,13 @@ pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
 /// The multiplicity indices for each byte operation.
 pub(crate) const BYTE_MULT_INDICES: [usize; NUM_BYTE_OPS] = BYTE_COL_MAP.multiplicities;
 
-impl<F: Field> BaseAir<F> for ByteChip {
+impl<F: Field> BaseAir<F> for ByteChip<F> {
     fn width(&self) -> usize {
         NUM_BYTE_COLS
     }
 }
 
-impl<AB: SP1AirBuilder> Air<AB> for ByteChip {
+impl<AB: SP1AirBuilder> Air<AB> for ByteChip<AB::F> {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();

@@ -182,11 +182,13 @@ pub struct DivRemCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "DivRem".to_string()
     }
 
-    #[instrument(name = "generate divrem trace", skip_all)]
+    #[instrument(name = "generate divrem trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -396,6 +398,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.divrem_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for DivRemChip {
@@ -546,13 +552,13 @@ where
                         );
                     builder
                         .when(not_overflow.clone())
-                        .when(one.clone() - local.b_neg)
-                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
+                        .when_ne(one.clone(), local.b_neg)
+                        .assert_zero(c_times_quotient_plus_remainder[i].clone());
 
                     // The only exception to the upper-4-byte check is the overflow case.
                     builder
                         .when(local.is_overflow)
-                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
+                        .assert_zero(c_times_quotient_plus_remainder[i].clone());
                 }
             }
         }

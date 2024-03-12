@@ -5,5 +5,5 @@ name = "cycle-tracker-test"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm" }
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
 sp1-derive = { path = "../../derive" }

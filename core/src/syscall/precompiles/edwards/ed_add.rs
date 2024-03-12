@@ -122,11 +122,13 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
 }
 
 impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
 
-    #[instrument(name = "generate Ed Add trace", skip_all)]
+    #[instrument(name = "generate ed add trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -187,6 +189,10 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_ADD_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_add_events.is_empty()
     }
 }
 

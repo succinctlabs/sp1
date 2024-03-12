@@ -39,7 +39,7 @@ impl Syscall for SyscallWrite {
                     rt.cycle_tracker
                         .insert(fn_name.to_string(), (rt.state.global_clk, depth));
                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                    log::info!("{}┌╴{}", padding, fn_name);
+                    log::debug!("{}┌╴{}", padding, fn_name);
                 } else if s.contains("cycle-tracker-end:") {
                     let fn_name = s
                         .split("cycle-tracker-end:")
@@ -50,17 +50,27 @@ impl Syscall for SyscallWrite {
                     let (start, depth) = rt.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
                     // Leftpad by 2 spaces for each depth.
                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                    log::info!(
+                    log::debug!(
                         "{}└╴{} cycles",
                         padding,
                         u32_to_comma_separated(rt.state.global_clk - start)
                     );
                 } else {
-                    log::info!("stdout: {}", s.trim_end());
+                    let flush_s = update_io_buf(ctx, fd, s);
+                    if !flush_s.is_empty() {
+                        flush_s
+                            .into_iter()
+                            .for_each(|line| println!("stdout: {}", line));
+                    }
                 }
             } else if fd == 2 {
                 let s = core::str::from_utf8(slice).unwrap();
-                log::info!("stderr: {}", s.trim_end());
+                let flush_s = update_io_buf(ctx, fd, s);
+                if !flush_s.is_empty() {
+                    flush_s
+                        .into_iter()
+                        .for_each(|line| println!("stderr: {}", line));
+                }
             } else if fd == 3 {
                 rt.state.output_stream.extend_from_slice(slice);
             } else if fd == 4 {
@@ -70,5 +80,24 @@ impl Syscall for SyscallWrite {
             }
         }
         None
+    }
+}
+
+pub fn update_io_buf(ctx: &mut SyscallContext, fd: u32, s: &str) -> Vec<String> {
+    let rt = &mut ctx.rt;
+    let entry = rt.io_buf.entry(fd).or_default();
+    entry.push_str(s);
+    if entry.contains('\n') {
+        // Return lines except for the last from buf.
+        let prev_buf = std::mem::take(entry);
+        let mut lines = prev_buf.split('\n').collect::<Vec<&str>>();
+        let last = lines.pop().unwrap_or("");
+        *entry = last.to_string();
+        lines
+            .into_iter()
+            .map(|line| line.to_string())
+            .collect::<Vec<String>>()
+    } else {
+        vec![]
     }
 }

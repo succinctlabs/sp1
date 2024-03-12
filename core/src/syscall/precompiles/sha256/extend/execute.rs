@@ -71,11 +71,11 @@ impl Syscall for ShaExtendChip {
             shard,
             clk: clk_init,
             w_ptr: w_ptr_init,
-            w_i_minus_15_reads: w_i_minus_15_reads.try_into().unwrap(),
-            w_i_minus_2_reads: w_i_minus_2_reads.try_into().unwrap(),
-            w_i_minus_16_reads: w_i_minus_16_reads.try_into().unwrap(),
-            w_i_minus_7_reads: w_i_minus_7_reads.try_into().unwrap(),
-            w_i_writes: w_i_writes.try_into().unwrap(),
+            w_i_minus_15_reads,
+            w_i_minus_2_reads,
+            w_i_minus_16_reads,
+            w_i_minus_7_reads,
+            w_i_writes,
         });
 
         None

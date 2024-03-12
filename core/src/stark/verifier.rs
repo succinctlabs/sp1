@@ -1,4 +1,7 @@
+use crate::air::MachineAir;
+use crate::stark::MachineChip;
 use itertools::izip;
+use itertools::Itertools;
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_challenger::CanObserve;
@@ -20,21 +23,20 @@ use super::StarkGenericConfig;
 
 use core::fmt::Display;
 
-use super::ChipRef;
+pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
 
-pub struct Verifier<SC>(PhantomData<SC>);
-
-impl<SC: StarkGenericConfig> Verifier<SC> {
+impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
     /// Verify a proof for a collection of air chips.
     #[cfg(feature = "perf")]
     pub fn verify_shard(
         config: &SC,
-        chips: &[ChipRef<SC>],
+        chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-    ) -> Result<(), VerificationError> {
-        use crate::air::MachineAir;
-
+    ) -> Result<(), VerificationError>
+    where
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    {
         let ShardProof {
             commitment,
             opened_values,
@@ -42,41 +44,28 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             ..
         } = proof;
 
-        let sends = chips.iter().map(|chip| chip.sends()).collect::<Vec<_>>();
-        let receives = chips.iter().map(|chip| chip.receives()).collect::<Vec<_>>();
-
-        let num_interactions = sends
+        let (main_dims, perm_dims, quot_dims): (Vec<_>, Vec<_>, Vec<_>) = chips
             .iter()
-            .zip(receives.iter())
-            .map(|(s, r)| s.len() + r.len())
-            .collect::<Vec<usize>>();
+            .zip(opened_values.chips.iter())
+            .map(|(chip, val)| {
+                (
+                    Dimensions {
+                        width: chip.width(),
+                        height: 1 << val.log_degree,
+                    },
+                    Dimensions {
+                        width: (chip.sends().len() + chip.receives().len()) * SC::Challenge::D,
+                        height: 1 << val.log_degree,
+                    },
+                    Dimensions {
+                        width: SC::Challenge::D << chip.log_quotient_degree(),
+                        height: 1 << val.log_degree,
+                    },
+                )
+            })
+            .multiunzip();
 
-        let dims = &[
-            chips
-                .iter()
-                .zip(opened_values.chips.iter())
-                .map(|(chip, val)| Dimensions {
-                    width: chip.width(),
-                    height: 1 << val.log_degree,
-                })
-                .collect::<Vec<_>>(),
-            num_interactions
-                .iter()
-                .zip(opened_values.chips.iter())
-                .map(|(n_int, val)| Dimensions {
-                    width: (*n_int + 1) * SC::Challenge::D,
-                    height: 1 << val.log_degree,
-                })
-                .collect::<Vec<_>>(),
-            chips
-                .iter()
-                .zip(opened_values.chips.iter())
-                .map(|(chip, val)| Dimensions {
-                    width: SC::Challenge::D << chip.log_quotient_degree(),
-                    height: 1 << val.log_degree,
-                })
-                .collect::<Vec<_>>(),
-        ];
+        let dims = &[main_dims, perm_dims, quot_dims];
 
         let g_subgroups = opened_values
             .chips
@@ -151,7 +140,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
     #[cfg(not(feature = "perf"))]
     pub fn verify_shard(
         _config: &SC,
-        _chips: &[ChipRef<SC>],
+        _chips: &[&MachineChip<SC, A>],
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError> {
@@ -160,13 +149,16 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
 
     #[cfg(feature = "perf")]
     fn verify_constraints(
-        chip: &ChipRef<SC>,
+        chip: &MachineChip<SC, A>,
         opening: ChipOpenedValues<SC::Challenge>,
         g: SC::Val,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-    ) -> Result<(), OodEvaluationMismatch> {
+    ) -> Result<(), OodEvaluationMismatch>
+    where
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    {
         let z_h = zeta.exp_power_of_2(opening.log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
         let is_last_row = z_h / (zeta - g.inverse());
@@ -213,7 +205,7 @@ impl<SC: StarkGenericConfig> Verifier<SC> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let mut folder = VerifierConstraintFolder {
+        let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),

@@ -6,6 +6,8 @@ use std::{
 use bincode::{deserialize_from, Error};
 use p3_air::TwoRowMatrixView;
 use p3_commit::{OpenedValues, Pcs};
+use p3_field::ExtensionField;
+use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
@@ -15,9 +17,12 @@ use tracing::trace;
 use super::StarkGenericConfig;
 
 pub type Val<SC> = <SC as StarkGenericConfig>::Val;
+pub type PackedVal<SC> = <<SC as StarkGenericConfig>::Val as Field>::Packing;
+pub type PackedChallenge<SC> = <Challenge<SC> as ExtensionField<Val<SC>>>::ExtensionPacking;
 pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
 pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
+pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
 #[allow(dead_code)]
 type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
 type ValMat<SC> = RowMajorMatrix<Val<SC>>;
@@ -80,6 +85,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
 pub enum ShardMainDataWrapper<SC: StarkGenericConfig> {
     InMemory(ShardMainData<SC>),
     TempFile(File, u64),
+    Empty(),
 }
 
 impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
@@ -95,6 +101,7 @@ impl<SC: StarkGenericConfig> ShardMainDataWrapper<SC> {
                 let data = deserialize_from(&mut buffer)?;
                 Ok(data)
             }
+            Self::Empty() => unreachable!(),
         }
     }
 }
@@ -138,7 +145,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
 }
 
 #[cfg(not(feature = "perf"))]
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
     pub traces: Vec<ValMat<SC>>,

@@ -14,3 +14,6 @@ pgo-data.profdata
 # Proofs
 **/proof-with-pis.json
 **/proof-with-io.json
+
+# Benchmark
+benchmark.csv

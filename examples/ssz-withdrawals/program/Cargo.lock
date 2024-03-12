@@ -1273,6 +1273,18 @@ dependencies = [
 
 [[package]]
 name = "sha2"
+version = "0.9.8"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes.git?branch=patch-v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"
+dependencies = [
+ "block-buffer 0.9.0",
+ "cfg-if",
+ "cpufeatures",
+ "digest 0.9.0",
+ "opaque-debug",
+]
+
+[[package]]
+name = "sha2"
 version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d58a1e1bf39749807d89cf2d98ac2dfa0ff1cb3faa38fbb64dd88ac8013d800"
@@ -1287,8 +1299,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes.git?branch=patch-v0.10.8#3d692aa90b91513886d757d01f8fc2d51c0ec0d7"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -1316,7 +1327,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-zkvm"
+name = "sp1-precompiles"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1326,6 +1337,20 @@ dependencies = [
  "k256",
  "rand",
  "serde",
+]
+
+[[package]]
+name = "sp1-zkvm"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "libm",
+ "rand",
+ "serde",
+ "sp1-precompiles",
 ]
 
 [[package]]
@@ -1348,7 +1373,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sha2 0.9.9",
+ "sha2 0.9.8",
  "sp1-zkvm",
  "ssz_rs",
 ]
@@ -1741,8 +1766,3 @@ dependencies = [
  "quote",
  "syn 2.0.48",
 ]
-
-[[patch.unused]]
-name = "sha2"
-version = "0.9.8"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=v0.9.8#0b578688db61bb53e15353f5beaa2c11ad93f037"

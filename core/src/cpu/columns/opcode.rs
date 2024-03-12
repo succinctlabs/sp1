@@ -1,4 +1,3 @@
-use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;

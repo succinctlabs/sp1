@@ -38,6 +38,8 @@ impl ProgramChip {
 }
 
 impl<F: PrimeField> MachineAir<F> for ProgramChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Program".to_string()
     }
@@ -89,6 +91,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         pad_to_power_of_two::<NUM_PROGRAM_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, _: &Self::Record) -> bool {
+        true
     }
 }
 

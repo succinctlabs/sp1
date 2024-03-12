@@ -1,48 +1,38 @@
 use std::marker::PhantomData;
 
 use crate::air::MachineAir;
-use crate::alu::AddChip;
-use crate::alu::BitwiseChip;
-use crate::alu::DivRemChip;
-use crate::alu::LtChip;
-use crate::alu::MulChip;
-use crate::alu::ShiftLeft;
-use crate::alu::ShiftRightChip;
-use crate::alu::SubChip;
-use crate::bytes::ByteChip;
-use crate::cpu::CpuChip;
-use crate::field::FieldLTUChip;
-use crate::memory::MemoryChipKind;
-use crate::memory::MemoryGlobalChip;
-use crate::program::ProgramChip;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::ShardingConfig;
-use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
-use crate::syscall::precompiles::edwards::EdAddAssignChip;
-use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::k256::K256DecompressChip;
-use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
-use crate::syscall::precompiles::sha256::ShaCompressChip;
-use crate::syscall::precompiles::sha256::ShaExtendChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
+use crate::lookup::InteractionBuilder;
+use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::VerifierConstraintFolder;
+use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_field::PrimeField32;
 
 use super::Chip;
-use super::ChipRef;
 use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
 use super::VerificationError;
 use super::Verifier;
+
+pub type MachineChip<SC, A> = Chip<<SC as StarkGenericConfig>::Val, A>;
+
+/// A STARK for proving RISC-V execution.
+pub struct MachineStark<SC: StarkGenericConfig, A> {
+    /// The STARK settings for the RISC-V STARK.
+    config: SC,
+    /// The chips that make up the RISC-V STARK machine, in order of their execution.
+    chips: Vec<Chip<SC::Val, A>>,
+}
+
+impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
+    pub fn new(config: SC, chips: Vec<Chip<SC::Val, A>>) -> Self {
+        Self { config, chips }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
@@ -56,230 +46,27 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-pub struct RiscvStark<SC: StarkGenericConfig> {
-    config: SC,
-
-    program: Chip<SC::Val, ProgramChip>,
-    cpu: Chip<SC::Val, CpuChip>,
-    sha_extend: Chip<SC::Val, ShaExtendChip>,
-    sha_compress: Chip<SC::Val, ShaCompressChip>,
-    ed_add_assign: Chip<SC::Val, EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>>,
-    ed_decompress: Chip<SC::Val, EdDecompressChip<Ed25519Parameters>>,
-    k256_decompress: Chip<SC::Val, K256DecompressChip>,
-    weierstrass_add_assign: Chip<SC::Val, WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>>>,
-    weierstrass_double_assign:
-        Chip<SC::Val, WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>>,
-    keccak_permute: Chip<SC::Val, KeccakPermuteChip>,
-    blake3_compress_inner: Chip<SC::Val, Blake3CompressInnerChip>,
-    add: Chip<SC::Val, AddChip>,
-    sub: Chip<SC::Val, SubChip>,
-    bitwise: Chip<SC::Val, BitwiseChip>,
-    div_rem: Chip<SC::Val, DivRemChip>,
-    mul: Chip<SC::Val, MulChip>,
-    shift_right: Chip<SC::Val, ShiftRightChip>,
-    shift_left: Chip<SC::Val, ShiftLeft>,
-    lt: Chip<SC::Val, LtChip>,
-    field_ltu: Chip<SC::Val, FieldLTUChip>,
-    byte: Chip<SC::Val, ByteChip>,
-
-    memory_init: Chip<SC::Val, MemoryGlobalChip>,
-    memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
-    program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
-}
-
-impl<SC: StarkGenericConfig> RiscvStark<SC>
-where
-    SC::Val: PrimeField32,
-{
-    pub fn new(config: SC) -> Self {
-        let program = Chip::new(ProgramChip::default());
-        let cpu = Chip::new(CpuChip::default());
-        let sha_extend = Chip::new(ShaExtendChip::default());
-        let sha_compress = Chip::new(ShaCompressChip::default());
-        let ed_add_assign = Chip::new(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new());
-        let ed_decompress = Chip::new(EdDecompressChip::<Ed25519Parameters>::default());
-        let k256_decompress = Chip::new(K256DecompressChip::default());
-        let weierstrass_add_assign =
-            Chip::new(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new());
-        let weierstrass_double_assign =
-            Chip::new(WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new());
-        let keccak_permute = Chip::new(KeccakPermuteChip::new());
-        let blake3_compress_inner = Chip::new(Blake3CompressInnerChip::new());
-        let add = Chip::new(AddChip::default());
-        let sub = Chip::new(SubChip::default());
-        let bitwise = Chip::new(BitwiseChip::default());
-        let div_rem = Chip::new(DivRemChip::default());
-        let mul = Chip::new(MulChip::default());
-        let shift_right = Chip::new(ShiftRightChip::default());
-        let shift_left = Chip::new(ShiftLeft::default());
-        let lt = Chip::new(LtChip::default());
-        let field_ltu = Chip::new(FieldLTUChip::default());
-        let byte = Chip::new(ByteChip::default());
-        let memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Init));
-        let memory_finalize = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Finalize));
-        let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
-
-        Self {
-            config,
-            program,
-            cpu,
-            sha_extend,
-            sha_compress,
-            ed_add_assign,
-            ed_decompress,
-            k256_decompress,
-            weierstrass_add_assign,
-            weierstrass_double_assign,
-            keccak_permute,
-            blake3_compress_inner,
-            add,
-            sub,
-            bitwise,
-            div_rem,
-            mul,
-            shift_right,
-            shift_left,
-            lt,
-            field_ltu,
-            byte,
-            memory_init,
-            memory_finalize,
-            program_memory_init,
-        }
-    }
-
+impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> [ChipRef<SC>; 24] {
-        [
-            self.program.as_ref(),
-            self.cpu.as_ref(),
-            self.sha_extend.as_ref(),
-            self.sha_compress.as_ref(),
-            self.ed_add_assign.as_ref(),
-            self.ed_decompress.as_ref(),
-            self.k256_decompress.as_ref(),
-            self.weierstrass_add_assign.as_ref(),
-            self.weierstrass_double_assign.as_ref(),
-            self.keccak_permute.as_ref(),
-            self.blake3_compress_inner.as_ref(),
-            self.add.as_ref(),
-            self.sub.as_ref(),
-            self.bitwise.as_ref(),
-            self.div_rem.as_ref(),
-            self.mul.as_ref(),
-            self.shift_right.as_ref(),
-            self.shift_left.as_ref(),
-            self.lt.as_ref(),
-            self.field_ltu.as_ref(),
-            self.byte.as_ref(),
-            self.memory_init.as_ref(),
-            self.memory_finalize.as_ref(),
-            self.program_memory_init.as_ref(),
-        ]
+    pub fn chips(&self) -> &[MachineChip<SC, A>] {
+        &self.chips
     }
 
-    pub fn shard_chips(&self, shard: &ExecutionRecord) -> Vec<ChipRef<SC>> {
-        let mut chips = Vec::new();
-
-        chips.push(self.program.as_ref());
-        chips.push(self.cpu.as_ref());
-
-        if !shard.sha_extend_events.is_empty() {
-            chips.push(self.sha_extend.as_ref());
-        }
-
-        if !shard.sha_compress_events.is_empty() {
-            chips.push(self.sha_compress.as_ref());
-        }
-
-        if !shard.ed_add_events.is_empty() {
-            chips.push(self.ed_add_assign.as_ref());
-        }
-
-        if !shard.ed_decompress_events.is_empty() {
-            chips.push(self.ed_decompress.as_ref());
-        }
-
-        if !shard.k256_decompress_events.is_empty() {
-            chips.push(self.k256_decompress.as_ref());
-        }
-
-        if !shard.weierstrass_add_events.is_empty() {
-            chips.push(self.weierstrass_add_assign.as_ref());
-        }
-
-        if !shard.weierstrass_double_events.is_empty() {
-            chips.push(self.weierstrass_double_assign.as_ref());
-        }
-
-        if !shard.keccak_permute_events.is_empty() {
-            chips.push(self.keccak_permute.as_ref());
-        }
-
-        if !shard.blake3_compress_inner_events.is_empty() {
-            chips.push(self.blake3_compress_inner.as_ref());
-        }
-
-        if !shard.add_events.is_empty() {
-            chips.push(self.add.as_ref());
-        }
-
-        if !shard.sub_events.is_empty() {
-            chips.push(self.sub.as_ref());
-        }
-
-        if !shard.bitwise_events.is_empty() {
-            chips.push(self.bitwise.as_ref());
-        }
-
-        if !shard.divrem_events.is_empty() {
-            chips.push(self.div_rem.as_ref());
-        }
-
-        if !shard.mul_events.is_empty() {
-            chips.push(self.mul.as_ref());
-        }
-
-        if !shard.shift_right_events.is_empty() {
-            chips.push(self.shift_right.as_ref());
-        }
-
-        if !shard.shift_left_events.is_empty() {
-            chips.push(self.shift_left.as_ref());
-        }
-
-        if !shard.lt_events.is_empty() {
-            chips.push(self.lt.as_ref());
-        }
-
-        if !shard.field_events.is_empty() {
-            chips.push(self.field_ltu.as_ref());
-        }
-
-        if !shard.byte_lookups.is_empty() {
-            chips.push(self.byte.as_ref());
-        }
-
-        if !shard.first_memory_record.is_empty() {
-            chips.push(self.memory_init.as_ref());
-        }
-
-        if !shard.last_memory_record.is_empty() {
-            chips.push(self.memory_finalize.as_ref());
-        }
-
-        if !shard.program_memory_record.is_empty() {
-            chips.push(self.program_memory_init.as_ref());
-        }
-
-        chips
+    pub fn shard_chips<'a, 'b>(
+        &'a self,
+        shard: &'b A::Record,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    where
+        'a: 'b,
+    {
+        self.chips.iter().filter(|chip| chip.included(shard))
     }
 
     /// The setup preprocessing phase.
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup(&self, _program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    pub fn setup<P>(&self, _program: &P) -> (ProvingKey<SC>, VerifyingKey<SC>) {
         (
             ProvingKey {
                 marker: PhantomData,
@@ -290,50 +77,53 @@ where
         )
     }
 
-    pub fn shard(&self, record: &mut ExecutionRecord) -> Vec<ExecutionRecord> {
+    pub fn shard(
+        &self,
+        mut record: A::Record,
+        config: &<A::Record as MachineRecord>::Config,
+    ) -> Vec<A::Record> {
         // Get the local and global chips.
         let chips = self.chips();
 
-        tracing::info!("Generating trace for each chip.");
-        // Display the statistics about the workload. This is incomplete because it's run before
-        // generate_trace, which can adds events to the record.
-        tracing::info!(
-            "Record stats before generate_trace (incomplete): {:#?}",
-            record.stats()
-        );
-
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
-            let mut output = ExecutionRecord::default();
-            output.index = record.index;
-            chip.generate_trace(record, &mut output);
+            let mut output = A::Record::default();
+            output.set_index(record.index());
+            chip.generate_dependencies(&record, &mut output);
             record.append(&mut output);
         });
 
-        // Display the statistics about the workload after generate_trace.
-        tracing::info!("Record stats finalized {:#?}", record.stats());
-        tracing::info!("Sharding execution record by chip.");
+        // Display some statistics about the workload.
+        let stats = record.stats();
+        for (k, v) in stats {
+            log::info!("{} = {}", k, v);
+        }
 
         // For each chip, shard the events into segments.
-
-        record.shard(&ShardingConfig::default())
+        record.shard(config)
     }
 
     /// Prove the execution record is valid.
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC>>(
+    pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: &mut ExecutionRecord,
+        record: A::Record,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC> {
-        tracing::info!("Sharding the execution record.");
-        let shards = self.shard(record);
+    ) -> Proof<SC>
+    where
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<SC::Val>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+    {
+        tracing::debug!("sharding the execution record");
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
-        tracing::info!("Generating the shard proofs.");
-        P::prove_shards(self, pk, &shards, challenger)
+        tracing::debug!("generating the shard proofs");
+        P::prove_shards(self, pk, shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {
@@ -347,30 +137,32 @@ where
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC::Val: PrimeField32,
         SC::Challenger: Clone,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
+        tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
         // Verify the segment proofs.
+        tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
-            tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+            tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
                     .chips()
-                    .into_iter()
+                    .iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
+        tracing::info!("success");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
@@ -393,6 +185,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    DebugInteractionsFailed,
 }
 
 #[cfg(test)]

@@ -96,7 +96,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.1"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-v4.1.1#c226f30522c9e4123ffce4302ed210075acf741e"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -112,7 +112,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-v4.1.1#c226f30522c9e4123ffce4302ed210075acf741e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -168,7 +168,7 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.0"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek.git?rev=0b45e00#0b45e00ad55c3b966c63c837d684a0e08f1a4bd2"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-v4.1.1#c226f30522c9e4123ffce4302ed210075acf741e"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
@@ -297,6 +297,12 @@ name = "libc"
 version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
+
+[[package]]
+name = "libm"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "once_cell"
@@ -461,7 +467,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-zkvm"
+name = "sp1-precompiles"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -471,6 +477,20 @@ dependencies = [
  "k256",
  "rand",
  "serde",
+]
+
+[[package]]
+name = "sp1-zkvm"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "cfg-if",
+ "getrandom",
+ "k256",
+ "libm",
+ "rand",
+ "serde",
+ "sp1-precompiles",
 ]
 
 [[package]]
@@ -544,8 +564,3 @@ name = "zeroize"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"
-
-[[patch.unused]]
-name = "sha2"
-version = "0.10.6"
-source = "git+https://github.com/succinctbot/RustCrypto-hashes.git?branch=main#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"

@@ -2,14 +2,14 @@ use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::air::WORD_SIZE;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
@@ -34,13 +34,15 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
+use serde::Deserialize;
+use serde::Serialize;
 use std::marker::PhantomData;
 
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
     pub shard: u32,
     pub clk: u32,
@@ -185,7 +187,7 @@ impl<V: Copy> EdDecompressCols<V> {
             .assert_all_eq(self.neg_x.result, x_limbs);
         builder
             .when(self.is_real)
-            .when(AB::Expr::one() - sign.clone())
+            .when_not(sign.clone())
             .assert_all_eq(self.x.multiplication.result, x_limbs);
     }
 }
@@ -272,6 +274,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 }
 
 impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }
@@ -284,10 +288,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         let mut rows = Vec::new();
 
         for i in 0..input.ed_decompress_events.len() {
-            let event = input.ed_decompress_events[i];
+            let event = &input.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event, output);
+            cols.populate::<E::BaseField, E>(event.clone(), output);
 
             rows.push(row);
         }
@@ -304,6 +308,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_DECOMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_decompress_events.is_empty()
     }
 }
 

@@ -72,16 +72,19 @@ impl Instruction {
     }
 
     /// Returns if the instruction is an R-type instruction.
+    #[inline(always)]
     pub fn is_r_type(&self) -> bool {
         !self.imm_c
     }
 
     /// Returns whether the instruction is an I-type instruction.
+    #[inline(always)]
     pub fn is_i_type(&self) -> bool {
         self.imm_c
     }
 
     /// Decode the instruction in the R-type format.
+    #[inline(always)]
     pub fn r_type(&self) -> (Register, Register, Register) {
         (
             Register::from_u32(self.op_a),
@@ -91,6 +94,7 @@ impl Instruction {
     }
 
     /// Decode the instruction in the I-type format.
+    #[inline(always)]
     pub fn i_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.op_a),
@@ -100,6 +104,7 @@ impl Instruction {
     }
 
     /// Decode the instruction in the S-type format.
+    #[inline(always)]
     pub fn s_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.op_a),
@@ -109,6 +114,7 @@ impl Instruction {
     }
 
     /// Decode the instruction in the B-type format.
+    #[inline(always)]
     pub fn b_type(&self) -> (Register, Register, u32) {
         (
             Register::from_u32(self.op_a),
@@ -118,11 +124,13 @@ impl Instruction {
     }
 
     /// Decode the instruction in the J-type format.
+    #[inline(always)]
     pub fn j_type(&self) -> (Register, u32) {
         (Register::from_u32(self.op_a), self.op_b)
     }
 
     /// Decode the instruction in the U-type format.
+    #[inline(always)]
     pub fn u_type(&self) -> (Register, u32) {
         (Register::from_u32(self.op_a), self.op_b)
     }

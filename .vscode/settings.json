@@ -48,12 +48,15 @@
         "tests/ed-add/Cargo.toml",
         "tests/ed-decompress/Cargo.toml",
         "tests/keccak-permute/Cargo.toml",
+        "tests/keccak256/Cargo.toml",
         "tests/secp256k1-add/Cargo.toml",
         "tests/secp256k1-decompress/Cargo.toml",
         "tests/secp256k1-double/Cargo.toml",
         "tests/sha-compress/Cargo.toml",
         "tests/sha-extend/Cargo.toml",
         "tests/sha2/Cargo.toml",
+        // Eval.
+        "eval/Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }
