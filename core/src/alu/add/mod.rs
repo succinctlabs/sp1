@@ -47,7 +47,7 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         "Add".to_string()
     }
 
-    #[instrument(name = "generate add trace", skip_all)]
+    #[instrument(name = "generate add trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

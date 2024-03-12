@@ -4,9 +4,9 @@ use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use sp1_core::stark::MachineRecord;
 
-use crate::{air::Block, cpu::CpuEvent};
-
 use super::Program;
+use crate::air::Block;
+use crate::cpu::CpuEvent;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {

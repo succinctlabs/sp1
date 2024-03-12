@@ -100,14 +100,14 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 cols.add_scratch = cols.b.value.0[0] + cols.c.value.0[0];
                 cols.sub_scratch = cols.b.value.0[0] - cols.c.value.0[0];
                 cols.mul_scratch = cols.b.value.0[0] * cols.c.value.0[0];
-                cols.add_ext_scratch = (BinomialExtension::from_block(cols.b.value)
-                    + BinomialExtension::from_block(cols.c.value))
+                cols.add_ext_scratch = (BinomialExtension::from_block(cols.b.value.clone())
+                    + BinomialExtension::from_block(cols.c.value.clone()))
                 .as_block();
-                cols.sub_ext_scratch = (BinomialExtension::from_block(cols.b.value)
-                    - BinomialExtension::from_block(cols.c.value))
+                cols.sub_ext_scratch = (BinomialExtension::from_block(cols.b.value.clone())
+                    - BinomialExtension::from_block(cols.c.value.clone()))
                 .as_block();
-                cols.mul_ext_scratch = (BinomialExtension::from_block(cols.b.value)
-                    * BinomialExtension::from_block(cols.c.value))
+                cols.mul_ext_scratch = (BinomialExtension::from_block(cols.b.value.clone())
+                    * BinomialExtension::from_block(cols.c.value.clone()))
                 .as_block();
 
                 cols.a_eq_b
@@ -173,7 +173,7 @@ where
             .assert_eq(local.pc + AB::F::one(), next.pc);
         builder
             .when(local.beq + local.bne)
-            .assert_eq(next.pc, local.c.value.0[0]);
+            .assert_eq(next.pc, local.pc + local.c.value.0[0]);
 
         // Connect immediates.
         builder

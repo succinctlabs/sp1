@@ -37,11 +37,11 @@ pub mod tests {
                 Instruction::new(Opcode::SW, 1, 1, 0, true, true),
                 Instruction::new(Opcode::SW, 2, 10, 0, true, true),
                 // .body:
-                Instruction::new(Opcode::ADD, 3, 0, 1, false, false),
+                Instruction::new(Opcode::ADD, 3, 0, 1, false, true),
                 Instruction::new(Opcode::SW, 0, 1, 0, false, true),
                 Instruction::new(Opcode::SW, 1, 3, 0, false, true),
                 Instruction::new(Opcode::SUB, 2, 2, 1, false, true),
-                Instruction::new(Opcode::BNE, 2, 0, 3, true, true),
+                Instruction::new(Opcode::BNE, 2, 0, F::ORDER_U32 - 4, true, true),
             ],
         }
     }
@@ -52,11 +52,9 @@ pub mod tests {
         let mut runtime = Runtime::new(&program);
         runtime.run();
         assert_eq!(
-            runtime.memory[1].value,
+            runtime.memory[1024 + 1].value,
             Block::from(BabyBear::from_canonical_u32(144))
         );
-        // println!("{:#?}", runtime.record.cpu_events);
-        // println!("{:#?}", &runtime.memory[0..16]);
     }
 
     #[test]

@@ -2587,6 +2587,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-recursion-compiler"
+version = "0.1.0"
+dependencies = [
+ "p3-baby-bear",
+ "p3-field",
+ "sp1-core",
+ "sp1-recursion-core",
+]
+
+[[package]]
 name = "sp1-recursion-core"
 version = "0.1.0"
 dependencies = [

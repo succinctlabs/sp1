@@ -1,6 +1,6 @@
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
 use crate::runtime::Register;
 use crate::runtime::Syscall;
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::syscall::precompiles::blake3::{
     g_func, Blake3CompressInnerChip, Blake3CompressInnerEvent, G_INDEX, MSG_SCHEDULE,
     NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,

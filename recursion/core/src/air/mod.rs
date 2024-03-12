@@ -8,7 +8,7 @@ use sp1_core::air::{BinomialExtension, SP1AirBuilder};
 use sp1_derive::AlignedBorrow;
 
 /// The smallest unit of memory that can be read and written to.
-#[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(AlignedBorrow, Clone, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct Block<T>(pub [T; 4]);
 

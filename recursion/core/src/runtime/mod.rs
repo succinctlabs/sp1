@@ -3,6 +3,8 @@ mod opcode;
 mod program;
 mod record;
 
+use std::sync::Arc;
+
 pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
@@ -13,8 +15,7 @@ use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
 
 use p3_field::PrimeField32;
-use sp1_core::runtime::AccessPosition;
-use std::sync::Arc;
+use sp1_core::runtime::MemoryAccessPosition;
 
 #[derive(Debug, Clone, Default)]
 pub struct CpuRecord<F> {
@@ -61,7 +62,7 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         Self {
             clk: F::zero(),
             program: program.clone(),
-            fp: F::zero(),
+            fp: F::from_canonical_usize(1024),
             pc: F::zero(),
             memory: vec![MemoryEntry::default(); 1024 * 1024],
             record,
@@ -69,106 +70,106 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         }
     }
 
-    fn mr(&mut self, addr: F, position: AccessPosition) -> F {
+    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
-        let timestamp = self.timestamp(&position);
-        let entry = &self.memory[addr_usize];
+        let entry = self.memory[addr.as_canonical_u32() as usize].clone();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord {
             addr,
-            value: prev_value,
+            value: prev_value.clone(),
+            timestamp: self.timestamp(&position),
+            prev_value: prev_value.clone(),
+            prev_timestamp,
+        };
+        self.memory[addr_usize] = MemoryEntry {
+            value: prev_value.clone(),
+            timestamp: self.timestamp(&position),
+        };
+        match position {
+            MemoryAccessPosition::A => self.access.a = Some(record),
+            MemoryAccessPosition::B => self.access.b = Some(record),
+            MemoryAccessPosition::C => self.access.c = Some(record),
+            _ => unreachable!(),
+        };
+        prev_value
+    }
+
+    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
+        let addr_usize = addr.as_canonical_u32() as usize;
+        let timestamp = self.timestamp(&position);
+        let entry = &self.memory[addr_usize];
+        let (prev_value, prev_timestamp) = (entry.value.clone(), entry.timestamp);
+        let record = MemoryRecord {
+            addr,
+            value: value.clone(),
             timestamp,
             prev_value,
             prev_timestamp,
         };
         self.memory[addr_usize] = MemoryEntry {
-            value: prev_value,
+            value: value.clone(),
             timestamp,
         };
         match position {
-            AccessPosition::A => self.access.a = Some(record),
-            AccessPosition::B => self.access.b = Some(record),
-            AccessPosition::C => self.access.c = Some(record),
-            _ => unreachable!(),
-        };
-        prev_value.0[0]
-    }
-
-    fn mw(&mut self, addr: F, value: F, position: AccessPosition) {
-        let addr_usize = addr.as_canonical_u32() as usize;
-        let timestamp = self.timestamp(&position);
-        let entry = &self.memory[addr_usize];
-        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value: Block::from(value),
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
-        self.memory[addr_usize] = MemoryEntry {
-            value: Block::from(value),
-            timestamp,
-        };
-        match position {
-            AccessPosition::A => self.access.a = Some(record),
-            AccessPosition::B => self.access.b = Some(record),
-            AccessPosition::C => self.access.c = Some(record),
+            MemoryAccessPosition::A => self.access.a = Some(record),
+            MemoryAccessPosition::B => self.access.b = Some(record),
+            MemoryAccessPosition::C => self.access.c = Some(record),
             _ => unreachable!(),
         };
     }
 
-    fn timestamp(&self, position: &AccessPosition) -> F {
+    fn timestamp(&self, position: &MemoryAccessPosition) -> F {
         self.clk + F::from_canonical_u32(*position as u32)
     }
 
     /// Fetch the destination address and input operand values for an ALU instruction.
-    fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
-        if !instruction.imm_c {
-            let a_ptr = self.fp + instruction.op_a;
-            let b_val = self.mr(self.fp + instruction.op_b, AccessPosition::B);
-            let c_val = self.mr(self.fp + instruction.op_c, AccessPosition::C);
-            (a_ptr, b_val, c_val)
+    fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>, Block<F>) {
+        let a_ptr = self.fp + instruction.op_a;
+        let c_val = if !instruction.imm_c {
+            self.mr(self.fp + instruction.op_c, MemoryAccessPosition::C)
         } else {
-            let a_ptr = self.fp + instruction.op_a;
-            let b_val = self.mr(self.fp + instruction.op_b, AccessPosition::B);
-            let c_val = instruction.op_c;
-            (a_ptr, b_val, c_val)
-        }
+            Block::from(instruction.op_c)
+        };
+        let b_val = if !instruction.imm_b {
+            self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B)
+        } else {
+            Block::from(instruction.op_b)
+        };
+        (a_ptr, b_val, c_val)
     }
 
     /// Fetch the destination address input operand values for a load instruction (from heap).
-    fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, F) {
+    fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         if !instruction.imm_b {
             let a_ptr = self.fp + instruction.op_a;
-            let b = self.mr(self.fp + instruction.op_b, AccessPosition::B);
+            let b = self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B);
             (a_ptr, b)
         } else {
             let a_ptr = self.fp + instruction.op_a;
-            let b = instruction.op_b;
+            let b = Block::from(instruction.op_b);
             (a_ptr, b)
         }
     }
 
     /// Fetch the destination address input operand values for a store instruction (from stack).
-    fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, F) {
+    fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         if !instruction.imm_b {
             let a_ptr = self.fp + instruction.op_a;
-            let b = self.mr(self.fp + instruction.op_b, AccessPosition::B);
+            let b = self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B);
             (a_ptr, b)
         } else {
             let a_ptr = self.fp + instruction.op_a;
-            (a_ptr, instruction.op_b)
+            (a_ptr, Block::from(instruction.op_b))
         }
     }
 
     /// Fetch the input operand values for a branch instruction.
-    fn branch_rr(&mut self, instruction: &Instruction<F>) -> (F, F, F) {
-        let a = self.mr(self.fp + instruction.op_a, AccessPosition::A);
+    fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
+        let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
         let b = if !instruction.imm_b {
-            self.mr(self.fp + instruction.op_b, AccessPosition::B)
+            self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B)
         } else {
-            instruction.op_b
+            Block::from(instruction.op_b)
         };
         let c = instruction.op_c;
         (a, b, c)
@@ -179,73 +180,84 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
             let mut next_pc = self.pc + F::one();
-            let (a, b, c): (F, F, F);
+            let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
                 Opcode::ADD => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = b_val + c_val;
-                    self.mw(a_ptr, a_val, AccessPosition::A);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = b_val.0[0] + c_val.0[0];
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::SUB => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = b_val - c_val;
-                    self.mw(a_ptr, a_val, AccessPosition::A);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = b_val.0[0] - c_val.0[0];
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::MUL => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = b_val * c_val;
-                    self.mw(a_ptr, a_val, AccessPosition::A);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = b_val.0[0] * c_val.0[0];
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::DIV => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = b_val / c_val;
-                    self.mw(a_ptr, a_val, AccessPosition::A);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = b_val.0[0] / c_val.0[0];
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LW => {
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let a_val = b_val;
-                    self.mw(a_ptr, a_val, AccessPosition::A);
-                    (a, b, c) = (a_val, b_val, F::zero());
+                    let a_val = b_val.clone();
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::SW => {
                     let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let a_val = b_val;
-                    self.mw(a_ptr, a_val, AccessPosition::A);
-                    (a, b, c) = (a_val, b_val, F::zero());
+                    let a_val = b_val.clone();
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::BEQ => {
-                    (a, b, c) = self.branch_rr(&instruction);
-                    if a == b {
-                        next_pc = c;
+                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                    if a.0[0] == b.0[0] {
+                        next_pc = self.pc + c_offset;
                     }
                 }
                 Opcode::BNE => {
-                    (a, b, c) = self.branch_rr(&instruction);
-                    if a != b {
-                        next_pc = c;
+                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                    if a.0[0] != b.0[0] {
+                        next_pc = self.pc + c_offset;
                     }
                 }
                 Opcode::JAL => {
                     let imm = instruction.op_b;
                     let a_ptr = instruction.op_a + self.fp;
-                    self.mw(a_ptr, self.pc, AccessPosition::A);
+                    self.mw(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
                     next_pc = self.pc + imm;
-                    (a, b, c) = (a_ptr, F::zero(), F::zero());
+                    self.fp += instruction.op_c;
+                    (a, b, c) = (Block::from(a_ptr), Block::default(), Block::default());
                 }
                 Opcode::JALR => {
                     let imm = instruction.op_c;
                     let b_ptr = instruction.op_b + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
-                    let b_val = self.mr(b_ptr, AccessPosition::B);
+                    let b_val = self.mr(b_ptr, MemoryAccessPosition::B);
                     let c_val = imm;
-                    let a_val = self.pc + F::one();
-                    self.mw(a_ptr, a_val, AccessPosition::A);
-                    next_pc = b_val + c_val;
-                    (a, b, c) = (a_val, b_val, c_val);
+                    let a_val = Block::from(self.pc + F::one());
+                    self.mw(a_ptr, a_val.clone(), MemoryAccessPosition::A);
+                    next_pc = b_val.0[0];
+                    self.fp = c_val;
+                    (a, b, c) = (a_val, b_val, Block::from(c_val));
+                }
+                Opcode::TRAP => {
+                    panic!("TRAP instruction encountered")
                 }
             };
 
@@ -274,11 +286,10 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                 self.record
                     .first_memory_record
                     .push(F::from_canonical_usize(addr));
-
                 self.record.last_memory_record.push((
                     F::from_canonical_usize(addr),
                     entry.timestamp,
-                    entry.value,
+                    entry.value.clone(),
                 ))
             }
         }

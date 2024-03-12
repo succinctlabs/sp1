@@ -2,7 +2,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::Block;
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone)]
 #[repr(C)]
 pub struct MemoryInitCols<T> {
     pub addr: T,

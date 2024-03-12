@@ -25,7 +25,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         "KeccakPermute".to_string()
     }
 
-    #[instrument(name = "generate KeccakPermute trace", skip_all)]
+    #[instrument(name = "generate keccak permute trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

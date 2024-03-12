@@ -3,7 +3,7 @@ use sp1_core::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy, Debug)]
+#[derive(AlignedBorrow, Default, Clone, Debug)]
 #[repr(C)]
 pub struct CpuCols<T> {
     pub clk: T,
