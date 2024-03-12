@@ -295,27 +295,21 @@ where
 
 #[cfg(test)]
 mod tests {
-
-    use crate::{
-        utils::run_test,
-        utils::{
-            self,
-            tests::{ED25519_ELF, ED_ADD_ELF},
-        },
-        Program, SP1Prover, SP1Stdin,
-    };
+    use crate::utils;
+    use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
+    use crate::Program;
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
         let program = Program::from(ED_ADD_ELF);
-        run_test(program).unwrap();
+        utils::run_test(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let program = Program::from(ED25519_ELF);
-        run_test(program).unwrap();
+        utils::run_test(program).unwrap();
     }
 }
