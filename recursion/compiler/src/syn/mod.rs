@@ -38,3 +38,7 @@ impl<T: BaseBuilder> Builder for T {}
 pub trait FieldBuilder<F: Field>: Builder {
     type Felt: FieldVariable<Self, F = F>;
 }
+
+pub trait IntBuilder: Builder {
+    type Int: AlgebraicVariable<Self>;
+}

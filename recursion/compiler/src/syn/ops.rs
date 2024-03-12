@@ -73,3 +73,7 @@ pub trait LogicalVariable<B: BaseBuilder>:
         + BitXor<Output = Self>
         + Not<Output = Self>;
 }
+
+pub trait Eq<B: BaseBuilder, Other = Self> {
+    fn assert_eq(&self, other: Other);
+}
