@@ -1,39 +1,40 @@
-use std::{env, pin::Pin, time::Duration};
+use std::{env, time::Duration};
 
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
-use futures::FutureExt;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Client as HttpClient, Url,
 };
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::{de::DeserializeOwned, Serialize};
-use sp1_core::{stark::StarkGenericConfig, SP1ProofWithIO};
+use sp1_core::stark::StarkGenericConfig;
 use twirp::Client as TwirpClient;
 
-use crate::proto::prover::{
-    CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, ProofStatus,
-    Sp1ProverServiceClient, SubmitProofRequest,
+use crate::{
+    proto::prover::{
+        CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, ProofStatus,
+        Sp1ProverServiceClient, SubmitProofRequest,
+    },
+    SP1ProofWithIO,
 };
 
-pub struct SP1ProverClient {
+pub struct SP1ProverServiceClient {
     pub rpc: TwirpClient,
     pub http: HttpClientWithMiddleware,
 }
 
-impl Default for SP1ProverClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 const DEFAULT_SP1_SERVICE_URL: &str = "https://rpc.succinct.xyz/";
 
-impl SP1ProverClient {
-    pub fn new() -> Self {
+impl SP1ProverServiceClient {
+    pub fn with_token(access_token: String) -> Self {
+        let rpc_url =
+            env::var("SP1_SERVICE_URL").unwrap_or_else(|_| DEFAULT_SP1_SERVICE_URL.to_string());
+        Self::with_url(access_token, rpc_url)
+    }
+
+    pub fn with_url(access_token: String, rpc_url: String) -> Self {
         let mut headers = HeaderMap::new();
-        let access_token = env::var("SP1_SERVICE_ACCESS_TOKEN").unwrap();
         headers.insert(
             "Authorization",
             HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap(),
@@ -45,7 +46,6 @@ impl SP1ProverClient {
             .build()
             .unwrap();
 
-        let rpc_url = env::var("SP1_SERVICE_URL").unwrap_or(DEFAULT_SP1_SERVICE_URL.to_string());
         let rpc =
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 
@@ -60,30 +60,22 @@ impl SP1ProverClient {
         }
     }
 
+    async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
+        self.http.put(url).body(data).send().await?;
+        Ok(())
+    }
+
     pub async fn create_proof(&self, elf: &[u8], stdin: &[u8]) -> Result<String> {
         let res = self.rpc.create_proof(CreateProofRequest {}).await?;
-        println!("res: {:?}", &res);
 
         let program_bytes = bincode::serialize(elf)?;
         let stdin_bytes = bincode::serialize(stdin)?;
-        let program_promise = self
-            .http
-            .put(res.program_put_url)
-            .body(program_bytes)
-            .send()
-            .then(|res| res.unwrap().text());
-        let stdin_promise = self
-            .http
-            .put(res.stdin_put_url)
-            .body(stdin_bytes)
-            .send()
-            .then(|res| res.unwrap().text());
-        println!("Uploading program and stdin to the server...");
-        let v: Vec<Pin<Box<dyn futures::Future<Output = _>>>> =
-            vec![Box::pin(program_promise), Box::pin(stdin_promise)];
-        join_all(v).await.into_iter().for_each(|res| {
-            println!("res: {:?}", &res);
-        });
+        let program_promise = self.upload_file(&res.program_put_url, program_bytes);
+        let stdin_promise = self.upload_file(&res.stdin_put_url, stdin_bytes);
+        let v = vec![program_promise, stdin_promise];
+        let mut results = join_all(v).await;
+        results.pop().expect("Failed to upload stdin")?;
+        results.pop().expect("Failed to upload program")?;
 
         self.rpc
             .submit_proof(SubmitProofRequest { id: res.id.clone() })

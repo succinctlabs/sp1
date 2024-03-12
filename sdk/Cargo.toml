@@ -23,6 +23,8 @@ p3-matrix = { workspace = true }
 p3-commit = { workspace = true }
 p3-field = { workspace = true }
 indicatif = "0.17.8"
+tracing = "0.1.40"
+hex = "0.4.3"
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = ["build", "git", "git2"] }

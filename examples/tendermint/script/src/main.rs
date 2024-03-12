@@ -1,7 +1,5 @@
 use reqwest::Client;
-use sp1_core::utils::BabyBearPoseidon2;
-use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
-use sp1_sdk::SP1SDKProver;
+use sp1_sdk::{setup_logger, BabyBearPoseidon2, SP1Prover, SP1Stdin, SP1Verifier};
 
 use crate::util::fetch_latest_commit;
 use crate::util::fetch_light_block;
@@ -12,7 +10,7 @@ mod util;
 #[tokio::main]
 async fn main() {
     // Generate proof.
-    utils::setup_logger();
+    setup_logger();
     // Uniquely identify a peer in the network.
     let peer_id: [u8; 20] = [
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
@@ -48,7 +46,7 @@ async fn main() {
     // let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
     let config = BabyBearPoseidon2::new();
-    let mut proof = SP1SDKProver::prove_with_config(TENDERMINT_ELF, stdin, config.clone())
+    let mut proof = SP1Prover::prove_with_config(TENDERMINT_ELF, stdin, config.clone())
         .expect("proving failed");
 
     // Verify proof.
