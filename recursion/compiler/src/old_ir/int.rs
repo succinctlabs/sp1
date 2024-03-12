@@ -2,9 +2,9 @@ use core::marker::PhantomData;
 
 use super::Builder;
 use crate::asm::AsmInstruction;
-use crate::ir::Felt;
-use crate::ir::SymbolicInt;
-use crate::ir::{Constant, Expression, SizedVariable, Variable};
+use crate::old_ir::Felt;
+use crate::old_ir::SymbolicInt;
+use crate::old_ir::{Constant, Expression, SizedVariable, Variable};
 use core::ops::{Add, Mul, Sub};
 use p3_field::{AbstractField, PrimeField32};
 

@@ -1,5 +1,5 @@
 use crate::asm::AsmInstruction;
-use crate::ir::*;
+use crate::old_ir::*;
 use alloc::rc::Rc;
 use core::ops::{Add, Mul, Sub};
 use p3_field::{AbstractField, PrimeField32};

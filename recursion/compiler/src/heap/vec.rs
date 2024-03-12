@@ -1,5 +1,5 @@
 use super::Ptr;
-use crate::ir::{Felt, Int};
+use crate::old_ir::{Felt, Int};
 
 pub type FieldVec<F> = Vector<Felt<F>>;
 

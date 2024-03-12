@@ -1,5 +1,5 @@
 use super::{AssemblyCode, BasicBlock};
-use crate::ir::Int;
+use crate::old_ir::Int;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec;

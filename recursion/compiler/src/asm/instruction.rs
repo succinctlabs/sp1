@@ -6,7 +6,7 @@ use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;
 
 use crate::builder::Builder;
-use crate::ir::Felt;
+use crate::old_ir::Felt;
 use crate::util::canonical_i32_to_field;
 use p3_field::PrimeField32;
 

@@ -3,7 +3,7 @@ use super::Constant;
 use super::Expression;
 use super::Variable;
 use crate::asm::AsmInstruction;
-use crate::ir::Bool;
+use crate::old_ir::Bool;
 use alloc::rc::Rc;
 use core::ops::{BitAnd, BitOr, BitXor, Not};
 use p3_field::AbstractField;

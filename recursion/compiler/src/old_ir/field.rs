@@ -1,10 +1,10 @@
 use super::Constant;
 use crate::asm::AsmInstruction;
-use crate::ir::Builder;
-use crate::ir::Expression;
-use crate::ir::SizedVariable;
-use crate::ir::Symbolic;
-use crate::ir::Variable;
+use crate::old_ir::Builder;
+use crate::old_ir::Expression;
+use crate::old_ir::SizedVariable;
+use crate::old_ir::Symbolic;
+use crate::old_ir::Variable;
 use core::marker::PhantomData;
 use p3_field::AbstractField;
 

@@ -1,11 +1,11 @@
 use crate::asm::AsmInstruction;
-use crate::ir::Constant;
-use crate::ir::Variable;
+use crate::old_ir::Constant;
+use crate::old_ir::Variable;
 
 use crate::asm::BasicBlock;
-use crate::ir::Expression;
-use crate::ir::Felt;
-use crate::ir::Int;
+use crate::old_ir::Expression;
+use crate::old_ir::Felt;
+use crate::old_ir::Int;
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
 
