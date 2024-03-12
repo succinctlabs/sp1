@@ -53,15 +53,6 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryReadCols<T>,
     pub op_c_access: MemoryReadCols<T>,
 
-    /// A boolean flag to indicate if the instruction is a blake3 compress precompile.
-    ///
-    /// TODO: Obviously I need to expand it to cover all precompiles and some abstraction like
-    /// OpcodeSelectorCols would be nice, but I'm trying to make this work just with Blake3.
-    pub is_blake3_compress: T,
-    pub is_sha_compress: T,
-
-    pub is_ecall: IsEqualWordOperation<T>,
-
     /// This is transmuted to MemoryColumns, BranchColumns, JumpColumns, or AUIPCColumns
     pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
 

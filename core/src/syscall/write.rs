@@ -69,6 +69,6 @@ impl Syscall for SyscallWrite {
                 unreachable!()
             }
         }
-        Some(0)
+        None
     }
 }

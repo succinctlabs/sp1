@@ -50,27 +50,9 @@ impl Instruction {
         )
     }
 
-    /// Returns if the instruction is a precompile instruction.
-    pub fn is_precompile_instruction(&self) -> bool {
-        if self.opcode == Opcode::ECALL {
-            println!("Found an ECALL instruction: {:#?}", self);
-            println!("opcode: {}", self.opcode);
-            println!("op_a: {}", self.op_a);
-            println!("op_b: {}", self.op_b);
-            println!("op_c: {}", self.op_c);
-            println!("imm_b: {}", self.imm_b);
-            println!("imm_c: {}", self.imm_c);
-            if (self.opcode == Opcode::ECALL)
-                && (self.op_a == SyscallCode::BLAKE3_COMPRESS_INNER as u32)
-            {
-                println!("It's Blake3!");
-            } else {
-                println!("It's not Blake3!");
-            }
-        }
-        // TODO: Obviously, I have to add other precompiles here. But for now, I'll use Blake3 as an
-        // example.
-        (self.opcode == Opcode::ECALL) && (self.op_a == SyscallCode::BLAKE3_COMPRESS_INNER as u32)
+    /// Returns if the instruction is a ecall instruction.
+    pub fn is_ecall_instruction(&self) -> bool {
+        self.opcode == Opcode::ECALL
     }
 
     /// Returns if the instruction is a memory instruction.

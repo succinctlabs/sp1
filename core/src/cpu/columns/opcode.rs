@@ -22,7 +22,7 @@ pub struct OpcodeSelectorCols<T> {
     pub is_alu: T,
 
     /// Table selectors for opcodes.
-    pub is_precompile: T,
+    pub is_ecall: T,
 
     /// Memory Instructions.
     pub is_lb: T,
@@ -59,11 +59,8 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
 
         if instruction.is_alu_instruction() {
             self.is_alu = F::one();
-        } else if instruction.is_precompile_instruction() {
-            // Okay, this is not possible, I don't think. Instruction doesn't have access to the
-            // register states.
-            println!("Found a precompile instruction: {:?}", instruction);
-            self.is_precompile = F::one();
+        } else if instruction.is_ecall_instruction() {
+            self.is_ecall = F::one();
         } else if instruction.is_memory_instruction() {
             match instruction.opcode {
                 Opcode::LB => self.is_lb = F::one(),
@@ -117,7 +114,7 @@ impl<T> IntoIterator for OpcodeSelectorCols<T> {
             self.imm_b,
             self.imm_c,
             self.is_alu,
-            self.is_precompile,
+            self.is_ecall,
             self.is_lb,
             self.is_lbu,
             self.is_lh,

@@ -59,6 +59,6 @@ impl Syscall for SyscallExitUnconstrained {
             ctx.rt.unconstrained = false;
         }
         ctx.rt.unconstrained_state = ForkState::default();
-        Some(0)
+        None
     }
 }

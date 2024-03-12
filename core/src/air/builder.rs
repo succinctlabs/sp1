@@ -260,61 +260,6 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
         ));
     }
 
-    /// Sends a precompile operation to be processed.
-    fn send_precompile<EOp, Ea, Eb, Ec, EMult>(
-        &mut self,
-        opcode: EOp,
-        a: Word<Ea>,
-        b: Word<Eb>,
-        c: Word<Ec>,
-        multiplicity: EMult,
-    ) where
-        EOp: Into<Self::Expr>,
-        Ea: Into<Self::Expr> + Clone,
-        Eb: Into<Self::Expr> + Clone,
-        Ec: Into<Self::Expr> + Clone,
-        EMult: Into<Self::Expr>,
-    {
-        // TODO: This code is not readable & maintainable at all.
-        // TODO: I need to document this carefully, it's so counterintutive.
-        let zero = Self::Expr::zero();
-        let base = Self::Expr::from_canonical_u32(256);
-        let base2 = Self::Expr::from_canonical_u32(256 * 256);
-        let base3 = Self::Expr::from_canonical_u32(256 * 256 * 256);
-
-        let a2 = Word([
-            a[0].clone().into()
-                + base.clone() * a[1].clone().into()
-                + base2.clone() * a[2].clone().into()
-                + base3.clone() * a[3].clone().into(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ]);
-
-        let b2 = Word([
-            b[0].clone().into()
-                + base.clone() * b[1].clone().into()
-                + base2.clone() * b[2].clone().into()
-                + base3.clone() * b[3].clone().into(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ]);
-
-        let c2 = Word([
-            c[0].clone().into()
-                + base.clone() * c[1].clone().into()
-                + base2.clone() * c[2].clone().into()
-                + base3.clone() * c[3].clone().into(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ]);
-
-        self.send_coprocessor(opcode, a2, b2, c2, multiplicity);
-    }
-
     /// Receives a coprocessor operation to be processed.
     fn receive_coprocessor<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
@@ -343,33 +288,52 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
         ));
     }
 
-    /// Receives a precompile operation to be processed.
-    fn receive_precompile<EOp, Ea, Eb, Ec, EMult>(
+    /// Sends an ecall operation to be processed.
+    fn send_ecall<Ea, Eb, Ec, EMult>(
         &mut self,
-        opcode: EOp,
-        syscall_code: Ea,
+        syscall_id: Ea,
         arg1: Eb,
         arg2: Ec,
         multiplicity: EMult,
     ) where
-        EOp: Into<Self::Expr>,
-        Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
+        Ea: Into<Self::Expr> + Clone,
+        Eb: Into<Self::Expr> + Clone,
+        Ec: Into<Self::Expr> + Clone,
         EMult: Into<Self::Expr>,
     {
-        // TODO: I need to document this carefully, it's so counterintutive.
-        let zero = Self::Expr::zero();
-        let a = Word([
-            syscall_code.into(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ]);
-        let b = Word([arg1.into(), zero.clone(), zero.clone(), zero.clone()]);
-        let c = Word([arg2.into(), zero.clone(), zero.clone(), zero.clone()]);
+        self.send(AirInteraction::new(
+            vec![
+                syscall_id.clone().into(),
+                arg1.clone().into(),
+                arg2.clone().into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Ecall,
+        ));
+    }
 
-        self.receive_coprocessor(opcode, a, b, c, multiplicity);
+    /// Receives a ecall operation to be processed.
+    fn receive_ecall<EOp, Ea, Eb, Ec, EMult>(
+        &mut self,
+        syscall_id: Ea,
+        arg1: Eb,
+        arg2: Ec,
+        multiplicity: EMult,
+    ) where
+        Ea: Into<Self::Expr> + Clone,
+        Eb: Into<Self::Expr> + Clone,
+        Ec: Into<Self::Expr> + Clone,
+        EMult: Into<Self::Expr>,
+    {
+        self.receive(AirInteraction::new(
+            vec![
+                syscall_id.clone().into(),
+                arg1.clone().into(),
+                arg2.clone().into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Ecall,
+        ));
     }
 }
 

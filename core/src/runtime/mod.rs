@@ -631,11 +631,9 @@ impl Runtime {
             // System instructions.
             Opcode::ECALL => {
                 let t0 = Register::X5;
-                let a0 = Register::X10;
-                let a1: Register = Register::X11;
-                let syscall_id = self.register(t0);
-                b = self.register(Register::X10);
-                c = self.register(Register::X11);
+                let syscall_id = self.register(t0); // Peek at register x5 to get the syscall id.
+                c = self.rr(Register::X11, AccessPosition::C);
+                b = self.rr(Register::X10, AccessPosition::B);
                 println!("syscall_id, b, c = {:?}, {:?}, {:?}", syscall_id, b, c);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
@@ -646,9 +644,9 @@ impl Runtime {
                 if let Some(syscall_impl) = syscall_impl {
                     let res = syscall_impl.execute(&mut precompile_rt, b, c);
                     if let Some(val) = res {
-                        a = val;
+                        a = val; // This is basically only used for the LWA opcode that actually writes to that register.
                     } else {
-                        a = syscall_id;
+                        a = syscall_id; // By default just keep the register value the same as it was before.
                     }
                     next_pc = precompile_rt.next_pc;
                     self.state.clk = precompile_rt.clk;
@@ -657,11 +655,6 @@ impl Runtime {
                     panic!("Unsupported syscall: {:?}", syscall);
                 }
 
-                // We have to do this AFTER the precompile execution because the CPU event
-                // gets emitted at the end of this loop with the incremented clock.
-                // TODO: fix this.
-                self.rr(Register::X11, AccessPosition::C);
-                self.rr(Register::X10, AccessPosition::B);
                 self.rw(Register::X5, a);
             }
 

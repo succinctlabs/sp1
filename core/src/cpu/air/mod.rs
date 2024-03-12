@@ -9,15 +9,11 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
-use crate::air::Word;
-use crate::air::WORD_SIZE;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{AUIPCCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
-use crate::operations::IsEqualWordOperation;
-use crate::runtime::SyscallCode;
 use crate::runtime::{AccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
@@ -34,40 +30,6 @@ where
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
-        // Each call to the Blake3 precompile leads to 56 rows.
-        let precompile_multiplicity: AB::Expr = self.precompile_multiplicity::<AB>(local);
-
-        {
-            let is_ecall = {
-                IsEqualWordOperation::<AB::F>::eval(
-                    builder,
-                    local.op_a_val().map(|x| x.into()),
-                    Word::<AB::F>::from(Opcode::ECALL as u32).map(|x| x.into()),
-                    local.is_ecall,
-                    local.is_real.into(),
-                );
-                local.is_ecall.is_diff_zero.result
-            };
-
-            let blake3_opcode = Word::<AB::F>::from(SyscallCode::BLAKE3_COMPRESS_INNER as u32);
-
-            // TODO: Add all precompiles here.
-            let is_precompile = local.is_blake3_compress;
-
-            builder.when(is_ecall).assert_one(is_precompile);
-
-            for i in 0..WORD_SIZE {
-                builder
-                    .when(local.is_blake3_compress)
-                    .assert_eq(local.op_a_val()[i], blake3_opcode[i]);
-            }
-        }
-
-        // Clock constraints.
-        // TODO: Handle dynamic clock jumps based on precompiles.
-        // builder
-        //     .when_transition()
-        //     .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // Program constraints.
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
@@ -88,6 +50,7 @@ where
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
+        // TODO: should we remove this, I feel like it's doing the same thing?
         builder
             .when(AB::Expr::one() - local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
@@ -99,6 +62,7 @@ where
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
+        // TODO: should we remove this, I feel like it's doing the same thing?
         builder
             .when(AB::Expr::one() - local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
@@ -170,6 +134,11 @@ where
         //
         // like i don't think i can do "is_precompile(local.instruction)" but i can do
         // local.is_precompile
+
+        // For "ALU" tables, we send the opcode and (a, b, c) to the appropriate table.
+        // For "ecall" instructions, we send the opcode ("ECALL"), and
+        // (a, b, c) to the appropriate table.
+        // syscall_id, arg1, arg2
         builder.send_coprocessor(
             local.instruction.opcode,
             local.op_a_val(),
@@ -178,20 +147,48 @@ where
             is_alu_instruction,
         );
 
-        builder.send_precompile(
-            local.instruction.opcode,
-            local.op_a_val(),
-            local.op_b_val(),
-            local.op_c_val(),
-            precompile_multiplicity,
+        // Syscall processing, this is going to be moved to "eval_ecall".
+        let syscall_id = local.op_a_val()[0];
+        let send_to_table = local.op_a_val()[1]; // Does the syscall have a table that should be sent.
+        let syscall_cycles = local.op_a_val()[2]; // How many extra cycles to increment the clk for the syscall.
+        let is_halt = local.op_a_val()[3]; // Whether or not the syscall is a halt.
+        builder.send_ecall(
+            syscall_id,
+            local.op_b_val().reduce::<AB>(),
+            local.op_c_val().reduce::<AB>(),
+            local.selectors.is_ecall * send_to_table,
         );
-
-        // ECALL instructions.
-        // TODO:  Need to handle HALT ecall
-        // For all non branch or jump instructions, verify that next.pc == pc + 4
+        // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
         // builder
-        //     .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
-        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+        //     .when(local.is_ecall)
+        //     .when_not(is_lwa)
+        //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+
+        // For halt instructions, the next pc is 0.
+        builder
+            .when(is_halt)
+            .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
+        // If we're halting and it's a transition, then the next.is_real should be 0.
+        builder
+            .when_transition()
+            .when(is_halt)
+            .assert_eq(next.is_real, AB::Expr::zero());
+        builder.when_first_row().assert_one(local.is_real);
+        // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
+
+        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
+        // The other case is handled by eval_jump, eval_branch and eval_ecall.
+        builder
+            .when_not(
+                is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
+            )
+            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+        // Clock constraints.
+        let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
+        builder
+            .when_transition()
+            .assert_eq(local.clk + clk_increment, next.clk);
 
         // Range checks.
         builder.assert_bool(local.is_real);
@@ -211,16 +208,6 @@ impl CpuChip {
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
-    }
-
-    /// Get the multiplicity of the precompile if this instruction is a precompile `ECALL`. 0
-    /// otherwise.
-    pub(crate) fn precompile_multiplicity<AB: SP1AirBuilder>(
-        &self,
-        local: &CpuCols<AB::Var>,
-    ) -> AB::Expr {
-        local.is_blake3_compress * AB::F::from_canonical_u32(56)
-            + local.is_sha_compress * AB::F::from_canonical_u32(80)
     }
 
     /// Constraints related to jump operations.

@@ -35,21 +35,12 @@ where
 
         self.constrain_finalize_ops(builder, local);
 
-        // builder.receive_coprocessor(
-        //     Opcode::ECALL.as_field::<AB::F>(),
-        //     syscall_code,
-        //     local.w_and_h_ptr_word,
-        //     Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
+        // builder.receive_ecall(
+        //     AB::Expr::from_canonical_u32(SyscallCode::SHA_COMPRESS as u32),
+        //     local.w_and_h_ptr,
+        //     AB::Expr::zero(),
         //     local.is_real,
         // );
-
-        builder.receive_precompile(
-            Opcode::ECALL.as_field::<AB::F>(),
-            AB::Expr::from_canonical_u32(SyscallCode::SHA_COMPRESS as u32),
-            local.w_and_h_ptr,
-            AB::Expr::zero(),
-            local.is_real,
-        );
     }
 }
 
