@@ -1,15 +1,14 @@
-use std::ops::{Add, Mul, Neg, Sub};
-
 use p3_field::AbstractField;
 use sp1_derive::AlignedBorrow;
+use std::ops::{Add, Mul, Neg, Sub};
 
 const DEGREE: usize = 4;
 
 #[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
-pub struct Extension<T>(pub [T; DEGREE]);
+pub struct BinomialExtension<T>(pub [T; DEGREE]);
 
-impl<T: Add<Output = T> + Clone> Add for Extension<T> {
+impl<T: Add<Output = T> + Clone> Add for BinomialExtension<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -22,7 +21,7 @@ impl<T: Add<Output = T> + Clone> Add for Extension<T> {
     }
 }
 
-impl<T: Sub<Output = T> + Clone> Sub for Extension<T> {
+impl<T: Sub<Output = T> + Clone> Sub for BinomialExtension<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -35,7 +34,7 @@ impl<T: Sub<Output = T> + Clone> Sub for Extension<T> {
     }
 }
 
-impl<T: Add<Output = T> + Mul<Output = T> + AbstractField> Mul for Extension<T> {
+impl<T: Add<Output = T> + Mul<Output = T> + AbstractField> Mul for BinomialExtension<T> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -56,7 +55,7 @@ impl<T: Add<Output = T> + Mul<Output = T> + AbstractField> Mul for Extension<T> 
     }
 }
 
-impl<T: AbstractField + Copy> Neg for Extension<T> {
+impl<T: AbstractField + Copy> Neg for BinomialExtension<T> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {

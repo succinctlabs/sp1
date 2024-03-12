@@ -1,15 +1,15 @@
 mod air;
 mod columns;
 
-use crate::air::Word;
+use crate::air::Block;
 use sp1_derive::AlignedBorrow;
 
 #[derive(Debug, Clone)]
 pub struct MemoryRecord<F> {
     pub addr: F,
-    pub value: Word<F>,
+    pub value: Block<F>,
     pub timestamp: F,
-    pub prev_value: Word<F>,
+    pub prev_value: Block<F>,
     pub prev_timestamp: F,
 }
 
@@ -17,9 +17,9 @@ pub struct MemoryRecord<F> {
 #[repr(C)]
 pub struct MemoryReadWriteCols<T> {
     pub addr: T,
-    pub value: Word<T>,
+    pub value: Block<T>,
     pub timestamp: T,
-    pub prev_value: Word<T>,
+    pub prev_value: Block<T>,
     pub prev_timestamp: T,
 }
 

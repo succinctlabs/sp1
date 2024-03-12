@@ -8,7 +8,7 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 
-use crate::air::Word;
+use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
 
@@ -25,7 +25,7 @@ pub struct CpuRecord<F> {
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryEntry<F: PrimeField32> {
-    pub value: Word<F>,
+    pub value: Block<F>,
     pub timestamp: F,
 }
 
@@ -101,13 +101,13 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord {
             addr,
-            value: Word::from(value),
+            value: Block::from(value),
             timestamp,
             prev_value,
             prev_timestamp,
         };
         self.memory[addr_usize] = MemoryEntry {
-            value: Word::from(value),
+            value: Block::from(value),
             timestamp,
         };
         match position {

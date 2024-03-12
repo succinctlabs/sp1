@@ -4,7 +4,7 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 
 use super::interaction::AirInteraction;
 use super::word::Word;
-use super::Extension;
+use super::BinomialExtension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
@@ -465,7 +465,11 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
 
 pub trait ExtensionAirBuilder: BaseAirBuilder {
     /// Asserts that the two field extensions are equal.
-    fn assert_ext_eq<I: Into<Self::Expr>>(&mut self, left: Extension<I>, right: Extension<I>) {
+    fn assert_ext_eq<I: Into<Self::Expr>>(
+        &mut self,
+        left: BinomialExtension<I>,
+        right: BinomialExtension<I>,
+    ) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
         }

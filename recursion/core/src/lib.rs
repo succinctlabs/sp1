@@ -7,7 +7,7 @@ pub mod stark;
 
 #[cfg(test)]
 pub mod tests {
-    use crate::air::Word;
+    use crate::air::Block;
     use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use crate::stark::RecursionAir;
 
@@ -53,7 +53,7 @@ pub mod tests {
         runtime.run();
         assert_eq!(
             runtime.memory[1].value,
-            Word::from(BabyBear::from_canonical_u32(144))
+            Block::from(BabyBear::from_canonical_u32(144))
         );
         // println!("{:#?}", runtime.record.cpu_events);
         // println!("{:#?}", &runtime.memory[0..16]);

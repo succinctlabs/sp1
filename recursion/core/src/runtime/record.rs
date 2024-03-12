@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use sp1_core::stark::MachineRecord;
 
-use crate::{air::Word, cpu::CpuEvent};
+use crate::{air::Block, cpu::CpuEvent};
 
 use super::Program;
 
@@ -17,7 +17,7 @@ pub struct ExecutionRecord<F: Default> {
     pub first_memory_record: Vec<F>,
 
     // (address, last_timestamp, last_value)
-    pub last_memory_record: Vec<(F, F, Word<F>)>,
+    pub last_memory_record: Vec<(F, F, Block<F>)>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {

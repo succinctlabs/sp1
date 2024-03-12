@@ -6,23 +6,15 @@ use p3_matrix::MatrixRowSlices;
 use sp1_core::air::{AirInteraction, SP1AirBuilder};
 use sp1_core::lookup::InteractionKind;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 
 use super::columns::MemoryInitCols;
-use crate::air::Word;
+use crate::air::Block;
 use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
 use crate::runtime::ExecutionRecord;
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
-
-// pub(crate) const MEMORY_INIT_COL_MAP: MemoryInitCols<usize> = make_col_map();
-
-// const fn make_col_map() -> MemoryInitCols<usize> {
-//     let indices_arr = indices_arr::<NUM_MEMORY_INIT_COLS>();
-//     unsafe { transmute::<[usize; NUM_MEMORY_INIT_COLS], MemoryInitCols<usize>>(indices_arr) }
-// }
 
 #[allow(dead_code)]
 impl MemoryGlobalChip {
@@ -58,7 +50,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                         let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                         cols.addr = *addr;
                         cols.timestamp = F::zero();
-                        cols.value = Word::from(F::zero());
+                        cols.value = Block::from(F::zero());
                         cols.is_real = F::one();
                         row
                     })

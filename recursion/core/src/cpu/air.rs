@@ -1,4 +1,5 @@
-use crate::air::Word;
+use crate::air::BinomialExtensionUtils;
+use crate::air::Block;
 use crate::cpu::CpuChip;
 use crate::runtime::Opcode;
 use core::mem::size_of;
@@ -11,7 +12,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
-use sp1_core::air::Extension;
+use sp1_core::air::BinomialExtension;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::operations::IsZeroOperation;
 use sp1_core::stark::SP1AirBuilder;
@@ -88,23 +89,26 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
                 } else {
-                    cols.b.value = Word::from(event.instruction.op_b);
+                    cols.b.value = Block::from(event.instruction.op_b);
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
                 } else {
-                    cols.c.value = Word::from(event.instruction.op_c);
+                    cols.c.value = Block::from(event.instruction.op_c);
                 }
 
                 cols.add_scratch = cols.b.value.0[0] + cols.c.value.0[0];
                 cols.sub_scratch = cols.b.value.0[0] - cols.c.value.0[0];
                 cols.mul_scratch = cols.b.value.0[0] * cols.c.value.0[0];
-                cols.add_ext_scratch =
-                    Word((Extension(cols.b.value.0) + Extension(cols.c.value.0)).0);
-                cols.sub_ext_scratch =
-                    Word((Extension(cols.b.value.0) - Extension(cols.c.value.0)).0);
-                cols.mul_ext_scratch =
-                    Word((Extension(cols.b.value.0) * Extension(cols.c.value.0)).0);
+                cols.add_ext_scratch = (BinomialExtension::from_block(cols.b.value)
+                    + BinomialExtension::from_block(cols.c.value))
+                .as_block();
+                cols.sub_ext_scratch = (BinomialExtension::from_block(cols.b.value)
+                    - BinomialExtension::from_block(cols.c.value))
+                .as_block();
+                cols.mul_ext_scratch = (BinomialExtension::from_block(cols.b.value)
+                    * BinomialExtension::from_block(cols.c.value))
+                .as_block();
 
                 cols.a_eq_b
                     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
@@ -204,16 +208,16 @@ where
 
         // Compute extension ALU.
         builder.assert_ext_eq(
-            local.b.value.extension::<AB>() + local.c.value.extension::<AB>(),
-            local.add_ext_scratch.extension::<AB>(),
+            local.b.value.as_extension::<AB>() + local.c.value.as_extension::<AB>(),
+            local.add_ext_scratch.as_extension::<AB>(),
         );
         builder.assert_ext_eq(
-            local.b.value.extension::<AB>() - local.c.value.extension::<AB>(),
-            local.sub_ext_scratch.extension::<AB>(),
+            local.b.value.as_extension::<AB>() - local.c.value.as_extension::<AB>(),
+            local.sub_ext_scratch.as_extension::<AB>(),
         );
         builder.assert_ext_eq(
-            local.b.value.extension::<AB>() * local.c.value.extension::<AB>(),
-            local.mul_ext_scratch.extension::<AB>(),
+            local.b.value.as_extension::<AB>() * local.c.value.as_extension::<AB>(),
+            local.mul_ext_scratch.as_extension::<AB>(),
         );
 
         // Connect ALU to CPU.

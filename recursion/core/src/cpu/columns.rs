@@ -1,4 +1,4 @@
-use crate::{air::Word, memory::MemoryReadWriteCols};
+use crate::{air::Block, memory::MemoryReadWriteCols};
 use sp1_core::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;
 
@@ -34,13 +34,13 @@ pub struct CpuCols<T> {
     pub mul_scratch: T,
 
     // ext(c) = ext(a) + ext(b);
-    pub add_ext_scratch: Word<T>,
+    pub add_ext_scratch: Block<T>,
 
     // ext(c) = ext(a) - ext(b);
-    pub sub_ext_scratch: Word<T>,
+    pub sub_ext_scratch: Block<T>,
 
     // ext(c) = ext(a) * ext(b);
-    pub mul_ext_scratch: Word<T>,
+    pub mul_ext_scratch: Block<T>,
 
     // c = a == b;
     pub a_eq_b: IsZeroOperation<T>,
