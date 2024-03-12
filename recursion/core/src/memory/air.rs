@@ -64,7 +64,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                     cols.addr = *addr;
                     cols.timestamp = *timestamp;
-                    cols.value = value.clone();
+                    cols.value = *value;
                     cols.is_real = F::one();
                     row
                 })
