@@ -1,24 +1,30 @@
+use core::marker::PhantomData;
+
 use alloc::vec::Vec;
 use p3_field::{ExtensionField, Field};
 
 mod builder;
+mod ops;
+mod symbolic;
 
 pub use builder::*;
+pub use ops::*;
+pub use symbolic::*;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Var(u32);
+pub struct Var<C>(u32, PhantomData<C>);
 #[derive(Debug, Clone, Copy)]
-pub struct Felt(u32);
-
-#[derive(Debug, Clone, Copy)]
-
-pub struct Ext(u32);
+pub struct Felt<C>(u32, PhantomData<C>);
 
 #[derive(Debug, Clone, Copy)]
 
-pub enum Usize {
+pub struct Ext<C>(u32, PhantomData<C>);
+
+#[derive(Debug, Clone, Copy)]
+
+pub enum Usize<C> {
     Const(usize),
-    Var(u32),
+    Var(u32, PhantomData<C>),
 }
 
 pub trait Config {
@@ -27,59 +33,55 @@ pub trait Config {
     type EF: ExtensionField<Self::F>;
 }
 
-pub trait Variable<C: Config> {
-    type Value;
-}
-
 #[derive(Debug, Clone)]
 pub enum DslIR<C: Config> {
-    Imm(Var, C::N),
-    ImmFelt(Felt, C::F),
-    ImmExt(Ext, C::EF),
-    AddV(Var, Var, Var),
-    AddVI(Var, Var, C::N),
-    AddF(Felt, Felt, Felt),
-    AddFI(Felt, Felt, C::F),
-    AddE(Ext, Ext, Ext),
-    AddEI(Ext, Ext, C::EF),
-    AddEFI(Ext, Ext, C::F),
-    AddEF(Ext, Ext, Felt),
-    MulV(Var, Var, Var),
-    MulVI(Var, Var, C::N),
-    MulF(Felt, Felt, Felt),
-    MulFI(Felt, Felt, C::F),
-    MulE(Ext, Ext, Ext),
-    MulEI(Ext, Ext, C::EF),
-    MulEFI(Ext, Ext, C::F),
-    MulEF(Ext, Ext, Felt),
-    SubV(Var, Var, Var),
-    SubVI(Var, Var, C::N),
-    SubF(Felt, Felt, Felt),
-    SubFI(Felt, Felt, C::F),
-    SubE(Ext, Ext, Ext),
-    SubEI(Ext, Ext, C::EF),
-    SubEFI(Ext, Ext, C::F),
-    SubEF(Ext, Ext, Felt),
-    DivV(Var, Var, Var),
-    DivVI(Var, Var, C::N),
-    DivF(Felt, Felt, Felt),
-    DivFI(Felt, Felt, C::F),
-    DivE(Ext, Ext, Ext),
-    DivEI(Ext, Ext, C::EF),
-    DivEFI(Ext, Ext, C::F),
-    DivEF(Ext, Ext, Felt),
-    NegV(Var, Var),
-    NegF(Felt, Felt),
-    NegE(Ext, Ext),
-    InvV(Var, Var),
-    InvF(Felt, Felt),
-    InvE(Ext, Ext),
-    For(Usize, Usize, Vec<DslIR<C>>),
-    If(Var, Vec<DslIR<C>>, Vec<DslIR<C>>),
-    AssertEqV(Var, Var),
-    AssertEqF(Felt, Felt),
-    AssertEqE(Ext, Ext),
-    AssertEqVI(Var, C::N),
-    AssertEqFI(Felt, C::F),
-    AssertEqEI(Ext, C::EF),
+    Imm(Var<C>, C::N),
+    ImmFelt(Felt<C>, C::F),
+    ImmExt(Ext<C>, C::EF),
+    AddV(Var<C>, Var<C>, Var<C>),
+    AddVI(Var<C>, Var<C>, C::N),
+    AddF(Felt<C>, Felt<C>, Felt<C>),
+    AddFI(Felt<C>, Felt<C>, C::F),
+    AddE(Ext<C>, Ext<C>, Ext<C>),
+    AddEI(Ext<C>, Ext<C>, C::EF),
+    AddEFI(Ext<C>, Ext<C>, C::F),
+    AddEF(Ext<C>, Ext<C>, Felt<C>),
+    MulV(Var<C>, Var<C>, Var<C>),
+    MulVI(Var<C>, Var<C>, C::N),
+    MulF(Felt<C>, Felt<C>, Felt<C>),
+    MulFI(Felt<C>, Felt<C>, C::F),
+    MulE(Ext<C>, Ext<C>, Ext<C>),
+    MulEI(Ext<C>, Ext<C>, C::EF),
+    MulEFI(Ext<C>, Ext<C>, C::F),
+    MulEF(Ext<C>, Ext<C>, Felt<C>),
+    SubV(Var<C>, Var<C>, Var<C>),
+    SubVI(Var<C>, Var<C>, C::N),
+    SubF(Felt<C>, Felt<C>, Felt<C>),
+    SubFI(Felt<C>, Felt<C>, C::F),
+    SubE(Ext<C>, Ext<C>, Ext<C>),
+    SubEI(Ext<C>, Ext<C>, C::EF),
+    SubEFI(Ext<C>, Ext<C>, C::F),
+    SubEF(Ext<C>, Ext<C>, Felt<C>),
+    DivV(Var<C>, Var<C>, Var<C>),
+    DivVI(Var<C>, Var<C>, C::N),
+    DivF(Felt<C>, Felt<C>, Felt<C>),
+    DivFI(Felt<C>, Felt<C>, C::F),
+    DivE(Ext<C>, Ext<C>, Ext<C>),
+    DivEI(Ext<C>, Ext<C>, C::EF),
+    DivEFI(Ext<C>, Ext<C>, C::F),
+    DivEF(Ext<C>, Ext<C>, Felt<C>),
+    NegV(Var<C>, Var<C>),
+    NegF(Felt<C>, Felt<C>),
+    NegE(Ext<C>, Ext<C>),
+    InvV(Var<C>, Var<C>),
+    InvF(Felt<C>, Felt<C>),
+    InvE(Ext<C>, Ext<C>),
+    For(Usize<C>, Usize<C>, Vec<DslIR<C>>),
+    If(Var<C>, Vec<DslIR<C>>, Vec<DslIR<C>>),
+    AssertEqV(Var<C>, Var<C>),
+    AssertEqF(Felt<C>, Felt<C>),
+    AssertEqE(Ext<C>, Ext<C>),
+    AssertEqVI(Var<C>, C::N),
+    AssertEqFI(Felt<C>, C::F),
+    AssertEqEI(Ext<C>, C::EF),
 }
