@@ -1,4 +1,5 @@
 pub mod proto {
+    #[rustfmt::skip]
     #[allow(clippy::all)]
     pub mod prover;
 }
