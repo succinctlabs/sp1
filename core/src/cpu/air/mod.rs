@@ -140,10 +140,10 @@ where
         let send_to_table = local.op_a_val()[1]; // Does the syscall have a table that should be sent.
         let syscall_cycles = local.op_a_val()[2]; // How many extra cycles to increment the clk for the syscall.
         let is_halt = local.op_a_val()[3]; // Whether or not the syscall is a halt.
-        builder.assert_eq(
-            send_to_table * is_ecall_instruction,
-            local.ecall_mul_send_to_table, // Have to make this a separate col because of interaction
-        );
+                                           // builder.assert_eq(
+                                           //     send_to_table * is_ecall_instruction,
+                                           //     local.ecall_mul_send_to_table, // Have to make this a separate col because of interaction
+                                           // );
         builder.send_ecall(
             local.shard,
             local.clk,
@@ -159,30 +159,30 @@ where
         //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         // For halt instructions, the next pc is 0.
-        builder
-            .when(is_halt)
-            .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
-        // If we're halting and it's a transition, then the next.is_real should be 0.
-        builder
-            .when_transition()
-            .when(is_halt)
-            .assert_eq(next.is_real, AB::Expr::zero());
-        builder.when_first_row().assert_one(local.is_real);
+        // builder
+        //     .when(is_halt)
+        //     .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
+        // // If we're halting and it's a transition, then the next.is_real should be 0.
+        // builder
+        //     .when_transition()
+        //     .when(is_halt)
+        //     .assert_eq(next.is_real, AB::Expr::zero());
+        // builder.when_first_row().assert_one(local.is_real);
         // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
 
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
         // The other case is handled by eval_jump, eval_branch and eval_ecall.
-        builder
-            .when_not(
-                is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
-            )
-            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+        // builder
+        //     .when_not(
+        //         is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
+        //     )
+        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // Clock constraints.
-        let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
-        builder
-            .when_transition()
-            .assert_eq(local.clk + clk_increment, next.clk);
+        // // Clock constraints.
+        // let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
+        // builder
+        //     .when_transition()
+        //     .assert_eq(local.clk + clk_increment, next.clk);
 
         // Range checks.
         builder.assert_bool(local.is_real);

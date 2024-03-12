@@ -167,6 +167,10 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
+        let syscall_id = event.a;
+        let send_to_table = syscall_id.to_le_bytes()[1] as u32 != 0;
+        cols.ecall_mul_send_to_table = cols.selectors.is_ecall * F::from_bool(send_to_table);
+
         (row, new_alu_events, new_blu_events, new_field_events)
     }
 
