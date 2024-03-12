@@ -56,28 +56,13 @@ impl SP1Prover {
     }
 
     /// Generate a proof for the execution of the ELF with the given public inputs.
-    pub fn prove(elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearBlake3>> {
-        let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&stdin.buffer.data);
-        tracing::info_span!("runtime.run(...)").in_scope(|| {
-            runtime.run();
-        });
-        let config = BabyBearBlake3::new();
-        let stdout = SP1Stdout::from(&runtime.state.output_stream);
-        let proof = prove_core(config, runtime);
-        Ok(SP1ProofWithIO {
-            proof,
-            stdin,
-            stdout,
-        })
+    pub fn prove(elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearPoseidon2>> {
+        Self::prove_with_config(elf, stdin, BabyBearPoseidon2::new())
     }
 
-    /// Generate a proof for the execution of the ELF with the given public inputs and a custom config.
-    pub fn prove_with_config<SC: StarkGenericConfig>(
+    async fn prove_remote<SC: StarkGenericConfig>(
         elf: &[u8],
         stdin: SP1Stdin,
-        config: SC,
     ) -> Result<SP1ProofWithIO<SC>>
     where
         SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone,
@@ -88,34 +73,60 @@ impl SP1Prover {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
-        if let std::result::Result::Ok(access_token) = std::env::var("SP1_SERVICE_ACCESS_TOKEN") {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async move {
-                    let client = SP1ProverServiceClient::with_token(access_token);
-                    let id = client.create_proof(elf, &stdin.buffer.data).await?;
+        let access_token = std::env::var("SP1_SERVICE_ACCESS_TOKEN").unwrap();
+        let client = SP1ProverServiceClient::with_token(access_token);
+        let id = client.create_proof(elf, &stdin.buffer.data).await?;
 
-                    let mut pb = StageProgressBar::new();
-                    loop {
-                        let status = client.get_proof_status(&id).await;
-                        if let std::result::Result::Ok(status) = status {
-                            if status.0.status() == ProofStatus::Failed {
-                                return Err(anyhow::anyhow!("Proof failed"));
-                            }
-                            if let Some(result) = status.1 {
-                                pb.finish();
-                                return Ok(result);
-                            }
-                            pb.update(
-                                status.0.stage,
-                                status.0.total_stages,
-                                &status.0.stage_name,
-                                status.0.stage_percent,
-                            );
-                        }
-                        sleep(Duration::from_secs(1)).await;
-                    }
-                })
-            })
+        let mut pb = StageProgressBar::new();
+        loop {
+            let status = client.get_proof_status(&id).await;
+            if let std::result::Result::Ok(status) = status {
+                if status.0.status() == ProofStatus::Failed {
+                    pb.finish();
+                    return Err(anyhow::anyhow!("Proof failed"));
+                }
+                if let Some(result) = status.1 {
+                    pb.finish();
+                    return Ok(result);
+                }
+                pb.update(
+                    status.0.stage,
+                    status.0.total_stages,
+                    &status.0.stage_name,
+                    status.0.stage_percent,
+                );
+            }
+            sleep(Duration::from_secs(1)).await;
+        }
+    }
+
+    /// Generate a proof for the execution of the ELF with the given public inputs and a custom config.
+    pub fn prove_with_config<SC: StarkGenericConfig>(
+        elf: &[u8],
+        stdin: SP1Stdin,
+        config: SC,
+    ) -> Result<SP1ProofWithIO<SC>>
+    where
+        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone + 'static,
+        SC::Challenger: Clone,
+        OpeningProof<SC>: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+        <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
+    {
+        if std::env::var("SP1_SERVICE_ACCESS_TOKEN").is_ok() {
+            match tokio::runtime::Handle::try_current() {
+                std::result::Result::Ok(handle) => {
+                    tokio::task::block_in_place(|| handle.block_on(Self::prove_remote(elf, stdin)))
+                }
+                Err(_) => {
+                    // Handle case where there is no current Tokio runtime
+                    let rt = tokio::runtime::Runtime::new()
+                        .expect("Failed to create a new Tokio runtime");
+                    rt.handle().block_on(Self::prove_remote(elf, stdin))
+                }
+            }
         } else {
             let program = Program::from(elf);
             let mut runtime = Runtime::new(program);
@@ -137,13 +148,9 @@ impl SP1Verifier {
     #[allow(unused_variables)]
     pub fn verify(
         elf: &[u8],
-        proof: &SP1ProofWithIO<BabyBearBlake3>,
+        proof: &SP1ProofWithIO<BabyBearPoseidon2>,
     ) -> Result<(), ProgramVerificationError> {
-        let config = BabyBearBlake3::new();
-        let mut challenger = config.challenger();
-        let machine = RiscvAir::machine(config);
-        let (_, vk) = machine.setup(&Program::from(elf));
-        machine.verify(&vk, &proof.proof, &mut challenger)
+        Self::verify_with_config(elf, proof, BabyBearPoseidon2::new())
     }
 
     /// Verify a proof generated by `SP1Prover` with a custom config.

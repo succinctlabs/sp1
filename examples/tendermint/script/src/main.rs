@@ -1,5 +1,6 @@
 use reqwest::Client;
-use sp1_sdk::{setup_logger, BabyBearPoseidon2, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::utils::{setup_logger, BabyBearPoseidon2};
+use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
 use crate::util::fetch_latest_commit;
 use crate::util::fetch_light_block;
@@ -38,19 +39,10 @@ async fn main() {
     stdin.write(&encoded_1);
     stdin.write(&encoded_2);
 
-    // TODO: normally we could just write the LightBlock, but bincode doesn't work with LightBlock.
-    // The following code will panic.
-    // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
-    // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
-
-    // let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
-
-    let config = BabyBearPoseidon2::new();
-    let mut proof = SP1Prover::prove_with_config(TENDERMINT_ELF, stdin, config.clone())
-        .expect("proving failed");
+    let mut proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SP1Verifier::verify_with_config(TENDERMINT_ELF, &proof, config).expect("verification failed");
+    SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
 
     // Save proof.
     proof
