@@ -650,6 +650,7 @@ impl Runtime {
                     }
                     next_pc = precompile_rt.next_pc;
                     self.state.clk = precompile_rt.clk;
+
                     assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
                 } else {
                     panic!("Unsupported syscall: {:?}", syscall);

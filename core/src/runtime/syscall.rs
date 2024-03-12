@@ -22,65 +22,66 @@ use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord, runtime::ExecutionRec
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
     /// Halts the program.
-    HALT = 100,
+    HALT = 0x01_00_00_00,
 
     /// Loads a word supplied from the prover.
-    LWA = 101,
+    LWA = 0x00_00_00_01,
 
-    /// Executes the `SHA_EXTEND` precompile.
-    SHA_EXTEND = 102,
-
-    /// Executes the `SHA_COMPRESS` precompile.
-    SHA_COMPRESS = 103,
-
-    /// Executes the `ED_ADD` precompile.
-    ED_ADD = 104,
-
-    /// Executes the `ED_DECOMPRESS` precompile.
-    ED_DECOMPRESS = 105,
-
-    /// Executes the `KECCAK_PERMUTE` precompile.
-    KECCAK_PERMUTE = 106,
-
-    /// Executes the `SECP256K1_ADD` precompile.
-    SECP256K1_ADD = 107,
-
-    /// Executes the `SECP256K1_DOUBLE` precompile.
-    SECP256K1_DOUBLE = 108,
-
-    /// Executes the `SECP256K1_DECOMPRESS` precompile.
-    SECP256K1_DECOMPRESS = 109,
+    /// Write to the output buffer.
+    WRITE = 0x00_00_00_02,
 
     /// Enter unconstrained block.
-    ENTER_UNCONSTRAINED = 110,
+    ENTER_UNCONSTRAINED = 0x00_00_00_03,
 
     /// Exit unconstrained block.
-    EXIT_UNCONSTRAINED = 111,
+    EXIT_UNCONSTRAINED = 0x00_00_00_04,
+
+    /// Executes the `SHA_EXTEND` precompile.
+    SHA_EXTEND = 0x00_80_01_00,
+
+    /// Executes the `SHA_COMPRESS` precompile.
+    SHA_COMPRESS = 0x00_80_01_01,
+
+    /// Executes the `ED_ADD` precompile.
+    ED_ADD = 0x00_80_01_02,
+
+    /// Executes the `ED_DECOMPRESS` precompile.
+    ED_DECOMPRESS = 0x00_80_01_03,
+
+    /// Executes the `KECCAK_PERMUTE` precompile.
+    KECCAK_PERMUTE = 0x00_80_01_04,
+
+    /// Executes the `SECP256K1_ADD` precompile.
+    SECP256K1_ADD = 0x00_80_01_05,
+
+    /// Executes the `SECP256K1_DOUBLE` precompile.
+    SECP256K1_DOUBLE = 0x00_80_01_06,
+
+    /// Executes the `SECP256K1_DECOMPRESS` precompile.
+    SECP256K1_DECOMPRESS = 0x00_80_01_07,
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
-    BLAKE3_COMPRESS_INNER = 112,
-
-    WRITE = 999,
+    BLAKE3_COMPRESS_INNER = 0x00_80_01_08,
 }
 
 impl SyscallCode {
     /// Create a syscall from a u32.
     pub fn from_u32(value: u32) -> Self {
         match value {
-            100 => SyscallCode::HALT,
-            101 => SyscallCode::LWA,
-            102 => SyscallCode::SHA_EXTEND,
-            103 => SyscallCode::SHA_COMPRESS,
-            104 => SyscallCode::ED_ADD,
-            105 => SyscallCode::ED_DECOMPRESS,
-            106 => SyscallCode::KECCAK_PERMUTE,
-            107 => SyscallCode::SECP256K1_ADD,
-            108 => SyscallCode::SECP256K1_DOUBLE,
-            109 => SyscallCode::SECP256K1_DECOMPRESS,
-            110 => SyscallCode::ENTER_UNCONSTRAINED,
-            111 => SyscallCode::EXIT_UNCONSTRAINED,
-            112 => SyscallCode::BLAKE3_COMPRESS_INNER,
-            999 => SyscallCode::WRITE,
+            0x01_00_00_00 => SyscallCode::HALT,
+            0x00_00_00_01 => SyscallCode::LWA,
+            0x00_00_00_02 => SyscallCode::WRITE,
+            0x00_00_00_03 => SyscallCode::ENTER_UNCONSTRAINED,
+            0x00_00_00_04 => SyscallCode::EXIT_UNCONSTRAINED,
+            0x00_80_01_00 => SyscallCode::SHA_EXTEND,
+            0x00_80_01_01 => SyscallCode::SHA_COMPRESS,
+            0x00_80_01_02 => SyscallCode::ED_ADD,
+            0x00_80_01_03 => SyscallCode::ED_DECOMPRESS,
+            0x00_80_01_04 => SyscallCode::KECCAK_PERMUTE,
+            0x00_80_01_05 => SyscallCode::SECP256K1_ADD,
+            0x00_80_01_06 => SyscallCode::SECP256K1_DOUBLE,
+            0x00_80_01_07 => SyscallCode::SECP256K1_DECOMPRESS,
+            0x00_80_01_08 => SyscallCode::BLAKE3_COMPRESS_INNER,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -232,4 +233,18 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
 
     syscall_map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_syscall_map;
+
+    #[test]
+    fn test_syscall_num_cycles_encoding() {
+        for (syscall_code, syscall_impl) in default_syscall_map().iter() {
+            let syscall_id = syscall_code.clone() as u32;
+            let encoded_num_cycles = syscall_id.to_le_bytes()[2];
+            assert_eq!(syscall_impl.num_extra_cycles(), encoded_num_cycles as u32);
+        }
+    }
 }

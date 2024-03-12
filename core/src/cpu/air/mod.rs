@@ -30,6 +30,7 @@ where
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
+        let is_ecall_instruction: AB::Expr = self.is_ecall_instruction::<AB>(&local.selectors);
 
         // Program constraints.
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
@@ -127,18 +128,6 @@ where
         // AUIPC instruction.
         self.auipc_eval(builder, local);
 
-        // ALU instructions + precompiles.
-        //
-        // Oh i'm noticing that we can't tell whether this is a precompile or system instruction
-        // within `instruction`. but we might be able to tell that from `local.`
-        //
-        // like i don't think i can do "is_precompile(local.instruction)" but i can do
-        // local.is_precompile
-
-        // For "ALU" tables, we send the opcode and (a, b, c) to the appropriate table.
-        // For "ecall" instructions, we send the opcode ("ECALL"), and
-        // (a, b, c) to the appropriate table.
-        // syscall_id, arg1, arg2
         builder.send_coprocessor(
             local.instruction.opcode,
             local.op_a_val(),
@@ -147,7 +136,8 @@ where
             is_alu_instruction,
         );
 
-        // Syscall processing, this is going to be moved to "eval_ecall".
+        // TODO: move this to self.ecall_eval::<AB>(builder, local, next)
+        // Ecall processing
         let syscall_id = local.op_a_val()[0];
         let send_to_table = local.op_a_val()[1]; // Does the syscall have a table that should be sent.
         let syscall_cycles = local.op_a_val()[2]; // How many extra cycles to increment the clk for the syscall.
@@ -156,7 +146,7 @@ where
             syscall_id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
-            local.selectors.is_ecall * send_to_table,
+            is_ecall_instruction * send_to_table,
         );
         // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
         // builder
@@ -208,6 +198,14 @@ impl CpuChip {
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
+    }
+
+    /// Whether the instruction is an ECALL instruction.
+    pub(crate) fn is_ecall_instruction<AB: SP1AirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_ecall.into()
     }
 
     /// Constraints related to jump operations.
