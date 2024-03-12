@@ -1,6 +1,6 @@
 use std::{env, time::Duration};
 
-use anyhow::{Context, Ok, Result};
+use anyhow::{Ok, Result};
 use futures::future::join_all;
 use reqwest::{
     header::{HeaderMap, HeaderValue},

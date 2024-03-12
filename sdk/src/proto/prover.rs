@@ -46,7 +46,9 @@ pub struct GetProofStatusResponse {
     #[prost(string, tag = "5")]
     pub stage_name: ::prost::alloc::string::String,
     #[prost(uint32, optional, tag = "6")]
-    pub stage_percent: ::core::option::Option<u32>,
+    pub stage_progress: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "7")]
+    pub stage_total: ::core::option::Option<u32>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

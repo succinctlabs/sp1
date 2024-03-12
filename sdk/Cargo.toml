@@ -25,9 +25,9 @@ p3-field = { workspace = true }
 indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
+log = "0.4.21"
 
 [build-dependencies]
-vergen = { version = "8", default-features = false, features = ["build", "git", "git2"] }
 prost-build = "0.12"
 twirp-build = { git = "https://github.com/github/twirp-rs.git" }
 

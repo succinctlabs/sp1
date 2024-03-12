@@ -3180,6 +3180,7 @@ dependencies = [
  "futures",
  "hex",
  "indicatif 0.17.8",
+ "log",
  "p3-commit",
  "p3-field",
  "p3-matrix",
@@ -3195,7 +3196,6 @@ dependencies = [
  "tracing",
  "twirp",
  "twirp-build",
- "vergen",
 ]
 
 [[package]]

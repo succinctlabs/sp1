@@ -43,5 +43,6 @@ message GetProofStatusResponse {
   uint32 stage = 3;
   uint32 total_stages = 4;
   string stage_name = 5;
-  optional uint32 stage_percent = 6;
+  optional uint32 stage_progress = 6;
+  optional uint32 stage_total = 7;
 }

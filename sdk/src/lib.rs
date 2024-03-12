@@ -93,7 +93,7 @@ impl SP1Prover {
                     status.0.stage,
                     status.0.total_stages,
                     &status.0.stage_name,
-                    status.0.stage_percent,
+                    status.0.stage_progress.map(|p| (p, status.0.stage_total())),
                 );
             }
             sleep(Duration::from_secs(1)).await;
@@ -116,6 +116,7 @@ impl SP1Prover {
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
         if std::env::var("PROVER_NETWORK_ACCESS_TOKEN").is_ok() {
+            log::info!("PROVER_NETWORK_ACCESS_TOKEN is set, proving remotely");
             match tokio::runtime::Handle::try_current() {
                 std::result::Result::Ok(handle) => {
                     tokio::task::block_in_place(|| handle.block_on(Self::prove_remote(elf, stdin)))
