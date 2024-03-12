@@ -5,9 +5,28 @@ use super::VmBuilder;
 use crate::syn::BaseBuilder;
 use crate::syn::Builder;
 use crate::syn::ConstantSizeLoopIterBuilder;
+use crate::syn::IntoIterator;
+use crate::syn::IterBuilder;
+use core::ops::Range;
 use p3_field::AbstractField;
 
 use super::AsmInstruction;
+
+impl<B: VmBuilder> IntoIterator<B> for Range<Felt<B::F>> {
+    type Item = Felt<B::F>;
+
+    type IterBuilder<'a> = ForVmBuilder<'a, B> where B: 'a;
+
+    fn into_iter(self, builder: &mut B) -> Self::IterBuilder<'_> {
+        let loop_variable = builder.uninit();
+        ForVmBuilder {
+            builder,
+            start: self.start,
+            end: self.end,
+            loop_var: loop_variable,
+        }
+    }
+}
 
 /// A builder for a for loop.
 ///
@@ -48,11 +67,10 @@ impl<'a, B: VmBuilder> VmBuilder for ForVmBuilder<'a, B> {
     }
 }
 
-impl<'a, B: VmBuilder> ForVmBuilder<'a, B> {
-    pub fn for_each<Func>(&mut self, f: Func)
-    where
-        Func: FnOnce(Felt<B::F>, &mut Self),
-    {
+impl<'a, B: VmBuilder> IterBuilder for ForVmBuilder<'a, B> {
+    type Item = Felt<B::F>;
+
+    fn for_each(mut self, mut f: impl FnMut(Felt<B::F>, &mut Self)) {
         // The function block structure:
         // - Setting the loop range
         // - Executing the loop body and incrementing the loop variable
@@ -67,7 +85,7 @@ impl<'a, B: VmBuilder> ForVmBuilder<'a, B> {
         // Save the loop body label for the loop condition.
         let loop_label = self.block_label();
         // The loop body.
-        f(loop_var, self);
+        f(loop_var, &mut self);
         self.assign(loop_var, loop_var + B::F::one());
         // Add a basic block for the loop condition.
         self.basic_block();
@@ -76,7 +94,7 @@ impl<'a, B: VmBuilder> ForVmBuilder<'a, B> {
         self.push(instr);
         // Add a jump instruction to the loop condition in the following block
         let label = self.block_label();
-        let instr = AsmInstruction::j(label, self);
+        let instr = AsmInstruction::j(label, &mut self);
         self.push_to_block(loop_call_label, instr);
     }
 }

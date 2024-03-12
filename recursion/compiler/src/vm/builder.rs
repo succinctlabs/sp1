@@ -1,6 +1,6 @@
 use super::{AssemblyCode, BasicBlock, IfFeltBuilder};
 use super::{ForVmBuilder, IfBoolBuilder};
-use crate::syn::BaseBuilder;
+use crate::syn::{BaseBuilder, Condition};
 use crate::vm::Int;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -10,13 +10,11 @@ use alloc::vec::Vec;
 use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
 
-use crate::syn::FromConstant;
 use crate::syn::Variable;
 use crate::vm::AsmInstruction;
 
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
-use crate::syn::Builder;
 use crate::vm::Felt;
 
 pub trait VmBuilder: BaseBuilder {
@@ -40,12 +38,6 @@ pub trait VmBuilder: BaseBuilder {
 
     fn uninit<T: Variable<Self>>(&mut self) -> T {
         T::uninit(self)
-    }
-
-    fn constant<T: FromConstant<Self>>(&mut self, value: T::Constant) -> T {
-        let var = T::uninit(self);
-        var.imm(value, self);
-        var
     }
 
     fn range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForVmBuilder<Self> {
@@ -126,7 +118,7 @@ pub trait VmBuilder: BaseBuilder {
         E: Into<SymbolicLogic>,
     {
         let expr: SymbolicLogic = expr.into();
-        self.if_(expr)
+        expr.if_condition(self)
             .then(|builder| builder.push(AsmInstruction::TRAP));
     }
 }

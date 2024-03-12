@@ -4,6 +4,7 @@ use crate::syn::BaseBuilder;
 use crate::syn::Builder;
 use crate::syn::Condition;
 use crate::syn::ConstantConditionBuilder;
+use crate::syn::Equal;
 use crate::syn::IfBuilder;
 use crate::vm::Int;
 
@@ -24,6 +25,21 @@ impl<B: VmBuilder> Condition<B> for SymbolicLogic {
             builder,
             expr: self,
             is_true: true,
+        }
+    }
+}
+
+impl<B: VmBuilder> Condition<B> for Equal<Symbolic<B::F>, Symbolic<B::F>> {
+    type IfBuilder<'a> = IfFeltBuilder<'a, B>
+        where
+        B: 'a;
+
+    fn if_condition(self, builder: &mut B) -> Self::IfBuilder<'_> {
+        IfFeltBuilder {
+            builder,
+            lhs: self.0,
+            rhs: self.1,
+            is_eq: true,
         }
     }
 }

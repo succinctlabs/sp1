@@ -15,6 +15,12 @@ pub trait Builder: BaseBuilder {
         expr.assign(dst, self);
     }
 
+    fn constant<T: FromConstant<Self>>(&mut self, value: T::Constant) -> T {
+        let var = T::uninit(self);
+        var.imm(value, self);
+        var
+    }
+
     fn eval<E: Expression<Self>>(&mut self, expr: E) -> E::Value {
         let dst = E::Value::uninit(self);
         expr.assign(dst, self);
@@ -24,10 +30,10 @@ pub trait Builder: BaseBuilder {
     fn iter<I: IntoIterator<Self>>(&mut self, iter: I) -> I::IterBuilder<'_> {
         iter.into_iter(self)
     }
-
-    fn if_<C: Condition<Self>>(&mut self, condition: C) -> C::IfBuilder<'_> {
-        condition.if_condition(self)
-    }
 }
 
 impl<T: BaseBuilder> Builder for T {}
+
+pub trait FieldBuilder: Builder {
+    type Felt: AlgebraicVariable<Self>;
+}
