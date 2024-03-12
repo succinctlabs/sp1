@@ -111,7 +111,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
 
 impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {

@@ -47,17 +47,14 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);
     let q_memory_records = q_memory_records_vec.try_into().unwrap();
     let q: [u32; 16] = q_vec.try_into().unwrap();
-    // When we write to p, we want the clk to be incremented.
-    rt.clk += 4;
+    // When we write to p, we want the clk to be incremented because p and q could be the same.
+    rt.clk += 1;
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     let result_affine = p_affine + q_affine;
     let result_words = result_affine.to_words_le();
-
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
-
-    rt.clk += 4;
 
     ECAddEvent {
         shard: rt.current_shard(),
@@ -81,29 +78,22 @@ pub struct ECDoubleEvent {
     pub p_memory_records: [MemoryWriteRecord; 16],
 }
 
-pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDoubleEvent {
-    let a0 = crate::runtime::Register::X10;
-
+pub fn create_ec_double_event<E: EllipticCurve>(
+    rt: &mut SyscallContext,
+    arg1: u32,
+    _: u32,
+) -> ECDoubleEvent {
     let start_clk = rt.clk;
-
-    // TODO: these will have to be be constrained, but can do it later.
-    let p_ptr = rt.register_unsafe(a0);
+    let p_ptr = arg1;
     if p_ptr % 4 != 0 {
         panic!();
     }
 
     let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
-
-    // When we write to p, we want the clk to be incremented.
-    rt.clk += 4;
-
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let result_affine = E::ec_double(&p_affine);
     let result_words = result_affine.to_words_le();
-
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
-
-    rt.clk += 4;
 
     ECDoubleEvent {
         shard: rt.current_shard(),

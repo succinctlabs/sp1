@@ -72,7 +72,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 }
 

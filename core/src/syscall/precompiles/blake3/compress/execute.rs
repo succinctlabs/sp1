@@ -9,15 +9,14 @@ use crate::syscall::precompiles::SyscallContext;
 
 impl Syscall for Blake3CompressInnerChip {
     fn num_extra_cycles(&self) -> u32 {
-        (4 * ROUND_COUNT * OPERATION_COUNT) as u32
+        (ROUND_COUNT * OPERATION_COUNT) as u32
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        println!("Blake3CompressInnerChip::execute({}, {})", arg1, arg2);
         let state_ptr = arg1;
         let message_ptr = arg2;
 
-        let saved_clk = rt.clk;
+        let start_clk = rt.clk;
         let mut message_reads =
             [[[MemoryReadRecord::default(); NUM_MSG_WORDS_PER_CALL]; OPERATION_COUNT]; ROUND_COUNT];
         let mut state_writes = [[[MemoryWriteRecord::default(); NUM_STATE_WORDS_PER_CALL];
@@ -54,7 +53,7 @@ impl Syscall for Blake3CompressInnerChip {
                 }
 
                 // Increment the clock for the next call of g.
-                rt.clk += 4;
+                rt.clk += 1;
             }
         }
 
@@ -64,7 +63,7 @@ impl Syscall for Blake3CompressInnerChip {
             .blake3_compress_inner_events
             .push(Blake3CompressInnerEvent {
                 shard,
-                clk: saved_clk,
+                clk: start_clk,
                 state_ptr,
                 message_reads,
                 state_writes,

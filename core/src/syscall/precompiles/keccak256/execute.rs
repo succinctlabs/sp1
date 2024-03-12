@@ -17,14 +17,16 @@ const PI: [usize; 24] = [
 
 impl Syscall for KeccakPermuteChip {
     fn num_extra_cycles(&self) -> u32 {
-        NUM_ROUNDS as u32 * 4
+        NUM_ROUNDS as u32
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        // Read `state_ptr` from register a0.
-        let state_ptr = rt.register_unsafe(Register::X10);
+        let start_clk = rt.clk;
+        let state_ptr = arg1;
+        if arg2 != 0 {
+            panic!("Expected arg2 to be 0, got {}", arg2);
+        }
 
-        let saved_clk = rt.clk;
         let mut state_read_records = Vec::new();
         let mut state_write_records = Vec::new();
 
@@ -84,6 +86,7 @@ impl Syscall for KeccakPermuteChip {
 
         rt.clk += self.num_extra_cycles() - 4;
         let mut values_to_write = Vec::new();
+        // TODO: where does this 25 come from.
         for i in 0..25 {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
             let least_sig = (state[i] & 0xFFFFFFFF) as u32;
@@ -102,7 +105,7 @@ impl Syscall for KeccakPermuteChip {
             .keccak_permute_events
             .push(KeccakPermuteEvent {
                 shard,
-                clk: saved_clk,
+                clk: start_clk,
                 pre_state: saved_state.as_slice().try_into().unwrap(),
                 post_state: state.as_slice().try_into().unwrap(),
                 state_read_records,
