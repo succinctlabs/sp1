@@ -1,6 +1,7 @@
+use super::IfBoolBuilder;
 use super::{AssemblyCode, BasicBlock, IfFeltBuilder};
-use super::{ForVmBuilder, IfBoolBuilder};
-use crate::syn::{BaseBuilder, Condition};
+use crate::syn::{BaseBuilder, Condition, FieldBuilder};
+use crate::vm::Felt;
 use crate::vm::Int;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -15,7 +16,6 @@ use crate::vm::AsmInstruction;
 
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
-use crate::vm::Felt;
 
 pub trait VmBuilder: BaseBuilder {
     type F: PrimeField32;
@@ -38,16 +38,6 @@ pub trait VmBuilder: BaseBuilder {
 
     fn uninit<T: Variable<Self>>(&mut self) -> T {
         T::uninit(self)
-    }
-
-    fn range(&mut self, start: Felt<Self::F>, end: Felt<Self::F>) -> ForVmBuilder<Self> {
-        let loop_var = Felt::uninit(self);
-        ForVmBuilder {
-            builder: self,
-            start,
-            end,
-            loop_var,
-        }
     }
 
     fn if_eq<E1, E2>(&mut self, lhs: E1, rhs: E2) -> IfFeltBuilder<Self>
@@ -133,6 +123,12 @@ pub struct AsmBuilder<F> {
 }
 
 impl<F: PrimeField32> BaseBuilder for AsmBuilder<F> {}
+
+impl<VB: VmBuilder> FieldBuilder for VB {
+    type F = VB::F;
+    type Felt = Felt<VB::F>;
+    type Symbolic = Symbolic<VB::F>;
+}
 
 impl<F: PrimeField32> AsmBuilder<F> {
     pub fn new() -> Self {

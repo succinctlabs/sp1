@@ -4,8 +4,10 @@ mod ops;
 mod variable;
 
 pub use control_flow::*;
+use core::ops::Range;
 pub use iter::*;
 pub use ops::*;
+use p3_field::Field;
 pub use variable::*;
 
 pub trait BaseBuilder: Sized {}
@@ -35,5 +37,18 @@ pub trait Builder: BaseBuilder {
 impl<T: BaseBuilder> Builder for T {}
 
 pub trait FieldBuilder: Builder {
-    type Felt: AlgebraicVariable<Self>;
+    type F: Field;
+    type Felt: AlgebraicVariable<Self, ArithConst = Self::F, ArithExpr = Self::Symbolic>;
+    type Symbolic;
+
+    fn range(
+        &mut self,
+        start: Self::Felt,
+        end: Self::Felt,
+    ) -> <Range<Self::Felt> as IntoIterator<Self>>::IterBuilder<'_>
+    where
+        Range<Self::Felt>: IntoIterator<Self>,
+    {
+        (start..end).into_iter(self)
+    }
 }

@@ -20,20 +20,17 @@ pub trait AlgebraicVariable<B: BaseBuilder>:
     + Sub<Self::ArithExpr, Output = Self::ArithExpr>
     + Mul<Self::ArithExpr, Output = Self::ArithExpr>
 {
-    type ArithConst: Add<Output = Self>
-        + Sub<Output = Self>
-        + Mul<Output = Self>
-        + Add<Self, Output = Self::ArithExpr>
-        + Sub<Self, Output = Self::ArithExpr>
-        + Mul<Self, Output = Self::ArithExpr>;
+    type ArithConst: Add<Output = Self::ArithConst>
+        + Sub<Output = Self::ArithConst>
+        + Mul<Output = Self::ArithConst>;
 
     type ArithExpr: Expression<B, Value = Self>
         + From<Self::Constant>
         + From<Self>
-        + Add<Output = Self>
-        + Sub<Output = Self>
-        + Mul<Output = Self>
-        + Neg<Output = Self>;
+        + Add<Output = Self::ArithExpr>
+        + Sub<Output = Self::ArithExpr>
+        + Mul<Output = Self::ArithExpr>
+        + Neg<Output = Self::ArithExpr>;
 
     fn zero() -> Self::Constant;
 

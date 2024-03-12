@@ -1,3 +1,4 @@
+use crate::syn::AlgebraicVariable;
 use crate::syn::Expression;
 use crate::syn::FromConstant;
 use crate::syn::SizedVariable;
@@ -38,6 +39,19 @@ impl<B: VmBuilder> FromConstant<B> for Felt<B::F> {
 
     fn imm(&self, constant: Self::Constant, builder: &mut B) {
         builder.push(AsmInstruction::IMM(self.0, constant));
+    }
+}
+
+impl<B: VmBuilder> AlgebraicVariable<B> for Felt<B::F> {
+    type ArithConst = B::F;
+    type ArithExpr = Symbolic<B::F>;
+
+    fn one() -> Self::Constant {
+        B::F::one()
+    }
+
+    fn zero() -> Self::Constant {
+        B::F::zero()
     }
 }
 
