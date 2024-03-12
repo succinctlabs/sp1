@@ -5,7 +5,7 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use core::mem::size_of;
+
 use num::BigUint;
 use num::Zero;
 use p3_field::{AbstractField, PrimeField32};

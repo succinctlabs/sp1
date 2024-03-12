@@ -1,4 +1,3 @@
-use core::mem::size_of;
 use sp1_core::memory::{MemoryReadCols, MemoryWriteCols};
 use sp1_core::operations::IsZeroOperation;
 use sp1_derive::AlignedBorrow;

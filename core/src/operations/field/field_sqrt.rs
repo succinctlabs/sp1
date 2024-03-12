@@ -2,7 +2,7 @@ use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use core::mem::size_of;
+
 use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
