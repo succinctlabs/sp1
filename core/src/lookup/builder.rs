@@ -215,12 +215,12 @@ mod tests {
             builder.send(AirInteraction::new(
                 vec![x.into(), y.into()],
                 AB::F::from_canonical_u32(3).into(),
-                InteractionKind::Coprocessor,
+                InteractionKind::Alu,
             ));
             builder.send(AirInteraction::new(
                 vec![x + y, z.into()],
                 AB::F::from_canonical_u32(5).into(),
-                InteractionKind::Coprocessor,
+                InteractionKind::Alu,
             ));
 
             builder.receive(AirInteraction::new(

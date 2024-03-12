@@ -231,7 +231,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
     }
 }
 
-/// A trait which contains methods related to coprocessor interactions in an AIR.
+/// A trait which contains methods related to ALU interactions in an AIR.
 pub trait CoprocessorAirBuilder: BaseAirBuilder {
     /// Sends a coprocessor operation to be processed.
     fn send_alu<EOp, Ea, Eb, Ec, EMult>(
@@ -257,7 +257,7 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
         self.send(AirInteraction::new(
             values,
             multiplicity.into(),
-            InteractionKind::Coprocessor,
+            InteractionKind::Alu,
         ));
     }
 
@@ -285,7 +285,7 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
         self.receive(AirInteraction::new(
             values,
             multiplicity.into(),
-            InteractionKind::Coprocessor,
+            InteractionKind::Alu,
         ));
     }
 
