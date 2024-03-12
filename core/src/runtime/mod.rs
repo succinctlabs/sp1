@@ -644,8 +644,8 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let syscall_id = self.register(t0); // Peek at register x5 to get the syscall id.
-                c = self.rr(Register::X11, AccessPosition::C);
-                b = self.rr(Register::X10, AccessPosition::B);
+                c = self.rr(Register::X11, MemoryAccessPosition::C);
+                b = self.rr(Register::X10, MemoryAccessPosition::B);
                 println!("syscall_id, b, c = {:?}, {:?}, {:?}", syscall_id, b, c);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
