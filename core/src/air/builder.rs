@@ -11,6 +11,7 @@ use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::check_constraints::DebugConstraintBuilder;
 use p3_uni_stark::StarkGenericConfig;
+use std::clone;
 use std::iter::once;
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
@@ -289,13 +290,17 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
     }
 
     /// Sends an ecall operation to be processed.
-    fn send_ecall<Ea, Eb, Ec, EMult>(
+    fn send_ecall<EShard, EClk, Ea, Eb, Ec, EMult>(
         &mut self,
+        shard: EShard,
+        clk: EClk,
         syscall_id: Ea,
         arg1: Eb,
         arg2: Ec,
         multiplicity: EMult,
     ) where
+        EShard: Into<Self::Expr> + Clone,
+        EClk: Into<Self::Expr> + Clone,
         Ea: Into<Self::Expr> + Clone,
         Eb: Into<Self::Expr> + Clone,
         Ec: Into<Self::Expr> + Clone,
@@ -303,6 +308,8 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
     {
         self.send(AirInteraction::new(
             vec![
+                shard.clone().into(),
+                clk.clone().into(),
                 syscall_id.clone().into(),
                 arg1.clone().into(),
                 arg2.clone().into(),
@@ -313,13 +320,17 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a ecall operation to be processed.
-    fn receive_ecall<EOp, Ea, Eb, Ec, EMult>(
+    fn receive_ecall<EShard, EClk, Ea, Eb, Ec, EMult>(
         &mut self,
+        shard: EShard,
+        clk: EClk,
         syscall_id: Ea,
         arg1: Eb,
         arg2: Ec,
         multiplicity: EMult,
     ) where
+        EShard: Into<Self::Expr> + Clone,
+        EClk: Into<Self::Expr> + Clone,
         Ea: Into<Self::Expr> + Clone,
         Eb: Into<Self::Expr> + Clone,
         Ec: Into<Self::Expr> + Clone,
@@ -327,6 +338,8 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
     {
         self.receive(AirInteraction::new(
             vec![
+                shard.clone().into(),
+                clk.clone().into(),
                 syscall_id.clone().into(),
                 arg1.clone().into(),
                 arg2.clone().into(),

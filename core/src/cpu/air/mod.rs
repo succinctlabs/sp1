@@ -143,6 +143,8 @@ where
         let syscall_cycles = local.op_a_val()[2]; // How many extra cycles to increment the clk for the syscall.
         let is_halt = local.op_a_val()[3]; // Whether or not the syscall is a halt.
         builder.send_ecall(
+            local.shard,
+            local.clk,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),

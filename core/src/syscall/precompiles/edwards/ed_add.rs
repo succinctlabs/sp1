@@ -12,6 +12,7 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::edwards::EdwardsParameters;
@@ -284,6 +285,15 @@ where
                 row.is_real,
             );
         }
+
+        builder.receive_ecall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::ED_ADD as u32),
+            row.p_ptr,
+            row.q_ptr,
+            row.is_real,
+        );
     }
 }
 
