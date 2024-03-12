@@ -1,6 +1,10 @@
 use alloc::vec::Vec;
 use p3_field::{ExtensionField, Field};
 
+mod builder;
+
+pub use builder::*;
+
 pub struct Var(u32);
 
 pub struct Felt(u32);
