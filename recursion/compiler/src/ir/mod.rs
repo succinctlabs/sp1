@@ -5,11 +5,16 @@ mod builder;
 
 pub use builder::*;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Var(u32);
-
+#[derive(Debug, Clone, Copy)]
 pub struct Felt(u32);
 
+#[derive(Debug, Clone, Copy)]
+
 pub struct Ext(u32);
+
+#[derive(Debug, Clone, Copy)]
 
 pub enum Usize {
     Const(usize),
@@ -26,6 +31,7 @@ pub trait Variable<C: Config> {
     type Value;
 }
 
+#[derive(Debug, Clone)]
 pub enum DslIR<C: Config> {
     Imm(Var, C::N),
     ImmFelt(Felt, C::F),
