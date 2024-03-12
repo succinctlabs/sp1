@@ -1,5 +1,4 @@
 use sp1_derive::AlignedBorrow;
-use std::mem::size_of;
 
 use crate::air::Word;
 

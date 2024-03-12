@@ -7,11 +7,13 @@ pub mod stark;
 
 #[cfg(test)]
 pub mod tests {
+    use crate::air::Block;
     use crate::runtime::{Instruction, Opcode, Program, Runtime};
     use crate::stark::RecursionAir;
 
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, PrimeField32};
+    use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_core::utils::StarkUtils;
@@ -35,11 +37,11 @@ pub mod tests {
                 Instruction::new(Opcode::SW, 1, 1, 0, true, true),
                 Instruction::new(Opcode::SW, 2, 10, 0, true, true),
                 // .body:
-                Instruction::new(Opcode::ADD, 3, 0, 1, false, false),
+                Instruction::new(Opcode::ADD, 3, 0, 1, false, true),
                 Instruction::new(Opcode::SW, 0, 1, 0, false, true),
                 Instruction::new(Opcode::SW, 1, 3, 0, false, true),
                 Instruction::new(Opcode::SUB, 2, 2, 1, false, true),
-                Instruction::new(Opcode::BNE, 2, 0, 3, true, true),
+                Instruction::new(Opcode::BNE, 2, 0, F::ORDER_U32 - 4, true, true),
             ],
         }
     }
@@ -49,12 +51,17 @@ pub mod tests {
         let program = fibonacci_program::<BabyBear>();
         let mut runtime = Runtime::new(&program);
         runtime.run();
-        println!("{:#?}", runtime.record.cpu_events);
-        assert_eq!(runtime.memory[1].value, BabyBear::from_canonical_u32(144));
+        assert_eq!(
+            runtime.memory[1024 + 1].value,
+            Block::from(BabyBear::from_canonical_u32(144))
+        );
     }
 
     #[test]
     fn test_fibonacci_prove() {
+        std::env::set_var("RUST_LOG", "debug");
+        sp1_core::utils::setup_logger();
+
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
         let program = fibonacci_program::<F>();
@@ -66,6 +73,12 @@ pub mod tests {
         let machine = RecursionAir::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
+
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
+            machine.chips(),
+            &runtime.record,
+            vec![InteractionKind::Memory],
+        );
 
         let start = Instant::now();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);

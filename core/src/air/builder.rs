@@ -4,6 +4,7 @@ use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstrain
 
 use super::interaction::AirInteraction;
 use super::word::Word;
+use super::BinomialExtension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
@@ -462,6 +463,19 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     }
 }
 
+pub trait ExtensionAirBuilder: BaseAirBuilder {
+    /// Asserts that the two field extensions are equal.
+    fn assert_ext_eq<I: Into<Self::Expr>>(
+        &mut self,
+        left: BinomialExtension<I>,
+        right: BinomialExtension<I>,
+    ) {
+        for (left, right) in left.0.into_iter().zip(right.0) {
+            self.assert_eq(left, right);
+        }
+    }
+}
+
 pub trait MultiTableAirBuilder: PermutationAirBuilder {
     type Sum: Into<Self::ExprEF>;
 
@@ -476,6 +490,7 @@ pub trait SP1AirBuilder:
     + AluAirBuilder
     + MemoryAirBuilder
     + ProgramAirBuilder
+    + ExtensionAirBuilder
 {
 }
 
@@ -496,6 +511,7 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder f
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
+impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
