@@ -1,5 +1,5 @@
+use super::IfBoolBuilder;
 use super::{AssemblyCode, BasicBlock, IfFeltBuilder};
-use super::{ForVmBuilder, IfBoolBuilder};
 use crate::syn::{BaseBuilder, Condition, FieldBuilder};
 use crate::vm::Felt;
 use crate::vm::Int;
@@ -16,7 +16,6 @@ use crate::vm::AsmInstruction;
 
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
-use crate::syn::IntoIterator;
 
 pub trait VmBuilder: BaseBuilder {
     type F: PrimeField32;
