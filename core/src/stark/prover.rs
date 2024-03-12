@@ -449,6 +449,7 @@ where
         // Check that the table-specific constraints are correct for each chip.
         #[cfg(not(feature = "perf"))]
         tracing::info_span!("debug constraints").in_scope(|| {
+            println!("debugging constraints");
             for i in 0..chips.len() {
                 debug_constraints::<SC, A>(
                     &chips[i],

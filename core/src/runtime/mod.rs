@@ -437,6 +437,7 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
+        let clk = self.state.clk;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
@@ -643,32 +644,41 @@ impl Runtime {
             // System instructions.
             Opcode::ECALL => {
                 let t0 = Register::X5;
-                let syscall_id = self.register(t0); // Peek at register x5 to get the syscall id.
+                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this register
+                // is that we write to it later.
+                let syscall_id = self.register(t0);
                 c = self.rr(Register::X11, MemoryAccessPosition::C);
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
+                println!("next_pc {}", next_pc);
                 println!("syscall_id, b, c = {:?}, {:?}, {:?}", syscall_id, b, c);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                let init_clk = self.state.clk;
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    let res = syscall_impl.execute(&mut precompile_rt, b, c);
-                    if let Some(val) = res {
-                        a = val; // This is basically only used for the LWA opcode that actually writes to that register.
+                let (precompile_next_pc, precompile_cycles) =
+                    if let Some(syscall_impl) = syscall_impl {
+                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        if let Some(val) = res {
+                            a = val; // This is basically only used for the LWA opcode that actually writes to that register.
+                        } else {
+                            a = syscall_id; // By default just keep the register value the same as it was before.
+                        }
+                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
+                        // next_pc = precompile_rt.next_pc;
+                        // Increment the clk by the number of extra cycles that the precompile needs.
+                        // We can't just do self.state.clk += syscall_impl.num_extra_cycles() because of
+                        // borrow issues.
+                        // self.state.clk = precompile_rt.clk;
+                        // assert_eq!(clk + syscall_impl.num_extra_cycles(), self.state.clk);
                     } else {
-                        a = syscall_id; // By default just keep the register value the same as it was before.
-                    }
-                    next_pc = precompile_rt.next_pc;
-                    self.state.clk = precompile_rt.clk;
-
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                        panic!("Unsupported syscall: {:?}", syscall);
+                        (0, 0)
+                    };
 
                 self.rw(Register::X5, a);
+                next_pc = precompile_next_pc;
+                self.state.clk += precompile_cycles;
             }
 
             Opcode::EBREAK => {
@@ -741,11 +751,13 @@ impl Runtime {
 
         // Update the program counter.
         self.state.pc = next_pc;
+        // Update the clk to the next cycle.
+        self.state.clk += 4;
 
         // Emit the CPU event for this cycle.
         self.emit_cpu(
             self.shard(),
-            self.state.clk,
+            clk,
             pc,
             instruction,
             a,
@@ -759,6 +771,8 @@ impl Runtime {
     /// Execute the program.
     pub fn run(&mut self) {
         let max_syscall_cycles = self.max_syscall_cycles();
+        // We start the clk at 1 because the MemoryInit table is at shard=0, clk=0
+        // TODO: Although maybe we should just start at shard=1 and then clk=0 for consistency's sake?
         self.state.clk = 1;
 
         tracing::info!("loading memory image");
@@ -786,9 +800,8 @@ impl Runtime {
             // Execute the instruction.
             self.execute(instruction);
 
-            // Increment the clock.
+            // Increment the global clock that keeps track of the total number of cycles.
             self.state.global_clk += 1;
-            self.state.clk += 4;
 
             // If there's not enough cycles left for another instruction, move to the next shard.
             // We multiply by 4 because clk is incremented by 4 for each normal instruction.
