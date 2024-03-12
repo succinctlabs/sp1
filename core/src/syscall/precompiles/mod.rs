@@ -23,24 +23,21 @@ pub struct ECAddEvent {
     pub p: [u32; 16],
     pub q_ptr: u32,
     pub q: [u32; 16],
-    pub q_ptr_record: MemoryReadRecord,
     pub p_memory_records: [MemoryWriteRecord; 16],
     pub q_memory_records: [MemoryReadRecord; 16],
 }
 
-pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEvent {
-    let a0 = crate::runtime::Register::X10;
-    let a1 = crate::runtime::Register::X11;
-
+pub fn create_ec_add_event<E: EllipticCurve>(
+    rt: &mut SyscallContext,
+    arg1: u32,
+    arg2: u32,
+) -> ECAddEvent {
     let start_clk = rt.clk;
-
-    // TODO: these will have to be be constrained, but can do it later.
-    let p_ptr = rt.register_unsafe(a0);
+    let p_ptr = arg1;
     if p_ptr % 4 != 0 {
         panic!();
     }
-
-    let (q_ptr_record, q_ptr) = rt.mr(a1 as u32);
+    let q_ptr = arg2;
     if q_ptr % 4 != 0 {
         panic!();
     }
@@ -68,7 +65,6 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
         p,
         q_ptr,
         q,
-        q_ptr_record,
         p_memory_records,
         q_memory_records,
     }

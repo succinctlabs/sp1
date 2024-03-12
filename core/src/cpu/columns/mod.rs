@@ -83,6 +83,9 @@ pub struct CpuCols<T> {
     /// The unsigned memory value is the value after the offset logic is applied. Used for the load
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
+
+    /// The result of send_to_table * ecall
+    pub ecall_mul_send_to_table: T,
 }
 
 impl<T: Clone> CpuCols<T> {

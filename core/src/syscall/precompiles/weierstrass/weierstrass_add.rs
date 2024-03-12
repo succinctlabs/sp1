@@ -46,7 +46,6 @@ pub struct WeierstrassAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
     pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
     pub(crate) slope_denominator: FieldOpCols<T>,
@@ -67,7 +66,7 @@ pub struct WeierstrassAddAssignChip<E> {
 
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_add_event::<E>(rt);
+        let event = create_ec_add_event::<E>(rt, arg1, arg2);
         rt.record_mut().weierstrass_add_events.push(event);
         None
     }
@@ -187,8 +186,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             for i in 0..NUM_WORDS_EC_POINT {
                 cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
             }
-            cols.q_ptr_access
-                .populate(event.q_ptr_record, &mut new_field_events);
 
             rows.push(row);
         }
@@ -313,13 +310,6 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access(
-            row.shard,
-            row.clk, // clk + 0 -> C
-            AB::F::from_canonical_u32(Register::X11 as u32),
-            &row.q_ptr_access,
-            row.is_real,
-        );
         builder.constraint_memory_access_slice(
             row.shard,
             row.clk.into(), // clk + 0 -> Memory

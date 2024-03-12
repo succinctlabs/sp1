@@ -51,7 +51,6 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
     pub(crate) x3_numerator: FieldInnerProductCols<T>,
@@ -116,7 +115,7 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_add_event::<E>(rt);
+        let event = create_ec_add_event::<E>(rt, arg1, arg2);
         rt.record_mut().ed_add_events.push(event);
         None
     }
@@ -166,8 +165,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     for i in 0..16 {
                         cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
                     }
-                    cols.q_ptr_access
-                        .populate(event.q_ptr_record, &mut new_field_events);
 
                     (row, new_field_events)
                 })
@@ -260,13 +257,6 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access(
-            row.shard,
-            row.clk, // clk + 0 -> C
-            AB::F::from_canonical_u32(11),
-            &row.q_ptr_access,
-            row.is_real,
-        );
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.shard,
@@ -311,6 +301,10 @@ mod tests {
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
+
+        SP1Prover::execute(ED_ADD_ELF, SP1Stdin::new()).unwrap();
+        println!("executed");
+
         SP1Prover::prove(ED_ADD_ELF, SP1Stdin::new()).unwrap();
     }
 

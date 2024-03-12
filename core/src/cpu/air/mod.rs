@@ -142,13 +142,17 @@ where
         let send_to_table = local.op_a_val()[1]; // Does the syscall have a table that should be sent.
         let syscall_cycles = local.op_a_val()[2]; // How many extra cycles to increment the clk for the syscall.
         let is_halt = local.op_a_val()[3]; // Whether or not the syscall is a halt.
+        builder.assert_eq(
+            send_to_table * is_ecall_instruction,
+            local.ecall_mul_send_to_table, // Have to make this a separate col because of interaction
+        );
         builder.send_ecall(
             local.shard,
             local.clk,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
-            is_ecall_instruction * send_to_table,
+            local.ecall_mul_send_to_table,
         );
         // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
         // builder
