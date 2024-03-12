@@ -40,7 +40,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     let methods = quote! {
         impl<T: Copy> core::borrow::Borrow<#name<T>> for [T] {
             fn borrow(&self) -> &#name<T> {
-                debug_assert_eq!(self.len(), size_of::<#name<u8>>());
+                debug_assert_eq!(self.len(), core::mem::size_of::<#name<u8>>());
                 let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<T>>() };
                 debug_assert!(prefix.is_empty(), "Alignment should match");
                 debug_assert_eq!(shorts.len(), 1);
@@ -50,7 +50,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
 
         impl<T: Copy> core::borrow::BorrowMut<#name<T>> for [T] {
             fn borrow_mut(&mut self) -> &mut #name<T> {
-                debug_assert_eq!(self.len(), size_of::<#name<u8>>());
+                debug_assert_eq!(self.len(), core::mem::size_of::<#name<u8>>());
                 let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<T>>() };
                 debug_assert!(prefix.is_empty(), "Alignment should match");
                 debug_assert_eq!(shorts.len(), 1);
