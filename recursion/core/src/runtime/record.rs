@@ -4,18 +4,20 @@ use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use sp1_core::stark::MachineRecord;
 
-use crate::cpu::CpuEvent;
-use crate::runtime::MemoryRecord;
-
 use super::Program;
+use crate::air::Block;
+use crate::cpu::CpuEvent;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
     pub program: Arc<Program<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
-    pub first_memory_record: Vec<(u32, MemoryRecord<F>, u32)>,
-    pub last_memory_record: Vec<(u32, MemoryRecord<F>, u32)>,
-    pub program_memory_record: Vec<(u32, MemoryRecord<F>, u32)>,
+
+    // (address)
+    pub first_memory_record: Vec<F>,
+
+    // (address, last_timestamp, last_value)
+    pub last_memory_record: Vec<(F, F, Block<F>)>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {

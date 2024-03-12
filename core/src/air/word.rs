@@ -1,5 +1,4 @@
 use std::array::IntoIter;
-
 use std::ops::{Index, IndexMut};
 
 use p3_air::AirBuilder;
