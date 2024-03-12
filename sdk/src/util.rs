@@ -71,8 +71,4 @@ impl StageProgressBar {
     pub fn finish(&mut self) {
         self.pb.finish_and_clear();
     }
-
-    pub fn println(&mut self, msg: &str) {
-        self.pb.println(msg);
-    }
 }
