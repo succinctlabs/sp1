@@ -1,4 +1,5 @@
 pub mod proto {
+    #[allow(clippy::all)]
     pub mod prover;
 }
 pub mod client;
