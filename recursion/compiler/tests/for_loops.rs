@@ -18,11 +18,11 @@ fn test_compiler_for_loops() {
 
     let i_counter: Felt<_> = builder.constant(BabyBear::zero());
     let total_counter: Felt<_> = builder.constant(BabyBear::zero());
-    builder.range(zero, n).for_each(|_, builder| {
+    builder.iter(zero..n).for_each(|_, builder| {
         builder.assign(i_counter, i_counter + BabyBear::one());
 
         let j_counter: Felt<_> = builder.constant(BabyBear::zero());
-        builder.range(zero, m).for_each(|_, builder| {
+        builder.iter(zero..m).for_each(|_, builder| {
             builder.assign(total_counter, total_counter + BabyBear::one());
             builder.assign(j_counter, j_counter + BabyBear::one());
         });

@@ -30,7 +30,7 @@ fn main() {
     let start: Felt<_> = builder.constant(BabyBear::zero());
     let end = n;
 
-    builder.range(start, end).for_each(|_, builder| {
+    builder.iter(start..end).for_each(|_, builder| {
         let temp: Felt<_> = builder.uninit();
         builder.assign(temp, b);
         builder.assign(b, a + b);

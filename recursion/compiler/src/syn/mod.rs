@@ -4,7 +4,6 @@ mod ops;
 mod variable;
 
 pub use control_flow::*;
-use core::ops::Range;
 pub use iter::*;
 pub use ops::*;
 use p3_field::Field;
@@ -38,15 +37,4 @@ impl<T: BaseBuilder> Builder for T {}
 
 pub trait FieldBuilder<F: Field>: Builder {
     type Felt: FieldVariable<Self, F = F>;
-
-    fn range(
-        &mut self,
-        start: Self::Felt,
-        end: Self::Felt,
-    ) -> <Range<Self::Felt> as IntoIterator<Self>>::IterBuilder<'_>
-    where
-        Range<Self::Felt>: IntoIterator<Self>,
-    {
-        (start..end).into_iter(self)
-    }
 }
