@@ -7,7 +7,6 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
-use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;

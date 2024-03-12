@@ -11,14 +11,12 @@ impl Syscall for ShaExtendChip {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        // Initialize the registers.
-        let a0 = Register::X10;
-
-        // Read `w_ptr` from register a0 or x5.
-        // TODO: this is underconstrained.
-        let w_ptr = rt.register_unsafe(a0);
-
         let clk_init = rt.clk;
+        let w_ptr = arg1;
+        if arg2 != 0 {
+            panic!("")
+        }
+
         let w_ptr_init = w_ptr;
         let mut w_i_minus_15_reads = Vec::new();
         let mut w_i_minus_2_reads = Vec::new();

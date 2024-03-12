@@ -8,7 +8,6 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
-use crate::runtime::{Opcode, SyscallCode};
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 

@@ -12,7 +12,6 @@ use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 
 use p3_uni_stark::StarkGenericConfig;
-use std::clone;
 use std::iter::once;
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending

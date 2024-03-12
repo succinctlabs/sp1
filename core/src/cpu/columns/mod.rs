@@ -21,7 +21,6 @@ use std::mem::{size_of, transmute};
 use crate::{
     air::Word,
     memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols},
-    operations::IsEqualWordOperation,
 };
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();

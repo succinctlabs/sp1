@@ -13,13 +13,11 @@ impl SyscallWrite {
 
 impl Syscall for SyscallWrite {
     fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let a0 = Register::X10;
-        let a1 = Register::X11;
         let a2 = Register::X12;
         let rt = &mut ctx.rt;
-        let fd = rt.register(a0);
+        let fd = arg1;
         if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
-            let write_buf = rt.register(a1);
+            let write_buf = arg2;
             let nbytes = rt.register(a2);
             // Read nbytes from memory starting at write_buf.
             let bytes = (0..nbytes)

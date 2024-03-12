@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::Syscall,
     syscall::precompiles::{keccak256::KeccakPermuteEvent, SyscallContext},
 };
 

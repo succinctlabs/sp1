@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use crate::runtime::{Register, Syscall, SyscallContext};
+use crate::runtime::{Syscall, SyscallContext};
 
 pub struct SyscallLWA;
 
@@ -12,11 +12,9 @@ impl SyscallLWA {
 
 impl Syscall for SyscallLWA {
     fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        // TODO: in the future this will be used for private vs. public inputs.
-        let a0 = Register::X10;
-        let a1 = Register::X11;
-        let _ = ctx.register_unsafe(a0);
-        let num_bytes = ctx.register_unsafe(a1) as usize;
+        // TODO: in the future arg1 will be used for public/private inputs.
+        let _ = arg1;
+        let num_bytes = arg2;
         let mut read_bytes = [0u8; 4];
         for i in 0..num_bytes {
             if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
@@ -25,7 +23,7 @@ impl Syscall for SyscallLWA {
                 );
                 exit(1);
             }
-            read_bytes[i] = ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
+            read_bytes[i as usize] = ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
             ctx.rt.state.input_stream_ptr += 1;
         }
         Some(u32::from_le_bytes(read_bytes))

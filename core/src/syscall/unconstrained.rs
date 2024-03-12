@@ -10,7 +10,7 @@ impl SyscallEnterUnconstrained {
 }
 
 impl Syscall for SyscallEnterUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
         if ctx.rt.unconstrained {
             panic!("Unconstrained block is already active.");
         }
@@ -36,7 +36,7 @@ impl SyscallExitUnconstrained {
 }
 
 impl Syscall for SyscallExitUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
         // Reset the state of the runtime.
         if ctx.rt.unconstrained {
             ctx.rt.state.global_clk = ctx.rt.unconstrained_state.global_clk;
