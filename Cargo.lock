@@ -3038,6 +3038,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-core",
+ "sp1-sdk",
  "tar",
  "target-lexicon",
  "tokio",
@@ -3122,6 +3123,7 @@ dependencies = [
  "csv",
  "serde",
  "sp1-core",
+ "sp1-sdk",
 ]
 
 [[package]]
