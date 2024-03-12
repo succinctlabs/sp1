@@ -73,7 +73,7 @@ impl SP1Prover {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
-        let access_token = std::env::var("SP1_SERVICE_ACCESS_TOKEN").unwrap();
+        let access_token = std::env::var("PROVER_NETWORK_ACCESS_TOKEN").unwrap();
         let client = SP1ProverServiceClient::with_token(access_token);
         let id = client.create_proof(elf, &stdin.buffer.data).await?;
 
@@ -115,7 +115,7 @@ impl SP1Prover {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
     {
-        if std::env::var("SP1_SERVICE_ACCESS_TOKEN").is_ok() {
+        if std::env::var("PROVER_NETWORK_ACCESS_TOKEN").is_ok() {
             match tokio::runtime::Handle::try_current() {
                 std::result::Result::Ok(handle) => {
                     tokio::task::block_in_place(|| handle.block_on(Self::prove_remote(elf, stdin)))

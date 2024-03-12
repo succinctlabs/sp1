@@ -24,12 +24,12 @@ pub struct SP1ProverServiceClient {
     pub http: HttpClientWithMiddleware,
 }
 
-const DEFAULT_SP1_SERVICE_URL: &str = "https://rpc.succinct.xyz/";
+const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 
 impl SP1ProverServiceClient {
     pub fn with_token(access_token: String) -> Self {
         let rpc_url =
-            env::var("SP1_SERVICE_URL").unwrap_or_else(|_| DEFAULT_SP1_SERVICE_URL.to_string());
+            env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
         Self::with_url(access_token, rpc_url)
     }
 
