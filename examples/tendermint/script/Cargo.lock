@@ -2911,6 +2911,7 @@ dependencies = [
  "futures",
  "hex",
  "indicatif",
+ "log",
  "p3-commit",
  "p3-field",
  "p3-matrix",
