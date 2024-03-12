@@ -23,7 +23,7 @@ impl Syscall for SyscallEnterUnconstrained {
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
         };
-        Some(1)
+        None
     }
 }
 

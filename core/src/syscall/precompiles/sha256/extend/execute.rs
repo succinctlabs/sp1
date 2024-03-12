@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::Syscall,
     syscall::precompiles::{sha256::ShaExtendEvent, SyscallContext},
 };
 

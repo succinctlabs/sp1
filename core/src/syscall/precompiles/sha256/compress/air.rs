@@ -33,13 +33,6 @@ where
         self.constrain_compression_ops(builder, local);
 
         self.constrain_finalize_ops(builder, local);
-
-        // builder.receive_ecall(
-        //     AB::Expr::from_canonical_u32(SyscallCode::SHA_COMPRESS as u32),
-        //     local.w_and_h_ptr,
-        //     AB::Expr::zero(),
-        //     local.is_real,
-        // );
     }
 }
 

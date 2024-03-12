@@ -21,9 +21,6 @@ pub struct ShaCompressCols<T> {
     pub clk: T,
     pub w_and_h_ptr: T,
 
-    /// TODO: It seems wasteful to have a separate column for w_and_h_ptr and w_and_h_ptr_word.
-    pub w_and_h_ptr_word: Word<T>,
-
     /// The bits for cycle 8.
     pub octet: [T; 8],
 

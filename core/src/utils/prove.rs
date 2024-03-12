@@ -44,6 +44,7 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+    #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
