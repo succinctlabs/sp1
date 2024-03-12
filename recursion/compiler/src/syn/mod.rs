@@ -37,8 +37,7 @@ pub trait Builder: BaseBuilder {
 impl<T: BaseBuilder> Builder for T {}
 
 pub trait FieldBuilder<F: Field>: Builder {
-    type Felt: AlgebraicVariable<Self, ArithConst = F, ArithExpr = Self::Symbolic>;
-    type Symbolic;
+    type Felt: FieldVariable<Self, F = F>;
 
     fn range(
         &mut self,

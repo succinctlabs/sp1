@@ -1,5 +1,6 @@
 use crate::syn::AlgebraicVariable;
 use crate::syn::Expression;
+use crate::syn::FieldVariable;
 use crate::syn::FromConstant;
 use crate::syn::SizedVariable;
 use crate::syn::Variable;
@@ -53,6 +54,11 @@ impl<B: VmBuilder> AlgebraicVariable<B> for Felt<B::F> {
     fn zero() -> Self::Constant {
         B::F::zero()
     }
+}
+
+impl<B: VmBuilder> FieldVariable<B> for Felt<B::F> {
+    type F = B::F;
+    type FieldExpr = Symbolic<B::F>;
 }
 
 impl<F> Add for Felt<F> {
