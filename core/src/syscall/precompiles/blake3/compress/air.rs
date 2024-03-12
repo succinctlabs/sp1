@@ -41,7 +41,7 @@ where
             zero.clone(),
         ]);
 
-        builder.receive_coprocessor(
+        builder.receive_alu(
             Opcode::ECALL.as_field::<AB::F>(),
             syscall_code,
             local.state_ptr_word,

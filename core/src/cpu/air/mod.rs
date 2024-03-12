@@ -107,7 +107,7 @@ where
         builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
 
         // Send to the ALU table to verify correct calculation of addr_word.
-        builder.send_coprocessor(
+        builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             memory_columns.addr_word,
             local.op_b_val(),
@@ -128,7 +128,7 @@ where
         // AUIPC instruction.
         self.auipc_eval(builder, local);
 
-        builder.send_coprocessor(
+        builder.send_alu(
             local.instruction.opcode,
             local.op_a_val(),
             local.op_b_val(),
@@ -241,7 +241,7 @@ impl CpuChip {
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
-        builder.send_coprocessor(
+        builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
@@ -250,7 +250,7 @@ impl CpuChip {
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
-        builder.send_coprocessor(
+        builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             local.op_b_val(),
@@ -271,7 +271,7 @@ impl CpuChip {
             .assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
 
         // Verify that op_a == pc + op_b.
-        builder.send_coprocessor(
+        builder.send_alu(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
             auipc_columns.pc,

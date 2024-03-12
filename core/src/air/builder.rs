@@ -234,7 +234,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
 /// A trait which contains methods related to coprocessor interactions in an AIR.
 pub trait CoprocessorAirBuilder: BaseAirBuilder {
     /// Sends a coprocessor operation to be processed.
-    fn send_coprocessor<EOp, Ea, Eb, Ec, EMult>(
+    fn send_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,
@@ -262,7 +262,7 @@ pub trait CoprocessorAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a coprocessor operation to be processed.
-    fn receive_coprocessor<EOp, Ea, Eb, Ec, EMult>(
+    fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,

@@ -319,7 +319,7 @@ where
         builder.assert_bool(local.is_real);
 
         // Receive the arguments.
-        builder.receive_coprocessor(
+        builder.receive_alu(
             AB::F::from_canonical_u32(Opcode::SLL as u32),
             local.a,
             local.b,
