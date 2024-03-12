@@ -124,8 +124,7 @@ pub struct AsmBuilder<F> {
 
 impl<F: PrimeField32> BaseBuilder for AsmBuilder<F> {}
 
-impl<VB: VmBuilder> FieldBuilder for VB {
-    type F = VB::F;
+impl<VB: VmBuilder> FieldBuilder<VB::F> for VB {
     type Felt = Felt<VB::F>;
     type Symbolic = Symbolic<VB::F>;
 }
