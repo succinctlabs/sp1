@@ -5,7 +5,7 @@ use p3_field::PrimeField32;
 use sp1_core::stark::MachineRecord;
 
 use crate::cpu::CpuEvent;
-use crate::memory::MemoryRecord;
+use crate::runtime::MemoryRecord;
 
 use super::Program;
 

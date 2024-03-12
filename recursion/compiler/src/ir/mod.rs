@@ -1,16 +1,18 @@
 mod alu;
-mod arithmetic;
 mod bool;
 mod field;
-mod ptr;
+mod int;
+mod symbolic_field;
+mod symbolic_int;
 
 use crate::builder::Builder;
 
 pub use alu::*;
-pub use arithmetic::*;
 pub use bool::*;
 pub use field::*;
-pub use ptr::*;
+pub use int::*;
+pub use symbolic_field::*;
+pub use symbolic_int::*;
 
 pub trait Expression<B: Builder> {
     type Value: Variable<B>;
