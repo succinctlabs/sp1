@@ -36,7 +36,7 @@ impl<C: Config> Builder<C> {
         lhs.assert_equal(&rhs, self);
     }
 
-    pub fn if_(&mut self, condition: Var<C>) -> IfBuilder<C> {
+    pub fn if_(&mut self, condition: Var<C::N>) -> IfBuilder<C> {
         IfBuilder {
             condition,
             builder: self,
@@ -53,7 +53,7 @@ impl<C: Config> Builder<C> {
 }
 
 pub struct IfBuilder<'a, C: Config> {
-    condition: Var<C>,
+    condition: Var<C::N>,
     pub(crate) builder: &'a mut Builder<C>,
 }
 
@@ -108,8 +108,8 @@ pub struct RangeBuilder<'a, C: Config> {
 }
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
-    pub fn for_each(self, f: impl FnOnce(Var<C>, &mut Builder<C>)) {
-        let loop_variable: Var<C> = self.builder.uninit();
+    pub fn for_each(self, f: impl FnOnce(Var<C::N>, &mut Builder<C>)) {
+        let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,
             self.builder.felt_count,
