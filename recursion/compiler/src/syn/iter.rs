@@ -4,7 +4,11 @@ use core::ops::Range;
 pub trait IntoIterator<B: BaseBuilder> {
     type Item;
 
-    fn into_iter(self, builder: &mut B) -> impl IterBuilder<Item = Self::Item>;
+    type IterBuilder<'a>: IterBuilder<Item = Self::Item>
+    where
+        B: 'a;
+
+    fn into_iter(self, builder: &mut B) -> Self::IterBuilder<'_>;
 }
 
 pub trait IterBuilder {
@@ -17,8 +21,9 @@ pub trait IterBuilder {
 
 impl<B: BaseBuilder> IntoIterator<B> for Range<usize> {
     type Item = usize;
+    type IterBuilder<'a> = ConstantSizeLoopIterBuilder<'a, B> where B: 'a;
 
-    fn into_iter(self, builder: &mut B) -> impl IterBuilder<Item = Self::Item> {
+    fn into_iter(self, builder: &mut B) -> Self::IterBuilder<'_> {
         ConstantSizeLoopIterBuilder {
             range: self,
             builder,

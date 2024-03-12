@@ -1,6 +1,11 @@
 use super::BaseBuilder;
 
-pub trait Condition<B: BaseBuilder> {}
+pub trait Condition<B: BaseBuilder> {
+    type IfBuilder<'a>
+    where
+        B: 'a;
+    fn if_condition(self, builder: &mut B) -> Self::IfBuilder<'_>;
+}
 
 pub trait IfBuilder {
     fn then(self, f: impl FnOnce(&mut Self));
@@ -8,14 +13,14 @@ pub trait IfBuilder {
 }
 
 // A constant boolean condition which can be evaluated in compile time.
-pub struct ConstantCondition<'a, B> {
+pub struct ConstantConditionBuilder<'a, B> {
     condition: bool,
     pub(crate) builder: &'a mut B,
 }
 
-impl<'a, B: BaseBuilder> BaseBuilder for ConstantCondition<'a, B> {}
+impl<'a, B: BaseBuilder> BaseBuilder for ConstantConditionBuilder<'a, B> {}
 
-impl<'a, B: BaseBuilder> IfBuilder for ConstantCondition<'a, B> {
+impl<'a, B: BaseBuilder> IfBuilder for ConstantConditionBuilder<'a, B> {
     fn then(mut self, f: impl FnOnce(&mut Self)) {
         if self.condition {
             f(&mut self);

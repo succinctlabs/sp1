@@ -1,7 +1,14 @@
 use super::BaseBuilder;
+use core::borrow::Borrow;
+
+pub struct Eq<A, B>(A, B);
 
 pub trait Variable<B: BaseBuilder>: Copy {
     fn uninit(builder: &mut B) -> Self;
+
+    fn eq(&self, other: impl Borrow<Self>) -> Eq<Self, Self> {
+        Eq(*self, *other.borrow())
+    }
 }
 
 pub trait FromConstant<B: BaseBuilder>: Variable<B> {

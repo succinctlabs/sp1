@@ -21,8 +21,12 @@ pub trait Builder: BaseBuilder {
         dst
     }
 
-    fn iter<I: IntoIterator<Self>>(&mut self, iter: I) -> impl IterBuilder<Item = I::Item> {
+    fn iter<I: IntoIterator<Self>>(&mut self, iter: I) -> I::IterBuilder<'_> {
         iter.into_iter(self)
+    }
+
+    fn if_<C: Condition<Self>>(&mut self, condition: C) -> C::IfBuilder<'_> {
+        condition.if_condition(self)
     }
 }
 

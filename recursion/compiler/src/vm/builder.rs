@@ -16,6 +16,7 @@ use crate::vm::AsmInstruction;
 
 use crate::prelude::Symbolic;
 use crate::prelude::SymbolicLogic;
+use crate::syn::Builder;
 use crate::vm::Felt;
 
 pub trait VmBuilder: BaseBuilder {
@@ -101,17 +102,6 @@ pub trait VmBuilder: BaseBuilder {
             .then(|builder| builder.push(AsmInstruction::TRAP));
     }
 
-    fn if_true<E>(&mut self, expr: E) -> IfBoolBuilder<Self>
-    where
-        E: Into<SymbolicLogic>,
-    {
-        IfBoolBuilder {
-            builder: self,
-            expr: expr.into(),
-            is_true: true,
-        }
-    }
-
     fn if_false<E>(&mut self, expr: E) -> IfBoolBuilder<Self>
     where
         E: Into<SymbolicLogic>,
@@ -135,7 +125,8 @@ pub trait VmBuilder: BaseBuilder {
     where
         E: Into<SymbolicLogic>,
     {
-        self.if_true(expr)
+        let expr: SymbolicLogic = expr.into();
+        self.if_(expr)
             .then(|builder| builder.push(AsmInstruction::TRAP));
     }
 }
