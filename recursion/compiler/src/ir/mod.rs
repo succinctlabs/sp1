@@ -13,6 +13,7 @@ pub use symbolic::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
+
 #[derive(Debug, Clone, Copy)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
@@ -84,4 +85,34 @@ pub enum DslIR<C: Config> {
     AssertEqVI(Var<C::N>, C::N),
     AssertEqFI(Felt<C::F>, C::F),
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
+}
+
+impl<N> Var<N> {
+    pub fn new(id: u32) -> Self {
+        Self(id, PhantomData)
+    }
+
+    pub fn id(&self) -> String {
+        format!("var{}", self.0)
+    }
+}
+
+impl<F> Felt<F> {
+    pub fn new(id: u32) -> Self {
+        Self(id, PhantomData)
+    }
+
+    pub fn id(&self) -> String {
+        format!("felt{}", self.0)
+    }
+}
+
+impl<F, EF> Ext<F, EF> {
+    pub fn new(id: u32) -> Self {
+        Self(id, PhantomData)
+    }
+
+    pub fn id(&self) -> String {
+        format!("ext{}", self.0)
+    }
 }
