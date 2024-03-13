@@ -52,19 +52,19 @@ impl<F: PrimeField32> VmBuilder<F> {
 
 impl<F> Var<F> {
     fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 1 + 4)
+        -((self.0 as i32) * 3 + 1 + 8)
     }
 }
 
 impl<F> Felt<F> {
     fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 4)
+        -((self.0 as i32) * 3 + 2 + 8)
     }
 }
 
 impl<F, EF> Ext<F, EF> {
     pub fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 2 + 4)
+        -((self.0 as i32) * 3 + 8)
     }
 }
 
