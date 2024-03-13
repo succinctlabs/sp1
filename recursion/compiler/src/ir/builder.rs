@@ -1,14 +1,25 @@
-use super::Variable;
 use super::{Config, DslIR, Usize};
 use super::{Equal, Var};
+use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
     pub(crate) operations: Vec<DslIR<C>>,
+}
+
+impl<C: Config> Default for Builder<C> {
+    fn default() -> Self {
+        Self {
+            felt_count: 0,
+            ext_count: 0,
+            var_count: 0,
+            operations: Vec::new(),
+        }
+    }
 }
 
 impl<C: Config> Builder<C> {
@@ -33,6 +44,12 @@ impl<C: Config> Builder<C> {
         dst.assign(expr.into(), self);
     }
 
+    pub fn eval<V: Variable<C>, E: Into<V::Expression>>(&mut self, expr: E) -> V {
+        let dst = V::uninit(self);
+        dst.assign(expr.into(), self);
+        dst
+    }
+
     pub fn assert_eq<Lhs, Rhs>(&mut self, lhs: Lhs, rhs: Rhs)
     where
         Lhs: Equal<C, Rhs>,
@@ -40,9 +57,28 @@ impl<C: Config> Builder<C> {
         lhs.assert_equal(&rhs, self);
     }
 
-    pub fn if_(&mut self, condition: Var<C::N>) -> IfBuilder<C> {
+    pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) -> IfBuilder<C> {
         IfBuilder {
-            condition,
+            lhs: lhs.into(),
+            rhs: rhs.into(),
+            is_eq: true,
+            builder: self,
+        }
+    }
+
+    pub fn if_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) -> IfBuilder<C> {
+        IfBuilder {
+            lhs: lhs.into(),
+            rhs: rhs.into(),
+            is_eq: false,
             builder: self,
         }
     }
@@ -57,37 +93,80 @@ impl<C: Config> Builder<C> {
 }
 
 pub struct IfBuilder<'a, C: Config> {
-    condition: Var<C::N>,
+    lhs: SymbolicVar<C::N>,
+    rhs: SymbolicVar<C::N>,
+    is_eq: bool,
     pub(crate) builder: &'a mut Builder<C>,
 }
 
+enum Condition<N> {
+    EqConst(N, N),
+    NeConst(N, N),
+    Eq(Var<N>, Var<N>),
+    EqI(Var<N>, N),
+    Ne(Var<N>, Var<N>),
+    NeI(Var<N>, N),
+}
+
 impl<'a, C: Config> IfBuilder<'a, C> {
-    pub fn then(self, f: impl FnOnce(&mut Builder<C>)) {
+    pub fn then(mut self, f: impl FnOnce(&mut Builder<C>)) {
+        // Get the condition reduced from the expressions for lhs and rhs.
+        let condition = self.condition();
+
+        // Execute the `then`` block and collect the instructions.
         let mut f_builder = Builder::<C>::new(
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
         );
-
         f(&mut f_builder);
-
         let then_instructions = f_builder.operations;
 
-        let op = DslIR::If(self.condition, then_instructions, Vec::new());
-        self.builder.operations.push(op);
+        // Dispatch instructions to the correct conditional block.
+        match condition {
+            Condition::EqConst(lhs, rhs) => {
+                if lhs == rhs {
+                    self.builder.operations.extend(then_instructions);
+                }
+            }
+            Condition::NeConst(lhs, rhs) => {
+                if lhs != rhs {
+                    self.builder.operations.extend(then_instructions);
+                }
+            }
+            Condition::Eq(lhs, rhs) => {
+                let op = DslIR::IfEq(lhs, rhs, then_instructions, Vec::new());
+                self.builder.operations.push(op);
+            }
+            Condition::EqI(lhs, rhs) => {
+                let op = DslIR::IfEqI(lhs, rhs, then_instructions, Vec::new());
+                self.builder.operations.push(op);
+            }
+            Condition::Ne(lhs, rhs) => {
+                let op = DslIR::IfNe(lhs, rhs, then_instructions, Vec::new());
+                self.builder.operations.push(op);
+            }
+            Condition::NeI(lhs, rhs) => {
+                let op = DslIR::IfNeI(lhs, rhs, then_instructions, Vec::new());
+                self.builder.operations.push(op);
+            }
+        }
     }
 
     pub fn then_or_else(
-        self,
+        mut self,
         then_f: impl FnOnce(&mut Builder<C>),
         else_f: impl FnOnce(&mut Builder<C>),
     ) {
+        // Get the condition reduced from the expressions for lhs and rhs.
+        let condition = self.condition();
         let mut then_builder = Builder::<C>::new(
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
         );
 
+        // Execute the `then` and `else_then` blocks and collect the instructions.
         then_f(&mut then_builder);
         let then_instructions = then_builder.operations;
 
@@ -96,12 +175,107 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
         );
-
         else_f(&mut else_builder);
         let else_instructions = else_builder.operations;
 
-        let op = DslIR::If(self.condition, then_instructions, else_instructions);
-        self.builder.operations.push(op);
+        // Dispatch instructions to the correct conditional block.
+        match condition {
+            Condition::EqConst(lhs, rhs) => {
+                if lhs == rhs {
+                    self.builder.operations.extend(then_instructions);
+                } else {
+                    self.builder.operations.extend(else_instructions);
+                }
+            }
+            Condition::NeConst(lhs, rhs) => {
+                if lhs != rhs {
+                    self.builder.operations.extend(then_instructions);
+                } else {
+                    self.builder.operations.extend(else_instructions);
+                }
+            }
+            Condition::Eq(lhs, rhs) => {
+                let op = DslIR::IfEq(lhs, rhs, then_instructions, else_instructions);
+                self.builder.operations.push(op);
+            }
+            Condition::EqI(lhs, rhs) => {
+                let op = DslIR::IfEqI(lhs, rhs, then_instructions, else_instructions);
+                self.builder.operations.push(op);
+            }
+            Condition::Ne(lhs, rhs) => {
+                let op = DslIR::IfNe(lhs, rhs, then_instructions, else_instructions);
+                self.builder.operations.push(op);
+            }
+            Condition::NeI(lhs, rhs) => {
+                let op = DslIR::IfNeI(lhs, rhs, then_instructions, else_instructions);
+                self.builder.operations.push(op);
+            }
+        }
+    }
+
+    fn condition(&mut self) -> Condition<C::N> {
+        match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
+            (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs), true) => {
+                Condition::EqConst(lhs, rhs)
+            }
+            (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs), false) => {
+                Condition::NeConst(lhs, rhs)
+            }
+            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs), true) => Condition::EqI(rhs, lhs),
+            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs), false) => Condition::NeI(rhs, lhs),
+            (SymbolicVar::Const(lhs), rhs, true) => {
+                let rhs: Var<C::N> = self.builder.eval(rhs);
+                Condition::EqI(rhs, lhs)
+            }
+            (SymbolicVar::Const(lhs), rhs, false) => {
+                let rhs: Var<C::N> = self.builder.eval(rhs);
+                Condition::NeI(rhs, lhs)
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs), true) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                Condition::EqI(lhs, rhs)
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs), false) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                Condition::NeI(lhs, rhs)
+            }
+            (lhs, SymbolicVar::Const(rhs), true) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                Condition::EqI(lhs, rhs)
+            }
+            (lhs, SymbolicVar::Const(rhs), false) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                Condition::NeI(lhs, rhs)
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs), true) => Condition::Eq(lhs, rhs),
+            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs), false) => Condition::Ne(lhs, rhs),
+            (SymbolicVar::Val(lhs), rhs, true) => {
+                let rhs: Var<C::N> = self.builder.eval(rhs);
+                Condition::Eq(lhs, rhs)
+            }
+            (SymbolicVar::Val(lhs), rhs, false) => {
+                let rhs: Var<C::N> = self.builder.eval(rhs);
+                Condition::Ne(lhs, rhs)
+            }
+            (lhs, SymbolicVar::Val(rhs), true) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                Condition::Eq(lhs, rhs)
+            }
+            (lhs, SymbolicVar::Val(rhs), false) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                Condition::Ne(lhs, rhs)
+            }
+            (lhs, rhs, true) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                let rhs: Var<C::N> = self.builder.eval(rhs);
+                Condition::Eq(lhs, rhs)
+            }
+            (lhs, rhs, false) => {
+                let lhs: Var<C::N> = self.builder.eval(lhs);
+                let rhs: Var<C::N> = self.builder.eval(rhs);
+                Condition::Ne(lhs, rhs)
+            }
+        }
     }
 }
 
