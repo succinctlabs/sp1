@@ -28,8 +28,8 @@ const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 
 impl SP1ProverServiceClient {
     pub fn with_token(access_token: String) -> Self {
-        let rpc_url =
-            env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
+        let rpc_url = env::var("PROVER_NETWORK_RPC")
+            .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
         Self::with_url(access_token, rpc_url)
     }
 
