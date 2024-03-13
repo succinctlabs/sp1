@@ -4,6 +4,7 @@ use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::runtime::{ExecutionRecord, Register, Syscall};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::{limbs_from_access, pad_rows};
 use num::BigUint;
@@ -12,6 +13,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
@@ -96,85 +98,101 @@ impl<F: PrimeField32> MachineAir<F> for BigIntChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        // compute the number of events to process in each chunk.
+        let chunk_size = std::cmp::max(input.bigint_events.len() / num_cpus::get(), 1);
 
-        let mut new_field_events = Vec::new();
+        // Generate the trace rows & corresponding records for each chunk of events concurrently.
+        let rows_and_records = input
+            .bigint_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut records = ExecutionRecord::default();
+                let mut new_field_events = Vec::new();
 
-        for i in 0..input.bigint_events.len() {
-            let event = input.bigint_events[i].clone();
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row: [F; NUM_BIGINT_COLS] = [F::zero(); NUM_BIGINT_COLS];
+                        let cols: &mut BigIntColumn<F> = row.as_mut_slice().borrow_mut();
 
-            let clk = event.clk;
-            let mut row = [F::zero(); NUM_BIGINT_COLS];
-            let cols: &mut BigIntColumn<F> = row.as_mut_slice().borrow_mut();
+                        // Decode bigunit points
+                        let x = biguint_from_words(&event.x);
+                        let y = biguint_from_words(&event.y);
 
-            // Decode bigunit points
-            let x = biguint_from_words(&event.x);
-            let y = biguint_from_words(&event.y);
+                        // Assign basic values to the columns.
+                        {
+                            cols.is_real = F::one();
+                            cols.shard = F::from_canonical_u32(event.shard);
+                            cols.clk = F::from_canonical_u32(event.clk);
+                            cols.x_ptr = F::from_canonical_u32(event.x_ptr);
+                            cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+                            cols.ops_ptr = F::from_canonical_u32(event.ops_ptr);
+                        }
+                        // Memory columns.
+                        {
+                            // Populate the columns with the input values
+                            for i in 0..NUM_WORDS_IN_BIGINT {
+                                // populate the input_x columns
+                                cols.x_memory[i]
+                                    .populate(event.x_memory_records[i], &mut new_field_events);
+                                // populate the input_y columns
+                                cols.y_memory[i]
+                                    .populate(event.y_memory_records[i], &mut new_field_events);
+                            }
+                            cols.y_ptr_access
+                                .populate(event.y_pointer_record, &mut new_field_events);
+                            cols.ops_ptr_access
+                                .populate(event.ops_pointer_record, &mut new_field_events);
+                            cols.ops_memory
+                                .populate(event.ops_memory, &mut new_field_events);
+                        }
 
-            // Assign basic values to the columns.
-            {
-                cols.is_real = F::one();
-                cols.shard = F::from_canonical_u32(event.shard);
-                cols.clk = F::from_canonical_u32(clk);
-                cols.x_ptr = F::from_canonical_u32(event.x_ptr);
-                cols.y_ptr = F::from_canonical_u32(event.y_ptr);
-                cols.ops_ptr = F::from_canonical_u32(event.ops_ptr);
-            }
-            // Memory columns.
-            {
-                // Populate the columns with the input values
-                for i in 0..NUM_WORDS_IN_BIGINT {
-                    // populate the input_x columns
-                    cols.x_memory[i].populate(event.x_memory_records[i], &mut new_field_events);
-                    // populate the input_y columns
-                    cols.y_memory[i].populate(event.y_memory_records[i], &mut new_field_events);
-                }
-                cols.y_ptr_access
-                    .populate(event.y_pointer_record, &mut new_field_events);
-                cols.ops_ptr_access
-                    .populate(event.ops_pointer_record, &mut new_field_events);
-                cols.ops_memory
-                    .populate(event.ops_memory, &mut new_field_events);
-            }
+                        // selector bits
+                        {
+                            match event.ops {
+                                0 => {
+                                    cols.is_add_op = F::one();
+                                    cols.is_sub_op = F::zero();
+                                    cols.is_mul_op = F::zero();
 
-            // selector bits
-            {
-                match event.ops {
-                    0 => {
-                        cols.is_add_op = F::one();
-                        cols.is_sub_op = F::zero();
-                        cols.is_mul_op = F::zero();
+                                    cols.output
+                                        .populate::<U256Field>(&x, &y, FieldOperation::Add);
+                                }
+                                1 => {
+                                    cols.is_add_op = F::zero();
+                                    cols.is_sub_op = F::one();
+                                    cols.is_mul_op = F::zero();
 
-                        cols.output
-                            .populate::<U256Field>(&x, &y, FieldOperation::Add);
-                    }
-                    1 => {
-                        cols.is_add_op = F::zero();
-                        cols.is_sub_op = F::one();
-                        cols.is_mul_op = F::zero();
+                                    cols.output
+                                        .populate::<U256Field>(&x, &y, FieldOperation::Sub);
+                                }
+                                2 => {
+                                    cols.is_add_op = F::zero();
+                                    cols.is_sub_op = F::zero();
+                                    cols.is_mul_op = F::one();
 
-                        cols.output
-                            .populate::<U256Field>(&x, &y, FieldOperation::Sub);
-                    }
-                    2 => {
-                        cols.is_add_op = F::zero();
-                        cols.is_sub_op = F::zero();
-                        cols.is_mul_op = F::one();
+                                    cols.output
+                                        .populate::<U256Field>(&x, &y, FieldOperation::Mul);
+                                }
+                                _ => panic!("Invalid bigint operation"),
+                            }
+                        }
 
-                        cols.output
-                            .populate::<U256Field>(&x, &y, FieldOperation::Mul);
-                    }
-                    _ => panic!("Invalid bigint operation"),
-                }
-            }
-
-            rows.push(row);
-        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                records.add_field_events(&new_field_events);
+                (rows, records)
+            })
+            .collect::<Vec<_>>();
 
         // Add the new field events to the output.
-        output.add_field_events(&new_field_events);
+        let rows = Vec::new();
+        for (row, record) in rows_and_records {
+            rows.extend(row);
+            output.append(&mut record);
+        }
 
-        // Pad the rows to the next power of two.
         pad_rows(&mut rows, || [F::zero(); NUM_BIGINT_COLS]);
 
         // Convert the trace to a row major matrix.
