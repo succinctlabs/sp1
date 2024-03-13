@@ -2,6 +2,8 @@ use core::marker::PhantomData;
 
 use crate::ir::{Config, DslIR};
 
+const GNARK_TEMPLATE: &str = include_str!("gnark.txt");
+
 #[derive(Debug, Clone)]
 pub struct GnarkBackend<C: Config> {
     pub phantom: PhantomData<C>,
@@ -76,7 +78,8 @@ impl<C: Config> GnarkBackend<C> {
                 _ => todo!(),
             }
         }
-        lines.join("\n")
+        let lines = lines.join("\n        ");
+        GNARK_TEMPLATE.replace("{{LINES}}", &lines)
     }
 }
 
