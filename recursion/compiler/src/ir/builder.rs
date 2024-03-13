@@ -1,5 +1,5 @@
 use super::Variable;
-use super::{Config, DslIR, Expression, Usize};
+use super::{Config, DslIR, Usize};
 use super::{Equal, Var};
 use alloc::vec::Vec;
 
@@ -21,12 +21,16 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    pub(crate) fn push(&mut self, op: DslIR<C>) {
+        self.operations.push(op);
+    }
+
     pub fn uninit<V: Variable<C>>(&mut self) -> V {
         V::uninit(self)
     }
 
-    pub fn assign<E: Expression<C>>(&mut self, dst: E::Value, expr: E) {
-        expr.assign(dst, self);
+    pub fn assign<V: Variable<C>, E: Into<V::Expression>>(&mut self, dst: V, expr: E) {
+        dst.assign(expr.into(), self);
     }
 
     pub fn assert_eq<Lhs, Rhs>(&mut self, lhs: Lhs, rhs: Rhs)

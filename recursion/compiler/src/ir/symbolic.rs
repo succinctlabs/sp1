@@ -4,6 +4,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use p3_field::ExtensionField;
 use p3_field::Field;
 
+#[derive(Debug, Clone)]
 pub enum SymbolicVar<N> {
     Const(N),
     Val(Var<N>),
@@ -13,6 +14,7 @@ pub enum SymbolicVar<N> {
     Neg(Rc<SymbolicVar<N>>),
 }
 
+#[derive(Debug, Clone)]
 pub enum SymbolicFelt<F> {
     Const(F),
     Val(Felt<F>),
@@ -23,6 +25,7 @@ pub enum SymbolicFelt<F> {
     Neg(Rc<SymbolicFelt<F>>),
 }
 
+#[derive(Debug, Clone)]
 pub enum SymbolicExt<F, EF> {
     Const(EF),
     Base(Rc<SymbolicFelt<F>>),
