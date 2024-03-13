@@ -13,7 +13,7 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
+use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]

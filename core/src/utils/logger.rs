@@ -12,8 +12,11 @@ static INIT: Once = Once::new();
 pub fn setup_logger() {
     INIT.call_once(|| {
         let default_filter = "off";
-        let env_filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_filter));
+        let env_filter = EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new(default_filter))
+            .add_directive("p3_keccak_air=off".parse().unwrap())
+            .add_directive("p3_fri=off".parse().unwrap())
+            .add_directive("p3_challenger=off".parse().unwrap());
         tracing_subscriber::fmt::Subscriber::builder()
             .compact()
             .with_file(false)

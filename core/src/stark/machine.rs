@@ -85,14 +85,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         // Get the local and global chips.
         let chips = self.chips();
 
-        tracing::info!("Generating trace for each chip.");
-        // Display the statistics about the workload. This is incomplete because it's run before
-        // generate_trace, which can adds events to the record.
-        tracing::info!(
-            "Record stats before generate_trace (incomplete): {:#?}",
-            record.stats()
-        );
-
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
             let mut output = A::Record::default();
@@ -101,12 +93,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
             record.append(&mut output);
         });
 
-        // Display the statistics about the workload after generate_trace.
-        tracing::info!("Record stats finalized {:#?}", record.stats());
-        tracing::info!("Sharding execution record by chip.");
+        // Display some statistics about the workload.
+        let stats = record.stats();
+        for (k, v) in stats {
+            log::info!("{} = {}", k, v);
+        }
 
         // For each chip, shard the events into segments.
-
         record.shard(config)
     }
 
@@ -126,10 +119,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
-        tracing::info!("Sharding the execution record.");
+        tracing::debug!("sharding the execution record");
         let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
-        tracing::info!("Generating the shard proofs.");
+        tracing::debug!("generating the shard proofs");
         P::prove_shards(self, pk, shards, challenger)
     }
 
@@ -150,15 +143,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
+        tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
         // Verify the segment proofs.
+        tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
-            tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+            tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
                     .chips()
                     .iter()
@@ -168,6 +162,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
+        tracing::info!("success");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();

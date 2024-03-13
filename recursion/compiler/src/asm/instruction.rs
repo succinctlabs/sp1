@@ -50,6 +50,8 @@ pub enum AsmInstruction<F> {
     BEQ(F, i32, i32),
     /// Branch equal immediate
     BEQI(F, i32, F),
+    /// Trap
+    TRAP,
 }
 
 impl<F: PrimeField32> AsmInstruction<F> {
@@ -189,6 +191,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 false,
                 false,
             ),
+            AsmInstruction::TRAP => Instruction::new(Opcode::TRAP, 0, 0, 0, false, false),
         }
     }
 
@@ -259,7 +262,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
             AsmInstruction::BNEI(label, lhs, rhs) => {
                 write!(
                     f,
-                    "bnei .{}, ({})fp, {}",
+                    "bnei  {}, ({})fp, {}",
                     labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs
@@ -283,6 +286,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                     rhs
                 )
             }
+            AsmInstruction::TRAP => write!(f, "trap"),
         }
     }
 }

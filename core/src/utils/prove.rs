@@ -59,7 +59,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
 
     let start = Instant::now();
     let record_clone = runtime.record.clone();
-    let proof = tracing::info_span!("runtime.prove(...)")
+    let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
@@ -75,16 +75,18 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger)?;
+
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
         cycles,
         time,
         (cycles as f64 / time as f64),
         Size::from_bytes(nb_bytes),
     );
 
-    let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger)
+    Ok(())
 }
 
 pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
@@ -113,13 +115,13 @@ where
 
     // Prove the program.
     let cycles = runtime.state.global_clk;
-    let proof = tracing::info_span!("runtime.prove(...)")
+    let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
         cycles,
         time,
         (cycles as f64 / time as f64),

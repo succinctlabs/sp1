@@ -127,7 +127,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         "EdAddAssign".to_string()
     }
 
-    #[instrument(name = "generate Ed Add trace", skip_all)]
+    #[instrument(name = "generate ed add trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
