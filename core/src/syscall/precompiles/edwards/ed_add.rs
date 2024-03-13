@@ -150,6 +150,8 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     let q = AffinePoint::<E>::from_words_le(q);
                     let (q_x, q_y) = (q.x, q.y);
 
+                    println!("event: {:?}", event);
+
                     // Populate basic columns.
                     cols.is_real = F::one();
                     cols.shard = F::from_canonical_u32(event.shard);
@@ -275,7 +277,7 @@ where
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.shard,
-                row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+                row.clk + AB::F::from_canonical_u32(1), // The clk for p is moved by 1.
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.p_access[i as usize],
                 row.is_real,

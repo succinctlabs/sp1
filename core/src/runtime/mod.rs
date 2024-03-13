@@ -664,8 +664,8 @@ impl Runtime {
                         } else {
                             a = syscall_id; // By default just keep the register value the same as it was before.
                         }
-                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
                         // next_pc = precompile_rt.next_pc;
+                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
                         // Increment the clk by the number of extra cycles that the precompile needs.
                         // We can't just do self.state.clk += syscall_impl.num_extra_cycles() because of
                         // borrow issues.
@@ -773,6 +773,7 @@ impl Runtime {
         let max_syscall_cycles = self.max_syscall_cycles();
         // We start the clk at 1 because the MemoryInit table is at shard=0, clk=0
         // TODO: Although maybe we should just start at shard=1 and then clk=0 for consistency's sake?
+        // TODO: do we really need this, given that we start at shard 0?
         self.state.clk = 1;
 
         tracing::info!("loading memory image");

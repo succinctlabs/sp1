@@ -123,7 +123,7 @@ pub fn debug_interactions_with_all_chips<
     for chip in chips.iter() {
         let (_, count) = debug_interactions::<SC, A>(chip, segment, interaction_kinds.clone());
 
-        tracing::debug!("{} chip has {} distinct events", chip.name(), count.len());
+        tracing::info!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
             let entry = final_map
                 .entry(key.clone())
@@ -134,20 +134,20 @@ pub fn debug_interactions_with_all_chips<
         }
     }
 
-    tracing::debug!("Final counts below.");
-    tracing::debug!("==================");
+    tracing::info!("Final counts below.");
+    tracing::info!("==================");
 
     let mut any_nonzero = false;
     for (key, (value, chip_values)) in final_map.clone() {
         if !SC::Val::is_zero(&value) {
-            tracing::debug!(
+            tracing::info!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,
                 babybear_to_int(value)
             );
             any_nonzero = true;
             for (chip, chip_value) in chip_values {
-                tracing::debug!(
+                tracing::info!(
                     " {} chip's send-receive discrepancy for this key is {}",
                     chip,
                     babybear_to_int(chip_value)
@@ -156,24 +156,24 @@ pub fn debug_interactions_with_all_chips<
         }
     }
 
-    tracing::debug!("==================");
+    tracing::info!("==================");
     if !any_nonzero {
-        tracing::debug!("All chips have the same number of sends and receives.");
+        tracing::info!("All chips have the same number of sends and receives.");
     } else {
-        tracing::debug!("Positive values mean sent more than received.");
-        tracing::debug!("Negative values mean received more than sent.");
+        tracing::info!("Positive values mean sent more than received.");
+        tracing::info!("Negative values mean received more than sent.");
         if total != BabyBear::zero() {
-            tracing::debug!("Total send-receive discrepancy: {}", babybear_to_int(total));
+            tracing::info!("Total send-receive discrepancy: {}", babybear_to_int(total));
             if babybear_to_int(total) > 0 {
-                tracing::debug!("you're sending more than you are receiving");
+                tracing::info!("you're sending more than you are receiving");
             } else {
-                tracing::debug!("you're receiving more than you are sending");
+                tracing::info!("you're receiving more than you are sending");
             }
         } else {
-            tracing::debug!(
+            tracing::info!(
                 "the total number of sends and receives match, but the keys don't match"
             );
-            tracing::debug!("check the arguments");
+            tracing::info!("check the arguments");
         }
     }
 
