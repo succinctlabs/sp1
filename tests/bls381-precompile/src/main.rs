@@ -2,7 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 extern "C" {
-    fn syscall_bls381_precompile(p: *mut u32);
+    fn syscall_bn254_precompile(p: *mut u32);
 }
 
 pub fn main() {
@@ -10,7 +10,7 @@ pub fn main() {
     println!("p: {:?}", p);
 
     unsafe {
-        syscall_bls381_precompile(p.as_mut_ptr() as *mut u32);
+        syscall_bn254_precompile(p.as_mut_ptr() as *mut u32);
     }
 
     println!("p after calling syscall: {:?}", p);

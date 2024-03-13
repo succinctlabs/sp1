@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "bls381-precompile-test"
+name = "bn254-precompile-test"
 version = "0.1.0"
 edition = "2021"
 

@@ -22,7 +22,7 @@ use tracing::instrument;
 
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BLS381PrecompileEvent {
+pub struct BN254PrecompileEvent {
     pub shard: u32,
     pub clk: u32,
     pub p_ptr: u32,
@@ -30,11 +30,11 @@ pub struct BLS381PrecompileEvent {
     pub p_memory_records: [MemoryWriteRecord; 8],
 }
 
-pub const NUM_SIMPLE_PRECOMPILE_COLS: usize = size_of::<BLS381PrecompileCols<u8>>();
+pub const NUM_SIMPLE_PRECOMPILE_COLS: usize = size_of::<BN254PrecompileCols<u8>>();
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct BLS381PrecompileCols<T> {
+pub struct BN254PrecompileCols<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
@@ -47,11 +47,11 @@ pub struct BLS381PrecompileCols<T> {
 }
 
 #[derive(Default)]
-pub struct BLS381PrecompileChip {}
+pub struct BN254PrecompileChip {}
 
-impl BLS381PrecompileChip {
+impl BN254PrecompileChip {
     fn populate_operations<F: PrimeField32>(
-        cols: &mut BLS381PrecompileCols<F>,
+        cols: &mut BN254PrecompileCols<F>,
         record: &mut ExecutionRecord,
         p: &[u32],
     ) {
@@ -62,7 +62,7 @@ impl BLS381PrecompileChip {
     }
 }
 
-impl Syscall for BLS381PrecompileChip {
+impl Syscall for BN254PrecompileChip {
     fn num_extra_cycles(&self) -> u32 {
         4
     }
@@ -92,7 +92,7 @@ impl Syscall for BLS381PrecompileChip {
         let p_records = rt.mw_slice(p_ptr, &p_final);
         rt.clk += 4;
 
-        let event = BLS381PrecompileEvent {
+        let event = BN254PrecompileEvent {
             shard: rt.current_shard(),
             clk: start_clk,
             p_ptr,
@@ -100,16 +100,16 @@ impl Syscall for BLS381PrecompileChip {
             p_memory_records: p_records.try_into().unwrap(),
         };
 
-        rt.record_mut().bls381_precompile_events.push(event);
+        rt.record_mut().bn254_precompile_events.push(event);
         0 // TODO: we're going to remove this return value
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for BLS381PrecompileChip {
+impl<F: PrimeField32> MachineAir<F> for BN254PrecompileChip {
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "BLS381Precompile".to_string()
+        "BN254Precompile".to_string()
     }
 
     #[instrument(name = "generate simple precompile trace", skip_all)]
@@ -122,11 +122,11 @@ impl<F: PrimeField32> MachineAir<F> for BLS381PrecompileChip {
             Vec<[F; NUM_SIMPLE_PRECOMPILE_COLS]>,
             Vec<Vec<FieldEvent>>,
         ) = input
-            .bls381_precompile_events
+            .bn254_precompile_events
             .iter() // TODO: should be made a par_iter
             .map(|event| {
                 let mut row = [F::zero(); NUM_SIMPLE_PRECOMPILE_COLS];
-                let cols: &mut BLS381PrecompileCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut BN254PrecompileCols<F> = row.as_mut_slice().borrow_mut();
 
                 // Decode affine points.
                 let p = &event.p;
@@ -165,23 +165,23 @@ impl<F: PrimeField32> MachineAir<F> for BLS381PrecompileChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.bls381_precompile_events.is_empty()
+        !shard.bn254_precompile_events.is_empty()
     }
 }
 
-impl<F> BaseAir<F> for BLS381PrecompileChip {
+impl<F> BaseAir<F> for BN254PrecompileChip {
     fn width(&self) -> usize {
         NUM_SIMPLE_PRECOMPILE_COLS
     }
 }
 
-impl<AB> Air<AB> for BLS381PrecompileChip
+impl<AB> Air<AB> for BN254PrecompileChip
 where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &BLS381PrecompileCols<AB::Var> = main.row_slice(0).borrow();
+        let row: &BN254PrecompileCols<AB::Var> = main.row_slice(0).borrow();
 
         AddOperation::<AB::F>::eval(
             builder,
@@ -231,27 +231,27 @@ mod tests {
 
     use crate::runtime::{ExecutionRecord, Runtime};
     use crate::utils::run_test;
-    use crate::utils::{self, tests::BLS381_PRECOMPILE_ELF};
+    use crate::utils::{self, tests::BN254_PRECOMPILE_ELF};
     use crate::Program;
 
     #[test]
     fn generate_trace() {
-        let program = Program::from(BLS381_PRECOMPILE_ELF);
+        let program = Program::from(BN254_PRECOMPILE_ELF);
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        println!("{:?}", runtime.record.bls381_precompile_events);
+        println!("{:?}", runtime.record.bn254_precompile_events);
 
-        let chip = BLS381PrecompileChip::default();
+        let chip = BN254PrecompileChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
-    fn test_bls381_precompile() {
+    fn test_bn254_precompile() {
         utils::setup_logger();
-        let program = Program::from(BLS381_PRECOMPILE_ELF);
+        let program = Program::from(BN254_PRECOMPILE_ELF);
         run_test(program).unwrap();
     }
 }

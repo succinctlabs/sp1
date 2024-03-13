@@ -51,7 +51,7 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
 /// Simple precompile syscall
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_simple_precompile(p: *mut u32) {
+pub extern "C" fn syscall_bn254_precompile(p: *mut u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
