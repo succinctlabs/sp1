@@ -46,6 +46,7 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    use crate::{runtime::ExecutionRecord, stark::MachineRecord};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
@@ -63,14 +64,22 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
-    assert!(debug_interactions_with_all_chips::<
-        BabyBearBlake3,
-        RiscvAir<p3_baby_bear::BabyBear>,
-    >(
-        &machine.chips(),
-        &runtime.record,
-        InteractionKind::all_kinds(),
-    ));
+    {
+        // First shard the record
+        let record_clone_2 = runtime.record.clone();
+        let shards = machine.shard(
+            record_clone_2,
+            &<ExecutionRecord as MachineRecord>::Config::default(),
+        );
+        assert_eq!(shards.len(), 1);
+        assert!(debug_interactions_with_all_chips::<
+            BabyBearBlake3,
+            RiscvAir<p3_baby_bear::BabyBear>,
+        >(
+            &machine.chips(), &shards[0], InteractionKind::all_kinds(),
+        ));
+    }
+
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

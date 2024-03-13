@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use num::traits::ToBytes;
 use std::rc::Rc;
 
 use crate::runtime::{Register, Runtime};
@@ -84,6 +85,10 @@ impl SyscallCode {
             0x00_80_01_08 => SyscallCode::BLAKE3_COMPRESS_INNER,
             _ => panic!("invalid syscall number: {}", value),
         }
+    }
+
+    pub fn to_ecall_identifier(&self) -> u32 {
+        (*self as u32).to_le_bytes()[0].into()
     }
 }
 

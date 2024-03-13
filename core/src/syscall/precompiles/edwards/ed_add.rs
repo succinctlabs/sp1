@@ -287,7 +287,7 @@ where
         builder.receive_ecall(
             row.shard,
             row.clk,
-            AB::F::from_canonical_u32(SyscallCode::ED_ADD as u32),
+            AB::F::from_canonical_u32(SyscallCode::ED_ADD.to_ecall_identifier()),
             row.p_ptr,
             row.q_ptr,
             row.is_real,

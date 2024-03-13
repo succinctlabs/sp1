@@ -25,3 +25,5 @@ You need `--no-default-features` to make sure the "perf" feature is not enabled.
 ```
 RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --features debug --no-default-features --release -- --nocapture
 ```
+
+RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --no-default-features --release -- --nocapture
