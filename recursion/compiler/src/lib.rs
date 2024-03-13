@@ -1,8 +1,7 @@
-#![no_std]
-
 extern crate alloc;
 
 pub mod asm;
+pub mod backend;
 pub mod builder;
 pub mod heap;
 pub mod ir;
