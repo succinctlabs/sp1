@@ -12,6 +12,7 @@ use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
+use crate::syscall::precompiles::bigint::BigIntEvent;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
@@ -81,6 +82,8 @@ pub struct ExecutionRecord {
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+
+    pub bigint_events: Vec<BigIntEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
