@@ -5,7 +5,6 @@ pub mod backend;
 pub mod builder;
 pub mod heap;
 pub mod ir;
-// pub mod old_ir;
 pub mod util;
 
 pub mod prelude {
