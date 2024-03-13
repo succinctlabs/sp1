@@ -8,6 +8,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -317,16 +318,25 @@ where
 
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk.into(), // clk + 0 -> Memory
+            row.clk.into(),
             row.q_ptr,
             &row.q_access,
             row.is_real,
         );
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             row.p_ptr,
             &row.p_access,
+            row.is_real,
+        );
+
+        builder.receive_ecall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.to_ecall_identifier()),
+            row.p_ptr,
+            row.q_ptr,
             row.is_real,
         );
     }

@@ -24,11 +24,13 @@
 
 extern crate proc_macro;
 
+use proc_macro::Ident;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
 use syn::parse_quote;
 use syn::Data;
+use syn::DeriveInput;
 use syn::ItemFn;
 
 #[proc_macro_derive(AlignedBorrow)]
@@ -291,4 +293,43 @@ fn find_execution_record_path(attrs: &[syn::Attribute]) -> syn::Path {
         }
     }
     parse_quote!(crate::runtime::ExecutionRecord)
+}
+
+#[proc_macro_derive(CheckSyscallConsistency)]
+pub fn check_syscall_consistency(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let enum_name = &input.ident;
+    let variants = if let syn::Data::Enum(data_enum) = input.data {
+        data_enum.variants
+    } else {
+        // Not an enum, return an error or empty TokenStream
+        return TokenStream::new();
+    };
+
+    let checks = variants.iter().map(|variant| {
+        let variant_name = &variant.ident;
+        let const_name = quote::format_ident!("{}", variant_name);
+        quote! {
+            #enum_name::#variant_name => assert_eq!(sp1_zkvm::syscalls::#const_name, code as u32),
+        }
+    });
+
+    let output = quote! {
+        #[cfg(test)]
+        mod derive_test {
+            use super::*;
+
+            #[test]
+            fn test_syscall_consistency_zkvm() {
+                for code in SyscallCode::iter() {
+                    match code {
+                        #(#checks)*
+                    }
+                }
+            }
+        }
+    };
+
+    output.into()
 }

@@ -1,6 +1,8 @@
 use hashbrown::HashMap;
 use num::traits::ToBytes;
 use std::rc::Rc;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
@@ -17,9 +19,10 @@ use crate::syscall::{
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
+use sp1_derive::CheckSyscallConsistency;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, CheckSyscallConsistency)]
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
     /// Halts the program.
@@ -74,14 +77,14 @@ impl SyscallCode {
             0x00_00_00_02 => SyscallCode::WRITE,
             0x00_00_00_03 => SyscallCode::ENTER_UNCONSTRAINED,
             0x00_00_00_04 => SyscallCode::EXIT_UNCONSTRAINED,
-            0x00_80_01_00 => SyscallCode::SHA_EXTEND,
+            0x00_30_01_00 => SyscallCode::SHA_EXTEND,
             0x00_80_01_01 => SyscallCode::SHA_COMPRESS,
-            0x00_80_01_02 => SyscallCode::ED_ADD,
-            0x00_80_01_03 => SyscallCode::ED_DECOMPRESS,
-            0x00_80_01_04 => SyscallCode::KECCAK_PERMUTE,
-            0x00_80_01_05 => SyscallCode::SECP256K1_ADD,
-            0x00_80_01_06 => SyscallCode::SECP256K1_DOUBLE,
-            0x00_80_01_07 => SyscallCode::SECP256K1_DECOMPRESS,
+            0x00_01_01_02 => SyscallCode::ED_ADD,
+            0x00_00_01_03 => SyscallCode::ED_DECOMPRESS,
+            0x00_18_01_04 => SyscallCode::KECCAK_PERMUTE,
+            0x00_01_01_05 => SyscallCode::SECP256K1_ADD,
+            0x00_00_01_06 => SyscallCode::SECP256K1_DOUBLE,
+            0x00_00_01_07 => SyscallCode::SECP256K1_DECOMPRESS,
             0x00_80_01_08 => SyscallCode::BLAKE3_COMPRESS_INNER,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -89,6 +92,10 @@ impl SyscallCode {
 
     pub fn to_ecall_identifier(&self) -> u32 {
         (*self as u32).to_le_bytes()[0].into()
+    }
+
+    pub fn encoded_num_cycles(&self) -> u32 {
+        (*self as u32).to_le_bytes()[2].into()
     }
 }
 
@@ -242,14 +249,30 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
 
 #[cfg(test)]
 mod tests {
-    use super::default_syscall_map;
+    use super::{default_syscall_map, SyscallCode};
+    // use sp1_derive::check_syscall_enum_consistency;
+    use strum::IntoEnumIterator;
+
+    #[test]
+    fn test_syscalls_in_default_map() {
+        let default_syscall_map = default_syscall_map();
+        for code in SyscallCode::iter() {
+            default_syscall_map.get(&code).unwrap();
+        }
+    }
 
     #[test]
     fn test_syscall_num_cycles_encoding() {
         for (syscall_code, syscall_impl) in default_syscall_map().iter() {
-            let syscall_id = syscall_code.clone() as u32;
-            let encoded_num_cycles = syscall_id.to_le_bytes()[2];
-            assert_eq!(syscall_impl.num_extra_cycles(), encoded_num_cycles as u32);
+            let encoded_num_cycles = syscall_code.encoded_num_cycles();
+            assert_eq!(syscall_impl.num_extra_cycles(), encoded_num_cycles);
+        }
+    }
+
+    #[test]
+    fn test_encoding_roundtrip() {
+        for (syscall_code, syscall_impl) in default_syscall_map().iter() {
+            assert_eq!(SyscallCode::from_u32(*syscall_code as u32), *syscall_code);
         }
     }
 }

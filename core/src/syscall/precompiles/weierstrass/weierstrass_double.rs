@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
@@ -367,9 +368,18 @@ where
 
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.clk.into(),
             row.p_ptr,
             &row.p_access,
+            row.is_real,
+        );
+
+        builder.receive_ecall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.to_ecall_identifier()),
+            row.p_ptr,
+            AB::Expr::zero(),
             row.is_real,
         );
     }

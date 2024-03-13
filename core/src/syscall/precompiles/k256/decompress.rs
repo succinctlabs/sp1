@@ -11,6 +11,7 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::field::FieldParameters;
@@ -280,6 +281,15 @@ impl<V: Copy> K256DecompressCols<V> {
                 self.is_real,
             );
         }
+
+        builder.receive_ecall(
+            self.shard,
+            self.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.to_ecall_identifier()),
+            self.ptr,
+            AB::Expr::zero(),
+            self.is_real,
+        );
     }
 }
 
