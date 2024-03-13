@@ -28,7 +28,16 @@ pub enum Usize<N> {
     Var(Var<N>),
 }
 
-pub trait Config {
+impl<N> Usize<N> {
+    pub fn value(&self) -> usize {
+        match self {
+            Usize::Const(c) => *c,
+            Usize::Var(_) => panic!("Cannot get the value of a variable"),
+        }
+    }
+}
+
+pub trait Config: Clone {
     type N: Field;
     type F: Field;
     type EF: ExtensionField<Self::F>;
