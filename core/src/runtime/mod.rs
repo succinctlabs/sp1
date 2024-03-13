@@ -649,8 +649,6 @@ impl Runtime {
                 let syscall_id = self.register(t0);
                 c = self.rr(Register::X11, MemoryAccessPosition::C);
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
-                println!("next_pc {}", next_pc);
-                println!("syscall_id, b, c = {:?}, {:?}, {:?}", syscall_id, b, c);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
@@ -664,13 +662,7 @@ impl Runtime {
                         } else {
                             a = syscall_id; // By default just keep the register value the same as it was before.
                         }
-                        // next_pc = precompile_rt.next_pc;
                         (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
-                        // Increment the clk by the number of extra cycles that the precompile needs.
-                        // We can't just do self.state.clk += syscall_impl.num_extra_cycles() because of
-                        // borrow issues.
-                        // self.state.clk = precompile_rt.clk;
-                        // assert_eq!(clk + syscall_impl.num_extra_cycles(), self.state.clk);
                     } else {
                         panic!("Unsupported syscall: {:?}", syscall);
                         (0, 0)

@@ -38,28 +38,28 @@ pub enum SyscallCode {
     EXIT_UNCONSTRAINED = 0x00_00_00_04,
 
     /// Executes the `SHA_EXTEND` precompile.
-    SHA_EXTEND = 0x00_80_01_00,
+    SHA_EXTEND = 0x00_30_01_00,
 
     /// Executes the `SHA_COMPRESS` precompile.
     SHA_COMPRESS = 0x00_80_01_01,
 
     /// Executes the `ED_ADD` precompile.
-    ED_ADD = 0x00_80_01_02,
+    ED_ADD = 0x00_01_01_02,
 
     /// Executes the `ED_DECOMPRESS` precompile.
-    ED_DECOMPRESS = 0x00_80_01_03,
+    ED_DECOMPRESS = 0x00_00_01_03,
 
     /// Executes the `KECCAK_PERMUTE` precompile.
-    KECCAK_PERMUTE = 0x00_80_01_04,
+    KECCAK_PERMUTE = 0x00_18_01_04,
 
     /// Executes the `SECP256K1_ADD` precompile.
-    SECP256K1_ADD = 0x00_80_01_05,
+    SECP256K1_ADD = 0x00_01_01_05,
 
     /// Executes the `SECP256K1_DOUBLE` precompile.
-    SECP256K1_DOUBLE = 0x00_80_01_06,
+    SECP256K1_DOUBLE = 0x00_00_01_06,
 
     /// Executes the `SECP256K1_DECOMPRESS` precompile.
-    SECP256K1_DECOMPRESS = 0x00_80_01_07,
+    SECP256K1_DECOMPRESS = 0x00_00_01_07,
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 0x00_80_01_08,

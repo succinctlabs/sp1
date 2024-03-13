@@ -7,7 +7,7 @@ use super::ShaExtendChip;
 
 impl Syscall for ShaExtendChip {
     fn num_extra_cycles(&self) -> u32 {
-        48 * 20
+        48
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
@@ -27,7 +27,6 @@ impl Syscall for ShaExtendChip {
             // Read w[i-15].
             let (record, w_i_minus_15) = rt.mr(w_ptr + (i - 15) * 4);
             w_i_minus_15_reads.push(record);
-            rt.clk += 4;
 
             // Compute `s0`.
             let s0 =
@@ -36,7 +35,6 @@ impl Syscall for ShaExtendChip {
             // Read w[i-2].
             let (record, w_i_minus_2) = rt.mr(w_ptr + (i - 2) * 4);
             w_i_minus_2_reads.push(record);
-            rt.clk += 4;
 
             // Compute `s1`.
             let s1 =
@@ -45,12 +43,10 @@ impl Syscall for ShaExtendChip {
             // Read w[i-16].
             let (record, w_i_minus_16) = rt.mr(w_ptr + (i - 16) * 4);
             w_i_minus_16_reads.push(record);
-            rt.clk += 4;
 
             // Read w[i-7].
             let (record, w_i_minus_7) = rt.mr(w_ptr + (i - 7) * 4);
             w_i_minus_7_reads.push(record);
-            rt.clk += 4;
 
             // Compute `w_i`.
             let w_i = s1
@@ -60,7 +56,7 @@ impl Syscall for ShaExtendChip {
 
             // Write w[i].
             w_i_writes.push(rt.mw(w_ptr + i * 4, w_i));
-            rt.clk += 4;
+            rt.clk += 1;
         }
 
         // Push the SHA extend event.
