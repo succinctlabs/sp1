@@ -12,12 +12,16 @@ pub mod tests {
     use crate::stark::RecursionAir;
 
     use p3_baby_bear::BabyBear;
+    use p3_field::extension::BinomialExtensionField;
     use p3_field::{AbstractField, PrimeField32};
     use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_core::utils::StarkUtils;
     use std::time::Instant;
+
+    type F = BabyBear;
+    type EF = BinomialExtensionField<BabyBear, 4>;
 
     pub fn fibonacci_program<F: PrimeField32>() -> Program<F> {
         // .main
@@ -48,8 +52,8 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_execute() {
-        let program = fibonacci_program::<BabyBear>();
-        let mut runtime = Runtime::new(&program);
+        let program = fibonacci_program::<F>();
+        let mut runtime = Runtime::<F, EF>::new(&program);
         runtime.run();
         assert_eq!(
             runtime.memory[1024 + 1].value,
@@ -66,7 +70,7 @@ pub mod tests {
         type F = <SC as StarkGenericConfig>::Val;
         let program = fibonacci_program::<F>();
 
-        let mut runtime = Runtime::<F>::new(&program);
+        let mut runtime = Runtime::<F, EF>::new(&program);
         runtime.run();
 
         let config = SC::new();

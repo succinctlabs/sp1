@@ -3,7 +3,7 @@ mod opcode;
 mod program;
 mod record;
 
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 pub use instruction::*;
 pub use opcode::*;
@@ -14,8 +14,11 @@ use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
 
-use p3_field::PrimeField32;
+use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
+
+pub(crate) const STACK_SIZE: usize = 1024;
+pub(crate) const MEMORY_SIZE: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Default)]
 pub struct CpuRecord<F> {
@@ -30,7 +33,7 @@ pub struct MemoryEntry<F: PrimeField32> {
     pub timestamp: F,
 }
 
-pub struct Runtime<F: PrimeField32 + Clone> {
+pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>> {
     /// The current clock.
     pub clk: F,
 
@@ -51,9 +54,11 @@ pub struct Runtime<F: PrimeField32 + Clone> {
 
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
+
+    _marker: PhantomData<EF>,
 }
 
-impl<F: PrimeField32 + Clone> Runtime<F> {
+impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     pub fn new(program: &Program<F>) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
@@ -62,11 +67,12 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
         Self {
             clk: F::zero(),
             program: program.clone(),
-            fp: F::from_canonical_usize(1024),
+            fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
-            memory: vec![MemoryEntry::default(); 1024 * 1024],
+            memory: vec![MemoryEntry::default(); MEMORY_SIZE],
             record,
             access: CpuRecord::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -204,6 +210,34 @@ impl<F: PrimeField32 + Clone> Runtime<F> {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] / c_val.0[0];
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::EAdd => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
+                    let a_val = Block::from(sum.as_base_slice());
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::EMul => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
+                    let a_val = Block::from(product.as_base_slice());
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::ESub => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
+                    let a_val = Block::from(diff.as_base_slice());
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::EDiv => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
+                    let a_val = Block::from(quotient.as_base_slice());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }

@@ -27,7 +27,8 @@ fn test_compiler_conditionals() {
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
 
-    let mut runtime = Runtime::<F>::new(&program);
+    let mut runtime = Runtime::<F, EF>::new(&program);
     runtime.run();
 }

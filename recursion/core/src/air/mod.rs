@@ -12,15 +12,28 @@ use sp1_derive::AlignedBorrow;
 #[repr(C)]
 pub struct Block<T>(pub [T; 4]);
 
-impl<F: PrimeField32> Block<F> {
-    pub fn from(value: F) -> Self {
-        Self([value, F::zero(), F::zero(), F::zero()])
-    }
-}
-
 impl<T: Clone> Block<T> {
     pub fn as_extension<AB: SP1AirBuilder<Var = T>>(&self) -> BinomialExtension<AB::Expr> {
         let arr: [AB::Expr; 4] = self.0.clone().map(|x| AB::Expr::zero() + x);
         BinomialExtension(arr)
+    }
+}
+
+impl<T> From<[T; 4]> for Block<T> {
+    fn from(arr: [T; 4]) -> Self {
+        Self(arr)
+    }
+}
+
+impl<F: PrimeField32> From<F> for Block<F> {
+    fn from(value: F) -> Self {
+        Self([value, F::zero(), F::zero(), F::zero()])
+    }
+}
+
+impl<T: Copy> From<&[T]> for Block<T> {
+    fn from(slice: &[T]) -> Self {
+        let arr: [T; 4] = slice.try_into().unwrap();
+        Self(arr)
     }
 }
