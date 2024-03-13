@@ -1,13 +1,14 @@
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
-use crate::cpu::MemoryWriteRecord;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryWriteCols;
 use crate::operations::{AddOperation, XorOperation};
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::syscall::precompiles::MemoryWriteRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::pad_rows;
+use crate::{Deserialize, Serialize};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_air::{Air, BaseAir};
@@ -20,8 +21,8 @@ use std::fmt::Debug;
 use tracing::instrument;
 
 /// Elliptic curve add event.
-#[derive(Debug, Clone, Copy)]
-pub struct SimplePrecompileEvent {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BLS381PrecompileEvent {
     pub shard: u32,
     pub clk: u32,
     pub p_ptr: u32,
@@ -29,11 +30,11 @@ pub struct SimplePrecompileEvent {
     pub p_memory_records: [MemoryWriteRecord; 8],
 }
 
-pub const NUM_SIMPLE_PRECOMPILE_COLS: usize = size_of::<SimplePrecompileCols<u8>>();
+pub const NUM_SIMPLE_PRECOMPILE_COLS: usize = size_of::<BLS381PrecompileCols<u8>>();
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct SimplePrecompileCols<T> {
+pub struct BLS381PrecompileCols<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
@@ -46,11 +47,11 @@ pub struct SimplePrecompileCols<T> {
 }
 
 #[derive(Default)]
-pub struct SimplePrecompileChip {}
+pub struct BLS381PrecompileChip {}
 
-impl SimplePrecompileChip {
+impl BLS381PrecompileChip {
     fn populate_operations<F: PrimeField32>(
-        cols: &mut SimplePrecompileCols<F>,
+        cols: &mut BLS381PrecompileCols<F>,
         record: &mut ExecutionRecord,
         p: &[u32],
     ) {
@@ -61,7 +62,7 @@ impl SimplePrecompileChip {
     }
 }
 
-impl Syscall for SimplePrecompileChip {
+impl Syscall for BLS381PrecompileChip {
     fn num_extra_cycles(&self) -> u32 {
         4
     }
@@ -91,7 +92,7 @@ impl Syscall for SimplePrecompileChip {
         let p_records = rt.mw_slice(p_ptr, &p_final);
         rt.clk += 4;
 
-        let event = SimplePrecompileEvent {
+        let event = BLS381PrecompileEvent {
             shard: rt.current_shard(),
             clk: start_clk,
             p_ptr,
@@ -99,14 +100,16 @@ impl Syscall for SimplePrecompileChip {
             p_memory_records: p_records.try_into().unwrap(),
         };
 
-        rt.record_mut().simple_precompile_events.push(event);
+        rt.record_mut().bls381_precompile_events.push(event);
         0 // TODO: we're going to remove this return value
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for SimplePrecompileChip {
+impl<F: PrimeField32> MachineAir<F> for BLS381PrecompileChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
-        "SimplePrecompile".to_string()
+        "BLS381Precompile".to_string()
     }
 
     #[instrument(name = "generate simple precompile trace", skip_all)]
@@ -119,11 +122,11 @@ impl<F: PrimeField32> MachineAir<F> for SimplePrecompileChip {
             Vec<[F; NUM_SIMPLE_PRECOMPILE_COLS]>,
             Vec<Vec<FieldEvent>>,
         ) = input
-            .simple_precompile_events
+            .bls381_precompile_events
             .iter() // TODO: should be made a par_iter
             .map(|event| {
                 let mut row = [F::zero(); NUM_SIMPLE_PRECOMPILE_COLS];
-                let cols: &mut SimplePrecompileCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut BLS381PrecompileCols<F> = row.as_mut_slice().borrow_mut();
 
                 // Decode affine points.
                 let p = &event.p;
@@ -160,21 +163,25 @@ impl<F: PrimeField32> MachineAir<F> for SimplePrecompileChip {
             NUM_SIMPLE_PRECOMPILE_COLS,
         )
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bls381_precompile_events.is_empty()
+    }
 }
 
-impl<F> BaseAir<F> for SimplePrecompileChip {
+impl<F> BaseAir<F> for BLS381PrecompileChip {
     fn width(&self) -> usize {
         NUM_SIMPLE_PRECOMPILE_COLS
     }
 }
 
-impl<AB> Air<AB> for SimplePrecompileChip
+impl<AB> Air<AB> for BLS381PrecompileChip
 where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &SimplePrecompileCols<AB::Var> = main.row_slice(0).borrow();
+        let row: &BLS381PrecompileCols<AB::Var> = main.row_slice(0).borrow();
 
         AddOperation::<AB::F>::eval(
             builder,
@@ -224,27 +231,27 @@ mod tests {
 
     use crate::runtime::{ExecutionRecord, Runtime};
     use crate::utils::run_test;
-    use crate::utils::{self, tests::SIMPLE_PRECOMPILE_ELF};
+    use crate::utils::{self, tests::BLS381_PRECOMPILE_ELF};
     use crate::Program;
 
     #[test]
     fn generate_trace() {
-        let program = Program::from(SIMPLE_PRECOMPILE_ELF);
+        let program = Program::from(BLS381_PRECOMPILE_ELF);
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        println!("{:?}", runtime.record.simple_precompile_events);
+        println!("{:?}", runtime.record.bls381_precompile_events);
 
-        let chip = SimplePrecompileChip::default();
+        let chip = BLS381PrecompileChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
-    fn test_simple_precompile() {
+    fn test_bls381_precompile() {
         utils::setup_logger();
-        let program = Program::from(SIMPLE_PRECOMPILE_ELF);
+        let program = Program::from(BLS381_PRECOMPILE_ELF);
         run_test(program).unwrap();
     }
 }

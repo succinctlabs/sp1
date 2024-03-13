@@ -451,7 +451,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "simple-precompile-test"
+name = "bls381-precompile-test"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
