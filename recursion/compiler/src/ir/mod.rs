@@ -45,6 +45,7 @@ pub enum DslIR<C: Config> {
     AddE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
     AddEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
     AddEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
+    AddEFFI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
     AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
     MulV(Var<C::N>, Var<C::N>, Var<C::N>),
     MulVI(Var<C::N>, Var<C::N>, C::N),

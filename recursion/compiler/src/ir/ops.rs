@@ -1,6 +1,7 @@
 use super::DslIR;
 use super::{SymbolicExt, SymbolicFelt, SymbolicVar};
 use core::marker::PhantomData;
+use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
 use super::{Builder, Config, Ext, Felt, Var};
@@ -378,6 +379,228 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                     let operand_value = Self::uninit(builder);
                     operand_value.assign(operand.clone(), builder);
                     builder.push(DslIR::SubFIN(*self, C::F::zero(), operand_value));
+                }
+            },
+        }
+    }
+}
+
+impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
+    type Expression = SymbolicExt<C::F, C::EF>;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        let ext = Ext(builder.ext_count, PhantomData);
+        builder.ext_count += 1;
+        ext
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        match src {
+            SymbolicExt::Base(v) => match &*v {
+                SymbolicFelt::Const(c) => {
+                    builder
+                        .operations
+                        .push(DslIR::ImmExt(*self, C::EF::from_base(*c)));
+                }
+                SymbolicFelt::Val(v) => {
+                    builder
+                        .operations
+                        .push(DslIR::AddEFFI(*self, *v, C::EF::zero()));
+                }
+                v => {
+                    let v_value = Felt::uninit(builder);
+                    v_value.assign(v.clone(), builder);
+                    builder.push(DslIR::AddEFFI(*self, v_value, C::EF::zero()));
+                }
+            },
+            SymbolicExt::Const(c) => {
+                builder.operations.push(DslIR::ImmExt(*self, c));
+            }
+            SymbolicExt::Val(v) => {
+                builder
+                    .operations
+                    .push(DslIR::AddEI(*self, v, C::EF::zero()));
+            }
+            SymbolicExt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
+                    let sum = *lhs + *rhs;
+                    builder.operations.push(DslIR::ImmExt(*self, sum));
+                }
+                (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.operations.push(DslIR::AddEI(*self, *rhs, *lhs));
+                }
+                (SymbolicExt::Const(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::AddEI(*self, rhs_value, *lhs));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
+                    builder.push(DslIR::AddEI(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::AddE(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::AddE(*self, *lhs, rhs_value));
+                }
+                (lhs, SymbolicExt::Const(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::AddEI(*self, lhs_value, *rhs));
+                }
+                (lhs, SymbolicExt::Val(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::AddE(*self, lhs_value, *rhs));
+                }
+                (lhs, rhs) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::AddE(*self, lhs_value, rhs_value));
+                }
+            },
+            SymbolicExt::Mul(lhs, rhs) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
+                    let product = *lhs * *rhs;
+                    builder.push(DslIR::ImmExt(*self, product));
+                }
+                (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::MulEI(*self, *rhs, *lhs));
+                }
+                (SymbolicExt::Const(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::MulEI(*self, rhs_value, *lhs));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
+                    builder.push(DslIR::MulEI(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::MulE(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::MulE(*self, *lhs, rhs_value));
+                }
+                (lhs, SymbolicExt::Const(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::MulEI(*self, lhs_value, *rhs));
+                }
+                (lhs, SymbolicExt::Val(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::MulE(*self, lhs_value, *rhs));
+                }
+                (lhs, rhs) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::MulE(*self, lhs_value, rhs_value));
+                }
+            },
+            SymbolicExt::Sub(lhs, rhs) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
+                    let difference = *lhs - *rhs;
+                    builder.push(DslIR::ImmExt(*self, difference));
+                }
+                (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::SubEIN(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Const(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::SubEIN(*self, *lhs, rhs_value));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
+                    builder.push(DslIR::SubEI(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::SubE(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::SubE(*self, *lhs, rhs_value));
+                }
+                (lhs, SymbolicExt::Const(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::SubEI(*self, lhs_value, *rhs));
+                }
+                (lhs, SymbolicExt::Val(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::SubE(*self, lhs_value, *rhs));
+                }
+                (lhs, rhs) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::SubE(*self, lhs_value, rhs_value));
+                }
+            },
+            SymbolicExt::Div(lhs, rhs) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
+                    let quotient = *lhs / *rhs;
+                    builder.push(DslIR::ImmExt(*self, quotient));
+                }
+                (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::DivEIN(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Const(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::DivEIN(*self, *lhs, rhs_value));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
+                    builder.push(DslIR::DivEI(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
+                    builder.push(DslIR::DivE(*self, *lhs, *rhs));
+                }
+                (SymbolicExt::Val(lhs), rhs) => {
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::DivE(*self, *lhs, rhs_value));
+                }
+                (lhs, SymbolicExt::Const(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::DivEI(*self, lhs_value, *rhs));
+                }
+                (lhs, SymbolicExt::Val(rhs)) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    builder.push(DslIR::DivE(*self, lhs_value, *rhs));
+                }
+                (lhs, rhs) => {
+                    let lhs_value = Self::uninit(builder);
+                    lhs_value.assign(lhs.clone(), builder);
+                    let rhs_value = Self::uninit(builder);
+                    rhs_value.assign(rhs.clone(), builder);
+                    builder.push(DslIR::DivE(*self, lhs_value, rhs_value));
+                }
+            },
+            SymbolicExt::Neg(operand) => match &*operand {
+                SymbolicExt::Const(operand) => {
+                    let negated = -*operand;
+                    builder.push(DslIR::ImmExt(*self, negated));
+                }
+                SymbolicExt::Val(operand) => {
+                    builder.push(DslIR::SubEFIN(*self, C::F::zero(), *operand));
+                }
+                operand => {
+                    let operand_value = Self::uninit(builder);
+                    operand_value.assign(operand.clone(), builder);
+                    builder.push(DslIR::SubEFIN(*self, C::F::zero(), operand_value));
                 }
             },
         }
