@@ -5,7 +5,6 @@ use std::slice::Iter;
 
 pub const NUM_LIMBS: usize = 32;
 pub const NB_BITS_PER_LIMB: usize = 8;
-pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limbs<T, const N: usize = NUM_LIMBS>(pub [T; N]);

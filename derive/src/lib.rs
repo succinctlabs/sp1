@@ -61,6 +61,81 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     methods.into()
 }
 
+#[proc_macro_derive(FieldCols)]
+pub fn field_cols_derive(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input.clone()).unwrap();
+    let generics = &ast.generics;
+    let (_, ty_generics, _) = generics.split_for_impl();
+
+    let name = ast.ident;
+    let bname = format!("Field{}Cols", name);
+    let bident = syn::Ident::new(&bname, name.span());
+
+    let (t_limbs, t_const, t_ident) = match &ast.data {
+        Data::Struct(s) => {
+            let mut fields = s.fields.iter();
+            let field = fields.next().unwrap();
+            (
+                field,
+                get_const(&field.ty),
+                get_type_ident(&field.ty),
+            )
+        }
+        Data::Enum(_) => unimplemented!("Enums are not supported"),
+        Data::Union(_) => unimplemented!("Unions are not supported"),
+    };
+
+    let nb: usize = match t_const {
+        Some(s) => s * 2 - 2,
+        // default NUM_LIMBS = 32
+        _ => 32 * 2 - 2,
+    };
+
+    let result = quote! {
+        #[derive(Debug, Clone, AlignedBorrow)]
+        pub struct #bident #ty_generics {
+            pub result: #t_limbs,
+            pub(crate) carry: #t_limbs,
+            pub(crate) witness_low: [#t_ident; #nb],
+            pub(crate) witness_high: [#t_ident; #nb],
+        }
+    };
+
+    result.into()
+}
+
+fn get_const<'a>(ty: &'a syn::Type) -> Option<usize> {
+    if let syn::Type::Path(ref p) = ty {
+        if let syn::PathArguments::AngleBracketed(ref inner_ty) = p.path.segments[0].arguments {
+            let const_ty = inner_ty.args.last().unwrap();
+            if let syn::GenericArgument::Const(ref t) = const_ty {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Int(lit),
+                    ..
+                }) = t
+                {
+                    return Some(lit.base10_parse::<usize>().unwrap());
+                }
+            };
+        }
+    }
+    None
+}
+
+fn get_type_ident<'a>(ty: &'a syn::Type) -> Option<&'a syn::Ident> {
+    if let syn::Type::Path(ref p) = ty {
+        if let syn::PathArguments::AngleBracketed(ref inner_ty) = p.path.segments[0].arguments {
+            let t_ty = inner_ty.args.first().unwrap();
+            if let syn::GenericArgument::Type(ref t) = t_ty {
+                if let syn::Type::Path(ref p) = t {
+                    return Some(&p.path.segments[0].ident);
+                }
+            };
+        }
+    }
+    None
+}
+
 #[proc_macro_derive(MachineAir, attributes(sp1_core_path, execution_record_path))]
 pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();

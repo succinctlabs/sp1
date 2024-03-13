@@ -1,5 +1,4 @@
 use super::params::Limbs;
-use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
@@ -9,21 +8,15 @@ use core::mem::size_of;
 use num::BigUint;
 use num::Zero;
 use p3_field::{AbstractField, PrimeField32};
+use sp1_derive::FieldCols;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 /// A set of columns to compute `FieldInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
-#[repr(C)]
-pub struct FieldInnerProductCols<T> {
-    /// The result of `a inner product b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
-}
+#[derive(FieldCols)]
+pub struct InnerProduct<T>(Limbs<T>);
 
 impl<F: PrimeField32> FieldInnerProductCols<F> {
     pub fn populate<P: FieldParameters>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {

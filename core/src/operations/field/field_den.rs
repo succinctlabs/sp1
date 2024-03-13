@@ -1,5 +1,4 @@
 use super::params::Limbs;
-use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
@@ -8,6 +7,7 @@ use crate::utils::ec::field::FieldParameters;
 use core::mem::size_of;
 use num::BigUint;
 use p3_field::PrimeField32;
+use sp1_derive::FieldCols;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
@@ -18,15 +18,8 @@ use std::fmt::Debug;
 ///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
-#[repr(C)]
-pub struct FieldDenCols<T> {
-    /// The result of `a den b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
-}
+#[derive(FieldCols)]
+pub struct Den<T>(Limbs<T>);
 
 impl<F: PrimeField32> FieldDenCols<F> {
     pub fn populate<P: FieldParameters>(
