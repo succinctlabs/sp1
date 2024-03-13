@@ -27,6 +27,7 @@ pub struct AsmCompiler<F> {
     function_labels: BTreeMap<String, F>,
 }
 
+#[derive(Debug, Clone)]
 pub struct AsmConfig<F>(PhantomData<F>);
 
 impl<F: Field> Config for AsmConfig<F> {
@@ -50,20 +51,20 @@ impl<F: PrimeField32> VmBuilder<F> {
 }
 
 impl<F> Var<F> {
-    pub fn fp(&self) -> i32 {
-        -(self.0 as i32 + 4)
+    fn fp(&self) -> i32 {
+        -((self.0 as i32) * 3 + 1 + 4)
     }
 }
 
 impl<F> Felt<F> {
-    pub fn fp(&self) -> i32 {
-        -(self.0 as i32 + 4)
+    fn fp(&self) -> i32 {
+        -((self.0 as i32) * 3 + 4)
     }
 }
 
 impl<F, EF> Ext<F, EF> {
     pub fn fp(&self) -> i32 {
-        -(self.0 as i32 + 4)
+        -((self.0 as i32) * 3 + 2 + 4)
     }
 }
 
@@ -100,6 +101,9 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 }
                 DslIR::AddE(dst, lhs, rhs) => todo!(),
                 DslIR::AddEI(dst, lhs, rhs) => todo!(),
+                DslIR::AddEF(dst, lhs, rhs) => todo!(),
+                DslIR::AddEFFI(dst, lhs, rhs) => todo!(),
+                DslIR::AddEFI(dst, lhs, rhs) => todo!(),
                 DslIR::SubV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::SUB(dst.fp(), lhs.fp(), rhs.fp()));
                 }
@@ -118,8 +122,41 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 DslIR::SubFIN(dst, lhs, rhs) => {
                     self.push(AsmInstruction::SUBIN(dst.fp(), lhs, rhs.fp()));
                 }
+                DslIR::NegV(dst, src) => {
+                    self.push(AsmInstruction::SUBIN(dst.fp(), F::one(), src.fp()));
+                }
+                DslIR::NegF(dst, src) => {
+                    self.push(AsmInstruction::SUBIN(dst.fp(), F::one(), src.fp()));
+                }
+                DslIR::DivF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DIV(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::DivFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DIVI(dst.fp(), lhs.fp(), rhs));
+                }
+                DslIR::DivFIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DIVIN(dst.fp(), lhs, rhs.fp()));
+                }
+                DslIR::InvV(dst, src) => {
+                    self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
+                }
+                DslIR::InvF(dst, src) => {
+                    self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
+                }
+                DslIR::DivEFIN(dst, lhs, rhs) => todo!(),
+                DslIR::DivEF(dst, lhs, rhs) => todo!(),
+                DslIR::DivEFI(dst, lhs, rhs) => todo!(),
+                DslIR::DivEIN(dst, lhs, rhs) => todo!(),
+                DslIR::DivE(dst, lhs, rhs) => todo!(),
+                DslIR::DivEI(dst, lhs, rhs) => todo!(),
+                DslIR::InvE(dst, src) => todo!(),
+                DslIR::SubEFIN(dst, lhs, rhs) => todo!(),
+                DslIR::SubEF(dst, lhs, rhs) => todo!(),
+                DslIR::SubEFI(dst, lhs, rhs) => todo!(),
+                DslIR::SubEIN(dst, lhs, rhs) => todo!(),
                 DslIR::SubE(dst, lhs, rhs) => todo!(),
                 DslIR::SubEI(dst, lhs, rhs) => todo!(),
+                DslIR::NegE(dst, src) => todo!(),
                 DslIR::MulV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MUL(dst.fp(), lhs.fp(), rhs.fp()));
                 }
@@ -136,23 +173,11 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 DslIR::MulEI(dst, lhs, rhs) => todo!(),
                 DslIR::MulEF(dst, lhs, rhs) => todo!(),
                 DslIR::MulEFI(dst, lhs, rhs) => todo!(),
-                DslIR::DivF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DIV(dst.fp(), lhs.fp(), rhs.fp()));
-                }
-                DslIR::DivFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DIVI(dst.fp(), lhs.fp(), rhs));
-                }
-                DslIR::DivFIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DIVIN(dst.fp(), lhs, rhs.fp()));
-                }
-                DslIR::DivE(dst, lhs, rhs) => todo!(),
-                DslIR::DivEI(dst, lhs, rhs) => todo!(),
-                DslIR::AssertEqV(lhs, rhs) => todo!(),
                 DslIR::IfEq(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
-                        builder: self,
-                        lhs,
-                        rhs: VarOrConst::Var(rhs),
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Val(rhs.fp()),
                         is_eq: true,
                     };
                     if else_block.is_empty() {
@@ -166,9 +191,9 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 }
                 DslIR::IfNe(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
-                        builder: self,
-                        lhs,
-                        rhs: VarOrConst::Var(rhs),
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Val(rhs.fp()),
                         is_eq: false,
                     };
                     if else_block.is_empty() {
@@ -182,9 +207,9 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 }
                 DslIR::IfEqI(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
-                        builder: self,
-                        lhs,
-                        rhs: VarOrConst::Const(rhs),
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Const(rhs),
                         is_eq: true,
                     };
                     if else_block.is_empty() {
@@ -198,9 +223,9 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 }
                 DslIR::IfNeI(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
-                        builder: self,
-                        lhs,
-                        rhs: VarOrConst::Const(rhs),
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Const(rhs),
                         is_eq: false,
                     };
                     if else_block.is_empty() {
@@ -212,7 +237,108 @@ impl<F: PrimeField32> AsmCompiler<F> {
                         );
                     }
                 }
-                _ => todo!(),
+                DslIR::For(start, end, loop_var, block) => {
+                    if let (Usize::Const(start), Usize::Const(end)) = (start, end) {
+                        if start > end {
+                            panic!("Start of the loop is greater than the end of the loop");
+                        }
+                        for _ in start..end {
+                            self.build(block.clone());
+                        }
+                        return;
+                    }
+                    let for_compiler = ForCompiler {
+                        compiler: self,
+                        start,
+                        end,
+                        loop_var,
+                    };
+                    for_compiler.for_each(move |_, builder| builder.build(block));
+                }
+                DslIR::AssertEqV(lhs, rhs) => {
+                    // If lhs != rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Val(rhs.fp()),
+                        is_eq: false,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertEqVI(lhs, rhs) => {
+                    // If lhs != rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Const(rhs),
+                        is_eq: false,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertNeV(lhs, rhs) => {
+                    // If lhs == rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Val(rhs.fp()),
+                        is_eq: true,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertNeVI(lhs, rhs) => {
+                    // If lhs == rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Const(rhs),
+                        is_eq: true,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertEqF(lhs, rhs) => {
+                    // If lhs != rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Val(rhs.fp()),
+                        is_eq: false,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertEqFI(lhs, rhs) => {
+                    // If lhs != rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Const(rhs),
+                        is_eq: false,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertNeF(lhs, rhs) => {
+                    // If lhs == rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Val(rhs.fp()),
+                        is_eq: true,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertNeFI(lhs, rhs) => {
+                    // If lhs == rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::Const(rhs),
+                        is_eq: true,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertEqE(lhs, rhs) => todo!(),
+                DslIR::AssertEqEI(lhs, rhs) => todo!(),
+                DslIR::AssertNeE(lhs, rhs) => todo!(),
+                DslIR::AssertNeEI(lhs, rhs) => todo!(),
             }
         }
     }
@@ -255,15 +381,15 @@ impl<F: PrimeField32> AsmCompiler<F> {
     }
 }
 
-pub enum VarOrConst<F> {
-    Var(Var<F>),
+pub enum ValueOrConst<F> {
+    Val(i32),
     Const(F),
 }
 
 pub struct IfCompiler<'a, F> {
-    builder: &'a mut AsmCompiler<F>,
-    lhs: Var<F>,
-    rhs: VarOrConst<F>,
+    compiler: &'a mut AsmCompiler<F>,
+    lhs: i32,
+    rhs: ValueOrConst<F>,
     is_eq: bool,
 }
 
@@ -273,20 +399,20 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
         Func: FnOnce(&mut AsmCompiler<F>),
     {
         let Self {
-            builder,
+            compiler,
             lhs,
             rhs,
             is_eq,
         } = self;
         // Get the label for the block after the if block, and generate the conditional branch
         // instruction to it, if the condition is not met.
-        let after_if_block = builder.block_label() + F::two();
-        Self::branch(lhs, rhs, is_eq, after_if_block, builder);
+        let after_if_block = compiler.block_label() + F::two();
+        Self::branch(lhs, rhs, is_eq, after_if_block, compiler);
         // Generate the block for the then branch.
-        builder.basic_block();
-        f(builder);
+        compiler.basic_block();
+        f(compiler);
         // Generate the block for returning to the main flow.
-        builder.basic_block();
+        compiler.basic_block();
     }
 
     pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
@@ -295,52 +421,52 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
         ElseFunc: FnOnce(&mut AsmCompiler<F>),
     {
         let Self {
-            builder,
+            compiler,
             lhs,
             rhs,
             is_eq,
         } = self;
         // Get the label for the else block, and the continued main flow block, and generate the
         // conditional branc instruction to it, if the condition is not met.
-        let else_block = builder.block_label() + F::two();
+        let else_block = compiler.block_label() + F::two();
         let main_flow_block = else_block + F::one();
-        Self::branch(lhs, rhs, is_eq, else_block, builder);
+        Self::branch(lhs, rhs, is_eq, else_block, compiler);
         // Generate the block for the then branch.
-        builder.basic_block();
-        then_f(builder);
+        compiler.basic_block();
+        then_f(compiler);
         // Generate the jump instruction to the main flow block.
-        let instr = AsmInstruction::j(main_flow_block, builder);
-        builder.push(instr);
+        let instr = AsmInstruction::j(main_flow_block, compiler);
+        compiler.push(instr);
         // Generate the block for the else branch.
-        builder.basic_block();
-        else_f(builder);
+        compiler.basic_block();
+        else_f(compiler);
         // Generate the block for returning to the main flow.
-        builder.basic_block();
+        compiler.basic_block();
     }
 
     fn branch(
-        lhs: Var<F>,
-        rhs: VarOrConst<F>,
+        lhs: i32,
+        rhs: ValueOrConst<F>,
         is_eq: bool,
         block: F,
-        builder: &mut AsmCompiler<F>,
+        compiler: &mut AsmCompiler<F>,
     ) {
         match (rhs, is_eq) {
-            (VarOrConst::Const(rhs), true) => {
-                let instr = AsmInstruction::BNEI(block, lhs.fp(), rhs);
-                builder.push(instr);
+            (ValueOrConst::Const(rhs), true) => {
+                let instr = AsmInstruction::BNEI(block, lhs, rhs);
+                compiler.push(instr);
             }
-            (VarOrConst::Const(rhs), false) => {
-                let instr = AsmInstruction::BEQI(block, lhs.fp(), rhs);
-                builder.push(instr);
+            (ValueOrConst::Const(rhs), false) => {
+                let instr = AsmInstruction::BEQI(block, lhs, rhs);
+                compiler.push(instr);
             }
-            (VarOrConst::Var(rhs), true) => {
-                let instr = AsmInstruction::BNE(block, lhs.fp(), rhs.fp());
-                builder.push(instr);
+            (ValueOrConst::Val(rhs), true) => {
+                let instr = AsmInstruction::BNE(block, lhs, rhs);
+                compiler.push(instr);
             }
-            (VarOrConst::Var(rhs), false) => {
-                let instr = AsmInstruction::BEQ(block, lhs.fp(), rhs.fp());
-                builder.push(instr);
+            (ValueOrConst::Val(rhs), false) => {
+                let instr = AsmInstruction::BEQ(block, lhs, rhs);
+                compiler.push(instr);
             }
         }
     }
@@ -350,8 +476,77 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
 ///
 /// Starting with end < start will lead to undefined behavior!
 pub struct ForCompiler<'a, F> {
-    builder: &'a mut AsmCompiler<F>,
+    compiler: &'a mut AsmCompiler<F>,
     start: Usize<F>,
     end: Usize<F>,
     loop_var: Var<F>,
+}
+
+impl<'a, F: PrimeField32> ForCompiler<'a, F> {
+    pub(super) fn for_each(mut self, mut f: impl FnOnce(Var<F>, &mut AsmCompiler<F>)) {
+        // The function block structure:
+        // - Setting the loop range
+        // - Executing the loop body and incrementing the loop variable
+        // - the loop condition
+        // Set the loop variable to the start of the range.
+        self.set_loop_var();
+        // Save the label of the for loop call
+        let loop_call_label = self.compiler.block_label();
+        // A basic block for the loop body
+        self.compiler.basic_block();
+        // Save the loop body label for the loop condition.
+        let loop_label = self.compiler.block_label();
+        // The loop body.
+        f(self.loop_var, self.compiler);
+        self.compiler.push(AsmInstruction::ADDI(
+            self.loop_var.fp(),
+            self.loop_var.fp(),
+            F::one(),
+        ));
+
+        // loop_var, loop_var + B::F::one());
+        // Add a basic block for the loop condition.
+        self.compiler.basic_block();
+        // Jump to loop body if the loop condition still holds.
+        self.jump_to_loop_body(loop_label);
+        // Add a jump instruction to the loop condition in the following block
+        let label = self.compiler.block_label();
+        let instr = AsmInstruction::j(label, self.compiler);
+        self.compiler.push_to_block(loop_call_label, instr);
+    }
+
+    fn set_loop_var(&mut self) {
+        match self.start {
+            Usize::Const(start) => {
+                self.compiler.push(AsmInstruction::IMM(
+                    self.loop_var.fp(),
+                    F::from_canonical_usize(start),
+                ));
+            }
+            Usize::Var(var) => {
+                self.compiler.push(AsmInstruction::ADDI(
+                    self.loop_var.fp(),
+                    var.fp(),
+                    F::zero(),
+                ));
+            }
+        }
+    }
+
+    fn jump_to_loop_body(&mut self, loop_label: F) {
+        match self.end {
+            Usize::Const(end) => {
+                let instr = AsmInstruction::BNEI(
+                    loop_label,
+                    self.loop_var.fp(),
+                    F::from_canonical_usize(end),
+                );
+                self.compiler.push(instr);
+            }
+            Usize::Var(end) => {
+                let instr = AsmInstruction::BNE(loop_label, self.loop_var.fp(), end.fp());
+                self.compiler.push(instr);
+            }
+        }
+    }
 }

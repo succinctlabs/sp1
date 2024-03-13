@@ -11,10 +11,18 @@ pub trait Variable<C: Config> {
     fn uninit(builder: &mut Builder<C>) -> Self;
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>);
-}
 
-pub trait Equal<C: Config, Rhs = Self> {
-    fn assert_equal(&self, rhs: &Rhs, builder: &mut Builder<C>);
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    );
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    );
 }
 
 impl<C: Config> Variable<C> for Var<C::N> {
@@ -176,6 +184,88 @@ impl<C: Config> Variable<C> for Var<C::N> {
                     builder.push(DslIR::SubVIN(*self, C::N::zero(), operand_value));
                 }
             },
+        }
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs)) => {
+                assert_eq!(lhs, rhs, "Assertion failed at compile time");
+            }
+            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs)) => {
+                builder.push(DslIR::AssertEqVI(rhs, lhs));
+            }
+            (SymbolicVar::Const(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqVI(rhs_value, lhs));
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs)) => {
+                builder.push(DslIR::AssertEqVI(lhs, rhs));
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs)) => {
+                builder.push(DslIR::AssertEqV(lhs, rhs));
+            }
+            (SymbolicVar::Val(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqV(lhs, rhs_value));
+            }
+            (lhs, rhs) => {
+                let lhs_value = Self::uninit(builder);
+                lhs_value.assign(lhs, builder);
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqV(lhs_value, rhs_value));
+            }
+        }
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs)) => {
+                assert_ne!(lhs, rhs, "Assertion failed at compile time");
+            }
+            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs)) => {
+                builder.push(DslIR::AssertNeVI(rhs, lhs));
+            }
+            (SymbolicVar::Const(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeVI(rhs_value, lhs));
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs)) => {
+                builder.push(DslIR::AssertNeVI(lhs, rhs));
+            }
+            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs)) => {
+                builder.push(DslIR::AssertNeV(lhs, rhs));
+            }
+            (SymbolicVar::Val(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeV(lhs, rhs_value));
+            }
+            (lhs, rhs) => {
+                let lhs_value = Self::uninit(builder);
+                lhs_value.assign(lhs, builder);
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeV(lhs_value, rhs_value));
+            }
         }
     }
 }
@@ -381,6 +471,88 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                     builder.push(DslIR::SubFIN(*self, C::F::zero(), operand_value));
                 }
             },
+        }
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+                assert_eq!(lhs, rhs, "Assertion failed at compile time");
+            }
+            (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+                builder.push(DslIR::AssertEqFI(rhs, lhs));
+            }
+            (SymbolicFelt::Const(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqFI(rhs_value, lhs));
+            }
+            (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                builder.push(DslIR::AssertEqFI(lhs, rhs));
+            }
+            (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                builder.push(DslIR::AssertEqF(lhs, rhs));
+            }
+            (SymbolicFelt::Val(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqF(lhs, rhs_value));
+            }
+            (lhs, rhs) => {
+                let lhs_value = Self::uninit(builder);
+                lhs_value.assign(lhs, builder);
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqF(lhs_value, rhs_value));
+            }
+        }
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+                assert_ne!(lhs, rhs, "Assertion failed at compile time");
+            }
+            (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+                builder.push(DslIR::AssertNeFI(rhs, lhs));
+            }
+            (SymbolicFelt::Const(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeFI(rhs_value, lhs));
+            }
+            (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                builder.push(DslIR::AssertNeFI(lhs, rhs));
+            }
+            (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                builder.push(DslIR::AssertNeF(lhs, rhs));
+            }
+            (SymbolicFelt::Val(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeF(lhs, rhs_value));
+            }
+            (lhs, rhs) => {
+                let lhs_value = Self::uninit(builder);
+                lhs_value.assign(lhs, builder);
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeF(lhs_value, rhs_value));
+            }
         }
     }
 }
@@ -603,6 +775,88 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                     builder.push(DslIR::SubEFIN(*self, C::F::zero(), operand_value));
                 }
             },
+        }
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
+                assert_eq!(lhs, rhs, "Assertion failed at compile time");
+            }
+            (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
+                builder.push(DslIR::AssertEqEI(rhs, lhs));
+            }
+            (SymbolicExt::Const(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqEI(rhs_value, lhs));
+            }
+            (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
+                builder.push(DslIR::AssertEqEI(lhs, rhs));
+            }
+            (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
+                builder.push(DslIR::AssertEqE(lhs, rhs));
+            }
+            (SymbolicExt::Val(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqE(lhs, rhs_value));
+            }
+            (lhs, rhs) => {
+                let lhs_value = Self::uninit(builder);
+                lhs_value.assign(lhs, builder);
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertEqE(lhs_value, rhs_value));
+            }
+        }
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
+                assert_ne!(lhs, rhs, "Assertion failed at compile time");
+            }
+            (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
+                builder.push(DslIR::AssertNeEI(rhs, lhs));
+            }
+            (SymbolicExt::Const(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeEI(rhs_value, lhs));
+            }
+            (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
+                builder.push(DslIR::AssertNeEI(lhs, rhs));
+            }
+            (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
+                builder.push(DslIR::AssertNeE(lhs, rhs));
+            }
+            (SymbolicExt::Val(lhs), rhs) => {
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeE(lhs, rhs_value));
+            }
+            (lhs, rhs) => {
+                let lhs_value = Self::uninit(builder);
+                lhs_value.assign(lhs, builder);
+                let rhs_value = Self::uninit(builder);
+                rhs_value.assign(rhs, builder);
+                builder.push(DslIR::AssertNeE(lhs_value, rhs_value));
+            }
         }
     }
 }

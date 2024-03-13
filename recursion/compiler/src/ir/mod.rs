@@ -24,7 +24,7 @@ pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
 
 pub enum Usize<N> {
     Const(usize),
-    Var(u32, PhantomData<N>),
+    Var(Var<N>),
 }
 
 pub trait Config {
@@ -82,15 +82,33 @@ pub enum DslIR<C: Config> {
     InvV(Var<C::N>, Var<C::N>),
     InvF(Felt<C::F>, Felt<C::F>),
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    For(Usize<C>, Usize<C>, Vec<DslIR<C>>),
+    For(Usize<C::N>, Usize<C::N>, Var<C::N>, Vec<DslIR<C>>),
     IfEq(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfNe(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfEqI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfNeI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
     AssertEqV(Var<C::N>, Var<C::N>),
+    AssertNeV(Var<C::N>, Var<C::N>),
     AssertEqF(Felt<C::F>, Felt<C::F>),
+    AssertNeF(Felt<C::F>, Felt<C::F>),
     AssertEqE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    AssertNeE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
     AssertEqVI(Var<C::N>, C::N),
+    AssertNeVI(Var<C::N>, C::N),
     AssertEqFI(Felt<C::F>, C::F),
+    AssertNeFI(Felt<C::F>, C::F),
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
+    AssertNeEI(Ext<C::F, C::EF>, C::EF),
+}
+
+impl<N> From<Var<N>> for Usize<N> {
+    fn from(v: Var<N>) -> Self {
+        Usize::Var(v)
+    }
+}
+
+impl<N> From<usize> for Usize<N> {
+    fn from(c: usize) -> Self {
+        Usize::Const(c)
+    }
 }

@@ -1,5 +1,5 @@
-use super::{Config, DslIR, Usize};
-use super::{Equal, Var};
+use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, Usize};
+use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
 
@@ -50,11 +50,74 @@ impl<C: Config> Builder<C> {
         dst
     }
 
-    pub fn assert_eq<Lhs, Rhs>(&mut self, lhs: Lhs, rhs: Rhs)
-    where
-        Lhs: Equal<C, Rhs>,
-    {
-        lhs.assert_equal(&rhs, self);
+    pub fn assert_eq<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        V::assert_eq(lhs, rhs, self);
+    }
+
+    pub fn assert_ne<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        V::assert_ne(lhs, rhs, self);
+    }
+
+    pub fn assert_var_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_eq::<Var<C::N>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_var_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_ne::<Var<C::N>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_felt_eq<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_eq::<Felt<C::F>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_felt_ne<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_ext_eq<
+        LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
+        RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
+    >(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_eq::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_ext_ne<
+        LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
+        RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
+    >(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_ne::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
     }
 
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -83,10 +146,14 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    pub fn range(&mut self, start: Usize<C>, end: Usize<C>) -> RangeBuilder<C> {
+    pub fn range(
+        &mut self,
+        start: impl Into<Usize<C::N>>,
+        end: impl Into<Usize<C::N>>,
+    ) -> RangeBuilder<C> {
         RangeBuilder {
-            start,
-            end,
+            start: start.into(),
+            end: end.into(),
             builder: self,
         }
     }
@@ -280,8 +347,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 }
 
 pub struct RangeBuilder<'a, C: Config> {
-    start: Usize<C>,
-    end: Usize<C>,
+    start: Usize<C::N>,
+    end: Usize<C::N>,
     builder: &'a mut Builder<C>,
 }
 
@@ -298,7 +365,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
         let loop_instructions = loop_body_builder.operations;
 
-        let op = DslIR::For(self.start, self.end, loop_instructions);
+        let op = DslIR::For(self.start, self.end, loop_variable, loop_instructions);
         self.builder.operations.push(op);
     }
 }

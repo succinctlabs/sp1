@@ -18,6 +18,8 @@ fn test_compiler_conditionals() {
         .if_ne(a, b)
         .then(|builder| builder.assign(c, BabyBear::two()));
 
+    builder.assert_var_eq(b, BabyBear::one());
+
     let code = builder.compile_to_asm();
     println!("{}", code);
     // let program = builder.compile();
