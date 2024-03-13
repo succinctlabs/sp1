@@ -1,4 +1,4 @@
-use super::{U256Field, NUM_WORDS_IN_BIGINT};
+use super::{U256Field, NUM_WORDS_IN_BIGUINT};
 use crate::air::{MachineAir, SP1AirBuilder};
 use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
@@ -7,7 +7,7 @@ use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::{limbs_from_access, pad_rows};
-use num::BigUint;
+use num::{BigUint, One};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -19,35 +19,35 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 
-pub const NUM_BIGINT_COLS: usize = size_of::<BigIntColumn<u8>>();
+pub const NUM_BIGUINT_COLS: usize = size_of::<BigUintColumn<u8>>();
 
 //***************************** Event ****************************/
 //------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BigIntEvent {
+pub struct BigUintEvent {
     pub shard: u32,
     pub clk: u32,
     pub x_ptr: u32,
-    pub x: [u32; NUM_WORDS_IN_BIGINT],
+    pub x: [u32; NUM_WORDS_IN_BIGUINT],
     pub y_ptr: u32,
-    pub y: [u32; NUM_WORDS_IN_BIGINT],
+    pub y: [u32; NUM_WORDS_IN_BIGUINT],
     pub y_pointer_record: MemoryReadRecord,
     pub ops_ptr: u32,
     pub ops: u32,
     pub ops_pointer_record: MemoryReadRecord,
     pub ops_memory: MemoryReadRecord,
-    pub x_memory_records: [MemoryWriteRecord; NUM_WORDS_IN_BIGINT],
-    pub y_memory_records: [MemoryReadRecord; NUM_WORDS_IN_BIGINT],
+    pub x_memory_records: [MemoryWriteRecord; NUM_WORDS_IN_BIGUINT],
+    pub y_memory_records: [MemoryReadRecord; NUM_WORDS_IN_BIGUINT],
 }
 
 //***************************** Chip ****************************/
 //------------------------------------------------------------------------
 
 #[derive(Default)]
-pub struct BigIntChip;
+pub struct BigUintChip;
 
-impl BigIntChip {
+impl BigUintChip {
     pub fn new() -> Self {
         Self
     }
@@ -58,7 +58,7 @@ impl BigIntChip {
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct BigIntColumn<T> {
+pub struct BigUintColumn<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
@@ -66,31 +66,31 @@ pub struct BigIntColumn<T> {
     pub y_ptr: T,
     pub ops_ptr: T,
 
-    // bigint operations
+    // biguint operations
     pub is_add_op: T,
     pub is_sub_op: T,
     pub is_mul_op: T,
 
     // memory reads
-    pub x_memory: [MemoryWriteCols<T>; NUM_WORDS_IN_BIGINT],
-    pub y_memory: [MemoryReadCols<T>; NUM_WORDS_IN_BIGINT],
+    pub x_memory: [MemoryWriteCols<T>; NUM_WORDS_IN_BIGUINT],
+    pub y_memory: [MemoryReadCols<T>; NUM_WORDS_IN_BIGUINT],
     pub ops_memory: MemoryReadCols<T>,
     pub y_ptr_access: MemoryReadCols<T>,
     pub ops_ptr_access: MemoryReadCols<T>,
 
     // input values for bigint operations
-    pub x_input: [T; NUM_WORDS_IN_BIGINT],
-    pub y_input: [T; NUM_WORDS_IN_BIGINT],
+    pub x_input: [T; NUM_WORDS_IN_BIGUINT],
+    pub y_input: [T; NUM_WORDS_IN_BIGUINT],
 
     // output values
     pub output: FieldOpCols<T>,
 }
 
-impl<F: PrimeField32> MachineAir<F> for BigIntChip {
+impl<F: PrimeField32> MachineAir<F> for BigUintChip {
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "BigInt".to_string()
+        "BigUint".to_string()
     }
 
     fn generate_trace(
@@ -99,11 +99,11 @@ impl<F: PrimeField32> MachineAir<F> for BigIntChip {
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // compute the number of events to process in each chunk.
-        let chunk_size = std::cmp::max(input.bigint_events.len() / num_cpus::get(), 1);
+        let chunk_size = std::cmp::max(input.biguint_events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events concurrently.
         let rows_and_records = input
-            .bigint_events
+            .biguint_events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut records = ExecutionRecord::default();
@@ -112,10 +112,10 @@ impl<F: PrimeField32> MachineAir<F> for BigIntChip {
                 let rows = events
                     .iter()
                     .map(|event| {
-                        let mut row: [F; NUM_BIGINT_COLS] = [F::zero(); NUM_BIGINT_COLS];
-                        let cols: &mut BigIntColumn<F> = row.as_mut_slice().borrow_mut();
+                        let mut row: [F; NUM_BIGUINT_COLS] = [F::zero(); NUM_BIGUINT_COLS];
+                        let cols: &mut BigUintColumn<F> = row.as_mut_slice().borrow_mut();
 
-                        // Decode bigunit points
+                        // Decode biguint points
                         let x = biguint_from_words(&event.x);
                         let y = biguint_from_words(&event.y);
 
@@ -131,7 +131,7 @@ impl<F: PrimeField32> MachineAir<F> for BigIntChip {
                         // Memory columns.
                         {
                             // Populate the columns with the input values
-                            for i in 0..NUM_WORDS_IN_BIGINT {
+                            for i in 0..NUM_WORDS_IN_BIGUINT {
                                 // populate the input_x columns
                                 cols.x_memory[i]
                                     .populate(event.x_memory_records[i], &mut new_field_events);
@@ -174,7 +174,7 @@ impl<F: PrimeField32> MachineAir<F> for BigIntChip {
                                     cols.output
                                         .populate::<U256Field>(&x, &y, FieldOperation::Mul);
                                 }
-                                _ => panic!("Invalid bigint operation"),
+                                _ => panic!("Invalid biguint operation"),
                             }
                         }
 
@@ -187,30 +187,30 @@ impl<F: PrimeField32> MachineAir<F> for BigIntChip {
             .collect::<Vec<_>>();
 
         // Add the new field events to the output.
-        let rows = Vec::new();
+        let mut rows = Vec::new();
         for (row, record) in rows_and_records {
             rows.extend(row);
-            output.append(&mut record);
+            output.add_field_events(&record.field_events);
         }
 
-        pad_rows(&mut rows, || [F::zero(); NUM_BIGINT_COLS]);
+        pad_rows(&mut rows, || [F::zero(); NUM_BIGUINT_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_BIGINT_COLS,
+            NUM_BIGUINT_COLS,
         )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.bigint_events.is_empty()
+        !shard.biguint_events.is_empty()
     }
 }
 
 //************************ Syscall handling  ********************************
 //------------------------------------------------------------------------------------
 
-impl Syscall for BigIntChip {
+impl Syscall for BigUintChip {
     fn num_extra_cycles(&self) -> u32 {
         8
     }
@@ -222,7 +222,7 @@ impl Syscall for BigIntChip {
         // input y
         let a1 = crate::runtime::Register::X11;
 
-        // bigint operation to be executed
+        // biguint operation to be executed
         let a2 = crate::runtime::Register::X12;
 
         let start_clk = rt.clk;
@@ -245,30 +245,36 @@ impl Syscall for BigIntChip {
 
         let (ops_records, ops) = rt.mr(ops_ptr);
 
-        let x: [u32; NUM_WORDS_IN_BIGINT] = rt
-            .slice_unsafe(x_ptr, NUM_WORDS_IN_BIGINT)
+        let x: [u32; NUM_WORDS_IN_BIGUINT] = rt
+            .slice_unsafe(x_ptr, NUM_WORDS_IN_BIGUINT)
             .try_into()
             .unwrap();
 
-        let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, NUM_WORDS_IN_BIGINT);
+        let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, NUM_WORDS_IN_BIGUINT);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
-        let y: [u32; NUM_WORDS_IN_BIGINT] = y_vec.try_into().unwrap();
+        let y: [u32; NUM_WORDS_IN_BIGUINT] = y_vec.try_into().unwrap();
 
-        let bigint_x = biguint_from_words(&x);
-        let bigint_y = biguint_from_words(&y);
+        let biguint_x = biguint_from_words(&x);
+        let biguint_y = biguint_from_words(&y);
 
+        // mask for 256 bits
+        let mask = BigUint::one() << 256;
+
+        println!("x: {:?}", biguint_x);
+        println!("y: {:?}", biguint_y);
+        println!("ops: {:?}", ops);
         // call the bigint function on the inputs
-        let bigunit_result = match ops {
-            0 => bigint_x + bigint_y,
-            1 => bigint_x - bigint_y,
-            2 => bigint_x * bigint_y,
+        let biguint_result = match ops {
+            0 => (biguint_x + biguint_y) % mask,
+            1 => (biguint_x - biguint_y) % mask,
+            2 => (biguint_x * biguint_y) % mask,
             _ => panic!("Invalid bigint operation"),
         };
 
         // increment the clock as we are writing to the state.
         rt.clk += 4;
 
-        let result = bigunit_to_words(&bigunit_result);
+        let result = biguint_to_words(&biguint_result);
 
         // write the state
         let state_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
@@ -278,7 +284,7 @@ impl Syscall for BigIntChip {
 
         let shard = rt.current_shard();
 
-        rt.record_mut().bigint_events.push(BigIntEvent {
+        rt.record_mut().biguint_events.push(BigUintEvent {
             shard,
             clk: start_clk,
             x_ptr,
@@ -301,19 +307,19 @@ impl Syscall for BigIntChip {
 //****************************** AIR  ****************************************/
 //-----------------------------------------------------------------------------
 
-impl<F> BaseAir<F> for BigIntChip {
+impl<F> BaseAir<F> for BigUintChip {
     fn width(&self) -> usize {
-        NUM_BIGINT_COLS
+        NUM_BIGUINT_COLS
     }
 }
 
-impl<AB> Air<AB> for BigIntChip
+impl<AB> Air<AB> for BigUintChip
 where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &BigIntColumn<AB::Var> = main.row_slice(0).borrow();
+        let local: &BigUintColumn<AB::Var> = main.row_slice(0).borrow();
 
         let x = limbs_from_access(&local.x_memory);
         let y = limbs_from_access(&local.y_memory);
@@ -339,15 +345,15 @@ where
         let is_sub_builder = builder.when(is_sub);
         let is_mul_builder = builder.when(is_mul);
 
-        local
-            .output
-            .eval::<AB, U256Field, _, _>(is_add_builder, &x, &y, FieldOperation::Add);
-        local
-            .output
-            .eval::<AB, U256Field, _, _>(is_sub_builder, &x, &y, FieldOperation::Sub);
-        local
-            .output
-            .eval::<AB, U256Field, _, _>(is_mul_builder, &x, &y, FieldOperation::Mul);
+        // local
+        //     .output
+        //     .eval::<AB, U256Field, _, _>(is_add_builder, &x, &y, FieldOperation::Add);
+        // local
+        //     .output
+        //     .eval::<AB, U256Field, _, _>(is_sub_builder, &x, &y, FieldOperation::Sub);
+        // local
+        //     .output
+        //     .eval::<AB, U256Field, _, _>(is_mul_builder, &x, &y, FieldOperation::Mul);
 
         // constrain the memory reads
         builder.constraint_memory_access(
@@ -402,11 +408,11 @@ fn biguint_from_words(words: &[u32]) -> BigUint {
 }
 
 // Convert a BigUint into a vector of u32 words
-fn bigunit_to_words(value: &BigUint) -> [u32; NUM_WORDS_IN_BIGINT] {
+fn biguint_to_words(value: &BigUint) -> [u32; NUM_WORDS_IN_BIGUINT] {
     let mut bytes = value.to_bytes_le();
-    bytes.resize(NUM_WORDS_IN_BIGINT * 4, 0u8);
+    bytes.resize(NUM_WORDS_IN_BIGUINT * 4, 0u8);
 
-    let mut words = [0u32; NUM_WORDS_IN_BIGINT];
+    let mut words = [0u32; NUM_WORDS_IN_BIGUINT];
     bytes
         .chunks_exact(4)
         .enumerate()

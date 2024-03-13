@@ -1,3 +1,4 @@
+mod biguint;
 mod blake3_compress;
 mod ed25519;
 mod halt;
@@ -10,6 +11,7 @@ mod sha_extend;
 mod sys;
 mod unconstrained;
 
+pub use biguint::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -59,6 +61,15 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
+
+/// Executes `BIGUINT_ADD`.
+pub const BIGUINT_ADD: u32 = 114;
+
+/// Executes `BIGUINT_SUB`.
+pub const BIGUINT_SUB: u32 = 115;
+
+/// Executes `BIGUINT_MUL`.
+pub const BIGUINT_MUL: u32 = 116;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;

@@ -12,7 +12,7 @@ use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
-use crate::syscall::precompiles::bigint::BigIntEvent;
+use crate::syscall::precompiles::bigint::BigUintEvent;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
@@ -83,7 +83,7 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
-    pub bigint_events: Vec<BigIntEvent>,
+    pub biguint_events: Vec<BigUintEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
@@ -104,6 +104,7 @@ pub struct ShardingConfig {
     pub lt_len: usize,
     pub field_len: usize,
     pub keccak_len: usize,
+    pub biguint_arith_len: usize,
     pub weierstrass_add_len: usize,
     pub weierstrass_double_len: usize,
 }
@@ -129,6 +130,7 @@ impl Default for ShardingConfig {
             shift_right_len: shard_size,
             field_len: shard_size * 4,
             keccak_len: shard_size,
+            biguint_arith_len: shard_size,
             weierstrass_add_len: shard_size,
             weierstrass_double_len: shard_size,
         }
@@ -175,6 +177,10 @@ impl MachineRecord for ExecutionRecord {
         stats.insert(
             "keccak_permute_events".to_string(),
             self.keccak_permute_events.len(),
+        );
+        stats.insert(
+            "biguint_arith_events".to_string(),
+            self.biguint_events.len(),
         );
         stats.insert("ed_add_events".to_string(), self.ed_add_events.len());
         stats.insert(
@@ -230,6 +236,7 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.biguint_events.append(&mut other.biguint_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -347,6 +354,14 @@ impl MachineRecord for ExecutionRecord {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
+        // BigUint arithmetic events.
+        for (bigint_chunk, shard) in take(&mut self.biguint_events)
+            .chunks_mut(config.biguint_arith_len)
+            .zip(shards.iter_mut())
+        {
+            shard.biguint_events.extend_from_slice(bigint_chunk);
+        }
+
         // Weierstrass curve add events.
         for (weierstrass_add_chunk, shard) in take(&mut self.weierstrass_add_events)
             .chunks_mut(config.weierstrass_add_len)
@@ -387,6 +402,9 @@ impl MachineRecord for ExecutionRecord {
 
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
+
+        // BigUint arithmetic events.
+        first.biguint_events = std::mem::take(&mut self.biguint_events);
 
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups = std::mem::take(&mut self.byte_lookups);

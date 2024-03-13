@@ -14,6 +14,10 @@ extern "C" {
     pub fn syscall_secp256k1_double(p: *mut u32);
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_keccak_permute(state: *mut u64);
+    pub fn syscall_biguint_add(x: *mut u32, y: *mut u32);
+    pub fn syscall_biguint_sub(x: *mut u32, y: *mut u32);
+    pub fn syscall_biguint_mul(x: *mut u32, y: *mut u32);
+    pub fn syscall_keccak256_compress(state: *mut u32, message: *const u32);
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
