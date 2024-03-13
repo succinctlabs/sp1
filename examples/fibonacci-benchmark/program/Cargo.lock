@@ -244,7 +244,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fibonacci-program"
+name = "fibonacci-benchmark-program"
 version = "0.1.0"
 dependencies = [
  "sp1-helper",

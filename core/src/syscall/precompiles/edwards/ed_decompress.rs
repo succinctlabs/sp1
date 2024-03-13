@@ -11,6 +11,7 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
@@ -189,6 +190,15 @@ impl<V: Copy> EdDecompressCols<V> {
             .when(self.is_real)
             .when_not(sign.clone())
             .assert_all_eq(self.x.multiplication.result, x_limbs);
+
+        builder.receive_ecall(
+            self.shard,
+            self.clk,
+            AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.to_ecall_identifier()),
+            self.ptr,
+            AB::Expr::zero(),
+            self.is_real,
+        );
     }
 }
 
@@ -331,6 +341,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::{
+        runtime::Program,
         utils::{self, tests::ED_DECOMPRESS_ELF},
         SP1Prover, SP1Stdin,
     };
@@ -338,6 +349,7 @@ pub mod tests {
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        SP1Prover::prove(ED_DECOMPRESS_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED_DECOMPRESS_ELF);
+        utils::run_test(program).unwrap();
     }
 }
