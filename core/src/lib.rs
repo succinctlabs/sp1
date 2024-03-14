@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use stark::StarkGenericConfig;
 use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
 use std::fs;
-use utils::{prove_core, BabyBearBlake3, StarkUtils};
+use utils::{prove_core, prove_large_program, BabyBearBlake3, StarkUtils};
 
 /// A prover that can prove RISCV ELFs.
 pub struct SP1Prover;
@@ -71,16 +71,14 @@ impl SP1Prover {
     /// Generate a proof for the execution of the ELF with the given public inputs.
     pub fn prove(elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearBlake3>> {
         let program = Program::from(elf);
-        let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&stdin.buffer.data);
-        let record = tracing::info_span!("execute").in_scope(|| runtime.run());
         let config = BabyBearBlake3::new();
-        let stdout = SP1Stdout::from(&runtime.state.output_stream);
-        let proof = prove_core(config, record);
+
+        // let proof = prove_core(config, record);
+        let (proof, stdout) = prove_large_program(config, program, &stdin.buffer.data);
         Ok(SP1ProofWithIO {
             proof,
             stdin,
-            stdout,
+            stdout: SP1Stdout::from(&stdout),
         })
     }
 

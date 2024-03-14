@@ -1,9 +1,11 @@
+use std::thread;
 use std::time::Instant;
 
+use crate::air::MachineAir;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
-use crate::stark::RiscvAir;
+use crate::stark::{MachineRecord, RiscvAir};
 use crate::utils::poseidon2_instance::RC_16_30;
-use crate::utils::virtualize::InMemoryWrapper;
+use crate::utils::virtualize::{InMemoryWrapper, TempFileWrapper};
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
@@ -102,6 +104,75 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
 pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     let program = Program::from(elf);
     prove(program)
+}
+
+pub fn prove_large_program<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
+    config: SC,
+    program: Program,
+    stdin: &[u8],
+) -> (crate::stark::Proof<SC>, Vec<u8>)
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
+    let (s, r) = std::sync::mpsc::channel();
+    let (s_result, r_result) = std::sync::mpsc::channel();
+
+    let stdin = stdin.to_vec();
+    let program_clone = program.clone();
+
+    thread::spawn(move || {
+        tracing::info_span!("runtime.run(...)").in_scope(|| {
+            let mut runtime = Runtime::new(program_clone);
+            runtime.write_stdin_slice(&stdin);
+            runtime.run_with_options(s, true);
+            s_result.send(runtime.state.output_stream).unwrap();
+        });
+    });
+
+    let mut shards = Vec::new();
+    let mut challenger = config.challenger();
+    let machine = RiscvAir::machine(config);
+    let chips = machine.chips();
+    let mut cycles = 0;
+    for mut record in r {
+        log::debug!("Received record {}", record.index);
+        cycles += record.cpu_events.len() as u64;
+        // Generate the trace for each chip to collect events emitted from chips with dependencies.
+        chips.iter().for_each(|chip| {
+            let mut output = ExecutionRecord::default();
+            output.set_index(record.index());
+            chip.generate_dependencies(&record, &mut output);
+            record.append(&mut output);
+        });
+        shards.push(TempFileWrapper::wrap(record));
+    }
+
+    let stdout = r_result.recv().unwrap();
+
+    let start = Instant::now();
+
+    let (pk, _) = machine.setup(&program);
+
+    // Prove the program.
+    let proof = tracing::info_span!("prove")
+        .in_scope(|| machine.prove::<LocalProver<_, _>, _>(&pk, shards, &mut challenger));
+    let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    (proof, stdout)
 }
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(

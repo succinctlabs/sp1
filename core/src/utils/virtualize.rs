@@ -88,4 +88,13 @@ impl<T> TempFileWrapper<T> {
             _phantom: std::marker::PhantomData,
         }
     }
+
+    pub fn wrap(obj: T) -> Self
+    where
+        T: DeserializeOwned + Serialize,
+    {
+        let mut wrapper = Self::default();
+        wrapper.virtualize(obj);
+        wrapper
+    }
 }
