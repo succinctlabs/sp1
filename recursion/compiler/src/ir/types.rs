@@ -1,28 +1,79 @@
-use super::DslIR;
-use super::{SymbolicExt, SymbolicFelt, SymbolicVar};
+use alloc::{format, string::String};
+
 use core::marker::PhantomData;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
-use super::{Builder, Config, Ext, Felt, Var};
-pub trait Variable<C: Config> {
-    type Expression;
+use super::MemVariable;
+use super::Ptr;
+use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
 
-    fn uninit(builder: &mut Builder<C>) -> Self;
+#[derive(Debug, Clone, Copy)]
+pub struct Var<N>(pub u32, pub PhantomData<N>);
 
-    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>);
+#[derive(Debug, Clone, Copy)]
+pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
-    fn assert_eq(
-        lhs: impl Into<Self::Expression>,
-        rhs: impl Into<Self::Expression>,
-        builder: &mut Builder<C>,
-    );
+#[derive(Debug, Clone, Copy)]
 
-    fn assert_ne(
-        lhs: impl Into<Self::Expression>,
-        rhs: impl Into<Self::Expression>,
-        builder: &mut Builder<C>,
-    );
+pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
+
+#[derive(Debug, Clone, Copy)]
+
+pub enum Usize<N> {
+    Const(usize),
+    Var(Var<N>),
+}
+
+impl<N> Usize<N> {
+    pub fn value(&self) -> usize {
+        match self {
+            Usize::Const(c) => *c,
+            Usize::Var(_) => panic!("Cannot get the value of a variable"),
+        }
+    }
+}
+
+impl<N> From<Var<N>> for Usize<N> {
+    fn from(v: Var<N>) -> Self {
+        Usize::Var(v)
+    }
+}
+
+impl<N> From<usize> for Usize<N> {
+    fn from(c: usize) -> Self {
+        Usize::Const(c)
+    }
+}
+
+impl<N> Var<N> {
+    pub fn new(id: u32) -> Self {
+        Self(id, PhantomData)
+    }
+
+    pub fn id(&self) -> String {
+        format!("var{}", self.0)
+    }
+}
+
+impl<F> Felt<F> {
+    pub fn new(id: u32) -> Self {
+        Self(id, PhantomData)
+    }
+
+    pub fn id(&self) -> String {
+        format!("felt{}", self.0)
+    }
+}
+
+impl<F, EF> Ext<F, EF> {
+    pub fn new(id: u32) -> Self {
+        Self(id, PhantomData)
+    }
+
+    pub fn id(&self) -> String {
+        format!("ext{}", self.0)
+    }
 }
 
 impl<C: Config> Variable<C> for Var<C::N> {
@@ -267,6 +318,25 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 builder.push(DslIR::AssertNeV(lhs_value, rhs_value));
             }
         }
+    }
+}
+
+impl<C: Config> MemVariable<C> for Var<C::N> {
+    fn size_of() -> usize {
+        1
+    }
+
+    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadV(*self, ptr, offset));
+    }
+
+    fn store(
+        &self,
+        ptr: Ptr<<C as Config>::N>,
+        offset: Usize<<C as Config>::N>,
+        builder: &mut Builder<C>,
+    ) {
+        builder.push(DslIR::StoreV(*self, ptr, offset));
     }
 }
 
@@ -554,6 +624,25 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 builder.push(DslIR::AssertNeF(lhs_value, rhs_value));
             }
         }
+    }
+}
+
+impl<C: Config> MemVariable<C> for Felt<C::F> {
+    fn size_of() -> usize {
+        1
+    }
+
+    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadF(*self, ptr, offset));
+    }
+
+    fn store(
+        &self,
+        ptr: Ptr<<C as Config>::N>,
+        offset: Usize<<C as Config>::N>,
+        builder: &mut Builder<C>,
+    ) {
+        builder.push(DslIR::StoreF(*self, ptr, offset));
     }
 }
 
@@ -858,5 +947,24 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 builder.push(DslIR::AssertNeE(lhs_value, rhs_value));
             }
         }
+    }
+}
+
+impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
+    fn size_of() -> usize {
+        4
+    }
+
+    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadE(*self, ptr, offset));
+    }
+
+    fn store(
+        &self,
+        ptr: Ptr<<C as Config>::N>,
+        offset: Usize<<C as Config>::N>,
+        builder: &mut Builder<C>,
+    ) {
+        builder.push(DslIR::StoreE(*self, ptr, offset));
     }
 }
