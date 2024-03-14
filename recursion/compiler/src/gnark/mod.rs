@@ -5,17 +5,46 @@ use crate::ir::{Config, DslIR};
 
 const GNARK_TEMPLATE: &str = include_str!("lib/template.txt");
 
+/// Indents a block of lines by one tab.
 pub fn indent(lines: Vec<String>) -> Vec<String> {
     lines.into_iter().map(|x| format!("\t{}", x)).collect()
 }
 
+/// Masks the evaluation of lines based on a condition.
+pub fn mask(cond: String, lines: Vec<String>) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| {
+            let parts = line.split('=').collect::<Vec<_>>();
+            let dst = parts[0].trim_end();
+            let expr = parts[1].trim_end();
+            if dst.contains("var") {
+                format!("{dst} = api.Select({cond}, {expr}, {dst}")
+            } else if dst.contains("felt") {
+                format!("{dst} = fieldChip.Select({cond}, {expr}, {dst})")
+            } else if dst.contains("ext") {
+                format!("{dst} = fieldChip.SelectExtension({cond}, {expr}, {dst}")
+            } else {
+                panic!("unexpected dst for DslIR::IfEq")
+            }
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct GnarkBackend<C: Config> {
+    pub nb_backend_vars: usize,
     pub used: HashMap<String, bool>,
     pub phantom: PhantomData<C>,
 }
 
 impl<C: Config> GnarkBackend<C> {
+    pub fn alloc(&mut self) -> String {
+        let id = format!("backend{}", self.nb_backend_vars);
+        self.nb_backend_vars += 1;
+        id
+    }
+
     pub fn assign(&mut self, id: String) -> &str {
         self.used.insert(id.clone(), true);
         "="
@@ -466,17 +495,57 @@ impl<C: Config> GnarkBackend<C> {
                     lines.extend(indent(self.emit(d)));
                     lines.push("}".to_string());
                 }
-                DslIR::IfEq(_, _, _, _) => {
-                    todo!()
+                DslIR::IfEq(a, b, c, d) => {
+                    let cond = self.alloc();
+                    let operator = self.assign(cond.clone());
+                    lines.push(format!(
+                        "{} {} api.IsZero(api.Sub({}, {}))",
+                        cond,
+                        operator,
+                        a.id(),
+                        b.id()
+                    ));
+                    lines.extend(mask(cond.clone(), self.emit(c)));
+                    lines.extend(mask(cond.clone(), self.emit(d)));
                 }
-                DslIR::IfNe(_, _, _, _) => {
-                    todo!()
+                DslIR::IfNe(a, b, c, d) => {
+                    let cond = self.alloc();
+                    let operator = self.assign(cond.clone());
+                    lines.push(format!(
+                        "{} {} api.Sub(frontend.Variable(1), api.IsZero(api.Sub({}, {})))",
+                        cond,
+                        operator,
+                        a.id(),
+                        b.id()
+                    ));
+                    lines.extend(mask(cond.clone(), self.emit(c)));
+                    lines.extend(mask(cond.clone(), self.emit(d)));
                 }
-                DslIR::IfEqI(_, _, _, _) => {
-                    todo!()
+                DslIR::IfEqI(a, b, c, d) => {
+                    let cond = self.alloc();
+                    let operator = self.assign(cond.clone());
+                    lines.push(format!(
+                        "{} {} api.IsZero(api.Sub({}, frontend.Variable({})))",
+                        cond,
+                        operator,
+                        a.id(),
+                        b
+                    ));
+                    lines.extend(mask(cond.clone(), self.emit(c)));
+                    lines.extend(mask(cond.clone(), self.emit(d)));
                 }
-                DslIR::IfNeI(_, _, _, _) => {
-                    todo!()
+                DslIR::IfNeI(a, b, c, d) => {
+                    let cond = self.alloc();
+                    let operator = self.assign(cond.clone());
+                    lines.push(format!(
+                        "{} {} api.Sub(frontend.Variable(1), api.IsZero(api.Sub({}, frontend.Variable({}))))",
+                        cond,
+                        operator,
+                        a.id(),
+                        b
+                    ));
+                    lines.extend(mask(cond.clone(), self.emit(c)));
+                    lines.extend(mask(cond.clone(), self.emit(d)));
                 }
                 DslIR::AssertEqV(a, b) => {
                     lines.push(format!("api.AssertEq({}, {})", a.id(), b.id()));
@@ -563,7 +632,9 @@ impl<C: Config> GnarkBackend<C> {
                 } else if id.contains("felt") {
                     format!("var {} *babybear.Variable", id)
                 } else if id.contains("ext") {
-                    format!("var{} *babybear.ExtensionVariable", id)
+                    format!("var {} *babybear.ExtensionVariable", id)
+                } else if id.contains("backend") {
+                    format!("var {} frontend.Variable", id)
                 } else {
                     panic!("Unknown variable type")
                 }
@@ -618,6 +689,7 @@ mod tests {
             DslIR::InvV(Var::new(10), Var::new(9)),
         ];
         let mut backend = GnarkBackend::<BabyBearConfig> {
+            nb_backend_vars: 0,
             used: HashMap::new(),
             phantom: PhantomData,
         };
@@ -628,6 +700,7 @@ mod tests {
     #[test]
     fn test2() {
         let mut builder = Builder::<BabyBearConfig>::default();
+        let t: Var<_> = builder.eval(BabyBear::zero());
         let a: Felt<_> = builder.eval(BabyBear::zero());
         let b: Felt<_> = builder.eval(BabyBear::one());
 
@@ -644,7 +717,25 @@ mod tests {
         let expected_value = BabyBear::from_canonical_u32(144);
         builder.assert_felt_eq(a, expected_value);
 
+        builder.if_eq(t, t).then_or_else(
+            |builder| {
+                builder.assign(a, b);
+            },
+            |builder| {
+                builder.assign(a, a + b);
+            },
+        );
+        builder.if_ne(t, t).then_or_else(
+            |builder| {
+                builder.assign(a, b);
+            },
+            |builder| {
+                builder.assign(a, a + b);
+            },
+        );
+
         let mut backend = GnarkBackend::<BabyBearConfig> {
+            nb_backend_vars: 0,
             used: HashMap::new(),
             phantom: PhantomData,
         };

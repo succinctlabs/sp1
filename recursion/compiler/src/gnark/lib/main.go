@@ -13,13 +13,17 @@ type Circuit struct {
 
 func (circuit *Circuit) Define(api frontend.API) error {
 	fieldChip := babybear.NewChip(api)
-	
+
 	// Variables.
 	var felt0 *babybear.Variable
+	var backend1 frontend.Variable
+	var backend0 frontend.Variable
 	var felt1 *babybear.Variable
+	var var0 frontend.Variable
 	var felt2 *babybear.Variable
-	
+
 	// Operations.
+	var0 = frontend.Variable(0)
 	felt0 = babybear.NewVariable(0)
 	felt1 = babybear.NewVariable(1)
 	for i := 0; i < 12; i++ {
@@ -28,5 +32,11 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		felt0 = fieldChip.Add(felt2, babybear.NewVariable(0))
 	}
 	fieldChip.AssertEq(felt0, babybear.NewVariable(144))
+	backend0 = api.IsZero(api.Sub(var0, var0))
+	felt0 = fieldChip.Select(backend0, fieldChip.Add(felt1, babybear.NewVariable(0)), felt0)
+	felt0 = fieldChip.Select(backend0, fieldChip.Add(felt0, felt1), felt0)
+	backend1 = api.Sub(frontend.Variable(1), api.IsZero(api.Sub(var0, var0)))
+	felt0 = fieldChip.Select(backend1, fieldChip.Add(felt1, babybear.NewVariable(0)), felt0)
+	felt0 = fieldChip.Select(backend1, fieldChip.Add(felt0, felt1), felt0)
 	return nil
 }
