@@ -24,9 +24,9 @@ use self::state::ExecutionState;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
-use hashbrown::hash_map::Entry;
-use hashbrown::HashMap;
 use nohash_hasher::BuildNoHashHasher;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -76,6 +76,10 @@ pub struct Runtime {
     pub(crate) unconstrained_state: ForkState,
 
     pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
+
+    pub files: Vec<File>,
+
+    pub emit_events: bool,
 }
 
 impl Runtime {
@@ -111,6 +115,8 @@ impl Runtime {
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map: default_syscall_map(),
+            emit_events: false,
+            files: Vec::new(),
         }
     }
 
@@ -396,7 +402,9 @@ impl Runtime {
     /// Set the destination register with the result and emit an ALU event.
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
-        self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        if self.emit_events {
+            self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        }
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -738,17 +746,19 @@ impl Runtime {
         self.state.pc = next_pc;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(
-            self.shard(),
-            self.state.clk,
-            pc,
-            instruction,
-            a,
-            b,
-            c,
-            memory_store_value,
-            self.memory_accesses,
-        );
+        if self.emit_events {
+            self.emit_cpu(
+                self.shard(),
+                self.state.clk,
+                pc,
+                instruction,
+                a,
+                b,
+                c,
+                memory_store_value,
+                self.memory_accesses,
+            );
+        }
     }
 
     /// Execute the program.
@@ -790,6 +800,18 @@ impl Runtime {
             if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
+            }
+
+            if self.state.global_clk % (1 << 27) == 0 {
+                log::info!("writing to disk");
+                let file = tempfile::tempfile().expect("failed to get tempfile");
+                let mut writer = BufWriter::new(&file);
+                let state = std::mem::take(&mut self.state);
+                bincode::serialize_into(&mut writer, &state).expect("failed to write");
+                writer.flush().expect("failed to flush");
+                drop(writer);
+                self.files.push(file);
+                log::info!("wrote to disk");
             }
         }
 

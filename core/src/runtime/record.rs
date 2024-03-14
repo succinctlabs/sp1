@@ -1,5 +1,5 @@
-use hashbrown::HashMap;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
