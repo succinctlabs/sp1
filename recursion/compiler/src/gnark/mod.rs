@@ -17,12 +17,8 @@ pub struct GnarkBackend<C: Config> {
 
 impl<C: Config> GnarkBackend<C> {
     pub fn assign(&mut self, id: String) -> &str {
-        if *self.used.get(&id).unwrap_or(&false) {
-            "="
-        } else {
-            self.used.insert(id.clone(), true);
-            ":="
-        }
+        self.used.insert(id.clone(), true);
+        "="
     }
 
     pub fn emit(&mut self, operations: Vec<DslIR<C>>) -> Vec<String> {
@@ -556,7 +552,28 @@ impl<C: Config> GnarkBackend<C> {
     }
 
     pub fn compile(&mut self, program: Vec<DslIR<C>>) -> String {
-        let lines = self.emit(program);
+        let operations = self.emit(program);
+        let initializes = self
+            .used
+            .keys()
+            .map(|id| {
+                if id.contains("var") {
+                    format!("var {} frontend.Variable", id)
+                } else if id.contains("felt") {
+                    format!("var {} *babybear.Variable", id)
+                } else if id.contains("ext") {
+                    format!("var{} *babybear.ExtensionVariable", id)
+                } else {
+                    panic!("Unknown variable type")
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let mut lines = Vec::new();
+        lines.extend(vec!["".to_string(), "// Variables.".to_string()]);
+        lines.extend(initializes);
+        lines.extend(vec!["".to_string(), "// Operations.".to_string()]);
+        lines.extend(operations);
         GNARK_TEMPLATE.replace("{{LINES}}", &indent(lines).join("\n"))
     }
 }

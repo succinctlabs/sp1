@@ -7,12 +7,12 @@ import (
 )
 
 type Circuit struct {
-	X frontend.Variable `gnark:"x"`       // x  --> secret visibility (default)
-	Y frontend.Variable `gnark:",public"` // Y  --> public visibility
+	X frontend.Variable
+	Y frontend.Variable
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
-	fieldChip := babybear.NewBabyBearChip(api)
+	fieldChip := babybear.NewChip(api)
 {{LINES}}
 	return nil
 }

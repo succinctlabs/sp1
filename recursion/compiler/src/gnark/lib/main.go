@@ -7,16 +7,23 @@ import (
 )
 
 type Circuit struct {
-	X frontend.Variable `gnark:"x"`       // x  --> secret visibility (default)
-	Y frontend.Variable `gnark:",public"` // Y  --> public visibility
+	X frontend.Variable
+	Y frontend.Variable
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
-	fieldChip := babybear.NewBabyBearChip(api)
-	felt0 := babybear.NewVariable(0)
-	felt1 := babybear.NewVariable(1)
+	fieldChip := babybear.NewChip(api)
+	
+	// Variables.
+	var felt0 *babybear.Variable
+	var felt1 *babybear.Variable
+	var felt2 *babybear.Variable
+	
+	// Operations.
+	felt0 = babybear.NewVariable(0)
+	felt1 = babybear.NewVariable(1)
 	for i := 0; i < 12; i++ {
-		felt2 := fieldChip.Add(felt1, babybear.NewVariable(0))
+		felt2 = fieldChip.Add(felt1, babybear.NewVariable(0))
 		felt1 = fieldChip.Add(felt0, felt1)
 		felt0 = fieldChip.Add(felt2, babybear.NewVariable(0))
 	}

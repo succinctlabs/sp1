@@ -7,114 +7,114 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-var BabyBearModulus = new(big.Int).SetUint64(2013265921)
+var Modulus = new(big.Int).SetUint64(2013265921)
 
-type BabyBearParams struct{}
+type Params struct{}
 
-func (fp BabyBearParams) NbLimbs() uint            { return 1 }
-func (fp BabyBearParams) BitsPerLimb() uint        { return 32 }
-func (fp BabyBearParams) IsPrime() bool            { return true }
-func (fp BabyBearParams) Modulus() *big.Int        { return BabyBearModulus }
-func (fp BabyBearParams) NumElmsPerBN254Elm() uint { return 8 }
+func (fp Params) NbLimbs() uint            { return 1 }
+func (fp Params) BitsPerLimb() uint        { return 32 }
+func (fp Params) IsPrime() bool            { return true }
+func (fp Params) Modulus() *big.Int        { return Modulus }
+func (fp Params) NumElmsPerBN254Elm() uint { return 8 }
 
-type BabyBearVariable struct {
-	value *emulated.Element[BabyBearParams]
+type Variable struct {
+	value *emulated.Element[Params]
 }
 
-type BabyBearExtensionVariable struct {
-	value [4]*BabyBearVariable
+type ExtensionVariable struct {
+	value [4]*Variable
 }
 
-type BabyBearChip struct {
+type Chip struct {
 	api   frontend.API
-	field *emulated.Field[BabyBearParams]
+	field *emulated.Field[Params]
 }
 
-func NewBabyBearChip(api frontend.API) *BabyBearChip {
-	field, err := emulated.NewField[BabyBearParams](api)
+func NewChip(api frontend.API) *Chip {
+	field, err := emulated.NewField[Params](api)
 	if err != nil {
 		panic(err)
 	}
-	return &BabyBearChip{
+	return &Chip{
 		api:   api,
 		field: field,
 	}
 }
 
-func NewVariable(value int) *BabyBearVariable {
-	variable := emulated.ValueOf[BabyBearParams](value)
-	return &BabyBearVariable{
+func NewVariable(value int) *Variable {
+	variable := emulated.ValueOf[Params](value)
+	return &Variable{
 		value: &variable,
 	}
 }
 
-func NewExtensionVariable(value [4]int) *BabyBearExtensionVariable {
+func NewExtensionVariable(value [4]int) *ExtensionVariable {
 	a := NewVariable(value[0])
 	b := NewVariable(value[1])
 	c := NewVariable(value[2])
 	d := NewVariable(value[3])
-	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{a, b, c, d}}
+	return &ExtensionVariable{value: [4]*Variable{a, b, c, d}}
 }
 
-func (c *BabyBearChip) Add(a, b *BabyBearVariable) *BabyBearVariable {
-	return &BabyBearVariable{
+func (c *Chip) Add(a, b *Variable) *Variable {
+	return &Variable{
 		value: c.field.Add(a.value, b.value),
 	}
 }
 
-func (c *BabyBearChip) Sub(a, b *BabyBearVariable) *BabyBearVariable {
-	return &BabyBearVariable{
+func (c *Chip) Sub(a, b *Variable) *Variable {
+	return &Variable{
 		value: c.field.Sub(a.value, b.value),
 	}
 }
 
-func (c *BabyBearChip) Mul(a, b *BabyBearVariable) *BabyBearVariable {
-	return &BabyBearVariable{
+func (c *Chip) Mul(a, b *Variable) *Variable {
+	return &Variable{
 		value: c.field.Mul(a.value, b.value),
 	}
 }
 
-func (c *BabyBearChip) Neg(a *BabyBearVariable) *BabyBearVariable {
-	return &BabyBearVariable{
+func (c *Chip) Neg(a *Variable) *Variable {
+	return &Variable{
 		value: c.field.Neg(a.value),
 	}
 }
 
-func (c *BabyBearChip) Inv(a *BabyBearVariable) *BabyBearVariable {
-	return &BabyBearVariable{
+func (c *Chip) Inv(a *Variable) *Variable {
+	return &Variable{
 		value: c.field.Inverse(a.value),
 	}
 }
 
-func (c *BabyBearChip) AssertEq(a, b *BabyBearVariable) {
+func (c *Chip) AssertEq(a, b *Variable) {
 	c.field.AssertIsEqual(a.value, b.value)
 }
 
-func (c *BabyBearChip) AssertNe(a, b *BabyBearVariable) {
+func (c *Chip) AssertNe(a, b *Variable) {
 	diff := c.field.Sub(a.value, b.value)
 	isZero := c.field.IsZero(diff)
 	c.api.AssertIsEqual(isZero, frontend.Variable(0))
 }
 
-func (c *BabyBearChip) AddExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
+func (c *Chip) AddExtension(a, b *ExtensionVariable) *ExtensionVariable {
 	v1 := c.Add(a.value[0], b.value[0])
 	v2 := c.Add(a.value[1], b.value[1])
 	v3 := c.Add(a.value[2], b.value[2])
 	v4 := c.Add(a.value[3], b.value[3])
-	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
+	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *BabyBearChip) SubExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
+func (c *Chip) SubExtension(a, b *ExtensionVariable) *ExtensionVariable {
 	v1 := c.Sub(a.value[0], b.value[0])
 	v2 := c.Sub(a.value[1], b.value[1])
 	v3 := c.Sub(a.value[2], b.value[2])
 	v4 := c.Sub(a.value[3], b.value[3])
-	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
+	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *BabyBearChip) MulExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
+func (c *Chip) MulExtension(a, b *ExtensionVariable) *ExtensionVariable {
 	w := NewVariable(11)
-	v := [4]*BabyBearVariable{
+	v := [4]*Variable{
 		NewVariable(0),
 		NewVariable(0),
 		NewVariable(0),
@@ -131,35 +131,35 @@ func (c *BabyBearChip) MulExtension(a, b *BabyBearExtensionVariable) *BabyBearEx
 		}
 	}
 
-	return &BabyBearExtensionVariable{value: v}
+	return &ExtensionVariable{value: v}
 }
 
-func (c *BabyBearChip) NegExtension(a *BabyBearExtensionVariable) *BabyBearExtensionVariable {
+func (c *Chip) NegExtension(a *ExtensionVariable) *ExtensionVariable {
 	v1 := c.Neg(a.value[0])
 	v2 := c.Neg(a.value[1])
 	v3 := c.Neg(a.value[2])
 	v4 := c.Neg(a.value[3])
-	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
+	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *BabyBearChip) InvExtension(a *BabyBearExtensionVariable) *BabyBearExtensionVariable {
-	v := [4]*BabyBearVariable{
+func (c *Chip) InvExtension(a *ExtensionVariable) *ExtensionVariable {
+	v := [4]*Variable{
 		NewVariable(0),
 		NewVariable(0),
 		NewVariable(0),
 		NewVariable(0),
 	}
-	return &BabyBearExtensionVariable{value: v}
+	return &ExtensionVariable{value: v}
 }
 
-func (c *BabyBearChip) AssertEqExtension(a, b *BabyBearExtensionVariable) {
+func (c *Chip) AssertEqExtension(a, b *ExtensionVariable) {
 	c.AssertEq(a.value[0], b.value[0])
 	c.AssertEq(a.value[1], b.value[1])
 	c.AssertEq(a.value[2], b.value[2])
 	c.AssertEq(a.value[3], b.value[3])
 }
 
-func (c *BabyBearChip) AssertNeExtension(a, b *BabyBearExtensionVariable) {
+func (c *Chip) AssertNeExtension(a, b *ExtensionVariable) {
 	v1 := c.field.Sub(a.value[0].value, b.value[0].value)
 	v2 := c.field.Sub(a.value[1].value, b.value[1].value)
 	v3 := c.field.Sub(a.value[2].value, b.value[2].value)
