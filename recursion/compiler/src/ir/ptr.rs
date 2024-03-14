@@ -23,11 +23,11 @@ impl<C: Config> Builder<C> {
 
     pub fn store<V: MemVariable<C>, I: Into<Usize<C::N>>>(
         &mut self,
-        var: V,
         ptr: Ptr<C::N>,
         offset: I,
+        value: V,
     ) {
-        var.store(ptr, offset.into(), self);
+        value.store(ptr, offset.into(), self);
     }
 }
 
