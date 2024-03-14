@@ -30,8 +30,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, SeekFrom};
 use std::io::{Seek, Write};
-use std::os::unix::fs::MetadataExt;
 use std::rc::Rc;
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// An implementation of a runtime for the SP1 VM.
@@ -78,7 +78,7 @@ pub struct Runtime {
 
     pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
 
-    pub files: Vec<File>,
+    pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
 }
@@ -103,6 +103,14 @@ impl Runtime {
             None
         };
 
+        let syscall_map = default_syscall_map();
+        // Determine the maximum number of cycles for any syscall.
+        let max_syscall_cycles = syscall_map
+            .values()
+            .map(|syscall| syscall.num_extra_cycles())
+            .max()
+            .unwrap_or(0);
+
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
@@ -115,9 +123,9 @@ impl Runtime {
             fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
-            syscall_map: default_syscall_map(),
-            emit_events: false,
-            files: Vec::new(),
+            syscall_map,
+            emit_events: true,
+            max_syscall_cycles,
         }
     }
 
@@ -250,7 +258,7 @@ impl Runtime {
         let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained || self.emit_events {
+        if !self.unconstrained && self.emit_events {
             match position {
                 MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
                 MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
@@ -444,7 +452,7 @@ impl Runtime {
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute(&mut self, instruction: Instruction) {
+    fn execute_instruction(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
@@ -762,9 +770,72 @@ impl Runtime {
         }
     }
 
-    /// Execute the program.
-    pub fn run(&mut self) {
-        let max_syscall_cycles = self.max_syscall_cycles();
+    /// Executes one cycle of the program, returning whether the program has finished.
+    #[inline]
+    fn execute_cycle(&mut self) -> bool {
+        // Fetch the instruction at the current program counter.
+        let instruction = self.fetch();
+
+        // Log the current state of the runtime.
+        self.log(&instruction);
+
+        // Execute the instruction.
+        self.execute_instruction(instruction);
+
+        // Increment the clock.
+        self.state.global_clk += 1;
+        self.state.clk += 4;
+
+        // If there's not enough cycles left for another instruction, move to the next shard.
+        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
+        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
+            self.state.current_shard += 1;
+            self.state.clk = 0;
+        }
+
+        if !self.unconstrained && self.state.global_clk % (1 << 27) == 0 {
+
+            // log::info!("writing to disk");
+            // let mut file = tempfile::tempfile().expect("failed to get tempfile");
+            // let mut writer = BufWriter::new(&file);
+            // bincode::serialize_into(&mut writer, &self.state).expect("failed to write");
+            // writer.flush().expect("failed to flush");
+            // drop(writer);
+
+            // // Print size of file
+            // let metadata = file.metadata().expect("failed to get metadata");
+            // log::info!("file size: {}", metadata.len());
+
+            // // now read it back
+            // file.seek(SeekFrom::Start(0)).expect("failed to seek");
+            // let mut reader = BufReader::new(&file);
+            // let state: ExecutionState =
+            //     bincode::deserialize_from(&mut reader).expect("failed to read");
+            // log::info!("read from disk");
+            // self.state = state;
+
+            // log::info!("wrote to disk");
+        }
+
+        self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32
+    }
+
+    /// Execute up to 1 << 27 cycles, returning the events emitted and whether the program ended.
+    pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
+        self.emit_events = true;
+        let done = self.execute();
+        (std::mem::take(&mut self.record), done)
+    }
+
+    /// Execute up to 1 << 27 cycles, returning a copy of the state and whether the program ended.
+    pub fn execute_state(&mut self) -> (ExecutionState, bool) {
+        self.emit_events = false;
+        let done = self.execute();
+        (self.state.clone(), done)
+    }
+
+    fn initialize(&mut self) {
         self.state.clk = 1;
 
         tracing::info!("loading memory image");
@@ -780,63 +851,44 @@ impl Runtime {
         }
 
         tracing::info!("starting execution");
-        while self.state.pc.wrapping_sub(self.program.pc_base)
-            < (self.program.instructions.len() * 4) as u32
-        {
-            // Fetch the instruction at the current program counter.
-            let instruction = self.fetch();
+    }
 
-            // Log the current state of the runtime.
-            self.log(&instruction);
+    pub fn run(&mut self) {
+        self.emit_events = true;
+        while !self.execute() {}
+    }
 
-            // Execute the instruction.
-            self.execute(instruction);
+    /// Executes up to (1 << 27) cycles of the program, returning whether the program has finished.
+    fn execute(&mut self) -> bool {
+        if self.state.global_clk == 0 {
+            self.initialize();
+        }
 
-            // Increment the clock.
-            self.state.global_clk += 1;
-            self.state.clk += 4;
-
-            // If there's not enough cycles left for another instruction, move to the next shard.
-            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
-                self.state.current_shard += 1;
-                self.state.clk = 0;
+        let mut cycles = 0_u64;
+        let mut done = false;
+        while cycles < (1 << 27) {
+            if self.execute_cycle() {
+                done = true;
+                break;
             }
-
-            if self.state.global_clk % (1 << 27) == 0 {
-                log::info!("writing to disk");
-                let mut file = tempfile::tempfile().expect("failed to get tempfile");
-                let mut writer = BufWriter::new(&file);
-                bincode::serialize_into(&mut writer, &self.state).expect("failed to write");
-                writer.flush().expect("failed to flush");
-                drop(writer);
-
-                // Print size of file
-                let metadata = file.metadata().expect("failed to get metadata");
-                log::info!("file size: {}", metadata.len());
-
-                // now read it back
-                file.seek(SeekFrom::Start(0)).expect("failed to seek");
-                let mut reader = BufReader::new(&file);
-                let state: ExecutionState =
-                    bincode::deserialize_from(&mut reader).expect("failed to read");
-                log::info!("read from disk");
-                self.state = state;
-
-                self.files.push(file);
-                log::info!("wrote to disk");
+            if !self.unconstrained {
+                cycles += 1;
             }
         }
 
+        if done {
+            self.postprocess();
+        }
+
+        done
+    }
+
+    fn postprocess(&mut self) {
         tracing::info!(
             "finished execution clk = {} pc = 0x{:x?}",
             self.state.global_clk,
             self.state.pc
         );
-
-        if let Some(ref mut buf) = self.trace_buf {
-            buf.flush().unwrap();
-        }
         // Flush remaining stdout/stderr
         for (fd, buf) in self.io_buf.iter() {
             if !buf.is_empty() {
@@ -852,12 +904,12 @@ impl Runtime {
             }
         }
 
-        // Call postprocess to set up all variables needed for global accounts, like memory
-        // argument or any other deferred tables.
-        self.postprocess();
-    }
+        // Flush trace buf
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
+        }
 
-    fn postprocess(&mut self) {
+        // Set up all variables needed for memory argument.
         let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.

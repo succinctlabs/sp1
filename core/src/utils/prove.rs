@@ -1,6 +1,7 @@
 use std::time::Instant;
 
-use crate::stark::RiscvAir;
+use crate::runtime::ShardingConfig;
+use crate::stark::{Prover, RiscvAir, ShardProof};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -30,16 +31,6 @@ pub fn get_cycles(program: Program) -> u64 {
     let mut runtime = Runtime::new(program);
     runtime.run();
     runtime.state.global_clk as u64
-}
-
-pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        runtime
-    });
-    let config = BabyBearBlake3::new();
-    prove_core(config, runtime)
 }
 
 #[cfg(test)]
@@ -89,9 +80,62 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     Ok(())
 }
 
-pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
-    let program = Program::from(elf);
-    prove(program)
+pub fn run_and_prove<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
+    program: Program,
+    stdin: &[u8],
+    config: SC,
+) -> (crate::stark::Proof<SC>, Vec<u8>)
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
+    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
+    let mut challenger = config.challenger();
+
+    let machine = RiscvAir::machine(config);
+    let mut runtime = Runtime::new(program);
+    runtime.write_stdin_slice(stdin);
+    let (pk, _) = machine.setup(runtime.program.as_ref());
+
+    // Execute the program, stopping to prove shards every (1 << 27) cycles.
+    let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+    let sharding_config = ShardingConfig::default();
+    let mut cycles = 0;
+    let mut prove_time = 0;
+    let stdout;
+    loop {
+        let (events, done) =
+            tracing::info_span!("runtime.run(...)").in_scope(|| runtime.execute_record());
+        cycles += events.cpu_events.len();
+        let shards =
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+        let start = Instant::now();
+        let mut new_proofs = tracing::info_span!("prove")
+            .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
+        prove_time += start.elapsed().as_millis();
+        shard_proofs.append(&mut new_proofs.shard_proofs);
+        if done {
+            stdout = std::mem::take(&mut runtime.state.output_stream);
+            break;
+        }
+    }
+    let proof = crate::stark::Proof::<SC> { shard_proofs };
+
+    // Prove the program.
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        prove_time,
+        (cycles as f64 / prove_time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    (proof, stdout)
 }
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
