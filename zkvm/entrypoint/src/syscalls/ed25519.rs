@@ -56,7 +56,7 @@ pub extern "C" fn syscall_bn254_precompile(p: *mut u32) {
     unsafe {
         asm!(
             "ecall",
-            in("t0") crate::syscalls::SIMPLE_PRECOMPILE,
+            in("t0") crate::syscalls::BN254_PRECOMPILE_ELF,
             in("a0") p,
         );
     }

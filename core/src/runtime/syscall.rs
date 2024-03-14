@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
-use crate::syscall::precompiles::bn254::BN254PrecompileChip;
+use crate::syscall::precompiles::bn254::{BN254AddAssignChip, BN254PrecompileChip};
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -15,7 +15,7 @@ use crate::syscall::{
     SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
+use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -61,8 +61,14 @@ pub enum SyscallCode {
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 112,
 
-    /// Executes a bn254 precompile.
-    BN254_PRECOMPILE = 113,
+    /// Executes a bn254 add.
+    BN254_ADD = 113,
+
+    /// Executes a bn254 double.
+    BN254_DOUBLE = 114,
+
+    /// Executes a bn254 decompress.
+    BN254_DECOMPRESS = 115,
 
     WRITE = 999,
 }
@@ -84,7 +90,9 @@ impl SyscallCode {
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
-            113 => SyscallCode::BN254_PRECOMPILE,
+            107 => SyscallCode::BN254_ADD,
+            108 => SyscallCode::BN254_DOUBLE,
+            109 => SyscallCode::BN254_DECOMPRESS,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -223,9 +231,17 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(Blake3CompressInnerChip::new()),
     );
     syscall_map.insert(
-        SyscallCode::BN254_PRECOMPILE,
-        Rc::new(BN254PrecompileChip::default()),
+        SyscallCode::BN254_ADD,
+        Rc::new(WeierstrassAddAssignChip::<Bn254>::new()),
     );
+    syscall_map.insert(
+        SyscallCode::BN254_DOUBLE,
+        Rc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
+    );
+    // syscall_map.insert(
+    //     SyscallCode::BN254_DECOMPRESS,
+    //     Rc::new(BN254DecompressChip::default()),
+    // );
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),

@@ -410,6 +410,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1-add-test"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "num",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.196"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -451,15 +460,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bn254-precompile-test"
-version = "0.1.0"
-dependencies = [
- "hex-literal",
- "num",
- "sp1-zkvm",
-]
-
-[[package]]
 name = "sp1-precompiles"
 version = "0.1.0"
 dependencies = [
@@ -476,7 +476,6 @@ dependencies = [
 name = "sp1-zkvm"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bincode",
  "cfg-if",
  "getrandom",

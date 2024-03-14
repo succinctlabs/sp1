@@ -18,5 +18,7 @@ extern "C" {
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
-    pub fn syscall_bn254_precompile(p: *mut u32);
+    pub fn syscall_bn254_add(p: *mut u32, q: *const u32);
+    pub fn syscall_bn254_double(p: *mut u32);
+    // pub fn syscall_bn254_decompress(point: &mut [u8; 64]);
 }
