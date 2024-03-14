@@ -1,5 +1,3 @@
-use std::process::exit;
-
 use crate::runtime::{Register, Syscall, SyscallContext};
 
 pub struct SyscallLWA;
