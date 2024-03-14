@@ -347,13 +347,20 @@ where
 mod tests {
     use crate::{
         runtime::Program,
-        utils::{run_test, setup_logger, tests::SECP256K1_ADD_ELF},
+        utils::{run_test, setup_logger, tests::BN254_ADD_ELF, tests::SECP256K1_ADD_ELF},
     };
 
     #[test]
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bn254_add_simple() {
+        setup_logger();
+        let program = Program::from(BN254_ADD_ELF);
         run_test(program).unwrap();
     }
 }

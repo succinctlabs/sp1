@@ -88,3 +88,19 @@ big-endian format. The second half of the input will be overwritten with the dec
 ```rust,noplayground
 pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
 ```
+
+#### Bn254 Add
+
+Adds two Bn254 points. The result is stored in the first point.
+
+```rust,noplayground
+pub extern "C" fn syscall_bn254_add(p: *mut u32, q: *mut u32)
+```
+
+#### Bn254 Double
+
+Doubles a Bn254 point. The result is stored in the first point.
+
+```rust,noplayground
+pub extern "C" fn syscall_bn254_double(p: *mut u32)
+```
