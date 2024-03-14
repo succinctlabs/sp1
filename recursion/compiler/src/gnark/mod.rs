@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::ir::{Config, DslIR};
 
-const GNARK_TEMPLATE: &str = include_str!("gnark.txt");
+const GNARK_TEMPLATE: &str = include_str!("primitives/template.txt");
 
 pub fn indent(lines: Vec<String>) -> Vec<String> {
     lines
