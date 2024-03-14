@@ -22,7 +22,7 @@ type BabyBearVariable struct {
 }
 
 type BabyBearExtensionVariable struct {
-	value [4]*emulated.Element[BabyBearParams]
+	value [4]*BabyBearVariable
 }
 
 type BabyBearChip struct {
@@ -41,7 +41,20 @@ func NewBabyBearChip(api frontend.API) *BabyBearChip {
 	}
 }
 
-func New()
+func New(value int) *BabyBearVariable {
+	variable := emulated.ValueOf[BabyBearParams](value)
+	return &BabyBearVariable{
+		value: &variable,
+	}
+}
+
+func NewExtension(value [4]int) *BabyBearExtensionVariable {
+	a := New(value[0])
+	b := New(value[1])
+	c := New(value[2])
+	d := New(value[3])
+	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{a, b, c, d}}
+}
 
 func (c *BabyBearChip) Add(a, b *BabyBearVariable) *BabyBearVariable {
 	return &BabyBearVariable{
@@ -61,7 +74,7 @@ func (c *BabyBearChip) Mul(a, b *BabyBearVariable) *BabyBearVariable {
 	}
 }
 
-func (c *BabyBearChip) Neg(a, b *BabyBearVariable) *BabyBearVariable {
+func (c *BabyBearChip) Neg(a *BabyBearVariable) *BabyBearVariable {
 	return &BabyBearVariable{
 		value: c.field.Neg(a.value),
 	}
@@ -84,39 +97,47 @@ func (c *BabyBearChip) AssertNe(a, b *BabyBearVariable) {
 }
 
 func (c *BabyBearChip) AddExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
-	v1 := c.field.Add(a.value[0], b.value[0])
-	v2 := c.field.Add(a.value[1], b.value[1])
-	v3 := c.field.Add(a.value[2], b.value[2])
-	v4 := c.field.Add(a.value[3], b.value[3])
-	return &BabyBearExtensionVariable{value: [4]*emulated.Element[BabyBearParams]{v1, v2, v3, v4}}
+	v1 := c.Add(a.value[0], b.value[0])
+	v2 := c.Add(a.value[1], b.value[1])
+	v3 := c.Add(a.value[2], b.value[2])
+	v4 := c.Add(a.value[3], b.value[3])
+	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
 }
 
 func (c *BabyBearChip) SubExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
-	v1 := c.field.Sub(a.value[0], b.value[0])
-	v2 := c.field.Sub(a.value[1], b.value[1])
-	v3 := c.field.Sub(a.value[2], b.value[2])
-	v4 := c.field.Sub(a.value[3], b.value[3])
-	return &BabyBearExtensionVariable{value: [4]*emulated.Element[BabyBearParams]{v1, v2, v3, v4}}
+	v1 := c.Sub(a.value[0], b.value[0])
+	v2 := c.Sub(a.value[1], b.value[1])
+	v3 := c.Sub(a.value[2], b.value[2])
+	v4 := c.Sub(a.value[3], b.value[3])
+	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
 }
 
 func (c *BabyBearChip) MulExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
+	w := New(11)
+	v := [4]*BabyBearVariable{
+		New(0),
+		New(0),
+		New(0),
+		New(0),
+	}
+
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-
+			if i+j >= 4 {
+				v[i+j-4] = c.Add(v[i+j-4], c.Mul(c.Mul(v[i], v[j]), w))
+			} else {
+				v[i+j] = c.Add(v[i+j], c.Mul(v[i], v[j]))
+			}
 		}
 	}
 
-	v1 := c.field.Mul(a.value[0], b.value[0])
-	v2 := c.field.Mul(a.value[1], b.value[1])
-	v3 := c.field.Mul(a.value[2], b.value[2])
-	v4 := c.field.Mul(a.value[3], b.value[3])
-	return &BabyBearExtensionVariable{value: [4]*emulated.Element[BabyBearParams]{v1, v2, v3, v4}}
+	return &BabyBearExtensionVariable{value: v}
 }
 
 func (c *BabyBearChip) NegExtension(a *BabyBearExtensionVariable) *BabyBearExtensionVariable {
-	v1 := c.field.Neg(a.value[0])
-	v2 := c.field.Neg(a.value[1])
-	v3 := c.field.Neg(a.value[2])
-	v4 := c.field.Neg(a.value[3])
-	return &BabyBearExtensionVariable{value: [4]*emulated.Element[BabyBearParams]{v1, v2, v3, v4}}
+	v1 := c.Neg(a.value[0])
+	v2 := c.Neg(a.value[1])
+	v3 := c.Neg(a.value[2])
+	v4 := c.Neg(a.value[3])
+	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
 }
