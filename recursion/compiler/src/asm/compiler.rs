@@ -6,6 +6,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use p3_field::ExtensionField;
 use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
 
@@ -18,26 +19,26 @@ use p3_field::Field;
 pub(crate) const ZERO: i32 = 0;
 pub(crate) const HEAP_PTR: i32 = -4;
 
-pub type VmBuilder<F> = Builder<AsmConfig<F>>;
+pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
 
 #[derive(Debug, Clone)]
-pub struct AsmCompiler<F> {
-    pub basic_blocks: Vec<BasicBlock<F>>,
+pub struct AsmCompiler<F, EF> {
+    pub basic_blocks: Vec<BasicBlock<F, EF>>,
 
     function_labels: BTreeMap<String, F>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AsmConfig<F>(PhantomData<F>);
+pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
-impl<F: Field> Config for AsmConfig<F> {
+impl<F: Field, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
     type N = F;
     type F = F;
-    type EF = F;
+    type EF = EF;
 }
 
-impl<F: PrimeField32> VmBuilder<F> {
-    pub fn compile_to_asm(self) -> AssemblyCode<F> {
+impl<F: PrimeField32, EF: ExtensionField<F>> VmBuilder<F, EF> {
+    pub fn compile_to_asm(self) -> AssemblyCode<F, EF> {
         let mut compiler = AsmCompiler::new();
         compiler.build(self.operations);
         compiler.code()
@@ -68,7 +69,7 @@ impl<F, EF> Ext<F, EF> {
     }
 }
 
-impl<F: PrimeField32> AsmCompiler<F> {
+impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -77,7 +78,7 @@ impl<F: PrimeField32> AsmCompiler<F> {
         }
     }
 
-    pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F>>>) {
+    pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
         for op in operations {
             match op {
                 DslIR::Imm(dst, src) => {
@@ -86,7 +87,9 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 DslIR::ImmFelt(dst, src) => {
                     self.push(AsmInstruction::IMM(dst.fp(), src));
                 }
-                DslIR::ImmExt(dst, src) => todo!(),
+                DslIR::ImmExt(dst, src) => {
+                    self.push(AsmInstruction::EIMM(dst.fp(), src));
+                }
                 DslIR::AddV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ADD(dst.fp(), lhs.fp(), rhs.fp()));
                 }
@@ -99,11 +102,21 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 DslIR::AddFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ADDI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddE(dst, lhs, rhs) => todo!(),
-                DslIR::AddEI(dst, lhs, rhs) => todo!(),
+                DslIR::AddE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EADD(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::AddEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EADDI(dst.fp(), lhs.fp(), rhs));
+                }
                 DslIR::AddEF(dst, lhs, rhs) => todo!(),
                 DslIR::AddEFFI(dst, lhs, rhs) => todo!(),
-                DslIR::AddEFI(dst, lhs, rhs) => todo!(),
+                DslIR::AddEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EADDI(
+                        dst.fp(),
+                        lhs.fp(),
+                        EF::from_base(rhs),
+                    ));
+                }
                 DslIR::SubV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::SUB(dst.fp(), lhs.fp(), rhs.fp()));
                 }
@@ -143,20 +156,60 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 DslIR::InvF(dst, src) => {
                     self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivEFIN(dst, lhs, rhs) => todo!(),
                 DslIR::DivEF(dst, lhs, rhs) => todo!(),
-                DslIR::DivEFI(dst, lhs, rhs) => todo!(),
-                DslIR::DivEIN(dst, lhs, rhs) => todo!(),
-                DslIR::DivE(dst, lhs, rhs) => todo!(),
-                DslIR::DivEI(dst, lhs, rhs) => todo!(),
-                DslIR::InvE(dst, src) => todo!(),
-                DslIR::SubEFIN(dst, lhs, rhs) => todo!(),
+                DslIR::DivEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIVI(
+                        dst.fp(),
+                        lhs.fp(),
+                        EF::from_base(rhs),
+                    ));
+                }
+                DslIR::DivEIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIVIN(dst.fp(), lhs, rhs.fp()));
+                }
+                DslIR::DivEFIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIVIN(
+                        dst.fp(),
+                        EF::from_base(lhs),
+                        rhs.fp(),
+                    ));
+                }
+                DslIR::DivE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIV(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::DivEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIVI(dst.fp(), lhs.fp(), rhs));
+                }
+                DslIR::InvE(dst, src) => {
+                    self.push(AsmInstruction::EDIVIN(dst.fp(), EF::one(), src.fp()));
+                }
+                DslIR::SubEFIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUBIN(
+                        dst.fp(),
+                        EF::from_base(lhs),
+                        rhs.fp(),
+                    ));
+                }
                 DslIR::SubEF(dst, lhs, rhs) => todo!(),
-                DslIR::SubEFI(dst, lhs, rhs) => todo!(),
-                DslIR::SubEIN(dst, lhs, rhs) => todo!(),
-                DslIR::SubE(dst, lhs, rhs) => todo!(),
-                DslIR::SubEI(dst, lhs, rhs) => todo!(),
-                DslIR::NegE(dst, src) => todo!(),
+                DslIR::SubEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUBI(
+                        dst.fp(),
+                        lhs.fp(),
+                        EF::from_base(rhs),
+                    ));
+                }
+                DslIR::SubEIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUBIN(dst.fp(), lhs, rhs.fp()));
+                }
+                DslIR::SubE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUB(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::SubEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUBI(dst.fp(), lhs.fp(), rhs));
+                }
+                DslIR::NegE(dst, src) => {
+                    self.push(AsmInstruction::ESUBIN(dst.fp(), EF::one(), src.fp()));
+                }
                 DslIR::MulV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MUL(dst.fp(), lhs.fp(), rhs.fp()));
                 }
@@ -169,8 +222,12 @@ impl<F: PrimeField32> AsmCompiler<F> {
                 DslIR::MulFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MULI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulE(dst, lhs, rhs) => todo!(),
-                DslIR::MulEI(dst, lhs, rhs) => todo!(),
+                DslIR::MulE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EMUL(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::MulEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EMULI(dst.fp(), lhs.fp(), rhs));
+                }
                 DslIR::MulEF(dst, lhs, rhs) => todo!(),
                 DslIR::MulEFI(dst, lhs, rhs) => todo!(),
                 DslIR::IfEq(lhs, rhs, then_block, else_block) => {
@@ -335,15 +392,51 @@ impl<F: PrimeField32> AsmCompiler<F> {
                     };
                     if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
                 }
-                DslIR::AssertEqE(lhs, rhs) => todo!(),
-                DslIR::AssertEqEI(lhs, rhs) => todo!(),
-                DslIR::AssertNeE(lhs, rhs) => todo!(),
-                DslIR::AssertNeEI(lhs, rhs) => todo!(),
+                DslIR::AssertEqE(lhs, rhs) => {
+                    // If lhs != rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::ExtVal(rhs.fp()),
+                        is_eq: false,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertEqEI(lhs, rhs) => {
+                    // If lhs != rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::ExtConst(rhs),
+                        is_eq: false,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertNeE(lhs, rhs) => {
+                    // If lhs == rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::ExtVal(rhs.fp()),
+                        is_eq: true,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
+                DslIR::AssertNeEI(lhs, rhs) => {
+                    // If lhs == rhs, execute TRAP
+                    let if_compiler = IfCompiler {
+                        compiler: self,
+                        lhs: lhs.fp(),
+                        rhs: ValueOrConst::ExtConst(rhs),
+                        is_eq: true,
+                    };
+                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                }
             }
         }
     }
 
-    pub fn code(self) -> AssemblyCode<F> {
+    pub fn code(self) -> AssemblyCode<F, EF> {
         let labels = self
             .function_labels
             .into_iter()
@@ -365,34 +458,36 @@ impl<F: PrimeField32> AsmCompiler<F> {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
-    fn push_to_block(&mut self, block_label: F, instruction: AsmInstruction<F>) {
+    fn push_to_block(&mut self, block_label: F, instruction: AsmInstruction<F, EF>) {
         self.basic_blocks
             .get_mut(block_label.as_canonical_u32() as usize)
             .unwrap_or_else(|| panic!("Missing block at label: {:?}", block_label))
             .push(instruction);
     }
 
-    fn push(&mut self, instruction: AsmInstruction<F>) {
+    fn push(&mut self, instruction: AsmInstruction<F, EF>) {
         self.basic_blocks.last_mut().unwrap().push(instruction);
     }
 }
 
-pub enum ValueOrConst<F> {
+pub enum ValueOrConst<F, EF> {
     Val(i32),
+    ExtVal(i32),
     Const(F),
+    ExtConst(EF),
 }
 
-pub struct IfCompiler<'a, F> {
-    compiler: &'a mut AsmCompiler<F>,
+pub struct IfCompiler<'a, F, EF> {
+    compiler: &'a mut AsmCompiler<F, EF>,
     lhs: i32,
-    rhs: ValueOrConst<F>,
+    rhs: ValueOrConst<F, EF>,
     is_eq: bool,
 }
 
-impl<'a, F: PrimeField32> IfCompiler<'a, F> {
+impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
     pub fn then<Func>(self, f: Func)
     where
-        Func: FnOnce(&mut AsmCompiler<F>),
+        Func: FnOnce(&mut AsmCompiler<F, EF>),
     {
         let Self {
             compiler,
@@ -413,8 +508,8 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
 
     pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
     where
-        ThenFunc: FnOnce(&mut AsmCompiler<F>),
-        ElseFunc: FnOnce(&mut AsmCompiler<F>),
+        ThenFunc: FnOnce(&mut AsmCompiler<F, EF>),
+        ElseFunc: FnOnce(&mut AsmCompiler<F, EF>),
     {
         let Self {
             compiler,
@@ -442,10 +537,10 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
 
     fn branch(
         lhs: i32,
-        rhs: ValueOrConst<F>,
+        rhs: ValueOrConst<F, EF>,
         is_eq: bool,
         block: F,
-        compiler: &mut AsmCompiler<F>,
+        compiler: &mut AsmCompiler<F, EF>,
     ) {
         match (rhs, is_eq) {
             (ValueOrConst::Const(rhs), true) => {
@@ -456,12 +551,28 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
                 let instr = AsmInstruction::BEQI(block, lhs, rhs);
                 compiler.push(instr);
             }
+            (ValueOrConst::ExtConst(rhs), true) => {
+                let instr = AsmInstruction::EBNEI(block, lhs, rhs);
+                compiler.push(instr);
+            }
+            (ValueOrConst::ExtConst(rhs), false) => {
+                let instr = AsmInstruction::EBEQI(block, lhs, rhs);
+                compiler.push(instr);
+            }
             (ValueOrConst::Val(rhs), true) => {
                 let instr = AsmInstruction::BNE(block, lhs, rhs);
                 compiler.push(instr);
             }
             (ValueOrConst::Val(rhs), false) => {
                 let instr = AsmInstruction::BEQ(block, lhs, rhs);
+                compiler.push(instr);
+            }
+            (ValueOrConst::ExtVal(rhs), true) => {
+                let instr = AsmInstruction::EBNE(block, lhs, rhs);
+                compiler.push(instr);
+            }
+            (ValueOrConst::ExtVal(rhs), false) => {
+                let instr = AsmInstruction::EBEQ(block, lhs, rhs);
                 compiler.push(instr);
             }
         }
@@ -471,15 +582,15 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
 /// A builder for a for loop.
 ///
 /// Starting with end < start will lead to undefined behavior!
-pub struct ForCompiler<'a, F> {
-    compiler: &'a mut AsmCompiler<F>,
+pub struct ForCompiler<'a, F, EF> {
+    compiler: &'a mut AsmCompiler<F, EF>,
     start: Usize<F>,
     end: Usize<F>,
     loop_var: Var<F>,
 }
 
-impl<'a, F: PrimeField32> ForCompiler<'a, F> {
-    pub(super) fn for_each(mut self, f: impl FnOnce(Var<F>, &mut AsmCompiler<F>)) {
+impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
+    pub(super) fn for_each(mut self, f: impl FnOnce(Var<F>, &mut AsmCompiler<F, EF>)) {
         // The function block structure:
         // - Setting the loop range
         // - Executing the loop body and incrementing the loop variable
