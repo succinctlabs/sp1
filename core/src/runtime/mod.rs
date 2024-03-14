@@ -28,8 +28,9 @@ use nohash_hasher::BuildNoHashHasher;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::BufWriter;
 use std::io::Write;
+use std::io::{BufReader, BufWriter};
+use std::os::unix::fs::MetadataExt;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -249,7 +250,7 @@ impl Runtime {
         let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained {
+        if !self.unconstrained || self.emit_events {
             match position {
                 MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
                 MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
@@ -813,6 +814,13 @@ impl Runtime {
                 // Print size of file
                 let metadata = file.metadata().expect("failed to get metadata");
                 log::info!("file size: {}", metadata.len());
+
+                // now read it back
+                let mut reader = BufReader::new(&file);
+                let state: ExecutionState =
+                    bincode::deserialize_from(&mut reader).expect("failed to read");
+                log::info!("read from disk");
+                self.state = state;
 
                 self.files.push(file);
                 log::info!("wrote to disk");
