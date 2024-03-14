@@ -136,7 +136,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
             trace.values[i * NUM_CPU_COLS + CPU_COL_MAP.instruction.imm_c] =
                 F::from_canonical_u32(1);
         }
-
         trace
     }
 
