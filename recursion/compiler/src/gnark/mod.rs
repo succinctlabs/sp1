@@ -6,10 +6,7 @@ use crate::ir::{Config, DslIR};
 const GNARK_TEMPLATE: &str = include_str!("lib/template.txt");
 
 pub fn indent(lines: Vec<String>) -> Vec<String> {
-    lines
-        .into_iter()
-        .map(|x| format!("        {}", x))
-        .collect()
+    lines.into_iter().map(|x| format!("\t{}", x)).collect()
 }
 
 #[derive(Debug, Clone)]
@@ -566,6 +563,9 @@ impl<C: Config> GnarkBackend<C> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::io::Write;
+
     use p3_baby_bear::BabyBear;
     use p3_field::{extension::BinomialExtensionField, AbstractField};
 
@@ -631,6 +631,11 @@ mod tests {
             phantom: PhantomData,
         };
         let result = backend.compile(builder.operations);
-        println!("{}", result);
+
+        // Write to file.
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = format!("{}/src/gnark/lib/main.go", manifest_dir);
+        let mut file = File::create(path).unwrap();
+        file.write_all(result.as_bytes()).unwrap();
     }
 }
