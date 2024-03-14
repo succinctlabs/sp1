@@ -141,3 +141,35 @@ func (c *BabyBearChip) NegExtension(a *BabyBearExtensionVariable) *BabyBearExten
 	v4 := c.Neg(a.value[3])
 	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{v1, v2, v3, v4}}
 }
+
+func (c *BabyBearChip) InvExtension(a *BabyBearExtensionVariable) *BabyBearExtensionVariable {
+	v := [4]*BabyBearVariable{
+		New(0),
+		New(0),
+		New(0),
+		New(0),
+	}
+	return &BabyBearExtensionVariable{value: v}
+}
+
+func (c *BabyBearChip) AssertEqExtension(a, b *BabyBearExtensionVariable) {
+	c.AssertEq(a.value[0], b.value[0])
+	c.AssertEq(a.value[1], b.value[1])
+	c.AssertEq(a.value[2], b.value[2])
+	c.AssertEq(a.value[3], b.value[3])
+}
+
+func (c *BabyBearChip) AssertNeExtension(a, b *BabyBearExtensionVariable) {
+	v1 := c.field.Sub(a.value[0].value, b.value[0].value)
+	v2 := c.field.Sub(a.value[1].value, b.value[1].value)
+	v3 := c.field.Sub(a.value[2].value, b.value[2].value)
+	v4 := c.field.Sub(a.value[3].value, b.value[3].value)
+	isZero1 := c.field.IsZero(v1)
+	isZero2 := c.field.IsZero(v2)
+	isZero3 := c.field.IsZero(v3)
+	isZero4 := c.field.IsZero(v4)
+	isZero1AndZero2 := c.api.And(isZero1, isZero2)
+	isZero3AndZero4 := c.api.And(isZero3, isZero4)
+	isZeroAll := c.api.And(isZero1AndZero2, isZero3AndZero4)
+	c.api.AssertIsEqual(isZeroAll, frontend.Variable(0))
+}
