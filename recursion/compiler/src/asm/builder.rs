@@ -365,10 +365,6 @@ impl<F: PrimeField32> AsmCompiler<F> {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
-    fn get_block_mut(&mut self, label: F) -> &mut BasicBlock<F> {
-        &mut self.basic_blocks[label.as_canonical_u32() as usize]
-    }
-
     fn push_to_block(&mut self, block_label: F, instruction: AsmInstruction<F>) {
         self.basic_blocks
             .get_mut(block_label.as_canonical_u32() as usize)
@@ -435,7 +431,7 @@ impl<'a, F: PrimeField32> IfCompiler<'a, F> {
         compiler.basic_block();
         then_f(compiler);
         // Generate the jump instruction to the main flow block.
-        let instr = AsmInstruction::j(main_flow_block, compiler);
+        let instr = AsmInstruction::j(main_flow_block);
         compiler.push(instr);
         // Generate the block for the else branch.
         compiler.basic_block();
@@ -483,7 +479,7 @@ pub struct ForCompiler<'a, F> {
 }
 
 impl<'a, F: PrimeField32> ForCompiler<'a, F> {
-    pub(super) fn for_each(mut self, mut f: impl FnOnce(Var<F>, &mut AsmCompiler<F>)) {
+    pub(super) fn for_each(mut self, f: impl FnOnce(Var<F>, &mut AsmCompiler<F>)) {
         // The function block structure:
         // - Setting the loop range
         // - Executing the loop body and incrementing the loop variable
@@ -511,7 +507,7 @@ impl<'a, F: PrimeField32> ForCompiler<'a, F> {
         self.jump_to_loop_body(loop_label);
         // Add a jump instruction to the loop condition in the following block
         let label = self.compiler.block_label();
-        let instr = AsmInstruction::j(label, self.compiler);
+        let instr = AsmInstruction::j(label);
         self.compiler.push_to_block(loop_call_label, instr);
     }
 

@@ -20,6 +20,8 @@ use sp1_core::runtime::MemoryAccessPosition;
 pub(crate) const STACK_SIZE: usize = 1024;
 pub(crate) const MEMORY_SIZE: usize = 1024 * 1024;
 
+pub const D: usize = 4;
+
 #[derive(Debug, Clone, Default)]
 pub struct CpuRecord<F> {
     pub a: Option<MemoryRecord<F>>,
@@ -129,12 +131,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>, Block<F>) {
         let a_ptr = self.fp + instruction.op_a;
         let c_val = if !instruction.imm_c {
-            self.mr(self.fp + instruction.op_c, MemoryAccessPosition::C)
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
         } else {
             Block::from(instruction.op_c)
         };
         let b_val = if !instruction.imm_b {
-            self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B)
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         } else {
             Block::from(instruction.op_b)
         };
@@ -145,7 +147,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         if !instruction.imm_b {
             let a_ptr = self.fp + instruction.op_a;
-            let b = self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B);
+            let b = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
             (a_ptr, b)
         } else {
             let a_ptr = self.fp + instruction.op_a;
@@ -158,7 +160,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         if !instruction.imm_b {
             let a_ptr = self.fp + instruction.op_a;
-            let b = self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B);
+            let b = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
             (a_ptr, b)
         } else {
             let a_ptr = self.fp + instruction.op_a;
@@ -170,11 +172,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
         let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
         let b = if !instruction.imm_b {
-            self.mr(self.fp + instruction.op_b, MemoryAccessPosition::B)
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         } else {
             Block::from(instruction.op_b)
         };
-        let c = instruction.op_c;
+        let c = instruction.op_c[0];
         (a, b, c)
     }
 
@@ -268,23 +270,23 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     }
                 }
                 Opcode::JAL => {
-                    let imm = instruction.op_b;
+                    let imm = instruction.op_b[0];
                     let a_ptr = instruction.op_a + self.fp;
                     self.mw(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
                     next_pc = self.pc + imm;
-                    self.fp += instruction.op_c;
+                    self.fp += instruction.op_c[0];
                     (a, b, c) = (Block::from(a_ptr), Block::default(), Block::default());
                 }
                 Opcode::JALR => {
                     let imm = instruction.op_c;
-                    let b_ptr = instruction.op_b + self.fp;
+                    let b_ptr = instruction.op_b[0] + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
                     let b_val = self.mr(b_ptr, MemoryAccessPosition::B);
                     let c_val = imm;
                     let a_val = Block::from(self.pc + F::one());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     next_pc = b_val.0[0];
-                    self.fp = c_val;
+                    self.fp = c_val[0];
                     (a, b, c) = (a_val, b_val, Block::from(c_val));
                 }
                 Opcode::TRAP => {
