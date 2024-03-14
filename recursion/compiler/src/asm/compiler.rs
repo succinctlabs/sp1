@@ -108,8 +108,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::AddEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EADDI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddEF(dst, lhs, rhs) => todo!(),
-                DslIR::AddEFFI(dst, lhs, rhs) => todo!(),
+                DslIR::AddEF(_dst, _lhs, _rhs) => todo!(),
+                DslIR::AddEFFI(_dst, _lhs, _rhs) => todo!(),
                 DslIR::AddEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EADDI(
                         dst.fp(),
@@ -156,7 +156,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::InvF(dst, src) => {
                     self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivEF(dst, lhs, rhs) => todo!(),
+                DslIR::DivEF(_dst, _lhs, _rhs) => todo!(),
                 DslIR::DivEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EDIVI(
                         dst.fp(),
@@ -190,7 +190,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         rhs.fp(),
                     ));
                 }
-                DslIR::SubEF(dst, lhs, rhs) => todo!(),
+                DslIR::SubEF(_dst, _lhs, _rhs) => todo!(),
                 DslIR::SubEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ESUBI(
                         dst.fp(),
@@ -228,8 +228,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::MulEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EMULI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulEF(dst, lhs, rhs) => todo!(),
-                DslIR::MulEFI(dst, lhs, rhs) => todo!(),
+                DslIR::MulEF(_dst, _lhs, _rhs) => todo!(),
+                DslIR::MulEFI(_dst, _lhs, _rhs) => todo!(),
                 DslIR::IfEq(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
@@ -432,6 +432,22 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     };
                     if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
                 }
+                _ => todo!(),
+            }
+        }
+    }
+
+    pub fn alloc(&mut self, ptr: Var<F>, len: Usize<F>) {
+        // Load the current heap ptr address to the stack value and advance the heap ptr.
+        match len {
+            Usize::Const(len) => {
+                let len = F::from_canonical_usize(len);
+                self.push(AsmInstruction::IMM(ptr.fp(), len));
+                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, len));
+            }
+            Usize::Var(len) => {
+                self.push(AsmInstruction::ADDI(ptr.fp(), len.fp(), F::zero()));
+                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, F::one()));
             }
         }
     }
