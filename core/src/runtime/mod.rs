@@ -810,6 +810,11 @@ impl Runtime {
                 bincode::serialize_into(&mut writer, &state).expect("failed to write");
                 writer.flush().expect("failed to flush");
                 drop(writer);
+
+                // Print size of file
+                let metadata = file.metadata().expect("failed to get metadata");
+                log::info!("file size: {}", metadata.len());
+
                 self.files.push(file);
                 log::info!("wrote to disk");
             }
