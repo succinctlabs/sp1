@@ -23,7 +23,18 @@ type BabyBearVariable struct {
 
 type BabyBearChip struct {
 	api   frontend.API
-	field emulated.Field[BabyBearParams]
+	field *emulated.Field[BabyBearParams]
+}
+
+func NewBabyBearChip(api frontend.API) *BabyBearChip {
+	field, err := emulated.NewField[BabyBearParams](api)
+	if err != nil {
+		panic(err)
+	}
+	return &BabyBearChip{
+		api:   api,
+		field: field,
+	}
 }
 
 func (c *BabyBearChip) Add(a, b *BabyBearVariable) *BabyBearVariable {
