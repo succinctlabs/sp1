@@ -5,10 +5,10 @@ use core::fmt;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;
 
-use crate::builder::Builder;
-use crate::ir::Felt;
 use crate::util::canonical_i32_to_field;
 use p3_field::PrimeField32;
+
+use super::ZERO;
 
 #[derive(Debug, Clone)]
 pub enum AsmInstruction<F> {
@@ -55,81 +55,119 @@ pub enum AsmInstruction<F> {
 }
 
 impl<F: PrimeField32> AsmInstruction<F> {
-    pub fn j<B: Builder<F = F>>(label: F, builder: &mut B) -> Self {
-        let dst = builder.uninit::<Felt<F>>();
-        AsmInstruction::JAL(dst.0, label, F::zero())
+    pub fn j(label: F) -> Self {
+        AsmInstruction::JAL(ZERO, label, F::zero())
     }
 
     pub fn to_machine(self, pc: usize, label_to_pc: &BTreeMap<F, usize>) -> Instruction<F> {
         let i32_f = canonical_i32_to_field::<F>;
-        let f_u32 = |x: F| x.as_canonical_u32();
+        let i32_f_arr = |x: i32| {
+            [
+                canonical_i32_to_field::<F>(x),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+            ]
+        };
+        let f_u32 = |x: F| [x, F::zero(), F::zero(), F::zero()];
+        let zero = [F::zero(), F::zero(), F::zero(), F::zero()];
         match self {
             AsmInstruction::LW(dst, src) => {
-                Instruction::new(Opcode::LW, i32_f(dst), i32_f(src), 0, false, false)
+                Instruction::new(Opcode::LW, i32_f(dst), i32_f_arr(src), zero, false, false)
             }
             AsmInstruction::SW(dst, src) => {
-                Instruction::new(Opcode::SW, i32_f(dst), i32_f(src), 0, false, false)
+                Instruction::new(Opcode::SW, i32_f(dst), i32_f_arr(src), zero, false, false)
             }
             AsmInstruction::IMM(dst, value) => {
-                Instruction::new(Opcode::LW, i32_f(dst), f_u32(value), 0, true, false)
+                Instruction::new(Opcode::LW, i32_f(dst), f_u32(value), zero, true, false)
             }
             AsmInstruction::ADD(dst, lhs, rhs) => Instruction::new(
                 Opcode::ADD,
                 i32_f(dst),
-                i32_f(lhs),
-                i32_f(rhs),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
                 false,
                 false,
             ),
-            AsmInstruction::ADDI(dst, lhs, rhs) => {
-                Instruction::new(Opcode::ADD, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
-            }
+            AsmInstruction::ADDI(dst, lhs, rhs) => Instruction::new(
+                Opcode::ADD,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
             AsmInstruction::SUB(dst, lhs, rhs) => Instruction::new(
                 Opcode::SUB,
                 i32_f(dst),
-                i32_f(lhs),
-                i32_f(rhs),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
                 false,
                 false,
             ),
-            AsmInstruction::SUBI(dst, lhs, rhs) => {
-                Instruction::new(Opcode::SUB, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
-            }
-            AsmInstruction::SUBIN(dst, lhs, rhs) => {
-                Instruction::new(Opcode::SUB, i32_f(dst), f_u32(lhs), i32_f(rhs), true, false)
-            }
+            AsmInstruction::SUBI(dst, lhs, rhs) => Instruction::new(
+                Opcode::SUB,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
+            AsmInstruction::SUBIN(dst, lhs, rhs) => Instruction::new(
+                Opcode::SUB,
+                i32_f(dst),
+                f_u32(lhs),
+                i32_f_arr(rhs),
+                true,
+                false,
+            ),
             AsmInstruction::MUL(dst, lhs, rhs) => Instruction::new(
                 Opcode::MUL,
                 i32_f(dst),
-                i32_f(lhs),
-                i32_f(rhs),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
                 false,
                 false,
             ),
-            AsmInstruction::MULI(dst, lhs, rhs) => {
-                Instruction::new(Opcode::MUL, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
-            }
+            AsmInstruction::MULI(dst, lhs, rhs) => Instruction::new(
+                Opcode::MUL,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
             AsmInstruction::DIV(dst, lhs, rhs) => Instruction::new(
                 Opcode::DIV,
                 i32_f(dst),
-                i32_f(lhs),
-                i32_f(rhs),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
                 false,
                 false,
             ),
-            AsmInstruction::DIVI(dst, lhs, rhs) => {
-                Instruction::new(Opcode::DIV, i32_f(dst), i32_f(lhs), f_u32(rhs), false, true)
-            }
-            AsmInstruction::DIVIN(dst, lhs, rhs) => {
-                Instruction::new(Opcode::DIV, i32_f(dst), f_u32(lhs), i32_f(rhs), true, false)
-            }
+            AsmInstruction::DIVI(dst, lhs, rhs) => Instruction::new(
+                Opcode::DIV,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
+            AsmInstruction::DIVIN(dst, lhs, rhs) => Instruction::new(
+                Opcode::DIV,
+                i32_f(dst),
+                f_u32(lhs),
+                i32_f_arr(rhs),
+                true,
+                false,
+            ),
             AsmInstruction::BEQ(label, lhs, rhs) => {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
                     Opcode::BEQ,
                     i32_f(lhs),
-                    i32_f(rhs),
+                    i32_f_arr(rhs),
                     f_u32(offset),
                     false,
                     true,
@@ -153,7 +191,7 @@ impl<F: PrimeField32> AsmInstruction<F> {
                 Instruction::new(
                     Opcode::BNE,
                     i32_f(lhs),
-                    i32_f(rhs),
+                    i32_f_arr(rhs),
                     f_u32(offset),
                     false,
                     true,
@@ -186,12 +224,14 @@ impl<F: PrimeField32> AsmInstruction<F> {
             AsmInstruction::JALR(dst, label, offset) => Instruction::new(
                 Opcode::JALR,
                 i32_f(dst),
-                i32_f(label),
-                i32_f(offset),
+                i32_f_arr(label),
+                i32_f_arr(offset),
                 false,
                 false,
             ),
-            AsmInstruction::TRAP => Instruction::new(Opcode::TRAP, 0, 0, 0, false, false),
+            AsmInstruction::TRAP => {
+                Instruction::new(Opcode::TRAP, F::zero(), zero, zero, false, false)
+            }
         }
     }
 
