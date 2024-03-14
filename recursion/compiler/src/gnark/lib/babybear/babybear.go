@@ -41,18 +41,18 @@ func NewBabyBearChip(api frontend.API) *BabyBearChip {
 	}
 }
 
-func New(value int) *BabyBearVariable {
+func NewVariable(value int) *BabyBearVariable {
 	variable := emulated.ValueOf[BabyBearParams](value)
 	return &BabyBearVariable{
 		value: &variable,
 	}
 }
 
-func NewExtension(value [4]int) *BabyBearExtensionVariable {
-	a := New(value[0])
-	b := New(value[1])
-	c := New(value[2])
-	d := New(value[3])
+func NewExtensionVariable(value [4]int) *BabyBearExtensionVariable {
+	a := NewVariable(value[0])
+	b := NewVariable(value[1])
+	c := NewVariable(value[2])
+	d := NewVariable(value[3])
 	return &BabyBearExtensionVariable{value: [4]*BabyBearVariable{a, b, c, d}}
 }
 
@@ -113,12 +113,12 @@ func (c *BabyBearChip) SubExtension(a, b *BabyBearExtensionVariable) *BabyBearEx
 }
 
 func (c *BabyBearChip) MulExtension(a, b *BabyBearExtensionVariable) *BabyBearExtensionVariable {
-	w := New(11)
+	w := NewVariable(11)
 	v := [4]*BabyBearVariable{
-		New(0),
-		New(0),
-		New(0),
-		New(0),
+		NewVariable(0),
+		NewVariable(0),
+		NewVariable(0),
+		NewVariable(0),
 	}
 
 	for i := 0; i < 4; i++ {
@@ -144,10 +144,10 @@ func (c *BabyBearChip) NegExtension(a *BabyBearExtensionVariable) *BabyBearExten
 
 func (c *BabyBearChip) InvExtension(a *BabyBearExtensionVariable) *BabyBearExtensionVariable {
 	v := [4]*BabyBearVariable{
-		New(0),
-		New(0),
-		New(0),
-		New(0),
+		NewVariable(0),
+		NewVariable(0),
+		NewVariable(0),
+		NewVariable(0),
 	}
 	return &BabyBearExtensionVariable{value: v}
 }

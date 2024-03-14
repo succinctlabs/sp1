@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::ir::{Config, DslIR};
 
-const GNARK_TEMPLATE: &str = include_str!("primitives/template.txt");
+const GNARK_TEMPLATE: &str = include_str!("lib/template.txt");
 
 pub fn indent(lines: Vec<String>) -> Vec<String> {
     lines
@@ -38,11 +38,21 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::ImmFelt(a, b) => {
                     let operator = self.assign(a.id());
-                    lines.push(format!("{} {} types.Felt({})", a.id(), operator, b));
+                    lines.push(format!(
+                        "{} {} babybear.NewVariable({})",
+                        a.id(),
+                        operator,
+                        b
+                    ));
                 }
                 DslIR::ImmExt(a, b) => {
                     let operator = self.assign(a.id());
-                    lines.push(format!("{} {} types.Ext({})", a.id(), operator, b));
+                    lines.push(format!(
+                        "{} {} babybear.NewExtensionVariable({})",
+                        a.id(),
+                        operator,
+                        b
+                    ));
                 }
                 DslIR::AddV(a, b, c) => {
                     let operator = self.assign(a.id());
@@ -77,7 +87,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::AddFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} fieldChip.Add({}, types.NewFelt({}))",
+                        "{} {} fieldChip.Add({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -87,7 +97,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::AddE(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Add({}, {})",
+                        "{} {} fieldChip.AddExtension({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -97,7 +107,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::AddEI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Add({}, types.NewExt({}))",
+                        "{} {} fieldChip.AddExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -107,7 +117,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::AddEFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.AddFelt({}, types.NewFelt({}))",
+                        "{} {} fieldChip.AddFelt({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -117,7 +127,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::AddEFFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.AddFelt(types.NewExt({}), {})",
+                        "{} {} fieldChip.AddFelt(babybear.NewExtensionVariable({}), {})",
                         a.id(),
                         operator,
                         c,
@@ -127,7 +137,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::AddEF(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.AddFelt({}, {})",
+                        "{} {} fieldChip.AddFelt({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -167,7 +177,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::MulFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} fieldChip.Mul({}, types.NewFelt({}))",
+                        "{} {} fieldChip.Mul({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -177,7 +187,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::MulE(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Mul({}, {})",
+                        "{} {} fieldChip.MulExtension({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -187,7 +197,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::MulEI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Mul({}, types.NewExt({}))",
+                        "{} {} fieldChip.MulExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -197,7 +207,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::MulEFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.MulFelt({}, types.NewFelt({}))",
+                        "{} {} fieldChip.MulFelt({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         c,
@@ -257,7 +267,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} fieldChip.Sub({}, types.NewFelt({}))",
+                        "{} {} fieldChip.Sub({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -267,7 +277,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubFIN(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} fieldChip.Sub(types.NewFelt({}), {})",
+                        "{} {} fieldChip.Sub(babybear.NewVariable({}), {})",
                         a.id(),
                         operator,
                         b,
@@ -277,7 +287,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubE(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Sub({}, {})",
+                        "{} {} fieldChip.SubExtension({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -287,7 +297,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubEI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Sub({}, types.NewExt({}))",
+                        "{} {} fieldChip.SubExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -297,7 +307,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubEIN(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Sub(types.NewExt({}), {})",
+                        "{} {} fieldChip.SubExtension(babybear.NewExtensionVariable({}), {})",
                         a.id(),
                         operator,
                         b,
@@ -307,7 +317,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubEFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.SubFelt({}, types.NewFelt({}))",
+                        "{} {} fieldChip.SubFelt({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         c,
@@ -317,7 +327,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubEFIN(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.SubFelt(types.NewExt({}), {})",
+                        "{} {} fieldChip.SubFelt(babybear.NewExtensionVariable({}), {})",
                         a.id(),
                         operator,
                         b,
@@ -327,7 +337,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::SubEF(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.SubFelt({}, {})",
+                        "{} {} fieldChip.SubFelt({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -347,7 +357,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} fieldChip.Div({}, types.NewFelt({}))",
+                        "{} {} fieldChip.Div({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -357,7 +367,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivFIN(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} fieldChip.Div(types.NewFelt({}), {})",
+                        "{} {} fieldChip.Div(babybear.NewVariable({}), {})",
                         a.id(),
                         operator,
                         b,
@@ -367,7 +377,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivE(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Div({}, {})",
+                        "{} {} fieldChip.DivExtension({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -377,7 +387,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivEI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Div({}, types.NewExt({}))",
+                        "{} {} fieldChip.DivExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
                         operator,
                         b.id(),
@@ -387,7 +397,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivEIN(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Div(types.NewExt({}), {})",
+                        "{} {} fieldChip.DivExtension(babybear.NewExtensionVariable({}), {})",
                         a.id(),
                         operator,
                         b,
@@ -397,7 +407,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivEFI(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.DivFelt({}, types.NewFelt({}))",
+                        "{} {} fieldChip.DivFelt({}, babybear.NewVariable({}))",
                         a.id(),
                         operator,
                         c,
@@ -407,7 +417,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivEFIN(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.DivFelt(types.NewExt({}), {})",
+                        "{} {} fieldChip.DivFelt(babybear.NewExtensionVariable({}), {})",
                         a.id(),
                         operator,
                         b,
@@ -417,7 +427,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::DivEF(a, b, c) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.DivFelt({}, {})",
+                        "{} {} fieldChip.DivFelt({}, {})",
                         a.id(),
                         operator,
                         b.id(),
@@ -435,7 +445,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::NegE(a, b) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Neg({})",
+                        "{} {} fieldChip.NegExtension({})",
                         a.id(),
                         operator,
                         b.id()
@@ -452,7 +462,7 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::InvE(a, b) => {
                     let operator = self.assign(a.id());
                     lines.push(format!(
-                        "{} {} extensionChip.Inv({})",
+                        "{} {} fieldChip.InvExtension({})",
                         a.id(),
                         operator,
                         b.id()
@@ -488,10 +498,18 @@ impl<C: Config> GnarkBackend<C> {
                     lines.push(format!("fieldChip.AssertNe({}, {})", a.id(), b.id()));
                 }
                 DslIR::AssertEqE(a, b) => {
-                    lines.push(format!("extensionChip.AssertEq({}, {})", a.id(), b.id()));
+                    lines.push(format!(
+                        "fieldChip.AssertEqExtension({}, {})",
+                        a.id(),
+                        b.id()
+                    ));
                 }
                 DslIR::AssertNeE(a, b) => {
-                    lines.push(format!("extensionChip.AssertNe({}, {})", a.id(), b.id()));
+                    lines.push(format!(
+                        "fieldChip.AssertNeExtension({}, {})",
+                        a.id(),
+                        b.id()
+                    ));
                 }
                 DslIR::AssertEqVI(a, b) => {
                     lines.push(format!(
@@ -509,28 +527,28 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::AssertEqFI(a, b) => {
                     lines.push(format!(
-                        "fieldChip.AssertEq({}, types.NewFelt({}))",
+                        "fieldChip.AssertEq({}, babybear.NewVariable({}))",
                         a.id(),
                         b
                     ));
                 }
                 DslIR::AssertNeFI(a, b) => {
                     lines.push(format!(
-                        "fieldChip.AssertNe({}, types.NewFelt({}))",
+                        "fieldChip.AssertNe({}, babybear.NewVariable({}))",
                         a.id(),
                         b
                     ));
                 }
                 DslIR::AssertEqEI(a, b) => {
                     lines.push(format!(
-                        "extensionChip.AssertEq({}, types.NewExt({}))",
+                        "fieldChip.AssertEqExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
                         b
                     ));
                 }
                 DslIR::AssertNeEI(a, b) => {
                     lines.push(format!(
-                        "extensionChip.AssertNe({}, types.NewExt({}))",
+                        "fieldChip.AssertNeExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
                         b
                     ));
