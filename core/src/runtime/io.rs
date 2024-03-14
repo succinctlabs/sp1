@@ -94,8 +94,8 @@ pub mod tests {
         let points = points();
         runtime.write_stdin(&points.0);
         runtime.write_stdin(&points.1);
-        runtime.run();
+        let record = runtime.run();
         let config = BabyBearBlake3::new();
-        prove_core(config, runtime);
+        prove_core(config, runtime, record);
     }
 }

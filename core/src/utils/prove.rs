@@ -1,7 +1,9 @@
 use std::time::Instant;
 
+use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::RiscvAir;
 use crate::utils::poseidon2_instance::RC_16_30;
+use crate::utils::virtualize::InMemoryWrapper;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
@@ -33,24 +35,25 @@ pub fn get_cycles(program: Program) -> u64 {
 }
 
 pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let record = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.run();
-        runtime
+        let record = runtime.run();
+        record
     });
     let config = BabyBearBlake3::new();
-    prove_core(config, runtime)
+    prove_core(config, record)
 }
 
 #[cfg(test)]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    use crate::runtime::ShardingConfig;
 
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+    let (runtime, record) = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.run();
-        runtime
+        let record = runtime.run();
+        (runtime, record)
     });
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
@@ -58,9 +61,16 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let mut challenger = machine.config().challenger();
 
     let start = Instant::now();
-    let record_clone = runtime.record.clone();
+    let record_clone = record.clone();
+    let virtualized = InMemoryWrapper::new(record);
+    let shard_config = ShardingConfig::default();
+    let shards = machine
+        .shard(record, &shard_config)
+        .into_iter()
+        .map(InMemoryWrapper::new)
+        .collect::<Vec<_>>();
     let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_, _>, _>(&pk, shards, &mut challenger));
 
     #[cfg(not(feature = "perf"))]
     assert!(debug_interactions_with_all_chips::<
@@ -96,7 +106,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
 
 pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     config: SC,
-    runtime: Runtime,
+    record: ExecutionRecord,
 ) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
@@ -111,12 +121,19 @@ where
     let start = Instant::now();
 
     let machine = RiscvAir::machine(config);
-    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let (pk, _) = machine.setup(record.program.as_ref());
 
     // Prove the program.
-    let cycles = runtime.state.global_clk;
+    let cycles = record.cpu_events.len() as u64;
+    let shard_config = ShardingConfig::default();
+    let shards = machine
+        .shard(record, &shard_config)
+        .into_iter()
+        .map(InMemoryWrapper::new)
+        .collect::<Vec<_>>();
+
     let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_, _>, _>(&pk, shards, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 

@@ -6,6 +6,7 @@ mod poseidon2_instance;
 mod programs;
 mod prove;
 mod tracer;
+pub mod virtualize;
 
 pub use buffer::*;
 pub use logger::*;

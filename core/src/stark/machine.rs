@@ -6,6 +6,7 @@ use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::VerifierConstraintFolder;
+use crate::utils::virtualize::Virtualize;
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
@@ -107,10 +108,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC, A>>(
+    pub fn prove<P: Prover<SC, A>, V: Virtualize<A::Record> + Send + Sync>(
         &self,
         pk: &ProvingKey<SC>,
-        record: A::Record,
+        shards: Vec<V>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
@@ -119,9 +120,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
-        tracing::debug!("sharding the execution record");
-        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
-
         tracing::debug!("generating the shard proofs");
         P::prove_shards(self, pk, shards, challenger)
     }

@@ -4,6 +4,7 @@ use crate::lookup::InteractionBuilder;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
+use crate::utils::virtualize::Virtualize;
 use itertools::izip;
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
@@ -42,10 +43,10 @@ fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
 }
 
 pub trait Prover<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
-    fn prove_shards(
+    fn prove_shards<V: Virtualize<A::Record> + Send + Sync>(
         machine: &MachineStark<SC, A>,
         pk: &ProvingKey<SC>,
-        shards: Vec<A::Record>,
+        shards: Vec<V>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
@@ -66,10 +67,10 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     A: MachineAir<SC::Val>,
 {
-    fn prove_shards(
+    fn prove_shards<V>(
         machine: &MachineStark<SC, A>,
         pk: &ProvingKey<SC>,
-        shards: Vec<A::Record>,
+        mut shards: Vec<V>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
@@ -77,9 +78,10 @@ where
             + Air<InteractionBuilder<SC::Val>>
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+        V: Virtualize<A::Record> + Send + Sync,
     {
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &mut shards);
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
@@ -104,40 +106,49 @@ where
                 .into_par_iter()
                 .zip(shard_chunks.into_par_iter())
                 .enumerate()
-                .map(|(i, (datas, shards))| {
-                    datas
-                        .into_iter()
-                        .zip(shards)
-                        .enumerate()
-                        .map(|(j, (data, shard))| {
-                            let start = Instant::now();
-                            let idx = i * chunk_size + j;
-                            let data = if reconstruct_commitments {
-                                Self::commit_main(config, machine, &shard, idx)
-                            } else {
-                                data.materialize()
-                                    .expect("failed to materialize shard main data")
-                            };
-                            let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
-                            let proof = Self::prove_shard(
-                                config,
-                                pk,
-                                &chips,
-                                data,
-                                &mut challenger.clone(),
-                            );
-                            finished.fetch_add(1, Ordering::Relaxed);
-                            log::info!(
-                                "> open shards ({}/{}): shard = {}, time = {:.2} secs",
-                                finished.load(Ordering::Relaxed),
-                                total,
-                                idx,
-                                start.elapsed().as_secs_f64()
-                            );
-                            proof
-                        })
-                        .collect::<Vec<_>>()
-                })
+                .map(
+                    |(i, (datas, shards)): (usize, (Vec<ShardMainDataWrapper<SC>>, Vec<V>))| {
+                        datas
+                            .into_iter()
+                            .zip(shards.into_iter())
+                            .enumerate()
+                            .map(
+                                |(j, (data, mut virtual_shard)): (
+                                    _,
+                                    (ShardMainDataWrapper<SC>, V),
+                                )| {
+                                    let start = Instant::now();
+                                    let idx = i * chunk_size + j;
+                                    let shard = virtual_shard.materialize();
+                                    let data = if reconstruct_commitments {
+                                        Self::commit_main(config, machine, &shard, idx)
+                                    } else {
+                                        data.materialize()
+                                            .expect("failed to materialize shard main data")
+                                    };
+                                    let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                                    let proof = Self::prove_shard(
+                                        config,
+                                        pk,
+                                        &chips,
+                                        data,
+                                        &mut challenger.clone(),
+                                    );
+                                    virtual_shard.revirtualize(shard);
+                                    finished.fetch_add(1, Ordering::Relaxed);
+                                    log::info!(
+                                        "> open shards ({}/{}): shard = {}, time = {:.2} secs",
+                                        finished.load(Ordering::Relaxed),
+                                        total,
+                                        idx,
+                                        start.elapsed().as_secs_f64()
+                                    );
+                                    proof
+                                },
+                            )
+                            .collect::<Vec<_>>()
+                    },
+                )
                 .flatten()
                 .collect::<Vec<_>>()
         });
@@ -469,9 +480,9 @@ where
         };
     }
 
-    fn commit_shards<F, EF>(
+    fn commit_shards<F, EF, V>(
         machine: &MachineStark<SC, A>,
-        shards: &[A::Record],
+        shards: &mut [V],
     ) -> (
         Vec<<SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment>,
         Vec<ShardMainDataWrapper<SC>>,
@@ -484,6 +495,8 @@ where
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
+        A: MachineAir<F>,
+        V: Virtualize<<A as MachineAir<F>>::Record> + Send + Sync,
     {
         let config = machine.config();
         let num_shards = shards.len();
@@ -499,16 +512,18 @@ where
             tracing::debug_span!("commit shards").in_scope(|| {
                 let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
-                    .par_chunks(chunk_size)
+                    .par_chunks_mut(chunk_size)
                     .enumerate()
                     .map(|(i, shard_batch)| {
                         shard_batch
-                            .iter()
+                            .into_iter()
                             .enumerate()
-                            .map(|(j, shard)| {
+                            .map(|(j, mut virtual_shard)| {
                                 let index = i * chunk_size + j;
                                 let start = Instant::now();
-                                let data = Self::commit_main(config, machine, shard, index);
+                                let shard = virtual_shard.materialize();
+                                let data = Self::commit_main(config, machine, &shard, index);
+                                virtual_shard.revirtualize(shard);
                                 finished.fetch_add(1, Ordering::Relaxed);
                                 log::info!(
                                     "> commit shards ({}/{}): shard = {}, time = {:.2} secs",

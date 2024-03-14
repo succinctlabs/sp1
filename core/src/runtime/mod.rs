@@ -31,6 +31,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::rc::Rc;
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// An implementation of a runtime for the SP1 VM.
@@ -751,8 +752,14 @@ impl Runtime {
         );
     }
 
+    pub fn run(&mut self) -> ExecutionRecord {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.run_with_options(tx, false);
+        rx.recv().unwrap()
+    }
+
     /// Execute the program.
-    pub fn run(&mut self) {
+    pub fn run_with_options(&mut self, record_stream: Sender<ExecutionRecord>, should_emit: bool) {
         let max_syscall_cycles = self.max_syscall_cycles();
         self.state.clk = 1;
 
@@ -791,6 +798,12 @@ impl Runtime {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
             }
+
+            if !self.unconstrained && should_emit && self.state.global_clk % (1 << 27) == 0 {
+                let shard = std::mem::take(&mut self.record);
+                self.record.index = shard.index + 1;
+                record_stream.send(shard).unwrap();
+            }
         }
 
         tracing::info!(
@@ -820,6 +833,9 @@ impl Runtime {
         // Call postprocess to set up all variables needed for global accounts, like memory
         // argument or any other deferred tables.
         self.postprocess();
+
+        let record = std::mem::take(&mut self.record);
+        record_stream.send(record).unwrap();
     }
 
     fn postprocess(&mut self) {
