@@ -28,8 +28,8 @@ use nohash_hasher::BuildNoHashHasher;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Write;
-use std::io::{BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, SeekFrom};
+use std::io::{Seek, Write};
 use std::os::unix::fs::MetadataExt;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -58,7 +58,7 @@ pub struct Runtime {
     pub shard_size: u32,
 
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: HashMap<String, (u32, u32)>,
+    pub cycle_tracker: HashMap<String, (u64, u32)>,
 
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
@@ -805,7 +805,7 @@ impl Runtime {
 
             if self.state.global_clk % (1 << 27) == 0 {
                 log::info!("writing to disk");
-                let file = tempfile::tempfile().expect("failed to get tempfile");
+                let mut file = tempfile::tempfile().expect("failed to get tempfile");
                 let mut writer = BufWriter::new(&file);
                 bincode::serialize_into(&mut writer, &self.state).expect("failed to write");
                 writer.flush().expect("failed to flush");
@@ -816,6 +816,7 @@ impl Runtime {
                 log::info!("file size: {}", metadata.len());
 
                 // now read it back
+                file.seek(SeekFrom::Start(0)).expect("failed to seek");
                 let mut reader = BufReader::new(&file);
                 let state: ExecutionState =
                     bincode::deserialize_from(&mut reader).expect("failed to read");
