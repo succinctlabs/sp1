@@ -130,52 +130,70 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     /// Fetch the destination address and input operand values for an ALU instruction.
     fn alu_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>, Block<F>) {
         let a_ptr = self.fp + instruction.op_a;
-        let c_val = if !instruction.imm_c {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
-        } else {
+
+        let c_val = if instruction.imm_c {
+            Block::from(instruction.op_c[0])
+        } else if instruction.imm_ext_c {
             instruction.op_c
-        };
-        let b_val = if !instruction.imm_b {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         } else {
-            instruction.op_b
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
         };
+
+        let b_val = if instruction.imm_b {
+            Block::from(instruction.op_b[0])
+        } else if instruction.imm_ext_b {
+            instruction.op_b
+        } else {
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
+        };
+
         (a_ptr, b_val, c_val)
     }
 
     /// Fetch the destination address input operand values for a load instruction (from heap).
     fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        if !instruction.imm_b {
+        if instruction.imm_b {
             let a_ptr = self.fp + instruction.op_a;
-            let b = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
+            let b = Block::from(instruction.op_b[0]);
+            (a_ptr, b)
+        } else if instruction.imm_ext_b {
+            let a_ptr = self.fp + instruction.op_a;
+            let b = instruction.op_b;
             (a_ptr, b)
         } else {
             let a_ptr = self.fp + instruction.op_a;
-            let b = instruction.op_b;
+            let b = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
             (a_ptr, b)
         }
     }
 
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        if !instruction.imm_b {
+        if instruction.imm_b {
+            let a_ptr = self.fp + instruction.op_a;
+            let b_val = Block::from(instruction.op_b[0]);
+            (a_ptr, b_val)
+        } else if instruction.imm_ext_b {
+            let a_ptr = self.fp + instruction.op_a;
+            (a_ptr, instruction.op_b)
+        } else {
             let a_ptr = self.fp + instruction.op_a;
             let b = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
             (a_ptr, b)
-        } else {
-            let a_ptr = self.fp + instruction.op_a;
-            (a_ptr, instruction.op_b)
         }
     }
 
     /// Fetch the input operand values for a branch instruction.
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
         let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
-        let b = if !instruction.imm_b {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
-        } else {
+        let b = if instruction.imm_b {
+            Block::from(instruction.op_b[0])
+        } else if instruction.imm_ext_b {
             instruction.op_b
+        } else {
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         };
+
         let c = instruction.op_c[0];
         (a, b, c)
     }
@@ -215,28 +233,28 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EAdd => {
+                Opcode::EADD => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(sum.as_base_slice());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EMul => {
+                Opcode::EMUL => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(product.as_base_slice());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::ESub => {
+                Opcode::ESUB => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EDiv => {
+                Opcode::EDIV => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());
@@ -266,6 +284,20 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                     if a.0[0] != b.0[0] {
+                        next_pc = self.pc + c_offset;
+                    }
+                }
+                Opcode::EBEQ => {
+                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                    if a == b {
+                        next_pc = self.pc + c_offset;
+                    }
+                }
+                Opcode::EBNE => {
+                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                    if a != b {
                         next_pc = self.pc + c_offset;
                     }
                 }
