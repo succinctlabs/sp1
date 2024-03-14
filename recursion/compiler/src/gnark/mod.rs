@@ -546,6 +546,7 @@ impl<C: Config> GnarkBackend<C> {
                         b
                     ));
                 }
+                _ => todo!(),
             };
         }
         lines

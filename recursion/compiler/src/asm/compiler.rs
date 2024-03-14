@@ -1,5 +1,6 @@
 use core::marker::PhantomData;
 
+use super::Ptr;
 use super::{AssemblyCode, BasicBlock};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -432,6 +433,22 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     };
                     if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
                 }
+                _ => todo!(),
+            }
+        }
+    }
+
+    pub fn alloc(&mut self, ptr: Var<F>, len: Usize<F>) {
+        // Load the current heap ptr address to the stack value and advance the heap ptr.
+        match len {
+            Usize::Const(len) => {
+                let len = F::from_canonical_usize(len);
+                self.push(AsmInstruction::IMM(ptr.fp(), len));
+                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, len));
+            }
+            Usize::Var(len) => {
+                self.push(AsmInstruction::ADDI(ptr.fp(), len.fp(), F::zero()));
+                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, F::one()));
             }
         }
     }

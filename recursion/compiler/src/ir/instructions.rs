@@ -1,3 +1,5 @@
+use super::Ptr;
+
 use super::{Config, Ext, Felt, Usize, Var};
 
 #[derive(Debug, Clone)]
@@ -5,6 +7,8 @@ pub enum DslIR<C: Config> {
     Imm(Var<C::N>, C::N),
     ImmFelt(Felt<C::F>, C::F),
     ImmExt(Ext<C::F, C::EF>, C::EF),
+
+    // Arithmetic instructions.
     AddV(Var<C::N>, Var<C::N>, Var<C::N>),
     AddVI(Var<C::N>, Var<C::N>, C::N),
     AddF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
@@ -66,4 +70,19 @@ pub enum DslIR<C: Config> {
     AssertNeFI(Felt<C::F>, C::F),
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
+    // Memory instructions.
+    /// Allocate (ptr, len, size) allocated a memory slice of length `len * size`
+    Alloc(Ptr<C::N>, Usize<C::N>, usize),
+    /// Load variable (var, ptr, offset)
+    LoadV(Var<C::N>, Ptr<C::N>, Usize<C::N>),
+    /// Load field element (var, ptr, offset)
+    LoadF(Felt<C::F>, Ptr<C::N>, Usize<C::N>),
+    /// Load extension field
+    LoadE(Ext<C::F, C::EF>, Ptr<C::N>, Usize<C::N>),
+    /// Store variable
+    StoreV(Var<C::N>, Ptr<C::N>, Usize<C::N>),
+    /// Store field element
+    StoreF(Felt<C::F>, Ptr<C::N>, Usize<C::N>),
+    /// Store extension field
+    StoreE(Ext<C::F, C::EF>, Ptr<C::N>, Usize<C::N>),
 }
