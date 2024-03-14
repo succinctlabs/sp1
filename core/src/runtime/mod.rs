@@ -806,8 +806,7 @@ impl Runtime {
                 log::info!("writing to disk");
                 let file = tempfile::tempfile().expect("failed to get tempfile");
                 let mut writer = BufWriter::new(&file);
-                let state = std::mem::take(&mut self.state);
-                bincode::serialize_into(&mut writer, &state).expect("failed to write");
+                bincode::serialize_into(&mut writer, &self.state).expect("failed to write");
                 writer.flush().expect("failed to flush");
                 drop(writer);
 
