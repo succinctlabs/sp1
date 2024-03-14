@@ -57,6 +57,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bn254-double-test"
+version = "0.1.0"
+dependencies = [
+ "hex-literal",
+ "num",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -407,15 +416,6 @@ dependencies = [
  "pkcs8",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "secp256k1-double-test"
-version = "0.1.0"
-dependencies = [
- "hex-literal",
- "num",
- "sp1-zkvm",
 ]
 
 [[package]]

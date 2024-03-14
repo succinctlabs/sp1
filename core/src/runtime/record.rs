@@ -13,7 +13,6 @@ use crate::runtime::MemoryRecord;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
-use crate::syscall::precompiles::bn254::BN254PrecompileEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
@@ -82,8 +81,6 @@ pub struct ExecutionRecord {
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
-
-    pub bn254_precompile_events: Vec<BN254PrecompileEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
@@ -387,11 +384,6 @@ impl MachineRecord for ExecutionRecord {
 
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
-
-        // Simple precompiel events.
-        first
-            .bn254_precompile_events
-            .extend_from_slice(&self.bn254_precompile_events);
 
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups = std::mem::take(&mut self.byte_lookups);

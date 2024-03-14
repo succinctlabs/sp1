@@ -67,9 +67,8 @@ pub enum SyscallCode {
     /// Executes a bn254 double.
     BN254_DOUBLE = 114,
 
-    /// Executes a bn254 decompress.
-    BN254_DECOMPRESS = 115,
-
+    // /// Executes a bn254 decompress.
+    // BN254_DECOMPRESS = 115,
     WRITE = 999,
 }
 
@@ -92,7 +91,7 @@ impl SyscallCode {
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
             107 => SyscallCode::BN254_ADD,
             108 => SyscallCode::BN254_DOUBLE,
-            109 => SyscallCode::BN254_DECOMPRESS,
+            // 109 => SyscallCode::BN254_DECOMPRESS,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -238,10 +237,6 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::BN254_DOUBLE,
         Rc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
     );
-    // syscall_map.insert(
-    //     SyscallCode::BN254_DECOMPRESS,
-    //     Rc::new(BN254DecompressChip::default()),
-    // );
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),

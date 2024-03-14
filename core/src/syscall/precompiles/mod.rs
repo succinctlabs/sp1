@@ -1,5 +1,4 @@
 pub mod blake3;
-pub mod bn254;
 pub mod edwards;
 pub mod k256;
 pub mod keccak256;
@@ -47,7 +46,9 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
         panic!();
     }
 
+    // 只读不证
     let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
+    // 读 + 证
     let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);
     let q_memory_records = q_memory_records_vec.try_into().unwrap();
     let q: [u32; 16] = q_vec.try_into().unwrap();
@@ -59,6 +60,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
     let result_affine = p_affine + q_affine;
     let result_words = result_affine.to_words_le();
 
+    // 写 + 证
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
 
     rt.clk += 4;

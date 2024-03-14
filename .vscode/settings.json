@@ -55,6 +55,8 @@
         "tests/sha-compress/Cargo.toml",
         "tests/sha-extend/Cargo.toml",
         "tests/sha2/Cargo.toml",
+        "tests/bn254-add/Cargo.toml",
+        "tests/bn254-double/Cargo.toml",
         // Eval.
         "eval/Cargo.toml"
     ],

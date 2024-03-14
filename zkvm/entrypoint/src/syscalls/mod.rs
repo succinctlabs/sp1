@@ -1,4 +1,5 @@
 mod blake3_compress;
+mod bn254;
 mod ed25519;
 mod halt;
 mod io;
@@ -10,6 +11,7 @@ mod sha_extend;
 mod sys;
 mod unconstrained;
 
+pub use bn254::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -60,8 +62,11 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
 
-/// Executes a bn254 precompile.
-pub const BN254_PRECOMPILE: u32 = 113;
+/// Executes a bn254 add.
+pub const BN254_ADD: u32 = 113;
+
+/// Executes a bn254 double.
+pub const BN254_DOUBLE: u32 = 114;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;

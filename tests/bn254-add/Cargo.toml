@@ -1,7 +1,7 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "secp256k1-add-test"
+name = "bn254-add-test"
 edition = "2021"
 
 [dependencies]

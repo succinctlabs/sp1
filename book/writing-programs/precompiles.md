@@ -106,12 +106,3 @@ pub extern "C" fn syscall_bn254_double(p: *mut u32)
 ```
 
 #### Bn254 Decompress
-
-Decompess a Bn254 point. 
-
-The input array should be 32 bytes long, with the first 16 bytes containing the X coordinate in
-big-endian format. The second half of the input will be overwritten with the decompressed point.
-
-```rust,noplayground
-pub extern "C" fn syscall_bn254_decompress(point: &mut [u8; 64], is_odd: bool);
-```

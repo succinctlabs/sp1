@@ -47,20 +47,3 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
-
-/// Simple precompile syscall
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn syscall_bn254_precompile(p: *mut u32) {
-    #[cfg(target_os = "zkvm")]
-    unsafe {
-        asm!(
-            "ecall",
-            in("t0") crate::syscalls::BN254_PRECOMPILE_ELF,
-            in("a0") p,
-        );
-    }
-
-    #[cfg(not(target_os = "zkvm"))]
-    unreachable!();
-}
