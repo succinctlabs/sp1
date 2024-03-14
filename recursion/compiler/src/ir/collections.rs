@@ -1,55 +1,50 @@
-use std::marker::PhantomData;
-
 use super::{Builder, Config, MemVariable, Ptr, Usize};
 
-pub enum Slice<C: Config, T> {
+pub enum Array<C: Config, T> {
     Fixed(Vec<T>),
-    Vec(Vector<C, T>),
+    Dyn(Ptr<C::N>, Usize<C::N>),
 }
 
-#[allow(dead_code)]
-pub struct Vector<C: Config, T> {
-    ptr: Ptr<C::N>,
-    len: Usize<C::N>,
-    cap: Usize<C::N>,
-    _marker: PhantomData<T>,
-}
-
-impl<C: Config, V: MemVariable<C>> Vector<C, V> {
+impl<C: Config, V: MemVariable<C>> Array<C, V> {
     pub fn len(&self) -> Usize<C::N> {
-        self.len
+        match self {
+            Self::Fixed(vec) => Usize::from(vec.len()),
+            Self::Dyn(_, len) => *len,
+        }
     }
 }
 
 impl<C: Config> Builder<C> {
-    pub fn vec<V: MemVariable<C>, I: Into<Usize<C::N>>>(&mut self, cap: I) -> Vector<C, V> {
-        let cap = cap.into();
-        Vector {
-            ptr: self.alloc(cap, V::size_of()),
-            len: Usize::from(0),
-            cap,
-            _marker: PhantomData,
+    /// Initialize an array of fixed length `len`. The entries will be uninitialized.
+    pub fn array<V: MemVariable<C>, I: Into<Usize<C::N>>>(&mut self, len: I) -> Array<C, V> {
+        let len = len.into();
+        match len {
+            Usize::Const(len) => Array::Fixed(vec![self.uninit::<V>(); len]),
+            Usize::Var(_) => {
+                let ptr = self.alloc(len, V::size_of());
+                Array::Dyn(ptr, len)
+            }
         }
     }
 
     pub fn get<V: MemVariable<C>, I: Into<Usize<C::N>>>(
         &mut self,
-        slice: &Slice<C, V>,
+        slice: &Array<C, V>,
         index: I,
     ) -> V {
         let index = index.into();
 
         match slice {
-            Slice::Fixed(slice) => {
+            Array::Fixed(slice) => {
                 if let Usize::Const(idx) = index {
                     slice[idx]
                 } else {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }
             }
-            Slice::Vec(slice) => {
+            Array::Dyn(ptr, _) => {
                 let var = self.uninit();
-                self.load(var, slice.ptr, index);
+                self.load(var, *ptr, index);
                 var
             }
         }
@@ -57,22 +52,22 @@ impl<C: Config> Builder<C> {
 
     pub fn set<V: MemVariable<C>, I: Into<Usize<C::N>>>(
         &mut self,
-        slice: &mut Slice<C, V>,
+        slice: &mut Array<C, V>,
         index: I,
         value: V,
     ) {
         let index = index.into();
 
         match slice {
-            Slice::Fixed(slice) => {
+            Array::Fixed(slice) => {
                 if let Usize::Const(idx) = index {
                     slice[idx] = value;
                 } else {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }
             }
-            Slice::Vec(slice) => {
-                self.store(slice.ptr, index, value);
+            Array::Dyn(ptr, _) => {
+                self.store(*ptr, index, value);
             }
         }
     }
