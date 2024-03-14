@@ -151,7 +151,9 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         let mut rows: Vec<[F; NUM_KECCAK_COLS + NUM_KECCAK_MEM_COLS]> = vec![];
         for mut row_and_record in rows_and_records {
             rows.extend(row_and_record.0);
-            output.append(&mut row_and_record.1);
+            let mut record = &mut row_and_record.1;
+            record.index = output.index;
+            output.append(&mut record);
         }
 
         // Convert the trace to a row major matrix.

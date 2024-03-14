@@ -145,11 +145,16 @@ where
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
             let mut output = ExecutionRecord::default();
-            output.set_index(record.index());
             chip.generate_dependencies(&record, &mut output);
+            output.set_index(record.index());
             record.append(&mut output);
         });
-        shards.push(TempFileWrapper::wrap(record));
+        let mut new_shards = record
+            .shard(&ShardingConfig::default())
+            .into_iter()
+            .map(TempFileWrapper::wrap)
+            .collect::<Vec<_>>();
+        shards.append(&mut new_shards);
     }
 
     let stdout = r_result.recv().unwrap();
