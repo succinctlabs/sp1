@@ -6,7 +6,7 @@ use core::arch::asm;
 /// The result is stored in the first point.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_bn254_add(p: *mut u32, q: *mut u32) {
+pub extern "C" fn syscall_bn254_add(p: *mut u32, q: *const u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
