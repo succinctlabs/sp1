@@ -187,3 +187,7 @@ func (c *Chip) SelectExtension(cond frontend.Variable, a, b *ExtensionVariable) 
 	v4 := c.Select(cond, a.value[3], b.value[3])
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
+
+func (c *Chip) Num2Bits(a *Variable, n int) []frontend.Variable {
+	return c.field.ToBits(a.value)
+}

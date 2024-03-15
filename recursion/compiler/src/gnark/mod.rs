@@ -1,7 +1,10 @@
-use core::marker::PhantomData;
+use core::{marker::PhantomData, panic};
 use std::collections::HashMap;
 
-use crate::ir::{Config, DslIR};
+use crate::{
+    ir::{Config, DslIR},
+    prelude::Array,
+};
 
 const GNARK_TEMPLATE: &str = include_str!("lib/template.txt");
 
@@ -615,6 +618,24 @@ impl<C: Config> GnarkBackend<C> {
                         b
                     ));
                 }
+                DslIR::Num2Bits(bits, a, num_bits) => match bits {
+                    Array::Fixed(bits) => {
+                        let bit_slice = self.alloc();
+                        let operator = self.assign(bit_slice.clone());
+                        lines.push(format!(
+                            "{} {} fieldChip.ToBits({})",
+                            bit_slice,
+                            operator,
+                            a.id()
+                        ));
+                        for (i, bit) in bits.iter().enumerate() {
+                            lines.push(format!("{} = {}[{}]", bit.id(), bit_slice, i));
+                        }
+                    }
+                    Array::Dyn(_, _) => {
+                        panic!("Array::Dyn not supported for num 2 bits")
+                    }
+                },
                 _ => todo!(),
             };
         }
