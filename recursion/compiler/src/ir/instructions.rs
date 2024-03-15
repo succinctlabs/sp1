@@ -71,18 +71,18 @@ pub enum DslIR<C: Config> {
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
     // Memory instructions.
-    /// Allocate (ptr, len, size) allocated a memory slice of length `len * size`
-    Alloc(Ptr<C::N>, Usize<C::N>, usize),
-    /// Load variable (var, ptr, offset)
-    LoadV(Var<C::N>, Ptr<C::N>, Usize<C::N>),
-    /// Load field element (var, ptr, offset)
-    LoadF(Felt<C::F>, Ptr<C::N>, Usize<C::N>),
+    /// Allocate (ptr, len) a memory slice of length len
+    Alloc(Ptr<C::N>, Usize<C::N>),
+    /// Load variable (var, ptr)
+    LoadV(Var<C::N>, Ptr<C::N>),
+    /// Load field element (var, ptr)
+    LoadF(Felt<C::F>, Ptr<C::N>),
     /// Load extension field
-    LoadE(Ext<C::F, C::EF>, Ptr<C::N>, Usize<C::N>),
-    /// Store variable
-    StoreV(Var<C::N>, Ptr<C::N>, Usize<C::N>),
-    /// Store field element
-    StoreF(Felt<C::F>, Ptr<C::N>, Usize<C::N>),
-    /// Store extension field
-    StoreE(Ext<C::F, C::EF>, Ptr<C::N>, Usize<C::N>),
+    LoadE(Ext<C::F, C::EF>, Ptr<C::N>),
+    /// Store variable at address
+    StoreV(Ptr<C::N>, Var<C::N>),
+    /// Store field element at adress
+    StoreF(Ptr<C::N>, Felt<C::F>),
+    /// Store extension field at adress
+    StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
 }
