@@ -59,6 +59,11 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
         });
 
         // Add the dependency events to the shard.
+        for (_, value) in new_alu_events.iter_mut() {
+            value.sort_unstable_by_key(|event| event.clk);
+        }
+        new_blu_events.sort_unstable_by_key(|event| event.a1);
+        new_field_events.sort_unstable_by_key(|event| event.b);
         output.add_alu_events(new_alu_events);
         output.add_byte_lookup_events(new_blu_events);
         output.add_field_events(&new_field_events);
@@ -97,10 +102,15 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
         events
             .into_iter()
-            .for_each(|(alu_events, blu_events, field_events)| {
+            .for_each(|(mut alu_events, mut blu_events, mut field_events)| {
+                for (_, value) in alu_events.iter_mut() {
+                    value.sort_unstable_by_key(|event| event.clk);
+                }
                 // Add the dependency events to the shard.
                 output.add_alu_events(alu_events);
+                blu_events.sort_unstable_by_key(|event| event.a1);
                 output.add_byte_lookup_events(blu_events);
+                field_events.sort_unstable_by_key(|event| event.b);
                 output.add_field_events(&field_events);
             });
     }

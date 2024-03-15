@@ -19,6 +19,7 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
@@ -252,7 +253,8 @@ impl MachineRecord for ExecutionRecord {
             let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
             let start = index * config.shard_size;
             let shard = &mut shards[index];
-            shard.index = self.index + index as u32 + 1;
+            // shard.index = self.index + index as u32 + 1;
+            shard.index = index as u32 + 1;
             shard.cpu_events = self.cpu_events.split_off(start);
             shard.program = self.program.clone();
         }
@@ -436,7 +438,8 @@ impl ExecutionRecord {
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
-        for opcode in alu_events.keys() {
+        let keys = alu_events.keys().sorted();
+        for opcode in keys {
             match opcode {
                 Opcode::ADD => {
                     self.add_events.extend_from_slice(&alu_events[opcode]);
