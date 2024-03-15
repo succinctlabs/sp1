@@ -17,8 +17,8 @@ use crate::memory::MemoryRecord;
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
 
-pub const STACK_SIZE: usize = 1024;
-pub const MEMORY_SIZE: usize = 1024 * 1024;
+pub const STACK_SIZE: usize = 1 << 20;
+pub const MEMORY_SIZE: usize = 1 << 26;
 
 pub const D: usize = 4;
 

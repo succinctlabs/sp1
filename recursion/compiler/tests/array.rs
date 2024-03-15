@@ -14,7 +14,7 @@ fn test_compiler_array() {
     let mut builder = VmBuilder::<F, EF>::default();
 
     // Sum all the values of an array.
-    let len: usize = 2;
+    let len: usize = 1000;
     let mut rng = thread_rng();
 
     let mut static_array = builder.array::<Var<_>, _>(len);
