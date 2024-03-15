@@ -1,0 +1,26 @@
+[package]
+edition = "2021"
+name = "sp1-recursion-verifier"
+version = "0.1.0"
+
+[dependencies]
+sp1-recursion-compiler = { path = "../compiler" }
+sp1-recursion-core = { path = "../core" }
+
+p3-field = { workspace = true }
+
+
+[dev-dependencies]
+p3-baby-bear = { workspace = true }
+p3-challenger = { workspace = true }
+p3-commit = { workspace = true }
+p3-dft = { workspace = true }
+p3-fri = { workspace = true }
+p3-matrix = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-uni-stark = { workspace = true }
+
+rand = "0.8"
+serde_json = "1.0"

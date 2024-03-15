@@ -116,6 +116,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
                 opened_values.clone().into_values(),
                 opening_proof,
                 challenger,
+                SC::Challenge::zero(),
+                vec![],
+                vec![],
             )
             .map_err(|_| VerificationError::InvalidopeningArgument)?;
 

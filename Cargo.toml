@@ -8,6 +8,7 @@ members = [
     "eval",
     "recursion/core",
     "recursion/compiler",
+    "recursion/verifier",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -24,22 +25,42 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-field = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-commit = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-util = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-dft = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-fri = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-blake3 = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-mds = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }
-p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-air = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-field = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-commit = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-matrix = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-util = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-challenger = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-dft = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-fri = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-keccak = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-blake3 = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-mds = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-symmetric = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3.git" }
+#p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3.git" }
+
+p3-air = { path = "../plonky3_verify_fri_proof/air" }
+p3-field = { path = "../plonky3_verify_fri_proof/field" }
+p3-commit = { path = "../plonky3_verify_fri_proof/commit" }
+p3-matrix = { path = "../plonky3_verify_fri_proof/matrix" }
+p3-baby-bear = { path = "../plonky3_verify_fri_proof/baby-bear" }
+p3-util = { path = "../plonky3_verify_fri_proof/util" }
+p3-challenger = { path = "../plonky3_verify_fri_proof/challenger" }
+p3-dft = { path = "../plonky3_verify_fri_proof/dft" }
+p3-fri = { path = "../plonky3_verify_fri_proof/fri" }
+p3-goldilocks = { path = "../plonky3_verify_fri_proof/goldilocks" }
+p3-keccak = { path = "../plonky3_verify_fri_proof/keccak" }
+p3-keccak-air = { path = "../plonky3_verify_fri_proof/keccak-air" }
+p3-blake3 = { path = "../plonky3_verify_fri_proof/blake3" }
+p3-mds = { path = "../plonky3_verify_fri_proof/mds" }
+p3-merkle-tree = { path = "../plonky3_verify_fri_proof/merkle-tree" }
+p3-poseidon2 = { path = "../plonky3_verify_fri_proof/poseidon2" }
+p3-symmetric = { path = "../plonky3_verify_fri_proof/symmetric" }
+p3-uni-stark = { path = "../plonky3_verify_fri_proof/uni-stark" }
+p3-maybe-rayon = { path = "../plonky3_verify_fri_proof/maybe-rayon" }
