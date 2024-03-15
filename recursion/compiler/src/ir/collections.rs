@@ -1,6 +1,7 @@
 use super::{Builder, Config, MemVariable, Ptr, Usize, Var};
 use p3_field::AbstractField;
 
+#[derive(Debug, Clone)]
 pub enum Array<C: Config, T> {
     Fixed(Vec<T>),
     Dyn(Ptr<C::N>, Usize<C::N>),

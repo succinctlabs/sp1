@@ -1,4 +1,4 @@
-use super::Ptr;
+use super::{Array, Ptr};
 
 use super::{Config, Ext, Felt, Usize, Var};
 
@@ -70,6 +70,7 @@ pub enum DslIR<C: Config> {
     AssertNeFI(Felt<C::F>, C::F),
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
+    Num2Bits(Array<C, Var<C::N>>, Felt<C::F>, Usize<C::N>),
     // Memory instructions.
     /// Allocate (ptr, len) a memory slice of length len
     Alloc(Ptr<C::N>, Usize<C::N>),

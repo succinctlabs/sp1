@@ -1,4 +1,4 @@
-use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, Usize};
+use super::{Array, Config, DslIR, Ext, SymbolicExt, SymbolicFelt, Usize};
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
@@ -156,6 +156,22 @@ impl<C: Config> Builder<C> {
             end: end.into(),
             builder: self,
         }
+    }
+
+    pub fn num2bits<E: Into<SymbolicFelt<C::F>>>(
+        &mut self,
+        val_expr: E,
+        nb_bits: Usize<C::N>,
+    ) -> Array<C, Var<C::N>> {
+        let val = self.eval(val_expr);
+
+        let mut bits = Vec::new();
+        for _ in 0..nb_bits.value() {
+            bits.push(self.uninit());
+        }
+
+        self.push(DslIR::Num2Bits(Array::Fixed(bits.clone()), val, nb_bits));
+        Array::Fixed(bits)
     }
 }
 
