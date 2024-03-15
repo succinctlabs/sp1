@@ -11,5 +11,6 @@ sp1-recursion-core = { path = "../core" }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
+p3-air = { workspace = true }
 sp1-core = { path = "../../core" }
 rand = "0.8.4"

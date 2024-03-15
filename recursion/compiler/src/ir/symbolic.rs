@@ -564,14 +564,6 @@ impl<F> Div<SymbolicFelt<F>> for Felt<F> {
     }
 }
 
-impl<F: Field, EF: ExtensionField<F>> Div<SymbolicExt<F, EF>> for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn div(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
-        SymbolicExt::<F, EF>::from(self) / rhs
-    }
-}
-
 // Implement operations between constants N, F, EF, and Var<N>, Felt<F>, Ext<F, EF>.
 
 impl<N> Add for Var<N> {
@@ -603,22 +595,6 @@ impl<F> Add<F> for Felt<F> {
 
     fn add(self, rhs: F) -> Self::Output {
         SymbolicFelt::from(self) + rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Add for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        SymbolicExt::<F, EF>::from(self) + rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Add<EF> for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn add(self, rhs: EF) -> Self::Output {
-        SymbolicExt::from(self) + rhs
     }
 }
 
@@ -654,22 +630,6 @@ impl<F> Mul<F> for Felt<F> {
     }
 }
 
-impl<F: Field, EF: ExtensionField<F>> Mul for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        SymbolicExt::<F, EF>::from(self) * rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Mul<EF> for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn mul(self, rhs: EF) -> Self::Output {
-        SymbolicExt::from(self) * rhs
-    }
-}
-
 impl<N> Sub for Var<N> {
     type Output = SymbolicVar<N>;
 
@@ -702,43 +662,39 @@ impl<F> Sub<F> for Felt<F> {
     }
 }
 
-impl<F: Field, EF: ExtensionField<F>> Sub for Ext<F, EF> {
+impl<F: Field, EF: ExtensionField<F>, E: Any> Add<E> for Ext<F, EF> {
     type Output = SymbolicExt<F, EF>;
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        SymbolicExt::<F, EF>::from(self) - rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Sub<EF> for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn sub(self, rhs: EF) -> Self::Output {
-        SymbolicExt::from(self) - rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Sub<SymbolicExt<F, EF>> for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn sub(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
-        SymbolicExt::<F, EF>::from(self) - rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Add<SymbolicExt<F, EF>> for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn add(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+    fn add(self, rhs: E) -> Self::Output {
+        let rhs: ExtOperand<F, EF> = rhs.to_operand();
         SymbolicExt::<F, EF>::from(self) + rhs
     }
 }
 
-impl<F: Field, EF: ExtensionField<F>> Mul<SymbolicExt<F, EF>> for Ext<F, EF> {
+impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for Ext<F, EF> {
     type Output = SymbolicExt<F, EF>;
 
-    fn mul(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+    fn mul(self, rhs: E) -> Self::Output {
+        let rhs: ExtOperand<F, EF> = rhs.to_operand();
         SymbolicExt::<F, EF>::from(self) * rhs
+    }
+}
+
+impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn sub(self, rhs: E) -> Self::Output {
+        let rhs: ExtOperand<F, EF> = rhs.to_operand();
+        SymbolicExt::<F, EF>::from(self) - rhs
+    }
+}
+
+impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn div(self, rhs: E) -> Self::Output {
+        let rhs: ExtOperand<F, EF> = rhs.to_operand();
+        SymbolicExt::<F, EF>::from(self) / rhs
     }
 }
 
@@ -779,17 +735,6 @@ impl<F> Div for Felt<F> {
 
     fn div(self, rhs: Self) -> Self::Output {
         SymbolicFelt::<F>::from(self) / rhs
-    }
-}
-
-impl<F: Field, EF: ExtensionField<F>> Div for Ext<F, EF> {
-    type Output = SymbolicExt<F, EF>;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        SymbolicExt::Div(
-            Rc::new(SymbolicExt::from(self)),
-            Rc::new(SymbolicExt::from(rhs)),
-        )
     }
 }
 
