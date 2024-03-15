@@ -2,7 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 extern "C" {
-    fn syscall_uint256_mul(x: *mut u32, y: *const u32);
+    fn syscall_uint256_mul(x: *mut u32, y: *mut u32);
 }
 
 #[sp1_derive::cycle_tracker]
@@ -21,7 +21,7 @@ pub fn main() {
 
     println!("cycle-tracker-start: uint256_mul");
     unsafe {
-        syscall_uint256_mul(x.as_mut_ptr() as *mut u32, y.as_ptr() as *const u32);
+        syscall_uint256_mul(x.as_mut_ptr() as *mut u32, y.as_ptr() as *mut u32);
     }
     println!("cycle-tracker-end: uint256_mul");
 

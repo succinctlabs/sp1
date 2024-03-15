@@ -1,5 +1,6 @@
 pub mod io;
 pub mod secp256k1;
+pub mod uint256_div;
 pub mod unconstrained;
 
 extern "C" {
