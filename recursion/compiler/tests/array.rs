@@ -40,7 +40,7 @@ fn test_compiler_array() {
     for i in 0..len {
         builder.set(&mut var_array, i, var_vals[i]);
         builder.set(&mut felt_array, i, felt_vals[i]);
-        builder.set(&mut ext_array, i, ext_vals[i]);
+        builder.set(&mut ext_array, i, ext_vals[i].cons());
     }
     // Assert values set.
     for i in 0..len {
@@ -49,14 +49,14 @@ fn test_compiler_array() {
         let felt_value = builder.get(&felt_array, i);
         builder.assert_felt_eq(felt_value, felt_vals[i]);
         let ext_value = builder.get(&ext_array, i);
-        builder.assert_ext_eq(ext_value, ext_vals[i]);
+        builder.assert_ext_eq(ext_value, ext_vals[i].cons());
     }
 
     // Put values dynamically
     builder.range(0, dyn_len).for_each(|i, builder| {
         builder.set(&mut var_array, i, i * F::two());
         builder.set(&mut felt_array, i, F::from_canonical_u32(3));
-        builder.set(&mut ext_array, i, EF::from_canonical_u32(4));
+        builder.set(&mut ext_array, i, (EF::from_canonical_u32(4)).cons());
     });
 
     // Assert values set.
@@ -66,7 +66,7 @@ fn test_compiler_array() {
         let felt_value = builder.get(&felt_array, i);
         builder.assert_felt_eq(felt_value, F::from_canonical_u32(3));
         let ext_value = builder.get(&ext_array, i);
-        builder.assert_ext_eq(ext_value, EF::from_canonical_u32(4));
+        builder.assert_ext_eq(ext_value, EF::from_canonical_u32(4).cons());
     });
 
     let code = builder.compile_to_asm();

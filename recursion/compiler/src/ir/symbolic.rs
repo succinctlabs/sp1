@@ -53,6 +53,16 @@ pub enum ExtOperand<F, EF> {
     Sym(SymbolicExt<F, EF>),
 }
 
+pub trait ExtConst<F: Field, EF: ExtensionField<F>> {
+    fn cons(self) -> SymbolicExt<F, EF>;
+}
+
+impl<F: Field, EF: ExtensionField<F>> ExtConst<F, EF> for EF {
+    fn cons(self) -> SymbolicExt<F, EF> {
+        SymbolicExt::Const(self)
+    }
+}
+
 pub trait ExtensionOperand<F: Field, EF: ExtensionField<EF>> {
     fn to_operand(self) -> ExtOperand<F, EF>;
 }
@@ -233,13 +243,9 @@ impl<F> From<F> for SymbolicFelt<F> {
     }
 }
 
-impl<F: Field, EF: ExtensionField<F>> From<EF> for SymbolicExt<F, EF> {
-    fn from(ef: EF) -> Self {
-        if ef.is_in_basefield() {
-            SymbolicExt::Base(Rc::new(SymbolicFelt::Const(ef.as_base_slice()[0])))
-        } else {
-            SymbolicExt::Const(ef)
-        }
+impl<F: Field, EF: ExtensionField<F>> From<F> for SymbolicExt<F, EF> {
+    fn from(f: F) -> Self {
+        SymbolicExt::Base(Rc::new(SymbolicFelt::Const(f)))
     }
 }
 
