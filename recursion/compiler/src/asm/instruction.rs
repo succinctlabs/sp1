@@ -12,9 +12,9 @@ use super::ZERO;
 
 #[derive(Debug, Clone)]
 pub enum AsmInstruction<F, EF> {
-    /// Load work (src, dst) : load a value from the address stored at dest(fp) into src(fp).
+    /// Load work (dst, src) : load a value from the address stored at src(fp) into dstfp).
     LW(i32, i32),
-    /// Store word (src, dst) : store a value from src(fp) into the address stored at dest(fp).
+    /// Store word (dst, src) : store a value from src(fp) into the address stored at dest(fp).
     SW(i32, i32),
     // Get immediate (dst, value) : load a value into the dest(fp).
     IMM(i32, F),

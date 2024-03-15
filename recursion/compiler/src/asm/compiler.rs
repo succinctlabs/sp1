@@ -9,11 +9,12 @@ use alloc::vec::Vec;
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
+use sp1_recursion_core::runtime::STACK_SIZE;
 
 use crate::asm::AsmInstruction;
 use crate::ir::Builder;
 use crate::ir::Usize;
-use crate::ir::{Config, DslIR, Ext, Felt, Var};
+use crate::ir::{Config, DslIR, Ext, Felt, Ptr, Var};
 use p3_field::Field;
 
 pub(crate) const ZERO: i32 = 0;
@@ -63,6 +64,12 @@ impl<F> Felt<F> {
     }
 }
 
+impl<F> Ptr<F> {
+    fn fp(&self) -> i32 {
+        self.address.fp()
+    }
+}
+
 impl<F, EF> Ext<F, EF> {
     pub fn fp(&self) -> i32 {
         -((self.0 as i32) * 3 + 8)
@@ -79,6 +86,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
     }
 
     pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
+        // Set the heap pointer value according to stack size
+        let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
+        self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
         for op in operations {
             match op {
                 DslIR::Imm(dst, src) => {
@@ -432,22 +442,30 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     };
                     if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
                 }
-                _ => todo!(),
+                DslIR::Alloc(ptr, len) => {
+                    self.alloc(ptr, len);
+                }
+                DslIR::LoadV(var, ptr) => self.push(AsmInstruction::LW(var.fp(), ptr.fp())),
+                DslIR::LoadF(var, ptr) => self.push(AsmInstruction::LW(var.fp(), ptr.fp())),
+                DslIR::LoadE(var, ptr) => self.push(AsmInstruction::LE(var.fp(), ptr.fp())),
+                DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
+                DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
+                DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
             }
         }
     }
 
-    pub fn alloc(&mut self, ptr: Var<F>, len: Usize<F>) {
+    pub fn alloc(&mut self, ptr: Ptr<F>, len: Usize<F>) {
         // Load the current heap ptr address to the stack value and advance the heap ptr.
         match len {
             Usize::Const(len) => {
                 let len = F::from_canonical_usize(len);
-                self.push(AsmInstruction::IMM(ptr.fp(), len));
+                self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
                 self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, len));
             }
             Usize::Var(len) => {
-                self.push(AsmInstruction::ADDI(ptr.fp(), len.fp(), F::zero()));
-                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, F::one()));
+                self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
+                self.push(AsmInstruction::ADD(HEAP_PTR, HEAP_PTR, len.fp()));
             }
         }
     }

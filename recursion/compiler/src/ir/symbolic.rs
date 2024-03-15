@@ -600,3 +600,19 @@ impl<F> Div<Felt<F>> for SymbolicFelt<F> {
         SymbolicFelt::Div(Rc::new(self), Rc::new(SymbolicFelt::Val(rhs)))
     }
 }
+
+impl<N> Sub<SymbolicVar<N>> for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn sub(self, rhs: SymbolicVar<N>) -> Self::Output {
+        SymbolicVar::<N>::from(self) - rhs
+    }
+}
+
+impl<N> Add<SymbolicVar<N>> for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn add(self, rhs: SymbolicVar<N>) -> Self::Output {
+        SymbolicVar::<N>::from(self) + rhs
+    }
+}

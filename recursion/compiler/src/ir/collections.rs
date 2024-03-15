@@ -1,4 +1,5 @@
-use super::{Builder, Config, MemVariable, Ptr, Usize};
+use super::{Builder, Config, MemVariable, Ptr, Usize, Var};
+use p3_field::AbstractField;
 
 pub enum Array<C: Config, T> {
     Fixed(Vec<T>),
@@ -20,8 +21,10 @@ impl<C: Config> Builder<C> {
         let len = len.into();
         match len {
             Usize::Const(len) => Array::Fixed(vec![self.uninit::<V>(); len]),
-            Usize::Var(_) => {
-                let ptr = self.alloc(len, V::size_of());
+            Usize::Var(len) => {
+                let len: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
+                let len = Usize::Var(len);
+                let ptr = self.alloc(len);
                 Array::Dyn(ptr, len)
             }
         }
@@ -44,30 +47,31 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(ptr, _) => {
                 let var = self.uninit();
-                self.load(var, *ptr, index);
+                self.load(var, *ptr + index);
                 var
             }
         }
     }
 
-    pub fn set<V: MemVariable<C>, I: Into<Usize<C::N>>>(
+    pub fn set<V: MemVariable<C>, I: Into<Usize<C::N>>, Expr: Into<V::Expression>>(
         &mut self,
         slice: &mut Array<C, V>,
         index: I,
-        value: V,
+        value: Expr,
     ) {
         let index = index.into();
 
         match slice {
             Array::Fixed(slice) => {
                 if let Usize::Const(idx) = index {
-                    slice[idx] = value;
+                    self.assign(slice[idx], value);
                 } else {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }
             }
             Array::Dyn(ptr, _) => {
-                self.store(*ptr, index, value);
+                let value: V = self.eval(value);
+                self.store(*ptr + index, value);
             }
         }
     }

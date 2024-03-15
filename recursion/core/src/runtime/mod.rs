@@ -17,8 +17,8 @@ use crate::memory::MemoryRecord;
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
 
-pub(crate) const STACK_SIZE: usize = 1024;
-pub(crate) const MEMORY_SIZE: usize = 1024 * 1024;
+pub const STACK_SIZE: usize = 1024;
+pub const MEMORY_SIZE: usize = 1024 * 1024;
 
 pub const D: usize = 4;
 
@@ -159,14 +159,31 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     /// Fetch the destination address input operand values for a load instruction (from heap).
     fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         let a_ptr = self.fp + instruction.op_a;
-        let b = self.get_b(instruction);
+        let b = if instruction.imm_b_base() {
+            Block::from(instruction.op_b[0])
+        } else if instruction.imm_b {
+            instruction.op_b
+        } else {
+            let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
+            self.mr(address[0], MemoryAccessPosition::A)
+        };
         (a_ptr, b)
     }
 
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        let a_ptr = self.fp + instruction.op_a;
-        let b = self.get_b(instruction);
+        let a_ptr = if instruction.imm_b {
+            self.fp + instruction.op_a
+        } else {
+            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
+        };
+        let b = if instruction.imm_b_base() {
+            Block::from(instruction.op_b[0])
+        } else if instruction.imm_b {
+            instruction.op_b
+        } else {
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
+        };
         (a_ptr, b)
     }
 
@@ -242,13 +259,25 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::LW | Opcode::LE => {
+                Opcode::LW => {
+                    let (a_ptr, b_val) = self.load_rr(&instruction);
+                    let a_val = Block::from(b_val[0]);
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::default());
+                }
+                Opcode::LE => {
                     let (a_ptr, b_val) = self.load_rr(&instruction);
                     let a_val = b_val;
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
-                Opcode::SW | Opcode::SE => {
+                Opcode::SW => {
+                    let (a_ptr, b_val) = self.store_rr(&instruction);
+                    let a_val = Block::from(b_val[0]);
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::default());
+                }
+                Opcode::SE => {
                     let (a_ptr, b_val) = self.store_rr(&instruction);
                     let a_val = b_val;
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);

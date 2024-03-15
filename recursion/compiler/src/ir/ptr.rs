@@ -1,38 +1,37 @@
+use p3_field::Field;
+
 use super::{Builder, Config, DslIR, MemVariable, SymbolicVar, Usize, Var, Variable};
+use core::ops::{Add, Sub};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ptr<N> {
-    address: Var<N>,
+    pub address: Var<N>,
+}
+
+pub struct SymbolicPtr<N> {
+    pub address: SymbolicVar<N>,
 }
 
 impl<C: Config> Builder<C> {
-    pub(crate) fn alloc(&mut self, len: Usize<C::N>, size: usize) -> Ptr<C::N> {
+    pub(crate) fn alloc(&mut self, len: Usize<C::N>) -> Ptr<C::N> {
         let ptr = Ptr::uninit(self);
-        self.push(DslIR::Alloc(ptr, len, size));
+        self.push(DslIR::Alloc(ptr, len));
         ptr
     }
 
-    pub fn load<V: MemVariable<C>, I: Into<Usize<C::N>>>(
-        &mut self,
-        var: V,
-        ptr: Ptr<C::N>,
-        offset: I,
-    ) {
-        var.load(ptr, offset.into(), self);
+    pub fn load<V: MemVariable<C>, P: Into<SymbolicPtr<C::N>>>(&mut self, var: V, ptr: P) {
+        let load_ptr = self.eval(ptr);
+        var.load(load_ptr, self);
     }
 
-    pub fn store<V: MemVariable<C>, I: Into<Usize<C::N>>>(
-        &mut self,
-        ptr: Ptr<C::N>,
-        offset: I,
-        value: V,
-    ) {
-        value.store(ptr, offset.into(), self);
+    pub fn store<V: MemVariable<C>, P: Into<SymbolicPtr<C::N>>>(&mut self, ptr: P, value: V) {
+        let store_ptr = self.eval(ptr);
+        value.store(store_ptr, self);
     }
 }
 
 impl<C: Config> Variable<C> for Ptr<C::N> {
-    type Expression = SymbolicVar<C::N>;
+    type Expression = SymbolicPtr<C::N>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         Ptr {
@@ -41,7 +40,7 @@ impl<C: Config> Variable<C> for Ptr<C::N> {
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
-        self.address.assign(src, builder);
+        self.address.assign(src.address, builder);
     }
 
     fn assert_eq(
@@ -49,7 +48,7 @@ impl<C: Config> Variable<C> for Ptr<C::N> {
         rhs: impl Into<Self::Expression>,
         builder: &mut Builder<C>,
     ) {
-        Var::assert_eq(lhs, rhs, builder);
+        Var::assert_eq(lhs.into().address, rhs.into().address, builder);
     }
 
     fn assert_ne(
@@ -57,6 +56,146 @@ impl<C: Config> Variable<C> for Ptr<C::N> {
         rhs: impl Into<Self::Expression>,
         builder: &mut Builder<C>,
     ) {
-        Var::assert_ne(lhs, rhs, builder);
+        Var::assert_ne(lhs.into().address, rhs.into().address, builder);
+    }
+}
+
+impl<N> Add for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        SymbolicPtr {
+            address: self.address + rhs.address,
+        }
+    }
+}
+
+impl<N> Sub for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        SymbolicPtr {
+            address: self.address - rhs.address,
+        }
+    }
+}
+
+impl<N> Add for SymbolicPtr<N> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self {
+            address: self.address + rhs.address,
+        }
+    }
+}
+
+impl<N> Sub for SymbolicPtr<N> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            address: self.address - rhs.address,
+        }
+    }
+}
+
+impl<N> Add<Ptr<N>> for SymbolicPtr<N> {
+    type Output = Self;
+
+    fn add(self, rhs: Ptr<N>) -> Self {
+        Self {
+            address: self.address + rhs.address,
+        }
+    }
+}
+
+impl<N> Sub<Ptr<N>> for SymbolicPtr<N> {
+    type Output = Self;
+
+    fn sub(self, rhs: Ptr<N>) -> Self {
+        Self {
+            address: self.address - rhs.address,
+        }
+    }
+}
+
+impl<N> Add<SymbolicPtr<N>> for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn add(self, rhs: SymbolicPtr<N>) -> SymbolicPtr<N> {
+        SymbolicPtr {
+            address: self.address + rhs.address,
+        }
+    }
+}
+
+impl<N> Sub<SymbolicPtr<N>> for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn sub(self, rhs: SymbolicPtr<N>) -> SymbolicPtr<N> {
+        SymbolicPtr {
+            address: self.address - rhs.address,
+        }
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn add(self, rhs: Usize<N>) -> SymbolicPtr<N> {
+        match rhs {
+            Usize::Const(rhs) => SymbolicPtr {
+                address: self.address + N::from_canonical_usize(rhs),
+            },
+            Usize::Var(rhs) => SymbolicPtr {
+                address: self.address + rhs,
+            },
+        }
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for SymbolicPtr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn add(self, rhs: Usize<N>) -> SymbolicPtr<N> {
+        match rhs {
+            Usize::Const(rhs) => SymbolicPtr {
+                address: self.address + N::from_canonical_usize(rhs),
+            },
+            Usize::Var(rhs) => SymbolicPtr {
+                address: self.address + rhs,
+            },
+        }
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn sub(self, rhs: Usize<N>) -> SymbolicPtr<N> {
+        match rhs {
+            Usize::Const(rhs) => SymbolicPtr {
+                address: self.address - N::from_canonical_usize(rhs),
+            },
+            Usize::Var(rhs) => SymbolicPtr {
+                address: self.address - rhs,
+            },
+        }
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for SymbolicPtr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn sub(self, rhs: Usize<N>) -> SymbolicPtr<N> {
+        match rhs {
+            Usize::Const(rhs) => SymbolicPtr {
+                address: self.address - N::from_canonical_usize(rhs),
+            },
+            Usize::Var(rhs) => SymbolicPtr {
+                address: self.address - rhs,
+            },
+        }
     }
 }
