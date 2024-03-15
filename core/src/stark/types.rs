@@ -14,14 +14,14 @@ use size::Size;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
-use super::StarkGenericConfig;
+use super::{StarkGenericConfig, SuperChallenge};
 
 pub type Val<SC> = <SC as StarkGenericConfig>::Val;
 pub type PackedVal<SC> = <<SC as StarkGenericConfig>::Val as Field>::Packing;
 pub type PackedChallenge<SC> = <Challenge<SC> as ExtensionField<Val<SC>>>::ExtensionPacking;
 pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
 pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
-pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
+pub type Challenge<SC> = SuperChallenge<<SC as StarkGenericConfig>::Val>;
 pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
 #[allow(dead_code)]
 type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;

@@ -1,6 +1,6 @@
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
+use sp1_core::stark::{StarkGenericConfig, SuperChallenge};
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::prelude::*;
@@ -10,7 +10,7 @@ use sp1_recursion_core::runtime::Runtime;
 fn test_compiler_for_loops() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
+    type EF = SuperChallenge<F>;
     let mut builder = VmBuilder::<F>::default();
 
     let n_val = BabyBear::from_canonical_u32(10);

@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
-    ProverConstraintFolder, StarkGenericConfig, VerifierConstraintFolder,
+    ProverConstraintFolder, StarkGenericConfig, SuperChallenge, VerifierConstraintFolder,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -61,8 +61,17 @@ pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
     + Air<InteractionBuilder<SC::Val>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
-    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+    + for<'a> Air<
+        VerifierConstraintFolder<
+            'a,
+            SC::Val,
+            SuperChallenge<SC::Val>,
+            SC::Val,
+            SuperChallenge<SC::Val>,
+            SC::Val,
+            SuperChallenge<SC::Val>,
+        >,
+    > + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>
 {
 }
 
@@ -70,8 +79,17 @@ impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
     T: MachineAir<SC::Val>
         + Air<InteractionBuilder<SC::Val>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+        + for<'a> Air<
+            VerifierConstraintFolder<
+                'a,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+            >,
+        > + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>
 {
 }
 

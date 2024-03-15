@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::stark::RiscvAir;
+use crate::stark::{RiscvAir, SuperChallenge};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -9,6 +9,7 @@ use crate::{
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_commit::Pcs;
+use p3_field::extension::HasTwoAdicBionmialExtension;
 use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -17,7 +18,7 @@ use size::Size;
 pub trait StarkUtils: StarkGenericConfig {
     type UniConfig: p3_uni_stark::StarkGenericConfig<
         Val = Self::Val,
-        Challenge = Self::Challenge,
+        Challenge = SuperChallenge<Self::Val>,
         Pcs = Self::Pcs,
         Challenger = Self::Challenger,
     >;
@@ -100,6 +101,7 @@ pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>
 ) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
+    <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
     OpeningProof<SC>: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
     <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
@@ -155,7 +157,7 @@ pub fn uni_stark_verify<SC, A>(
 where
     SC: StarkUtils,
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, SC::Challenge>>
+        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, SuperChallenge<SC::Val>>>
         + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
     p3_uni_stark::verify(config.uni_stark_config(), air, challenger, proof)
@@ -279,7 +281,6 @@ pub mod baby_bear_poseidon2 {
 
     impl StarkGenericConfig for BabyBearPoseidon2 {
         type Val = Val;
-        type Challenge = Challenge;
         type Pcs = Pcs;
         type Challenger = Challenger;
 
@@ -403,7 +404,6 @@ pub(super) mod baby_bear_keccak {
 
     impl StarkGenericConfig for BabyBearKeccak {
         type Val = Val;
-        type Challenge = Challenge;
         type Pcs = Pcs;
         type Challenger = Challenger;
 
@@ -593,7 +593,6 @@ pub(super) mod baby_bear_blake3 {
 
     impl StarkGenericConfig for BabyBearBlake3 {
         type Val = Val;
-        type Challenge = Challenge;
 
         cfg_if::cfg_if! {
             if #[cfg(all(target_os = "zkvm", target_arch = "riscv32"))] {

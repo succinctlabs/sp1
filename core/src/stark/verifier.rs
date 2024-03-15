@@ -1,5 +1,6 @@
 use crate::air::MachineAir;
 use crate::stark::MachineChip;
+use crate::stark::SuperChallenge;
 use itertools::izip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -35,7 +36,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
         proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError>
     where
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>,
+        A: for<'a> Air<
+            VerifierConstraintFolder<
+                'a,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+            >,
+        >,
     {
         let ShardProof {
             commitment,
@@ -54,11 +65,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
                         height: 1 << val.log_degree,
                     },
                     Dimensions {
-                        width: (chip.sends().len() + chip.receives().len()) * SC::Challenge::D,
+                        width: (chip.sends().len() + chip.receives().len()) * 4,
                         height: 1 << val.log_degree,
                     },
                     Dimensions {
-                        width: SC::Challenge::D << chip.log_quotient_degree(),
+                        width: 4 << chip.log_quotient_degree(),
                         height: 1 << val.log_degree,
                     },
                 )
@@ -80,18 +91,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
         } = commitment;
 
         let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
+            .map(|_| challenger.sample_ext_element::<SuperChallenge<SC::Val>>())
             .collect::<Vec<_>>();
 
         #[cfg(feature = "perf")]
         challenger.observe(permutation_commit.clone());
 
-        let alpha = challenger.sample_ext_element::<SC::Challenge>();
+        let alpha = challenger.sample_ext_element::<SuperChallenge<SC::Val>>();
 
         // Observe the quotient commitments.
         challenger.observe(quotient_commit.clone());
 
-        let zeta = challenger.sample_ext_element::<SC::Challenge>();
+        let zeta = challenger.sample_ext_element::<SuperChallenge<SC::Val>>();
 
         // Verify the opening proof.
         let trace_opening_points = g_subgroups
@@ -150,27 +161,37 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
     #[cfg(feature = "perf")]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
-        opening: ChipOpenedValues<SC::Challenge>,
+        opening: ChipOpenedValues<SuperChallenge<SC::Val>>,
         g: SC::Val,
-        zeta: SC::Challenge,
-        alpha: SC::Challenge,
-        permutation_challenges: &[SC::Challenge],
+        zeta: SuperChallenge<SC::Val>,
+        alpha: SuperChallenge<SC::Val>,
+        permutation_challenges: &[SuperChallenge<SC::Val>],
     ) -> Result<(), OodEvaluationMismatch>
     where
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>,
+        A: for<'a> Air<
+            VerifierConstraintFolder<
+                'a,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+            >,
+        >,
     {
-        let z_h = zeta.exp_power_of_2(opening.log_degree) - SC::Challenge::one();
+        let z_h = zeta.exp_power_of_2(opening.log_degree) - SuperChallenge::<SC::Val>::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
         let is_last_row = z_h / (zeta - g.inverse());
         let is_transition = zeta - g.inverse();
 
         // Reconstruct the prmutation opening values as extention elements.
-        let monomials = (0..SC::Challenge::D)
-            .map(SC::Challenge::monomial)
+        let monomials: Vec<SuperChallenge<SC::Val>> = (0..4)
+            .map(<SuperChallenge<SC::Val> as AbstractExtensionField<SC::Val>>::monomial)
             .collect::<Vec<_>>();
 
-        let unflatten = |v: &[SC::Challenge]| {
-            v.chunks_exact(SC::Challenge::D)
+        let unflatten = |v: &[SuperChallenge<SC::Val>]| {
+            v.chunks_exact(4)
                 .map(|chunk| {
                     chunk
                         .iter()
@@ -178,12 +199,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
                         .map(|(x, m)| *x * *m)
                         .sum()
                 })
-                .collect::<Vec<SC::Challenge>>()
+                .collect::<Vec<SuperChallenge<SC::Val>>>()
         };
 
         let mut quotient_parts = opening
             .quotient
-            .chunks_exact(SC::Challenge::D)
+            .chunks_exact(4)
             .map(|chunk| {
                 chunk
                     .iter()
@@ -191,10 +212,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
                     .map(|(x, m)| *x * *m)
                     .sum()
             })
-            .collect::<Vec<SC::Challenge>>();
+            .collect::<Vec<SuperChallenge<SC::Val>>>();
 
         reverse_slice_index_bits(&mut quotient_parts);
-        let quotient: SC::Challenge = zeta
+        let quotient: SuperChallenge<SC::Val> = zeta
             .powers()
             .zip(quotient_parts)
             .map(|(weight, part)| part * weight)
@@ -205,7 +226,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let mut folder = VerifierConstraintFolder::<SC::Val, SC::Challenge> {
+        let mut folder = VerifierConstraintFolder::<
+            SC::Val,
+            SuperChallenge<SC::Val>,
+            SC::Val,
+            SuperChallenge<SC::Val>,
+            SC::Val,
+            SuperChallenge<SC::Val>,
+        > {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
@@ -215,7 +243,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
             is_last_row,
             is_transition,
             alpha,
-            accumulator: SC::Challenge::zero(),
+            accumulator: SuperChallenge::<SC::Val>::zero(),
             phantom: PhantomData,
         };
         chip.eval(&mut folder);

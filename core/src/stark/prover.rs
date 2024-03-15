@@ -4,12 +4,14 @@ use crate::lookup::InteractionBuilder;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::SuperChallenge;
 use itertools::izip;
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
+use p3_field::extension::HasTwoAdicBionmialExtension;
+use p3_field::PrimeField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use p3_field::{ExtensionField, PrimeField};
 use p3_field::{PrimeField32, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRows;
@@ -49,10 +51,20 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
+        <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
-            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>;
+            + for<'a> Air<
+                VerifierConstraintFolder<
+                    'a,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                >,
+            > + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>;
 }
 
 impl<SC, A> Prover<SC, A> for LocalProver<SC, A>
@@ -73,10 +85,20 @@ where
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
+        <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
-            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+            + for<'a> Air<
+                VerifierConstraintFolder<
+                    'a,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                >,
+            > + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>,
     {
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
@@ -205,11 +227,21 @@ where
     where
         SC::Val: PrimeField32,
         SC: Send + Sync,
+        <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
         ShardMainData<SC>: DeserializeOwned,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
-            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+            + for<'a> Air<
+                VerifierConstraintFolder<
+                    'a,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                >,
+            > + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>,
     {
         // Get the traces.
         let traces = &shard_data.traces;
@@ -227,7 +259,7 @@ where
             .collect::<Vec<_>>();
 
         // Obtain the challenges used for the permutation argument.
-        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        let mut permutation_challenges: Vec<SuperChallenge<SC::Val>> = Vec::new();
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
@@ -299,7 +331,8 @@ where
                 .map(|lde| lde.vertically_strided(1 << log_stride_for_quotient, 0))
                 .collect::<Vec<_>>()
         });
-        let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
+        let alpha: SuperChallenge<SC::Val> =
+            challenger.sample_ext_element::<SuperChallenge<SC::Val>>();
 
         // Compute the quotient values.
         let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
@@ -327,7 +360,7 @@ where
                 .map(|values| {
                     decompose_and_flatten::<SC>(
                         values,
-                        SC::Challenge::from_base(config.pcs().coset_shift()),
+                        SuperChallenge::<SC::Val>::from_base(config.pcs().coset_shift()),
                         log_quotient_degree,
                     )
                 })
@@ -360,7 +393,7 @@ where
         challenger.observe(quotient_commit.clone());
 
         // Compute the quotient argument.
-        let zeta: SC::Challenge = challenger.sample_ext_element();
+        let zeta: SuperChallenge<SC::Val> = challenger.sample_ext_element();
 
         let trace_opening_points =
             tracing::debug_span!("compute trace opening points").in_scope(|| {
@@ -469,7 +502,7 @@ where
         };
     }
 
-    fn commit_shards<F, EF>(
+    fn commit_shards<F>(
         machine: &MachineStark<SC, A>,
         shards: &[A::Record],
     ) -> (
@@ -478,8 +511,7 @@ where
     )
     where
         F: PrimeField + TwoAdicField + PrimeField32,
-        EF: ExtensionField<F>,
-        SC: StarkGenericConfig<Val = F, Challenge = EF> + Send + Sync,
+        SC: StarkGenericConfig<Val = F> + Send + Sync,
         SC::Challenger: Clone,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,

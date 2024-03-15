@@ -1,7 +1,14 @@
 use super::{Ext, Felt, Var};
 use alloc::rc::Rc;
 use core::ops::{Add, Div, Mul, Neg, Sub};
-use p3_field::extension::BinomialExtensionField;
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    AbstractExtensionField, AbstractField, Field,
+};
+use std::{
+    iter::{Product, Sum},
+    ops::{AddAssign, MulAssign, SubAssign},
+};
 
 pub const D: usize = 4;
 pub type BinomialExtension<F> = BinomialExtensionField<F, D>;
@@ -600,5 +607,201 @@ impl<F> Div<Felt<F>> for SymbolicFelt<F> {
 
     fn div(self, rhs: Felt<F>) -> Self::Output {
         SymbolicFelt::Div(Rc::new(self), Rc::new(SymbolicFelt::Val(rhs)))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Product for SymbolicExt<F> {
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::one(), |acc, x| acc * x)
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Sum for SymbolicExt<F> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::zero(), |acc, x| acc + x)
+    }
+}
+
+impl<F: Field> MulAssign for SymbolicExt<F> {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.clone() * rhs;
+    }
+}
+
+impl<F: Field> SubAssign for SymbolicExt<F> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = self.clone() - rhs;
+    }
+}
+
+impl<F: Field> AddAssign for SymbolicExt<F> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.clone() + rhs;
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Default for SymbolicExt<F> {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> AbstractField for SymbolicExt<F> {
+    type F = BinomialExtension<F>;
+
+    fn zero() -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::zero())
+    }
+
+    fn one() -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::one())
+    }
+
+    fn two() -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::two())
+    }
+
+    fn neg_one() -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::neg_one())
+    }
+
+    fn from_f(f: Self::F) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_f(f))
+    }
+
+    fn from_bool(b: bool) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_bool(b))
+    }
+
+    fn from_canonical_u8(n: u8) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_canonical_u8(n))
+    }
+
+    fn from_canonical_u16(n: u16) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_canonical_u16(n))
+    }
+
+    fn from_canonical_u32(n: u32) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_canonical_u32(n))
+    }
+
+    fn from_canonical_u64(n: u64) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_canonical_u64(n))
+    }
+
+    fn from_canonical_usize(n: usize) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_canonical_usize(n))
+    }
+
+    fn from_wrapped_u32(n: u32) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_wrapped_u32(n))
+    }
+
+    fn from_wrapped_u64(n: u64) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_wrapped_u64(n))
+    }
+
+    fn generator() -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::generator())
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> AbstractExtensionField<F> for SymbolicExt<F> {
+    const D: usize = F::D;
+
+    fn from_base(b: F) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_base(b))
+    }
+
+    fn from_base_slice(bs: &[F]) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_base_slice(bs))
+    }
+
+    fn from_base_fn<T: FnMut(usize) -> F>(f: T) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_base_fn(f))
+    }
+
+    fn as_base_slice(&self) -> &[F] {
+        todo!()
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> MulAssign<F> for SymbolicExt<F> {
+    fn mul_assign(&mut self, rhs: F) {
+        *self = self.clone() * SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()));
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Mul<F> for SymbolicExt<F> {
+    type Output = Self;
+
+    fn mul(self, rhs: F) -> Self::Output {
+        self * SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> SubAssign<F> for SymbolicExt<F> {
+    fn sub_assign(&mut self, rhs: F) {
+        *self = self.clone() - SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()));
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Sub<F> for SymbolicExt<F> {
+    type Output = Self;
+
+    fn sub(self, rhs: F) -> Self::Output {
+        self - SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> AddAssign<F> for SymbolicExt<F> {
+    fn add_assign(&mut self, rhs: F) {
+        *self = self.clone() + SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()));
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Add<F> for SymbolicExt<F> {
+    type Output = Self;
+
+    fn add(self, rhs: F) -> Self::Output {
+        self + SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> From<F> for SymbolicExt<F> {
+    fn from(f: F) -> Self {
+        SymbolicExt::Const(BinomialExtension::<F>::from_f(f.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Add<F> for Ext<F> {
+    type Output = SymbolicExt<F>;
+
+    fn add(self, rhs: F) -> Self::Output {
+        SymbolicExt::Val(self) + SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Sub<F> for Ext<F> {
+    type Output = SymbolicExt<F>;
+
+    fn sub(self, rhs: F) -> Self::Output {
+        SymbolicExt::Val(self) - SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Mul<F> for Ext<F> {
+    type Output = SymbolicExt<F>;
+
+    fn mul(self, rhs: F) -> Self::Output {
+        SymbolicExt::Val(self) * SymbolicExt::Const(BinomialExtension::<F>::from_f(rhs.into()))
+    }
+}
+
+impl<F: Field + BinomiallyExtendable<D>> Mul<Ext<F>> for BinomialExtension<F> {
+    type Output = SymbolicExt<F>;
+
+    fn mul(self, rhs: Ext<F>) -> Self::Output {
+        SymbolicExt::Val(rhs) * SymbolicExt::Const(self)
     }
 }

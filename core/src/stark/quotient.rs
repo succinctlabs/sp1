@@ -3,9 +3,11 @@ use super::Chip;
 use super::PackedChallenge;
 use super::PackedVal;
 use super::StarkAir;
+use super::SuperChallenge;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
 use p3_commit::UnivariatePcsWithLde;
+use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::PackedValue;
@@ -19,13 +21,13 @@ use super::{zerofier_coset::ZerofierOnCoset, StarkGenericConfig};
 pub fn quotient_values<SC, A, MainLde, PermLde>(
     config: &SC,
     chip: &Chip<SC::Val, A>,
-    cumulative_sum: SC::Challenge,
+    cumulative_sum: SuperChallenge<SC::Val>,
     degree_bits: usize,
     main_lde: &MainLde,
     permutation_lde: &PermLde,
-    perm_challenges: &[SC::Challenge],
-    alpha: SC::Challenge,
-) -> Vec<SC::Challenge>
+    perm_challenges: &[SuperChallenge<SC::Val>],
+    alpha: SuperChallenge<SC::Val>,
+) -> Vec<SuperChallenge<SC::Val>>
 where
     A: StarkAir<SC>,
     SC: StarkGenericConfig,
@@ -52,7 +54,7 @@ where
     let lagrange_first_evals = zerofier_on_coset.lagrange_basis_unnormalized(0);
     let lagrange_last_evals = zerofier_on_coset.lagrange_basis_unnormalized(degree - 1);
 
-    let ext_degree = SC::Challenge::D;
+    let ext_degree = 4;
 
     (0..quotient_size)
         .into_par_iter()
@@ -138,10 +140,19 @@ where
 
             // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
             (0..PackedVal::<SC>::WIDTH).map(move |idx_in_packing| {
-                let quotient_value = (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
-                    .map(|coeff_idx| quotient.as_base_slice()[coeff_idx].as_slice()[idx_in_packing])
-                    .collect::<Vec<_>>();
-                SC::Challenge::from_base_slice(&quotient_value)
+                let quotient_value =
+                    (0..<SuperChallenge<SC::Val> as AbstractExtensionField<SC::Val>>::D)
+                        .map(|coeff_idx| {
+                            <BinomialExtensionField<
+                                <<SC as StarkGenericConfig>::Val as p3_field::Field>::Packing,
+                                4,
+                            > as AbstractExtensionField<PackedVal<SC>>>::as_base_slice(
+                                &quotient
+                            )[coeff_idx]
+                                .as_slice()[idx_in_packing]
+                        })
+                        .collect::<Vec<_>>();
+                SuperChallenge::<SC::Val>::from_base_slice(&quotient_value)
             })
         })
         .collect()

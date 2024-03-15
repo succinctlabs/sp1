@@ -1,21 +1,22 @@
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcsWithLde};
-use p3_field::{ExtensionField, PrimeField32, TwoAdicField};
+use p3_field::{
+    extension::{BinomialExtensionField, BinomiallyExtendable},
+    PrimeField32, TwoAdicField,
+};
 use p3_matrix::dense::RowMajorMatrix;
-use serde::Serialize;
+
+pub type SuperChallenge<Val> = BinomialExtensionField<Val, 4>;
 
 /// A configuration for a STARK.
 pub trait StarkGenericConfig {
     /// The field over which trace data is encoded.
-    type Val: TwoAdicField + PrimeField32;
-
-    /// The field from which random challenges are drawn.
-    type Challenge: ExtensionField<Self::Val> + TwoAdicField + Serialize;
+    type Val: TwoAdicField + PrimeField32 + BinomiallyExtendable<4>;
 
     /// The PCS used to commit to trace polynomials.
     type Pcs: UnivariatePcsWithLde<
         Self::Val,
-        Self::Challenge,
+        BinomialExtensionField<Self::Val, 4>,
         RowMajorMatrix<Self::Val>,
         Self::Challenger,
     >;

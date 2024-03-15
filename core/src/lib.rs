@@ -34,6 +34,7 @@ pub use io::*;
 use crate::stark::RiscvAir;
 use anyhow::Result;
 use p3_commit::Pcs;
+use p3_field::extension::HasTwoAdicBionmialExtension;
 use p3_matrix::dense::RowMajorMatrix;
 use runtime::{Program, Runtime};
 use serde::de::DeserializeOwned;
@@ -94,6 +95,7 @@ impl SP1Prover {
     ) -> Result<SP1ProofWithIO<SC>>
     where
         SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone,
+        <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,

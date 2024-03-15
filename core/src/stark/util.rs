@@ -1,11 +1,13 @@
 use itertools::izip;
-use p3_field::{AbstractExtensionField, Field, TwoAdicField};
+use p3_field::{
+    extension::HasTwoAdicBionmialExtension, AbstractExtensionField, Field, TwoAdicField,
+};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 
 use p3_util::log2_strict_usize;
 
-use super::StarkGenericConfig;
+use super::{StarkGenericConfig, SuperChallenge};
 
 /// Computes the multiplicative inverse of each element in the given vector.
 ///
@@ -99,11 +101,14 @@ fn decompose<F: TwoAdicField>(poly: Vec<F>, shift: F, log_chunks: usize) -> Vec<
 /// Then, arrange the results in a row-major matrix, so that each chunk of the decomposed polynomial
 /// becomes `D` columns of the resulting matrix, where `D` is the field extension degree.
 pub fn decompose_and_flatten<SC: StarkGenericConfig>(
-    quotient_poly: Vec<SC::Challenge>,
-    shift: SC::Challenge,
+    quotient_poly: Vec<SuperChallenge<SC::Val>>,
+    shift: SuperChallenge<SC::Val>,
     log_chunks: usize,
-) -> RowMajorMatrix<SC::Val> {
-    let chunks: Vec<Vec<SC::Challenge>> = decompose(quotient_poly, shift, log_chunks);
+) -> RowMajorMatrix<SC::Val>
+where
+    <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
+{
+    let chunks: Vec<Vec<SuperChallenge<SC::Val>>> = decompose(quotient_poly, shift, log_chunks);
     let degree = chunks[0].len();
     let quotient_chunks_flattened: Vec<SC::Val> = (0..degree)
         .into_par_iter()
@@ -113,7 +118,7 @@ pub fn decompose_and_flatten<SC: StarkGenericConfig>(
                 .flat_map(move |chunk| chunk[row].as_base_slice().iter().copied())
         })
         .collect();
-    let challenge_ext_degree = <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+    let challenge_ext_degree = <SuperChallenge<SC::Val> as AbstractExtensionField<SC::Val>>::D;
     RowMajorMatrix::new(
         quotient_chunks_flattened,
         challenge_ext_degree << log_chunks,

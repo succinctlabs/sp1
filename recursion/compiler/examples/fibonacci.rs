@@ -1,5 +1,5 @@
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
+use sp1_core::stark::{StarkGenericConfig, SuperChallenge};
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::prelude::*;
@@ -23,7 +23,7 @@ fn fibonacci(n: u32) -> u32 {
 fn main() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
+    type EF = SuperChallenge<F>;
 
     let n_val = 10;
     let mut builder = VmBuilder::<F>::default();

@@ -9,7 +9,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
-use super::{MachineChip, StarkGenericConfig};
+use super::{MachineChip, StarkGenericConfig, SuperChallenge};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
@@ -18,11 +18,11 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
     chip: &MachineChip<SC, A>,
     preprocessed: Option<&RowMajorMatrix<SC::Val>>,
     main: &RowMajorMatrix<SC::Val>,
-    perm: &RowMajorMatrix<SC::Challenge>,
-    perm_challenges: &[SC::Challenge],
+    perm: &RowMajorMatrix<SuperChallenge<SC::Val>>,
+    perm_challenges: &[SuperChallenge<SC::Val>],
 ) where
     SC::Val: PrimeField32,
-    A: for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+    A: for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>,
 {
     assert_eq!(main.height(), perm.height());
     let height = main.height();

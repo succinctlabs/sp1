@@ -5,9 +5,11 @@ use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::SuperChallenge;
 use crate::stark::VerifierConstraintFolder;
 use p3_air::Air;
 use p3_challenger::CanObserve;
+use p3_field::extension::HasTwoAdicBionmialExtension;
 use p3_field::AbstractField;
 use p3_field::Field;
 
@@ -114,10 +116,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
+        <SC as StarkGenericConfig>::Val: HasTwoAdicBionmialExtension<4>,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
-            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+            + for<'a> Air<
+                VerifierConstraintFolder<
+                    'a,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                    SC::Val,
+                    SuperChallenge<SC::Val>,
+                >,
+            > + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SuperChallenge<SC::Val>>>,
     {
         tracing::debug!("sharding the execution record");
         let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
@@ -138,7 +150,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Challenger: Clone,
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>,
+        A: for<'a> Air<
+            VerifierConstraintFolder<
+                'a,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+                SC::Val,
+                SuperChallenge<SC::Val>,
+            >,
+        >,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
@@ -165,7 +187,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         tracing::info!("success");
 
         // Verify the cumulative sum is 0.
-        let mut sum = SC::Challenge::zero();
+        let mut sum = SuperChallenge::<SC::Val>::zero();
         #[cfg(feature = "perf")]
         {
             for proof in proof.shard_proofs.iter() {
