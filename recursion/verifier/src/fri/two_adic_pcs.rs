@@ -1,33 +1,65 @@
-use p3_field::Field;
-use sp1_recursion_compiler::{
-    asm::VmBuilder,
-    ir::{Ext, Felt, Var},
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Slice, Var, Vector};
+
+use p3_field::AbstractField;
 
 use crate::symmetric::hash::Hash;
 
 use super::proof::FriProof;
 
-pub type OpenedValues<F> = Vec<OpenedValuesForRound<F>>;
-pub type OpenedValuesForRound<F> = Vec<OpenedValuesForMatrix<F>>;
-pub type OpenedValuesForMatrix<F> = Vec<OpenedValuesForPoint<F>>;
-pub type OpenedValuesForPoint<F> = Vec<Felt<F>>;
+pub type OpenedValues<C> = Vector<C, OpenedValuesForRound<C>>;
+pub type OpenedValuesForRound<C> = Vector<C, OpenedValuesForMatrix<C>>;
+pub type OpenedValuesForMatrix<C> = Vector<C, OpenedValuesForPoint<C>>;
+pub type OpenedValuesForPoint<C: Config> = Vector<C, Felt<C::F>>;
 
 pub struct Dimensions<F> {
     pub width: Var<F>,
     pub height: Var<F>,
 }
 
-fn verify_multi_batches<F: Field, EF, const DIGEST_ELEMS: usize>(
-    builder: &mut VmBuilder<F>,
-    commits_and_points: &[(Hash<F, DIGEST_ELEMS>, &[Vec<Ext<F, EF>>])],
-    dims: &[Vec<Dimensions<F>>],
-    values: OpenedValues<F>,
-    proof: FriProof<F, DIGEST_ELEMS>,
-    alpha: Ext<F, EF>,
-    query_indices: Vec<Var<F>>,
-    betas: Vec<Ext<F, EF>>,
+pub struct BatchOpening<C: Config> {
+    opened_values: Vector<C, Vector<C, C::F>>,
+    // pub(crate) opening_proof: <C::InputMmcs as Mmcs<C::Val>>::Proof,
+}
+
+pub struct TwoAdicFriPcsProof<C: Config, const DIGEST_ELEMS: usize> {
+    fri_proof: FriProof<C, DIGEST_ELEMS>,
+    /// For each query, for each committed batch, query openings for that batch
+    query_openings: Vec<Vec<BatchOpening<C>>>,
+}
+
+pub struct FriConfig<C: Config> {
+    pub log_blowup: Var<C::N>,
+    pub num_queries: Var<C::N>,
+    pub proof_of_work_bits: Var<C::N>,
+    pub num_batches: Var<C::N>,
+    pub num_tables_in_batches: Vector<C, Var<C::N>>,
+    pub num_openings_in_batch: Vector<C, Var<C::N>>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_multi_batches<C: Config, const DIGEST_ELEMS: usize>(
+    builder: &mut Builder<C>,
+    fri_config: FriConfig<C>,
+    commits_and_points: [(Hash<C::N, DIGEST_ELEMS>, [Vector<C, Ext<C::F, C::EF>>; 1]); 2],
+    dims: &[Vector<C, Dimensions<C::N>>],
+    values: OpenedValues<C>,
+    proof: FriProof<C, DIGEST_ELEMS>,
+    alpha: Ext<C::F, C::EF>,
+    query_indices: Vector<C, Var<C::N>>,
+    betas: Vector<C, Ext<C::F, C::EF>>,
 ) {
+    let zero: Var<C::N> = builder.eval(C::N::zero());
+
+    // Iterate over the query openings and query_indices (len == num_queries)
+    // builder
+    //     .range(zero, fri_config.num_queries)
+    //     .for_each(|idx, builder| {
+    //         let index = builder.get(&Slice::Vec(query_indices), idx);
+    //         let temp: Felt<_> = builder.uninit();
+    //         builder.assign(temp, b);
+    //         builder.assign(b, a + b);
+    //         builder.assign(a, temp);
+    //     });
 }
 
 #[cfg(test)]
@@ -45,6 +77,16 @@ mod tests {
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use p3_uni_stark::StarkConfig;
     use rand::thread_rng;
+    use sp1_recursion_compiler::ir::Config;
+
+    #[derive(Clone)]
+    struct BabyBearConfig;
+
+    impl Config for BabyBearConfig {
+        type N = BabyBear;
+        type F = BabyBear;
+        type EF = BinomialExtensionField<BabyBear, 4>;
+    }
 
     #[test]
     fn test_verify_multibatch() {
