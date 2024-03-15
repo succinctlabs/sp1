@@ -198,8 +198,6 @@ impl MachineRecord for ExecutionRecord {
     }
 
     fn append(&mut self, other: &mut ExecutionRecord) {
-        assert_eq!(self.index, other.index, "Shard index mismatch");
-
         self.cpu_events.append(&mut other.cpu_events);
         self.add_events.append(&mut other.add_events);
         self.sub_events.append(&mut other.sub_events);
@@ -254,7 +252,7 @@ impl MachineRecord for ExecutionRecord {
             let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
             let start = index * config.shard_size;
             let shard = &mut shards[index];
-            shard.index = (index + 1) as u32;
+            shard.index = self.index + index as u32 + 1;
             shard.cpu_events = self.cpu_events.split_off(start);
             shard.program = self.program.clone();
         }

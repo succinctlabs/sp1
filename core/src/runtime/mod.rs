@@ -57,6 +57,8 @@ pub struct Runtime {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
+    pub shard_batch_size: u32,
+
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u64, u32)>,
 
@@ -111,12 +113,15 @@ impl Runtime {
             .max()
             .unwrap_or(0);
 
+        let shard_size = env::shard_size() as u32;
+
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
             program,
             memory_accesses: MemoryAccessRecord::default(),
-            shard_size: env::shard_size() as u32 * 4,
+            shard_size: shard_size * 4,
+            shard_batch_size: env::shard_batch_size() as u32 * shard_size,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
@@ -793,7 +798,7 @@ impl Runtime {
             self.state.clk = 0;
         }
 
-        if !self.unconstrained && self.state.global_clk % (1 << 27) == 0 {
+        if !self.unconstrained && self.state.global_clk % self.shard_batch_size as u64 == 0 {
 
             // log::info!("writing to disk");
             // let mut file = tempfile::tempfile().expect("failed to get tempfile");
@@ -821,18 +826,19 @@ impl Runtime {
             >= (self.program.instructions.len() * 4) as u32
     }
 
-    /// Execute up to 1 << 27 cycles, returning the events emitted and whether the program ended.
+    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
     pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
         self.emit_events = true;
         let done = self.execute();
         (std::mem::take(&mut self.record), done)
     }
 
-    /// Execute up to 1 << 27 cycles, returning a copy of the state and whether the program ended.
+    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
     pub fn execute_state(&mut self) -> (ExecutionState, bool) {
         self.emit_events = false;
+        let state = self.state.clone();
         let done = self.execute();
-        (self.state.clone(), done)
+        (state, done)
     }
 
     fn initialize(&mut self) {
@@ -858,7 +864,7 @@ impl Runtime {
         while !self.execute() {}
     }
 
-    /// Executes up to (1 << 27) cycles of the program, returning whether the program has finished.
+    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> bool {
         if self.state.global_clk == 0 {
             self.initialize();
@@ -866,7 +872,7 @@ impl Runtime {
 
         let mut cycles = 0_u64;
         let mut done = false;
-        while cycles < (1 << 27) {
+        while cycles < self.shard_batch_size as u64 {
             if self.execute_cycle() {
                 done = true;
                 break;

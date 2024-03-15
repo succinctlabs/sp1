@@ -1,6 +1,8 @@
+use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::runtime::ShardingConfig;
+use crate::runtime::{ExecutionRecord, ShardingConfig};
+use crate::stark::MachineRecord;
 use crate::stark::{Prover, RiscvAir, ShardProof};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
@@ -100,28 +102,78 @@ where
     runtime.write_stdin_slice(stdin);
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
-    // Execute the program, stopping to prove shards every (1 << 27) cycles.
+    // Execute the program, saving the runtime state every `shard_batch_size` cycles.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     let sharding_config = ShardingConfig::default();
     let mut cycles = 0;
     let mut prove_time = 0;
-    let stdout;
-    loop {
-        let (events, done) =
-            tracing::info_span!("runtime.run(...)").in_scope(|| runtime.execute_record());
+    let mut files = Vec::new();
+    let mut i = 0;
+    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+        let (state, done) = runtime.execute_state();
+        let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
+        let mut writer = std::io::BufWriter::new(&mut tempfile);
+        bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
+        writer.flush().expect("failed to flush writer");
+        drop(writer);
+        tempfile
+            .seek(std::io::SeekFrom::Start(0))
+            .expect("failed to seek to start of tempfile");
+        log::info!("wrote {} to tempfile", i);
+        files.push(tempfile);
+        i += 1;
+        if done {
+            return std::mem::take(&mut runtime.state.output_stream);
+        }
+    });
+
+    // Prove the program by generating events from each checkpoint and proving each shard.
+    for file in files {
+        let mut reader = std::io::BufReader::new(file);
+        let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+        let (events, done) = tracing::info_span!("runtime.trace").in_scope(|| {
+            runtime.state = state;
+            runtime.record = ExecutionRecord::default();
+            let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+                .try_into()
+                .unwrap();
+            println!("index: {}", index);
+            runtime.record.index = index;
+            runtime.execute_record()
+        });
         cycles += events.cpu_events.len();
         let shards =
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+        for shard in &shards {
+            println!("shard: {:?}", shard.index);
+            println!("shard: {:?}", shard.stats());
+        }
         let start = Instant::now();
         let mut new_proofs = tracing::info_span!("prove")
             .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
         prove_time += start.elapsed().as_millis();
         shard_proofs.append(&mut new_proofs.shard_proofs);
         if done {
-            stdout = std::mem::take(&mut runtime.state.output_stream);
             break;
         }
     }
+
+    // loop {
+    //     let (events, done) =
+    //         tracing::info_span!("runtime.run(...)").in_scope(|| runtime.execute_record());
+    //     cycles += events.cpu_events.len();
+    //     let shards =
+    //         tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+    //     let start = Instant::now();
+    //     let mut new_proofs = tracing::info_span!("prove")
+    //         .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
+    //     prove_time += start.elapsed().as_millis();
+    //     shard_proofs.append(&mut new_proofs.shard_proofs);
+    //     if done {
+    //         stdout = std::mem::take(&mut runtime.state.output_stream);
+    //         break;
+    //     }
+    // }
     let proof = crate::stark::Proof::<SC> { shard_proofs };
 
     // Prove the program.

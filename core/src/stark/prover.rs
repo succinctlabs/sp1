@@ -1,6 +1,7 @@
 use super::{quotient_values, MachineStark};
 use super::{ProvingKey, VerifierConstraintFolder};
 use crate::lookup::InteractionBuilder;
+use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
@@ -111,7 +112,8 @@ where
                         .enumerate()
                         .map(|(j, (data, shard))| {
                             let start = Instant::now();
-                            let idx = i * chunk_size + j;
+                            // let idx = i * chunk_size + j;
+                            let idx = shard.index() as usize;
                             let data = if reconstruct_commitments {
                                 Self::commit_main(config, machine, &shard, idx)
                             } else {
@@ -506,9 +508,11 @@ where
                             .iter()
                             .enumerate()
                             .map(|(j, shard)| {
-                                let index = i * chunk_size + j;
+                                // let index = i * chunk_size + j;
+                                let index = shard.index();
                                 let start = Instant::now();
-                                let data = Self::commit_main(config, machine, shard, index);
+                                let data =
+                                    Self::commit_main(config, machine, shard, index as usize);
                                 finished.fetch_add(1, Ordering::Relaxed);
                                 log::info!(
                                     "> commit shards ({}/{}): shard = {}, time = {:.2} secs",
