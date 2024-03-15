@@ -11,7 +11,7 @@ pub extern "C" fn syscall_bn254_add(p: *mut u32, q: *mut u32) {
     unsafe {
         asm!(
             "ecall",
-            in("t0") crate::syscalls::bn254_ADD,
+            in("t0") crate::syscalls::BN254_ADD,
             in("a0") p,
             in("a1") q
         );
@@ -31,11 +31,11 @@ pub extern "C" fn syscall_bn254_double(p: *mut u32) {
     unsafe {
         asm!(
             "ecall",
-            in("t0") crate::syscalls::bn254_DOUBLE,
+            in("t0") crate::syscalls::BN254_DOUBLE,
             in("a0") p,
         );
     }
-
+    
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }

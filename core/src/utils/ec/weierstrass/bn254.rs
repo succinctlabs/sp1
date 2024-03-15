@@ -18,7 +18,7 @@ pub struct Bn254BaseField;
 impl FieldParameters for Bn254BaseField {
     const NB_BITS_PER_LIMB: usize = 16;
 
-    const NB_LIMBS: usize = 16;
+    const NB_LIMBS: usize = 32;
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
@@ -30,11 +30,7 @@ impl FieldParameters for Bn254BaseField {
     const WITNESS_OFFSET: usize = 1usize << 20;
 
     fn modulus() -> BigUint {
-        BigUint::from_str_radix(
-            "21888242871839275222246405745257275088696311157297823662689037894645226208583",
-            10,
-        )
-        .unwrap()
+        BigUint::from_bytes_le(&Self::MODULUS)
     }
 }
 
