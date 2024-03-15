@@ -1,4 +1,5 @@
-use super::{Builder, Config, Ptr, Usize};
+use super::{Builder, Config, Ptr};
+
 pub trait Variable<C: Config>: Copy {
     type Expression;
 
@@ -21,6 +22,6 @@ pub trait Variable<C: Config>: Copy {
 
 pub trait MemVariable<C: Config>: Variable<C> {
     fn size_of() -> usize;
-    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>);
-    fn store(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>);
+    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>);
+    fn store(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>);
 }

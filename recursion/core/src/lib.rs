@@ -39,26 +39,15 @@ pub mod tests {
         Program::<F> {
             instructions: vec![
                 // .main
-                Instruction::new(Opcode::SW, F::zero(), one, zero, true, false, true, false),
-                Instruction::new(
-                    Opcode::SW,
-                    F::from_canonical_u32(1),
-                    one,
-                    zero,
-                    true,
-                    false,
-                    true,
-                    false,
-                ),
+                Instruction::new(Opcode::SW, F::zero(), one, zero, true, true),
+                Instruction::new(Opcode::SW, F::from_canonical_u32(1), one, zero, true, true),
                 Instruction::new(
                     Opcode::SW,
                     F::from_canonical_u32(2),
                     [F::from_canonical_u32(10), F::zero(), F::zero(), F::zero()],
                     zero,
                     true,
-                    false,
                     true,
-                    false,
                 ),
                 // .body:
                 Instruction::new(
@@ -67,29 +56,16 @@ pub mod tests {
                     zero,
                     one,
                     false,
-                    false,
                     true,
-                    false,
                 ),
-                Instruction::new(
-                    Opcode::SW,
-                    F::from_canonical_u32(0),
-                    one,
-                    zero,
-                    false,
-                    false,
-                    true,
-                    false,
-                ),
+                Instruction::new(Opcode::SW, F::from_canonical_u32(0), one, zero, false, true),
                 Instruction::new(
                     Opcode::SW,
                     F::from_canonical_u32(1),
                     [F::two() + F::one(), F::zero(), F::zero(), F::zero()],
                     zero,
                     false,
-                    false,
                     true,
-                    false,
                 ),
                 Instruction::new(
                     Opcode::SUB,
@@ -97,9 +73,7 @@ pub mod tests {
                     [F::two(), F::zero(), F::zero(), F::zero()],
                     one,
                     false,
-                    false,
                     true,
-                    false,
                 ),
                 Instruction::new(
                     Opcode::BNE,
@@ -112,9 +86,7 @@ pub mod tests {
                         F::zero(),
                     ],
                     true,
-                    false,
                     true,
-                    false,
                 ),
             ],
         }

@@ -326,17 +326,12 @@ impl<C: Config> MemVariable<C> for Var<C::N> {
         1
     }
 
-    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::LoadV(*self, ptr, offset));
+    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadV(*self, ptr));
     }
 
-    fn store(
-        &self,
-        ptr: Ptr<<C as Config>::N>,
-        offset: Usize<<C as Config>::N>,
-        builder: &mut Builder<C>,
-    ) {
-        builder.push(DslIR::StoreV(*self, ptr, offset));
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::StoreV(ptr, *self));
     }
 }
 
@@ -632,17 +627,12 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
         1
     }
 
-    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::LoadF(*self, ptr, offset));
+    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadF(*self, ptr));
     }
 
-    fn store(
-        &self,
-        ptr: Ptr<<C as Config>::N>,
-        offset: Usize<<C as Config>::N>,
-        builder: &mut Builder<C>,
-    ) {
-        builder.push(DslIR::StoreF(*self, ptr, offset));
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::StoreF(ptr, *self));
     }
 }
 
@@ -955,16 +945,11 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
         4
     }
 
-    fn load(&self, ptr: Ptr<C::N>, offset: Usize<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::LoadE(*self, ptr, offset));
+    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadE(*self, ptr));
     }
 
-    fn store(
-        &self,
-        ptr: Ptr<<C as Config>::N>,
-        offset: Usize<<C as Config>::N>,
-        builder: &mut Builder<C>,
-    ) {
-        builder.push(DslIR::StoreE(*self, ptr, offset));
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::StoreE(ptr, *self));
     }
 }

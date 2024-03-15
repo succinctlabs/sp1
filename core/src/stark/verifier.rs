@@ -216,6 +216,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
             is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
+            _marker: PhantomData,
         };
         chip.eval(&mut folder);
 
