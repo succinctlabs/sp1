@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
-use crate::syscall::precompiles::bn254::{BN254AddAssignChip, BN254PrecompileChip};
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -89,8 +88,8 @@ impl SyscallCode {
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
-            107 => SyscallCode::BN254_ADD,
-            108 => SyscallCode::BN254_DOUBLE,
+            113 => SyscallCode::BN254_ADD,
+            114 => SyscallCode::BN254_DOUBLE,
             // 109 => SyscallCode::BN254_DECOMPRESS,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),

@@ -142,7 +142,7 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
         AffinePoint::new(x_3n, y_3n)
     }
 
-    pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
+    pub fn sw_double(&self) -> AffinePoint<<SwCurveE>> {
         let p = E::BaseField::modulus();
         let a = E::a_int();
         let slope_numerator = (&a + &(&self.x * &self.x) * 3u32) % &p;

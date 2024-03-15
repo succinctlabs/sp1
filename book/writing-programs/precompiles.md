@@ -104,5 +104,3 @@ Doubles a Bn254 point. The result is stored in the first point.
 ```rust,noplayground
 pub extern "C" fn syscall_bn254_double(p: *mut u32)
 ```
-
-#### Bn254 Decompress
