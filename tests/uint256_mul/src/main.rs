@@ -5,6 +5,7 @@ extern "C" {
     fn syscall_uint256_mul(x: *mut u32, y: *const u32);
 }
 
+#[sp1_derive::cycle_tracker]
 pub fn main() {
     // 20393249858788985237231628593243673548167146579814268721945474994541877372611
     let mut x: [u8; 32] = [
@@ -18,9 +19,11 @@ pub fn main() {
         100, 211, 197, 111, 120, 221, 222, 181, 14, 35, 153, 31, 70,
     ];
 
+    println!("cycle-tracker-start: uint256_mul");
     unsafe {
         syscall_uint256_mul(x.as_mut_ptr() as *mut u32, y.as_ptr() as *const u32);
     }
+    println!("cycle-tracker-end: uint256_mul");
 
     // 51322802423430141345283427329623147305270980883777033508307825758397730896826
     let c: [u8; 32] = [

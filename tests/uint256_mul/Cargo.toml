@@ -1,10 +1,9 @@
 [workspace]
 [package]
-name = "biguint-add-test"
+name = "biguint-mul-test"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
-hex-literal = "0.4.1"
-num = { version = "0.4.1", default-features = false }
+sp1-derive = { path = "../../derive" }
