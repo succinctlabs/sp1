@@ -24,7 +24,6 @@ pub(crate) mod riscv_chips {
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
-    pub use crate::syscall::precompiles::bn254::BN254PrecompileChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
     pub use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -35,6 +34,7 @@ pub(crate) mod riscv_chips {
     pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
     pub use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     pub use crate::utils::ec::edwards::EdwardsCurve;
+    pub use crate::utils::ec::weierstrass::bn254::Bn254Parameters;
     pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
     pub use crate::utils::ec::weierstrass::SwCurve;
 }
@@ -94,8 +94,10 @@ pub enum RiscvAir<F: PrimeField32> {
     KeccakP(KeccakPermuteChip),
     /// A precompile for the Blake3 compression function.
     Blake3Compress(Blake3CompressInnerChip),
-    /// A precompile for a simple precompile.
-    BN254Precompile(BN254PrecompileChip),
+    /// A precompile for addition on the Elliptic curve bn254.
+    Bn254Add(WeierstrassAddAssignChip<SwCurve<Bn254Parameters>>),
+    /// A precompile for doubling a point on the Elliptic curve bn254.
+    Bn254Double(WeierstrassDoubleAssignChip<SwCurve<Bn254Parameters>>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -136,8 +138,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let bn254_precompile = BN254PrecompileChip::default();
-        chips.push(RiscvAir::BN254Precompile(bn254_precompile));
         let add = AddChip::default();
         chips.push(RiscvAir::Add(add));
         let sub = SubChip::default();
