@@ -1,5 +1,4 @@
 use p3_air::Air;
-use p3_field::extension::BinomiallyExtendable;
 
 use sp1_core::air::MachineAir;
 use sp1_core::stark::{GenericVerifierConstraintFolder, MachineChip, StarkGenericConfig};
@@ -25,7 +24,6 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
             SymbolicExt<SC::Val, SC::Challenge>,
         >,
     >,
-    SC::Val: BinomiallyExtendable<4>,
 {
     chip.eval(folder);
 }
