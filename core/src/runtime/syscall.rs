@@ -66,8 +66,6 @@ pub enum SyscallCode {
     /// Executes a bn254 double.
     BN254_DOUBLE = 114,
 
-    // /// Executes a bn254 decompress.
-    // BN254_DECOMPRESS = 115,
     WRITE = 999,
 }
 
@@ -90,7 +88,6 @@ impl SyscallCode {
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
             113 => SyscallCode::BN254_ADD,
             114 => SyscallCode::BN254_DOUBLE,
-            // 109 => SyscallCode::BN254_DECOMPRESS,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }

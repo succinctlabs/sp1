@@ -46,9 +46,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
         panic!();
     }
 
-    // 只读不证
     let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
-    // 读 + 证
     let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);
     let q_memory_records = q_memory_records_vec.try_into().unwrap();
     let q: [u32; 16] = q_vec.try_into().unwrap();
