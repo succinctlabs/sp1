@@ -36,6 +36,7 @@ fn test_compiler_arithmetic() {
         let a: Felt<_> = builder.eval(a_val);
         let b: Felt<_> = builder.eval(b_val);
         builder.assert_felt_eq(a + b, a_val + b_val);
+        builder.assert_felt_eq(a + b, a + b_val);
         builder.assert_felt_eq(a * b, a_val * b_val);
         builder.assert_felt_eq(a - b, a_val - b_val);
         builder.assert_felt_eq(a / b, a_val / b_val);

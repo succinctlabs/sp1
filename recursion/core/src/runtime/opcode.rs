@@ -8,25 +8,33 @@ pub enum Opcode {
     DIV = 3,
 
     // Arithmetic field extension operations.
-    EADD = 11,
-    ESUB = 12,
-    EMUL = 13,
-    EDIV = 14,
+    EADD = 10,
+    ESUB = 11,
+    EMUL = 12,
+    EDIV = 13,
+
+    // Mixed arithmetic operations.
+    EFADD = 20,
+    EFSUB = 21,
+    EFMUL = 22,
+    EFDIV = 23,
 
     // Memory instructions.
     LW = 4,
     SW = 5,
+    LE = 14,
+    SE = 15,
 
     // Branch instructions.
     BEQ = 6,
     BNE = 7,
-    EBEQ = 15,
-    EBNE = 16,
+    EBEQ = 16,
+    EBNE = 17,
 
     // Jump instructions.
     JAL = 8,
     JALR = 9,
 
     // System instructions.
-    TRAP = 10,
+    TRAP = 30,
 }
