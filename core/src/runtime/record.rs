@@ -12,12 +12,12 @@ use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
-use crate::syscall::precompiles::bigint::BigUintEvent;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::uint256::Uint256MulEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,7 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
-    pub biguint_events: Vec<BigUintEvent>,
+    pub uint256_mul_events: Vec<Uint256MulEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
@@ -180,7 +180,7 @@ impl MachineRecord for ExecutionRecord {
         );
         stats.insert(
             "biguint_arith_events".to_string(),
-            self.biguint_events.len(),
+            self.uint256_mul_events.len(),
         );
         stats.insert("ed_add_events".to_string(), self.ed_add_events.len());
         stats.insert(
@@ -236,7 +236,8 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
-        self.biguint_events.append(&mut other.biguint_events);
+        self.uint256_mul_events
+            .append(&mut other.uint256_mul_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -354,12 +355,12 @@ impl MachineRecord for ExecutionRecord {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
-        // BigUint arithmetic events.
-        for (bigint_chunk, shard) in take(&mut self.biguint_events)
+        // Uint256 mul arithmetic events.
+        for (bigint_chunk, shard) in take(&mut self.uint256_mul_events)
             .chunks_mut(config.biguint_arith_len)
             .zip(shards.iter_mut())
         {
-            shard.biguint_events.extend_from_slice(bigint_chunk);
+            shard.uint256_mul_events.extend_from_slice(bigint_chunk);
         }
 
         // Weierstrass curve add events.
@@ -403,8 +404,8 @@ impl MachineRecord for ExecutionRecord {
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
 
-        // BigUint arithmetic events.
-        first.biguint_events = std::mem::take(&mut self.biguint_events);
+        // Uint256 mul arithmetic events.
+        first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
 
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups = std::mem::take(&mut self.byte_lookups);

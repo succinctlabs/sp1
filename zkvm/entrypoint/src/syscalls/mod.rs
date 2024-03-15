@@ -1,4 +1,3 @@
-mod biguint;
 mod blake3_compress;
 mod ed25519;
 mod halt;
@@ -9,9 +8,9 @@ mod secp256k1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
+mod uint256_mul;
 mod unconstrained;
 
-pub use biguint::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -21,6 +20,7 @@ pub use secp256k1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
+pub use uint256_mul::*;
 pub use unconstrained::*;
 
 /// Halts the program.
@@ -62,14 +62,8 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
 
-/// Executes `BIGUINT_ADD`.
-pub const BIGUINT_ADD: u32 = 114;
-
-/// Executes `BIGUINT_SUB`.
-pub const BIGUINT_SUB: u32 = 115;
-
-/// Executes `BIGUINT_MUL`.
-pub const BIGUINT_MUL: u32 = 116;
+/// Executes `UINT256_MUL`.
+pub const UINT256_MUL: u32 = 114;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;

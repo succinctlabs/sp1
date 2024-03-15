@@ -1,6 +1,6 @@
-mod bigint_ops;
+mod uint256_mul;
 
-pub use bigint_ops::*;
+pub use uint256_mul::*;
 
 use crate::{
     operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS},
@@ -9,8 +9,8 @@ use crate::{
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
 
-/// Number of `u32` WORDS in a bigint.
-const NUM_WORDS_IN_BIGUINT: usize = NUM_LIMBS / 4;
+/// Number of `u32` WORDS in a uint256.
+const NUM_WORDS_IN_UINT256: usize = NUM_LIMBS / 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct U256Field;
@@ -39,13 +39,13 @@ impl FieldParameters for U256Field {
 mod tests {
 
     use crate::{
-        utils::{self, tests::BIGUINT_ADD},
+        utils::{self, tests::UINT256_MUL},
         SP1Prover, SP1Stdin,
     };
 
     #[test]
-    fn test_biguint_add() {
+    fn test_uint256_mul() {
         utils::setup_logger();
-        SP1Prover::prove(BIGUINT_ADD, SP1Stdin::new()).unwrap();
+        SP1Prover::prove(UINT256_MUL, SP1Stdin::new()).unwrap();
     }
 }

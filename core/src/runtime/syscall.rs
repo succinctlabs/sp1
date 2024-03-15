@@ -2,13 +2,13 @@ use hashbrown::HashMap;
 use std::rc::Rc;
 
 use crate::runtime::{Register, Runtime};
-use crate::syscall::precompiles::bigint::BigUintChip;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
+use crate::syscall::precompiles::uint256::Uint256MulChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
@@ -61,14 +61,8 @@ pub enum SyscallCode {
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 112,
 
-    /// Executes the `BIGUINT ADD` precompile.
-    BIGUINT_ADD = 114,
-
-    /// Executes the `BIGUINT SUB` precompile.
-    BIGUINT_SUB = 115,
-
-    /// Executes the `BIGUINT MUL` precompile.
-    BIGUINT_MUL = 116,
+    /// Executes the `UINT256 MUL` precompile.
+    UINT256_MUL = 114,
 
     WRITE = 999,
 }
@@ -90,9 +84,7 @@ impl SyscallCode {
             110 => SyscallCode::ENTER_UNCONSTRAINED,
             111 => SyscallCode::EXIT_UNCONSTRAINED,
             112 => SyscallCode::BLAKE3_COMPRESS_INNER,
-            114 => SyscallCode::BIGUINT_ADD,
-            115 => SyscallCode::BIGUINT_SUB,
-            116 => SyscallCode::BIGUINT_MUL,
+            114 => SyscallCode::UINT256_MUL,
             999 => SyscallCode::WRITE,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -230,9 +222,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::BLAKE3_COMPRESS_INNER,
         Rc::new(Blake3CompressInnerChip::new()),
     );
-    syscall_map.insert(SyscallCode::BIGUINT_ADD, Rc::new(BigUintChip::new()));
-    syscall_map.insert(SyscallCode::BIGUINT_SUB, Rc::new(BigUintChip::new()));
-    syscall_map.insert(SyscallCode::BIGUINT_MUL, Rc::new(BigUintChip::new()));
+    syscall_map.insert(SyscallCode::UINT256_MUL, Rc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),
