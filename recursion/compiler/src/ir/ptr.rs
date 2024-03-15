@@ -130,6 +130,26 @@ impl<N> Add<SymbolicPtr<N>> for Ptr<N> {
     }
 }
 
+impl<N> Add<SymbolicVar<N>> for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn add(self, rhs: SymbolicVar<N>) -> SymbolicPtr<N> {
+        SymbolicPtr {
+            address: self.address + rhs,
+        }
+    }
+}
+
+impl<N> Sub<SymbolicVar<N>> for Ptr<N> {
+    type Output = SymbolicPtr<N>;
+
+    fn sub(self, rhs: SymbolicVar<N>) -> SymbolicPtr<N> {
+        SymbolicPtr {
+            address: self.address - rhs,
+        }
+    }
+}
+
 impl<N> Sub<SymbolicPtr<N>> for Ptr<N> {
     type Output = SymbolicPtr<N>;
 

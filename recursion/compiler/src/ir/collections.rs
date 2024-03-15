@@ -47,7 +47,7 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(ptr, _) => {
                 let var = self.uninit();
-                self.load(var, *ptr + index);
+                self.load(var, *ptr + index * V::size_of());
                 var
             }
         }
@@ -71,7 +71,7 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(ptr, _) => {
                 let value: V = self.eval(value);
-                self.store(*ptr + index, value);
+                self.store(*ptr + index * V::size_of(), value);
             }
         }
     }

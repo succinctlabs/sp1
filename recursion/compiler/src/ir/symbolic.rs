@@ -1,3 +1,4 @@
+use super::Usize;
 use super::{Ext, Felt, Var};
 use alloc::rc::Rc;
 use core::ops::{Add, Div, Mul, Neg, Sub};
@@ -614,5 +615,16 @@ impl<N> Add<SymbolicVar<N>> for Var<N> {
 
     fn add(self, rhs: SymbolicVar<N>) -> Self::Output {
         SymbolicVar::<N>::from(self) + rhs
+    }
+}
+
+impl<N: Field> Mul<usize> for Usize<N> {
+    type Output = SymbolicVar<N>;
+
+    fn mul(self, rhs: usize) -> Self::Output {
+        match self {
+            Usize::Const(n) => SymbolicVar::Const(N::from_canonical_usize(n * rhs)),
+            Usize::Var(n) => SymbolicVar::Val(n) * N::from_canonical_usize(rhs),
+        }
     }
 }
