@@ -28,15 +28,23 @@ fn test_compiler_array() {
     }
 
     let dyn_len: Var<_> = builder.eval(F::from_canonical_usize(len));
-    let mut array = builder.array::<Ext<_, _>, _>(dyn_len);
+    let mut var_array = builder.array::<Var<_>, _>(dyn_len);
+    let mut felt_array = builder.array::<Felt<_>, _>(dyn_len);
+    let mut ext_array = builder.array::<Ext<_, _>, _>(dyn_len);
     // Put values statically
     for i in 0..len {
-        builder.set(&mut array, i, EF::one());
+        builder.set(&mut var_array, i, F::from_canonical_usize(i));
+        builder.set(&mut felt_array, i, F::from_canonical_usize(i));
+        builder.set(&mut ext_array, i, EF::from_canonical_usize(i));
     }
     // Assert values set.
     for i in 0..len {
-        let value = builder.get(&array, i);
-        builder.assert_ext_eq(value, EF::one());
+        let var_value = builder.get(&var_array, i);
+        builder.assert_var_eq(var_value, F::from_canonical_usize(i));
+        let felt_value = builder.get(&felt_array, i);
+        builder.assert_felt_eq(felt_value, F::from_canonical_usize(i));
+        let ext_value = builder.get(&ext_array, i);
+        builder.assert_ext_eq(ext_value, EF::from_canonical_usize(i));
     }
 
     let code = builder.compile_to_asm();
