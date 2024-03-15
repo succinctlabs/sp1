@@ -1,9 +1,8 @@
 extern crate alloc;
 
 pub mod asm;
-pub mod backend;
 pub mod builder;
-pub mod heap;
+pub mod gnark;
 pub mod ir;
 pub mod util;
 

@@ -6,6 +6,8 @@ pub use extension::*;
 
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
+use p3_field::ExtensionField;
+use p3_field::Field;
 use p3_field::PrimeField32;
 use sp1_core::air::{BinomialExtension, SP1AirBuilder};
 use sp1_derive::AlignedBorrow;
@@ -37,6 +39,14 @@ impl<T> Block<T> {
         F: FnMut(T) -> U,
     {
         Block(self.0.map(f))
+    }
+
+    pub fn ext<E>(&self) -> E
+    where
+        T: Field,
+        E: ExtensionField<T>,
+    {
+        E::from_base_slice(&self.0)
     }
 }
 

@@ -518,6 +518,62 @@ impl<F, EF> Sub<EF> for Ext<F, EF> {
     }
 }
 
+impl<F, EF> Sub<SymbolicExt<F, EF>> for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn sub(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::from(self) - rhs
+    }
+}
+
+impl<F, EF> Add<SymbolicExt<F, EF>> for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn add(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::from(self) + rhs
+    }
+}
+
+impl<F, EF> Mul<SymbolicExt<F, EF>> for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn mul(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::from(self) * rhs
+    }
+}
+
+impl<F, EF> Add<SymbolicExt<F, EF>> for Felt<F> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn add(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::Base(Rc::new(SymbolicFelt::Val(self))) + rhs
+    }
+}
+
+impl<F, EF> Mul<SymbolicExt<F, EF>> for Felt<F> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn mul(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::Base(Rc::new(SymbolicFelt::Val(self))) * rhs
+    }
+}
+
+impl<F, EF> Sub<SymbolicExt<F, EF>> for Felt<F> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn sub(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::Base(Rc::new(SymbolicFelt::Val(self))) - rhs
+    }
+}
+
+impl<F, EF> Div<SymbolicExt<F, EF>> for Felt<F> {
+    type Output = SymbolicExt<F, EF>;
+
+    fn div(self, rhs: SymbolicExt<F, EF>) -> Self::Output {
+        SymbolicExt::<F, EF>::Base(Rc::new(SymbolicFelt::Val(self))) / rhs
+    }
+}
+
 impl<F> Div for Felt<F> {
     type Output = SymbolicFelt<F>;
 

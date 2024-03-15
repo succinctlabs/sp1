@@ -2574,6 +2574,7 @@ version = "0.1.0"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
+ "rand",
  "sp1-core",
  "sp1-recursion-core",
 ]
