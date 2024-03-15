@@ -46,7 +46,7 @@ SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu
 
 #### Blake3 on ARM machines
 
-Blake3 on ARM machines requires using the `neon` feature of `sp1-core`. For examples in the the sp1-core repo, you can use:
+Blake3 on ARM machines requires using the `neon` feature of `sp1-core`. For examples in the sp1-core repo, you can use:
 
 ```rust,noplayground
 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release --features neon
