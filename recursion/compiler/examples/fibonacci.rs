@@ -26,7 +26,7 @@ fn main() {
     type EF = <SC as StarkGenericConfig>::Challenge;
 
     let n_val = 10;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = VmBuilder::<F>::default();
     let a: Felt<_> = builder.eval(F::zero());
     let b: Felt<_> = builder.eval(F::one());
     let n: Var<_> = builder.eval(F::from_canonical_u32(n_val));

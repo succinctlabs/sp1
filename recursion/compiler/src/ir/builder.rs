@@ -98,26 +98,20 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
     }
 
-    pub fn assert_ext_eq<
-        LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-        RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-    >(
+    pub fn assert_ext_eq<LhsExpr: Into<SymbolicExt<C::F>>, RhsExpr: Into<SymbolicExt<C::F>>>(
         &mut self,
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_eq::<Ext<C::F>, _, _>(lhs, rhs);
     }
 
-    pub fn assert_ext_ne<
-        LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-        RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-    >(
+    pub fn assert_ext_ne<LhsExpr: Into<SymbolicExt<C::F>>, RhsExpr: Into<SymbolicExt<C::F>>>(
         &mut self,
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_ne::<Ext<C::F>, _, _>(lhs, rhs);
     }
 
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(

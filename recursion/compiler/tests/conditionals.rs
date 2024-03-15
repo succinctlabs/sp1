@@ -9,7 +9,7 @@ use sp1_recursion_core::runtime::Runtime;
 fn test_compiler_conditionals() {
     type F = BabyBear;
     type EF = BinomialExtensionField<BabyBear, 4>;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = VmBuilder::<F>::default();
 
     let a: Var<_> = builder.eval(F::zero());
     let b: Var<_> = builder.eval(F::one());

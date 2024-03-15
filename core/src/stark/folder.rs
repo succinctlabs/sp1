@@ -1,7 +1,9 @@
+use std::marker::PhantomData;
+
 use super::{PackedChallenge, PackedVal, StarkGenericConfig};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
-use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field};
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
@@ -96,24 +98,27 @@ impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
 /// A folder for verifier constraints.
-pub struct VerifierConstraintFolder<'a, SC: StarkGenericConfig> {
-    pub preprocessed: TwoRowMatrixView<'a, SC::Challenge>,
-    pub main: TwoRowMatrixView<'a, SC::Challenge>,
-    pub perm: TwoRowMatrixView<'a, SC::Challenge>,
-    pub perm_challenges: &'a [SC::Challenge],
-    pub cumulative_sum: SC::Challenge,
-    pub is_first_row: SC::Challenge,
-    pub is_last_row: SC::Challenge,
-    pub is_transition: SC::Challenge,
-    pub alpha: SC::Challenge,
-    pub accumulator: SC::Challenge,
+pub struct VerifierConstraintFolder<'a, F, EF> {
+    pub preprocessed: TwoRowMatrixView<'a, EF>,
+    pub main: TwoRowMatrixView<'a, EF>,
+    pub perm: TwoRowMatrixView<'a, EF>,
+    pub perm_challenges: &'a [EF],
+    pub cumulative_sum: EF,
+    pub is_first_row: EF,
+    pub is_last_row: EF,
+    pub is_transition: EF,
+    pub alpha: EF,
+    pub accumulator: EF,
+    pub phantom: PhantomData<F>,
 }
 
-impl<'a, SC: StarkGenericConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
-    type F = SC::Val;
-    type Expr = SC::Challenge;
-    type Var = SC::Challenge;
-    type M = TwoRowMatrixView<'a, SC::Challenge>;
+impl<'a, F: Field, EF: AbstractExtensionField<F> + Copy> AirBuilder
+    for VerifierConstraintFolder<'a, F, EF>
+{
+    type F = F;
+    type Expr = EF;
+    type Var = EF;
+    type M = TwoRowMatrixView<'a, EF>;
 
     fn main(&self) -> Self::M {
         self.main
@@ -136,16 +141,15 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for VerifierConstraintFolder<'a, SC>
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let x: SC::Challenge = x.into();
         self.accumulator *= self.alpha;
-        self.accumulator += x;
+        self.accumulator += x.into();
     }
 }
 
-impl<'a, SC: StarkGenericConfig> ExtensionBuilder for VerifierConstraintFolder<'a, SC> {
-    type EF = SC::Challenge;
-    type ExprEF = SC::Challenge;
-    type VarEF = SC::Challenge;
+impl<'a, F: Field, EF: ExtensionField<F>> ExtensionBuilder for VerifierConstraintFolder<'a, F, EF> {
+    type EF = EF;
+    type ExprEF = EF;
+    type VarEF = EF;
 
     fn assert_zero_ext<I>(&mut self, x: I)
     where
@@ -155,8 +159,10 @@ impl<'a, SC: StarkGenericConfig> ExtensionBuilder for VerifierConstraintFolder<'
     }
 }
 
-impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for VerifierConstraintFolder<'a, SC> {
-    type MP = TwoRowMatrixView<'a, SC::Challenge>;
+impl<'a, F: Field, EF: ExtensionField<F>> PermutationAirBuilder
+    for VerifierConstraintFolder<'a, F, EF>
+{
+    type MP = TwoRowMatrixView<'a, EF>;
 
     fn permutation(&self) -> Self::MP {
         self.perm
@@ -167,18 +173,23 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for VerifierConstraintFol
     }
 }
 
-impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for VerifierConstraintFolder<'a, SC> {
-    type Sum = SC::Challenge;
+impl<'a, F: Field, EF: ExtensionField<F>> MultiTableAirBuilder
+    for VerifierConstraintFolder<'a, F, EF>
+{
+    type Sum = EF;
 
     fn cumulative_sum(&self) -> Self::Sum {
         self.cumulative_sum
     }
 }
 
-impl<'a, SC: StarkGenericConfig> PairBuilder for VerifierConstraintFolder<'a, SC> {
+impl<'a, F: Field, EF: ExtensionField<F>> PairBuilder for VerifierConstraintFolder<'a, F, EF> {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
     }
 }
 
-impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
+impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
+    for VerifierConstraintFolder<'a, F, EF>
+{
+}

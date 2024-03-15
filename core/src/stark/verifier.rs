@@ -35,7 +35,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
         proof: &ShardProof<SC>,
     ) -> Result<(), VerificationError>
     where
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>,
     {
         let ShardProof {
             commitment,
@@ -157,7 +157,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
         permutation_challenges: &[SC::Challenge],
     ) -> Result<(), OodEvaluationMismatch>
     where
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>,
     {
         let z_h = zeta.exp_power_of_2(opening.log_degree) - SC::Challenge::one();
         let is_first_row = z_h / (zeta - SC::Val::one());
@@ -205,7 +205,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let mut folder = VerifierConstraintFolder::<SC> {
+        let mut folder = VerifierConstraintFolder::<SC::Val, SC::Challenge> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
@@ -216,6 +216,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> Verifier<SC, A> {
             is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
+            phantom: PhantomData,
         };
         chip.eval(&mut folder);
 

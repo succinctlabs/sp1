@@ -5,13 +5,14 @@ use core::fmt;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;
 
-use crate::util::canonical_i32_to_field;
-use p3_field::{ExtensionField, PrimeField32};
+use crate::ir::D;
+use crate::{prelude::BinomialExtension, util::canonical_i32_to_field};
+use p3_field::{extension::BinomiallyExtendable, AbstractExtensionField, PrimeField32};
 
 use super::ZERO;
 
 #[derive(Debug, Clone)]
-pub enum AsmInstruction<F, EF> {
+pub enum AsmInstruction<F> {
     /// Load work (src, dst) : load a value from the address stored at dest(fp) into src(fp).
     LW(i32, i32),
     /// Store word (src, dst) : store a value from src(fp) into the address stored at dest(fp).
@@ -45,27 +46,27 @@ pub enum AsmInstruction<F, EF> {
     /// Store an ext value (dst, src) : store a value from src(fp) into address stored at dst(fp).
     SE(i32, i32),
     /// Get immediate extension value (dst, value) : load a value into the dest(fp).
-    EIMM(i32, EF),
+    EIMM(i32, BinomialExtension<F>),
     /// Add extension, dst = lhs + rhs.
     EADD(i32, i32, i32),
     /// Add immediate extension, dst = lhs + rhs.
-    EADDI(i32, i32, EF),
+    EADDI(i32, i32, BinomialExtension<F>),
     /// Subtract extension, dst = lhs - rhs.
     ESUB(i32, i32, i32),
     /// Subtract immediate extension, dst = lhs - rhs.
-    ESUBI(i32, i32, EF),
+    ESUBI(i32, i32, BinomialExtension<F>),
     /// Subtract value from immediate extension, dst = lhs - rhs.
-    ESUBIN(i32, EF, i32),
+    ESUBIN(i32, BinomialExtension<F>, i32),
     /// Multiply extension, dst = lhs * rhs.
     EMUL(i32, i32, i32),
     /// Multiply immediate extension.
-    EMULI(i32, i32, EF),
+    EMULI(i32, i32, BinomialExtension<F>),
     /// Divide extension, dst = lhs / rhs.
     EDIV(i32, i32, i32),
     /// Divide immediate extension, dst = lhs / rhs.
-    EDIVI(i32, i32, EF),
+    EDIVI(i32, i32, BinomialExtension<F>),
     /// Divide value from immediate extension, dst = lhs / rhs.
-    EDIVIN(i32, EF, i32),
+    EDIVIN(i32, BinomialExtension<F>, i32),
 
     /// Jump and link
     JAL(i32, F, F),
@@ -82,16 +83,16 @@ pub enum AsmInstruction<F, EF> {
     /// Branch not equal extension
     EBNE(F, i32, i32),
     /// Branch not equal immediate extension
-    EBNEI(F, i32, EF),
+    EBNEI(F, i32, BinomialExtension<F>),
     /// Branch equal extension
     EBEQ(F, i32, i32),
     /// Branch equal immediate extension
-    EBEQI(F, i32, EF),
+    EBEQI(F, i32, BinomialExtension<F>),
     /// Trap
     TRAP,
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> AsmInstruction<F> {
     pub fn j(label: F) -> Self {
         AsmInstruction::JAL(ZERO, label, F::zero())
     }

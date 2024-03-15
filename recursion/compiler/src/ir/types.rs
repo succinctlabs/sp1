@@ -4,6 +4,7 @@ use core::marker::PhantomData;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
+use super::BinomialExtension;
 use super::MemVariable;
 use super::Ptr;
 use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
@@ -16,7 +17,7 @@ pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
 #[derive(Debug, Clone, Copy)]
 
-pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
+pub struct Ext<F>(pub u32, pub PhantomData<F>);
 
 #[derive(Debug, Clone, Copy)]
 
@@ -66,7 +67,7 @@ impl<F> Felt<F> {
     }
 }
 
-impl<F, EF> Ext<F, EF> {
+impl<F> Ext<F> {
     pub fn new(id: u32) -> Self {
         Self(id, PhantomData)
     }
@@ -646,8 +647,8 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
     }
 }
 
-impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
-    type Expression = SymbolicExt<C::F, C::EF>;
+impl<C: Config> Variable<C> for Ext<C::F> {
+    type Expression = SymbolicExt<C::F>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         let ext = Ext(builder.ext_count, PhantomData);
@@ -659,19 +660,26 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
         match src {
             SymbolicExt::Base(v) => match &*v {
                 SymbolicFelt::Const(c) => {
-                    builder
-                        .operations
-                        .push(DslIR::ImmExt(*self, C::EF::from_base(*c)));
+                    builder.operations.push(DslIR::ImmExt(
+                        *self,
+                        BinomialExtension::<C::F>::from_base(*c),
+                    ));
                 }
                 SymbolicFelt::Val(v) => {
-                    builder
-                        .operations
-                        .push(DslIR::AddEFFI(*self, *v, C::EF::zero()));
+                    builder.operations.push(DslIR::AddEFFI(
+                        *self,
+                        *v,
+                        BinomialExtension::<C::F>::zero(),
+                    ));
                 }
                 v => {
                     let v_value = Felt::uninit(builder);
                     v_value.assign(v.clone(), builder);
-                    builder.push(DslIR::AddEFFI(*self, v_value, C::EF::zero()));
+                    builder.push(DslIR::AddEFFI(
+                        *self,
+                        v_value,
+                        BinomialExtension::<C::F>::zero(),
+                    ));
                 }
             },
             SymbolicExt::Const(c) => {
@@ -680,7 +688,7 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
             SymbolicExt::Val(v) => {
                 builder
                     .operations
-                    .push(DslIR::AddEI(*self, v, C::EF::zero()));
+                    .push(DslIR::AddEI(*self, v, BinomialExtension::<C::F>::zero()));
             }
             SymbolicExt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
@@ -950,7 +958,7 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
     }
 }
 
-impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
+impl<C: Config> MemVariable<C> for Ext<C::F> {
     fn size_of() -> usize {
         4
     }

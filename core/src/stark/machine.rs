@@ -116,7 +116,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
         tracing::debug!("sharding the execution record");
@@ -138,7 +138,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Challenger: Clone,
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.

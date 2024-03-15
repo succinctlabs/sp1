@@ -656,7 +656,7 @@ mod tests {
     use std::io::Write;
 
     use p3_baby_bear::BabyBear;
-    use p3_field::{extension::BinomialExtensionField, AbstractField};
+    use p3_field::AbstractField;
 
     use crate::ir::{Felt, Usize, Var};
     use crate::prelude::Builder;
@@ -669,7 +669,6 @@ mod tests {
     impl Config for BabyBearConfig {
         type N = BabyBear;
         type F = BabyBear;
-        type EF = BinomialExtensionField<BabyBear, 4>;
     }
 
     #[test]

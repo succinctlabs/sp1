@@ -1,32 +1,35 @@
 use super::AsmInstruction;
+use crate::ir::D;
 use alloc::format;
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
-use p3_field::{ExtensionField, PrimeField32};
+use p3_field::extension::BinomiallyExtendable;
+use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F, EF>(Vec<AsmInstruction<F, EF>>);
+pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);
 
 #[derive(Debug, Clone)]
-pub struct AssemblyCode<F, EF> {
-    blocks: Vec<BasicBlock<F, EF>>,
+pub struct AssemblyCode<F> {
+    blocks: Vec<BasicBlock<F>>,
     labels: BTreeMap<F, String>,
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> BasicBlock<F, EF> {
+impl<F: PrimeField32> BasicBlock<F> {
     pub fn new() -> Self {
         Self(Vec::new())
     }
 
-    pub(crate) fn push(&mut self, instruction: AsmInstruction<F, EF>) {
+    pub(crate) fn push(&mut self, instruction: AsmInstruction<F>) {
         self.0.push(instruction);
     }
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
-    pub fn new(blocks: Vec<BasicBlock<F, EF>>, labels: BTreeMap<F, String>) -> Self {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> AssemblyCode<F> {
+    pub fn new(blocks: Vec<BasicBlock<F>>, labels: BTreeMap<F, String>) -> Self {
         Self { blocks, labels }
     }
 
@@ -57,7 +60,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
     }
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> Display for AssemblyCode<F, EF> {
+impl<F: PrimeField32> Display for AssemblyCode<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, block) in self.blocks.iter().enumerate() {
             writeln!(
@@ -69,7 +72,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Display for AssemblyCode<F, EF> {
             )?;
             for instruction in &block.0 {
                 write!(f, "        ")?;
-                instruction.fmt(&self.labels, f)?;
+                instruction.fmt(f)?;
                 writeln!(f)?;
             }
         }

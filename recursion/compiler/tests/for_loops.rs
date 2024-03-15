@@ -11,7 +11,7 @@ fn test_compiler_for_loops() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = VmBuilder::<F>::default();
 
     let n_val = BabyBear::from_canonical_u32(10);
     let m_val = BabyBear::from_canonical_u32(5);

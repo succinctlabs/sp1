@@ -1,4 +1,4 @@
-use p3_field::{ExtensionField, Field};
+use p3_field::{extension::BinomiallyExtendable, Field};
 
 mod builder;
 mod collections;
@@ -18,6 +18,5 @@ pub use var::*;
 
 pub trait Config: Clone {
     type N: Field;
-    type F: Field;
-    type EF: ExtensionField<Self::F>;
+    type F: Field + BinomiallyExtendable<D>;
 }

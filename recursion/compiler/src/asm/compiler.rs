@@ -6,39 +6,42 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use p3_field::ExtensionField;
+use p3_field::extension::BinomiallyExtendable;
+use p3_field::AbstractExtensionField;
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
 
 use crate::asm::AsmInstruction;
 use crate::ir::Builder;
 use crate::ir::Usize;
+use crate::ir::D;
 use crate::ir::{Config, DslIR, Ext, Felt, Var};
+use crate::prelude::BinomialExtension;
 use p3_field::Field;
 
 pub(crate) const ZERO: i32 = 0;
 pub(crate) const HEAP_PTR: i32 = -4;
 
-pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
+pub type VmBuilder<F> = Builder<AsmConfig<F>>;
 
 #[derive(Debug, Clone)]
-pub struct AsmCompiler<F, EF> {
-    pub basic_blocks: Vec<BasicBlock<F, EF>>,
+pub struct AsmCompiler<F> {
+    pub basic_blocks: Vec<BasicBlock<F>>,
 
     function_labels: BTreeMap<String, F>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
+pub struct AsmConfig<F>(PhantomData<F>);
 
-impl<F: Field, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
+impl<F: Field + BinomiallyExtendable<D>> Config for AsmConfig<F> {
     type N = F;
     type F = F;
-    type EF = EF;
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> VmBuilder<F, EF> {
-    pub fn compile_to_asm(self) -> AssemblyCode<F, EF> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> VmBuilder<F> {
+    pub fn compile_to_asm(self) -> AssemblyCode<F> {
         let mut compiler = AsmCompiler::new();
         compiler.build(self.operations);
         compiler.code()
@@ -63,13 +66,13 @@ impl<F> Felt<F> {
     }
 }
 
-impl<F, EF> Ext<F, EF> {
+impl<F> Ext<F> {
     pub fn fp(&self) -> i32 {
         -((self.0 as i32) * 3 + 8)
     }
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> AsmCompiler<F> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -78,7 +81,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
         }
     }
 
-    pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
+    pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F>>>) {
         for op in operations {
             match op {
                 DslIR::Imm(dst, src) => {
@@ -114,7 +117,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     self.push(AsmInstruction::EADDI(
                         dst.fp(),
                         lhs.fp(),
-                        EF::from_base(rhs),
+                        BinomialExtension::<F>::from_base(rhs),
                     ));
                 }
                 DslIR::SubV(dst, lhs, rhs) => {
@@ -161,7 +164,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     self.push(AsmInstruction::EDIVI(
                         dst.fp(),
                         lhs.fp(),
-                        EF::from_base(rhs),
+                        BinomialExtension::<F>::from_base(rhs),
                     ));
                 }
                 DslIR::DivEIN(dst, lhs, rhs) => {
@@ -170,7 +173,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::DivEFIN(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EDIVIN(
                         dst.fp(),
-                        EF::from_base(lhs),
+                        BinomialExtension::<F>::from_base(lhs),
                         rhs.fp(),
                     ));
                 }
@@ -181,12 +184,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     self.push(AsmInstruction::EDIVI(dst.fp(), lhs.fp(), rhs));
                 }
                 DslIR::InvE(dst, src) => {
-                    self.push(AsmInstruction::EDIVIN(dst.fp(), EF::one(), src.fp()));
+                    self.push(AsmInstruction::EDIVIN(
+                        dst.fp(),
+                        BinomialExtension::<F>::one(),
+                        src.fp(),
+                    ));
                 }
                 DslIR::SubEFIN(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ESUBIN(
                         dst.fp(),
-                        EF::from_base(lhs),
+                        BinomialExtension::<F>::from_base(lhs),
                         rhs.fp(),
                     ));
                 }
@@ -195,7 +202,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     self.push(AsmInstruction::ESUBI(
                         dst.fp(),
                         lhs.fp(),
-                        EF::from_base(rhs),
+                        BinomialExtension::<F>::from_base(rhs),
                     ));
                 }
                 DslIR::SubEIN(dst, lhs, rhs) => {
@@ -208,7 +215,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     self.push(AsmInstruction::ESUBI(dst.fp(), lhs.fp(), rhs));
                 }
                 DslIR::NegE(dst, src) => {
-                    self.push(AsmInstruction::ESUBIN(dst.fp(), EF::one(), src.fp()));
+                    self.push(AsmInstruction::ESUBIN(
+                        dst.fp(),
+                        BinomialExtension::<F>::one(),
+                        src.fp(),
+                    ));
                 }
                 DslIR::MulV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MUL(dst.fp(), lhs.fp(), rhs.fp()));
@@ -452,7 +463,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
         }
     }
 
-    pub fn code(self) -> AssemblyCode<F, EF> {
+    pub fn code(self) -> AssemblyCode<F> {
         let labels = self
             .function_labels
             .into_iter()
@@ -474,36 +485,36 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
         F::from_canonical_usize(self.basic_blocks.len() - 1)
     }
 
-    fn push_to_block(&mut self, block_label: F, instruction: AsmInstruction<F, EF>) {
+    fn push_to_block(&mut self, block_label: F, instruction: AsmInstruction<F>) {
         self.basic_blocks
             .get_mut(block_label.as_canonical_u32() as usize)
             .unwrap_or_else(|| panic!("Missing block at label: {:?}", block_label))
             .push(instruction);
     }
 
-    fn push(&mut self, instruction: AsmInstruction<F, EF>) {
+    fn push(&mut self, instruction: AsmInstruction<F>) {
         self.basic_blocks.last_mut().unwrap().push(instruction);
     }
 }
 
-pub enum ValueOrConst<F, EF> {
+pub enum ValueOrConst<F> {
     Val(i32),
     ExtVal(i32),
     Const(F),
-    ExtConst(EF),
+    ExtConst(BinomialExtension<F>),
 }
 
-pub struct IfCompiler<'a, F, EF> {
-    compiler: &'a mut AsmCompiler<F, EF>,
+pub struct IfCompiler<'a, F> {
+    compiler: &'a mut AsmCompiler<F>,
     lhs: i32,
-    rhs: ValueOrConst<F, EF>,
+    rhs: ValueOrConst<F>,
     is_eq: bool,
 }
 
-impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
+impl<'a, F: PrimeField32 + BinomiallyExtendable<D>> IfCompiler<'a, F> {
     pub fn then<Func>(self, f: Func)
     where
-        Func: FnOnce(&mut AsmCompiler<F, EF>),
+        Func: FnOnce(&mut AsmCompiler<F>),
     {
         let Self {
             compiler,
@@ -524,8 +535,8 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
 
     pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
     where
-        ThenFunc: FnOnce(&mut AsmCompiler<F, EF>),
-        ElseFunc: FnOnce(&mut AsmCompiler<F, EF>),
+        ThenFunc: FnOnce(&mut AsmCompiler<F>),
+        ElseFunc: FnOnce(&mut AsmCompiler<F>),
     {
         let Self {
             compiler,
@@ -553,10 +564,10 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
 
     fn branch(
         lhs: i32,
-        rhs: ValueOrConst<F, EF>,
+        rhs: ValueOrConst<F>,
         is_eq: bool,
         block: F,
-        compiler: &mut AsmCompiler<F, EF>,
+        compiler: &mut AsmCompiler<F>,
     ) {
         match (rhs, is_eq) {
             (ValueOrConst::Const(rhs), true) => {
@@ -598,15 +609,15 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
 /// A builder for a for loop.
 ///
 /// Starting with end < start will lead to undefined behavior!
-pub struct ForCompiler<'a, F, EF> {
-    compiler: &'a mut AsmCompiler<F, EF>,
+pub struct ForCompiler<'a, F> {
+    compiler: &'a mut AsmCompiler<F>,
     start: Usize<F>,
     end: Usize<F>,
     loop_var: Var<F>,
 }
 
-impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
-    pub(super) fn for_each(mut self, f: impl FnOnce(Var<F>, &mut AsmCompiler<F, EF>)) {
+impl<'a, F: PrimeField32 + BinomiallyExtendable<D>> ForCompiler<'a, F> {
+    pub(super) fn for_each(mut self, f: impl FnOnce(Var<F>, &mut AsmCompiler<F>)) {
         // The function block structure:
         // - Setting the loop range
         // - Executing the loop body and incrementing the loop variable

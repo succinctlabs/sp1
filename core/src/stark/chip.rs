@@ -61,7 +61,7 @@ pub trait StarkAir<SC: StarkGenericConfig>:
     MachineAir<SC::Val>
     + Air<InteractionBuilder<SC::Val>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+    + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
     + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
 }
@@ -70,7 +70,7 @@ impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
     T: MachineAir<SC::Val>
         + Air<InteractionBuilder<SC::Val>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
         + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
 {
 }

@@ -51,7 +51,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>;
 }
 
@@ -75,7 +75,7 @@ where
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
         // Generate and commit the traces for each segment.
@@ -208,7 +208,7 @@ where
         ShardMainData<SC>: DeserializeOwned,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<SC::Val>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC::Val, SC::Challenge>>
             + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
     {
         // Get the traces.
