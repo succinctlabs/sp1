@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
+use crate::stark::ShardMainDataWrapper;
 use crate::stark::{Prover, RiscvAir, ShardProof};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
 pub use baby_bear_blake3::BabyBearBlake3;
+use p3_challenger::CanObserve;
 use p3_commit::Pcs;
 use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
@@ -128,7 +130,9 @@ where
     });
 
     // Prove the program by generating events from each checkpoint and proving each shard.
-    for file in files {
+    let mut shard_main_datas = Vec::new();
+    let mut all_events = Vec::new();
+    for mut file in &files {
         let mut reader = std::io::BufReader::new(file);
         let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
         let (events, done) = tracing::info_span!("runtime.trace").in_scope(|| {
@@ -142,20 +146,63 @@ where
             runtime.execute_record()
         });
         cycles += events.cpu_events.len();
+        all_events.push(events.clone());
+        let shards =
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+        for shard in &shards {
+            println!("shard {:?}:", shard.index);
+            // println!("shard: {:?}", shard.stats());
+            for (k, v) in shard.stats().iter() {
+                println!("{} = {}", k, v);
+            }
+        }
+        let start = Instant::now();
+        let (commitments, commit_data) = tracing::info_span!("commit")
+            .in_scope(|| LocalProver::commit_shards(&machine, &shards));
+
+        shard_main_datas.push(commit_data);
+        for commitment in commitments {
+            challenger.observe(commitment);
+        }
+        file.seek(std::io::SeekFrom::Start(0))
+            .expect("failed to seek to start of tempfile");
+    }
+    for (file, events) in files.into_iter().zip(all_events.into_iter()) {
+        // let mut reader = std::io::BufReader::new(file);
+        // let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+        // let (events, done) = tracing::info_span!("runtime.trace").in_scope(|| {
+        //     runtime.state = state;
+        //     runtime.record = ExecutionRecord::default();
+        //     let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+        //         .try_into()
+        //         .unwrap();
+        //     println!("index: {}", index);
+        //     runtime.record.index = index;
+        //     runtime.execute_record()
+        // });
+        cycles += events.cpu_events.len();
         let shards =
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
         for shard in &shards {
             println!("shard: {:?}", shard.index);
             println!("shard: {:?}", shard.stats());
+            println!("first cpu_event: {:?}", shard.cpu_events.get(0).unwrap());
         }
         let start = Instant::now();
-        let mut new_proofs = tracing::info_span!("prove")
-            .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
+        let mut new_proofs = shards
+            .into_iter()
+            .map(|(shard)| {
+                let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                let config = machine.config();
+                let shard_data =
+                    LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+                LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger)
+            })
+            .collect::<Vec<_>>();
+        // let mut new_proofs = tracing::info_span!("prove")
+        //     .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
         prove_time += start.elapsed().as_millis();
-        shard_proofs.append(&mut new_proofs.shard_proofs);
-        if done {
-            break;
-        }
+        shard_proofs.append(&mut new_proofs);
     }
 
     // loop {

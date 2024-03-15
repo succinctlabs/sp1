@@ -793,7 +793,8 @@ impl Runtime {
 
         // If there's not enough cycles left for another instruction, move to the next shard.
         // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
+        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
+            println!("moving to next shard, clk = {}", self.state.clk);
             self.state.current_shard += 1;
             self.state.clk = 0;
         }
@@ -838,6 +839,11 @@ impl Runtime {
         self.emit_events = false;
         let state = self.state.clone();
         let done = self.execute();
+        // !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size * 4
+        println!("self.unconstrained: {}", self.unconstrained);
+        println!("self.max_syscall_cycles: {}", self.max_syscall_cycles);
+        println!("self.state.clk: {}", self.state.clk);
+        println!("self.shard_size * 4: {}", self.shard_size * 4);
         (state, done)
     }
 
@@ -984,14 +990,6 @@ impl Runtime {
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
         self.syscall_map.get(&code)
-    }
-
-    fn max_syscall_cycles(&self) -> u32 {
-        self.syscall_map
-            .values()
-            .map(|syscall| syscall.num_extra_cycles())
-            .max()
-            .unwrap_or(0)
     }
 }
 

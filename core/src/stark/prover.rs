@@ -471,7 +471,7 @@ where
         };
     }
 
-    fn commit_shards<F, EF>(
+    pub fn commit_shards<F, EF>(
         machine: &MachineStark<SC, A>,
         shards: &[A::Record],
     ) -> (

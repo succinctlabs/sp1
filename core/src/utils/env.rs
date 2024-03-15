@@ -26,7 +26,7 @@ pub fn reconstruct_commitments() -> bool {
     }
 }
 
-/// Gets the max number of shards that can go in one batch.
+/// Gets the max number of shards that can go in one batch. If set to 0, there will only be 1 batch.
 ///
 /// The prover will generate the events for a whole batch at once, so this param should be the
 /// largest number of shards that can be executed and proven at once, subject to memory constraints.
