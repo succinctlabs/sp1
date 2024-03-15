@@ -261,7 +261,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 }
                 Opcode::LW => {
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let a_val = Block::from(b_val[0]);
+                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
@@ -273,7 +274,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 }
                 Opcode::SW => {
                     let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let a_val = Block::from(b_val[0]);
+                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
