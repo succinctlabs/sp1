@@ -10,6 +10,7 @@ use sp1_recursion_compiler::ir::{Ext, Felt, SymbolicExt};
 #[allow(clippy::type_complexity)]
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
+#[allow(unused_variables)]
 fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
     builder: &mut VmBuilder<SC::Val, SC::Challenge>,
     chip: MachineChip<SC, A>,
@@ -17,7 +18,7 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
     g: Felt<SC::Val>,
     zeta: Ext<SC::Val, SC::Challenge>,
     alpha: Ext<SC::Val, SC::Challenge>,
-    permutation_challenges: &[SC::Challenge],
+    permutation_challenges: &[Ext<SC::Val, SC::Challenge>],
     mut folder: GenericVerifierConstraintFolder<
         SC::Val,
         SC::Challenge,
@@ -68,8 +69,11 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
         builder.assign(quotient, zeta_powers * quotient_part);
     }
     let quotient: Ext<SC::Val, SC::Challenge> = builder.eval(quotient_expr);
-    // folder.alpha = alpha;
+    folder.alpha = alpha;
+
+    // TODO: FIX.
     // folder.perm_challenges = permutation_challenges.to_vec();
+
     chip.eval(&mut folder);
     let folded_constraints = folder.accumulator;
     let expected_folded_constraints = z_h * quotient;

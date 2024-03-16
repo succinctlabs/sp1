@@ -15,7 +15,6 @@ pub use instructions::*;
 pub use ptr::*;
 pub use symbolic::*;
 pub use types::*;
-pub use utils::*;
 pub use var::*;
 
 pub trait Config: Clone {
