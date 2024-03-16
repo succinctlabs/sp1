@@ -288,7 +288,7 @@ where
             row.x3_ins.result
         };
 
-        // y = slope * (p.x - x_3n) - q.y.
+        // y = slope * (p.x - x_3n) - p.y.
         {
             row.p_x_minus_x
                 .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FieldOperation::Sub);
@@ -347,13 +347,23 @@ where
 mod tests {
     use crate::{
         runtime::Program,
-        utils::{run_test, setup_logger, tests::SECP256K1_ADD_ELF},
+        utils::{
+            run_test, setup_logger,
+            tests::{SECP256K1_ADD_ELF, SECP256R1_ADD_ELF},
+        },
     };
 
     #[test]
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_add_simple() {
+        setup_logger();
+        let program = Program::from(SECP256R1_ADD_ELF);
         run_test(program).unwrap();
     }
 }

@@ -45,11 +45,12 @@ flate2 = "1.0.28"
 hashbrown = "0.14.3"
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["expose-field"] }
+# p256 = { version = "0.13.2", features = ["expose-field"] }
 num_cpus = "1.16.0"
 serde_with = "3.6.1"
 petgraph = "0.6.4"
 serde_json = { version = "1.0.113", default-features = false, features = [
-  "alloc",
+    "alloc",
 ] }
 serial_test = "3.0.0"
 size = "0.4.1"
