@@ -6,6 +6,7 @@ mod instructions;
 mod ptr;
 mod symbolic;
 mod types;
+mod utils;
 mod var;
 
 pub use builder::*;
@@ -14,6 +15,7 @@ pub use instructions::*;
 pub use ptr::*;
 pub use symbolic::*;
 pub use types::*;
+pub use utils::*;
 pub use var::*;
 
 pub trait Config: Clone {
