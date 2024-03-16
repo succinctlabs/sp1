@@ -667,7 +667,14 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Add<E> for Ext<F, EF> {
 
     fn add(self, rhs: E) -> Self::Output {
         let rhs: ExtOperand<F, EF> = rhs.to_operand();
-        SymbolicExt::<F, EF>::from(self) + rhs
+        match rhs {
+            ExtOperand::Base(f) => SymbolicExt::Base(Rc::new(SymbolicFelt::Const(f))) + self,
+            ExtOperand::Const(ef) => SymbolicExt::Const(ef) + self,
+            ExtOperand::Felt(f) => SymbolicExt::Base(Rc::new(SymbolicFelt::Val(f))) + self,
+            ExtOperand::Ext(e) => SymbolicExt::Val(e) + self,
+            ExtOperand::SymFelt(f) => SymbolicExt::Base(Rc::new(f)) + self,
+            ExtOperand::Sym(e) => e + self,
+        }
     }
 }
 
@@ -676,7 +683,14 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for Ext<F, EF> {
 
     fn mul(self, rhs: E) -> Self::Output {
         let rhs: ExtOperand<F, EF> = rhs.to_operand();
-        SymbolicExt::<F, EF>::from(self) * rhs
+        match rhs {
+            ExtOperand::Base(f) => SymbolicExt::Base(Rc::new(SymbolicFelt::Const(f))) * self,
+            ExtOperand::Const(ef) => SymbolicExt::Const(ef) * self,
+            ExtOperand::Felt(f) => SymbolicExt::Base(Rc::new(SymbolicFelt::Val(f))) * self,
+            ExtOperand::Ext(e) => SymbolicExt::Val(e) * self,
+            ExtOperand::SymFelt(f) => SymbolicExt::Base(Rc::new(f)) * self,
+            ExtOperand::Sym(e) => e * self,
+        }
     }
 }
 
@@ -685,7 +699,29 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for Ext<F, EF> {
 
     fn sub(self, rhs: E) -> Self::Output {
         let rhs: ExtOperand<F, EF> = rhs.to_operand();
-        SymbolicExt::<F, EF>::from(self) - rhs
+        match rhs {
+            ExtOperand::Base(f) => SymbolicExt::Sub(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::Const(f)))),
+            ),
+            ExtOperand::Const(ef) => SymbolicExt::Sub(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Const(ef)),
+            ),
+            ExtOperand::Felt(f) => SymbolicExt::Sub(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::Val(f)))),
+            ),
+            ExtOperand::Ext(e) => SymbolicExt::Sub(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Val(e)),
+            ),
+            ExtOperand::SymFelt(f) => SymbolicExt::Sub(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Base(Rc::new(f))),
+            ),
+            ExtOperand::Sym(e) => SymbolicExt::Sub(Rc::new(SymbolicExt::Val(self)), Rc::new(e)),
+        }
     }
 }
 
@@ -694,7 +730,29 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for Ext<F, EF> {
 
     fn div(self, rhs: E) -> Self::Output {
         let rhs: ExtOperand<F, EF> = rhs.to_operand();
-        SymbolicExt::<F, EF>::from(self) / rhs
+        match rhs {
+            ExtOperand::Base(f) => SymbolicExt::Div(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::Const(f)))),
+            ),
+            ExtOperand::Const(ef) => SymbolicExt::Div(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Const(ef)),
+            ),
+            ExtOperand::Felt(f) => SymbolicExt::Div(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::Val(f)))),
+            ),
+            ExtOperand::Ext(e) => SymbolicExt::Div(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Val(e)),
+            ),
+            ExtOperand::SymFelt(f) => SymbolicExt::Div(
+                Rc::new(SymbolicExt::Val(self)),
+                Rc::new(SymbolicExt::Base(Rc::new(f))),
+            ),
+            ExtOperand::Sym(e) => SymbolicExt::Div(Rc::new(SymbolicExt::Val(self)), Rc::new(e)),
+        }
     }
 }
 
@@ -738,11 +796,27 @@ impl<F> Div for Felt<F> {
     }
 }
 
+impl<F> Div<F> for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn div(self, rhs: F) -> Self::Output {
+        SymbolicFelt::from(self) / rhs
+    }
+}
+
 impl<F> Div<Felt<F>> for SymbolicFelt<F> {
     type Output = SymbolicFelt<F>;
 
     fn div(self, rhs: Felt<F>) -> Self::Output {
         SymbolicFelt::Div(Rc::new(self), Rc::new(SymbolicFelt::Val(rhs)))
+    }
+}
+
+impl<F> Div<F> for SymbolicFelt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn div(self, rhs: F) -> Self::Output {
+        SymbolicFelt::Div(Rc::new(self), Rc::new(SymbolicFelt::Const(rhs)))
     }
 }
 
@@ -913,6 +987,13 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
                 // which implements the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, Ext<F, EF>>(&self) };
                 ExtOperand::<F, EF>::Ext(value)
+            }
+            ty if ty == TypeId::of::<SymbolicFelt<F>>() => {
+                // *Saftey*: We know that E is a Symbolic Felt<F> and we can transmute it to
+                // SymbolicFelt<F> but we need to clone the pointer.
+                let value_ref = unsafe { mem::transmute::<&E, &SymbolicFelt<F>>(&self) };
+                let value = value_ref.clone();
+                ExtOperand::<F, EF>::SymFelt(value)
             }
             ty if ty == TypeId::of::<SymbolicExt<F, EF>>() => {
                 // *Saftey*: We know that E is a SymbolicExt<F, EF> and we can transmute it to
