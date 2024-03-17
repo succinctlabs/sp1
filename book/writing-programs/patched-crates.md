@@ -91,8 +91,10 @@ To check if a precompile is used by your program, when running the script to gen
     nb_keccak_permute_events: 2916,
     nb_ed_add_events: 0,
     nb_ed_decompress_events: 0,
-    nb_weierstrass_add_events: 0,
-    nb_weierstrass_double_events: 0,
+    nb_secp256k1_add_events: 0,
+    nb_secp256k1_double_events: 0,
+    nb_bn254_add_events: 0,
+    nb_bn256_double_events: 0,
     nb_k256_decompress_events: 0,
 }
 ```

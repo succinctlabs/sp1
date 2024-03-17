@@ -9,9 +9,12 @@ use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
 use crate::runtime::Syscall;
+use crate::stark::Bn254Parameters;
+use crate::stark::Secp256k1Parameters;
+use crate::stark::SwCurve;
 use crate::syscall::precompiles::create_ec_add_event;
+use crate::syscall::precompiles::ECAddEvent;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::ec::NUM_WORDS_EC_POINT;
@@ -65,10 +68,22 @@ pub struct WeierstrassAddAssignChip<E> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
+impl Syscall for WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().weierstrass_add_events.push(event.clone());
+        let event = create_ec_add_event::<SwCurve<Secp256k1Parameters>>(rt);
+        rt.record_mut().secp256k1_add_events.push(event.clone());
+        event.p_ptr + 1
+    }
+
+    fn num_extra_cycles(&self) -> u32 {
+        8
+    }
+}
+
+impl Syscall for WeierstrassAddAssignChip<SwCurve<Bn254Parameters>> {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+        let event = create_ec_add_event::<SwCurve<Bn254Parameters>>(rt);
+        rt.record_mut().bn254_add_events.push(event.clone());
         event.p_ptr + 1
     }
 
@@ -140,30 +155,24 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
             );
         }
     }
-}
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
-    for WeierstrassAddAssignChip<E>
-{
-    type Record = ExecutionRecord;
-
-    fn name(&self) -> String {
-        "WeierstrassAddAssign".to_string()
-    }
-
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
+    fn generate_ecc_trace<F: PrimeField32>(
+        input_events: &[ECAddEvent],
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
-
+        let mut rows: Vec<[F; 2058]> = Vec::new();
         let mut new_field_events = Vec::new();
 
-        for i in 0..input.weierstrass_add_events.len() {
-            let event = input.weierstrass_add_events[i].clone();
+        for i in 0..input_events.len() {
+            let event = input_events[i].clone();
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+
+            cols.is_real = F::one();
+            cols.shard = F::from_canonical_u32(event.shard);
+            cols.clk = F::from_canonical_u32(event.clk);
+            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
             // Decode affine points.
             let p = &event.p;
@@ -172,13 +181,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             let (p_x, p_y) = (p.x, p.y);
             let q = AffinePoint::<E>::from_words_le(q);
             let (q_x, q_y) = (q.x, q.y);
-
-            // Populate basic columns.
-            cols.is_real = F::one();
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
             Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
@@ -194,6 +196,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
+
         output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
@@ -210,9 +213,45 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             NUM_WEIERSTRASS_ADD_COLS,
         )
     }
+}
+
+impl<F: PrimeField32> MachineAir<F> for WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>> {
+    type Record = ExecutionRecord;
+
+    fn name(&self) -> String {
+        "Spec256k1AddAssign".to_string()
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        Self::generate_ecc_trace(&input.secp256k1_add_events, output)
+    }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_add_events.is_empty()
+        !shard.secp256k1_add_events.is_empty()
+    }
+}
+
+impl<F: PrimeField32> MachineAir<F> for WeierstrassAddAssignChip<SwCurve<Bn254Parameters>> {
+    type Record = ExecutionRecord;
+
+    fn name(&self) -> String {
+        "Bn254AddAssign".to_string()
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        Self::generate_ecc_trace(&input.bn254_add_events, output)
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bn254_add_events.is_empty()
     }
 }
 

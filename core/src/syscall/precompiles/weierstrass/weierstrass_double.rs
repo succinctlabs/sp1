@@ -70,9 +70,7 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.record_mut()
-            .weierstrass_double_events
-            .push(event.clone());
+        rt.record_mut().secp256k1_double_events.push(event.clone());
         event.p_ptr + 1
     }
 
@@ -180,11 +178,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
+        let chunk_size = std::cmp::max(input.secp256k1_double_events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows_and_records = input
-            .weierstrass_double_events
+            .secp256k1_double_events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
@@ -246,7 +244,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_double_events.is_empty()
+        !shard.secp256k1_double_events.is_empty()
     }
 }
 
