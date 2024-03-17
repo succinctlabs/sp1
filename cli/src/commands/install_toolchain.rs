@@ -50,9 +50,9 @@ impl InstallToolchainCmd {
             }
             Err(_) => println!("No existing ~/.sp1 directory to remove."),
         }
-        println!("Succesfully cleaned up ~/.sp1 directory.");
+        println!("Successfully cleaned up ~/.sp1 directory.");
         match fs::create_dir_all(&root_dir) {
-            Ok(_) => println!("Succesfully created ~/.sp1 directory."),
+            Ok(_) => println!("Successfully created ~/.sp1 directory."),
             Err(err) => println!("Failed to create ~/.sp1 directory: {}", err),
         };
         let target = get_target();
@@ -92,7 +92,7 @@ impl InstallToolchainCmd {
                 let mut content = String::new();
                 stdout.read_to_string(&mut content).unwrap();
                 if !content.contains("no toolchain installed") {
-                    println!("Succesfully removed existing toolchain.");
+                    println!("Successfully removed existing toolchain.");
                 }
             }
             Err(_) => println!("Failed to remove existing toolchain."),
@@ -122,7 +122,7 @@ impl InstallToolchainCmd {
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
             .arg(&random_string)
             .run()?;
-        println!("Succesfully linked toolchain to rustup.");
+        println!("Successfully linked toolchain to rustup.");
 
         // Ensure permissions.
         let bin_dir = root_dir.join(&random_string).join("bin");
