@@ -160,7 +160,6 @@ fn main() {
     let zeta: Ext<F, EF> = builder.eval(F::one());
     let alpha: Ext<F, EF> = builder.eval(F::one());
 
-    println!("broo");
     verify_constraints::<SC, _>(&mut builder, chip, opened_values, g, zeta, alpha);
 
     #[derive(Clone)]
