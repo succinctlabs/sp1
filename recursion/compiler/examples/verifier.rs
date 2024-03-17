@@ -2,11 +2,12 @@ use std::fs::File;
 use std::marker::PhantomData;
 
 use p3_air::Air;
-use p3_air::TwoRowMatrixView;
 use p3_baby_bear::BabyBear;
 use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use p3_field::ExtensionField;
+use p3_field::Field;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::ChipOpenedValues;
@@ -24,10 +25,33 @@ use sp1_recursion_compiler::prelude::Config;
 use std::collections::HashMap;
 use std::io::Write;
 
-#[allow(clippy::type_complexity)]
-#[allow(dead_code)]
+fn translate_opened_values<F: Field, EF: ExtensionField<F>>(
+    builder: &mut VmBuilder<F, EF>,
+    opened_values: &AirOpenedValues<EF>,
+) -> AirOpenedValues<Ext<F, EF>> {
+    AirOpenedValues::<Ext<F, EF>> {
+        local: opened_values
+            .local
+            .iter()
+            .map(|s| {
+                let t: Ext<F, EF> = builder.uninit();
+                builder.assign(t, SymbolicExt::Const(*s));
+                t
+            })
+            .collect(),
+        next: opened_values
+            .next
+            .iter()
+            .map(|s| {
+                let t: Ext<F, EF> = builder.uninit();
+                builder.assign(t, SymbolicExt::Const(*s));
+                t
+            })
+            .collect(),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-#[allow(unused_variables)]
 fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
     builder: &mut VmBuilder<SC::Val, SC::Challenge>,
     chip: &MachineChip<SC, A>,
@@ -35,7 +59,6 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
     g: Felt<SC::Val>,
     zeta: Ext<SC::Val, SC::Challenge>,
     alpha: Ext<SC::Val, SC::Challenge>,
-    permutation_challenges: &[Ext<SC::Val, SC::Challenge>],
 ) where
     A: for<'a> Air<
         GenericVerifierConstraintFolder<
@@ -47,85 +70,16 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
         >,
     >,
 {
-    println!("got here 1");
     let g_inv: Felt<SC::Val> = builder.eval(g / SC::Val::one());
-    println!("got here 2");
     let z_h: Ext<SC::Val, SC::Challenge> = builder.exp_power_of_2(zeta, opening.log_degree);
-    println!("got here 3");
     let one: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::one());
     let is_first_row = builder.eval(z_h / (zeta - one));
-    println!("got here 4");
     let is_last_row = builder.eval(z_h / (zeta - g_inv));
     let is_transition = builder.eval(zeta - g_inv);
 
-    println!("got here 2");
-
-    let preprocessed = AirOpenedValues::<Ext<SC::Val, SC::Challenge>> {
-        local: opening
-            .preprocessed
-            .local
-            .iter()
-            .map(|s| {
-                let t: Ext<SC::Val, SC::Challenge> = builder.uninit();
-                builder.assign(t, SymbolicExt::Const(*s));
-                t
-            })
-            .collect::<Vec<_>>(),
-        next: opening
-            .preprocessed
-            .next
-            .iter()
-            .map(|s| {
-                let t: Ext<SC::Val, SC::Challenge> = builder.uninit();
-                builder.assign(t, SymbolicExt::Const(*s));
-                t
-            })
-            .collect::<Vec<_>>(),
-    };
-    let main = AirOpenedValues::<Ext<SC::Val, SC::Challenge>> {
-        local: opening
-            .main
-            .local
-            .iter()
-            .map(|s| {
-                let t: Ext<SC::Val, SC::Challenge> = builder.uninit();
-                builder.assign(t, SymbolicExt::Const(*s));
-                t
-            })
-            .collect::<Vec<_>>(),
-        next: opening
-            .main
-            .next
-            .iter()
-            .map(|s| {
-                let t: Ext<SC::Val, SC::Challenge> = builder.uninit();
-                builder.assign(t, SymbolicExt::Const(*s));
-                t
-            })
-            .collect::<Vec<_>>(),
-    };
-    let perm = AirOpenedValues::<Ext<SC::Val, SC::Challenge>> {
-        local: opening
-            .permutation
-            .local
-            .iter()
-            .map(|s| {
-                let t: Ext<SC::Val, SC::Challenge> = builder.uninit();
-                builder.assign(t, SymbolicExt::Const(*s));
-                t
-            })
-            .collect::<Vec<_>>(),
-        next: opening
-            .permutation
-            .next
-            .iter()
-            .map(|s| {
-                let t: Ext<SC::Val, SC::Challenge> = builder.uninit();
-                builder.assign(t, SymbolicExt::Const(*s));
-                t
-            })
-            .collect::<Vec<_>>(),
-    };
+    let preprocessed = translate_opened_values(builder, &opening.preprocessed);
+    let main = translate_opened_values(builder, &opening.main);
+    let perm = translate_opened_values(builder, &opening.permutation);
 
     let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
     let zero_expr: SymbolicExt<SC::Val, SC::Challenge> = zero.into();
@@ -147,17 +101,11 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
         accumulator: zero_expr,
         _marker: PhantomData,
     };
-    folder.is_first_row = is_first_row;
-    folder.is_last_row = is_last_row;
-    folder.is_transition = is_transition;
 
-    println!("got here 3");
     let monomials = (0..SC::Challenge::D)
         .map(SC::Challenge::monomial)
         .collect::<Vec<_>>();
-    println!("{}", monomials.len());
 
-    println!("got here 4");
     let quotient_parts = opening
         .quotient
         .chunks_exact(SC::Challenge::D)
@@ -170,7 +118,6 @@ fn verify_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
         })
         .collect::<Vec<SC::Challenge>>();
 
-    println!("wtf");
     let mut zeta_powers = zeta;
     let quotient: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
     let quotient_expr: SymbolicExt<SC::Val, SC::Challenge> = quotient.into();
@@ -214,7 +161,7 @@ fn main() {
     let alpha: Ext<F, EF> = builder.eval(F::one());
 
     println!("broo");
-    verify_constraints::<SC, _>(&mut builder, chip, opened_values, g, zeta, alpha, &[]);
+    verify_constraints::<SC, _>(&mut builder, chip, opened_values, g, zeta, alpha);
 
     #[derive(Clone)]
     struct BabyBearConfig;
