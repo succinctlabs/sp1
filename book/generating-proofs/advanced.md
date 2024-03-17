@@ -22,7 +22,7 @@ fn main() {
     // Print the program's outputs in our script.
     println!("a: {}", a);
     println!("b: {}", b);
-    println!("succesfully executed the program!")
+    println!("successfully executed the program!")
 }
 ```
 
