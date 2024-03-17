@@ -18,7 +18,7 @@ cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --re
 **Debug Constraint Failure**
 
 ```
-RUS_LOG=info cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release --features debug -- --nocapture
+RUS_LOG=info cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release --features debug --no-default-features -- --nocapture
 ```
 
 You need `--no-default-features` to make sure the "perf" feature is not enabled.

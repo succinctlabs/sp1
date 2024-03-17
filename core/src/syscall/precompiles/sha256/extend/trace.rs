@@ -27,7 +27,7 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
-
+                cols.is_real = F::one();
                 cols.populate_flags(j);
                 cols.shard = F::from_canonical_u32(event.shard);
                 cols.clk = F::from_canonical_u32(event.clk);
@@ -70,7 +70,6 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
                 cols.w_i
                     .populate(event.w_i_writes[j], &mut new_field_events);
 
-                cols.is_real = F::one();
                 rows.push(row);
             }
         }

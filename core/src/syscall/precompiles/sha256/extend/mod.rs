@@ -49,7 +49,7 @@ pub mod extend_tests {
         air::MachineAir,
         alu::AluEvent,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
-        utils::run_test,
+        utils::{self, run_test},
     };
 
     use super::ShaExtendChip;
@@ -91,6 +91,7 @@ pub mod extend_tests {
 
     #[test]
     fn test_sha_prove() {
+        utils::setup_logger();
         let program = sha_extend_program();
         run_test(program).unwrap();
     }
