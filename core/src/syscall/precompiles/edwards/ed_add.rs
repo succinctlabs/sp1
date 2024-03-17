@@ -4,7 +4,7 @@ use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_den::FieldDenCols;
+use crate::operations::field::field_den::FieldDenCols32;
 use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
@@ -58,8 +58,8 @@ pub struct EdAddAssignCols<T> {
     pub(crate) x2_mul_y2: FieldOpCols<T>,
     pub(crate) f: FieldOpCols<T>,
     pub(crate) d_mul_f: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldDenCols<T>,
-    pub(crate) y3_ins: FieldDenCols<T>,
+    pub(crate) x3_ins: FieldDenCols32<T>,
+    pub(crate) y3_ins: FieldDenCols32<T>,
 }
 
 #[derive(Default)]

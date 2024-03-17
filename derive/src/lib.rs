@@ -80,15 +80,11 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     TokenStream::from(methods)
 }
 
-#[proc_macro_derive(FieldCols)]
-pub fn field_cols_derive(input: TokenStream) -> TokenStream {
+#[proc_macro_attribute]
+pub fn field_cols_with_limbs(_metadata: TokenStream, input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input.clone()).unwrap();
     let generics = &ast.generics;
     let (_, ty_generics, _) = generics.split_for_impl();
-
-    let name = ast.ident;
-    let bname = format!("Field{}Cols", name);
-    let bident = syn::Ident::new(&bname, name.span());
 
     let (t_limbs, t_const, t_ident) = match &ast.data {
         Data::Struct(s) => {
@@ -104,19 +100,24 @@ pub fn field_cols_derive(input: TokenStream) -> TokenStream {
         Data::Union(_) => unimplemented!("Unions are not supported"),
     };
 
-    let nb: usize = match t_const {
-        Some(s) => s * 2 - 2,
-        // default NUM_LIMBS = 32
-        _ => 32 * 2 - 2,
+    let nb_limbs: usize = match t_const {
+        Some(s) => s,
+        _ => panic!("Num of Limbs not provided!"),
     };
+
+    let nb_witness_limbs = nb_limbs * 2 - 2;
+
+    let name = ast.ident;
+    let bname = format!("Field{}Cols{}", name, nb_limbs);
+    let bident = syn::Ident::new(&bname, name.span());
 
     let result = quote! {
         #[derive(Debug, Clone, AlignedBorrow)]
         pub struct #bident #ty_generics {
             pub result: #t_limbs,
             pub(crate) carry: #t_limbs,
-            pub(crate) witness_low: [#t_ident; #nb],
-            pub(crate) witness_high: [#t_ident; #nb],
+            pub(crate) witness_low: [#t_ident; #nb_witness_limbs],
+            pub(crate) witness_high: [#t_ident; #nb_witness_limbs],
         }
     };
 

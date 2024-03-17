@@ -41,7 +41,7 @@ pub trait FieldParameters<const N: usize = NUM_LIMBS>:
         Limbs(limbs)
     }
 
-    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F> {
+    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F, {self::NUM_LIMBS}> {
         Limbs(
             Self::to_limbs(x)
                 .0

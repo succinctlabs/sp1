@@ -1,3 +1,4 @@
+use duplicate::duplicate_item;
 use super::params::Limbs;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
@@ -6,8 +7,8 @@ use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use num::BigUint;
 use p3_field::PrimeField32;
-use sp1_derive::FieldCols;
 use sp1_derive::AlignedBorrow;
+use sp1_derive::field_cols_with_limbs;
 use std::fmt::Debug;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
@@ -17,10 +18,17 @@ use std::fmt::Debug;
 ///
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(FieldCols)]
-pub struct Den<T>(Limbs<T>);
+#[field_cols_with_limbs]
+pub struct Den<T>(Limbs<T, 32>); // => generates FieldDenCols32
 
-impl<F: PrimeField32> FieldDenCols<F> {
+#[field_cols_with_limbs]
+pub struct Den<T>(Limbs<T, 48>); // => generates FieldDenCols48
+
+#[duplicate_item(
+    den_type;
+    [ FieldDenCols32 ];
+)]
+impl<F: PrimeField32> den_type<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
@@ -76,13 +84,17 @@ impl<F: PrimeField32> FieldDenCols<F> {
     }
 }
 
-impl<V: Copy> FieldDenCols<V> {
+#[duplicate_item(
+    den_type            nb_limbs;
+    [ FieldDenCols32 ]  [ 32 ];
+)]
+impl<V: Copy> den_type <V> {
     #[allow(unused_variables)]
     pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
-        b: &Limbs<AB::Var>,
+        a: &Limbs<AB::Var, nb_limbs>,
+        b: &Limbs<AB::Var, nb_limbs>,
         sign: bool,
     ) where
         V: Into<AB::Expr>,
@@ -121,7 +133,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FieldDenCols, Limbs};
+    use super::{FieldDenCols32, Limbs};
 
     use crate::air::MachineAir;
 
@@ -141,9 +153,9 @@ mod tests {
     use sp1_derive::AlignedBorrow;
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
-        pub a: Limbs<T>,
-        pub b: Limbs<T>,
-        pub a_den_b: FieldDenCols<T>,
+        pub a: Limbs<T, 32>,
+        pub b: Limbs<T, 32>,
+        pub a_den_b: FieldDenCols32<T>,
     }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
@@ -254,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn prove_babybear() {
+    fn prove_babybear_field_den() {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
