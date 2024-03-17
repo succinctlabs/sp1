@@ -26,8 +26,8 @@ pub struct Poseidon2ExternalChip;
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
     pub input: [T; STATE_SIZE],
-    pub sbox_input_deg3: [T; STATE_SIZE],
-    pub sbox_input_deg5: [T; STATE_SIZE],
+    pub sbox_deg3: [T; STATE_SIZE],
+    pub sbox_deg5: [T; STATE_SIZE],
     pub output: [T; STATE_SIZE],
     pub is_real: T,
 }
@@ -69,36 +69,43 @@ impl<AB> Air<AB> for Poseidon2ExternalChip
 where
     AB: SP1AirBuilder,
 {
+    #[allow(clippy::needless_range_loop)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
 
+        // The round constants.
+        let rc = [
+            AB::F::from_canonical_u32(1),
+            AB::F::from_canonical_u32(2),
+            AB::F::from_canonical_u32(3),
+            AB::F::from_canonical_u32(4),
+            AB::F::from_canonical_u32(5),
+            AB::F::from_canonical_u32(6),
+            AB::F::from_canonical_u32(7),
+            AB::F::from_canonical_u32(8),
+        ];
+
         let add_rc = local
             .input
             .iter()
-            .map(|x| *x + AB::F::one())
+            .zip(rc.iter())
+            .map(|(x, rc)| *x + *rc)
             .collect::<Vec<_>>();
-        let sbox_input_deg3 = local
-            .sbox_input_deg3
+        let sbox_deg3 = add_rc
             .iter()
-            .map(|x| *x * *x * *x)
+            .map(|x| x.clone() * x.clone() * x.clone())
             .collect::<Vec<_>>();
         for i in 0..STATE_SIZE {
-            builder.assert_eq(sbox_input_deg3[i], local.sbox_input_deg3[i]);
+            builder.assert_eq(sbox_deg3[i].clone(), local.sbox_deg3[i]);
         }
-        let sbox_input_deg5 = local
-            .sbox_input_deg5
+        let sbox_deg5 = sbox_deg3
             .iter()
-            .enumerate()
-            .map(|(i, x)| sbox_input_deg3[i] * *x * *x)
+            .zip(add_rc.iter())
+            .map(|(x, y)| x.clone() * y.clone() * y.clone())
             .collect::<Vec<_>>();
         for i in 0..STATE_SIZE {
-            builder.assert_eq(sbox_input_deg5[i], local.sbox_input_deg5[i]);
+            builder.assert_eq(sbox_deg5[i].clone(), local.sbox_deg5[i]);
         }
-
-        // // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        // builder.assert_zero(
-        //     local.b[0] * local.b[0] * local.c[0] - local.b[0] * local.b[0] * local.c[0],
-        // );
     }
 }
