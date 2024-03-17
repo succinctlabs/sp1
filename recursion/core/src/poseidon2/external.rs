@@ -1,10 +1,14 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::{Air, BaseAir};
+use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
+use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_poseidon2::DiffusionMatrixBabybear;
+use p3_symmetric::Permutation;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
@@ -107,5 +111,38 @@ where
         for i in 0..STATE_SIZE {
             builder.assert_eq(sbox_deg5[i].clone(), local.sbox_deg5[i]);
         }
+
+        let mut permutation_input_expr: [AB::Expr; 12] = local
+            .sbox_deg5
+            .iter()
+            .map(|x| *x + AB::Expr::zero())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        let matrix: [<<AB as p3_air::AirBuilder>::Expr as p3_field::AbstractField>::F; 12] =
+            MATRIX_DIAG_16_BABYBEAR_U32
+                .iter()
+                .map(|x| <<AB as p3_air::AirBuilder>::Expr as p3_field::AbstractField>::F::from_canonical_u32(*x))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+        matmul_internal(&mut permutation_input_expr, matrix);
     }
 }
+
+pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
+    state: &mut [AF; WIDTH],
+    mat_internal_diag_m_1: [F; WIDTH],
+) {
+    let sum: AF = state.iter().cloned().sum();
+    for i in 0..WIDTH {
+        state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
+        state[i] += sum.clone();
+    }
+}
+
+const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
+    0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
+    0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,
+];
