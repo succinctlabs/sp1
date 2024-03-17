@@ -921,7 +921,7 @@ pub mod tests {
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -942,8 +942,8 @@ pub mod tests {
 
     pub fn ecall_lwa_program() -> Program {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, 101, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::LWA as u32, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ];
         Program::new(instructions, 0, 0)
     }
