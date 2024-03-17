@@ -6,6 +6,7 @@ mod instructions;
 mod ptr;
 mod symbolic;
 mod types;
+mod utils;
 mod var;
 
 pub use builder::*;

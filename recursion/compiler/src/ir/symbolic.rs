@@ -1002,7 +1002,21 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
                 let value = value_ref.clone();
                 ExtOperand::<F, EF>::Sym(value)
             }
-            _ => unimplemented!("Unsupported type"),
+            ty if ty == TypeId::of::<ExtOperand<F, EF>>() => {
+                let value_ref = unsafe { mem::transmute::<&E, &ExtOperand<F, EF>>(&self) };
+                value_ref.clone()
+            }
+            _ => unimplemented!("unsupported type"),
         }
+    }
+}
+
+impl<F: Field> Div<F> for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn div(self, rhs: F) -> Self::Output {
+        let lhs = SymbolicFelt::Val(self);
+        let rhs = SymbolicFelt::Const(rhs);
+        SymbolicFelt::Div(lhs.into(), rhs.into())
     }
 }
