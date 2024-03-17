@@ -1,6 +1,7 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
@@ -71,6 +72,29 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
+
+        let add_rc = local
+            .input
+            .iter()
+            .map(|x| x.into() + AB::Expr::one)
+            .collect::<Vec<_>>();
+        let sbox_input_deg3 = local
+            .sbox_input_deg3
+            .iter()
+            .map(|x| x.into() * x.into() * x.into())
+            .collect::<Vec<_>>();
+        for i in 0..STATE_SIZE {
+            builder.assert_eq(sbox_input_deg3[i], local.sbox_input_deg3[i]);
+        }
+        let sbox_input_deg5 = local
+            .sbox_input_deg5
+            .iter()
+            .enumerate()
+            .map(|(i, x)| sbox_input_deg3[i] * x.into() * x.into())
+            .collect::<Vec<_>>();
+        for i in 0..STATE_SIZE {
+            builder.assert_eq(sbox_input_deg5[i], local.sbox_input_deg5[i]);
+        }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
