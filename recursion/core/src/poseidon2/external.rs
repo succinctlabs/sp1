@@ -76,12 +76,12 @@ where
         let add_rc = local
             .input
             .iter()
-            .map(|x| x.into() + AB::Expr::one)
+            .map(|x| *x + AB::F::one())
             .collect::<Vec<_>>();
         let sbox_input_deg3 = local
             .sbox_input_deg3
             .iter()
-            .map(|x| x.into() * x.into() * x.into())
+            .map(|x| *x * *x * *x)
             .collect::<Vec<_>>();
         for i in 0..STATE_SIZE {
             builder.assert_eq(sbox_input_deg3[i], local.sbox_input_deg3[i]);
@@ -90,15 +90,15 @@ where
             .sbox_input_deg5
             .iter()
             .enumerate()
-            .map(|(i, x)| sbox_input_deg3[i] * x.into() * x.into())
+            .map(|(i, x)| sbox_input_deg3[i] * *x * *x)
             .collect::<Vec<_>>();
         for i in 0..STATE_SIZE {
             builder.assert_eq(sbox_input_deg5[i], local.sbox_input_deg5[i]);
         }
 
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            local.b[0] * local.b[0] * local.c[0] - local.b[0] * local.b[0] * local.c[0],
-        );
+        // // Degree 3 constraint to avoid "OodEvaluationMismatch".
+        // builder.assert_zero(
+        //     local.b[0] * local.b[0] * local.c[0] - local.b[0] * local.b[0] * local.c[0],
+        // );
     }
 }
