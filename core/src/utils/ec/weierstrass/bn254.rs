@@ -32,6 +32,8 @@ impl FieldParameters for Bn254BaseField {
 
     const WITNESS_OFFSET: usize = 1usize << 13;
 
+    const NAME: &'static str = "Bn254BaseField";
+
     // The modulus have been taken from starkyx
     // https://github.com/succinctlabs/starkyx/blob/ad8eb4b/starkyx/src/chip/ec/weierstrass/bn254.rs#L25-L27
     fn modulus() -> BigUint {

@@ -26,6 +26,8 @@ impl FieldParameters for Ed25519BaseField {
     ];
     const WITNESS_OFFSET: usize = 1usize << 13;
 
+    const NAME: &'static str = "Ed25519BaseField";
+
     fn modulus() -> BigUint {
         (BigUint::one() << 255) - BigUint::from(19u32)
     }

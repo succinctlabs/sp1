@@ -40,6 +40,8 @@ impl FieldParameters for Secp256k1BaseField {
     /// A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 14;
 
+    const NAME: &'static str = "Secp256k1";
+
     fn modulus() -> BigUint {
         BigUint::from_bytes_le(&Self::MODULUS)
     }

@@ -18,6 +18,8 @@ pub trait FieldParameters:
     const WITNESS_OFFSET: usize = 1usize << 13;
     const MODULUS: [u8; NUM_LIMBS];
 
+    const NAME: &'static str;
+
     fn modulus() -> BigUint {
         biguint_from_limbs(&Self::MODULUS)
     }

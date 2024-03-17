@@ -11,6 +11,7 @@ use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -93,6 +94,8 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     ) {
         // This populates necessary field operations to calculate the addition of two points on a
         // Weierstrass curve.
+
+        println!("Curve name: {:?}", E::BaseField::NAME);
 
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
