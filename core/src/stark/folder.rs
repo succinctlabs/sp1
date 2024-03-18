@@ -1,27 +1,32 @@
-use super::StarkGenericConfig;
+use std::{
+    marker::PhantomData,
+    ops::{Add, Mul, MulAssign, Sub},
+};
+
+use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
-use p3_field::AbstractField;
+use p3_field::{AbstractField, ExtensionField, Field};
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
-    pub preprocessed: TwoRowMatrixView<'a, SC::PackedVal>,
-    pub main: TwoRowMatrixView<'a, SC::PackedVal>,
-    pub perm: TwoRowMatrixView<'a, SC::PackedChallenge>,
+    pub preprocessed: TwoRowMatrixView<'a, PackedVal<SC>>,
+    pub main: TwoRowMatrixView<'a, PackedVal<SC>>,
+    pub perm: TwoRowMatrixView<'a, PackedChallenge<SC>>,
     pub perm_challenges: &'a [SC::Challenge],
     pub cumulative_sum: SC::Challenge,
-    pub is_first_row: SC::PackedVal,
-    pub is_last_row: SC::PackedVal,
-    pub is_transition: SC::PackedVal,
+    pub is_first_row: PackedVal<SC>,
+    pub is_last_row: PackedVal<SC>,
+    pub is_transition: PackedVal<SC>,
     pub alpha: SC::Challenge,
-    pub accumulator: SC::PackedChallenge,
+    pub accumulator: PackedChallenge<SC>,
 }
 
 impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     type F = SC::Val;
-    type Expr = SC::PackedVal;
-    type Var = SC::PackedVal;
-    type M = TwoRowMatrixView<'a, SC::PackedVal>;
+    type Expr = PackedVal<SC>;
+    type Var = PackedVal<SC>;
+    type M = TwoRowMatrixView<'a, PackedVal<SC>>;
 
     fn main(&self) -> Self::M {
         self.main
@@ -44,8 +49,8 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let x: SC::PackedVal = x.into();
-        self.accumulator *= SC::PackedChallenge::from_f(self.alpha);
+        let x: PackedVal<SC> = x.into();
+        self.accumulator *= PackedChallenge::<SC>::from_f(self.alpha);
         self.accumulator += x;
     }
 }
@@ -53,22 +58,22 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
 impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a, SC> {
     type EF = SC::Challenge;
 
-    type ExprEF = SC::PackedChallenge;
+    type ExprEF = PackedChallenge<SC>;
 
-    type VarEF = SC::PackedChallenge;
+    type VarEF = PackedChallenge<SC>;
 
     fn assert_zero_ext<I>(&mut self, x: I)
     where
         I: Into<Self::ExprEF>,
     {
-        let x: SC::PackedChallenge = x.into();
-        self.accumulator *= SC::PackedChallenge::from_f(self.alpha);
+        let x: PackedChallenge<SC> = x.into();
+        self.accumulator *= PackedChallenge::<SC>::from_f(self.alpha);
         self.accumulator += x;
     }
 }
 
 impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
-    type MP = TwoRowMatrixView<'a, SC::PackedChallenge>;
+    type MP = TwoRowMatrixView<'a, PackedChallenge<SC>>;
 
     fn permutation(&self) -> Self::MP {
         self.perm
@@ -80,10 +85,10 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
 }
 
 impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
-    type Sum = SC::PackedChallenge;
+    type Sum = PackedChallenge<SC>;
 
     fn cumulative_sum(&self) -> Self::Sum {
-        SC::PackedChallenge::from_f(self.cumulative_sum)
+        PackedChallenge::<SC>::from_f(self.cumulative_sum)
     }
 }
 
@@ -95,57 +100,110 @@ impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> 
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
+pub type VerifierConstraintFolder<'a, SC> =
+    GenericVerifierConstraintFolder<'a, Val<SC>, Challenge<SC>, Challenge<SC>, Challenge<SC>>;
+
 /// A folder for verifier constraints.
-pub struct VerifierConstraintFolder<'a, SC: StarkGenericConfig> {
-    pub preprocessed: TwoRowMatrixView<'a, SC::Challenge>,
-    pub main: TwoRowMatrixView<'a, SC::Challenge>,
-    pub perm: TwoRowMatrixView<'a, SC::Challenge>,
-    pub perm_challenges: &'a [SC::Challenge],
-    pub cumulative_sum: SC::Challenge,
-    pub is_first_row: SC::Challenge,
-    pub is_last_row: SC::Challenge,
-    pub is_transition: SC::Challenge,
-    pub alpha: SC::Challenge,
-    pub accumulator: SC::Challenge,
+pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
+    pub preprocessed: TwoRowMatrixView<'a, Var>,
+    pub main: TwoRowMatrixView<'a, Var>,
+    pub perm: TwoRowMatrixView<'a, Var>,
+    pub perm_challenges: &'a [EF],
+    pub cumulative_sum: Var,
+    pub is_first_row: Var,
+    pub is_last_row: Var,
+    pub is_transition: Var,
+    pub alpha: Var,
+    pub accumulator: Expr,
+    pub _marker: PhantomData<F>,
 }
 
-impl<'a, SC: StarkGenericConfig> AirBuilder for VerifierConstraintFolder<'a, SC> {
-    type F = SC::Val;
-    type Expr = SC::Challenge;
-    type Var = SC::Challenge;
-    type M = TwoRowMatrixView<'a, SC::Challenge>;
+impl<'a, F, EF, Var, Expr> AirBuilder for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
+    type F = F;
+    type Expr = Expr;
+    type Var = Var;
+    type M = TwoRowMatrixView<'a, Var>;
 
     fn main(&self) -> Self::M {
         self.main
     }
 
     fn is_first_row(&self) -> Self::Expr {
-        self.is_first_row
+        self.is_first_row.into()
     }
 
     fn is_last_row(&self) -> Self::Expr {
-        self.is_last_row
+        self.is_last_row.into()
     }
 
     fn is_transition_window(&self, size: usize) -> Self::Expr {
         if size == 2 {
-            self.is_transition
+            self.is_transition.into()
         } else {
             panic!("uni-stark only supports a window size of 2")
         }
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let x: SC::Challenge = x.into();
-        self.accumulator *= self.alpha;
+        let x: Expr = x.into();
+        self.accumulator *= self.alpha.into();
         self.accumulator += x;
     }
 }
 
-impl<'a, SC: StarkGenericConfig> ExtensionBuilder for VerifierConstraintFolder<'a, SC> {
-    type EF = SC::Challenge;
-    type ExprEF = SC::Challenge;
-    type VarEF = SC::Challenge;
+impl<'a, F, EF, Var, Expr> ExtensionBuilder
+    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
+    type EF = EF;
+    type ExprEF = Expr;
+    type VarEF = Var;
 
     fn assert_zero_ext<I>(&mut self, x: I)
     where
@@ -155,8 +213,33 @@ impl<'a, SC: StarkGenericConfig> ExtensionBuilder for VerifierConstraintFolder<'
     }
 }
 
-impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for VerifierConstraintFolder<'a, SC> {
-    type MP = TwoRowMatrixView<'a, SC::Challenge>;
+impl<'a, F, EF, Var, Expr> PermutationAirBuilder
+    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
+    type MP = TwoRowMatrixView<'a, Var>;
 
     fn permutation(&self) -> Self::MP {
         self.perm
@@ -167,18 +250,93 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for VerifierConstraintFol
     }
 }
 
-impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for VerifierConstraintFolder<'a, SC> {
-    type Sum = SC::Challenge;
+impl<'a, F, EF, Var, Expr> MultiTableAirBuilder
+    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
+    type Sum = Var;
 
     fn cumulative_sum(&self) -> Self::Sum {
         self.cumulative_sum
     }
 }
 
-impl<'a, SC: StarkGenericConfig> PairBuilder for VerifierConstraintFolder<'a, SC> {
+impl<'a, F, EF, Var, Expr> PairBuilder for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
     }
 }
 
-impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
+impl<'a, F, EF, Var, Expr> EmptyMessageBuilder
+    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
+}

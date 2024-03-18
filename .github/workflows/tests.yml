@@ -46,11 +46,31 @@ jobs:
           toolchain: nightly-2024-01-25
           override: true
 
-      - name: Run cargo test
+      - name: Run cargo test on sp1-core
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: -p sp1-core --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
+      - name: Run cargo test on sp1-recursion-compiler
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-recursion-compiler --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
+      - name: Run cargo test with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core --release --no-default-features --features debug -- cpu::trace::tests::generate_trace
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1

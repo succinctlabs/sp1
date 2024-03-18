@@ -11,7 +11,7 @@ pub struct Interaction<F: Field> {
 }
 
 /// The type of interaction for a lookup argument.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum InteractionKind {
     /// Interaction with the memory table, such as read and write.
     Memory = 1,

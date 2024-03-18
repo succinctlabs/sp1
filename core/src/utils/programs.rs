@@ -52,6 +52,9 @@ pub mod tests {
     pub const KECCAK_PERMUTE_ELF: &[u8] =
         include_bytes!("../../../tests/keccak-permute/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const KECCAK256_ELF: &[u8] =
+        include_bytes!("../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
+
     pub const SECP256K1_ADD_ELF: &[u8] =
         include_bytes!("../../../tests/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
 

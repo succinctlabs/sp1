@@ -8,18 +8,19 @@ mod trace;
 
 pub use columns::*;
 
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaExtendEvent {
     pub shard: u32,
     pub clk: u32,
     pub w_ptr: u32,
-    pub w_i_minus_15_reads: [MemoryReadRecord; 48],
-    pub w_i_minus_2_reads: [MemoryReadRecord; 48],
-    pub w_i_minus_16_reads: [MemoryReadRecord; 48],
-    pub w_i_minus_7_reads: [MemoryReadRecord; 48],
-    pub w_i_writes: [MemoryWriteRecord; 48],
+    pub w_i_minus_15_reads: Vec<MemoryReadRecord>,
+    pub w_i_minus_2_reads: Vec<MemoryReadRecord>,
+    pub w_i_minus_16_reads: Vec<MemoryReadRecord>,
+    pub w_i_minus_7_reads: Vec<MemoryReadRecord>,
+    pub w_i_writes: Vec<MemoryWriteRecord>,
 }
 
 #[derive(Default)]
@@ -49,9 +50,8 @@ pub mod extend_tests {
     use crate::{
         air::MachineAir,
         alu::AluEvent,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        runtime::{ExecutionRecord, Instruction, Opcode, Program},
+        utils::run_test,
     };
 
     use super::ShaExtendChip;
@@ -84,17 +84,8 @@ pub mod extend_tests {
     }
 
     #[test]
-    fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
+    fn test_sha_prove() {
         let program = sha_extend_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let machine = RiscvStark::new(config);
-
-        let (pk, _) = machine.setup(runtime.program.as_ref());
-        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
+        run_test(program).unwrap();
     }
 }

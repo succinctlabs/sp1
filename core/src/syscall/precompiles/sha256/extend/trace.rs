@@ -8,6 +8,8 @@ use crate::{air::MachineAir, runtime::ExecutionRecord, utils::pad_rows};
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaExtend".to_string()
     }
@@ -21,7 +23,7 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
 
         let mut new_field_events = Vec::new();
         for i in 0..input.sha_extend_events.len() {
-            let event = input.sha_extend_events[i];
+            let event = input.sha_extend_events[i].clone();
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
                 let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
@@ -75,5 +77,9 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_EXTEND_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_extend_events.is_empty()
     }
 }

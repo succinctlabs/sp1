@@ -5,8 +5,6 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
 use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -172,6 +170,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldDenChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "FieldDen".to_string()
         }
@@ -220,6 +220,10 @@ mod tests {
                 rows.into_iter().flatten().collect::<Vec<_>>(),
                 NUM_TEST_COLS,
             )
+        }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
         }
     }
 

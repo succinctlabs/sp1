@@ -1,4 +1,5 @@
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use serde::{Deserialize, Serialize};
 
 mod air;
 mod ch;
@@ -20,15 +21,15 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaCompressEvent {
     pub shard: u32,
     pub clk: u32,
     pub w_and_h_ptr: u32,
-    pub w: [u32; 64],
+    pub w: Vec<u32>,
     pub h: [u32; 8],
     pub h_read_records: [MemoryReadRecord; 8],
-    pub w_i_read_records: [MemoryReadRecord; 64],
+    pub w_i_read_records: Vec<MemoryReadRecord>,
     pub h_write_records: [MemoryWriteRecord; 8],
 }
 
@@ -45,9 +46,8 @@ impl ShaCompressChip {
 pub mod compress_tests {
 
     use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        runtime::{Instruction, Opcode, Program},
+        utils::{run_test, setup_logger},
     };
 
     pub fn sha_compress_program() -> Program {
@@ -69,16 +69,8 @@ pub mod compress_tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
+        setup_logger();
         let program = sha_compress_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let machine = RiscvStark::new(config);
-
-        let (pk, _) = machine.setup(runtime.program.as_ref());
-        machine.prove::<LocalProver<_>>(&pk, &mut runtime.record, &mut challenger);
+        run_test(program).unwrap();
     }
 }

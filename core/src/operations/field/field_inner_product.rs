@@ -5,8 +5,6 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
 use num::BigUint;
 use num::Zero;
 use p3_field::{AbstractField, PrimeField32};
@@ -159,6 +157,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldIpChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "FieldInnerProduct".to_string()
         }
@@ -205,6 +205,10 @@ mod tests {
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
 
             trace
+        }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
         }
     }
 

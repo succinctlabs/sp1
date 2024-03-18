@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-
+use hashbrown::HashMap;
 use nohash_hasher::BuildNoHashHasher;
 
-use super::{CpuRecord, ExecutionRecord};
+use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
 
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default)]
@@ -22,7 +21,7 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
-    pub memory: HashMap<u32, (u32, u32, u32), BuildNoHashHasher<u32>>,
+    pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<u8>,
@@ -67,10 +66,10 @@ pub(crate) struct ForkState {
     pub(crate) pc: u32,
 
     /// Only contains the original memory values for addresses that have been modified
-    pub(crate) memory_diff: HashMap<u32, Option<(u32, u32, u32)>, BuildNoHashHasher<u32>>,
+    pub(crate) memory_diff: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
 
     /// Full record from original state
-    pub(crate) op_record: CpuRecord,
+    pub(crate) op_record: MemoryAccessRecord,
 
     /// Full shard from original state
     pub(crate) record: ExecutionRecord,

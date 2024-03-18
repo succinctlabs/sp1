@@ -22,7 +22,7 @@ fn main() {
     // Print the program's outputs in our script.
     println!("a: {}", a);
     println!("b: {}", b);
-    println!("succesfully executed the program!")
+    println!("successfully executed the program!")
 }
 ```
 
@@ -46,7 +46,7 @@ SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu
 
 #### Blake3 on ARM machines
 
-Blake3 on ARM machines requires using the `neon` feature of `sp1-core`. For examples in the the sp1-core repo, you can use:
+Blake3 on ARM machines requires using the `neon` feature of `sp1-core`. For examples in the sp1-core repo, you can use:
 
 ```rust,noplayground
 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release --features neon
@@ -55,7 +55,7 @@ SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --re
 Otherwise, make sure to include the "neon" feature when importing `sp1-zkvm` in your `Cargo.toml`:
 
 ```toml,noplayground
-sp1-core = { git = "ssh://git@github.com/succinctlabs/sp1.git", features = [ "neon" ] }
+sp1-core = { git = "https://github.com/succinctlabs/sp1.git", features = [ "neon" ] }
 ```
 
 ## Logging and Tracing Information

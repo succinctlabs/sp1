@@ -16,6 +16,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaCompress".to_string()
     }
@@ -29,7 +31,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
         let mut new_field_events = Vec::new();
         for i in 0..input.sha_compress_events.len() {
-            let mut event = input.sha_compress_events[i];
+            let mut event = input.sha_compress_events[i].clone();
 
             let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);
@@ -128,9 +130,24 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
 
                 let ch = cols.ch.populate(output, e, f, g);
 
-                let temp1 = cols
-                    .temp1
-                    .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                // TODO: This is a hack to avoid calling Add5Operation::populate. We currently don't
+                // call Add5Operation::eval due to the complexity of getting the inputs at the right
+                // index, which is definitely feasible but we haven't gotten to yet. If we call
+                // Add5Operation::populate, it creates interactions, and without the matching eval
+                // call, it will cause a panic. We plan to fix this really soon.
+                //
+                // This is how we should call populate here.
+                //
+                // let temp1 = cols
+                // .temp1
+                // .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                //
+                let temp1 = h
+                    .wrapping_add(s1)
+                    .wrapping_add(ch)
+                    .wrapping_add(event.w[j])
+                    .wrapping_add(SHA_COMPRESS_K[j]);
+                cols.temp1.value = Word::from(temp1);
 
                 let s0 = cols.s0.populate(output, a);
 
@@ -205,5 +222,9 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_compress_events.is_empty()
     }
 }

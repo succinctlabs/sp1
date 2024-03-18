@@ -6,7 +6,9 @@ use crate::{air::MachineAir, runtime::ExecutionRecord};
 
 pub const NUM_ROWS: usize = 1 << 16;
 
-impl<F: Field> MachineAir<F> for ByteChip {
+impl<F: Field> MachineAir<F> for ByteChip<F> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Byte".to_string()
     }
@@ -16,7 +18,7 @@ impl<F: Field> MachineAir<F> for ByteChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let (mut trace, event_map) = ByteChip::trace_and_map::<F>();
+        let (mut trace, event_map) = ByteChip::trace_and_map();
 
         for (lookup, mult) in input.byte_lookups.iter() {
             let (row, index) = event_map[lookup];
@@ -28,5 +30,9 @@ impl<F: Field> MachineAir<F> for ByteChip {
         }
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.byte_lookups.is_empty()
     }
 }

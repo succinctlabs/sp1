@@ -4,6 +4,8 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
@@ -11,6 +13,7 @@ use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::operations::AddOperation;
 use crate::runtime::{ExecutionRecord, Opcode};
+use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `AddChip`.
@@ -38,27 +41,45 @@ pub struct AddCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for AddChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Add".to_string()
     }
 
-    #[instrument(name = "generate add trace", skip_all)]
+    #[instrument(name = "generate add trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
+        let chunk_size = std::cmp::max(input.add_events.len() / num_cpus::get(), 1);
+        let rows_and_records = input
+            .add_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut record = ExecutionRecord::default();
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_ADD_COLS];
+                        let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
+                        cols.add_operation.populate(&mut record, event.b, event.c);
+                        cols.b = Word::from(event.b);
+                        cols.c = Word::from(event.c);
+                        cols.is_real = F::one();
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                (rows, record)
+            })
+            .collect::<Vec<_>>();
+
         let mut rows: Vec<[F; NUM_ADD_COLS]> = vec![];
-        for i in 0..input.add_events.len() {
-            let mut row = [F::zero(); NUM_ADD_COLS];
-            let cols: &mut AddCols<F> = row.as_mut_slice().borrow_mut();
-            let event = input.add_events[i];
-            cols.add_operation.populate(output, event.b, event.c);
-            cols.b = Word::from(event.b);
-            cols.c = Word::from(event.c);
-            cols.is_real = F::one();
-            rows.push(row);
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
         }
 
         // Convert the trace to a row major matrix.
@@ -69,6 +90,10 @@ impl<F: PrimeField> MachineAir<F> for AddChip {
         pad_to_power_of_two::<NUM_ADD_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.add_events.is_empty()
     }
 }
 

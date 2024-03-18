@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 /// A standard format for proving operations over a triplet of field elements.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct FieldEvent {
     pub ltu: bool,
     pub b: u32,

@@ -2,14 +2,14 @@ use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
@@ -37,13 +37,14 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct K256DecompressEvent {
     pub shard: u32,
     pub clk: u32,
@@ -286,6 +287,8 @@ impl<V: Copy> K256DecompressCols<V> {
 }
 
 impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }
@@ -298,10 +301,10 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
         let mut rows = Vec::new();
 
         for i in 0..input.k256_decompress_events.len() {
-            let event = input.k256_decompress_events[i];
+            let event = input.k256_decompress_events[i].clone();
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate(event, output);
+            cols.populate(event.clone(), output);
 
             rows.push(row);
         }
@@ -335,6 +338,10 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_K256_DECOMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.k256_decompress_events.is_empty()
     }
 }
 

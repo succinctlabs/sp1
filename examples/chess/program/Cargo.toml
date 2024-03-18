@@ -6,4 +6,4 @@ edition = "2021"
 
 [dependencies]
 chess = "3.2.0"
-sp1-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }

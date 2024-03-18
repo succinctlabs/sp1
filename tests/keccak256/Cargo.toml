@@ -1,0 +1,9 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "keccak256-test"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+tiny-keccak = { git = "https://github.com/succinctlabs/tiny-keccak-private", branch="chris/test", features = ["keccak"] }

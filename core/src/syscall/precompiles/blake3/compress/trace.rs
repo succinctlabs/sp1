@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 
-use crate::cpu::MemoryRecordEnum;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryRecordEnum;
 use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
 use crate::utils::pad_rows;
@@ -18,6 +18,8 @@ use super::{
 };
 
 impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()
     }
@@ -32,7 +34,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
         let mut new_field_events = Vec::new();
 
         for i in 0..input.blake3_compress_inner_events.len() {
-            let event = input.blake3_compress_inner_events[i];
+            let event = input.blake3_compress_inner_events[i].clone();
 
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
@@ -105,20 +107,16 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
 
         output.add_field_events(&new_field_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS];
-            let cols: &mut Blake3CompressInnerCols<F> = row.as_mut_slice().borrow_mut();
-
-            // Put this value in this padded row to avoid failing the constraint.
-            cols.round_index = F::from_canonical_usize(ROUND_COUNT);
-
-            row
-        });
+        pad_rows(&mut rows, || [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_BLAKE3_COMPRESS_INNER_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.blake3_compress_inner_events.is_empty()
     }
 }

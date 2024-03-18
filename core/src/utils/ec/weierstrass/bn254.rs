@@ -1,7 +1,7 @@
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
 
-use super::{SWCurve, WeierstrassParameters};
+use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 
@@ -9,7 +9,7 @@ use crate::utils::ec::EllipticCurveParameters;
 /// Bn254 curve parameter
 pub struct Bn254Parameters;
 
-pub type Bn254 = SWCurve<Bn254Parameters>;
+pub type Bn254 = SwCurve<Bn254Parameters>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bn254 base field parameter
