@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
@@ -32,9 +32,13 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     result
 }
 
-fn babybear_to_int(n: BabyBear) -> i32 {
+/// Display field elements as signed integers on the range `[-modulus/2, modulus/2]`.
+///
+/// This presentation is useful when debugging interactions as it makes it clear which interactions
+/// are `send` and which are `receive`.
+fn field_to_int<F: PrimeField32>(x: F) -> i32 {
     let modulus = BabyBear::ORDER_U64;
-    let val = n.as_canonical_u64();
+    let val = x.as_canonical_u64();
     if val > modulus / 2 {
         val as i32 - modulus as i32
     } else {
@@ -114,8 +118,9 @@ pub fn debug_interactions_with_all_chips<SC, A>(
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool
 where
-    SC: StarkGenericConfig<Val = BabyBear>,
-    A: MachineAir<BabyBear>,
+    SC: StarkGenericConfig,
+    SC::Val: PrimeField32,
+    A: MachineAir<SC::Val>,
 {
     let mut final_map = BTreeMap::new();
 
@@ -126,9 +131,9 @@ where
         for (key, value) in count.iter() {
             let entry = final_map
                 .entry(key.clone())
-                .or_insert((BabyBear::zero(), BTreeMap::new()));
+                .or_insert((SC::Val::zero(), BTreeMap::new()));
             entry.0 += *value;
-            *entry.1.entry(chip.name()).or_insert(BabyBear::zero()) += *value;
+            *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
         }
     }
 
@@ -141,14 +146,14 @@ where
             tracing::debug!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,
-                babybear_to_int(value)
+                field_to_int(value)
             );
             any_nonzero = true;
             for (chip, chip_value) in chip_values {
                 tracing::debug!(
                     " {} chip's send-receive discrepancy for this key is {}",
                     chip,
-                    babybear_to_int(chip_value)
+                    field_to_int(chip_value)
                 );
             }
         }
