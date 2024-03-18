@@ -133,6 +133,17 @@ impl Runtime {
         }
     }
 
+    /// Recover runtime state from a program and existing execution state.
+    pub fn recover(program: Program, state: ExecutionState) -> Self {
+        let mut runtime = Self::new(program);
+        runtime.state = state;
+        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+            .try_into()
+            .unwrap();
+        runtime.record.index = index;
+        runtime
+    }
+
     /// Get the current values of the registers.
     pub fn registers(&self) -> [u32; 32] {
         let mut registers = [0; 32];
@@ -793,7 +804,6 @@ impl Runtime {
         // If there's not enough cycles left for another instruction, move to the next shard.
         // We multiply by 4 because clk is incremented by 4 for each normal instruction.
         if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
-            println!("moving to next shard, clk = {}", self.state.clk);
             self.state.current_shard += 1;
             self.state.clk = 0;
         }
@@ -813,6 +823,11 @@ impl Runtime {
     pub fn execute_state(&mut self) -> (ExecutionState, bool) {
         self.emit_events = false;
         let state = self.state.clone();
+        // If shard_batch_size is 0 (batching is disabled), don't execute the program here since the
+        // whole program will be executed while proving.
+        if self.shard_batch_size == 0 {
+            return (state, true);
+        }
         let done = self.execute();
         (state, done)
     }
@@ -842,12 +857,6 @@ impl Runtime {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> bool {
-        // If shard_batch_size is 0 (batching is disabled), don't execute the program here since the
-        // whole program will be executed while proving.
-        if self.shard_batch_size == 0 {
-            return true;
-        }
-
         if self.state.global_clk == 0 {
             self.initialize();
         }
@@ -855,7 +864,7 @@ impl Runtime {
         let mut cycles = 0_u64;
         let mut done = false;
         // Loop until we've executed the maximum number of cycles or the program has finished.
-        while cycles < self.shard_batch_size as u64 {
+        while self.shard_batch_size == 0 || cycles < self.shard_batch_size as u64 {
             if self.execute_cycle() {
                 done = true;
                 break;

@@ -7,6 +7,7 @@ use std::time::Instant;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{RiscvAir, ShardProof};
+use crate::utils::env::shard_batch_size;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -90,14 +91,7 @@ fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let (events, _) = tracing::debug_span!("runtime.trace").in_scope(|| {
-        let mut runtime = Runtime::new(program.clone());
-        runtime.state = state;
-        runtime.record = ExecutionRecord::default();
-        runtime.record.program = Arc::new(program.clone());
-        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
-            .try_into()
-            .unwrap();
-        runtime.record.index = index;
+        let mut runtime = Runtime::recover(program.clone(), state);
         runtime.execute_record()
     });
     events
@@ -152,6 +146,12 @@ where
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
     let sharding_config = ShardingConfig::default();
     let mut shard_main_datas = Vec::new();
+
+    // If there's only one batch, it already must fit in memory so reuse it later in open multi
+    // rather than running the runtime again.
+    let reuse_shards = checkpoints.len() == 1;
+    let mut all_shards = None;
+
     for file in checkpoints.iter_mut() {
         let events = trace_checkpoint(program.clone(), file);
         reset_seek(&mut *file);
@@ -162,6 +162,10 @@ where
             .in_scope(|| LocalProver::commit_shards(&machine, &shards));
 
         shard_main_datas.push(commit_data);
+
+        if reuse_shards {
+            all_shards = Some(shards);
+        }
         for commitment in commitments {
             challenger.observe(commitment);
         }
@@ -170,10 +174,13 @@ where
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     for mut file in checkpoints.into_iter() {
-        let events = trace_checkpoint(program.clone(), &file);
-        reset_seek(&mut file);
-        let shards =
-            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+        let shards = if reuse_shards {
+            Option::take(&mut all_shards).unwrap()
+        } else {
+            let events = trace_checkpoint(program.clone(), &file);
+            reset_seek(&mut file);
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
+        };
         let start = Instant::now();
         let mut new_proofs = shards
             .into_iter()
