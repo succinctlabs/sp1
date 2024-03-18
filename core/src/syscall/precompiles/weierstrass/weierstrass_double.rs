@@ -7,9 +7,13 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::stark::Bn254Parameters;
 use crate::stark::MachineRecord;
+use crate::stark::Secp256k1Parameters;
+use crate::stark::SwCurve;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
+use crate::syscall::precompiles::ECDoubleEvent;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
@@ -67,9 +71,21 @@ pub struct WeierstrassDoubleAssignChip<E> {
     _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
+impl Syscall for WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_double_event::<E>(rt);
+        let event = create_ec_double_event::<SwCurve<Secp256k1Parameters>>(rt);
+        rt.record_mut().secp256k1_double_events.push(event.clone());
+        event.p_ptr + 1
+    }
+
+    fn num_extra_cycles(&self) -> u32 {
+        8
+    }
+}
+
+impl Syscall for WeierstrassDoubleAssignChip<SwCurve<Bn254Parameters>> {
+    fn execute(&self, rt: &mut SyscallContext) -> u32 {
+        let event = create_ec_double_event::<SwCurve<Bn254Parameters>>(rt);
         rt.record_mut().secp256k1_double_events.push(event.clone());
         event.p_ptr + 1
     }
@@ -157,15 +173,70 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
             );
         }
     }
+
+    fn pupolate_ecc_event<F: PrimeField32>(
+        evnets: &[ECDoubleEvent],
+    ) -> (Vec<[F; 2280]>, ExecutionRecord) {
+        let mut rows = Vec::new();
+        let mut record = ExecutionRecord::default();
+        let mut new_field_events = Vec::new();
+        for event in evnets {
+            let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
+            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
+
+            // Decode affine points.
+            let p = &event.p;
+            let p = AffinePoint::<E>::from_words_le(p);
+            let (p_x, p_y) = (p.x, p.y);
+
+            // Populate basic columns.
+            cols.is_real = F::one();
+            cols.shard = F::from_canonical_u32(event.shard);
+            cols.clk = F::from_canonical_u32(event.clk);
+            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+
+            Self::populate_field_ops(cols, p_x, p_y);
+
+            // Populate the memory access columns.
+            for i in 0..NUM_WORDS_EC_POINT {
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
+            }
+            rows.push(row);
+        }
+        record.add_field_events(&new_field_events);
+        (rows, record)
+    }
+
+    fn process_rows_and_records<F: PrimeField32>(
+        rows_and_records: Vec<(Vec<[F; 2280]>, ExecutionRecord)>,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        let mut rows = Vec::new();
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
+        }
+        pad_rows(&mut rows, || {
+            let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
+            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
+            let zero = BigUint::zero();
+            Self::populate_field_ops(cols, zero.clone(), zero.clone());
+            row
+        });
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_WEIERSTRASS_DOUBLE_COLS,
+        )
+    }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
-    for WeierstrassDoubleAssignChip<E>
-{
+impl<F: PrimeField32> MachineAir<F> for WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>> {
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "WeierstrassDoubleAssign".to_string()
+        "Secp256k1DoubleAssign".to_string()
     }
 
     #[instrument(
@@ -184,67 +255,50 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let rows_and_records = input
             .secp256k1_double_events
             .par_chunks(chunk_size)
-            .map(|events| {
-                let mut record = ExecutionRecord::default();
-                let mut new_field_events = Vec::new();
-
-                let rows = events
-                    .iter()
-                    .map(|event| {
-                        let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-                        let cols: &mut WeierstrassDoubleAssignCols<F> =
-                            row.as_mut_slice().borrow_mut();
-
-                        // Decode affine points.
-                        let p = &event.p;
-                        let p = AffinePoint::<E>::from_words_le(p);
-                        let (p_x, p_y) = (p.x, p.y);
-
-                        // Populate basic columns.
-                        cols.is_real = F::one();
-                        cols.shard = F::from_canonical_u32(event.shard);
-                        cols.clk = F::from_canonical_u32(event.clk);
-                        cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-
-                        Self::populate_field_ops(cols, p_x, p_y);
-
-                        // Populate the memory access columns.
-                        for i in 0..NUM_WORDS_EC_POINT {
-                            cols.p_access[i]
-                                .populate(event.p_memory_records[i], &mut new_field_events);
-                        }
-                        row
-                    })
-                    .collect::<Vec<_>>();
-                record.add_field_events(&new_field_events);
-                (rows, record)
-            })
+            .map(Self::pupolate_ecc_event::<F>)
             .collect::<Vec<_>>();
 
-        // Generate the trace rows for each event.
-        let mut rows = Vec::new();
-        for mut row_and_record in rows_and_records {
-            rows.extend(row_and_record.0);
-            output.append(&mut row_and_record.1);
-        }
-
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-            let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(cols, zero.clone(), zero.clone());
-            row
-        });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_WEIERSTRASS_DOUBLE_COLS,
-        )
+        // Generate the trace   rows for each event.
+        Self::process_rows_and_records(rows_and_records, output)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.secp256k1_double_events.is_empty()
+    }
+}
+
+impl<F: PrimeField32> MachineAir<F> for WeierstrassDoubleAssignChip<SwCurve<Bn254Parameters>> {
+    type Record = ExecutionRecord;
+
+    fn name(&self) -> String {
+        "Secp256k1DoubleAssign".to_string()
+    }
+
+    #[instrument(
+        name = "generate weierstrass double assign trace",
+        level = "debug",
+        skip_all
+    )]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        let chunk_size = std::cmp::max(input.bn254_double_events.len() / num_cpus::get(), 1);
+
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
+        let rows_and_records = input
+            .bn254_double_events
+            .par_chunks(chunk_size)
+            .map(Self::pupolate_ecc_event::<F>)
+            .collect::<Vec<_>>();
+
+        // Generate the trace rows for each event.
+        Self::process_rows_and_records(rows_and_records, output)
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bn254_double_events.is_empty()
     }
 }
 

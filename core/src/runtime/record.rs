@@ -197,7 +197,7 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("bn254_add_events".to_string(), self.bn254_add_events.len());
         stats.insert(
             "bn254_double_events".to_string(),
-            self.bn254_add_events.len(),
+            self.bn254_double_events.len(),
         );
         stats.insert(
             "k256_decompress_events".to_string(),
