@@ -151,7 +151,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "WeierstrassAddAssign".to_string()
+        format!("WeierstrassAddAssign{}", E::BaseField::NAME)
     }
 
     fn generate_trace(
@@ -165,6 +165,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         for i in 0..input.weierstrass_add_events.len() {
             let event = input.weierstrass_add_events[i].clone();
+
+            // check if the event corresponds to the chip corresponding to the current curve.
+            // If we don't do this, then trace for all curves will be generated for each curve.
+            if event.curve_name != E::BaseField::NAME {
+                continue;
+            }
+
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 

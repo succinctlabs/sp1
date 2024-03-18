@@ -11,6 +11,7 @@ use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -192,6 +193,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
                 let rows = events
                     .iter()
+                    // check if the event corresponds to the chip corresponding to the current curve.
+                    // If we don't do this, then trace for all curves will be generated for each curve.
+                    .filter(|event| event.curve_name == E::BaseField::NAME)
                     .map(|event| {
                         let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
                         let cols: &mut WeierstrassDoubleAssignCols<F> =

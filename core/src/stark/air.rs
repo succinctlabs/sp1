@@ -134,6 +134,12 @@ impl<F: PrimeField32> RiscvAir<F> {
         let weierstrass_double_assign =
             WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
+        let weierstrass_add_assign_bn254 =
+            WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();
+        chips.push(RiscvAir::Bn254Add(weierstrass_add_assign_bn254));
+        let weierstrass_double_assign_bn254 =
+            WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
+        chips.push(RiscvAir::Bn254Double(weierstrass_double_assign_bn254));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
@@ -164,12 +170,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::FieldLTU(field_ltu));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
-        let weierstrass_add_assign_bn254 =
-            WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();
-        chips.push(RiscvAir::Bn254Add(weierstrass_add_assign_bn254));
-        let weierstrass_double_assign_bn254 =
-            WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
-        chips.push(RiscvAir::Bn254Double(weierstrass_double_assign_bn254));
 
         chips
     }

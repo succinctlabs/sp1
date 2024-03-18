@@ -20,6 +20,7 @@ use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 pub struct ECAddEvent {
     pub shard: u32,
     pub clk: u32,
+    pub curve_name: String,
     pub p_ptr: u32,
     pub p: [u32; 16],
     pub q_ptr: u32,
@@ -34,6 +35,8 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
     let a1 = crate::runtime::Register::X11;
 
     let start_clk = rt.clk;
+
+    let curve_name = E::BaseField::NAME.to_string();
 
     // TODO: these will have to be be constrained, but can do it later.
     let p_ptr = rt.register_unsafe(a0);
@@ -65,6 +68,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
     ECAddEvent {
         shard: rt.current_shard(),
         clk: start_clk,
+        curve_name,
         p_ptr,
         p,
         q_ptr,
@@ -80,6 +84,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECAddEv
 pub struct ECDoubleEvent {
     pub shard: u32,
     pub clk: u32,
+    pub curve_name: String,
     pub p_ptr: u32,
     pub p: [u32; 16],
     pub p_memory_records: [MemoryWriteRecord; 16],
@@ -98,6 +103,8 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
 
     let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
 
+    let curve_name = E::BaseField::NAME.to_string();
+
     // When we write to p, we want the clk to be incremented.
     rt.clk += 4;
 
@@ -112,6 +119,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
     ECDoubleEvent {
         shard: rt.current_shard(),
         clk: start_clk,
+        curve_name,
         p_ptr,
         p,
         p_memory_records,
