@@ -33,6 +33,7 @@ impl FieldParameters for Ed25519BaseField {
 
 impl EllipticCurveParameters for Ed25519Parameters {
     type BaseField = Ed25519BaseField;
+    const NAME: &'static str = "ed25519";
 }
 
 impl EdwardsParameters for Ed25519Parameters {

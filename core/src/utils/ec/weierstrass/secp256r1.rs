@@ -1,30 +1,30 @@
-//! Modulo defining the Secp256k1 curve and its base field. The constants are all taken from
-//! https://en.bitcoin.it/wiki/Secp256k1.
+//! Modulo defining the Secp256r1 (P-256) curve and its base field. The constants are all taken from
+//! https://neuromancer.sk/std/secg/secp256r1.
 
 use std::str::FromStr;
 
-use num::{BigUint, Zero};
+use num::BigUint;
 use serde::{Deserialize, Serialize};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
-use k256::FieldElement;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
+use p256::FieldElement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-/// Secp256k1 curve parameter
-pub struct Secp256k1Parameters;
+/// Secp256r1 curve parameter
+pub struct Secp256r1Parameters;
 
-pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
+pub type Secp256r1 = SwCurve<Secp256r1Parameters>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
-/// Secp256k1 base field parameter
-pub struct Secp256k1BaseField;
+/// Secp256r1 base field parameter
+pub struct Secp256r1BaseField;
 
-impl FieldParameters for Secp256k1BaseField {
+impl FieldParameters for Secp256r1BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
     const NB_LIMBS: usize = NUM_LIMBS;
@@ -32,8 +32,8 @@ impl FieldParameters for Secp256k1BaseField {
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 
     const MODULUS: [u8; MAX_NB_LIMBS] = [
-        0x2f, 0xfc, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
         0xff, 0xff,
     ];
 
@@ -45,28 +45,28 @@ impl FieldParameters for Secp256k1BaseField {
     }
 }
 
-impl EllipticCurveParameters for Secp256k1Parameters {
-    type BaseField = Secp256k1BaseField;
-    const NAME: &'static str = "secp256k1";
+impl EllipticCurveParameters for Secp256r1Parameters {
+    type BaseField = Secp256r1BaseField;
+    const NAME: &'static str = "secp256r1";
 }
 
-impl WeierstrassParameters for Secp256k1Parameters {
+impl WeierstrassParameters for Secp256r1Parameters {
     const A: [u16; MAX_NB_LIMBS] = [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0,
+        65532, 65535, 65535, 65535, 65535, 65535, 0, 0, 0, 0, 0, 0, 1, 0, 65535, 65535, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
 
     const B: [u16; MAX_NB_LIMBS] = [
-        7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0,
+        24651, 10194, 15422, 15310, 45302, 52307, 1712, 25885, 34492, 30360, 48469, 46059, 37863,
+        43578, 13784, 23238, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from_str(
-            "55066263022277343669578718895168534326250603453777594175500187360389116729240",
+            "48439561293906451759052585252797914202762949526041747995844080717082404635286",
         )
         .unwrap();
         let y = BigUint::from_str(
-            "32670510020758816978083085130507043184471273380659243275938904335757337482424",
+            "36134250956749795798585127919587881956611106672985015071877198253568414405109",
         )
         .unwrap();
         (x, y)
@@ -74,21 +74,27 @@ impl WeierstrassParameters for Secp256k1Parameters {
 
     fn prime_group_order() -> num::BigUint {
         BigUint::from_slice(&[
-            0xD0364141, 0xBFD25E8C, 0xAF48A03B, 0xBAAEDCE6, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF,
+            0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000,
             0xFFFFFFFF,
         ])
     }
 
     fn a_int() -> BigUint {
-        BigUint::zero()
+        BigUint::from_slice(&[
+            0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001,
+            0xFFFFFFFF,
+        ])
     }
 
     fn b_int() -> BigUint {
-        BigUint::from(7u32)
+        BigUint::from_slice(&[
+            0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7,
+            0x5AC635D8,
+        ])
     }
 }
 
-pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
+pub fn secp256r1_sqrt(n: &BigUint) -> BigUint {
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];
     bytes[32 - be_bytes.len()..].copy_from_slice(&be_bytes);
@@ -108,25 +114,27 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(&Secp256k1BaseField::MODULUS),
-            Secp256k1BaseField::modulus()
+            biguint_from_limbs(&Secp256r1BaseField::MODULUS),
+            Secp256r1BaseField::modulus()
         );
+        println!("{:?}", Secp256r1Parameters::a_int());
+        println!("{:?}", Secp256r1Parameters::b_int());
     }
 
     #[test]
-    fn test_secp256k_sqrt() {
+    fn test_secp256r1_sqrt() {
         let mut rng = thread_rng();
         for _ in 0..10 {
             // Check that sqrt(x^2)^2 == x^2
             // We use x^2 since not all field elements have a square root
-            let x = rng.gen_biguint(256) % Secp256k1BaseField::modulus();
-            let x_2 = (&x * &x) % Secp256k1BaseField::modulus();
-            let sqrt = secp256k1_sqrt(&x_2);
+            let x = rng.gen_biguint(256) % Secp256r1BaseField::modulus();
+            let x_2 = (&x * &x) % Secp256r1BaseField::modulus();
+            let sqrt = secp256r1_sqrt(&x_2);
             if sqrt > x_2 {
                 println!("wtf");
             }
 
-            let sqrt_2 = (&sqrt * &sqrt) % Secp256k1BaseField::modulus();
+            let sqrt_2 = (&sqrt * &sqrt) % Secp256r1BaseField::modulus();
 
             assert_eq!(sqrt_2, x_2);
         }

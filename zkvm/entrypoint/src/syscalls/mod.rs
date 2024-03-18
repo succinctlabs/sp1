@@ -5,6 +5,7 @@ mod io;
 mod keccak_permute;
 mod memory;
 mod secp256k1;
+mod secp256r1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
@@ -16,6 +17,7 @@ pub use io::*;
 pub use keccak_permute::*;
 pub use memory::*;
 pub use secp256k1::*;
+pub use secp256r1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
@@ -59,6 +61,12 @@ pub const EXIT_UNCONSTRAINED: u32 = 111;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 112;
+
+/// Executes `SECP256R1_ADD`.
+pub const SECP256R1_ADD: u32 = 113;
+
+/// Executes `SECP256R1_DOUBLE`.
+pub const SECP256R1_DOUBLE: u32 = 114;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 999;

@@ -95,9 +95,9 @@ impl<V: Copy> FieldDenCols<V> {
         V: Into<AB::Expr>,
     {
         let p_a = Polynomial::from(*a);
-        let p_b = (*b).into();
+        let p_b = Polynomial::from(*b);
         let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_carry = Polynomial::from(self.carry);
 
         // Compute the vanishing polynomial:
         //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))

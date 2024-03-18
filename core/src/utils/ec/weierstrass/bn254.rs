@@ -40,6 +40,7 @@ impl FieldParameters for Bn254BaseField {
 
 impl EllipticCurveParameters for Bn254Parameters {
     type BaseField = Bn254BaseField;
+    const NAME: &'static str = "bn254";
 }
 
 impl WeierstrassParameters for Bn254Parameters {
