@@ -1,14 +1,10 @@
-use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Seek, Write};
-use std::sync::Arc;
 use std::time::Instant;
 
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
-use crate::stark::{Com, PcsProverData, RiscvAir, UniConfig};
-use crate::stark::{RiscvAir, ShardProof};
-use crate::utils::env::shard_batch_size;
+use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -17,7 +13,7 @@ use crate::{
 };
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
-use p3_commit::Pcs;
+
 use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -81,7 +77,7 @@ fn reset_seek(file: &mut File) {
         .expect("failed to seek to start of tempfile");
 }
 
-pub fn run_and_prove<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
+pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
     stdin: &[u8],
     config: SC,
@@ -89,8 +85,8 @@ pub fn run_and_prove<SC: StarkGenericConfig + StarkUtils + Send + Sync + Seriali
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
-    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync + Debug,
-    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
