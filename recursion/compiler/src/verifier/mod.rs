@@ -1,4 +1,5 @@
 mod constraints;
+mod fri;
 
 use std::marker::PhantomData;
 

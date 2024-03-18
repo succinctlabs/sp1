@@ -89,7 +89,7 @@ pub fn verify_constraints<N: Field, SC: StarkGenericConfig + Clone, A: MachineAi
 
     let quotient_parts = opening
         .quotient
-        .chunks_exact(SC::Challenge::D)
+        .iter()
         .map(|chunk| {
             chunk
                 .iter()
