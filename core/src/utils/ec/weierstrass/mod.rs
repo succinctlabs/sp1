@@ -69,6 +69,7 @@ impl<E: WeierstrassParameters> WeierstrassParameters for SwCurve<E> {
 
 impl<E: WeierstrassParameters> EllipticCurveParameters for SwCurve<E> {
     type BaseField = E::BaseField;
+    const NAME: &'static str = E::NAME;
 }
 
 impl<E: WeierstrassParameters> EllipticCurve for SwCurve<E> {

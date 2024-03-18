@@ -68,7 +68,11 @@ pub struct WeierstrassAddAssignChip<E> {
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().weierstrass_add_events.push(event.clone());
+        match E::NAME {
+            "secp256k1" => rt.record_mut().secp256k1_add_events.push(event.clone()),
+            "secp256r1" => rt.record_mut().secp256r1_add_events.push(event.clone()),
+            _ => panic!("Unsupported curve"),
+        }
         event.p_ptr + 1
     }
 
@@ -148,7 +152,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "WeierstrassAddAssign".to_string()
+        match E::NAME {
+            "secp256k1" => "Secp256k1AddAssign".to_string(),
+            "secp256r1" => "Secp256r1AddAssign".to_string(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 
     fn generate_trace(
@@ -160,8 +168,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..input.weierstrass_add_events.len() {
-            let event = input.weierstrass_add_events[i].clone();
+        let events = match E::NAME {
+            "secp256k1" => &input.secp256k1_add_events,
+            "secp256r1" => &input.secp256r1_add_events,
+            _ => panic!("Unsupported curve"),
+        };
+        for i in 0..events.len() {
+            let event = events[i].clone();
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -212,7 +225,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_add_events.is_empty()
+        match E::NAME {
+            "secp256k1" => !shard.secp256k1_add_events.is_empty(),
+            "secp256r1" => !shard.secp256r1_add_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 }
 

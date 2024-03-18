@@ -74,13 +74,15 @@ pub struct ExecutionRecord {
 
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
-    pub weierstrass_add_events: Vec<ECAddEvent>,
+    pub secp256k1_add_events: Vec<ECAddEvent>,
 
     pub weierstrass_double_events: Vec<ECDoubleEvent>,
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+
+    pub secp256r1_add_events: Vec<ECAddEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
@@ -179,8 +181,8 @@ impl MachineRecord for ExecutionRecord {
             self.ed_decompress_events.len(),
         );
         stats.insert(
-            "weierstrass_add_events".to_string(),
-            self.weierstrass_add_events.len(),
+            "secp256k1_add_events".to_string(),
+            self.secp256k1_add_events.len(),
         );
         stats.insert(
             "weierstrass_double_events".to_string(),
@@ -193,6 +195,10 @@ impl MachineRecord for ExecutionRecord {
         stats.insert(
             "blake3_compress_inner_events".to_string(),
             self.blake3_compress_inner_events.len(),
+        );
+        stats.insert(
+            "secp256r1_add_events".to_string(),
+            self.secp256r1_add_events.len(),
         );
         stats
     }
@@ -219,14 +225,16 @@ impl MachineRecord for ExecutionRecord {
         self.ed_add_events.append(&mut other.ed_add_events);
         self.ed_decompress_events
             .append(&mut other.ed_decompress_events);
-        self.weierstrass_add_events
-            .append(&mut other.weierstrass_add_events);
+        self.secp256k1_add_events
+            .append(&mut other.secp256k1_add_events);
         self.weierstrass_double_events
             .append(&mut other.weierstrass_double_events);
         self.k256_decompress_events
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.secp256r1_add_events
+            .append(&mut other.secp256r1_add_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -345,13 +353,13 @@ impl MachineRecord for ExecutionRecord {
         }
 
         // Weierstrass curve add events.
-        for (weierstrass_add_chunk, shard) in take(&mut self.weierstrass_add_events)
+        for (secp256k1_add_chunk, shard) in take(&mut self.secp256k1_add_events)
             .chunks_mut(config.weierstrass_add_len)
             .zip(shards.iter_mut())
         {
             shard
-                .weierstrass_add_events
-                .extend_from_slice(weierstrass_add_chunk);
+                .secp256k1_add_events
+                .extend_from_slice(secp256k1_add_chunk);
         }
 
         // Weierstrass curve double events.
@@ -362,6 +370,16 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .weierstrass_double_events
                 .extend_from_slice(weierstrass_double_chunk);
+        }
+
+        // Weierstrass curve add events.
+        for (secp256r1_add_chunk, shard) in take(&mut self.secp256r1_add_events)
+            .chunks_mut(config.weierstrass_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp256r1_add_events
+                .extend_from_slice(secp256r1_add_chunk);
         }
 
         // Put the precompile events in the first shard.

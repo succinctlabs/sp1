@@ -47,6 +47,7 @@ impl FieldParameters for Secp256r1BaseField {
 
 impl EllipticCurveParameters for Secp256r1Parameters {
     type BaseField = Secp256r1BaseField;
+    const NAME: &'static str = "secp256r1";
 }
 
 impl WeierstrassParameters for Secp256r1Parameters {
