@@ -842,6 +842,12 @@ impl Runtime {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> bool {
+        // If shard_batch_size is 0 (batching is disabled), don't execute the program here since the
+        // whole program will be executed while proving.
+        if self.shard_batch_size == 0 {
+            return true;
+        }
+
         if self.state.global_clk == 0 {
             self.initialize();
         }
@@ -849,8 +855,7 @@ impl Runtime {
         let mut cycles = 0_u64;
         let mut done = false;
         // Loop until we've executed the maximum number of cycles or the program has finished.
-        // If shard_batch_size is 0, execute the entire program instead of batching.
-        while self.shard_batch_size == 0 || cycles < self.shard_batch_size as u64 {
+        while cycles < self.shard_batch_size as u64 {
             if self.execute_cycle() {
                 done = true;
                 break;
