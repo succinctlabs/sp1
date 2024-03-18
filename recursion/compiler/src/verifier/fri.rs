@@ -1,37 +1,30 @@
-use std::marker::PhantomData;
-
 use crate::prelude::Builder;
 use crate::prelude::Config;
 use crate::prelude::Felt;
+use crate::prelude::Usize;
+use crate::verifier::types::Hash;
 use itertools::izip;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use p3_matrix::Dimensions;
 use p3_util::reverse_bits_len;
 
-pub const DIGEST_SIZE: usize = 8;
-
-#[allow(type_alias_bounds)]
-type Hash<C: Config> = [Felt<C::F>; DIGEST_SIZE];
-
-pub struct FriConfig {
-    pub log_blowup: usize,
-    pub num_queries: usize,
-    pub proof_of_work_bits: usize,
-}
-
-pub struct FmtQueryProof<C: Config> {
-    pub commit_phase_openings: Vec<FmtCommitPhaseProofStep<C>>,
-    pub phantom: PhantomData<C>,
-}
-
-pub struct FmtCommitPhaseProofStep<C: Config> {
-    pub sibling_value: Felt<C::F>,
-    pub opening_proof: Vec<Hash<C>>,
-    pub phantom: PhantomData<C>,
-}
+use super::types::FmtQueryProof;
+use super::types::FriConfig;
 
 impl<C: Config> Builder<C> {
+    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
+        todo!()
+    }
+
+    pub fn reverse_bits_len(&mut self, index: Usize<C::N>, bit_len: Usize<C::N>) -> Usize<C::N> {
+        todo!()
+    }
+
+    pub fn exp_usize(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
+        todo!()
+    }
+
     /// Verifies a FRI query.
     ///
     /// Currently assumes the index and log_max_height are constants.
@@ -49,8 +42,10 @@ impl<C: Config> Builder<C> {
         C::F: TwoAdicField,
     {
         let folded_eval: Felt<_> = self.eval(C::F::zero());
-        let mut x = C::F::two_adic_generator(log_max_height)
-            .exp_u64(reverse_bits_len(index, log_max_height) as u64);
+        let generator = self.two_adic_generator(Usize::Const(1));
+        let two_adic_generator = self.two_adic_generator(Usize::Const(log_max_height));
+        let power = self.reverse_bits_len(Usize::Const(index), Usize::Const(log_max_height));
+        let x = self.exp_usize(two_adic_generator, power);
 
         for (log_folded_height, commit, step, &beta) in izip!(
             (0..log_max_height).rev(),
@@ -73,18 +68,17 @@ impl<C: Config> Builder<C> {
                 width: 2,
                 height: (1 << log_folded_height),
             }];
-
             // TODO: verify_batch(config, commit, step).
 
-            let mut xs = [x; 2];
-            xs[index_sibling % 2] *= C::F::two_adic_generator(1);
+            let xs = [x; 2];
+            self.assign(xs[index_sibling % 2], xs[index_sibling % 2] * generator);
             self.assign(
                 folded_eval,
                 evals[0] + (beta - xs[0]) * (evals[1] - evals[0]) / (xs[1] - xs[0]),
             );
 
             index = index_pair;
-            x = x.square();
+            self.assign(x, x * x);
         }
 
         // debug_assert!(index < config.blowup(), "index was {}", index);
