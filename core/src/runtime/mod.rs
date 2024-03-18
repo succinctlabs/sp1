@@ -440,7 +440,7 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
-        println!("instruction = {:#?}", instruction);
+        // println!("instruction = {:#?}", instruction);
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {

@@ -79,12 +79,8 @@ impl Syscall for K256DecompressChip {
 
     fn execute(&self, rt: &mut SyscallContext, slice_ptr: u32, is_odd: u32) -> Option<u32> {
         let start_clk = rt.clk;
-        if slice_ptr % 4 != 0 {
-            panic!("slice_ptr must be 4-byte aligned");
-        }
-        if is_odd > 0 {
-            panic!("is_odd must be 0 or 1");
-        }
+        assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
+        assert!(is_odd < 2, "is_odd must be 0 or 1");
 
         let (x_memory_records_vec, x_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
@@ -305,7 +301,7 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
 
         for i in 0..input.k256_decompress_events.len() {
             let event = input.k256_decompress_events[i].clone();
-            println!("event: {:?}", event);
+            // println!("event: {:?}", event);
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate(event.clone(), output);
@@ -377,7 +373,7 @@ pub mod tests {
     use crate::utils::setup_logger;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
     use crate::Program;
-    use crate::{SP1Prover, SP1Stdin, SP1Verifier};
+    use crate::SP1Stdin;
 
     #[test]
     fn test_k256_decompress() {

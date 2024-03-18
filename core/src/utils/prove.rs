@@ -48,8 +48,6 @@ pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
-    use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
-
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_stdin_slice(&inputs.buffer.data);
@@ -85,7 +83,6 @@ pub fn run_test_core(
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-    use crate::{runtime::ExecutionRecord, stark::MachineRecord};
 
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);

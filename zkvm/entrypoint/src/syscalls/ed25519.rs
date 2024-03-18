@@ -33,7 +33,6 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
     {
         let sign = point[63] >> 7;
         point[63] &= 0b0111_1111;
-        point[31] = sign;
         // TODO: maybe we can pass the sign bit in the 2nd register now that we have this argument
         let p = point.as_mut_ptr() as *mut u8;
         unsafe {
@@ -41,7 +40,7 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
                 "ecall",
                 in("t0") crate::syscalls::ED_DECOMPRESS,
                 in("a0") p,
-                in("a1") 0
+                in("a1") sign
             );
         }
     }
