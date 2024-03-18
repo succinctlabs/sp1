@@ -1,10 +1,9 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
+use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
-use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_field::PrimeField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
@@ -35,6 +34,7 @@ pub struct Poseidon2Cols<T> {
     pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
     pub output: [T; WIDTH],
+    pub is_external: T,
     pub is_real: T,
 }
 
@@ -48,8 +48,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2ExternalChip {
     #[instrument(name = "generate add trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
-        input: &ExecutionRecord<F>,
-        output: &mut ExecutionRecord<F>,
+        _: &ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(vec![], NUM_POSEIDON_2_EXTERNAL_COLS);
@@ -60,7 +60,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2ExternalChip {
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included(&self, _: &Self::Record) -> bool {
         true
     }
 }
@@ -83,7 +83,6 @@ where
         let rounds_f = 8;
         let rounds_p = 22;
         let rounds = rounds_f + rounds_p;
-        let rounds_f_beggining = rounds_f / 2;
 
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
@@ -93,45 +92,95 @@ where
             .try_into()
             .unwrap();
 
-        // self.add_rc(state, &self.constants[r])
+        // Apply the round constants.
+        //
+        // To differentiate between external and internal layers, we set the round constants to zero
+        // for the internal layers have been set to zero for the appropriate indices.
         for i in 0..WIDTH {
-            let mut lc = AB::Expr::zero();
-            for r in 0..rounds_f_beggining {
-                lc += local.input[i] * constants[r][i];
+            let mut result = AB::Expr::zero();
+
+            for r in 0..rounds {
+                result += local.input[i] + local.rounds[r] * constants[r][i];
             }
-            builder.assert_eq(lc, local.add_rc[i]);
+
+            builder.assert_eq(result, local.add_rc[i]);
         }
 
-        // self.sbox(state);
+        // Apply the sbox.
+        //
+        // To differentiate between external and internal layers, we use a masking operation
+        // to only apply the state change to the first element for internal layers.
         for i in 0..WIDTH {
             let sbox_deg_3 = local.add_rc[i] * local.add_rc[i] * local.add_rc[i];
             builder.assert_eq(sbox_deg_3, local.sbox_deg_3[i]);
             let sbox_deg_7 = local.sbox_deg_3[i] * local.sbox_deg_3[i] * local.add_rc[i];
             builder.assert_eq(sbox_deg_7, local.sbox_deg_7[i]);
         }
+        let sbox_result: [AB::Expr; WIDTH] = local
+            .sbox_deg_7
+            .iter()
+            .enumerate()
+            .map(|(i, x)| {
+                // Always pass through the first element.
+                if i == 0 {
+                    AB::Expr::zero() + *x
+                }
+                // If it's an internal layer, pass through the element, otherwise use the result
+                // of the round constants layer.
+                else {
+                    local.is_external * *x + (AB::Expr::one() - local.is_external) * local.add_rc[i]
+                }
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
-        // First, we apply M_4 to each consecutive four elements of the state.
-        // In Appendix B's terminology, this replaces each x_i with x_i'.
-        let mut state: [AB::Expr; WIDTH] = local.sbox_deg_7.map(|x| x.into());
-        for i in (0..WIDTH).step_by(4) {
-            apply_m_4(&mut state[i..i + 4]);
+        // EXTERNAL LAYER
+        {
+            // First, we apply M_4 to each consecutive four elements of the state.
+            // In Appendix B's terminology, this replaces each x_i with x_i'.
+            let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
+            for i in (0..WIDTH).step_by(4) {
+                apply_m_4(&mut state[i..i + 4]);
+            }
+
+            // Now, we apply the outer circulant matrix (to compute the y_i values).
+            //
+            // We first precompute the four sums of every four elements.
+            let sums: [AB::Expr; 4] = core::array::from_fn(|k| {
+                (0..WIDTH)
+                    .step_by(4)
+                    .map(|j| state[j + k].clone())
+                    .sum::<AB::Expr>()
+            });
+
+            // The formula for each y_i involves 2x_i' term and x_j' terms for each j that equals i mod 4.
+            // In other words, we can add a single copy of x_i' to the appropriate one of our precomputed sums.
+            for i in 0..WIDTH {
+                state[i] += sums[i % 4].clone();
+                builder
+                    .when(local.is_external)
+                    .assert_eq(state[i].clone(), local.output[i]);
+            }
         }
 
-        // Now, we apply the outer circulant matrix (to compute the y_i values).
-        //
-        // We first precompute the four sums of every four elements.
-        let sums: [AB::Expr; 4] = core::array::from_fn(|k| {
-            (0..WIDTH)
-                .step_by(4)
-                .map(|j| state[j + k].clone())
-                .sum::<AB::Expr>()
-        });
-
-        // The formula for each y_i involves 2x_i' term and x_j' terms for each j that equals i mod 4.
-        // In other words, we can add a single copy of x_i' to the appropriate one of our precomputed sums.
-        for i in 0..WIDTH {
-            state[i] += sums[i % 4].clone();
-            builder.assert_eq(state[i].clone(), local.output[i]);
+        // INTERNAL LAYER
+        {
+            // Use a simple matrix multiplication as the permutation.
+            let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
+            let matmul_constants: [<<AB as AirBuilder>::Expr as p3_field::AbstractField>::F;
+                WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
+                .iter()
+                .map(|x| <<AB as AirBuilder>::Expr as AbstractField>::F::from_wrapped_u32(*x))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+            matmul_internal(&mut state, matmul_constants);
+            for i in 0..WIDTH {
+                builder
+                    .when_not(local.is_external)
+                    .assert_eq(state[i].clone(), local.output[i]);
+            }
         }
     }
 }
@@ -154,18 +203,18 @@ where
     x[3] = t4;
 }
 
-// pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
-//     state: &mut [AF; WIDTH],
-//     mat_internal_diag_m_1: [F; WIDTH],
-// ) {
-//     let sum: AF = state.iter().cloned().sum();
-//     for i in 0..WIDTH {
-//         state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
-//         state[i] += sum.clone();
-//     }
-// }
+pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
+    state: &mut [AF; WIDTH],
+    mat_internal_diag_m_1: [F; WIDTH],
+) {
+    let sum: AF = state.iter().cloned().sum();
+    for i in 0..WIDTH {
+        state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
+        state[i] += sum.clone();
+    }
+}
 
-// const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
-//     0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
-//     0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,
-// ];
+pub const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
+    0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
+    0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,
+];
