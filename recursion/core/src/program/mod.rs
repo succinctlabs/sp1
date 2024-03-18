@@ -1,6 +1,5 @@
 use crate::{cpu::columns::InstructionCols, runtime::ExecutionRecord};
 use core::mem::size_of;
-use hashbrown::HashMap;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -13,6 +12,7 @@ use sp1_core::{
 use sp1_derive::AlignedBorrow;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
+use std::collections::HashMap;
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
 
