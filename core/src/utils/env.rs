@@ -33,6 +33,6 @@ pub fn reconstruct_commitments() -> bool {
 pub fn shard_batch_size() -> u32 {
     match std::env::var("SHARD_BATCH_SIZE") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 256,
+        Err(_) => 0,
     }
 }
