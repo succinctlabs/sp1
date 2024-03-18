@@ -172,7 +172,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        format!("{}DoubleAssign", E::BaseField::FIELD_TYPE)
+        match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => "Secp256k1Double".to_owned(),
+            FieldType::Bn254 => "Bn254Double".to_owned(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 
     #[instrument(
@@ -187,8 +191,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         // collects the events based on the curve type.
         let events = match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => &input.secp256k1_add_events,
-            FieldType::Bn254 => &input.bn254_add_events,
+            FieldType::Secp256k1 => &input.secp256k1_double_events,
+            FieldType::Bn254 => &input.bn254_double_events,
             _ => panic!("Unsupported curve"),
         };
 

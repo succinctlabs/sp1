@@ -155,7 +155,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        format!("{}AddAssign", E::BaseField::FIELD_TYPE)
+        match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => "Secp256k1Add".to_owned(),
+            FieldType::Bn254 => "Bn254Add".to_owned(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 
     fn generate_trace(
