@@ -24,22 +24,22 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-p3-air = { path = "../plonky3/air" }
-p3-field = { path = "../plonky3/field" }
-p3-commit = { path = "../plonky3/commit" }
-p3-matrix = { path = "../plonky3/matrix" }
-p3-baby-bear = { path = "../plonky3/baby-bear" }
-p3-util = { path = "../plonky3/util" }
-p3-challenger = { path = "../plonky3/challenger" }
-p3-dft = { path = "../plonky3/dft" }
-p3-fri = { path = "../plonky3/fri" }
-p3-goldilocks = { path = "../plonky3/goldilocks" }
-p3-keccak = { path = "../plonky3/keccak" }
-p3-keccak-air = { path = "../plonky3/keccak-air" }
-p3-blake3 = { path = "../plonky3/blake3" }
-p3-mds = { path = "../plonky3/mds" }
-p3-merkle-tree = { path = "../plonky3/merkle-tree" }
-p3-poseidon2 = { path = "../plonky3/poseidon2" }
-p3-symmetric = { path = "../plonky3/symmetric" }
-p3-uni-stark = { path = "../plonky3/uni-stark" }
-p3-maybe-rayon = { path = "../plonky3/maybe-rayon" }
+p3-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-field = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-commit = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-matrix = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-util = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-fri = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-goldilocks = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-keccak = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-keccak-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-blake3 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-mds = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
