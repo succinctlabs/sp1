@@ -113,7 +113,7 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
     pub is_first_row: Var,
     pub is_last_row: Var,
     pub is_transition: Var,
-    pub alpha: EF,
+    pub alpha: Var,
     pub accumulator: Expr,
     pub _marker: PhantomData<F>,
 }
@@ -170,7 +170,7 @@ where
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         let x: Expr = x.into();
-        self.accumulator *= self.alpha;
+        self.accumulator *= self.alpha.into();
         self.accumulator += x;
     }
 }
