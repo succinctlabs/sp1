@@ -4,12 +4,9 @@ use std::io::{Seek, Write};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::runtime::Instruction;
-use crate::runtime::Opcode;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
-use crate::stark::ShardMainDataWrapper;
-use crate::stark::{Prover, RiscvAir, ShardProof};
+use crate::stark::{RiscvAir, ShardProof};
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
@@ -194,10 +191,6 @@ where
             .collect::<Vec<_>>();
         prove_time += start.elapsed().as_millis();
         shard_proofs.append(&mut new_proofs);
-    }
-
-    for proof in shard_proofs.iter() {
-        println!("proof index: {}", proof.index);
     }
 
     let proof = crate::stark::Proof::<SC> { shard_proofs };

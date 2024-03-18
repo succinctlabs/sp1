@@ -798,30 +798,6 @@ impl Runtime {
             self.state.clk = 0;
         }
 
-        if !self.unconstrained && self.state.global_clk % self.shard_batch_size as u64 == 0 {
-
-            // log::info!("writing to disk");
-            // let mut file = tempfile::tempfile().expect("failed to get tempfile");
-            // let mut writer = BufWriter::new(&file);
-            // bincode::serialize_into(&mut writer, &self.state).expect("failed to write");
-            // writer.flush().expect("failed to flush");
-            // drop(writer);
-
-            // // Print size of file
-            // let metadata = file.metadata().expect("failed to get metadata");
-            // log::info!("file size: {}", metadata.len());
-
-            // // now read it back
-            // file.seek(SeekFrom::Start(0)).expect("failed to seek");
-            // let mut reader = BufReader::new(&file);
-            // let state: ExecutionState =
-            //     bincode::deserialize_from(&mut reader).expect("failed to read");
-            // log::info!("read from disk");
-            // self.state = state;
-
-            // log::info!("wrote to disk");
-        }
-
         self.state.pc.wrapping_sub(self.program.pc_base)
             >= (self.program.instructions.len() * 4) as u32
     }

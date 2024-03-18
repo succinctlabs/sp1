@@ -253,8 +253,7 @@ impl MachineRecord for ExecutionRecord {
             let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
             let start = index * config.shard_size;
             let shard = &mut shards[index];
-            // shard.index = self.index + index as u32 + 1;
-            shard.index = index as u32 + 1;
+            shard.index = (index + 1) as u32;
             shard.cpu_events = self.cpu_events.split_off(start);
             shard.program = self.program.clone();
         }
