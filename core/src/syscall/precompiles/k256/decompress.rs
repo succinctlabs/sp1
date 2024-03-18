@@ -77,14 +77,13 @@ impl Syscall for K256DecompressChip {
         0
     }
 
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(&self, rt: &mut SyscallContext, slice_ptr: u32, is_odd: u32) -> Option<u32> {
         let start_clk = rt.clk;
-        let slice_ptr = arg1;
         if slice_ptr % 4 != 0 {
-            panic!();
+            panic!("slice_ptr must be 4-byte aligned");
         }
-        if arg2 != 0 {
-            panic!();
+        if is_odd > 0 {
+            panic!("is_odd must be 0 or 1");
         }
 
         let (x_memory_records_vec, x_vec) = rt.mr_slice(
@@ -92,9 +91,6 @@ impl Syscall for K256DecompressChip {
             NUM_WORDS_FIELD_ELEMENT,
         );
         let x_memory_records: [MemoryReadRecord; 8] = x_memory_records_vec.try_into().unwrap();
-
-        // This unsafe read is okay because we do mw_slice into the first 8 words later.
-        let is_odd = rt.byte_unsafe(slice_ptr);
 
         let x_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&x_vec);
         let mut x_bytes_be = x_bytes;
@@ -141,6 +137,7 @@ pub struct K256DecompressCols<T> {
     pub shard: T,
     pub clk: T,
     pub ptr: T,
+    pub is_odd: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub(crate) x_2: FieldOpCols<T>,
@@ -158,6 +155,7 @@ impl<F: PrimeField32> K256DecompressCols<F> {
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
+        self.is_odd = F::from_canonical_u32(event.is_odd as u32);
         for i in 0..8 {
             self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
             self.y_access[i].populate_write(event.y_memory_records[i], &mut new_field_events);
@@ -201,9 +199,7 @@ impl<V: Copy> K256DecompressCols<V> {
     where
         V: Into<AB::Expr>,
     {
-        // Get the 32nd byte of the slice, which should be `should_be_odd`.
-        let should_be_odd: AB::Expr = self.y_access[0].prev_value[0].into();
-        builder.assert_bool(should_be_odd.clone());
+        builder.assert_bool(self.is_odd);
 
         let x = limbs_from_prev_access(&self.x_access);
         self.x_2
@@ -251,16 +247,16 @@ impl<V: Copy> K256DecompressCols<V> {
         let y_is_odd = self.y_least_bits[0];
 
         // When y_is_odd == should_be_odd, result is y
-        // Equivalent: y_is_odd != !should_be_odd
+        // (Equivalent: y_is_odd != !should_be_odd)
         let y_limbs = limbs_from_access(&self.y_access);
         builder
             .when(self.is_real)
-            .when_ne(y_is_odd.into(), AB::Expr::one() - should_be_odd.clone())
+            .when_ne(y_is_odd.into(), AB::Expr::one() - self.is_odd)
             .assert_all_eq(self.y.multiplication.result, y_limbs);
         // When y_is_odd != should_be_odd, result is -y.
         builder
             .when(self.is_real)
-            .when_ne(y_is_odd, should_be_odd)
+            .when_ne(y_is_odd, self.is_odd)
             .assert_all_eq(self.neg_y.result, y_limbs);
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
@@ -287,7 +283,7 @@ impl<V: Copy> K256DecompressCols<V> {
             self.clk,
             AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.to_ecall_identifier()),
             self.ptr,
-            AB::Expr::zero(),
+            self.is_odd,
             self.is_real,
         );
     }
