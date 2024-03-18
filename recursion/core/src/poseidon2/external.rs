@@ -109,13 +109,36 @@ where
             let sbox_deg_7 = local.sbox_deg_3[i] * local.sbox_deg_3[i] * local.add_rc[i];
             builder.assert_eq(sbox_deg_7, local.sbox_deg_7[i]);
         }
+
+        // First, we apply M_4 to each consecutive four elements of the state.
+        // In Appendix B's terminology, this replaces each x_i with x_i'.
+        let mut state: [AB::Expr; WIDTH] = local.sbox_deg_7.map(|x| x.into());
+        for i in (0..WIDTH).step_by(4) {
+            apply_m_4(&mut state[i..i + 4]);
+        }
+
+        // Now, we apply the outer circulant matrix (to compute the y_i values).
+        //
+        // We first precompute the four sums of every four elements.
+        let sums: [AB::Expr; 4] = core::array::from_fn(|k| {
+            (0..WIDTH)
+                .step_by(4)
+                .map(|j| state[j + k].clone())
+                .sum::<AB::Expr>()
+        });
+
+        // The formula for each y_i involves 2x_i' term and x_j' terms for each j that equals i mod 4.
+        // In other words, we can add a single copy of x_i' to the appropriate one of our precomputed sums.
+        for i in 0..WIDTH {
+            state[i] += sums[i % 4].clone();
+            builder.assert_eq(state[i].clone(), local.output[i]);
+        }
     }
 }
 
 pub fn apply_m_4<AF>(x: &mut [AF])
 where
     AF: AbstractField,
-    AF::F: PrimeField,
 {
     let t0 = x[0].clone() + x[1].clone();
     let t1 = x[2].clone() + x[3].clone();
