@@ -158,10 +158,6 @@ where
         cycles += events.cpu_events.len();
         let shards =
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
-        for shard in shards.iter() {
-            println!("shard index: {}", shard.index());
-            println!("shard first cpu event: {:?}", shard.cpu_events.first());
-        }
         let (commitments, commit_data) = tracing::info_span!("commit")
             .in_scope(|| LocalProver::commit_shards(&machine, &shards));
 

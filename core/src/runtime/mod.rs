@@ -848,7 +848,9 @@ impl Runtime {
 
         let mut cycles = 0_u64;
         let mut done = false;
-        while cycles < self.shard_batch_size as u64 {
+        // Loop until we've executed the maximum number of cycles or the program has finished.
+        // If shard_batch_size is 0, execute the entire program instead of batching.
+        while self.shard_batch_size == 0 || cycles < self.shard_batch_size as u64 {
             if self.execute_cycle() {
                 done = true;
                 break;
