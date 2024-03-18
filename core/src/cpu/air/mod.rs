@@ -137,17 +137,19 @@ where
         // TODO: move this to self.ecall_eval::<AB>(builder, local, next)
         // Ecall processing
         let syscall_id = local.op_a_val()[0];
-        let send_to_table = local.op_a_val()[1]; // Does the syscall have a table that should be sent.
-        let syscall_cycles = local.op_a_val()[2]; // How many extra cycles to increment the clk for the syscall.
-        let is_halt = local.op_a_val()[3]; // Whether or not the syscall is a halt.
-                                           // builder.assert_eq(
-                                           //     send_to_table * is_ecall_instruction,
-                                           //     local.ecall_mul_send_to_table, // Have to make this a separate col because of interaction
-                                           // );
+        let syscall_id = local.op_a_access.prev_value();
+        let id = syscall_id[0];
+        let send_to_table = syscall_id[1]; // Does the syscall have a table that should be sent.
+        let syscall_cycles = syscall_id[2]; // How many extra cycles to increment the clk for the syscall.
+        let is_halt = syscall_id[3]; // Whether or not the syscall is a halt.
+                                     // builder.assert_eq(
+                                     //     send_to_table * is_ecall_instruction,
+                                     //     local.ecall_mul_send_to_table, // Have to make this a separate col because of interaction
+                                     // );
         builder.send_ecall(
             local.shard,
             local.clk,
-            syscall_id,
+            id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
             local.ecall_mul_send_to_table,

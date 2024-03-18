@@ -59,6 +59,7 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
         if instruction.is_alu_instruction() {
             self.is_alu = F::one();
         } else if instruction.is_ecall_instruction() {
+            println!("instruction {:?}", instruction);
             self.is_ecall = F::one();
         } else if instruction.is_memory_instruction() {
             match instruction.opcode {

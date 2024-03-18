@@ -94,6 +94,10 @@ impl SyscallCode {
         (*self as u32).to_le_bytes()[0].into()
     }
 
+    pub fn send_to_table(&self) -> u32 {
+        (*self as u32).to_le_bytes()[1].into()
+    }
+
     pub fn encoded_num_cycles(&self) -> u32 {
         (*self as u32).to_le_bytes()[2].into()
     }

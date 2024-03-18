@@ -7,6 +7,7 @@ use crate::{
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
+use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_commit::Pcs;
 use p3_field::PrimeField32;
@@ -43,16 +44,49 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 }
 
 #[cfg(test)]
-pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+pub fn run_test_io(
+    program: Program,
+    inputs: SP1Stdin,
+) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+    use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
+
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program);
+        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.run();
+        runtime
+    });
+    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let proof = run_test_core(runtime)?;
+    Ok(SP1ProofWithIO {
+        proof,
+        stdin: inputs,
+        stdout,
+    })
+}
+#[cfg(test)]
+pub fn run_test(
+    program: Program,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-    use crate::{runtime::ExecutionRecord, stark::MachineRecord};
 
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
+    run_test_core(runtime)
+}
+
+#[cfg(test)]
+pub fn run_test_core(
+    runtime: Runtime,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+    #[cfg(not(feature = "perf"))]
+    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    use crate::{runtime::ExecutionRecord, stark::MachineRecord};
+
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
@@ -65,6 +99,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
 
     #[cfg(not(feature = "perf"))]
     {
+        println!("In debug");
         // First shard the record
         let record_clone_2 = runtime.record.clone();
         let shards = machine.shard(
@@ -95,7 +130,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
         Size::from_bytes(nb_bytes),
     );
 
-    Ok(())
+    Ok(proof)
 }
 
 pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {

@@ -7,8 +7,9 @@ use crate::cpu::columns::CpuCols;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
-use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{MemoryRecordEnum, SyscallCode};
+use crate::syscall;
 use hashbrown::HashMap;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -167,9 +168,21 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        let syscall_id = event.a;
-        let send_to_table = syscall_id.to_le_bytes()[1] as u32 != 0;
-        cols.ecall_mul_send_to_table = cols.selectors.is_ecall * F::from_bool(send_to_table);
+        if cols.selectors.is_ecall == F::one() {
+            if let Some(MemoryRecordEnum::Write(record)) = event.a_record {
+                let syscall_id = record.prev_value;
+                let send_to_table = SyscallCode::from_u32(syscall_id).send_to_table();
+                cols.ecall_mul_send_to_table =
+                    cols.selectors.is_ecall * F::from_canonical_u32(send_to_table);
+                println!(
+                    "syscall_id {} {}",
+                    syscall_id,
+                    SyscallCode::from_u32(syscall_id).to_ecall_identifier()
+                );
+            } else {
+                panic!("ecall_a_record should be set if is_ecall is set");
+            }
+        }
 
         (row, new_alu_events, new_blu_events, new_field_events)
     }

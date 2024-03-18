@@ -309,6 +309,7 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
 
         for i in 0..input.k256_decompress_events.len() {
             let event = input.k256_decompress_events[i].clone();
+            println!("event: {:?}", event);
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate(event.clone(), output);
@@ -376,8 +377,10 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
+    use crate::utils::run_test_io;
     use crate::utils::setup_logger;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
+    use crate::Program;
     use crate::{SP1Prover, SP1Stdin, SP1Verifier};
 
     #[test]
@@ -394,12 +397,12 @@ pub mod tests {
 
             let inputs = SP1Stdin::from(&compressed);
 
-            let mut proof = SP1Prover::prove(SECP256K1_DECOMPRESS_ELF, inputs).unwrap();
+            let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
 
-            SP1Verifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
+            // SP1Verifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
         }
     }
 }
