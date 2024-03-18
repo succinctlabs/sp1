@@ -106,7 +106,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
     (key_to_vec_data, key_to_count)
 }
 
-/// Calculate the the number of times we send and receive each event of the given interaction type,
+/// Calculate the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<
     SC: StarkGenericConfig<Val = BabyBear>,

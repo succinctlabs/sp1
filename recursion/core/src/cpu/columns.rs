@@ -52,8 +52,8 @@ pub struct CpuCols<T> {
 pub struct InstructionCols<T> {
     pub opcode: T,
     pub op_a: T,
-    pub op_b: T,
-    pub op_c: T,
+    pub op_b: Block<T>,
+    pub op_c: Block<T>,
     pub imm_b: T,
     pub imm_c: T,
 }

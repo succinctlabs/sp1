@@ -107,15 +107,14 @@ where
             local.pc * local.pc * local.pc,
         );
 
+        let mut interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
+        interaction_vals.push(local.instruction.op_a.into());
+        interaction_vals.extend_from_slice(&local.instruction.op_b.map(|x| x.into()).0);
+        interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
+        interaction_vals.push(local.instruction.imm_b.into());
+        interaction_vals.push(local.instruction.imm_c.into());
         builder.receive(AirInteraction::new(
-            vec![
-                local.instruction.opcode.into(),
-                local.instruction.op_a.into(),
-                local.instruction.op_b.into(),
-                local.instruction.op_c.into(),
-                local.instruction.imm_b.into(),
-                local.instruction.imm_c.into(),
-            ],
+            interaction_vals,
             local.multiplicity.into(),
             InteractionKind::Program,
         ));

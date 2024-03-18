@@ -3,30 +3,30 @@ use alloc::format;
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
-use p3_field::PrimeField32;
+use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::runtime::Program;
 
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F>(Vec<AsmInstruction<F>>);
+pub struct BasicBlock<F, EF>(Vec<AsmInstruction<F, EF>>);
 
 #[derive(Debug, Clone)]
-pub struct AssemblyCode<F> {
-    blocks: Vec<BasicBlock<F>>,
+pub struct AssemblyCode<F, EF> {
+    blocks: Vec<BasicBlock<F, EF>>,
     labels: BTreeMap<F, String>,
 }
 
-impl<F: PrimeField32> BasicBlock<F> {
+impl<F: PrimeField32, EF: ExtensionField<F>> BasicBlock<F, EF> {
     pub fn new() -> Self {
         Self(Vec::new())
     }
 
-    pub(crate) fn push(&mut self, instruction: AsmInstruction<F>) {
+    pub(crate) fn push(&mut self, instruction: AsmInstruction<F, EF>) {
         self.0.push(instruction);
     }
 }
 
-impl<F: PrimeField32> AssemblyCode<F> {
-    pub fn new(blocks: Vec<BasicBlock<F>>, labels: BTreeMap<F, String>) -> Self {
+impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
+    pub fn new(blocks: Vec<BasicBlock<F, EF>>, labels: BTreeMap<F, String>) -> Self {
         Self { blocks, labels }
     }
 
@@ -57,7 +57,7 @@ impl<F: PrimeField32> AssemblyCode<F> {
     }
 }
 
-impl<F: PrimeField32> Display for AssemblyCode<F> {
+impl<F: PrimeField32, EF: ExtensionField<F>> Display for AssemblyCode<F, EF> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, block) in self.blocks.iter().enumerate() {
             writeln!(

@@ -1,5 +1,5 @@
 use crate::air::BinomialExtensionUtils;
-use crate::air::Block;
+use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
 use crate::runtime::Opcode;
 use core::mem::size_of;
@@ -89,12 +89,12 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
                 } else {
-                    cols.b.value = Block::from(event.instruction.op_b);
+                    cols.b.value = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
                 } else {
-                    cols.c.value = Block::from(event.instruction.op_c);
+                    cols.c.value = event.instruction.op_c;
                 }
 
                 cols.add_scratch = cols.b.value.0[0] + cols.c.value.0[0];
@@ -136,7 +136,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
             trace.values[i * NUM_CPU_COLS + CPU_COL_MAP.instruction.imm_c] =
                 F::from_canonical_u32(1);
         }
-
         trace
     }
 
@@ -178,28 +177,10 @@ where
         // Connect immediates.
         builder
             .when(local.instruction.imm_b)
-            .assert_eq(local.b.value.0[0], local.instruction.op_b);
-        builder
-            .when(local.instruction.imm_b)
-            .assert_zero(local.b.value.0[1]);
-        builder
-            .when(local.instruction.imm_b)
-            .assert_zero(local.b.value.0[2]);
-        builder
-            .when(local.instruction.imm_b)
-            .assert_zero(local.b.value.0[3]);
+            .assert_block_eq::<AB::Var, AB::Var>(local.b.value, local.instruction.op_b);
         builder
             .when(local.instruction.imm_c)
-            .assert_eq(local.c.value.0[0], local.instruction.op_c);
-        builder
-            .when(local.instruction.imm_c)
-            .assert_zero(local.c.value.0[1]);
-        builder
-            .when(local.instruction.imm_c)
-            .assert_zero(local.c.value.0[2]);
-        builder
-            .when(local.instruction.imm_c)
-            .assert_zero(local.c.value.0[3]);
+            .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
 
         // Compute ALU.
         builder.assert_eq(local.b.value.0[0] + local.c.value.0[0], local.add_scratch);
@@ -346,15 +327,14 @@ where
             InteractionKind::Memory,
         ));
 
+        let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
+        prog_interaction_vals.push(local.instruction.op_a.into());
+        prog_interaction_vals.extend_from_slice(&local.instruction.op_b.map(|x| x.into()).0);
+        prog_interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
+        prog_interaction_vals.push(local.instruction.imm_b.into());
+        prog_interaction_vals.push(local.instruction.imm_c.into());
         builder.send(AirInteraction::new(
-            vec![
-                local.instruction.opcode.into(),
-                local.instruction.op_a.into(),
-                local.instruction.op_b.into(),
-                local.instruction.op_c.into(),
-                local.instruction.imm_b.into(),
-                local.instruction.imm_c.into(),
-            ],
+            prog_interaction_vals,
             local.is_real.into(),
             InteractionKind::Program,
         ));
