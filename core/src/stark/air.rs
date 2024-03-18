@@ -141,9 +141,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         let weierstrass_add_assign_r1 =
             WeierstrassAddAssignChip::<SwCurve<Secp256r1Parameters>>::new();
         chips.push(RiscvAir::Secp256r1Add(weierstrass_add_assign_r1));
-        // let weierstrass_double_assign_r1 =
-        //     WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new();
-        // chips.push(RiscvAir::Secp256r1Double(weierstrass_double_assign_r1));
+        let weierstrass_double_assign_r1 =
+            WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new();
+        chips.push(RiscvAir::Secp256r1Double(weierstrass_double_assign_r1));
         let add = AddChip::default();
         chips.push(RiscvAir::Add(add));
         let sub = SubChip::default();

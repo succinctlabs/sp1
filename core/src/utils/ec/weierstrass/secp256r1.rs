@@ -10,9 +10,9 @@ use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
-use k256::FieldElement;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
+use p256::FieldElement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256r1 curve parameter
@@ -94,7 +94,6 @@ impl WeierstrassParameters for Secp256r1Parameters {
     }
 }
 
-// TODO: Add p256 crate
 pub fn secp256r1_sqrt(n: &BigUint) -> BigUint {
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];

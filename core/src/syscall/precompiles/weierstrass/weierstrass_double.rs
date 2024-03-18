@@ -21,9 +21,9 @@ use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
+use num::{One, Zero};
 use p3_air::{Air, BaseAir};
+use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -70,9 +70,11 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.record_mut()
-            .weierstrass_double_events
-            .push(event.clone());
+        match E::NAME {
+            "secp256k1" => rt.record_mut().secp256k1_double_events.push(event.clone()),
+            "secp256r1" => rt.record_mut().secp256r1_double_events.push(event.clone()),
+            _ => panic!("Unsupported curve"),
+        }
         event.p_ptr + 1
     }
 
@@ -167,7 +169,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "WeierstrassDoubleAssign".to_string()
+        match E::NAME {
+            "secp256k1" => "Secp256k1DoubleAssign".to_string(),
+            "secp256r1" => "Secp256r1DoubleAssign".to_string(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 
     #[instrument(
@@ -180,11 +186,16 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
+        let events = match E::NAME {
+            "secp256k1" => &input.secp256k1_double_events,
+            "secp256r1" => &input.secp256r1_double_events,
+            _ => panic!("Unsupported curve"),
+        };
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows_and_records = input
-            .weierstrass_double_events
+        let rows_and_records = events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
@@ -233,8 +244,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
             let cols: &mut WeierstrassDoubleAssignCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(cols, zero.clone(), zero.clone());
+            Self::populate_field_ops(cols, BigUint::zero(), BigUint::one());
             row
         });
 
@@ -246,7 +256,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_double_events.is_empty()
+        match E::NAME {
+            "secp256k1" => !shard.secp256k1_double_events.is_empty(),
+            "secp256r1" => !shard.secp256r1_double_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 }
 
@@ -264,6 +278,8 @@ where
         let main = builder.main();
         let row: &WeierstrassDoubleAssignCols<AB::Var> = main.row_slice(0).borrow();
 
+        let builder_is_real = &mut builder.when(row.is_real);
+
         let p_x = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
         let p_y = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
@@ -274,94 +290,107 @@ where
         let slope = {
             // slope_numerator = a + (p.x * p.x) * 3.
             {
-                row.p_x_squared.eval::<AB, E::BaseField, _, _>(
-                    builder,
-                    &p_x,
-                    &p_x,
-                    FieldOperation::Mul,
-                );
+                row.p_x_squared
+                    .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                        builder_is_real,
+                        &p_x,
+                        &p_x,
+                        FieldOperation::Mul,
+                    );
 
-                row.p_x_squared_times_3.eval::<AB, E::BaseField, _, _>(
-                    builder,
-                    &row.p_x_squared.result,
-                    &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(3u32)),
-                    FieldOperation::Mul,
-                );
+                row.p_x_squared_times_3
+                    .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                        builder_is_real,
+                        &row.p_x_squared.result,
+                        &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(3u32)),
+                        FieldOperation::Mul,
+                    );
 
-                row.slope_numerator.eval::<AB, E::BaseField, _, _>(
-                    builder,
-                    &a,
-                    &row.p_x_squared_times_3.result,
-                    FieldOperation::Add,
-                );
+                row.slope_numerator
+                    .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                        builder_is_real,
+                        &a,
+                        &row.p_x_squared_times_3.result,
+                        FieldOperation::Add,
+                    );
             };
 
             // slope_denominator = 2 * y.
-            row.slope_denominator.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(2u32)),
-                &p_y,
-                FieldOperation::Mul,
-            );
+            row.slope_denominator
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(2u32)),
+                    &p_y,
+                    FieldOperation::Mul,
+                );
 
-            row.slope.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &row.slope_numerator.result,
-                &row.slope_denominator.result,
-                FieldOperation::Div,
-            );
+            row.slope
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &row.slope_numerator.result,
+                    &row.slope_denominator.result,
+                    FieldOperation::Div,
+                );
 
             row.slope.result
         };
 
         // x = slope * slope - (p.x + p.x).
         let x = {
-            row.slope_squared.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &slope,
-                &slope,
-                FieldOperation::Mul,
-            );
-            row.p_x_plus_p_x.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &p_x,
-                &p_x,
-                FieldOperation::Add,
-            );
-            row.x3_ins.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &row.slope_squared.result,
-                &row.p_x_plus_p_x.result,
-                FieldOperation::Sub,
-            );
+            row.slope_squared
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &slope,
+                    &slope,
+                    FieldOperation::Mul,
+                );
+            row.p_x_plus_p_x
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &p_x,
+                    &p_x,
+                    FieldOperation::Add,
+                );
+            row.x3_ins
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &row.slope_squared.result,
+                    &row.p_x_plus_p_x.result,
+                    FieldOperation::Sub,
+                );
             row.x3_ins.result
         };
 
         // y = slope * (p.x - x) - p.y.
         {
             row.p_x_minus_x
-                .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FieldOperation::Sub);
-            row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &slope,
-                &row.p_x_minus_x.result,
-                FieldOperation::Mul,
-            );
-            row.y3_ins.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &row.slope_times_p_x_minus_x.result,
-                &p_y,
-                FieldOperation::Sub,
-            );
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &p_x,
+                    &x,
+                    FieldOperation::Sub,
+                );
+            row.slope_times_p_x_minus_x
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &slope,
+                    &row.p_x_minus_x.result,
+                    FieldOperation::Mul,
+                );
+            row.y3_ins
+                .eval::<FilteredAirBuilder<AB>, E::BaseField, _, _>(
+                    builder_is_real,
+                    &row.slope_times_p_x_minus_x.result,
+                    &p_y,
+                    FieldOperation::Sub,
+                );
         }
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]. This is to
         // ensure that p_access is updated with the new value.
         for i in 0..NUM_LIMBS {
-            builder
-                .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
-            builder.when(row.is_real).assert_eq(
+            builder_is_real.assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
+            builder_is_real.assert_eq(
                 row.y3_ins.result[i],
                 row.p_access[NUM_WORDS_FIELD_ELEMENT + i / 4].value()[i % 4],
             );

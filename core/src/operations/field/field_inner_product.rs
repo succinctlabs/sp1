@@ -86,7 +86,7 @@ impl<V: Copy> FieldInnerProductCols<V> {
         let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).into()).collect();
         let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| (*x).into()).collect();
         let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_carry = Polynomial::from(self.carry);
 
         let p_zero = Polynomial::<AB::Expr>::new(vec![AB::Expr::zero()]);
 

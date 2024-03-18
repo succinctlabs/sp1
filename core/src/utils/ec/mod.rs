@@ -85,7 +85,6 @@ pub trait EllipticCurveParameters:
     Debug + Send + Sync + Copy + Serialize + DeserializeOwned + 'static
 {
     type BaseField: FieldParameters;
-
     const NAME: &'static str;
 }
 
