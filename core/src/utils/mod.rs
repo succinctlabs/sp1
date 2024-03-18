@@ -95,8 +95,8 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
         .unwrap()
 }
 
-/// Converts a u32 to a string with commas every 3 digits.
-pub fn u32_to_comma_separated(value: u32) -> String {
+/// Converts a num to a string with commas every 3 digits.
+pub fn num_to_comma_separated<T: ToString>(value: T) -> String {
     value
         .to_string()
         .chars()

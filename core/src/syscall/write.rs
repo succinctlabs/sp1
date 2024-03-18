@@ -1,6 +1,6 @@
 use crate::{
     runtime::{Register, Syscall, SyscallContext},
-    utils::u32_to_comma_separated,
+    utils::num_to_comma_separated,
 };
 
 pub struct SyscallWrite;
@@ -53,7 +53,7 @@ impl Syscall for SyscallWrite {
                     log::debug!(
                         "{}└╴{} cycles",
                         padding,
-                        u32_to_comma_separated(rt.state.global_clk - start)
+                        num_to_comma_separated(rt.state.global_clk - start as u64)
                     );
                 } else {
                     let flush_s = update_io_buf(ctx, fd, s);
