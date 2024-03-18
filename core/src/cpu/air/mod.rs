@@ -50,7 +50,6 @@ where
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
-        // TODO: should we remove this, I feel like it's doing the same thing?
         builder
             .when_not(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
@@ -62,7 +61,6 @@ where
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
-        // TODO: should we remove this, I feel like it's doing the same thing?
         builder
             .when_not(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
@@ -180,7 +178,7 @@ where
         //     )
         //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // // Clock constraints.
+        // Clock constraints.
         // let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
         // builder
         //     .when_transition()

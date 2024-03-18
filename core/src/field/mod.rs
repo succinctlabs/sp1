@@ -77,9 +77,6 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
                 }
                 let max = 1 << LTU_NB_BITS;
                 if diff >= max {
-                    println!("b: {}", event.b);
-                    println!("c: {}", event.c);
-                    println!("diff: {}", diff);
                     panic!("diff overflow");
                 }
                 cols.lt = F::from_bool(event.ltu);
