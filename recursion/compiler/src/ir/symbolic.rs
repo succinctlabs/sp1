@@ -1010,13 +1010,3 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
         }
     }
 }
-
-impl<F: Field> Div<F> for Felt<F> {
-    type Output = SymbolicFelt<F>;
-
-    fn div(self, rhs: F) -> Self::Output {
-        let lhs = SymbolicFelt::Val(self);
-        let rhs = SymbolicFelt::Const(rhs);
-        SymbolicFelt::Div(lhs.into(), rhs.into())
-    }
-}
