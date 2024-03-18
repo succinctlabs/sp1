@@ -83,10 +83,7 @@ pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
     prove(program)
 }
 
-pub fn prove_core<SC: StarkGenericConfig + Send + Sync + Serialize>(
-    config: SC,
-    runtime: Runtime,
-) -> crate::stark::Proof<SC>
+pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -120,6 +117,7 @@ where
     proof
 }
 
+#[cfg(debug_assertions)]
 pub fn uni_stark_prove<SC, A>(
     config: &SC,
     air: &A,
@@ -131,6 +129,21 @@ where
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
         + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>
         + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
+{
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace)
+}
+
+#[cfg(not(debug_assertions))]
+pub fn uni_stark_prove<SC, A>(
+    config: &SC,
+    air: &A,
+    challenger: &mut SC::Challenger,
+    trace: RowMajorMatrix<SC::Val>,
+) -> Proof<UniConfig<SC>>
+where
+    SC: StarkGenericConfig,
+    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
+        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>,
 {
     p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace)
 }

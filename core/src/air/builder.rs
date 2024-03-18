@@ -518,5 +518,5 @@ impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
 
-// #[cfg(debug_assertions)]
+#[cfg(debug_assertions)]
 impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}
