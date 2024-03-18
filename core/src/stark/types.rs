@@ -116,7 +116,6 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
-#[cfg(feature = "perf")]
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
@@ -127,47 +126,12 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub chip_ids: Vec<String>,
 }
 
-#[cfg(not(feature = "perf"))]
-#[derive(Serialize, Deserialize)]
-pub struct ShardProof<SC: StarkGenericConfig> {
-    pub main_commit: Com<SC>,
-    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
-    pub permutation_traces: Vec<ChallengeMat<SC>>,
-    pub chip_ids: Vec<String>,
-}
-
-// impl<T: Serialize> ShardOpenedValues<T> {
-//     pub fn into_values(self) -> OpenedValues<T> {
-//         let mut main_vals = vec![];
-//         let mut permutation_vals = vec![];
-//         let mut quotient_vals = vec![];
-
-//         let to_values = |values: AirOpenedValues<T>| vec![values.local, values.next];
-//         for chip_values in self.chips {
-//             let ChipOpenedValues {
-//                 main,
-//                 permutation,
-//                 quotient,
-//                 ..
-//             } = chip_values;
-
-//             main_vals.push(to_values(main));
-//             permutation_vals.push(to_values(permutation));
-//             quotient_vals.push(vec![quotient]);
-//         }
-
-//         vec![main_vals, permutation_vals, quotient_vals]
-//     }
-// }
-
-#[cfg(feature = "perf")]
 impl<T> AirOpenedValues<T> {
     pub fn view(&self) -> TwoRowMatrixView<T> {
         TwoRowMatrixView::new(&self.local, &self.next)
     }
 }
 
-#[cfg(feature = "perf")]
 impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn cumulative_sum(&self) -> Challenge<SC> {
         self.opened_values

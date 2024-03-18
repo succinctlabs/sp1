@@ -175,11 +175,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
-        #[cfg(feature = "perf")]
-        {
-            for proof in proof.shard_proofs.iter() {
-                sum += proof.cumulative_sum();
-            }
+        for proof in proof.shard_proofs.iter() {
+            sum += proof.cumulative_sum();
         }
 
         match sum.is_zero() {
@@ -188,7 +185,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         }
     }
 
-    #[cfg(feature = "debug")]
     pub fn debug_constraints(
         &self,
         _pk: &ProvingKey<SC>,
