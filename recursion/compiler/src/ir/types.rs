@@ -3,6 +3,7 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use serde::{Deserialize, Serialize};
 
 use super::MemVariable;
 use super::Ptr;
@@ -11,7 +12,7 @@ use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Vari
 #[derive(Debug, Clone, Copy)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
 #[derive(Debug, Clone, Copy)]
