@@ -161,7 +161,7 @@ impl<C: Config> Builder<C> {
     pub fn num2bits32<E: Into<SymbolicFelt<C::F>>>(&mut self, val_expr: E) -> Array<C, Var<C::N>> {
         let val = self.eval(val_expr);
 
-        let bits = builder.array(32);
+        let bits = self.array(32);
         self.push(DslIR::Num2Bits32(bits, val));
         bits
     }

@@ -6,6 +6,7 @@ mod record;
 use std::{marker::PhantomData, sync::Arc};
 
 pub use instruction::*;
+use itertools::Itertools;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
@@ -334,12 +335,21 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::NUM2BITS32 => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let bytes = b_val.0[0].as_canonical_u64().to_le_bytes();
+                    let (a_ptr, b_val) = self.store_rr(&instruction);
+                    let bytes = b_val.0[0].as_canonical_u32().to_le_bytes();
+                    let bits = bytes
+                        .iter()
+                        .flat_map(|byte| (0..8).map(|i| (byte >> i) & 1).collect_vec())
+                        .collect_vec();
 
-                    let a_val = Block::from(b_val.0);
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, c_val);
+                    for (i, bit) in bits.iter().enumerate() {
+                        self.mw(
+                            a_ptr + F::from_canonical_u32(i as u32),
+                            Block::from(F::from_canonical_u8(*bit)),
+                            MemoryAccessPosition::A,
+                        );
+                    }
+                    (a, b, c) = (Block::from(a_ptr), b_val, Block::default());
                 }
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
