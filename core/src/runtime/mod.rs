@@ -823,11 +823,6 @@ impl Runtime {
     pub fn execute_state(&mut self) -> (ExecutionState, bool) {
         self.emit_events = false;
         let state = self.state.clone();
-        // If shard_batch_size is 0 (batching is disabled), don't execute the program here since the
-        // whole program will be executed while proving.
-        if self.shard_batch_size == 0 {
-            return (state, true);
-        }
         let done = self.execute();
         (state, done)
     }
