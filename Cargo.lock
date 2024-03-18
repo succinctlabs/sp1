@@ -2613,6 +2613,8 @@ dependencies = [
  "p3-field",
  "p3-matrix",
  "p3-maybe-rayon",
+ "p3-poseidon2",
+ "p3-symmetric",
  "sp1-core",
  "sp1-derive",
  "tracing",
