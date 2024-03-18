@@ -62,3 +62,15 @@ impl Syscall for SyscallExitUnconstrained {
         0
     }
 }
+
+impl Default for SyscallEnterUnconstrained {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for SyscallExitUnconstrained {
+    fn default() -> Self {
+        Self::new()
+    }
+}

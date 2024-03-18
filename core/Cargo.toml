@@ -11,58 +11,58 @@ itertools = "0.12.0"
 lazy_static = "1.4"
 log = "0.4.20"
 nohash-hasher = "0.2.0"
-num = {version = "0.4.1"}
-p3-air = {workspace = true}
-p3-baby-bear = {workspace = true}
-p3-blake3 = {workspace = true}
-p3-challenger = {workspace = true}
-p3-commit = {workspace = true}
-p3-dft = {workspace = true}
-p3-field = {workspace = true}
-p3-fri = {workspace = true}
-p3-goldilocks = {workspace = true}
-p3-keccak = {workspace = true}
-p3-keccak-air = {workspace = true}
-p3-matrix = {workspace = true}
-p3-maybe-rayon = {workspace = true}
-p3-mds = {workspace = true}
-p3-merkle-tree = {workspace = true}
-p3-poseidon2 = {workspace = true}
-p3-symmetric = {workspace = true}
-p3-uni-stark = {workspace = true}
-p3-util = {workspace = true}
-rrs-lib = {git = "https://github.com/GregAC/rrs.git"}
-sp1-derive = {path = "../derive"}
+num = { version = "0.4.1" }
+p3-air = { workspace = true }
+p3-baby-bear = { workspace = true }
+p3-blake3 = { workspace = true }
+p3-challenger = { workspace = true }
+p3-commit = { workspace = true }
+p3-dft = { workspace = true }
+p3-field = { workspace = true }
+p3-fri = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-keccak = { workspace = true }
+p3-keccak-air = { workspace = true }
+p3-matrix = { workspace = true }
+p3-maybe-rayon = { workspace = true }
+p3-mds = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-uni-stark = { workspace = true }
+p3-util = { workspace = true }
+rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
+sp1-derive = { path = "../derive" }
 
 anyhow = "1.0.79"
 blake3 = "1.5"
-blake3-zkvm = {git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0"}
+blake3-zkvm = { git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0" }
 cfg-if = "1.0.0"
-clap = {version = "4.4.0", features = ["derive"]}
-curve25519-dalek = {version = "=4.0.0"}
+clap = { version = "4.4.0", features = ["derive"] }
+curve25519-dalek = { version = "=4.0.0" }
 elliptic-curve = "0.13.8"
 flate2 = "1.0.28"
 hashbrown = "0.14.3"
 hex = "0.4.3"
-k256 = {version = "0.13.3", features = ["expose-field"]}
+k256 = { version = "0.13.3", features = ["expose-field"] }
 num_cpus = "1.16.0"
 serde_with = "3.6.1"
 petgraph = "0.6.4"
-serde_json = {version = "1.0.113", default-features = false, features = [
+serde_json = { version = "1.0.113", default-features = false, features = [
   "alloc",
-]}
+] }
 serial_test = "3.0.0"
 size = "0.4.1"
 tempfile = "3.9.0"
-tiny-keccak = {version = "2.0.2", features = ["keccak"]}
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 tracing = "0.1.40"
-tracing-forest = {version = "0.1.6", features = ["ansi", "smallvec"]}
+tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
-tracing-subscriber = {version = "0.3.17", features = ["std", "env-filter"]}
+tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 
 [dev-dependencies]
 criterion = "0.5.1"
-num = {version = "0.4.1", features = ["rand"]}
+num = { version = "0.4.1", features = ["rand"] }
 rand = "0.8.5"
 
 [features]

@@ -512,10 +512,11 @@ mod tests {
 
     use super::*;
 
+    use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, ExecutionRecord, Instruction, Runtime},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     #[test]

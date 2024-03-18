@@ -54,3 +54,9 @@ impl Buffer {
         self.data.extend_from_slice(slice);
     }
 }
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
