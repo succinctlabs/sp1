@@ -74,14 +74,7 @@ impl SP1Prover {
 
         let program = Program::from(elf);
         let (proof, stdout) = run_and_prove(program, &stdin.buffer.data, config);
-        // let mut runtime = Runtime::new(program);
-        // runtime.write_stdin_slice(&stdin.buffer.data);
-        // tracing::info_span!("execute").in_scope(|| {
-        //     runtime.run();
-        // });
-        // let config = BabyBearBlake3::new();
         let stdout = SP1Stdout::from(&stdout);
-        // let proof = prove_core(config, runtime);
         Ok(SP1ProofWithIO {
             proof,
             stdin,

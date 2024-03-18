@@ -28,10 +28,9 @@ use nohash_hasher::BuildNoHashHasher;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, SeekFrom};
-use std::io::{Seek, Write};
+use std::io::BufWriter;
+use std::io::Write;
 use std::rc::Rc;
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// An implementation of a runtime for the SP1 VM.
@@ -839,11 +838,6 @@ impl Runtime {
         self.emit_events = false;
         let state = self.state.clone();
         let done = self.execute();
-        // !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size * 4
-        println!("self.unconstrained: {}", self.unconstrained);
-        println!("self.max_syscall_cycles: {}", self.max_syscall_cycles);
-        println!("self.state.clk: {}", self.state.clk);
-        println!("self.shard_size * 4: {}", self.shard_size * 4);
         (state, done)
     }
 

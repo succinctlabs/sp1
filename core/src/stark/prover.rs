@@ -104,15 +104,13 @@ where
             shard_data_chunks
                 .into_par_iter()
                 .zip(shard_chunks.into_par_iter())
-                .enumerate()
-                .map(|(i, (datas, shards))| {
+                .map(|(datas, shards)| {
                     datas
                         .into_iter()
                         .zip(shards)
-                        .enumerate()
-                        .map(|(j, (data, shard))| {
+                        .map(|(data, shard)| {
                             let start = Instant::now();
-                            // let idx = i * chunk_size + j;
+
                             let idx = shard.index() as usize;
                             let data = if reconstruct_commitments {
                                 Self::commit_main(config, machine, &shard, idx)
@@ -502,13 +500,10 @@ where
                 let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
                     .par_chunks(chunk_size)
-                    .enumerate()
-                    .map(|(i, shard_batch)| {
+                    .map(|shard_batch| {
                         shard_batch
                             .iter()
-                            .enumerate()
-                            .map(|(j, shard)| {
-                                // let index = i * chunk_size + j;
+                            .map(|shard| {
                                 let index = shard.index();
                                 let start = Instant::now();
                                 let data =

@@ -89,6 +89,28 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     Ok(())
 }
 
+fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {
+    let mut reader = std::io::BufReader::new(file);
+    let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+    let (events, _) = tracing::debug_span!("runtime.trace").in_scope(|| {
+        let mut runtime = Runtime::new(program.clone());
+        runtime.state = state;
+        runtime.record = ExecutionRecord::default();
+        runtime.record.program = Arc::new(program.clone());
+        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+            .try_into()
+            .unwrap();
+        runtime.record.index = index;
+        runtime.execute_record()
+    });
+    events
+}
+
+fn reset_seek(file: &mut File) {
+    file.seek(std::io::SeekFrom::Start(0))
+        .expect("failed to seek to start of tempfile");
+}
+
 pub fn run_and_prove<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize>(
     program: Program,
     stdin: &[u8],
@@ -105,27 +127,15 @@ where
     let mut challenger = config.challenger();
 
     let machine = RiscvAir::machine(config);
-
-    // let instructions = vec![
-    //     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-    //     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-    //     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-    //     Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-    // ];
-    // let program = Program::new(instructions, 0, 0);
     let mut runtime = Runtime::new(program.clone());
 
-    // let mut runtime = Runtime::new(program.clone());
     runtime.write_stdin_slice(stdin);
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
-    // Execute the program, saving the runtime state every `shard_batch_size` cycles.
-    let mut shard_proofs = Vec::<ShardProof<SC>>::new();
-    let sharding_config = ShardingConfig::default();
+    // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut cycles = 0;
     let mut prove_time = 0;
-    let mut files = Vec::new();
-    let mut i = 0;
+    let mut checkpoints = Vec::new();
     let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
         let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
@@ -136,133 +146,39 @@ where
         tempfile
             .seek(std::io::SeekFrom::Start(0))
             .expect("failed to seek to start of tempfile");
-        log::info!("wrote {} to tempfile", i);
-        files.push(tempfile);
-        i += 1;
+        checkpoints.push(tempfile);
         if done {
             return std::mem::take(&mut runtime.state.output_stream);
         }
     });
 
-    fn get_events(program: Program, file: &File) -> ExecutionRecord {
-        let mut reader = std::io::BufReader::new(file);
-        let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-        let (events, _) = tracing::info_span!("runtime.trace").in_scope(|| {
-            let mut runtime = Runtime::new(program.clone());
-            runtime.state = state;
-            runtime.record = ExecutionRecord::default();
-            runtime.record.program = Arc::new(program.clone());
-            let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
-                .try_into()
-                .unwrap();
-            println!("index: {}", index);
-            runtime.record.index = index;
-            runtime.execute_record()
-        });
-        events
-    }
-
-    let events = get_events(program.clone(), &files[0]);
-    files[0]
-        .seek(std::io::SeekFrom::Start(0))
-        .expect("failed to seek to start of tempfile");
-    let shards = machine.shard(events.clone(), &sharding_config);
-    let shards2 = machine.shard(events.clone(), &sharding_config);
-    println!(
-        "last field event: {:?}",
-        shards.last().unwrap().field_events.last()
-    );
-    println!(
-        "last field event: {:?}",
-        shards2.last().unwrap().field_events.last()
-    );
-    println!(
-        "last shift left event: {:?}",
-        shards.last().unwrap().shift_left_events.last()
-    );
-    println!(
-        "last shift left event: {:?}",
-        shards2.last().unwrap().shift_left_events.last()
-    );
-    println!(
-        "last add event: {:?}",
-        shards.last().unwrap().add_events.last()
-    );
-    println!(
-        "last add event: {:?}",
-        shards2.last().unwrap().add_events.last()
-    );
-    println!(
-        "last mul event: {:?}",
-        shards.last().unwrap().mul_events.last()
-    );
-    println!(
-        "last mul event: {:?}",
-        shards2.last().unwrap().mul_events.last()
-    );
-    println!(
-        "last sub event: {:?}",
-        shards.last().unwrap().sub_events.last()
-    );
-    println!(
-        "last sub event: {:?}",
-        shards2.last().unwrap().sub_events.last()
-    );
-    println!(
-        "last lt event: {:?}",
-        shards.last().unwrap().lt_events.last()
-    );
-    println!(
-        "last lt event: {:?}",
-        shards2.last().unwrap().lt_events.last()
-    );
-    println!(
-        "last shift left event: {:?}",
-        shards.last().unwrap().shift_left_events.last()
-    );
-    println!(
-        "last shift left event: {:?}",
-        shards2.last().unwrap().shift_left_events.last()
-    );
-    // return (
-    //     LocalProver::prove_shards(&machine, &pk, shards, &mut challenger),
-    //     vec![],
-    // );
-    // return (
-    //     machine.prove::<LocalProver<_, _>>(&pk, events, &mut challenger),
-    //     vec![],
-    // );
-
-    // Prove the program by generating events from each checkpoint and proving each shard.
+    // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
+    let sharding_config = ShardingConfig::default();
     let mut shard_main_datas = Vec::new();
-    let mut all_events = Vec::new();
-    println!("num_files: {}", files.len());
-    for mut file in &mut files {
-        let events = get_events(program.clone(), file);
-        file.seek(std::io::SeekFrom::Start(0))
-            .expect("failed to seek to start of tempfile");
+    for file in checkpoints.iter_mut() {
+        let events = trace_checkpoint(program.clone(), file);
+        reset_seek(&mut *file);
         cycles += events.cpu_events.len();
         let shards =
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
-        all_events.push(shards.clone());
         for shard in shards.iter() {
             println!("shard index: {}", shard.index());
             println!("shard first cpu event: {:?}", shard.cpu_events.first());
         }
-        let start = Instant::now();
         let (commitments, commit_data) = tracing::info_span!("commit")
             .in_scope(|| LocalProver::commit_shards(&machine, &shards));
 
         shard_main_datas.push(commit_data);
         for commitment in commitments {
-            println!("commitment: {:?}", &commitment);
             challenger.observe(commitment);
         }
     }
-    for (mut file, shards) in files.into_iter().zip(all_events.into_iter()) {
-        let events = get_events(program.clone(), &file);
-        file.seek(std::io::SeekFrom::Start(0))
-            .expect("failed to seek to start of tempfile");
+
+    // For each checkpoint, generate events and shard again, then prove the shards.
+    let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+    for mut file in checkpoints.into_iter() {
+        let events = trace_checkpoint(program.clone(), &file);
+        reset_seek(&mut file);
         let shards =
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
         let start = Instant::now();
@@ -273,12 +189,9 @@ where
                 let config = machine.config();
                 let shard_data =
                     LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
-                println!("commitment: {:?}", &shard_data.main_commit);
                 LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
             })
             .collect::<Vec<_>>();
-        // let mut new_proofs = tracing::info_span!("prove")
-        //     .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
         prove_time += start.elapsed().as_millis();
         shard_proofs.append(&mut new_proofs);
     }
@@ -287,22 +200,6 @@ where
         println!("proof index: {}", proof.index);
     }
 
-    // loop {
-    //     let (events, done) =
-    //         tracing::info_span!("runtime.run(...)").in_scope(|| runtime.execute_record());
-    //     cycles += events.cpu_events.len();
-    //     let shards =
-    //         tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
-    //     let start = Instant::now();
-    //     let mut new_proofs = tracing::info_span!("prove")
-    //         .in_scope(|| LocalProver::prove_shards(&machine, &pk, shards, &mut challenger));
-    //     prove_time += start.elapsed().as_millis();
-    //     shard_proofs.append(&mut new_proofs.shard_proofs);
-    //     if done {
-    //         stdout = std::mem::take(&mut runtime.state.output_stream);
-    //         break;
-    //     }
-    // }
     let proof = crate::stark::Proof::<SC> { shard_proofs };
 
     // Prove the program.
