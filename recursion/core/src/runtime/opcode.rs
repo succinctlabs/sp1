@@ -35,6 +35,9 @@ pub enum Opcode {
     JAL = 8,
     JALR = 9,
 
+    // Custom instructions.
+    NUM2BITS32 = 10,
+
     // System instructions.
     TRAP = 30,
 }

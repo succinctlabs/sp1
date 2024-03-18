@@ -87,6 +87,12 @@ pub enum AsmInstruction<F, EF> {
     EBEQ(F, i32, i32),
     /// Branch equal immediate extension
     EBEQI(F, i32, EF),
+
+    // Custom Instructions
+    /// Bit decompose the 32 least significant bits of the value in src and store the bits at the array
+    /// starting at dst.
+    NUM2BITS32(i32, i32),
+
     /// Trap
     TRAP,
 }
@@ -408,6 +414,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 false,
             ),
+            AsmInstruction::NUM2BITS32(dst, input) => Instruction::new(
+                Opcode::NUM2BITS32,
+                i32_f(dst),
+                i32_f_arr(input),
+                zero,
+                false,
+                false,
+            ),
             AsmInstruction::TRAP => {
                 Instruction::new(Opcode::TRAP, F::zero(), zero, zero, false, false)
             }
@@ -573,6 +587,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     lhs,
                     rhs
                 )
+            }
+            AsmInstruction::NUM2BITS32(dst, input) => {
+                write!(f, "num2bits32 ({})fp, ({})fp", dst, input)
             }
             AsmInstruction::TRAP => write!(f, "trap"),
         }

@@ -618,8 +618,10 @@ impl<C: Config> GnarkBackend<C> {
                         b
                     ));
                 }
-                DslIR::Num2Bits(bits, a, num_bits) => match bits {
+                DslIR::Num2Bits32(bits, a) => match bits {
                     Array::Fixed(bits) => {
+                        assert!(bits.len() == 32);
+
                         let bit_slice = self.alloc();
                         let operator = self.assign(bit_slice.clone());
                         lines.push(format!(

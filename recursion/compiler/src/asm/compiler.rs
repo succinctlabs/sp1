@@ -41,13 +41,13 @@ impl<F: Field, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
 impl<F: PrimeField32, EF: ExtensionField<F>> VmBuilder<F, EF> {
     pub fn compile_to_asm(self) -> AssemblyCode<F, EF> {
         let mut compiler = AsmCompiler::new();
-        compiler.build(self.operations);
+        compiler.build(self, self.operations);
         compiler.code()
     }
 
     pub fn compile(self) -> Program<F> {
         let mut compiler = AsmCompiler::new();
-        compiler.build(self.operations);
+        compiler.build(self, self.operations);
         compiler.compile()
     }
 }
@@ -85,7 +85,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
         }
     }
 
-    pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
+    pub fn build(&mut self, builder: VmBuilder<F, EF>, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
         // Set the heap pointer value according to stack size
         let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
         self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
@@ -248,11 +248,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         is_eq: true,
                     };
                     if else_block.is_empty() {
-                        if_compiler.then(|builder| builder.build(then_block));
+                        if_compiler.then(|builder| builder.build(then_block, builder));
                     } else {
                         if_compiler.then_or_else(
-                            |builder| builder.build(then_block),
-                            |builder| builder.build(else_block),
+                            |builder| builder.build(then_block, builder),
+                            |builder| builder.build(else_block, builder),
                         );
                     }
                 }
@@ -264,11 +264,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         is_eq: false,
                     };
                     if else_block.is_empty() {
-                        if_compiler.then(|builder| builder.build(then_block));
+                        if_compiler.then(|builder| builder.build(then_block, builder));
                     } else {
                         if_compiler.then_or_else(
-                            |builder| builder.build(then_block),
-                            |builder| builder.build(else_block),
+                            |builder| builder.build(then_block, builder),
+                            |builder| builder.build(else_block, builder),
                         );
                     }
                 }
@@ -280,11 +280,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         is_eq: true,
                     };
                     if else_block.is_empty() {
-                        if_compiler.then(|builder| builder.build(then_block));
+                        if_compiler.then(|builder| builder.build(then_block, builder));
                     } else {
                         if_compiler.then_or_else(
-                            |builder| builder.build(then_block),
-                            |builder| builder.build(else_block),
+                            |builder| builder.build(then_block, builder),
+                            |builder| builder.build(else_block, builder),
                         );
                     }
                 }
@@ -296,11 +296,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         is_eq: false,
                     };
                     if else_block.is_empty() {
-                        if_compiler.then(|builder| builder.build(then_block));
+                        if_compiler.then(|builder| builder.build(then_block, builder));
                     } else {
                         if_compiler.then_or_else(
-                            |builder| builder.build(then_block),
-                            |builder| builder.build(else_block),
+                            |builder| builder.build(then_block, builder),
+                            |builder| builder.build(else_block, builder),
                         );
                     }
                 }
@@ -310,7 +310,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                             panic!("Start of the loop is greater than the end of the loop");
                         }
                         for _ in start..end {
-                            self.build(block.clone());
+                            self.build(block.clone(), builder);
                         }
                         return;
                     }
@@ -320,7 +320,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         end,
                         loop_var,
                     };
-                    for_compiler.for_each(move |_, builder| builder.build(block));
+                    for_compiler.for_each(move |_, builder| builder.build(block, builder));
                 }
                 DslIR::AssertEqV(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
@@ -451,6 +451,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
+                DslIR::Num2Bits32(bit_array, val) => {
+                    let return_mem = builder.array::<Var<_>, _>(Usize::Var(32));
+                    self.push(AsmInstruction::NUM2BITS32(return_mem.fp(), val.fp()));
+
+                    for i in 0..32 {
+                        let bit = builder.get(&bit_array, i);
+                        let mem_slot = builder.get(&return_mem, i);
+                        self.push(AsmInstruction::LW(bit.fp(), mem_slot.fp()));
+                    }
+                }
             }
         }
     }

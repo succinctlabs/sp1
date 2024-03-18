@@ -333,6 +333,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     self.fp = c_val[0];
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::NUM2BITS32 => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let bytes = b_val.0[0].as_canonical_u64().to_le_bytes();
+
+                    let a_val = Block::from(b_val.0);
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
                 }

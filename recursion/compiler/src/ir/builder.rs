@@ -158,20 +158,12 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    pub fn num2bits<E: Into<SymbolicFelt<C::F>>>(
-        &mut self,
-        val_expr: E,
-        nb_bits: Usize<C::N>,
-    ) -> Array<C, Var<C::N>> {
+    pub fn num2bits32<E: Into<SymbolicFelt<C::F>>>(&mut self, val_expr: E) -> Array<C, Var<C::N>> {
         let val = self.eval(val_expr);
 
-        let mut bits = Vec::new();
-        for _ in 0..nb_bits.value() {
-            bits.push(self.uninit());
-        }
-
-        self.push(DslIR::Num2Bits(Array::Fixed(bits.clone()), val, nb_bits));
-        Array::Fixed(bits)
+        let bits = builder.array(32);
+        self.push(DslIR::Num2Bits32(bits, val));
+        bits
     }
 }
 
