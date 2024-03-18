@@ -4,13 +4,13 @@ use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
-use p3_poseidon2::DiffusionMatrixBabybear;
-use p3_symmetric::Permutation;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::utils::poseidon2_instance::RC_16_30_U32;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
@@ -19,7 +19,7 @@ use crate::runtime::ExecutionRecord;
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON_2_EXTERNAL_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 
-pub const STATE_SIZE: usize = 8;
+pub const WIDTH: usize = 16;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
@@ -29,10 +29,12 @@ pub struct Poseidon2ExternalChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
-    pub input: [T; STATE_SIZE],
-    pub sbox_deg3: [T; STATE_SIZE],
-    pub sbox_deg5: [T; STATE_SIZE],
-    pub output: [T; STATE_SIZE],
+    pub input: [T; WIDTH],
+    pub rounds: [T; 30],
+    pub add_rc: [T; WIDTH],
+    pub sbox_deg_3: [T; WIDTH],
+    pub sbox_deg_7: [T; WIDTH],
+    pub output: [T; WIDTH],
     pub is_real: T,
 }
 
@@ -78,71 +80,69 @@ where
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
 
-        // The round constants.
-        let rc = [
-            AB::F::from_canonical_u32(1),
-            AB::F::from_canonical_u32(2),
-            AB::F::from_canonical_u32(3),
-            AB::F::from_canonical_u32(4),
-            AB::F::from_canonical_u32(5),
-            AB::F::from_canonical_u32(6),
-            AB::F::from_canonical_u32(7),
-            AB::F::from_canonical_u32(8),
-        ];
+        let rounds_f = 8;
+        let rounds_p = 22;
+        let rounds = rounds_f + rounds_p;
+        let rounds_f_beggining = rounds_f / 2;
 
-        let add_rc = local
-            .input
+        // Convert the u32 round constants to field elements.
+        let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
             .iter()
-            .zip(rc.iter())
-            .map(|(x, rc)| *x + *rc)
-            .collect::<Vec<_>>();
-        let sbox_deg3 = add_rc
-            .iter()
-            .map(|x| x.clone() * x.clone() * x.clone())
-            .collect::<Vec<_>>();
-        for i in 0..STATE_SIZE {
-            builder.assert_eq(sbox_deg3[i].clone(), local.sbox_deg3[i]);
-        }
-        let sbox_deg5 = sbox_deg3
-            .iter()
-            .zip(add_rc.iter())
-            .map(|(x, y)| x.clone() * y.clone() * y.clone())
-            .collect::<Vec<_>>();
-        for i in 0..STATE_SIZE {
-            builder.assert_eq(sbox_deg5[i].clone(), local.sbox_deg5[i]);
-        }
-
-        let mut permutation_input_expr: [AB::Expr; 12] = local
-            .sbox_deg5
-            .iter()
-            .map(|x| *x + AB::Expr::zero())
+            .map(|round| round.map(AB::F::from_wrapped_u32))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
 
-        let matrix: [<<AB as p3_air::AirBuilder>::Expr as p3_field::AbstractField>::F; 12] =
-            MATRIX_DIAG_16_BABYBEAR_U32
-                .iter()
-                .map(|x| <<AB as p3_air::AirBuilder>::Expr as p3_field::AbstractField>::F::from_canonical_u32(*x))
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-        matmul_internal(&mut permutation_input_expr, matrix);
+        // self.add_rc(state, &self.constants[r])
+        for i in 0..WIDTH {
+            let mut lc = AB::Expr::zero();
+            for r in 0..rounds_f_beggining {
+                lc += local.input[i] * constants[r][i];
+            }
+            builder.assert_eq(lc, local.add_rc[i]);
+        }
+
+        // self.sbox(state);
+        for i in 0..WIDTH {
+            let sbox_deg_3 = local.add_rc[i] * local.add_rc[i] * local.add_rc[i];
+            builder.assert_eq(sbox_deg_3, local.sbox_deg_3[i]);
+            let sbox_deg_7 = local.sbox_deg_3[i] * local.sbox_deg_3[i] * local.add_rc[i];
+            builder.assert_eq(sbox_deg_7, local.sbox_deg_7[i]);
+        }
     }
 }
 
-pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
-    state: &mut [AF; WIDTH],
-    mat_internal_diag_m_1: [F; WIDTH],
-) {
-    let sum: AF = state.iter().cloned().sum();
-    for i in 0..WIDTH {
-        state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
-        state[i] += sum.clone();
-    }
+pub fn apply_m_4<AF>(x: &mut [AF])
+where
+    AF: AbstractField,
+    AF::F: PrimeField,
+{
+    let t0 = x[0].clone() + x[1].clone();
+    let t1 = x[2].clone() + x[3].clone();
+    let t2 = x[1].clone() + x[1].clone() + t1.clone();
+    let t3 = x[3].clone() + x[3].clone() + t0.clone();
+    let t4 = t1.clone() + t1.clone() + t1.clone() + t1 + t3.clone();
+    let t5 = t0.clone() + t0.clone() + t0.clone() + t0 + t2.clone();
+    let t6 = t3 + t5.clone();
+    let t7 = t2 + t4.clone();
+    x[0] = t6;
+    x[1] = t5;
+    x[2] = t7;
+    x[3] = t4;
 }
 
-const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
-    0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
-    0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,
-];
+// pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
+//     state: &mut [AF; WIDTH],
+//     mat_internal_diag_m_1: [F; WIDTH],
+// ) {
+//     let sum: AF = state.iter().cloned().sum();
+//     for i in 0..WIDTH {
+//         state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
+//         state[i] += sum.clone();
+//     }
+// }
+
+// const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
+//     0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
+//     0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,
+// ];
