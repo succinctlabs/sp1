@@ -292,6 +292,34 @@ where
                     .assert_eq(state[i].clone(), local.output[i]);
             }
         }
+
+        // Range check all flags.
+        for i in 0..local.rounds.len() {
+            builder.assert_bool(local.rounds[i]);
+        }
+        builder.assert_bool(local.is_initial);
+        builder.assert_bool(local.is_external);
+        builder.assert_bool(local.is_internal);
+        builder.assert_bool(local.is_initial + local.is_external + local.is_internal);
+
+        // Constrain the initial flag.
+        builder.assert_eq(local.is_initial, local.rounds[0]);
+
+        // Constrain the external flag.
+        let is_external_first_half = (0..4).map(|i| local.rounds[i + 1].into()).sum::<AB::Expr>();
+        let is_external_second_half = (26..30)
+            .map(|i| local.rounds[i + 1].into())
+            .sum::<AB::Expr>();
+        builder.assert_eq(
+            local.is_external,
+            is_external_first_half + is_external_second_half,
+        );
+
+        // Constrain the internal flag.
+        let is_internal = (4..26)
+            .map(|i| local.rounds[i + 1].into())
+            .sum::<AB::Expr>();
+        builder.assert_eq(local.is_internal, is_internal);
     }
 }
 
