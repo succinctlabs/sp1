@@ -32,10 +32,8 @@ pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
 }
 
 #[cfg(test)]
+#[cfg(not(debug))]
 pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
-    #[cfg(not(feature = "perf"))]
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -51,15 +49,6 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
 
-    #[cfg(not(feature = "perf"))]
-    assert!(debug_interactions_with_all_chips::<
-        BabyBearBlake3,
-        RiscvAir<p3_baby_bear::BabyBear>,
-    >(
-        &machine.chips(),
-        &runtime.record,
-        InteractionKind::all_kinds(),
-    ));
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -74,6 +63,26 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
         (cycles as f64 / time as f64),
         Size::from_bytes(nb_bytes),
     );
+
+    Ok(())
+}
+
+#[cfg(test)]
+#[cfg(debug)]
+pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        runtime
+    });
+    let config = BabyBearBlake3::new();
+    let machine = RiscvAir::machine(config);
+    let (pk, vk) = machine.setup(runtime.program.as_ref());
+    let mut challenger = machine.config().challenger();
+
+    let start = Instant::now();
+    let record = runtime.record;
+    machine.debug_constraints(&pk, record, &mut challenger);
 
     Ok(())
 }

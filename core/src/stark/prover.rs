@@ -382,95 +382,69 @@ where
             )
         });
 
-        #[cfg(feature = "perf")]
-        {
-            // Collect the opened values for each chip.
-            let [main_values, permutation_values, mut quotient_values] =
-                openings.try_into().unwrap();
-            assert!(main_values.len() == chips.len());
-            let main_opened_values = main_values
-                .into_iter()
-                .map(|op| {
-                    let [local, next] = op.try_into().unwrap();
-                    AirOpenedValues { local, next }
-                })
-                .collect::<Vec<_>>();
-            let permutation_opened_values = permutation_values
-                .into_iter()
-                .map(|op| {
-                    let [local, next] = op.try_into().unwrap();
-                    AirOpenedValues { local, next }
-                })
-                .collect::<Vec<_>>();
-            let quotient_opened_values = quotient_values
-                .chunks_exact_mut(quotient_degree)
-                .map(|slice| {
-                    slice
-                        .iter_mut()
-                        .map(|op| op.pop().unwrap())
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
+        // Collect the opened values for each chip.
+        let [main_values, permutation_values, mut quotient_values] = openings.try_into().unwrap();
+        assert!(main_values.len() == chips.len());
+        let main_opened_values = main_values
+            .into_iter()
+            .map(|op| {
+                let [local, next] = op.try_into().unwrap();
+                AirOpenedValues { local, next }
+            })
+            .collect::<Vec<_>>();
+        let permutation_opened_values = permutation_values
+            .into_iter()
+            .map(|op| {
+                let [local, next] = op.try_into().unwrap();
+                AirOpenedValues { local, next }
+            })
+            .collect::<Vec<_>>();
+        let quotient_opened_values = quotient_values
+            .chunks_exact_mut(quotient_degree)
+            .map(|slice| {
+                slice
+                    .iter_mut()
+                    .map(|op| op.pop().unwrap())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
 
-            let opened_values = main_opened_values
-                .into_iter()
-                .zip_eq(permutation_opened_values)
-                .zip_eq(quotient_opened_values)
-                .zip_eq(cumulative_sums)
-                .zip_eq(log_degrees.iter())
-                .map(
-                    |((((main, permutation), quotient), cumulative_sum), log_degree)| {
-                        ChipOpenedValues {
-                            preprocessed: AirOpenedValues {
-                                local: vec![],
-                                next: vec![],
-                            },
-                            main,
-                            permutation,
-                            quotient,
-                            cumulative_sum,
-                            log_degree: *log_degree,
-                        }
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            ShardProof::<SC> {
-                index: shard_data.index,
-                commitment: ShardCommitment {
-                    main_commit: shard_data.main_commit.clone(),
-                    permutation_commit,
-                    quotient_commit,
+        let opened_values = main_opened_values
+            .into_iter()
+            .zip_eq(permutation_opened_values)
+            .zip_eq(quotient_opened_values)
+            .zip_eq(cumulative_sums)
+            .zip_eq(log_degrees.iter())
+            .map(
+                |((((main, permutation), quotient), cumulative_sum), log_degree)| {
+                    ChipOpenedValues {
+                        preprocessed: AirOpenedValues {
+                            local: vec![],
+                            next: vec![],
+                        },
+                        main,
+                        permutation,
+                        quotient,
+                        cumulative_sum,
+                        log_degree: *log_degree,
+                    }
                 },
-                opened_values: ShardOpenedValues {
-                    chips: opened_values,
-                },
-                opening_proof,
-                chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
-            }
-        }
+            )
+            .collect::<Vec<_>>();
 
-        // Check that the table-specific constraints are correct for each chip.
-        #[cfg(not(feature = "perf"))]
-        tracing::info_span!("debug constraints").in_scope(|| {
-            for i in 0..chips.len() {
-                debug_constraints::<SC, A>(
-                    &chips[i],
-                    None,
-                    &traces[i],
-                    &permutation_traces[i],
-                    &permutation_challenges,
-                );
-            }
-        });
-
-        #[cfg(not(feature = "perf"))]
-        return ShardProof {
-            main_commit: shard_data.main_commit.clone(),
-            traces: traces.to_vec(),
-            permutation_traces,
+        ShardProof::<SC> {
+            index: shard_data.index,
+            commitment: ShardCommitment {
+                main_commit: shard_data.main_commit.clone(),
+                permutation_commit,
+                quotient_commit,
+            },
+            opened_values: ShardOpenedValues {
+                chips: opened_values,
+            },
+            opening_proof,
             chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
-        };
+        }
     }
 
     fn commit_shards<F, EF>(

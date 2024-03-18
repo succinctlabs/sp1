@@ -1,15 +1,23 @@
 use std::marker::PhantomData;
 
+use super::debug_constraints;
 use crate::air::MachineAir;
+use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
+use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::VerifierConstraintFolder;
 use p3_air::Air;
 use p3_challenger::CanObserve;
+use p3_challenger::FieldChallenger;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField32;
+use p3_matrix::Matrix;
+use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::*;
 
 use super::Chip;
 use super::Proof;
@@ -177,6 +185,107 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         match sum.is_zero() {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
+        }
+    }
+
+    #[cfg(feature = "debug")]
+    pub fn debug_constraints(
+        &self,
+        _pk: &ProvingKey<SC>,
+        record: A::Record,
+        challenger: &mut SC::Challenger,
+    ) where
+        SC::Val: PrimeField32,
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        tracing::debug!("sharding the execution record");
+        let mut shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+
+        tracing::debug!("checking constraints for each shard");
+
+        let mut cumulative_sum = SC::Challenge::zero();
+        for shard in shards.iter() {
+            // Filter the chips based on what is used.
+            let chips = self.shard_chips(shard).collect::<Vec<_>>();
+
+            // Generate the main trace for each chip.
+            let traces = chips
+                .par_iter()
+                .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .collect::<Vec<_>>();
+
+            // Get a permutation challenge.
+            // Obtain the challenges used for the permutation argument.
+            let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+            for _ in 0..2 {
+                permutation_challenges.push(challenger.sample_ext_element());
+            }
+
+            // Generate the permutation traces.
+            let mut permutation_traces = Vec::with_capacity(chips.len());
+            let mut cumulative_sums = Vec::with_capacity(chips.len());
+            tracing::debug_span!("generate permutation traces").in_scope(|| {
+                chips
+                    .par_iter()
+                    .zip(traces.par_iter())
+                    .map(|(chip, main_trace)| {
+                        let perm_trace = chip.generate_permutation_trace(
+                            &None,
+                            main_trace,
+                            &permutation_challenges,
+                        );
+                        let cumulative_sum = perm_trace
+                            .row_slice(main_trace.height() - 1)
+                            .last()
+                            .copied()
+                            .unwrap();
+                        (perm_trace, cumulative_sum)
+                    })
+                    .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
+            });
+
+            cumulative_sum += cumulative_sums.iter().copied().sum::<SC::Challenge>();
+
+            // Compute some statistics.
+            for i in 0..chips.len() {
+                let trace_width = traces[i].width();
+                let permutation_width = permutation_traces[i].width();
+                let total_width = trace_width + permutation_width;
+                tracing::debug!(
+                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                chips[i].name(),
+                total_width,
+                traces[i].height(),
+                total_width * traces[i].height(),
+                (100f32 * trace_width as f32) / total_width as f32,
+                (100f32 * permutation_width as f32) / total_width as f32);
+            }
+
+            tracing::info_span!("debug constraints").in_scope(|| {
+                for i in 0..chips.len() {
+                    debug_constraints::<SC, A>(
+                        chips[i],
+                        None,
+                        &traces[i],
+                        &permutation_traces[i],
+                        &permutation_challenges,
+                    );
+                }
+            });
+        }
+
+        // If the cumulative sum is not zero, debug the interactions.
+        if !cumulative_sum.is_zero() {
+            // Get the total record
+            let mut record = A::Record::default();
+            for shard in shards.iter_mut() {
+                record.append(shard);
+            }
+            debug_interactions_with_all_chips::<SC, A>(
+                self.chips(),
+                &record,
+                InteractionKind::all_kinds(),
+            );
         }
     }
 }
