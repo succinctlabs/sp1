@@ -80,7 +80,7 @@ impl Syscall for K256DecompressChip {
     fn execute(&self, rt: &mut SyscallContext, slice_ptr: u32, is_odd: u32) -> Option<u32> {
         let start_clk = rt.clk;
         assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
-        assert!(is_odd < 2, "is_odd must be 0 or 1");
+        assert!(is_odd <= 1, "is_odd must be 0 or 1");
 
         let (x_memory_records_vec, x_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),

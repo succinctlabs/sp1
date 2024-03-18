@@ -210,12 +210,8 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, sign: u32) -> Option<u32> {
         let start_clk = rt.clk;
         let slice_ptr = arg1;
-        if slice_ptr % 4 != 0 {
-            panic!("Pointer must be 4-byte aligned.");
-        }
-        if sign > 1 {
-            panic!("Sign bit must be 0 or 1.");
-        }
+        assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
+        assert!(sign <= 1, "Sign bit must be 0 or 1.");
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
