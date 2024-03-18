@@ -401,8 +401,6 @@ pub mod tests {
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
-
-            // SP1Verifier::verify(SECP256K1_DECOMPRESS_ELF, &proof).unwrap();
         }
     }
 }
