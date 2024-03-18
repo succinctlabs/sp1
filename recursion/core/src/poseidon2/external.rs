@@ -328,17 +328,19 @@ mod tests {
     use std::borrow::BorrowMut;
 
     use p3_baby_bear::BabyBear;
+    use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::Permutation;
+    use p3_poseidon2::Poseidon2;
+    use sp1_core::stark::StarkGenericConfig;
     use sp1_core::{
         air::MachineAir,
-        utils::{poseidon2_instance::RC_16_30, uni_stark_prove, BabyBearPoseidon2, StarkUtils},
+        utils::{poseidon2_instance::RC_16_30, uni_stark_prove, BabyBearPoseidon2},
     };
 
     use crate::poseidon2::external::WIDTH;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
+    use p3_symmetric::Permutation;
 
     use super::{Poseidon2Cols, NUM_POSEIDON2_COLS};
 
