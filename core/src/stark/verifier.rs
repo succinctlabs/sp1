@@ -10,7 +10,6 @@ use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
-use p3_util::reverse_slice_index_bits;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
@@ -36,8 +35,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         use itertools::izip;
-
-        use super::quotient;
 
         let ShardProof {
             commitment,
@@ -118,7 +115,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let quotient_chunk_domains = trace_domains
             .iter()
             .zip_eq(log_degrees)
-            .zip_eq(log_quotient_degrees.iter())
+            .zip_eq(log_quotient_degrees)
             .map(|((domain, log_degree), log_quotient_degree)| {
                 let quotient_degree = 1 << log_quotient_degree;
                 let quotient_domain =
@@ -156,19 +153,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         // Verify the constrtaint evaluations.
 
-        for (chip, trace_domain, qc_domains, values, log_q_degree) in izip!(
+        for (chip, trace_domain, qc_domains, values) in izip!(
             chips.iter(),
             trace_domains,
             quotient_chunk_domains,
             opened_values.chips.iter(),
-            log_quotient_degrees,
         ) {
             Self::verify_constraints(
                 chip,
                 values.clone(),
                 trace_domain,
                 qc_domains,
-                log_q_degree,
                 zeta,
                 alpha,
                 &permutation_challenges,
@@ -190,13 +185,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     }
 
     #[cfg(feature = "perf")]
-    #[allow(clippy::too_many_arguments)]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
         opening: ChipOpenedValues<SC::Challenge>,
         trace_domain: Domain<SC>,
         qc_domains: Vec<Domain<SC>>,
-        log_quotient_degree: usize,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
@@ -223,10 +216,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             })
             .collect_vec();
 
-        for q_vals in opening.quotient.iter() {
-            assert_eq!(q_vals.len(), SC::Challenge::D);
-        }
-
         let quotient = opening
             .quotient
             .iter()
@@ -241,17 +230,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .sum::<SC::Challenge>();
 
         // Reconstruct the prmutation opening values as extention elements.
-        let monomials = (0..SC::Challenge::D)
-            .map(SC::Challenge::monomial)
-            .collect::<Vec<_>>();
-
         let unflatten = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
                 .map(|chunk| {
                     chunk
                         .iter()
-                        .zip(monomials.iter())
-                        .map(|(x, m)| *x * *m)
+                        .enumerate()
+                        .map(|(e_i, &x)| SC::Challenge::monomial(e_i) * x)
                         .sum()
                 })
                 .collect::<Vec<SC::Challenge>>()

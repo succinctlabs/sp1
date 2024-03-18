@@ -90,7 +90,7 @@ where
                     PackedChallenge::<SC>::from_base_fn(|i| {
                         PackedVal::<SC>::from_fn(|offset| {
                             permutation_trace_on_quotient_domain
-                                .get(wrap(i_start + offset), col + i)
+                                .get(wrap(i_start + next_step + offset), col + i)
                         })
                     })
                 })

@@ -339,12 +339,12 @@ where
         // Split the quotient values and commit to them.
         let quotient_domains_and_chunks = quotient_domains
             .into_iter()
-            .zip(quotient_values)
+            .zip_eq(quotient_values)
             .flat_map(|(quotient_domain, quotient_values)| {
                 let quotient_flat = RowMajorMatrix::new_col(quotient_values).flatten_to_base();
                 let quotient_chunks = quotient_domain.split_evals(quotient_degree, quotient_flat);
                 let qc_domains = quotient_domain.split_domains(quotient_degree);
-                qc_domains.into_iter().zip(quotient_chunks)
+                qc_domains.into_iter().zip_eq(quotient_chunks)
             })
             .collect::<Vec<_>>();
 
@@ -407,10 +407,7 @@ where
                 .map(|slice| {
                     slice
                         .iter_mut()
-                        .map(|op| {
-                            assert_eq!(op.len(), 1);
-                            op.pop().unwrap()
-                        })
+                        .map(|op| op.pop().unwrap())
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
