@@ -100,7 +100,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                         cols.g.populate(output, input);
                     }
 
-                    clk += 4;
+                    clk += 1;
 
                     cols.is_real = F::one();
 

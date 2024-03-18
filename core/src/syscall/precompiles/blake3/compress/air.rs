@@ -35,6 +35,7 @@ where
         self.constrain_g_operation(builder, local);
 
         // TODO: constraint ecall_receive
+        // TODO: have to constraint the clk to increment by 1 each time.
         builder.receive_ecall(
             local.segment, // TODO: rename this to "shard"
             local.clk,
