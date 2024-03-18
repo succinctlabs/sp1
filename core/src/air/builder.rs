@@ -396,12 +396,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         EVerify: Into<Self::Expr> + std::marker::Copy,
         M: MemoryCols<Eb>,
     {
-        for i in 0..memory_access_slice.len() {
+        for (i, access_slice) in memory_access_slice.iter().enumerate() {
             self.constraint_memory_access(
                 shard,
                 clk.clone(),
                 initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
-                &memory_access_slice[i],
+                access_slice,
                 verify_memory_access,
             );
         }
@@ -515,7 +515,8 @@ impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuil
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
-impl<'a, Challenge: Field> EmptyMessageBuilder for VerifierConstraintFolder<'a, Challenge> {}
+impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
 
+#[cfg(debug_assertions)]
 impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}

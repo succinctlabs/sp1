@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
 use crate::air::MachineAir;
-use crate::stark::{MachineChip, StarkGenericConfig};
+use crate::stark::{MachineChip, StarkGenericConfig, Val};
 
 use super::InteractionKind;
 
@@ -32,9 +32,13 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
     result
 }
 
-fn babybear_to_int(n: BabyBear) -> i32 {
+/// Display field elements as signed integers on the range `[-modulus/2, modulus/2]`.
+///
+/// This presentation is useful when debugging interactions as it makes it clear which interactions
+/// are `send` and which are `receive`.
+fn field_to_int<F: PrimeField32>(x: F) -> i32 {
     let modulus = BabyBear::ORDER_U64;
-    let val = n.as_canonical_u64();
+    let val = x.as_canonical_u64();
     if val > modulus / 2 {
         val as i32 - modulus as i32
     } else {
@@ -42,13 +46,13 @@ fn babybear_to_int(n: BabyBear) -> i32 {
     }
 }
 
-pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     chip: &MachineChip<SC, A>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
-    BTreeMap<String, Vec<InteractionData<SC::Val>>>,
-    BTreeMap<String, SC::Val>,
+    BTreeMap<String, Vec<InteractionData<Val<SC>>>>,
+    BTreeMap<String, Val<SC>>,
 ) {
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
@@ -69,12 +73,12 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
                 continue;
             }
             let is_send = m < nb_send_interactions;
-            let multiplicity_eval: SC::Val = interaction.multiplicity.apply(&[], main.row_mut(row));
+            let multiplicity_eval: Val<SC> = interaction.multiplicity.apply(&[], main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
                 for value in &interaction.values {
-                    let expr: SC::Val = value.apply(&[], main.row_mut(row));
+                    let expr: Val<SC> = value.apply(&[], main.row_mut(row));
                     values.push(expr);
                 }
                 let key = format!(
@@ -93,7 +97,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
                         is_send,
                         multiplicity: multiplicity_eval,
                     });
-                let current = key_to_count.entry(key.clone()).or_insert(SC::Val::zero());
+                let current = key_to_count.entry(key.clone()).or_insert(Val::<SC>::zero());
                 if is_send {
                     *current += multiplicity_eval;
                 } else {
@@ -108,14 +112,16 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
 
 /// Calculate the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
-pub fn debug_interactions_with_all_chips<
-    SC: StarkGenericConfig<Val = BabyBear>,
-    A: MachineAir<SC::Val>,
->(
+pub fn debug_interactions_with_all_chips<SC, A>(
     chips: &[MachineChip<SC, A>],
     segment: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
-) -> bool {
+) -> bool
+where
+    SC: StarkGenericConfig,
+    SC::Val: PrimeField32,
+    A: MachineAir<SC::Val>,
+{
     let mut final_map = BTreeMap::new();
 
     for chip in chips.iter() {
@@ -136,18 +142,18 @@ pub fn debug_interactions_with_all_chips<
 
     let mut any_nonzero = false;
     for (key, (value, chip_values)) in final_map.clone() {
-        if !SC::Val::is_zero(&value) {
+        if !Val::<SC>::is_zero(&value) {
             tracing::debug!(
                 "Interaction key: {} Send-Receive Discrepancy: {}",
                 key,
-                babybear_to_int(value)
+                field_to_int(value)
             );
             any_nonzero = true;
             for (chip, chip_value) in chip_values {
                 tracing::debug!(
                     " {} chip's send-receive discrepancy for this key is {}",
                     chip,
-                    babybear_to_int(chip_value)
+                    field_to_int(chip_value)
                 );
             }
         }

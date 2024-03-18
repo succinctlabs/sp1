@@ -17,7 +17,6 @@ pub mod tests {
     use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
     use sp1_core::utils::BabyBearPoseidon2;
-    use sp1_core::utils::StarkUtils;
     use std::time::Instant;
 
     type F = BabyBear;
