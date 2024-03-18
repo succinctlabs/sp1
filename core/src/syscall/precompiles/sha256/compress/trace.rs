@@ -202,8 +202,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.shard = F::from_canonical_u32(event.shard);
-                let clk = event.clk + 1;
-                cols.clk = F::from_canonical_u32(clk);
+                cols.clk = F::from_canonical_u32(event.clk);
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
                 cols.h_ptr = F::from_canonical_u32(event.h_ptr);
 

@@ -187,13 +187,7 @@ impl Runtime {
         record.timestamp = timestamp;
 
         // Construct the memory read record.
-        MemoryReadRecord {
-            value,
-            shard,
-            timestamp,
-            prev_shard,
-            prev_timestamp,
-        }
+        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
     }
 
     /// Write a word to memory and create an access record.
@@ -224,14 +218,14 @@ impl Runtime {
         record.timestamp = timestamp;
 
         // Construct the memory write record.
-        MemoryWriteRecord {
+        MemoryWriteRecord::new(
             value,
-            prev_value,
             shard,
             timestamp,
+            prev_value,
             prev_shard,
             prev_timestamp,
-        }
+        )
     }
 
     /// Read from memory, assuming that all addresses are aligned.

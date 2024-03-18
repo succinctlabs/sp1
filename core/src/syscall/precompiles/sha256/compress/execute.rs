@@ -16,6 +16,7 @@ impl Syscall for ShaCompressChip {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let w_ptr = arg1;
         let h_ptr = arg2;
+        assert_ne!(w_ptr, h_ptr);
 
         // Set the clock back to the original value and begin executing the
         // precompile.
@@ -25,12 +26,17 @@ impl Syscall for ShaCompressChip {
         let mut h_write_records = Vec::new();
 
         // Execute the "initialize" phase where we read in the h values.
+        println!("reading in ht");
         let mut hx = [0u32; 8];
         for i in 0..8 {
             let (record, value) = rt.mr(h_ptr + i as u32 * 4);
             h_read_records.push(record);
             hx[i] = value;
         }
+
+        println!("reading in w");
+        println!("w_ptr: {}", w_ptr);
+        println!("h_ptr: {}", h_ptr);
 
         let mut original_w = Vec::new();
         // Execute the "compress" phase.
@@ -66,7 +72,7 @@ impl Syscall for ShaCompressChip {
             b = a;
             a = temp1.wrapping_add(temp2);
         }
-
+        println!("done with compress");
         // Increment the clk by 1 before writing to h, since we've already read h at the start_clk
         // during the initialization phase.
         rt.clk += 1;

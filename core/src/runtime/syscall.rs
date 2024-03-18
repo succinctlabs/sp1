@@ -85,7 +85,7 @@ impl SyscallCode {
             0x00_01_01_05 => SyscallCode::SECP256K1_ADD,
             0x00_00_01_06 => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_07 => SyscallCode::SECP256K1_DECOMPRESS,
-            0x00_80_01_08 => SyscallCode::BLAKE3_COMPRESS_INNER,
+            0x00_38_01_08 => SyscallCode::BLAKE3_COMPRESS_INNER,
             _ => panic!("invalid syscall number: {}", value),
         }
     }

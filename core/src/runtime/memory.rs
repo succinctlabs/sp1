@@ -37,6 +37,7 @@ pub struct MemoryReadRecord {
     pub timestamp: u32,
     pub prev_shard: u32,
     pub prev_timestamp: u32,
+    _private: (),
 }
 
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
@@ -48,6 +49,7 @@ pub struct MemoryWriteRecord {
     pub prev_value: u32,
     pub prev_shard: u32,
     pub prev_timestamp: u32,
+    _private: (),
 }
 
 impl MemoryRecordEnum {
@@ -86,6 +88,7 @@ impl MemoryReadRecord {
             timestamp,
             prev_shard,
             prev_timestamp,
+            _private: (),
         }
     }
 }
@@ -107,6 +110,7 @@ impl MemoryWriteRecord {
             prev_value,
             prev_shard,
             prev_timestamp,
+            _private: (),
         }
     }
 }

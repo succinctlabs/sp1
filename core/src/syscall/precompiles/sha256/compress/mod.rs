@@ -49,7 +49,7 @@ pub mod compress_tests {
 
     pub fn sha_compress_program() -> Program {
         let w_ptr = 100;
-        let h_ptr = 200;
+        let h_ptr = 1000;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
         for i in 0..64 {
             instructions.extend(vec![

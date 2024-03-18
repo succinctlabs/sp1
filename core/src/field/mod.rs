@@ -67,7 +67,6 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
             .field_events
             .par_iter()
             .flat_map_iter(|event| {
-                println!("event: {:?}", event);
                 let mut row = [F::zero(); NUM_FIELD_COLS];
                 let cols: &mut FieldLtuCols<F> = row.as_mut_slice().borrow_mut();
                 let diff = event.b.wrapping_sub(event.c).wrapping_add(1 << LTU_NB_BITS);
@@ -78,6 +77,9 @@ impl<F: PrimeField> MachineAir<F> for FieldLtuChip {
                 }
                 let max = 1 << LTU_NB_BITS;
                 if diff >= max {
+                    println!("b: {}", event.b);
+                    println!("c: {}", event.c);
+                    println!("diff: {}", diff);
                     panic!("diff overflow");
                 }
                 cols.lt = F::from_bool(event.ltu);

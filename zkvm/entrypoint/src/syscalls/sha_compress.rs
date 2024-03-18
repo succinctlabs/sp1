@@ -9,8 +9,8 @@ pub extern "C" fn syscall_sha256_compress(w: *mut u32, state: *mut u32) {
         asm!(
             "ecall",
             in("t0") crate::syscalls::SHA_COMPRESS,
-            in("a0") w.as_ptr(),
-            in("a1") state.as_ptr(),
+            in("a0") w,
+            in("a1") state,
         );
     }
 }
